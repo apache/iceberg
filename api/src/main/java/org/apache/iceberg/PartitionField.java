@@ -19,7 +19,7 @@
 
 package org.apache.iceberg;
 
-import org.apache.iceberg.shaded.com.google.common.base.Objects;
+import com.google.common.shaded.base.Objects;
 import java.io.Serializable;
 import org.apache.iceberg.transforms.Transform;
 

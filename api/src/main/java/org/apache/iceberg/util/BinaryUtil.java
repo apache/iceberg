@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.util;
 
-import org.apache.iceberg.shaded.com.google.common.base.Preconditions;
+import com.google.common.shaded.base.Preconditions;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.expressions.Literal;
 

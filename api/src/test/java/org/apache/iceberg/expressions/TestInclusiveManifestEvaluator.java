@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.expressions;
 
-import org.apache.iceberg.shaded.com.google.common.collect.ImmutableList;
+import com.google.common.shaded.collect.ImmutableList;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.ManifestFile;

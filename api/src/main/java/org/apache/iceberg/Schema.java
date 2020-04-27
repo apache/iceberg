@@ -19,11 +19,11 @@
 
 package org.apache.iceberg;
 
-import org.apache.iceberg.shaded.com.google.common.base.Joiner;
-import org.apache.iceberg.shaded.com.google.common.base.Preconditions;
-import org.apache.iceberg.shaded.com.google.common.collect.BiMap;
-import org.apache.iceberg.shaded.com.google.common.collect.ImmutableBiMap;
-import org.apache.iceberg.shaded.com.google.common.collect.Sets;
+import com.google.common.shaded.base.Joiner;
+import com.google.common.shaded.base.Preconditions;
+import com.google.common.shaded.collect.BiMap;
+import com.google.common.shaded.collect.ImmutableBiMap;
+import com.google.common.shaded.collect.Sets;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;

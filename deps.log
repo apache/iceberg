@@ -1,0 +1,1224 @@
+
+------------------------------------------------------------
+Root project
+------------------------------------------------------------
+
+archives - Configuration for archive artifacts.
+No dependencies
+
+baseline
+\--- com.palantir.baseline:gradle-baseline-java-config:0.55.0
+
+consistentVersionsPlaceholder (n)
+No dependencies
+
+consistentVersionsProduction - Outgoing configuration for production dependencies meant to be used by consistent-versions (n)
+No dependencies
+
+consistentVersionsTest - Outgoing configuration for test dependencies meant to be used by consistent-versions (n)
+No dependencies
+
+default - Configuration for default artifacts.
+No dependencies
+
+lockConstraints (n)
+No dependencies
+
+rootConfiguration
+No dependencies
+
+unifiedClasspath
++--- project : (*)
++--- project : (*)
++--- project :iceberg-api
+|    +--- project :iceberg-api (*)
+|    +--- org.slf4j:slf4j-api:1.7.22 -> 1.7.25 (c)
+|    +--- junit:junit:4.12 (c)
+|    +--- joda-time:joda-time:2.9.9 (c)
+|    +--- org.mockito:mockito-core:1.10.19 (c)
+|    +--- org.apache.avro:avro:1.9.2 (c)
+|    +--- org.slf4j:slf4j-simple:1.7.5 (c)
+|    +--- org.apache.arrow:arrow-vector:0.14.1 (c)
+|    +--- com.github.ben-manes.caffeine:caffeine:2.7.0 (c)
+|    +--- org.apache.hive:hive-metastore:2.3.6 (c)
+|    +--- org.apache.hive:hive-exec:2.3.6 (c)
+|    +--- org.apache.parquet:parquet-avro:1.11.0 (c)
+|    +--- org.apache.commons:commons-lang3:3.9 (c)
+|    +--- org.apache.pig:pig:0.14.0 (c)
+|    +--- org.apache.spark:spark-hive_2.11:2.4.5 (c)
+|    +--- org.apache.spark:spark-avro_2.11:2.4.5 (c)
+|    +--- org.slf4j:slf4j-api -> 1.7.25
+|    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    +--- project :iceberg-relocate-external-dependencies
+|    |    +--- project :iceberg-relocate-external-dependencies (*)
+|    |    +--- org.slf4j:slf4j-api:1.7.22 -> 1.7.25 (c)
+|    |    +--- junit:junit:4.12 (c)
+|    |    +--- joda-time:joda-time:2.9.9 (c)
+|    |    +--- org.mockito:mockito-core:1.10.19 (c)
+|    |    +--- org.apache.avro:avro:1.9.2 (c)
+|    |    +--- org.slf4j:slf4j-simple:1.7.5 (c)
+|    |    +--- org.apache.arrow:arrow-vector:0.14.1 (c)
+|    |    +--- com.github.ben-manes.caffeine:caffeine:2.7.0 (c)
+|    |    +--- org.apache.hive:hive-metastore:2.3.6 (c)
+|    |    +--- org.apache.hive:hive-exec:2.3.6 (c)
+|    |    +--- org.apache.parquet:parquet-avro:1.11.0 (c)
+|    |    +--- org.apache.commons:commons-lang3:3.9 (c)
+|    |    +--- org.apache.pig:pig:0.14.0 (c)
+|    |    +--- org.apache.spark:spark-hive_2.11:2.4.5 (c)
+|    |    +--- org.apache.spark:spark-avro_2.11:2.4.5 (c)
+|    |    +--- org.slf4j:slf4j-api -> 1.7.25
+|    |    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    |    +--- com.google.guava:guava:28.0-jre
+|    |    |    +--- com.google.guava:failureaccess:1.0.1
+|    |    |    +--- com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava
+|    |    |    +--- com.google.code.findbugs:jsr305:3.0.2
+|    |    |    +--- org.checkerframework:checker-qual:2.8.1
+|    |    |    +--- com.google.errorprone:error_prone_annotations:2.3.2 -> 2.3.3
+|    |    |    +--- com.google.j2objc:j2objc-annotations:1.3
+|    |    |    \--- org.codehaus.mojo:animal-sniffer-annotations:1.17
+|    |    +--- junit:junit -> 4.12
+|    |    |    \--- org.hamcrest:hamcrest-core:1.3
+|    |    +--- org.slf4j:slf4j-simple -> 1.7.5
+|    |    |    \--- org.slf4j:slf4j-api:1.7.5 -> 1.7.25
+|    |    +--- org.mockito:mockito-core -> 1.10.19
+|    |    |    +--- org.hamcrest:hamcrest-core:1.1 -> 1.3
+|    |    |    \--- org.objenesis:objenesis:2.1 -> 2.5.1
+|    |    +--- org.slf4j:slf4j-api -> 1.7.25
+|    |    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    |    \--- com.google.guava:guava:28.0-jre (*)
+|    +--- junit:junit -> 4.12 (*)
+|    +--- org.slf4j:slf4j-simple -> 1.7.5 (*)
+|    +--- org.mockito:mockito-core -> 1.10.19 (*)
+|    +--- org.apache.avro:avro -> 1.9.2
+|    |    +--- com.fasterxml.jackson.core:jackson-core:2.10.2
+|    |    +--- com.fasterxml.jackson.core:jackson-databind:2.10.2
+|    |    |    +--- com.fasterxml.jackson.core:jackson-annotations:2.10.2
+|    |    |    \--- com.fasterxml.jackson.core:jackson-core:2.10.2
+|    |    +--- org.apache.commons:commons-compress:1.19
+|    |    \--- org.slf4j:slf4j-api:1.7.25
+|    +--- joda-time:joda-time -> 2.9.9
+|    +--- org.slf4j:slf4j-api -> 1.7.25
+|    \--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
++--- project :iceberg-api (*)
++--- project :iceberg-arrow
+|    +--- project :iceberg-arrow (*)
+|    +--- org.slf4j:slf4j-api:1.7.22 -> 1.7.25 (c)
+|    +--- junit:junit:4.12 (c)
+|    +--- joda-time:joda-time:2.9.9 (c)
+|    +--- org.mockito:mockito-core:1.10.19 (c)
+|    +--- org.apache.avro:avro:1.9.2 (c)
+|    +--- org.slf4j:slf4j-simple:1.7.5 (c)
+|    +--- org.apache.arrow:arrow-vector:0.14.1 (c)
+|    +--- com.github.ben-manes.caffeine:caffeine:2.7.0 (c)
+|    +--- org.apache.hive:hive-metastore:2.3.6 (c)
+|    +--- org.apache.hive:hive-exec:2.3.6 (c)
+|    +--- org.apache.parquet:parquet-avro:1.11.0 (c)
+|    +--- org.apache.commons:commons-lang3:3.9 (c)
+|    +--- org.apache.pig:pig:0.14.0 (c)
+|    +--- org.apache.spark:spark-hive_2.11:2.4.5 (c)
+|    +--- org.apache.spark:spark-avro_2.11:2.4.5 (c)
+|    +--- org.slf4j:slf4j-api -> 1.7.25
+|    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    +--- project :iceberg-api (*)
+|    +--- project :iceberg-parquet
+|    |    +--- project :iceberg-parquet (*)
+|    |    +--- org.slf4j:slf4j-api:1.7.22 -> 1.7.25 (c)
+|    |    +--- junit:junit:4.12 (c)
+|    |    +--- joda-time:joda-time:2.9.9 (c)
+|    |    +--- org.mockito:mockito-core:1.10.19 (c)
+|    |    +--- org.apache.avro:avro:1.9.2 (c)
+|    |    +--- org.slf4j:slf4j-simple:1.7.5 (c)
+|    |    +--- org.apache.arrow:arrow-vector:0.14.1 (c)
+|    |    +--- com.github.ben-manes.caffeine:caffeine:2.7.0 (c)
+|    |    +--- org.apache.hive:hive-metastore:2.3.6 (c)
+|    |    +--- org.apache.hive:hive-exec:2.3.6 (c)
+|    |    +--- org.apache.parquet:parquet-avro:1.11.0 (c)
+|    |    +--- org.apache.commons:commons-lang3:3.9 (c)
+|    |    +--- org.apache.pig:pig:0.14.0 (c)
+|    |    +--- org.apache.spark:spark-hive_2.11:2.4.5 (c)
+|    |    +--- org.apache.spark:spark-avro_2.11:2.4.5 (c)
+|    |    +--- org.apache.avro:avro -> 1.9.2 (*)
+|    |    +--- org.apache.hadoop:hadoop-client:2.7.3
+|    |    |    +--- org.apache.hadoop:hadoop-common:2.7.3
+|    |    |    |    +--- org.apache.hadoop:hadoop-annotations:2.7.3
+|    |    |    |    +--- com.google.guava:guava:11.0.2 -> 28.0-jre (*)
+|    |    |    |    +--- commons-cli:commons-cli:1.2
+|    |    |    |    +--- org.apache.commons:commons-math3:3.1.1 -> 3.4.1
+|    |    |    |    +--- xmlenc:xmlenc:0.52
+|    |    |    |    +--- commons-httpclient:commons-httpclient:3.1
+|    |    |    |    |    +--- commons-logging:commons-logging:1.0.4 -> 1.2
+|    |    |    |    |    \--- commons-codec:commons-codec:1.2 -> 1.10
+|    |    |    |    +--- commons-codec:commons-codec:1.4 -> 1.10
+|    |    |    |    +--- commons-io:commons-io:2.4
+|    |    |    |    +--- commons-net:commons-net:3.1
+|    |    |    |    +--- commons-collections:commons-collections:3.2.2
+|    |    |    |    +--- javax.servlet:servlet-api:2.5
+|    |    |    |    +--- javax.servlet.jsp:jsp-api:2.1
+|    |    |    |    +--- com.sun.jersey:jersey-core:1.9
+|    |    |    |    +--- com.sun.jersey:jersey-json:1.9
+|    |    |    |    |    +--- org.codehaus.jettison:jettison:1.1
+|    |    |    |    |    +--- com.sun.xml.bind:jaxb-impl:2.2.3-1
+|    |    |    |    |    |    \--- javax.xml.bind:jaxb-api:2.2.2 -> 2.2.11
+|    |    |    |    |    +--- org.codehaus.jackson:jackson-core-asl:1.8.3 -> 1.9.13
+|    |    |    |    |    +--- org.codehaus.jackson:jackson-mapper-asl:1.8.3 -> 1.9.13
+|    |    |    |    |    |    \--- org.codehaus.jackson:jackson-core-asl:1.9.13
+|    |    |    |    |    +--- org.codehaus.jackson:jackson-jaxrs:1.8.3 -> 1.9.13
+|    |    |    |    |    |    +--- org.codehaus.jackson:jackson-core-asl:1.9.13
+|    |    |    |    |    |    \--- org.codehaus.jackson:jackson-mapper-asl:1.9.13 (*)
+|    |    |    |    |    +--- org.codehaus.jackson:jackson-xc:1.8.3 -> 1.9.13
+|    |    |    |    |    |    +--- org.codehaus.jackson:jackson-core-asl:1.9.13
+|    |    |    |    |    |    \--- org.codehaus.jackson:jackson-mapper-asl:1.9.13 (*)
+|    |    |    |    |    \--- com.sun.jersey:jersey-core:1.9
+|    |    |    |    +--- com.sun.jersey:jersey-server:1.9
+|    |    |    |    |    +--- asm:asm:3.1
+|    |    |    |    |    \--- com.sun.jersey:jersey-core:1.9
+|    |    |    |    +--- commons-logging:commons-logging:1.1.3 -> 1.2
+|    |    |    |    +--- log4j:log4j:1.2.17
+|    |    |    |    +--- net.java.dev.jets3t:jets3t:0.9.0
+|    |    |    |    |    +--- commons-codec:commons-codec:1.4 -> 1.10
+|    |    |    |    |    +--- commons-logging:commons-logging:1.1.1 -> 1.2
+|    |    |    |    |    +--- org.apache.httpcomponents:httpclient:4.1.2 -> 4.5.6
+|    |    |    |    |    |    +--- org.apache.httpcomponents:httpcore:4.4.10
+|    |    |    |    |    |    +--- commons-logging:commons-logging:1.2
+|    |    |    |    |    |    \--- commons-codec:commons-codec:1.10
+|    |    |    |    |    +--- org.apache.httpcomponents:httpcore:4.1.2 -> 4.4.10
+|    |    |    |    |    \--- com.jamesmurty.utils:java-xmlbuilder:0.4
+|    |    |    |    +--- commons-lang:commons-lang:2.6
+|    |    |    |    +--- commons-configuration:commons-configuration:1.6
+|    |    |    |    |    +--- commons-collections:commons-collections:3.2.1 -> 3.2.2
+|    |    |    |    |    +--- commons-lang:commons-lang:2.4 -> 2.6
+|    |    |    |    |    +--- commons-logging:commons-logging:1.1.1 -> 1.2
+|    |    |    |    |    +--- commons-digester:commons-digester:1.8
+|    |    |    |    |    |    +--- commons-beanutils:commons-beanutils:1.7.0
+|    |    |    |    |    |    |    \--- commons-logging:commons-logging:1.0.3 -> 1.2
+|    |    |    |    |    |    \--- commons-logging:commons-logging:1.1 -> 1.2
+|    |    |    |    |    \--- commons-beanutils:commons-beanutils-core:1.8.0
+|    |    |    |    |         \--- commons-logging:commons-logging:1.1.1 -> 1.2
+|    |    |    |    +--- org.slf4j:slf4j-api:1.7.10 -> 1.7.25
+|    |    |    |    +--- org.codehaus.jackson:jackson-core-asl:1.9.13
+|    |    |    |    +--- org.codehaus.jackson:jackson-mapper-asl:1.9.13 (*)
+|    |    |    |    +--- org.apache.avro:avro:1.7.4 -> 1.9.2 (*)
+|    |    |    |    +--- com.google.protobuf:protobuf-java:2.5.0
+|    |    |    |    +--- com.google.code.gson:gson:2.2.4
+|    |    |    |    +--- org.apache.hadoop:hadoop-auth:2.7.3
+|    |    |    |    |    +--- org.slf4j:slf4j-api:1.7.10 -> 1.7.25
+|    |    |    |    |    +--- commons-codec:commons-codec:1.4 -> 1.10
+|    |    |    |    |    +--- log4j:log4j:1.2.17
+|    |    |    |    |    +--- org.apache.httpcomponents:httpclient:4.2.5 -> 4.5.6 (*)
+|    |    |    |    |    +--- org.apache.directory.server:apacheds-kerberos-codec:2.0.0-M15
+|    |    |    |    |    |    +--- org.apache.directory.server:apacheds-i18n:2.0.0-M15
+|    |    |    |    |    |    |    \--- org.slf4j:slf4j-api:1.7.5 -> 1.7.25
+|    |    |    |    |    |    +--- org.apache.directory.api:api-asn1-api:1.0.0-M20
+|    |    |    |    |    |    |    \--- org.slf4j:slf4j-api:1.7.5 -> 1.7.25
+|    |    |    |    |    |    +--- org.apache.directory.api:api-util:1.0.0-M20
+|    |    |    |    |    |    |    \--- org.slf4j:slf4j-api:1.7.5 -> 1.7.25
+|    |    |    |    |    |    \--- org.slf4j:slf4j-api:1.7.5 -> 1.7.25
+|    |    |    |    |    +--- org.apache.zookeeper:zookeeper:3.4.6
+|    |    |    |    |    |    +--- org.slf4j:slf4j-api:1.6.1 -> 1.7.25
+|    |    |    |    |    |    +--- log4j:log4j:1.2.16 -> 1.2.17
+|    |    |    |    |    |    +--- jline:jline:0.9.94 -> 2.12
+|    |    |    |    |    |    \--- io.netty:netty:3.7.0.Final -> 3.9.9.Final
+|    |    |    |    |    \--- org.apache.curator:curator-framework:2.7.1
+|    |    |    |    |         +--- org.apache.curator:curator-client:2.7.1
+|    |    |    |    |         |    +--- org.slf4j:slf4j-api:1.7.6 -> 1.7.25
+|    |    |    |    |         |    +--- org.apache.zookeeper:zookeeper:3.4.6 (*)
+|    |    |    |    |         |    \--- com.google.guava:guava:16.0.1 -> 28.0-jre (*)
+|    |    |    |    |         +--- org.apache.zookeeper:zookeeper:3.4.6 (*)
+|    |    |    |    |         \--- com.google.guava:guava:16.0.1 -> 28.0-jre (*)
+|    |    |    |    +--- com.jcraft:jsch:0.1.42
+|    |    |    |    +--- org.apache.curator:curator-client:2.7.1 (*)
+|    |    |    |    +--- org.apache.curator:curator-recipes:2.7.1
+|    |    |    |    |    +--- org.apache.curator:curator-framework:2.7.1 (*)
+|    |    |    |    |    +--- org.apache.zookeeper:zookeeper:3.4.6 (*)
+|    |    |    |    |    \--- com.google.guava:guava:16.0.1 -> 28.0-jre (*)
+|    |    |    |    +--- com.google.code.findbugs:jsr305:3.0.0 -> 3.0.2
+|    |    |    |    +--- org.apache.htrace:htrace-core:3.1.0-incubating
+|    |    |    |    +--- org.apache.zookeeper:zookeeper:3.4.6 (*)
+|    |    |    |    \--- org.apache.commons:commons-compress:1.4.1 -> 1.19
+|    |    |    +--- org.apache.hadoop:hadoop-hdfs:2.7.3
+|    |    |    |    +--- com.google.guava:guava:11.0.2 -> 28.0-jre (*)
+|    |    |    |    +--- com.sun.jersey:jersey-core:1.9
+|    |    |    |    +--- com.sun.jersey:jersey-server:1.9 (*)
+|    |    |    |    +--- commons-cli:commons-cli:1.2
+|    |    |    |    +--- commons-codec:commons-codec:1.4 -> 1.10
+|    |    |    |    +--- commons-io:commons-io:2.4
+|    |    |    |    +--- commons-lang:commons-lang:2.6
+|    |    |    |    +--- commons-logging:commons-logging:1.1.3 -> 1.2
+|    |    |    |    +--- commons-daemon:commons-daemon:1.0.13
+|    |    |    |    +--- log4j:log4j:1.2.17
+|    |    |    |    +--- com.google.protobuf:protobuf-java:2.5.0
+|    |    |    |    +--- javax.servlet:servlet-api:2.5
+|    |    |    |    +--- org.codehaus.jackson:jackson-core-asl:1.9.13
+|    |    |    |    +--- org.codehaus.jackson:jackson-mapper-asl:1.9.13 (*)
+|    |    |    |    +--- xmlenc:xmlenc:0.52
+|    |    |    |    +--- io.netty:netty:3.6.2.Final -> 3.9.9.Final
+|    |    |    |    +--- io.netty:netty-all:4.0.23.Final -> 4.1.42.Final
+|    |    |    |    +--- xerces:xercesImpl:2.9.1
+|    |    |    |    |    \--- xml-apis:xml-apis:1.3.04
+|    |    |    |    +--- org.apache.htrace:htrace-core:3.1.0-incubating
+|    |    |    |    \--- org.fusesource.leveldbjni:leveldbjni-all:1.8
+|    |    |    +--- org.apache.hadoop:hadoop-mapreduce-client-app:2.7.3
+|    |    |    |    +--- org.apache.hadoop:hadoop-mapreduce-client-common:2.7.3
+|    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-common:2.7.3
+|    |    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-api:2.7.3
+|    |    |    |    |    |    |    +--- commons-lang:commons-lang:2.6
+|    |    |    |    |    |    |    +--- com.google.guava:guava:11.0.2 -> 28.0-jre (*)
+|    |    |    |    |    |    |    +--- commons-logging:commons-logging:1.1.3 -> 1.2
+|    |    |    |    |    |    |    +--- org.apache.hadoop:hadoop-annotations:2.7.3
+|    |    |    |    |    |    |    \--- com.google.protobuf:protobuf-java:2.5.0
+|    |    |    |    |    |    +--- javax.xml.bind:jaxb-api:2.2.2 -> 2.2.11
+|    |    |    |    |    |    +--- org.apache.commons:commons-compress:1.4.1 -> 1.19
+|    |    |    |    |    |    +--- commons-lang:commons-lang:2.6
+|    |    |    |    |    |    +--- javax.servlet:servlet-api:2.5
+|    |    |    |    |    |    +--- commons-codec:commons-codec:1.4 -> 1.10
+|    |    |    |    |    |    +--- com.sun.jersey:jersey-core:1.9
+|    |    |    |    |    |    +--- com.sun.jersey:jersey-client:1.9
+|    |    |    |    |    |    |    \--- com.sun.jersey:jersey-core:1.9
+|    |    |    |    |    |    +--- org.codehaus.jackson:jackson-core-asl:1.9.13
+|    |    |    |    |    |    +--- org.codehaus.jackson:jackson-mapper-asl:1.9.13 (*)
+|    |    |    |    |    |    +--- org.codehaus.jackson:jackson-jaxrs:1.9.13 (*)
+|    |    |    |    |    |    +--- org.codehaus.jackson:jackson-xc:1.9.13 (*)
+|    |    |    |    |    |    +--- com.google.guava:guava:11.0.2 -> 28.0-jre (*)
+|    |    |    |    |    |    +--- commons-logging:commons-logging:1.1.3 -> 1.2
+|    |    |    |    |    |    +--- commons-cli:commons-cli:1.2
+|    |    |    |    |    |    +--- org.slf4j:slf4j-api:1.7.10 -> 1.7.25
+|    |    |    |    |    |    +--- org.apache.hadoop:hadoop-annotations:2.7.3
+|    |    |    |    |    |    +--- com.google.inject.extensions:guice-servlet:3.0
+|    |    |    |    |    |    |    \--- com.google.inject:guice:3.0
+|    |    |    |    |    |    |         +--- javax.inject:javax.inject:1
+|    |    |    |    |    |    |         +--- aopalliance:aopalliance:1.0
+|    |    |    |    |    |    |         \--- org.sonatype.sisu.inject:cglib:2.2.1-v20090111
+|    |    |    |    |    |    |              \--- asm:asm:3.1
+|    |    |    |    |    |    +--- com.google.protobuf:protobuf-java:2.5.0
+|    |    |    |    |    |    +--- commons-io:commons-io:2.4
+|    |    |    |    |    |    +--- com.google.inject:guice:3.0 (*)
+|    |    |    |    |    |    +--- com.sun.jersey:jersey-server:1.9 (*)
+|    |    |    |    |    |    +--- com.sun.jersey:jersey-json:1.9 (*)
+|    |    |    |    |    |    +--- com.sun.jersey.contribs:jersey-guice:1.9
+|    |    |    |    |    |    |    +--- javax.inject:javax.inject:1
+|    |    |    |    |    |    |    +--- com.google.inject:guice:3.0 (*)
+|    |    |    |    |    |    |    +--- com.google.inject.extensions:guice-servlet:3.0 (*)
+|    |    |    |    |    |    |    \--- com.sun.jersey:jersey-server:1.9 (*)
+|    |    |    |    |    |    \--- log4j:log4j:1.2.17
+|    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-client:2.7.3
+|    |    |    |    |    |    +--- com.google.guava:guava:11.0.2 -> 28.0-jre (*)
+|    |    |    |    |    |    +--- commons-logging:commons-logging:1.1.3 -> 1.2
+|    |    |    |    |    |    +--- commons-lang:commons-lang:2.6
+|    |    |    |    |    |    +--- commons-cli:commons-cli:1.2
+|    |    |    |    |    |    +--- log4j:log4j:1.2.17
+|    |    |    |    |    |    +--- org.apache.hadoop:hadoop-annotations:2.7.3
+|    |    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-api:2.7.3 (*)
+|    |    |    |    |    |    \--- org.apache.hadoop:hadoop-yarn-common:2.7.3 (*)
+|    |    |    |    |    +--- org.apache.hadoop:hadoop-mapreduce-client-core:2.7.3
+|    |    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-common:2.7.3 (*)
+|    |    |    |    |    |    +--- com.google.protobuf:protobuf-java:2.5.0
+|    |    |    |    |    |    +--- org.apache.avro:avro:1.7.4 -> 1.9.2 (*)
+|    |    |    |    |    |    +--- org.slf4j:slf4j-api:1.7.10 -> 1.7.25
+|    |    |    |    |    |    +--- org.apache.hadoop:hadoop-annotations:2.7.3
+|    |    |    |    |    |    +--- com.google.inject.extensions:guice-servlet:3.0 (*)
+|    |    |    |    |    |    \--- io.netty:netty:3.6.2.Final -> 3.9.9.Final
+|    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-server-common:2.7.3
+|    |    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-api:2.7.3 (*)
+|    |    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-common:2.7.3 (*)
+|    |    |    |    |    |    +--- com.google.guava:guava:11.0.2 -> 28.0-jre (*)
+|    |    |    |    |    |    +--- commons-logging:commons-logging:1.1.3 -> 1.2
+|    |    |    |    |    |    +--- org.apache.hadoop:hadoop-annotations:2.7.3
+|    |    |    |    |    |    +--- com.google.protobuf:protobuf-java:2.5.0
+|    |    |    |    |    |    +--- org.apache.zookeeper:zookeeper:3.4.6 (*)
+|    |    |    |    |    |    \--- org.fusesource.leveldbjni:leveldbjni-all:1.8
+|    |    |    |    |    +--- com.google.protobuf:protobuf-java:2.5.0
+|    |    |    |    |    +--- org.slf4j:slf4j-api:1.7.10 -> 1.7.25
+|    |    |    |    |    +--- org.apache.hadoop:hadoop-annotations:2.7.3
+|    |    |    |    |    +--- com.google.inject.extensions:guice-servlet:3.0 (*)
+|    |    |    |    |    \--- io.netty:netty:3.6.2.Final -> 3.9.9.Final
+|    |    |    |    +--- org.apache.hadoop:hadoop-yarn-server-web-proxy:2.7.3
+|    |    |    |    |    +--- javax.servlet:servlet-api:2.5
+|    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-server-common:2.7.3 (*)
+|    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-common:2.7.3 (*)
+|    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-api:2.7.3 (*)
+|    |    |    |    |    +--- com.google.guava:guava:11.0.2 -> 28.0-jre (*)
+|    |    |    |    |    \--- commons-logging:commons-logging:1.1.3 -> 1.2
+|    |    |    |    +--- org.apache.hadoop:hadoop-mapreduce-client-shuffle:2.7.3
+|    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-server-common:2.7.3 (*)
+|    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-server-nodemanager:2.7.3
+|    |    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-common:2.7.3 (*)
+|    |    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-api:2.7.3 (*)
+|    |    |    |    |    |    +--- javax.xml.bind:jaxb-api:2.2.2 -> 2.2.11
+|    |    |    |    |    |    +--- org.codehaus.jettison:jettison:1.1
+|    |    |    |    |    |    +--- commons-lang:commons-lang:2.6
+|    |    |    |    |    |    +--- javax.servlet:servlet-api:2.5
+|    |    |    |    |    |    +--- commons-codec:commons-codec:1.4 -> 1.10
+|    |    |    |    |    |    +--- com.sun.jersey:jersey-core:1.9
+|    |    |    |    |    |    +--- com.sun.jersey:jersey-client:1.9 (*)
+|    |    |    |    |    |    +--- com.google.guava:guava:11.0.2 -> 28.0-jre (*)
+|    |    |    |    |    |    +--- commons-logging:commons-logging:1.1.3 -> 1.2
+|    |    |    |    |    |    +--- org.slf4j:slf4j-api:1.7.10 -> 1.7.25
+|    |    |    |    |    |    +--- org.apache.hadoop:hadoop-annotations:2.7.3
+|    |    |    |    |    |    +--- com.google.inject.extensions:guice-servlet:3.0 (*)
+|    |    |    |    |    |    +--- com.google.protobuf:protobuf-java:2.5.0
+|    |    |    |    |    |    +--- com.google.inject:guice:3.0 (*)
+|    |    |    |    |    |    +--- com.sun.jersey:jersey-json:1.9 (*)
+|    |    |    |    |    |    +--- com.sun.jersey.contribs:jersey-guice:1.9 (*)
+|    |    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-server-common:2.7.3 (*)
+|    |    |    |    |    |    \--- org.fusesource.leveldbjni:leveldbjni-all:1.8
+|    |    |    |    |    +--- org.apache.hadoop:hadoop-mapreduce-client-common:2.7.3 (*)
+|    |    |    |    |    +--- org.fusesource.leveldbjni:leveldbjni-all:1.8
+|    |    |    |    |    +--- com.google.protobuf:protobuf-java:2.5.0
+|    |    |    |    |    +--- org.slf4j:slf4j-api:1.7.10 -> 1.7.25
+|    |    |    |    |    +--- org.apache.hadoop:hadoop-annotations:2.7.3
+|    |    |    |    |    +--- com.google.inject.extensions:guice-servlet:3.0 (*)
+|    |    |    |    |    \--- io.netty:netty:3.6.2.Final -> 3.9.9.Final
+|    |    |    |    +--- com.google.protobuf:protobuf-java:2.5.0
+|    |    |    |    +--- org.slf4j:slf4j-api:1.7.10 -> 1.7.25
+|    |    |    |    +--- org.apache.hadoop:hadoop-annotations:2.7.3
+|    |    |    |    +--- com.google.inject.extensions:guice-servlet:3.0 (*)
+|    |    |    |    \--- io.netty:netty:3.6.2.Final -> 3.9.9.Final
+|    |    |    +--- org.apache.hadoop:hadoop-yarn-api:2.7.3 (*)
+|    |    |    +--- org.apache.hadoop:hadoop-mapreduce-client-core:2.7.3 (*)
+|    |    |    +--- org.apache.hadoop:hadoop-mapreduce-client-jobclient:2.7.3
+|    |    |    |    +--- org.apache.hadoop:hadoop-mapreduce-client-common:2.7.3 (*)
+|    |    |    |    +--- org.apache.hadoop:hadoop-mapreduce-client-shuffle:2.7.3 (*)
+|    |    |    |    +--- com.google.protobuf:protobuf-java:2.5.0
+|    |    |    |    +--- org.slf4j:slf4j-api:1.7.10 -> 1.7.25
+|    |    |    |    +--- org.apache.hadoop:hadoop-annotations:2.7.3
+|    |    |    |    +--- com.google.inject.extensions:guice-servlet:3.0 (*)
+|    |    |    |    \--- io.netty:netty:3.6.2.Final -> 3.9.9.Final
+|    |    |    \--- org.apache.hadoop:hadoop-annotations:2.7.3
+|    |    +--- org.slf4j:slf4j-api -> 1.7.25
+|    |    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    |    +--- project :iceberg-api (*)
+|    |    +--- project :iceberg-core
+|    |    |    +--- project :iceberg-core (*)
+|    |    |    +--- org.slf4j:slf4j-api:1.7.22 -> 1.7.25 (c)
+|    |    |    +--- junit:junit:4.12 (c)
+|    |    |    +--- joda-time:joda-time:2.9.9 (c)
+|    |    |    +--- org.mockito:mockito-core:1.10.19 (c)
+|    |    |    +--- org.apache.avro:avro:1.9.2 (c)
+|    |    |    +--- org.slf4j:slf4j-simple:1.7.5 (c)
+|    |    |    +--- org.apache.arrow:arrow-vector:0.14.1 (c)
+|    |    |    +--- com.github.ben-manes.caffeine:caffeine:2.7.0 (c)
+|    |    |    +--- org.apache.hive:hive-metastore:2.3.6 (c)
+|    |    |    +--- org.apache.hive:hive-exec:2.3.6 (c)
+|    |    |    +--- org.apache.parquet:parquet-avro:1.11.0 (c)
+|    |    |    +--- org.apache.commons:commons-lang3:3.9 (c)
+|    |    |    +--- org.apache.pig:pig:0.14.0 (c)
+|    |    |    +--- org.apache.spark:spark-hive_2.11:2.4.5 (c)
+|    |    |    +--- org.apache.spark:spark-avro_2.11:2.4.5 (c)
+|    |    |    +--- org.apache.hadoop:hadoop-client:2.7.3 (*)
+|    |    |    +--- org.slf4j:slf4j-api -> 1.7.25
+|    |    |    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    |    |    +--- project :iceberg-api (*)
+|    |    |    +--- project :iceberg-common
+|    |    |    |    +--- project :iceberg-common (*)
+|    |    |    |    +--- org.slf4j:slf4j-api:1.7.22 -> 1.7.25 (c)
+|    |    |    |    +--- junit:junit:4.12 (c)
+|    |    |    |    +--- joda-time:joda-time:2.9.9 (c)
+|    |    |    |    +--- org.mockito:mockito-core:1.10.19 (c)
+|    |    |    |    +--- org.apache.avro:avro:1.9.2 (c)
+|    |    |    |    +--- org.slf4j:slf4j-simple:1.7.5 (c)
+|    |    |    |    +--- org.apache.arrow:arrow-vector:0.14.1 (c)
+|    |    |    |    +--- com.github.ben-manes.caffeine:caffeine:2.7.0 (c)
+|    |    |    |    +--- org.apache.hive:hive-metastore:2.3.6 (c)
+|    |    |    |    +--- org.apache.hive:hive-exec:2.3.6 (c)
+|    |    |    |    +--- org.apache.parquet:parquet-avro:1.11.0 (c)
+|    |    |    |    +--- org.apache.commons:commons-lang3:3.9 (c)
+|    |    |    |    +--- org.apache.pig:pig:0.14.0 (c)
+|    |    |    |    +--- org.apache.spark:spark-hive_2.11:2.4.5 (c)
+|    |    |    |    +--- org.apache.spark:spark-avro_2.11:2.4.5 (c)
+|    |    |    |    +--- org.slf4j:slf4j-api -> 1.7.25
+|    |    |    |    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    |    |    |    +--- junit:junit -> 4.12 (*)
+|    |    |    |    +--- org.slf4j:slf4j-simple -> 1.7.5 (*)
+|    |    |    |    +--- org.mockito:mockito-core -> 1.10.19 (*)
+|    |    |    |    +--- org.slf4j:slf4j-api -> 1.7.25
+|    |    |    |    \--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    |    |    +--- org.apache.avro:avro -> 1.9.2 (*)
+|    |    |    +--- com.fasterxml.jackson.core:jackson-databind:2.10.0 -> 2.10.2 (*)
+|    |    |    +--- com.fasterxml.jackson.core:jackson-core:2.10.0 -> 2.10.2
+|    |    |    +--- com.github.ben-manes.caffeine:caffeine -> 2.7.0
+|    |    |    |    +--- org.checkerframework:checker-qual:2.6.0 -> 2.8.1
+|    |    |    |    \--- com.google.errorprone:error_prone_annotations:2.3.3
+|    |    |    +--- junit:junit -> 4.12 (*)
+|    |    |    +--- org.slf4j:slf4j-simple -> 1.7.5 (*)
+|    |    |    +--- org.mockito:mockito-core -> 1.10.19 (*)
+|    |    |    +--- org.slf4j:slf4j-api -> 1.7.25
+|    |    |    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    |    |    +--- org.apache.avro:avro -> 1.9.2 (*)
+|    |    |    +--- com.fasterxml.jackson.core:jackson-databind:2.10.0 -> 2.10.2 (*)
+|    |    |    +--- com.fasterxml.jackson.core:jackson-core:2.10.0 -> 2.10.2
+|    |    |    +--- com.github.ben-manes.caffeine:caffeine -> 2.7.0 (*)
+|    |    |    \--- org.apache.hadoop:hadoop-client:2.7.3 (*)
+|    |    +--- org.apache.parquet:parquet-avro -> 1.11.0
+|    |    |    +--- org.apache.parquet:parquet-column:1.11.0
+|    |    |    |    +--- org.apache.parquet:parquet-common:1.11.0
+|    |    |    |    |    +--- org.apache.parquet:parquet-format-structures:1.11.0
+|    |    |    |    |    |    +--- org.slf4j:slf4j-api:1.7.22 -> 1.7.25
+|    |    |    |    |    |    \--- javax.annotation:javax.annotation-api:1.3.2
+|    |    |    |    |    +--- org.slf4j:slf4j-api:1.7.22 -> 1.7.25
+|    |    |    |    |    \--- org.apache.yetus:audience-annotations:0.11.0
+|    |    |    |    \--- org.apache.parquet:parquet-encoding:1.11.0
+|    |    |    |         \--- org.apache.parquet:parquet-common:1.11.0 (*)
+|    |    |    +--- org.apache.parquet:parquet-hadoop:1.11.0
+|    |    |    |    +--- org.apache.parquet:parquet-column:1.11.0 (*)
+|    |    |    |    +--- org.apache.parquet:parquet-format-structures:1.11.0 (*)
+|    |    |    |    +--- org.apache.parquet:parquet-jackson:1.11.0
+|    |    |    |    +--- org.xerial.snappy:snappy-java:1.1.7.3
+|    |    |    |    \--- commons-pool:commons-pool:1.6
+|    |    |    \--- org.apache.parquet:parquet-format-structures:1.11.0 (*)
+|    |    +--- junit:junit -> 4.12 (*)
+|    |    +--- org.slf4j:slf4j-simple -> 1.7.5 (*)
+|    |    +--- org.mockito:mockito-core -> 1.10.19 (*)
+|    |    +--- org.slf4j:slf4j-api -> 1.7.25
+|    |    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    |    +--- org.apache.parquet:parquet-avro -> 1.11.0 (*)
+|    |    +--- org.apache.avro:avro -> 1.9.2 (*)
+|    |    \--- org.apache.hadoop:hadoop-client:2.7.3 (*)
+|    +--- org.apache.arrow:arrow-vector -> 0.14.1
+|    |    +--- org.apache.arrow:arrow-format:0.14.1
+|    |    |    \--- com.google.flatbuffers:flatbuffers-java:1.9.0
+|    |    +--- org.apache.arrow:arrow-memory:0.14.1
+|    |    |    +--- com.google.code.findbugs:jsr305:3.0.2
+|    |    |    +--- io.netty:netty-buffer:4.1.27.Final
+|    |    |    \--- org.slf4j:slf4j-api:1.7.25
+|    |    +--- com.fasterxml.jackson.core:jackson-core:2.9.8 -> 2.10.2
+|    |    +--- com.fasterxml.jackson.core:jackson-annotations:2.9.8 -> 2.10.2
+|    |    +--- com.fasterxml.jackson.core:jackson-databind:2.9.8 -> 2.10.2 (*)
+|    |    +--- com.carrotsearch:hppc:0.7.2
+|    |    +--- commons-codec:commons-codec:1.10
+|    |    +--- com.google.flatbuffers:flatbuffers-java:1.9.0
+|    |    \--- org.slf4j:slf4j-api:1.7.25
+|    +--- org.apache.arrow:arrow-memory -> 0.14.1 (*)
+|    +--- junit:junit -> 4.12 (*)
+|    +--- org.slf4j:slf4j-simple -> 1.7.5 (*)
+|    +--- org.mockito:mockito-core -> 1.10.19 (*)
+|    +--- org.slf4j:slf4j-api -> 1.7.25
+|    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    +--- org.apache.arrow:arrow-vector -> 0.14.1 (*)
+|    \--- org.apache.arrow:arrow-memory -> 0.14.1 (*)
++--- project :iceberg-arrow (*)
++--- project :iceberg-common (*)
++--- project :iceberg-common (*)
++--- project :iceberg-core (*)
++--- project :iceberg-core (*)
++--- project :iceberg-data
+|    +--- project :iceberg-data (*)
+|    +--- org.slf4j:slf4j-api:1.7.22 -> 1.7.25 (c)
+|    +--- junit:junit:4.12 (c)
+|    +--- joda-time:joda-time:2.9.9 (c)
+|    +--- org.mockito:mockito-core:1.10.19 (c)
+|    +--- org.apache.avro:avro:1.9.2 (c)
+|    +--- org.slf4j:slf4j-simple:1.7.5 (c)
+|    +--- org.apache.arrow:arrow-vector:0.14.1 (c)
+|    +--- com.github.ben-manes.caffeine:caffeine:2.7.0 (c)
+|    +--- org.apache.hive:hive-metastore:2.3.6 (c)
+|    +--- org.apache.hive:hive-exec:2.3.6 (c)
+|    +--- org.apache.parquet:parquet-avro:1.11.0 (c)
+|    +--- org.apache.commons:commons-lang3:3.9 (c)
+|    +--- org.apache.pig:pig:0.14.0 (c)
+|    +--- org.apache.spark:spark-hive_2.11:2.4.5 (c)
+|    +--- org.apache.spark:spark-avro_2.11:2.4.5 (c)
+|    +--- project :iceberg-parquet (*)
+|    +--- project :iceberg-orc
+|    |    +--- project :iceberg-orc (*)
+|    |    +--- org.slf4j:slf4j-api:1.7.22 -> 1.7.25 (c)
+|    |    +--- junit:junit:4.12 (c)
+|    |    +--- joda-time:joda-time:2.9.9 (c)
+|    |    +--- org.mockito:mockito-core:1.10.19 (c)
+|    |    +--- org.apache.avro:avro:1.9.2 (c)
+|    |    +--- org.slf4j:slf4j-simple:1.7.5 (c)
+|    |    +--- org.apache.arrow:arrow-vector:0.14.1 (c)
+|    |    +--- com.github.ben-manes.caffeine:caffeine:2.7.0 (c)
+|    |    +--- org.apache.hive:hive-metastore:2.3.6 (c)
+|    |    +--- org.apache.hive:hive-exec:2.3.6 (c)
+|    |    +--- org.apache.parquet:parquet-avro:1.11.0 (c)
+|    |    +--- org.apache.commons:commons-lang3:3.9 (c)
+|    |    +--- org.apache.pig:pig:0.14.0 (c)
+|    |    +--- org.apache.spark:spark-hive_2.11:2.4.5 (c)
+|    |    +--- org.apache.spark:spark-avro_2.11:2.4.5 (c)
+|    |    +--- org.apache.hadoop:hadoop-common:2.7.3 (*)
+|    |    +--- org.apache.hadoop:hadoop-client:2.7.3 (*)
+|    |    +--- org.slf4j:slf4j-api -> 1.7.25
+|    |    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    |    +--- project :iceberg-api (*)
+|    |    +--- project :iceberg-core (*)
+|    |    +--- org.apache.orc:orc-core:1.6.2
+|    |    |    +--- org.apache.orc:orc-shims:1.6.2
+|    |    |    |    \--- org.slf4j:slf4j-api:1.7.5 -> 1.7.25
+|    |    |    +--- com.google.protobuf:protobuf-java:2.5.0
+|    |    |    +--- commons-lang:commons-lang:2.6
+|    |    |    +--- io.airlift:aircompressor:0.15
+|    |    |    +--- javax.xml.bind:jaxb-api:2.2.11
+|    |    |    +--- org.jetbrains:annotations:17.0.0
+|    |    |    \--- org.slf4j:slf4j-api:1.7.5 -> 1.7.25
+|    |    +--- junit:junit -> 4.12 (*)
+|    |    +--- org.slf4j:slf4j-simple -> 1.7.5 (*)
+|    |    +--- org.mockito:mockito-core -> 1.10.19 (*)
+|    |    +--- org.slf4j:slf4j-api -> 1.7.25
+|    |    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    |    +--- org.apache.orc:orc-core:1.6.2 (*)
+|    |    +--- org.apache.hadoop:hadoop-common:2.7.3 (*)
+|    |    \--- org.apache.hadoop:hadoop-client:2.7.3 (*)
+|    +--- org.apache.hadoop:hadoop-common:2.7.3 (*)
+|    +--- org.slf4j:slf4j-api -> 1.7.25
+|    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    +--- project :iceberg-api (*)
+|    +--- project :iceberg-core (*)
+|    +--- junit:junit -> 4.12 (*)
+|    +--- org.slf4j:slf4j-simple -> 1.7.5 (*)
+|    +--- org.mockito:mockito-core -> 1.10.19 (*)
+|    +--- org.apache.hadoop:hadoop-client:2.7.3 (*)
+|    +--- org.slf4j:slf4j-api -> 1.7.25
+|    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    \--- org.apache.hadoop:hadoop-common:2.7.3 (*)
++--- project :iceberg-data (*)
++--- project :iceberg-hive
+|    +--- project :iceberg-hive (*)
+|    +--- org.slf4j:slf4j-api:1.7.22 -> 1.7.25 (c)
+|    +--- junit:junit:4.12 (c)
+|    +--- joda-time:joda-time:2.9.9 (c)
+|    +--- org.mockito:mockito-core:1.10.19 (c)
+|    +--- org.apache.avro:avro:1.9.2 (c)
+|    +--- org.slf4j:slf4j-simple:1.7.5 (c)
+|    +--- org.apache.arrow:arrow-vector:0.14.1 (c)
+|    +--- com.github.ben-manes.caffeine:caffeine:2.7.0 (c)
+|    +--- org.apache.hive:hive-metastore:2.3.6 (c)
+|    +--- org.apache.hive:hive-exec:2.3.6 (c)
+|    +--- org.apache.parquet:parquet-avro:1.11.0 (c)
+|    +--- org.apache.commons:commons-lang3:3.9 (c)
+|    +--- org.apache.pig:pig:0.14.0 (c)
+|    +--- org.apache.spark:spark-hive_2.11:2.4.5 (c)
+|    +--- org.apache.spark:spark-avro_2.11:2.4.5 (c)
+|    +--- org.apache.avro:avro -> 1.9.2 (*)
+|    +--- org.apache.hive:hive-metastore -> 2.3.6
+|    |    +--- org.apache.hive:hive-serde:2.3.6
+|    |    |    +--- org.apache.hive:hive-common:2.3.6
+|    |    |    |    +--- org.apache.hive:hive-shims:2.3.6
+|    |    |    |    |    +--- org.apache.hive.shims:hive-shims-common:2.3.6
+|    |    |    |    |    |    +--- com.google.guava:guava:14.0.1 -> 28.0-jre (*)
+|    |    |    |    |    |    +--- commons-lang:commons-lang:2.6
+|    |    |    |    |    |    +--- org.apache.thrift:libthrift:0.9.3
+|    |    |    |    |    |    |    +--- org.slf4j:slf4j-api:1.7.12 -> 1.7.25
+|    |    |    |    |    |    |    +--- org.apache.httpcomponents:httpclient:4.4.1 -> 4.5.6 (*)
+|    |    |    |    |    |    |    \--- org.apache.httpcomponents:httpcore:4.4.1 -> 4.4.10
+|    |    |    |    |    |    +--- org.apache.curator:curator-framework:2.7.1 (*)
+|    |    |    |    |    |    +--- org.apache.zookeeper:zookeeper:3.4.6 (*)
+|    |    |    |    |    |    \--- org.slf4j:slf4j-api:1.7.10 -> 1.7.25
+|    |    |    |    |    +--- org.apache.hive.shims:hive-shims-0.23:2.3.6
+|    |    |    |    |    |    +--- org.apache.hive.shims:hive-shims-common:2.3.6 (*)
+|    |    |    |    |    |    +--- commons-lang:commons-lang:2.6
+|    |    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-server-resourcemanager:2.7.2 -> 2.7.3
+|    |    |    |    |    |    |    +--- javax.servlet:servlet-api:2.5
+|    |    |    |    |    |    |    +--- org.slf4j:slf4j-api:1.7.10 -> 1.7.25
+|    |    |    |    |    |    |    +--- org.apache.hadoop:hadoop-annotations:2.7.3
+|    |    |    |    |    |    |    +--- com.google.inject.extensions:guice-servlet:3.0 (*)
+|    |    |    |    |    |    |    +--- com.google.protobuf:protobuf-java:2.5.0
+|    |    |    |    |    |    |    +--- commons-io:commons-io:2.4
+|    |    |    |    |    |    |    +--- com.google.inject:guice:3.0 (*)
+|    |    |    |    |    |    |    +--- com.sun.jersey:jersey-json:1.9 (*)
+|    |    |    |    |    |    |    +--- com.sun.jersey.contribs:jersey-guice:1.9 (*)
+|    |    |    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-common:2.7.3 (*)
+|    |    |    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-api:2.7.3 (*)
+|    |    |    |    |    |    |    +--- javax.xml.bind:jaxb-api:2.2.2 -> 2.2.11
+|    |    |    |    |    |    |    +--- org.codehaus.jettison:jettison:1.1
+|    |    |    |    |    |    |    +--- commons-lang:commons-lang:2.6
+|    |    |    |    |    |    |    +--- com.sun.jersey:jersey-core:1.9
+|    |    |    |    |    |    |    +--- com.sun.jersey:jersey-client:1.9 (*)
+|    |    |    |    |    |    |    +--- com.google.guava:guava:11.0.2 -> 28.0-jre (*)
+|    |    |    |    |    |    |    +--- commons-logging:commons-logging:1.1.3 -> 1.2
+|    |    |    |    |    |    |    +--- log4j:log4j:1.2.17
+|    |    |    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-server-common:2.7.3 (*)
+|    |    |    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-server-applicationhistoryservice:2.7.3
+|    |    |    |    |    |    |    |    +--- javax.servlet:servlet-api:2.5
+|    |    |    |    |    |    |    |    +--- org.apache.hadoop:hadoop-annotations:2.7.3
+|    |    |    |    |    |    |    |    +--- com.google.inject.extensions:guice-servlet:3.0 (*)
+|    |    |    |    |    |    |    |    +--- com.google.protobuf:protobuf-java:2.5.0
+|    |    |    |    |    |    |    |    +--- com.google.inject:guice:3.0 (*)
+|    |    |    |    |    |    |    |    +--- com.sun.jersey:jersey-json:1.9 (*)
+|    |    |    |    |    |    |    |    +--- com.sun.jersey.contribs:jersey-guice:1.9 (*)
+|    |    |    |    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-common:2.7.3 (*)
+|    |    |    |    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-api:2.7.3 (*)
+|    |    |    |    |    |    |    |    +--- javax.xml.bind:jaxb-api:2.2.2 -> 2.2.11
+|    |    |    |    |    |    |    |    +--- org.codehaus.jettison:jettison:1.1
+|    |    |    |    |    |    |    |    +--- com.sun.jersey:jersey-core:1.9
+|    |    |    |    |    |    |    |    +--- com.sun.jersey:jersey-client:1.9 (*)
+|    |    |    |    |    |    |    |    +--- com.google.guava:guava:11.0.2 -> 28.0-jre (*)
+|    |    |    |    |    |    |    |    +--- commons-logging:commons-logging:1.1.3 -> 1.2
+|    |    |    |    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-server-common:2.7.3 (*)
+|    |    |    |    |    |    |    |    +--- commons-collections:commons-collections:3.2.2
+|    |    |    |    |    |    |    |    \--- org.fusesource.leveldbjni:leveldbjni-all:1.8
+|    |    |    |    |    |    |    +--- org.apache.hadoop:hadoop-yarn-server-web-proxy:2.7.3 (*)
+|    |    |    |    |    |    |    +--- org.apache.zookeeper:zookeeper:3.4.6 (*)
+|    |    |    |    |    |    |    \--- org.fusesource.leveldbjni:leveldbjni-all:1.8
+|    |    |    |    |    |    \--- org.slf4j:slf4j-api:1.7.10 -> 1.7.25
+|    |    |    |    |    +--- org.apache.hive.shims:hive-shims-scheduler:2.3.6
+|    |    |    |    |    |    +--- org.apache.hive.shims:hive-shims-common:2.3.6 (*)
+|    |    |    |    |    |    \--- org.slf4j:slf4j-api:1.7.10 -> 1.7.25
+|    |    |    |    |    \--- org.slf4j:slf4j-api:1.7.10 -> 1.7.25
+|    |    |    |    +--- org.apache.hive:hive-storage-api:2.4.0
+|    |    |    |    |    +--- commons-lang:commons-lang:2.6
+|    |    |    |    |    \--- org.slf4j:slf4j-api:1.7.10 -> 1.7.25
+|    |    |    |    +--- commons-cli:commons-cli:1.2
+|    |    |    |    +--- commons-lang:commons-lang:2.6
+|    |    |    |    +--- org.apache.commons:commons-lang3:3.1 -> 3.9
+|    |    |    |    +--- org.apache.orc:orc-core:1.3.4 -> 1.6.2 (*)
+|    |    |    |    +--- jline:jline:2.12
+|    |    |    |    +--- joda-time:joda-time:2.8.1 -> 2.9.9
+|    |    |    |    +--- org.apache.commons:commons-compress:1.9 -> 1.19
+|    |    |    |    +--- org.apache.ant:ant:1.9.1
+|    |    |    |    |    \--- org.apache.ant:ant-launcher:1.9.1
+|    |    |    |    +--- io.dropwizard.metrics:metrics-core:3.1.0 -> 3.1.5
+|    |    |    |    |    \--- org.slf4j:slf4j-api:1.7.7 -> 1.7.25
+|    |    |    |    +--- io.dropwizard.metrics:metrics-jvm:3.1.0 -> 3.1.5
+|    |    |    |    |    +--- io.dropwizard.metrics:metrics-core:3.1.5 (*)
+|    |    |    |    |    \--- org.slf4j:slf4j-api:1.7.7 -> 1.7.25
+|    |    |    |    +--- io.dropwizard.metrics:metrics-json:3.1.0 -> 3.1.5
+|    |    |    |    |    +--- io.dropwizard.metrics:metrics-core:3.1.5 (*)
+|    |    |    |    |    +--- com.fasterxml.jackson.core:jackson-databind:2.4.2 -> 2.10.2 (*)
+|    |    |    |    |    \--- org.slf4j:slf4j-api:1.7.7 -> 1.7.25
+|    |    |    |    +--- com.fasterxml.jackson.core:jackson-databind:2.6.5 -> 2.10.2 (*)
+|    |    |    |    +--- com.github.joshelser:dropwizard-metrics-hadoop-metrics2-reporter:0.1.2
+|    |    |    |    |    +--- io.dropwizard.metrics:metrics-core:3.1.2 -> 3.1.5 (*)
+|    |    |    |    |    +--- org.apache.hadoop:hadoop-common:2.6.0 -> 2.7.3 (*)
+|    |    |    |    |    \--- org.slf4j:slf4j-api:1.7.14 -> 1.7.25
+|    |    |    |    \--- org.slf4j:slf4j-api:1.7.10 -> 1.7.25
+|    |    |    +--- org.apache.hive:hive-service-rpc:2.3.6
+|    |    |    |    +--- commons-codec:commons-codec:1.4 -> 1.10
+|    |    |    |    +--- commons-cli:commons-cli:1.2
+|    |    |    |    +--- tomcat:jasper-compiler:5.5.23
+|    |    |    |    |    +--- javax.servlet:jsp-api:2.0
+|    |    |    |    |    |    \--- javax.servlet:servlet-api:2.4 -> 2.5
+|    |    |    |    |    \--- ant:ant:1.6.5
+|    |    |    |    +--- tomcat:jasper-runtime:5.5.23
+|    |    |    |    |    +--- javax.servlet:servlet-api:2.4 -> 2.5
+|    |    |    |    |    \--- commons-el:commons-el:1.0
+|    |    |    |    |         \--- commons-logging:commons-logging:1.0.3 -> 1.2
+|    |    |    |    +--- org.apache.thrift:libfb303:0.9.3
+|    |    |    |    |    \--- org.apache.thrift:libthrift:0.9.3 (*)
+|    |    |    |    +--- org.apache.thrift:libthrift:0.9.3 (*)
+|    |    |    |    \--- org.slf4j:slf4j-api:1.7.10 -> 1.7.25
+|    |    |    +--- org.apache.hive:hive-shims:2.3.6 (*)
+|    |    |    +--- commons-codec:commons-codec:1.4 -> 1.10
+|    |    |    +--- commons-lang:commons-lang:2.6
+|    |    |    +--- org.apache.thrift:libthrift:0.9.3 (*)
+|    |    |    +--- net.sf.opencsv:opencsv:2.3
+|    |    |    \--- org.slf4j:slf4j-api:1.7.10 -> 1.7.25
+|    |    +--- org.apache.hive:hive-shims:2.3.6 (*)
+|    |    +--- javolution:javolution:5.5.1
+|    |    +--- com.google.guava:guava:14.0.1 -> 28.0-jre (*)
+|    |    +--- com.google.protobuf:protobuf-java:2.5.0
+|    |    +--- com.jolbox:bonecp:0.8.0.RELEASE
+|    |    |    +--- com.google.guava:guava:15.0 -> 28.0-jre (*)
+|    |    |    \--- org.slf4j:slf4j-api:1.7.2 -> 1.7.25
+|    |    +--- commons-cli:commons-cli:1.2
+|    |    +--- commons-lang:commons-lang:2.6
+|    |    +--- org.apache.derby:derby:10.10.2.0 -> 10.12.1.1
+|    |    +--- org.datanucleus:datanucleus-api-jdo:4.2.4
+|    |    +--- org.datanucleus:datanucleus-core:4.1.17
+|    |    +--- org.datanucleus:datanucleus-rdbms:4.1.19
+|    |    +--- commons-pool:commons-pool:1.5.4 -> 1.6
+|    |    +--- commons-dbcp:commons-dbcp:1.4
+|    |    |    \--- commons-pool:commons-pool:1.5.4 -> 1.6
+|    |    +--- javax.jdo:jdo-api:3.0.1
+|    |    |    \--- javax.transaction:jta:1.1
+|    |    +--- org.datanucleus:javax.jdo:3.2.0-m3
+|    |    +--- org.antlr:antlr-runtime:3.5.2
+|    |    +--- org.apache.thrift:libfb303:0.9.3 (*)
+|    |    +--- org.apache.thrift:libthrift:0.9.3 (*)
+|    |    \--- org.slf4j:slf4j-api:1.7.10 -> 1.7.25
+|    +--- org.apache.hadoop:hadoop-client:2.7.3 (*)
+|    +--- org.slf4j:slf4j-api -> 1.7.25
+|    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    +--- project :iceberg-core (*)
+|    +--- junit:junit -> 4.12 (*)
+|    +--- org.slf4j:slf4j-simple -> 1.7.5 (*)
+|    +--- org.mockito:mockito-core -> 1.10.19 (*)
+|    +--- org.apache.hive:hive-exec -> 2.3.6
+|    |    +--- org.apache.hive:hive-vector-code-gen:2.3.6
+|    |    |    +--- commons-lang:commons-lang:2.6
+|    |    |    +--- com.google.guava:guava:14.0.1 -> 28.0-jre (*)
+|    |    |    +--- org.apache.ant:ant:1.9.1 (*)
+|    |    |    +--- org.apache.velocity:velocity:1.5
+|    |    |    |    +--- commons-lang:commons-lang:2.1 -> 2.6
+|    |    |    |    \--- oro:oro:2.0.8
+|    |    |    \--- org.slf4j:slf4j-api:1.7.10 -> 1.7.25
+|    |    +--- org.apache.hive:hive-shims:2.3.6 (*)
+|    |    +--- commons-codec:commons-codec:1.4 -> 1.10
+|    |    +--- commons-httpclient:commons-httpclient:3.0.1 -> 3.1 (*)
+|    |    +--- commons-io:commons-io:2.4
+|    |    +--- org.antlr:antlr-runtime:3.5.2
+|    |    +--- org.antlr:ST4:4.0.4
+|    |    |    \--- org.antlr:antlr-runtime:3.3 -> 3.5.2
+|    |    +--- org.apache.ant:ant:1.9.1 (*)
+|    |    +--- org.apache.commons:commons-compress:1.9 -> 1.19
+|    |    +--- org.apache.ivy:ivy:2.4.0
+|    |    +--- org.apache.zookeeper:zookeeper:3.4.6 (*)
+|    |    +--- org.apache.curator:curator-framework:2.7.1 (*)
+|    |    +--- org.apache.curator:apache-curator:2.7.1
+|    |    |    +--- org.apache.zookeeper:zookeeper:3.4.6 (*)
+|    |    |    \--- com.google.guava:guava:16.0.1 -> 28.0-jre (*)
+|    |    +--- org.codehaus.groovy:groovy-all:2.4.4
+|    |    +--- org.datanucleus:datanucleus-core:4.1.17
+|    |    +--- com.google.code.gson:gson:2.2.4
+|    |    +--- stax:stax-api:1.0.1
+|    |    \--- org.slf4j:slf4j-api:1.7.10 -> 1.7.25
+|    +--- org.apache.hive:hive-metastore -> 2.3.6 (*)
+|    +--- project :iceberg-api (*)
+|    +--- org.slf4j:slf4j-api -> 1.7.25
+|    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    +--- org.apache.avro:avro -> 1.9.2 (*)
+|    \--- org.apache.hadoop:hadoop-client:2.7.3 (*)
++--- project :iceberg-hive (*)
++--- project :iceberg-mr
+|    +--- project :iceberg-mr (*)
+|    +--- org.slf4j:slf4j-api:1.7.22 -> 1.7.25 (c)
+|    +--- junit:junit:4.12 (c)
+|    +--- joda-time:joda-time:2.9.9 (c)
+|    +--- org.mockito:mockito-core:1.10.19 (c)
+|    +--- org.apache.avro:avro:1.9.2 (c)
+|    +--- org.slf4j:slf4j-simple:1.7.5 (c)
+|    +--- org.apache.arrow:arrow-vector:0.14.1 (c)
+|    +--- com.github.ben-manes.caffeine:caffeine:2.7.0 (c)
+|    +--- org.apache.hive:hive-metastore:2.3.6 (c)
+|    +--- org.apache.hive:hive-exec:2.3.6 (c)
+|    +--- org.apache.parquet:parquet-avro:1.11.0 (c)
+|    +--- org.apache.commons:commons-lang3:3.9 (c)
+|    +--- org.apache.pig:pig:0.14.0 (c)
+|    +--- org.apache.spark:spark-hive_2.11:2.4.5 (c)
+|    +--- org.apache.spark:spark-avro_2.11:2.4.5 (c)
+|    +--- org.apache.hadoop:hadoop-client:2.7.3 (*)
+|    +--- org.slf4j:slf4j-api -> 1.7.25
+|    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    +--- project :iceberg-api (*)
+|    +--- project :iceberg-core (*)
+|    +--- project :iceberg-orc (*)
+|    +--- project :iceberg-parquet (*)
+|    +--- project :iceberg-data (*)
+|    +--- junit:junit -> 4.12 (*)
+|    +--- org.slf4j:slf4j-simple -> 1.7.5 (*)
+|    +--- org.mockito:mockito-core -> 1.10.19 (*)
+|    +--- org.slf4j:slf4j-api -> 1.7.25
+|    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    \--- org.apache.hadoop:hadoop-client:2.7.3 (*)
++--- project :iceberg-mr (*)
++--- project :iceberg-orc (*)
++--- project :iceberg-orc (*)
++--- project :iceberg-parquet (*)
++--- project :iceberg-parquet (*)
++--- project :iceberg-pig
+|    +--- project :iceberg-pig (*)
+|    +--- org.slf4j:slf4j-api:1.7.22 -> 1.7.25 (c)
+|    +--- junit:junit:4.12 (c)
+|    +--- joda-time:joda-time:2.9.9 (c)
+|    +--- org.mockito:mockito-core:1.10.19 (c)
+|    +--- org.apache.avro:avro:1.9.2 (c)
+|    +--- org.slf4j:slf4j-simple:1.7.5 (c)
+|    +--- org.apache.arrow:arrow-vector:0.14.1 (c)
+|    +--- com.github.ben-manes.caffeine:caffeine:2.7.0 (c)
+|    +--- org.apache.hive:hive-metastore:2.3.6 (c)
+|    +--- org.apache.hive:hive-exec:2.3.6 (c)
+|    +--- org.apache.parquet:parquet-avro:1.11.0 (c)
+|    +--- org.apache.commons:commons-lang3:3.9 (c)
+|    +--- org.apache.pig:pig:0.14.0 (c)
+|    +--- org.apache.spark:spark-hive_2.11:2.4.5 (c)
+|    +--- org.apache.spark:spark-avro_2.11:2.4.5 (c)
+|    +--- org.apache.pig:pig -> 0.14.0
+|    |    +--- commons-cli:commons-cli:1.2
+|    |    +--- xmlenc:xmlenc:0.52
+|    |    +--- commons-httpclient:commons-httpclient:3.1 (*)
+|    |    +--- commons-codec:commons-codec:1.4 -> 1.10
+|    |    +--- commons-net:commons-net:1.4.1 -> 3.1
+|    |    +--- tomcat:jasper-runtime:5.5.12 -> 5.5.23 (*)
+|    |    +--- tomcat:jasper-compiler:5.5.12 -> 5.5.23 (*)
+|    |    +--- commons-el:commons-el:1.0 (*)
+|    |    +--- net.java.dev.jets3t:jets3t:0.7.1 -> 0.9.0 (*)
+|    |    +--- net.sf.kosmosfs:kfs:0.3
+|    |    +--- hsqldb:hsqldb:1.8.0.10
+|    |    +--- oro:oro:2.0.8
+|    |    +--- jline:jline:1.0 -> 2.12
+|    |    +--- org.antlr:ST4:4.0.4 (*)
+|    |    +--- org.antlr:antlr-runtime:3.4 -> 3.5.2
+|    |    +--- dk.brics.automaton:automaton:1.11-8
+|    |    +--- com.google.guava:guava:11.0 -> 28.0-jre (*)
+|    |    +--- org.codehaus.jackson:jackson-mapper-asl:1.8.8 -> 1.9.13 (*)
+|    |    +--- org.codehaus.jackson:jackson-core-asl:1.8.8 -> 1.9.13
+|    |    +--- joda-time:joda-time:2.1 -> 2.9.9
+|    |    \--- org.apache.avro:avro:1.7.4 -> 1.9.2 (*)
+|    +--- org.apache.hadoop:hadoop-mapreduce-client-core:2.7.3 (*)
+|    +--- org.apache.hadoop:hadoop-client:2.7.3 (*)
+|    +--- org.slf4j:slf4j-api -> 1.7.25
+|    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    +--- project :iceberg-api (*)
+|    +--- project :iceberg-common (*)
+|    +--- project :iceberg-core (*)
+|    +--- project :iceberg-parquet (*)
+|    +--- org.apache.commons:commons-lang3 -> 3.9
+|    +--- junit:junit -> 4.12 (*)
+|    +--- org.slf4j:slf4j-simple -> 1.7.5 (*)
+|    +--- org.mockito:mockito-core -> 1.10.19 (*)
+|    +--- org.apache.hadoop:hadoop-hdfs:2.7.3 (*)
+|    +--- org.apache.hadoop:hadoop-common:2.7.3 (*)
+|    +--- org.apache.hadoop:hadoop-minicluster:2.7.3
+|    |    +--- org.apache.hadoop:hadoop-common:2.7.3 (*)
+|    |    +--- org.apache.hadoop:hadoop-hdfs:2.7.3 (*)
+|    |    +--- org.apache.hadoop:hadoop-yarn-server-tests:2.7.3
+|    |    |    +--- org.apache.hadoop:hadoop-annotations:2.7.3
+|    |    |    +--- org.apache.hadoop:hadoop-yarn-server-common:2.7.3 (*)
+|    |    |    +--- org.apache.hadoop:hadoop-yarn-server-nodemanager:2.7.3 (*)
+|    |    |    +--- org.apache.hadoop:hadoop-yarn-server-resourcemanager:2.7.3 (*)
+|    |    |    +--- org.apache.hadoop:hadoop-yarn-common:2.7.3 (*)
+|    |    |    +--- org.apache.hadoop:hadoop-yarn-api:2.7.3 (*)
+|    |    |    +--- com.google.guava:guava:11.0.2 -> 28.0-jre (*)
+|    |    |    \--- commons-logging:commons-logging:1.1.3 -> 1.2
+|    |    +--- org.apache.hadoop:hadoop-mapreduce-client-jobclient:2.7.3 (*)
+|    |    +--- org.apache.hadoop:hadoop-mapreduce-client-app:2.7.3 (*)
+|    |    +--- org.apache.hadoop:hadoop-yarn-api:2.7.3 (*)
+|    |    +--- org.apache.hadoop:hadoop-mapreduce-client-core:2.7.3 (*)
+|    |    \--- org.apache.hadoop:hadoop-mapreduce-client-hs:2.7.3
+|    |         +--- org.apache.hadoop:hadoop-hdfs:2.7.3 (*)
+|    |         +--- org.apache.hadoop:hadoop-mapreduce-client-common:2.7.3 (*)
+|    |         +--- org.apache.hadoop:hadoop-mapreduce-client-app:2.7.3 (*)
+|    |         +--- org.fusesource.leveldbjni:leveldbjni-all:1.8
+|    |         +--- com.google.protobuf:protobuf-java:2.5.0
+|    |         +--- org.slf4j:slf4j-api:1.7.10 -> 1.7.25
+|    |         +--- org.apache.hadoop:hadoop-annotations:2.7.3
+|    |         +--- com.google.inject.extensions:guice-servlet:3.0 (*)
+|    |         \--- io.netty:netty:3.6.2.Final -> 3.9.9.Final
+|    +--- org.slf4j:slf4j-api -> 1.7.25
+|    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    +--- org.apache.commons:commons-lang3 -> 3.9
+|    +--- org.apache.pig:pig -> 0.14.0 (*)
+|    +--- org.apache.hadoop:hadoop-mapreduce-client-core:2.7.3 (*)
+|    \--- org.apache.hadoop:hadoop-client:2.7.3 (*)
++--- project :iceberg-pig (*)
++--- project :iceberg-relocate-external-dependencies (*)
++--- project :iceberg-relocate-external-dependencies (*)
++--- project :iceberg-spark
+|    +--- project :iceberg-spark (*)
+|    +--- org.slf4j:slf4j-api:1.7.22 -> 1.7.25 (c)
+|    +--- junit:junit:4.12 (c)
+|    +--- joda-time:joda-time:2.9.9 (c)
+|    +--- org.mockito:mockito-core:1.10.19 (c)
+|    +--- org.apache.avro:avro:1.9.2 (c)
+|    +--- org.slf4j:slf4j-simple:1.7.5 (c)
+|    +--- org.apache.arrow:arrow-vector:0.14.1 (c)
+|    +--- com.github.ben-manes.caffeine:caffeine:2.7.0 (c)
+|    +--- org.apache.hive:hive-metastore:2.3.6 (c)
+|    +--- org.apache.hive:hive-exec:2.3.6 (c)
+|    +--- org.apache.parquet:parquet-avro:1.11.0 (c)
+|    +--- org.apache.commons:commons-lang3:3.9 (c)
+|    +--- org.apache.pig:pig:0.14.0 (c)
+|    +--- org.apache.spark:spark-hive_2.11:2.4.5 (c)
+|    +--- org.apache.spark:spark-avro_2.11:2.4.5 (c)
+|    +--- org.apache.avro:avro -> 1.9.2 (*)
+|    +--- org.apache.spark:spark-hive_2.11 -> 2.4.5
+|    |    +--- com.twitter:parquet-hadoop-bundle:1.6.0
+|    |    +--- org.apache.spark:spark-core_2.11:2.4.5
+|    |    |    +--- com.thoughtworks.paranamer:paranamer:2.8
+|    |    |    +--- org.apache.avro:avro-mapred:1.8.2
+|    |    |    |    +--- org.apache.avro:avro-ipc:1.8.2
+|    |    |    |    |    +--- org.codehaus.jackson:jackson-core-asl:1.9.13
+|    |    |    |    |    +--- org.codehaus.jackson:jackson-mapper-asl:1.9.13 (*)
+|    |    |    |    |    \--- org.slf4j:slf4j-api:1.7.7 -> 1.7.25
+|    |    |    |    +--- org.codehaus.jackson:jackson-core-asl:1.9.13
+|    |    |    |    +--- org.codehaus.jackson:jackson-mapper-asl:1.9.13 (*)
+|    |    |    |    +--- commons-codec:commons-codec:1.9 -> 1.10
+|    |    |    |    \--- org.slf4j:slf4j-api:1.7.7 -> 1.7.25
+|    |    |    +--- com.twitter:chill_2.11:0.9.3
+|    |    |    |    +--- org.scala-lang:scala-library:2.11.12
+|    |    |    |    +--- com.twitter:chill-java:0.9.3
+|    |    |    |    |    \--- com.esotericsoftware:kryo-shaded:4.0.2
+|    |    |    |    |         +--- com.esotericsoftware:minlog:1.3.0
+|    |    |    |    |         \--- org.objenesis:objenesis:2.5.1
+|    |    |    |    \--- com.esotericsoftware:kryo-shaded:4.0.2 (*)
+|    |    |    +--- com.twitter:chill-java:0.9.3 (*)
+|    |    |    +--- org.apache.xbean:xbean-asm6-shaded:4.8
+|    |    |    +--- org.apache.hadoop:hadoop-client:2.6.5 -> 2.7.3 (*)
+|    |    |    +--- org.apache.spark:spark-launcher_2.11:2.4.5
+|    |    |    |    +--- org.apache.spark:spark-tags_2.11:2.4.5
+|    |    |    |    |    +--- org.scala-lang:scala-library:2.11.12
+|    |    |    |    |    \--- org.spark-project.spark:unused:1.0.0
+|    |    |    |    \--- org.spark-project.spark:unused:1.0.0
+|    |    |    +--- org.apache.spark:spark-kvstore_2.11:2.4.5
+|    |    |    |    +--- org.apache.spark:spark-tags_2.11:2.4.5 (*)
+|    |    |    |    +--- org.fusesource.leveldbjni:leveldbjni-all:1.8
+|    |    |    |    +--- com.fasterxml.jackson.core:jackson-core:2.6.7 -> 2.10.2
+|    |    |    |    +--- com.fasterxml.jackson.core:jackson-databind:2.6.7.3 -> 2.10.2 (*)
+|    |    |    |    +--- com.fasterxml.jackson.core:jackson-annotations:2.6.7 -> 2.10.2
+|    |    |    |    \--- org.spark-project.spark:unused:1.0.0
+|    |    |    +--- org.apache.spark:spark-network-common_2.11:2.4.5
+|    |    |    |    +--- io.netty:netty-all:4.1.42.Final
+|    |    |    |    +--- org.apache.commons:commons-lang3:3.5 -> 3.9
+|    |    |    |    +--- org.fusesource.leveldbjni:leveldbjni-all:1.8
+|    |    |    |    +--- com.fasterxml.jackson.core:jackson-databind:2.6.7.3 -> 2.10.2 (*)
+|    |    |    |    +--- com.fasterxml.jackson.core:jackson-annotations:2.6.7 -> 2.10.2
+|    |    |    |    +--- io.dropwizard.metrics:metrics-core:3.1.5 (*)
+|    |    |    |    +--- com.google.code.findbugs:jsr305:1.3.9 -> 3.0.2
+|    |    |    |    +--- org.apache.commons:commons-crypto:1.0.0
+|    |    |    |    \--- org.spark-project.spark:unused:1.0.0
+|    |    |    +--- org.apache.spark:spark-network-shuffle_2.11:2.4.5
+|    |    |    |    +--- org.apache.spark:spark-network-common_2.11:2.4.5 (*)
+|    |    |    |    +--- io.dropwizard.metrics:metrics-core:3.1.5 (*)
+|    |    |    |    \--- org.spark-project.spark:unused:1.0.0
+|    |    |    +--- org.apache.spark:spark-unsafe_2.11:2.4.5
+|    |    |    |    +--- org.apache.spark:spark-tags_2.11:2.4.5 (*)
+|    |    |    |    +--- com.twitter:chill_2.11:0.9.3 (*)
+|    |    |    |    +--- com.google.code.findbugs:jsr305:1.3.9 -> 3.0.2
+|    |    |    |    \--- org.spark-project.spark:unused:1.0.0
+|    |    |    +--- javax.activation:activation:1.1.1
+|    |    |    +--- org.apache.curator:curator-recipes:2.6.0 -> 2.7.1 (*)
+|    |    |    +--- org.apache.zookeeper:zookeeper:3.4.6 (*)
+|    |    |    +--- javax.servlet:javax.servlet-api:3.1.0
+|    |    |    +--- org.apache.commons:commons-lang3:3.5 -> 3.9
+|    |    |    +--- org.apache.commons:commons-math3:3.4.1
+|    |    |    +--- com.google.code.findbugs:jsr305:1.3.9 -> 3.0.2
+|    |    |    +--- org.slf4j:slf4j-api:1.7.16 -> 1.7.25
+|    |    |    +--- org.slf4j:jul-to-slf4j:1.7.16
+|    |    |    |    \--- org.slf4j:slf4j-api:1.7.16 -> 1.7.25
+|    |    |    +--- org.slf4j:jcl-over-slf4j:1.7.16
+|    |    |    |    \--- org.slf4j:slf4j-api:1.7.16 -> 1.7.25
+|    |    |    +--- log4j:log4j:1.2.17
+|    |    |    +--- com.ning:compress-lzf:1.0.3
+|    |    |    +--- org.xerial.snappy:snappy-java:1.1.7.3
+|    |    |    +--- org.lz4:lz4-java:1.4.0
+|    |    |    +--- com.github.luben:zstd-jni:1.3.2-2
+|    |    |    +--- org.roaringbitmap:RoaringBitmap:0.7.45
+|    |    |    |    \--- org.roaringbitmap:shims:0.7.45
+|    |    |    +--- commons-net:commons-net:3.1
+|    |    |    +--- org.scala-lang:scala-library:2.11.12
+|    |    |    +--- org.json4s:json4s-jackson_2.11:3.5.3
+|    |    |    |    +--- org.scala-lang:scala-library:2.11.11 -> 2.11.12
+|    |    |    |    \--- org.json4s:json4s-core_2.11:3.5.3
+|    |    |    |         +--- org.scala-lang:scala-library:2.11.11 -> 2.11.12
+|    |    |    |         +--- org.json4s:json4s-ast_2.11:3.5.3
+|    |    |    |         |    \--- org.scala-lang:scala-library:2.11.11 -> 2.11.12
+|    |    |    |         +--- org.json4s:json4s-scalap_2.11:3.5.3
+|    |    |    |         |    \--- org.scala-lang:scala-library:2.11.11 -> 2.11.12
+|    |    |    |         +--- com.thoughtworks.paranamer:paranamer:2.8
+|    |    |    |         \--- org.scala-lang.modules:scala-xml_2.11:1.0.6
+|    |    |    |              \--- org.scala-lang:scala-library:2.11.8 -> 2.11.12
+|    |    |    +--- org.glassfish.jersey.core:jersey-client:2.22.2
+|    |    |    |    +--- javax.ws.rs:javax.ws.rs-api:2.0.1
+|    |    |    |    +--- org.glassfish.jersey.core:jersey-common:2.22.2
+|    |    |    |    |    +--- javax.ws.rs:javax.ws.rs-api:2.0.1
+|    |    |    |    |    +--- javax.annotation:javax.annotation-api:1.2 -> 1.3.2
+|    |    |    |    |    +--- org.glassfish.jersey.bundles.repackaged:jersey-guava:2.22.2
+|    |    |    |    |    +--- org.glassfish.hk2:hk2-api:2.4.0-b34
+|    |    |    |    |    |    +--- javax.inject:javax.inject:1
+|    |    |    |    |    |    +--- org.glassfish.hk2:hk2-utils:2.4.0-b34
+|    |    |    |    |    |    |    \--- javax.inject:javax.inject:1
+|    |    |    |    |    |    \--- org.glassfish.hk2.external:aopalliance-repackaged:2.4.0-b34
+|    |    |    |    |    +--- org.glassfish.hk2.external:javax.inject:2.4.0-b34
+|    |    |    |    |    +--- org.glassfish.hk2:hk2-locator:2.4.0-b34
+|    |    |    |    |    |    +--- org.glassfish.hk2.external:javax.inject:2.4.0-b34
+|    |    |    |    |    |    +--- org.glassfish.hk2.external:aopalliance-repackaged:2.4.0-b34
+|    |    |    |    |    |    +--- org.glassfish.hk2:hk2-api:2.4.0-b34 (*)
+|    |    |    |    |    |    +--- org.glassfish.hk2:hk2-utils:2.4.0-b34 (*)
+|    |    |    |    |    |    \--- org.javassist:javassist:3.18.1-GA
+|    |    |    |    |    \--- org.glassfish.hk2:osgi-resource-locator:1.0.1
+|    |    |    |    +--- org.glassfish.hk2:hk2-api:2.4.0-b34 (*)
+|    |    |    |    +--- org.glassfish.hk2.external:javax.inject:2.4.0-b34
+|    |    |    |    \--- org.glassfish.hk2:hk2-locator:2.4.0-b34 (*)
+|    |    |    +--- org.glassfish.jersey.core:jersey-common:2.22.2 (*)
+|    |    |    +--- org.glassfish.jersey.core:jersey-server:2.22.2
+|    |    |    |    +--- org.glassfish.jersey.core:jersey-common:2.22.2 (*)
+|    |    |    |    +--- org.glassfish.jersey.core:jersey-client:2.22.2 (*)
+|    |    |    |    +--- javax.ws.rs:javax.ws.rs-api:2.0.1
+|    |    |    |    +--- org.glassfish.jersey.media:jersey-media-jaxb:2.22.2
+|    |    |    |    |    +--- org.glassfish.jersey.core:jersey-common:2.22.2 (*)
+|    |    |    |    |    +--- org.glassfish.hk2:hk2-api:2.4.0-b34 (*)
+|    |    |    |    |    +--- org.glassfish.hk2.external:javax.inject:2.4.0-b34
+|    |    |    |    |    +--- org.glassfish.hk2:hk2-locator:2.4.0-b34 (*)
+|    |    |    |    |    \--- org.glassfish.hk2:osgi-resource-locator:1.0.1
+|    |    |    |    +--- javax.annotation:javax.annotation-api:1.2 -> 1.3.2
+|    |    |    |    +--- org.glassfish.hk2:hk2-api:2.4.0-b34 (*)
+|    |    |    |    +--- org.glassfish.hk2.external:javax.inject:2.4.0-b34
+|    |    |    |    +--- org.glassfish.hk2:hk2-locator:2.4.0-b34 (*)
+|    |    |    |    \--- javax.validation:validation-api:1.1.0.Final
+|    |    |    +--- org.glassfish.jersey.containers:jersey-container-servlet:2.22.2
+|    |    |    |    +--- org.glassfish.jersey.containers:jersey-container-servlet-core:2.22.2
+|    |    |    |    |    +--- org.glassfish.hk2.external:javax.inject:2.4.0-b34
+|    |    |    |    |    +--- org.glassfish.jersey.core:jersey-common:2.22.2 (*)
+|    |    |    |    |    +--- org.glassfish.jersey.core:jersey-server:2.22.2 (*)
+|    |    |    |    |    \--- javax.ws.rs:javax.ws.rs-api:2.0.1
+|    |    |    |    +--- org.glassfish.jersey.core:jersey-common:2.22.2 (*)
+|    |    |    |    +--- org.glassfish.jersey.core:jersey-server:2.22.2 (*)
+|    |    |    |    \--- javax.ws.rs:javax.ws.rs-api:2.0.1
+|    |    |    +--- org.glassfish.jersey.containers:jersey-container-servlet-core:2.22.2 (*)
+|    |    |    +--- io.netty:netty-all:4.1.42.Final
+|    |    |    +--- io.netty:netty:3.9.9.Final
+|    |    |    +--- com.clearspring.analytics:stream:2.7.0
+|    |    |    +--- io.dropwizard.metrics:metrics-core:3.1.5 (*)
+|    |    |    +--- io.dropwizard.metrics:metrics-jvm:3.1.5 (*)
+|    |    |    +--- io.dropwizard.metrics:metrics-json:3.1.5 (*)
+|    |    |    +--- io.dropwizard.metrics:metrics-graphite:3.1.5
+|    |    |    |    +--- io.dropwizard.metrics:metrics-core:3.1.5 (*)
+|    |    |    |    \--- org.slf4j:slf4j-api:1.7.7 -> 1.7.25
+|    |    |    +--- com.fasterxml.jackson.core:jackson-databind:2.6.7.3 -> 2.10.2 (*)
+|    |    |    +--- com.fasterxml.jackson.module:jackson-module-scala_2.11:2.6.7.1 -> 2.10.2
+|    |    |    |    +--- org.scala-lang:scala-library:2.11.12
+|    |    |    |    +--- com.fasterxml.jackson.core:jackson-core:2.10.2
+|    |    |    |    +--- com.fasterxml.jackson.core:jackson-annotations:2.10.2
+|    |    |    |    +--- com.fasterxml.jackson.core:jackson-databind:2.10.2 (*)
+|    |    |    |    \--- com.fasterxml.jackson.module:jackson-module-paranamer:2.10.2
+|    |    |    |         +--- com.fasterxml.jackson.core:jackson-databind:2.10.2 (*)
+|    |    |    |         \--- com.thoughtworks.paranamer:paranamer:2.8
+|    |    |    +--- org.apache.ivy:ivy:2.4.0
+|    |    |    +--- oro:oro:2.0.8
+|    |    |    +--- net.razorvine:pyrolite:4.13
+|    |    |    +--- net.sf.py4j:py4j:0.10.7
+|    |    |    +--- org.apache.spark:spark-tags_2.11:2.4.5 (*)
+|    |    |    +--- org.apache.commons:commons-crypto:1.0.0
+|    |    |    \--- org.spark-project.spark:unused:1.0.0
+|    |    +--- org.apache.spark:spark-sql_2.11:2.4.5
+|    |    |    +--- com.univocity:univocity-parsers:2.7.3
+|    |    |    +--- org.apache.spark:spark-sketch_2.11:2.4.5
+|    |    |    |    +--- org.apache.spark:spark-tags_2.11:2.4.5 (*)
+|    |    |    |    \--- org.spark-project.spark:unused:1.0.0
+|    |    |    +--- org.apache.spark:spark-core_2.11:2.4.5 (*)
+|    |    |    +--- org.apache.spark:spark-catalyst_2.11:2.4.5
+|    |    |    |    +--- org.scala-lang:scala-reflect:2.11.12
+|    |    |    |    |    \--- org.scala-lang:scala-library:2.11.12
+|    |    |    |    +--- org.scala-lang.modules:scala-parser-combinators_2.11:1.1.0
+|    |    |    |    |    \--- org.scala-lang:scala-library:2.11.12
+|    |    |    |    +--- org.apache.spark:spark-core_2.11:2.4.5 (*)
+|    |    |    |    +--- org.apache.spark:spark-tags_2.11:2.4.5 (*)
+|    |    |    |    +--- org.apache.spark:spark-unsafe_2.11:2.4.5 (*)
+|    |    |    |    +--- org.apache.spark:spark-sketch_2.11:2.4.5 (*)
+|    |    |    |    +--- org.codehaus.janino:janino:3.0.9
+|    |    |    |    |    \--- org.codehaus.janino:commons-compiler:3.0.9
+|    |    |    |    +--- org.codehaus.janino:commons-compiler:3.0.9
+|    |    |    |    +--- org.antlr:antlr4-runtime:4.7
+|    |    |    |    +--- commons-codec:commons-codec:1.10
+|    |    |    |    \--- org.spark-project.spark:unused:1.0.0
+|    |    |    +--- org.apache.spark:spark-tags_2.11:2.4.5 (*)
+|    |    |    +--- org.apache.orc:orc-core:1.5.5 -> 1.6.2 (*)
+|    |    |    +--- org.apache.orc:orc-mapreduce:1.5.5 -> 1.6.2
+|    |    |    |    +--- commons-codec:commons-codec:1.4 -> 1.10
+|    |    |    |    \--- commons-lang:commons-lang:2.6
+|    |    |    +--- org.apache.parquet:parquet-column:1.10.1 -> 1.11.0 (*)
+|    |    |    +--- org.apache.parquet:parquet-hadoop:1.10.1 -> 1.11.0 (*)
+|    |    |    +--- com.fasterxml.jackson.core:jackson-databind:2.6.7.3 -> 2.10.2 (*)
+|    |    |    +--- org.apache.arrow:arrow-vector:0.10.0 -> 0.14.1 (*)
+|    |    |    +--- org.apache.xbean:xbean-asm6-shaded:4.8
+|    |    |    \--- org.spark-project.spark:unused:1.0.0
+|    |    +--- org.spark-project.hive:hive-exec:1.2.1.spark2
+|    |    |    +--- com.twitter:parquet-hadoop-bundle:1.6.0
+|    |    |    +--- commons-io:commons-io:2.4
+|    |    |    +--- org.apache.commons:commons-lang3:3.1 -> 3.9
+|    |    |    +--- commons-lang:commons-lang:2.6
+|    |    |    +--- javolution:javolution:5.5.1
+|    |    |    +--- log4j:apache-log4j-extras:1.2.17
+|    |    |    +--- org.antlr:antlr-runtime:3.4 -> 3.5.2
+|    |    |    +--- org.antlr:ST4:4.0.4 (*)
+|    |    |    +--- org.apache.commons:commons-compress:1.4.1 -> 1.19
+|    |    |    +--- org.apache.ivy:ivy:2.4.0
+|    |    |    +--- org.codehaus.jackson:jackson-core-asl:1.9.2 -> 1.9.13
+|    |    |    +--- org.jodd:jodd-core:3.5.2
+|    |    |    +--- org.codehaus.jackson:jackson-mapper-asl:1.9.2 -> 1.9.13 (*)
+|    |    |    +--- org.datanucleus:datanucleus-core:3.2.10 -> 4.1.17
+|    |    |    +--- org.apache.calcite:calcite-avatica:1.2.0-incubating
+|    |    |    +--- com.googlecode.javaewah:JavaEWAH:0.3.2
+|    |    |    +--- org.iq80.snappy:snappy:0.2
+|    |    |    +--- stax:stax-api:1.0.1
+|    |    |    \--- net.sf.opencsv:opencsv:2.3
+|    |    +--- org.spark-project.hive:hive-metastore:1.2.1.spark2
+|    |    |    +--- com.jolbox:bonecp:0.8.0.RELEASE (*)
+|    |    |    +--- commons-cli:commons-cli:1.2
+|    |    |    +--- commons-lang:commons-lang:2.6
+|    |    |    +--- commons-logging:commons-logging:1.1.3 -> 1.2
+|    |    |    +--- org.apache.derby:derby:10.10.2.0 -> 10.12.1.1
+|    |    |    +--- org.datanucleus:datanucleus-api-jdo:3.2.6 -> 4.2.4
+|    |    |    +--- org.datanucleus:datanucleus-core:3.2.10 -> 4.1.17
+|    |    |    +--- org.datanucleus:datanucleus-rdbms:3.2.9 -> 4.1.19
+|    |    |    +--- commons-pool:commons-pool:1.5.4 -> 1.6
+|    |    |    +--- commons-dbcp:commons-dbcp:1.4 (*)
+|    |    |    +--- javax.jdo:jdo-api:3.0.1 (*)
+|    |    |    \--- org.antlr:antlr-runtime:3.4 -> 3.5.2
+|    |    +--- org.apache.avro:avro-mapred:1.8.2 (*)
+|    |    +--- commons-httpclient:commons-httpclient:3.1 (*)
+|    |    +--- org.apache.calcite:calcite-avatica:1.2.0-incubating
+|    |    +--- org.apache.calcite:calcite-core:1.2.0-incubating
+|    |    |    +--- org.apache.calcite:calcite-avatica:1.2.0-incubating
+|    |    |    +--- org.apache.calcite:calcite-linq4j:1.2.0-incubating
+|    |    |    +--- commons-dbcp:commons-dbcp:1.4 (*)
+|    |    |    \--- net.hydromatic:eigenbase-properties:1.1.5
+|    |    +--- org.apache.httpcomponents:httpclient:4.5.6 (*)
+|    |    +--- org.codehaus.jackson:jackson-mapper-asl:1.9.13 (*)
+|    |    +--- commons-codec:commons-codec:1.10
+|    |    +--- joda-time:joda-time:2.9.3 -> 2.9.9
+|    |    +--- org.jodd:jodd-core:3.5.2
+|    |    +--- com.google.code.findbugs:jsr305:1.3.9 -> 3.0.2
+|    |    +--- org.datanucleus:datanucleus-core:3.2.10 -> 4.1.17
+|    |    +--- org.apache.thrift:libthrift:0.9.3 (*)
+|    |    +--- org.apache.thrift:libfb303:0.9.3 (*)
+|    |    +--- org.apache.derby:derby:10.12.1.1
+|    |    \--- org.spark-project.spark:unused:1.0.0
+|    +--- org.apache.spark:spark-avro_2.11 -> 2.4.5
+|    |    +--- org.apache.spark:spark-tags_2.11:2.4.5 (*)
+|    |    \--- org.spark-project.spark:unused:1.0.0
+|    +--- org.slf4j:slf4j-api -> 1.7.25
+|    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    +--- project :iceberg-api (*)
+|    +--- project :iceberg-common (*)
+|    +--- project :iceberg-core (*)
+|    +--- project :iceberg-data (*)
+|    +--- project :iceberg-orc (*)
+|    +--- project :iceberg-parquet (*)
+|    +--- project :iceberg-arrow (*)
+|    +--- project :iceberg-hive (*)
+|    +--- junit:junit -> 4.12 (*)
+|    +--- org.slf4j:slf4j-simple -> 1.7.5 (*)
+|    +--- org.mockito:mockito-core -> 1.10.19 (*)
+|    +--- org.apache.hadoop:hadoop-hdfs:2.7.3 (*)
+|    +--- org.apache.hadoop:hadoop-common:2.7.3 (*)
+|    +--- org.apache.hadoop:hadoop-minicluster:2.7.3 (*)
+|    +--- org.slf4j:slf4j-api -> 1.7.25
+|    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    +--- org.apache.avro:avro -> 1.9.2 (*)
+|    +--- org.apache.spark:spark-hive_2.11 -> 2.4.5 (*)
+|    \--- org.apache.spark:spark-avro_2.11 -> 2.4.5 (*)
++--- project :iceberg-spark (*)
++--- project :iceberg-spark-runtime
+|    +--- project :iceberg-spark-runtime (*)
+|    +--- org.slf4j:slf4j-api:1.7.22 -> 1.7.25 (c)
+|    +--- junit:junit:4.12 (c)
+|    +--- joda-time:joda-time:2.9.9 (c)
+|    +--- org.mockito:mockito-core:1.10.19 (c)
+|    +--- org.apache.avro:avro:1.9.2 (c)
+|    +--- org.slf4j:slf4j-simple:1.7.5 (c)
+|    +--- org.apache.arrow:arrow-vector:0.14.1 (c)
+|    +--- com.github.ben-manes.caffeine:caffeine:2.7.0 (c)
+|    +--- org.apache.hive:hive-metastore:2.3.6 (c)
+|    +--- org.apache.hive:hive-exec:2.3.6 (c)
+|    +--- org.apache.parquet:parquet-avro:1.11.0 (c)
+|    +--- org.apache.commons:commons-lang3:3.9 (c)
+|    +--- org.apache.pig:pig:0.14.0 (c)
+|    +--- org.apache.spark:spark-hive_2.11:2.4.5 (c)
+|    +--- org.apache.spark:spark-avro_2.11:2.4.5 (c)
+|    +--- project :iceberg-spark (*)
+|    +--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
+|    +--- org.slf4j:slf4j-api -> 1.7.25
+|    +--- junit:junit -> 4.12 (*)
+|    +--- org.mockito:mockito-core -> 1.10.19 (*)
+|    \--- com.github.stephenc.findbugs:findbugs-annotations:1.3.9-1
++--- project :iceberg-spark-runtime (*)
++--- org.slf4j:slf4j-api:1.7.22 -> 1.7.25 (c)
++--- junit:junit:4.12 (c)
++--- joda-time:joda-time:2.9.9 (c)
++--- org.mockito:mockito-core:1.10.19 (c)
++--- org.apache.avro:avro:1.9.2 (c)
++--- org.slf4j:slf4j-simple:1.7.5 (c)
++--- org.apache.arrow:arrow-vector:0.14.1 (c)
++--- com.github.ben-manes.caffeine:caffeine:2.7.0 (c)
++--- org.apache.hive:hive-metastore:2.3.6 (c)
++--- org.apache.hive:hive-exec:2.3.6 (c)
++--- org.apache.parquet:parquet-avro:1.11.0 (c)
++--- org.apache.commons:commons-lang3:3.9 (c)
++--- org.apache.pig:pig:0.14.0 (c)
++--- org.apache.spark:spark-hive_2.11:2.4.5 (c)
+\--- org.apache.spark:spark-avro_2.11:2.4.5 (c)
+
+(c) - dependency constraint
+(*) - dependencies omitted (listed previously)
+
+A web-based, searchable dependency report is available by adding the --scan option.

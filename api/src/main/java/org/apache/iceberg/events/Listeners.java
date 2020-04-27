@@ -19,10 +19,8 @@
 
 package org.apache.iceberg.events;
 
-import org.apache.iceberg.shaded.com.google.common.base.Preconditions;
-import org.apache.iceberg.shaded.com.google.common.collect.Maps;
-import java.util.Iterator;
-import java.util.List;
+import com.google.common.shaded.base.Preconditions;
+import com.google.common.shaded.collect.Maps;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;

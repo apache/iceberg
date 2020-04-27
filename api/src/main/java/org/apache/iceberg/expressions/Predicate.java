@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.expressions;
 
-import org.apache.iceberg.shaded.com.google.common.base.Preconditions;
+import com.google.common.shaded.base.Preconditions;
 
 public abstract class Predicate<T, C extends Term> implements Expression {
   private final Operation op;

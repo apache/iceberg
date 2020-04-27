@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.types;
 
-import org.apache.iceberg.shaded.com.google.common.base.Joiner;
-import org.apache.iceberg.shaded.com.google.common.collect.Lists;
-import org.apache.iceberg.shaded.com.google.common.collect.Maps;
+import com.google.common.shaded.base.Joiner;
+import com.google.common.shaded.collect.Lists;
+import com.google.common.shaded.collect.Maps;
 import java.util.Deque;
 import java.util.Map;
 import java.util.concurrent.Callable;

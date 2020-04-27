@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.expressions;
 
-import org.apache.iceberg.shaded.com.google.common.base.Preconditions;
-import org.apache.iceberg.shaded.com.google.common.collect.Lists;
+import com.google.common.shaded.base.Preconditions;
+import com.google.common.shaded.collect.Lists;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.transforms.Transform;

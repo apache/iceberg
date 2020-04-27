@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.transforms;
 
-import org.apache.iceberg.shaded.com.google.common.base.Preconditions;
+import com.google.common.shaded.base.Preconditions;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;

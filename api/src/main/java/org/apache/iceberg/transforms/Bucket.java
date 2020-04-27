@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.transforms;
 
-import org.apache.iceberg.shaded.com.google.common.annotations.VisibleForTesting;
-import org.apache.iceberg.shaded.com.google.common.base.Objects;
-import org.apache.iceberg.shaded.com.google.common.collect.Sets;
-import org.apache.iceberg.shaded.com.google.common.hash.HashFunction;
-import org.apache.iceberg.shaded.com.google.common.hash.Hashing;
+import com.google.common.shaded.annotations.VisibleForTesting;
+import com.google.common.shaded.base.Objects;
+import com.google.common.shaded.collect.Sets;
+import com.google.common.shaded.hash.HashFunction;
+import com.google.common.shaded.hash.Hashing;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;

@@ -19,7 +19,7 @@
 
 package org.apache.iceberg;
 
-import org.apache.iceberg.shaded.com.google.common.collect.ImmutableMap;
+import com.google.common.shaded.collect.ImmutableMap;
 import java.util.Map;
 
 /**

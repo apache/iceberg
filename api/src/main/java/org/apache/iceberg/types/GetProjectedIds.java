@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.types;
 
-import org.apache.iceberg.shaded.com.google.common.collect.Sets;
+import com.google.common.shaded.collect.Sets;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.Schema;

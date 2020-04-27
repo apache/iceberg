@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.transforms;
 
-import org.apache.iceberg.shaded.com.google.common.hash.HashFunction;
-import org.apache.iceberg.shaded.com.google.common.hash.Hashing;
+import com.google.common.shaded.hash.HashFunction;
+import com.google.common.shaded.hash.Hashing;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigDecimal;

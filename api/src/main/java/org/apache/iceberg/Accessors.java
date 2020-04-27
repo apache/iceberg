@@ -19,7 +19,7 @@
 
 package org.apache.iceberg;
 
-import org.apache.iceberg.shaded.com.google.common.collect.Maps;
+import com.google.common.shaded.collect.Maps;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.types.Type;

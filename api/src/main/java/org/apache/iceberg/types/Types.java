@@ -19,10 +19,10 @@
 
 package org.apache.iceberg.types;
 
-import org.apache.iceberg.shaded.com.google.common.base.Joiner;
-import org.apache.iceberg.shaded.com.google.common.base.Preconditions;
-import org.apache.iceberg.shaded.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.shaded.com.google.common.collect.ImmutableMap;
+import com.google.common.shaded.base.Joiner;
+import com.google.common.shaded.base.Preconditions;
+import com.google.common.shaded.collect.ImmutableList;
+import com.google.common.shaded.collect.ImmutableMap;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;

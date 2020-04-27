@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.transforms;
 
+import com.google.common.shaded.collect.Iterables;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import org.apache.iceberg.expressions.BoundLiteralPredicate;
@@ -28,7 +29,6 @@ import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
-import org.apache.iceberg.shaded.com.google.common.collect.Iterables;
 
 import static org.apache.iceberg.expressions.Expressions.predicate;
 
