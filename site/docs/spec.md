@@ -19,6 +19,17 @@
 
 This is a specification for the Iceberg table format that is designed to manage a large, slow-changing collection of files in a distributed file system or key-value store as a table.
 
+#### Version 1: Analytic Data Tables
+
+**Iceberg format version 1 is the current version**. It defines how to manage large analytic tables using immutable file formats, like Parquet, Avro, and ORC.
+
+#### Version 2: Row-level Deletes
+
+The Iceberg community is currently working on version 2 of the Iceberg format that supports encoding row-level deletes. **The v2 specification is incomplete and may change until it is finished and adopted.** This document includes tentative v2 format requirements, but there are currently no compatibility guarantees with the unfinished v2 spec.
+
+The goal of version 2 is to provide a way to encode row-level deletes. This update can be used to delete or replace individual rows in an immutable data file without rewriting the file.
+
+
 ## Goals
 
 * **Snapshot isolation** -- Reads will be isolated from concurrent writes and always use a committed snapshot of a table’s data. Writes will support removing and adding files in a single operation and are never partially visible. Readers will not acquire locks.
@@ -139,6 +150,7 @@ Data files are stored in manifests with a tuple of partition values that are use
 Tables are configured with a **partition spec** that defines how to produce a tuple of partition values from a record. A partition spec has a list of fields that consist of:
 
 *   A **source column id** from the table’s schema
+*   A **partition field id** that is used to identify a partition field, which is unique within a partition spec. In v2 table metadata, it will be unique across all partition specs.
 *   A **transform** that is applied to the source column to produce a partition value
 *   A **partition name**
 
@@ -334,38 +346,6 @@ Table metadata is stored as JSON. Each table metadata change creates a new table
 
 The atomic operation used to commit metadata depends on how tables are tracked and is not standardized by this spec. See the sections below for examples.
 
-### Delete Format
-
-This section details how to encode row-level deletes in Iceberg metadata. Row-level deletes are not supported in the current format version 1. This part of the spec is not yet complete and will be completed as format version 2.
-
-#### Position-based Delete Files
-
-Position-based delete files identify rows in one or more data files that have been deleted.
-
-Position-based delete files store `file_position_delete`, a struct with the following fields:
-
-| Field id, name          | Type                            | Description                                                                                                              |
-|-------------------------|---------------------------------|--------------------------------------------------------------------------------------------------------------------------|
-| **`1  file_path`**     | `required string`               | The full URI of a data file with FS scheme. This must match the `file_path` of the target data file in a manifest entry.   |
-| **`2  position`**      | `required long`                 | The ordinal position of a deleted row in the target data file identified by `file_path`, starting at `0`.                    |
-
-The rows in the delete file must be sorted by `file_path` then `position` to optimize filtering rows while scanning. 
-
-*  Sorting by `file_path` allows filter pushdown by file in columnar storage formats.
-*  Sorting by `position` allows filtering rows while scanning, to avoid keeping deletes in memory.
- 
-Though the delete files can be written using any supported data file format in Iceberg, it is recommended to write delete files with same file format as the table's file format.
-
-#### Commit Conflict Resolution and Retry
-
-When two commits happen at the same time and are based on the same version, only one commit will succeed. In most cases, the failed commit can be applied to the new current version of table metadata and retried. Updates verify the conditions under which they can be applied to a new version and retry if those conditions are met.
-
-*   Append operations have no requirements and can always be applied.
-*   Replace operations must verify that the files that will be deleted are still in the table. Examples of replace operations include format changes (replace an Avro file with a Parquet file) and compactions (several files are replaced with a single file that contains the same rows).
-*   Delete operations must verify that specific files to delete are still in the table. Delete operations based on expressions can always be applied (e.g., where timestamp < X).
-*   Table schema updates and partition spec changes must validate that the schema has not changed between the base version and the current version.
-
-
 #### Table Metadata Fields
 
 Table metadata consists of the following fields:
@@ -388,6 +368,16 @@ Table metadata consists of the following fields:
 | _optional_ | _optional_ | **`snapshot-log`**| A list (optional) of timestamp and snapshot ID pairs that encodes changes to the current snapshot for the table. Each time the current-snapshot-id is changed, a new entry should be added with the last-updated-ms and the new current-snapshot-id. When snapshots are expired from the list of valid snapshots, all entries before a snapshot that has expired should be removed. |
 
 For serialization details, see Appendix C.
+
+
+#### Commit Conflict Resolution and Retry
+
+When two commits happen at the same time and are based on the same version, only one commit will succeed. In most cases, the failed commit can be applied to the new current version of table metadata and retried. Updates verify the conditions under which they can be applied to a new version and retry if those conditions are met.
+
+*   Append operations have no requirements and can always be applied.
+*   Replace operations must verify that the files that will be deleted are still in the table. Examples of replace operations include format changes (replace an Avro file with a Parquet file) and compactions (several files are replaced with a single file that contains the same rows).
+*   Delete operations must verify that specific files to delete are still in the table. Delete operations based on expressions can always be applied (e.g., where timestamp < X).
+*   Table schema updates and partition spec changes must validate that the schema has not changed between the base version and the current version.
 
 
 #### File System Tables
@@ -422,6 +412,30 @@ Each version of table metadata is stored in a metadata folder under the table’
 Notes:
 
 1. The metastore table scheme is partly implemented in [BaseMetastoreTableOperations](/javadoc/master/index.html?org/apache/iceberg/BaseMetastoreTableOperations.html).
+
+
+### Delete Formats
+
+This section details how to encode row-level deletes in Iceberg metadata. Row-level deletes are not supported in the current format version 1. This part of the spec is not yet complete and will be completed as format version 2.
+
+#### Position-based Delete Files
+
+Position-based delete files identify rows in one or more data files that have been deleted.
+
+Position-based delete files store `file_position_delete`, a struct with the following fields:
+
+| Field id, name          | Type                            | Description                                                                                                              |
+|-------------------------|---------------------------------|--------------------------------------------------------------------------------------------------------------------------|
+| **`1  file_path`**     | `required string`               | The full URI of a data file with FS scheme. This must match the `file_path` of the target data file in a manifest entry.   |
+| **`2  position`**      | `required long`                 | The ordinal position of a deleted row in the target data file identified by `file_path`, starting at `0`.                    |
+
+The rows in the delete file must be sorted by `file_path` then `position` to optimize filtering rows while scanning. 
+
+*  Sorting by `file_path` allows filter pushdown by file in columnar storage formats.
+*  Sorting by `position` allows filtering rows while scanning, to avoid keeping deletes in memory.
+
+Though the delete files can be written using any supported data file format in Iceberg, it is recommended to write delete files with same file format as the table's file format.
+
 
 ## Appendix A: Format-specific Requirements
 
@@ -615,7 +629,7 @@ Partition specs are serialized as a JSON object with the following fields:
 |Field|JSON representation|Example|
 |--- |--- |--- |
 |**`spec-id`**|`JSON int`|`0`|
-|**`fields`**|`JSON list: [`<br />&nbsp;&nbsp;`<partition field JSON>,`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"source-id": 4,`<br />&nbsp;&nbsp;`"name": "ts_day",`<br />&nbsp;&nbsp;`"transform": "day"`<br />`}, {`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`} ]`|
+|**`fields`**|`JSON list: [`<br />&nbsp;&nbsp;`<partition field JSON>,`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"source-id": 4,`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "ts_day",`<br />&nbsp;&nbsp;`"transform": "day"`<br />`}, {`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"field-id": 1001,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`} ]`|
 
 Each partition field in the fields list is stored as an object. See the table for more detail:
 
@@ -628,7 +642,7 @@ Each partition field in the fields list is stored as an object. See the table fo
 |**`month`**|`JSON string: "month"`|`"month"`|
 |**`day`**|`JSON string: "day"`|`"day"`|
 |**`hour`**|`JSON string: "hour"`|`"hour"`|
-|**`Partition Field`**|`JSON object: {`<br />&nbsp;&nbsp;`"source-id": <id int>,`<br />&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;`"transform": <transform JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`}`|
+|**`Partition Field`**|`JSON object: {`<br />&nbsp;&nbsp;`"source-id": <id int>,`<br />&nbsp;&nbsp;`"field-id": <field id int>,`<br />&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;`"transform": <transform JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`}`|
 
 In some cases partition specs are stored using only the field list instead of the object format that includes the spec ID, like the deprecated `partition-spec` field in table metadata. The object format should be used unless otherwise noted in this spec.
 

@@ -25,14 +25,13 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Writer for manifest files.
  */
 public abstract class ManifestWriter implements FileAppender<DataFile> {
-  private static final Logger LOG = LoggerFactory.getLogger(ManifestWriter.class);
+  // stand-in for the current sequence number that will be assigned when the commit is successful
+  // this is replaced when writing a manifest list by the ManifestFile wrapper
   static final long UNASSIGNED_SEQ = -1L;
 
   /**
@@ -55,7 +54,7 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
   private final int specId;
   private final FileAppender<ManifestEntry> writer;
   private final Long snapshotId;
-  private final ManifestEntry reused;
+  private final GenericManifestEntry reused;
   private final PartitionSummary stats;
 
   private boolean closed = false;
@@ -65,15 +64,20 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
   private long existingRows = 0L;
   private int deletedFiles = 0;
   private long deletedRows = 0L;
+  private Long minSequenceNumber = null;
 
   private ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
     this.file = file;
     this.specId = spec.specId();
-    this.writer = newAppender(FileFormat.AVRO, spec, file);
+    this.writer = newAppender(spec, file);
     this.snapshotId = snapshotId;
-    this.reused = new ManifestEntry(spec.partitionType());
+    this.reused = new GenericManifestEntry(spec.partitionType());
     this.stats = new PartitionSummary(spec);
   }
+
+  protected abstract ManifestEntry prepare(ManifestEntry entry);
+
+  protected abstract FileAppender<ManifestEntry> newAppender(PartitionSpec spec, OutputFile outputFile);
 
   void addEntry(ManifestEntry entry) {
     switch (entry.status()) {
@@ -91,7 +95,10 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
         break;
     }
     stats.update(entry.file().partition());
-    writer.add(entry);
+    if (entry.sequenceNumber() != null && (minSequenceNumber == null || entry.sequenceNumber() < minSequenceNumber)) {
+      this.minSequenceNumber = entry.sequenceNumber();
+    }
+    writer.add(prepare(entry));
   }
 
   /**
@@ -115,13 +122,14 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
    *
    * @param existingFile a data file
    * @param fileSnapshotId snapshot ID when the data file was added to the table
+   * @param sequenceNumber sequence number for the data file
    */
-  public void existing(DataFile existingFile, long fileSnapshotId) {
-    addEntry(reused.wrapExisting(fileSnapshotId, existingFile));
+  public void existing(DataFile existingFile, long fileSnapshotId, long sequenceNumber) {
+    addEntry(reused.wrapExisting(fileSnapshotId, sequenceNumber, existingFile));
   }
 
   void existing(ManifestEntry entry) {
-    addEntry(reused.wrapExisting(entry.snapshotId(), entry.file()));
+    addEntry(reused.wrapExisting(entry.snapshotId(), entry.sequenceNumber(), entry.file()));
   }
 
   /**
@@ -153,7 +161,10 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
 
   public ManifestFile toManifestFile() {
     Preconditions.checkState(closed, "Cannot build ManifestFile, writer is not closed");
-    return new GenericManifestFile(file.location(), writer.length(), specId, UNASSIGNED_SEQ, UNASSIGNED_SEQ, snapshotId,
+    // if the minSequenceNumber is null, then no manifests with a sequence number have been written, so the min
+    // sequence number is the one that will be assigned when this is committed. pass UNASSIGNED_SEQ to inherit it.
+    long minSeqNumber = minSequenceNumber != null ? minSequenceNumber : UNASSIGNED_SEQ;
+    return new GenericManifestFile(file.location(), writer.length(), specId, UNASSIGNED_SEQ, minSeqNumber, snapshotId,
         addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries());
   }
 
@@ -163,31 +174,67 @@ public abstract class ManifestWriter implements FileAppender<DataFile> {
     writer.close();
   }
 
-  private static <D> FileAppender<D> newAppender(FileFormat format, PartitionSpec spec,
-                                                 OutputFile file) {
-    Schema manifestSchema = ManifestEntry.getSchema(spec.partitionType());
-    try {
-      switch (format) {
-        case AVRO:
-          return Avro.write(file)
-              .schema(manifestSchema)
-              .named("manifest_entry")
-              .meta("schema", SchemaParser.toJson(spec.schema()))
-              .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
-              .meta("partition-spec-id", String.valueOf(spec.specId()))
-              .overwrite()
-              .build();
-        default:
-          throw new IllegalArgumentException("Unsupported format: " + format);
+  static class V2Writer extends ManifestWriter {
+    private V2Metadata.IndexedManifestEntry entryWrapper;
+
+    V2Writer(PartitionSpec spec, OutputFile file, Long snapshotId) {
+      super(spec, file, snapshotId);
+      this.entryWrapper = new V2Metadata.IndexedManifestEntry(snapshotId, spec.partitionType());
+    }
+
+    @Override
+    protected ManifestEntry prepare(ManifestEntry entry) {
+      return entryWrapper.wrap(entry);
+    }
+
+    @Override
+    protected FileAppender<ManifestEntry> newAppender(PartitionSpec spec, OutputFile file) {
+      Schema manifestSchema = V2Metadata.entrySchema(spec.partitionType());
+      try {
+        return Avro.write(file)
+            .schema(manifestSchema)
+            .named("manifest_entry")
+            .meta("schema", SchemaParser.toJson(spec.schema()))
+            .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
+            .meta("partition-spec-id", String.valueOf(spec.specId()))
+            .meta("format-version", "2")
+            .overwrite()
+            .build();
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to create manifest writer for path: " + file);
       }
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to create manifest writer for path: " + file);
     }
   }
 
   static class V1Writer extends ManifestWriter {
+    private V1Metadata.IndexedManifestEntry entryWrapper;
+
     V1Writer(PartitionSpec spec, OutputFile file, Long snapshotId) {
       super(spec, file, snapshotId);
+      this.entryWrapper = new V1Metadata.IndexedManifestEntry(spec.partitionType());
+    }
+
+    @Override
+    protected ManifestEntry prepare(ManifestEntry entry) {
+      return entryWrapper.wrap(entry);
+    }
+
+    @Override
+    protected FileAppender<ManifestEntry> newAppender(PartitionSpec spec, OutputFile file) {
+      Schema manifestSchema = V1Metadata.entrySchema(spec.partitionType());
+      try {
+        return Avro.write(file)
+            .schema(manifestSchema)
+            .named("manifest_entry")
+            .meta("schema", SchemaParser.toJson(spec.schema()))
+            .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
+            .meta("partition-spec-id", String.valueOf(spec.specId()))
+            .meta("format-version", "1")
+            .overwrite()
+            .build();
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to create manifest writer for path: " + file);
+      }
     }
   }
 }

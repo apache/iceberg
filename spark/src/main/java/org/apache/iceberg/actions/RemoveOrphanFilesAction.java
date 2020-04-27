@@ -66,7 +66,7 @@ import org.slf4j.LoggerFactory;
  * <em>Note:</em> It is dangerous to call this action with a short retention interval as it might corrupt
  * the state of the table if another operation is writing at the same time.
  */
-public class RemoveOrphanFilesAction implements Action<List<String>> {
+public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
 
   private static final Logger LOG = LoggerFactory.getLogger(RemoveOrphanFilesAction.class);
 
@@ -94,6 +94,11 @@ public class RemoveOrphanFilesAction implements Action<List<String>> {
     this.table = table;
     this.ops = ((HasTableOperations) table).operations();
     this.location = table.location();
+  }
+
+  @Override
+  protected Table table() {
+    return table;
   }
 
   /**
@@ -250,18 +255,6 @@ public class RemoveOrphanFilesAction implements Action<List<String>> {
     }
   }
 
-  private String metadataTableName(MetadataTableType type) {
-    String tableName = table.toString();
-    if (tableName.contains("/")) {
-      return tableName + "#" + type;
-    } else if (tableName.startsWith("hadoop.") || tableName.startsWith("hive.")) {
-      // HiveCatalog and HadoopCatalog prepend a logical name which we need to drop for Spark 2.4
-      return tableName.replaceFirst("(hadoop\\.)|(hive\\.)", "") + "." + type;
-    } else {
-      return tableName + "." + type;
-    }
-  }
-
   private static FlatMapFunction<Iterator<String>, String> listDirsRecursively(
       Broadcast<SerializableConfiguration> conf,
       long olderThanTimestamp) {
@@ -272,12 +265,16 @@ public class RemoveOrphanFilesAction implements Action<List<String>> {
 
       Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
 
-      int maxDepth = Integer.MAX_VALUE;
+      int maxDepth = 2000;
       int maxDirectSubDirs = Integer.MAX_VALUE;
 
       dirs.forEachRemaining(dir -> {
         listDirRecursively(dir, predicate, conf.value().value(), maxDepth, maxDirectSubDirs, subDirs, files);
       });
+
+      if (!subDirs.isEmpty()) {
+        throw new RuntimeException("Could not list subdirectories, reached maximum subdirectory depth: " + maxDepth);
+      }
 
       return files.iterator();
     };

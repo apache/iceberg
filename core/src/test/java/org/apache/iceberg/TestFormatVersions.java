@@ -23,6 +23,10 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class TestFormatVersions extends TableTestBase {
+  public TestFormatVersions() {
+    super(1);
+  }
+
   @Test
   public void testDefaultFormatVersion() {
     Assert.assertEquals("Should default to v1", 1, table.ops().current().formatVersion());

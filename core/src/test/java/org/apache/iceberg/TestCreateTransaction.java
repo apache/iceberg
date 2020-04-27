@@ -26,10 +26,25 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.types.TypeUtil;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.PartitionSpec.unpartitioned;
 
+@RunWith(Parameterized.class)
 public class TestCreateTransaction extends TableTestBase {
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { 1 },
+        new Object[] { 2 },
+    };
+  }
+
+  public TestCreateTransaction(int formatVersion) {
+    super(formatVersion);
+  }
+
   @Test
   public void testCreateTransaction() throws IOException {
     File tableDir = temp.newFolder();
@@ -273,7 +288,7 @@ public class TestCreateTransaction extends TableTestBase {
     Assert.assertNull("Should have no metadata version",
         TestTables.metadataVersion("test_conflict"));
 
-    Table conflict = TestTables.create(tableDir, "test_conflict", SCHEMA, unpartitioned());
+    Table conflict = TestTables.create(tableDir, "test_conflict", SCHEMA, unpartitioned(), formatVersion);
 
     Assert.assertEquals("Table schema should match with reassigned IDs",
         TypeUtil.assignIncreasingFreshIds(SCHEMA).asStruct(), conflict.schema().asStruct());

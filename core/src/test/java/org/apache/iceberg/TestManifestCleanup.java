@@ -22,8 +22,23 @@ package org.apache.iceberg;
 import org.apache.iceberg.expressions.Expressions;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestManifestCleanup extends TableTestBase {
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { 1 },
+        new Object[] { 2 },
+    };
+  }
+
+  public TestManifestCleanup(int formatVersion) {
+    super(formatVersion);
+  }
+
   @Test
   public void testDelete() {
     Assert.assertEquals("Table should start with no manifests",

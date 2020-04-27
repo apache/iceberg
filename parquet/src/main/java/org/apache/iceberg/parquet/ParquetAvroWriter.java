@@ -20,7 +20,6 @@
 package org.apache.iceberg.parquet;
 
 import com.google.common.collect.Lists;
-import java.util.Iterator;
 import java.util.List;
 import org.apache.avro.generic.GenericData.Fixed;
 import org.apache.avro.generic.IndexedRecord;
@@ -162,32 +161,6 @@ public class ParquetAvroWriter {
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
-    }
-
-    private String[] currentPath() {
-      String[] path = new String[fieldNames.size()];
-      if (!fieldNames.isEmpty()) {
-        Iterator<String> iter = fieldNames.descendingIterator();
-        for (int i = 0; iter.hasNext(); i += 1) {
-          path[i] = iter.next();
-        }
-      }
-
-      return path;
-    }
-
-    private String[] path(String name) {
-      String[] path = new String[fieldNames.size() + 1];
-      path[fieldNames.size()] = name;
-
-      if (!fieldNames.isEmpty()) {
-        Iterator<String> iter = fieldNames.descendingIterator();
-        for (int i = 0; iter.hasNext(); i += 1) {
-          path[i] = iter.next();
-        }
-      }
-
-      return path;
     }
   }
 

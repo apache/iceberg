@@ -38,8 +38,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.types.Types;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 
@@ -49,8 +47,6 @@ import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
  * Create readers using {@link ManifestFiles#read(ManifestFile, FileIO, Map)}.
  */
 public class ManifestReader extends CloseableGroup implements Filterable<FilteredManifest> {
-  private static final Logger LOG = LoggerFactory.getLogger(ManifestReader.class);
-
   static final ImmutableList<String> ALL_COLUMNS = ImmutableList.of("*");
   static final ImmutableList<String> CHANGE_COLUMNS = ImmutableList.of(
       "file_path", "file_format", "partition", "record_count", "file_size_in_bytes");
@@ -220,12 +216,12 @@ public class ManifestReader extends CloseableGroup implements Filterable<Filtere
       case AVRO:
         AvroIterable<ManifestEntry> reader = Avro.read(file)
             .project(ManifestEntry.wrapFileSchema(fileProjection.asStruct()))
-            .rename("manifest_entry", ManifestEntry.class.getName())
+            .rename("manifest_entry", GenericManifestEntry.class.getName())
             .rename("partition", PartitionData.class.getName())
             .rename("r102", PartitionData.class.getName())
             .rename("data_file", GenericDataFile.class.getName())
             .rename("r2", GenericDataFile.class.getName())
-            .classLoader(ManifestEntry.class.getClassLoader())
+            .classLoader(GenericManifestFile.class.getClassLoader())
             .reuseContainers()
             .build();
 
