@@ -419,6 +419,11 @@ public class GenericManifestFile
       return this;
     }
 
+    public CopyBuilder withSequenceNumber(Long newSequenceNumber) {
+      manifestFile.sequenceNumber = newSequenceNumber;
+      return this;
+    }
+
     public ManifestFile build() {
       return manifestFile;
     }
