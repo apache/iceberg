@@ -43,4 +43,8 @@ public class Actions {
   public RemoveOrphanFilesAction removeOrphanFiles() {
     return new RemoveOrphanFilesAction(spark, table);
   }
+
+  public RewriteManifestsAction rewriteManifests() {
+    return new RewriteManifestsAction(spark, table);
+  }
 }

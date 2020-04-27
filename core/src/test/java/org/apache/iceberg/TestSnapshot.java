@@ -20,8 +20,22 @@
 package org.apache.iceberg;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestSnapshot extends TableTestBase {
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { 1 },
+        new Object[] { 2 },
+    };
+  }
+
+  public TestSnapshot(int formatVersion) {
+    super(formatVersion);
+  }
 
   @Test
   public void testAppendFilesFromTable() {

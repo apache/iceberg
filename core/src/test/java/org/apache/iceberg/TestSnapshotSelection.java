@@ -25,8 +25,22 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestSnapshotSelection extends TableTestBase {
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { 1 },
+        new Object[] { 2 },
+    };
+  }
+
+  public TestSnapshotSelection(int formatVersion) {
+    super(formatVersion);
+  }
 
   @Test
   public void testSnapshotSelectionById() {

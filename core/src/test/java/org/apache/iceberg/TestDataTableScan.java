@@ -19,42 +19,30 @@
 
 package org.apache.iceberg;
 
-import java.io.File;
-import java.io.IOException;
 import org.apache.iceberg.types.Types;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.junit.Assert.assertEquals;
 
-public class TestDataTableScan {
-
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
-  private final Schema schema = new Schema(
-      required(1, "id", Types.IntegerType.get()),
-      required(2, "data", Types.StringType.get()));
-  private File tableDir = null;
-
-  @Before
-  public void setupTableDir() throws IOException {
-    this.tableDir = temp.newFolder();
+@RunWith(Parameterized.class)
+public class TestDataTableScan extends TableTestBase {
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { 1 },
+        new Object[] { 2 },
+    };
   }
 
-  @After
-  public void cleanupTables() {
-    TestTables.clearTables();
+  public TestDataTableScan(int formatVersion) {
+    super(formatVersion);
   }
 
   @Test
   public void testTableScanHonorsSelect() {
-    PartitionSpec spec = PartitionSpec.unpartitioned();
-    Table table = TestTables.create(tableDir, "test", schema, spec);
-
     TableScan scan = table.newScan().select("id");
 
     Schema expectedSchema = new Schema(required(1, "id", Types.IntegerType.get()));
@@ -66,9 +54,6 @@ public class TestDataTableScan {
 
   @Test
   public void testTableScanHonorsSelectWithoutCaseSensitivity() {
-    PartitionSpec spec = PartitionSpec.unpartitioned();
-    Table table = TestTables.create(tableDir, "test", schema, spec);
-
     TableScan scan1 = table.newScan().caseSensitive(false).select("ID");
     // order of refinements shouldn't matter
     TableScan scan2 = table.newScan().select("ID").caseSensitive(false);

@@ -34,9 +34,12 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
+@RunWith(Parameterized.class)
 public class TestSplitPlanning extends TableTestBase {
 
   private static final Configuration CONF = new Configuration();
@@ -49,6 +52,18 @@ public class TestSplitPlanning extends TableTestBase {
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
   private Table table = null;
+
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { 1 },
+        new Object[] { 2 },
+    };
+  }
+
+  public TestSplitPlanning(int formatVersion) {
+    super(formatVersion);
+  }
 
   @Before
   public void setupTable() throws IOException {

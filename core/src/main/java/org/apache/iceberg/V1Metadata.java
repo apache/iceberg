@@ -19,9 +19,14 @@
 
 package org.apache.iceberg;
 
+import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.types.Types;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 class V1Metadata {
   private V1Metadata() {
@@ -173,6 +178,233 @@ class V1Metadata {
     @Override
     public ManifestFile copy() {
       return wrapped.copy();
+    }
+  }
+
+  static Schema entrySchema(Types.StructType partitionType) {
+    return wrapFileSchema(DataFile.getType(partitionType));
+  }
+
+  static Schema wrapFileSchema(Types.StructType fileSchema) {
+    // this is used to build projection schemas
+    return new Schema(
+        ManifestEntry.STATUS, ManifestEntry.SNAPSHOT_ID,
+        required(ManifestEntry.DATA_FILE_ID, "data_file", fileSchema));
+  }
+
+  static class IndexedManifestEntry implements ManifestEntry, IndexedRecord {
+    private final org.apache.avro.Schema avroSchema;
+    private final IndexedDataFile fileWrapper;
+    private ManifestEntry wrapped = null;
+
+    IndexedManifestEntry(Types.StructType partitionType) {
+      this.avroSchema = AvroSchemaUtil.convert(entrySchema(partitionType), "manifest_entry");
+      this.fileWrapper = new IndexedDataFile(avroSchema.getField("data_file").schema());
+    }
+
+    public IndexedManifestEntry wrap(ManifestEntry entry) {
+      this.wrapped = entry;
+      return this;
+    }
+
+    @Override
+    public org.apache.avro.Schema getSchema() {
+      return avroSchema;
+    }
+
+    @Override
+    public void put(int i, Object v) {
+      throw new UnsupportedOperationException("Cannot read using IndexedManifestEntry");
+    }
+
+    @Override
+    public Object get(int i) {
+      switch (i) {
+        case 0:
+          return wrapped.status().id();
+        case 1:
+          return wrapped.snapshotId();
+        case 2:
+          DataFile file = wrapped.file();
+          if (file == null || file instanceof GenericDataFile) {
+            return file;
+          } else {
+            return fileWrapper.wrap(file);
+          }
+        default:
+          throw new UnsupportedOperationException("Unknown field ordinal: " + i);
+      }
+    }
+
+    @Override
+    public Status status() {
+      return wrapped.status();
+    }
+
+    @Override
+    public Long snapshotId() {
+      return wrapped.snapshotId();
+    }
+
+    @Override
+    public void setSnapshotId(long snapshotId) {
+      wrapped.setSnapshotId(snapshotId);
+    }
+
+    @Override
+    public Long sequenceNumber() {
+      return wrapped.sequenceNumber();
+    }
+
+    @Override
+    public void setSequenceNumber(long sequenceNumber) {
+      wrapped.setSequenceNumber(sequenceNumber);
+    }
+
+    @Override
+    public DataFile file() {
+      return wrapped.file();
+    }
+
+    @Override
+    public ManifestEntry copy() {
+      return wrapped.copy();
+    }
+
+    @Override
+    public ManifestEntry copyWithoutStats() {
+      return wrapped.copyWithoutStats();
+    }
+  }
+
+  static class IndexedDataFile implements DataFile, IndexedRecord {
+    private static final long DEFAULT_BLOCK_SIZE = 64 * 1024 * 1024;
+
+    private final org.apache.avro.Schema avroSchema;
+    private final IndexedStructLike partitionWrapper;
+    private DataFile wrapped = null;
+
+    IndexedDataFile(org.apache.avro.Schema avroSchema) {
+      this.avroSchema = avroSchema;
+      this.partitionWrapper = new IndexedStructLike(avroSchema.getField("partition").schema());
+    }
+
+    IndexedDataFile wrap(DataFile file) {
+      this.wrapped = file;
+      return this;
+    }
+
+    @Override
+    public Object get(int pos) {
+      switch (pos) {
+        case 0:
+          return wrapped.path().toString();
+        case 1:
+          return wrapped.format() != null ? wrapped.format().toString() : null;
+        case 2:
+          return partitionWrapper.wrap(wrapped.partition());
+        case 3:
+          return wrapped.recordCount();
+        case 4:
+          return wrapped.fileSizeInBytes();
+        case 5:
+          return DEFAULT_BLOCK_SIZE;
+        case 6:
+          return wrapped.columnSizes();
+        case 7:
+          return wrapped.valueCounts();
+        case 8:
+          return wrapped.nullValueCounts();
+        case 9:
+          return wrapped.lowerBounds();
+        case 10:
+          return wrapped.upperBounds();
+        case 11:
+          return wrapped.keyMetadata();
+        case 12:
+          return wrapped.splitOffsets();
+      }
+      throw new IllegalArgumentException("Unknown field ordinal: " + pos);
+    }
+
+    @Override
+    public void put(int i, Object v) {
+      throw new UnsupportedOperationException("Cannot read into IndexedDataFile");
+    }
+
+    @Override
+    public org.apache.avro.Schema getSchema() {
+      return avroSchema;
+    }
+
+    @Override
+    public CharSequence path() {
+      return wrapped.path();
+    }
+
+    @Override
+    public FileFormat format() {
+      return wrapped.format();
+    }
+
+    @Override
+    public StructLike partition() {
+      return wrapped.partition();
+    }
+
+    @Override
+    public long recordCount() {
+      return wrapped.recordCount();
+    }
+
+    @Override
+    public long fileSizeInBytes() {
+      return wrapped.fileSizeInBytes();
+    }
+
+    @Override
+    public Map<Integer, Long> columnSizes() {
+      return wrapped.columnSizes();
+    }
+
+    @Override
+    public Map<Integer, Long> valueCounts() {
+      return wrapped.valueCounts();
+    }
+
+    @Override
+    public Map<Integer, Long> nullValueCounts() {
+      return wrapped.nullValueCounts();
+    }
+
+    @Override
+    public Map<Integer, ByteBuffer> lowerBounds() {
+      return wrapped.lowerBounds();
+    }
+
+    @Override
+    public Map<Integer, ByteBuffer> upperBounds() {
+      return wrapped.upperBounds();
+    }
+
+    @Override
+    public ByteBuffer keyMetadata() {
+      return wrapped.keyMetadata();
+    }
+
+    @Override
+    public List<Long> splitOffsets() {
+      return wrapped.splitOffsets();
+    }
+
+    @Override
+    public DataFile copy() {
+      return wrapped.copy();
+    }
+
+    @Override
+    public DataFile copyWithoutStats() {
+      return wrapped.copyWithoutStats();
     }
   }
 }

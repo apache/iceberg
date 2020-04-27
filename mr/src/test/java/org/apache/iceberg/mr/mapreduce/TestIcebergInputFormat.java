@@ -184,24 +184,77 @@ public class TestIcebergInputFormat {
     Table table = tables.create(SCHEMA, SPEC,
                                 ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()),
                                 location.toString());
-    List<Record> expectedRecords = RandomGenericData.generate(table.schema(), 2, 0L);
-    expectedRecords.get(0).set(2, "2020-03-20");
-    expectedRecords.get(1).set(2, "2020-03-20");
-    DataFile dataFile = writeFile(table, Row.of("2020-03-20", 0), format, expectedRecords);
+    List<Record> writeRecords = RandomGenericData.generate(table.schema(), 2, 0L);
+    writeRecords.get(0).set(1, 123L);
+    writeRecords.get(0).set(2, "2020-03-20");
+    writeRecords.get(1).set(1, 456L);
+    writeRecords.get(1).set(2, "2020-03-20");
+
+    List<Record> expectedRecords = new ArrayList<>();
+    expectedRecords.add(writeRecords.get(0));
+
+    DataFile dataFile1 = writeFile(table, Row.of("2020-03-20", 0), format, writeRecords);
+    DataFile dataFile2 = writeFile(table, Row.of("2020-03-21", 0), format,
+        RandomGenericData.generate(table.schema(), 2, 0L));
     table.newAppend()
-         .appendFile(dataFile)
+         .appendFile(dataFile1)
+         .appendFile(dataFile2)
          .commit();
     Job job = Job.getInstance(conf);
     IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
     configBuilder.readFrom(location.toString())
-                 .filter(Expressions.and(
-                     Expressions.equal("date", "2020-03-20"),
-                     Expressions.equal("id", 0)));
+        .filter(Expressions.and(
+            Expressions.equal("date", "2020-03-20"),
+            Expressions.equal("id", 123)));
+    validate(job, expectedRecords);
 
+    // skip residual filtering
+    job = Job.getInstance(conf);
+    configBuilder = IcebergInputFormat.configure(job);
+    configBuilder.skipResidualFiltering().readFrom(location.toString())
+        .filter(Expressions.and(
+            Expressions.equal("date", "2020-03-20"),
+            Expressions.equal("id", 123)));
+    validate(job, writeRecords);
+  }
+
+  @Test
+  public void testFailedResidualFiltering() throws Exception {
+    File location = temp.newFolder(format.name());
+    Assert.assertTrue(location.delete());
+    Table table = tables.create(SCHEMA, SPEC,
+        ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()),
+        location.toString());
+    List<Record> expectedRecords = RandomGenericData.generate(table.schema(), 2, 0L);
+    expectedRecords.get(0).set(2, "2020-03-20");
+    expectedRecords.get(1).set(2, "2020-03-20");
+
+    DataFile dataFile1 = writeFile(table, Row.of("2020-03-20", 0), format, expectedRecords);
+    table.newAppend()
+        .appendFile(dataFile1)
+        .commit();
+
+    Job jobShouldFail1 = Job.getInstance(conf);
+    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(jobShouldFail1);
+    configBuilder.useHiveRows().readFrom(location.toString())
+        .filter(Expressions.and(
+            Expressions.equal("date", "2020-03-20"),
+            Expressions.equal("id", 0)));
     AssertHelpers.assertThrows(
-        "Residuals are not evaluated today for Iceberg Generics In memory model",
+        "Residuals are not evaluated today for Iceberg Generics In memory model of HIVE",
         UnsupportedOperationException.class, "Filter expression ref(name=\"id\") == 0 is not completely satisfied.",
-        () -> validate(job, expectedRecords));
+        () -> validate(jobShouldFail1, expectedRecords));
+
+    Job jobShouldFail2 = Job.getInstance(conf);
+    configBuilder = IcebergInputFormat.configure(jobShouldFail2);
+    configBuilder.usePigTuples().readFrom(location.toString())
+        .filter(Expressions.and(
+            Expressions.equal("date", "2020-03-20"),
+            Expressions.equal("id", 0)));
+    AssertHelpers.assertThrows(
+        "Residuals are not evaluated today for Iceberg Generics In memory model of PIG",
+        UnsupportedOperationException.class, "Filter expression ref(name=\"id\") == 0 is not completely satisfied.",
+        () -> validate(jobShouldFail2, expectedRecords));
   }
 
   @Test

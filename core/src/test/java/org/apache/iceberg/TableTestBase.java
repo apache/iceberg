@@ -86,6 +86,12 @@ public class TableTestBase {
   File metadataDir = null;
   public TestTables.TestTable table = null;
 
+  protected final int formatVersion;
+
+  public TableTestBase(int formatVersion) {
+    this.formatVersion = formatVersion;
+  }
+
   @Before
   public void setupTable() throws Exception {
     this.tableDir = temp.newFolder();
@@ -109,8 +115,8 @@ public class TableTestBase {
         !name.startsWith("snap") && Files.getFileExtension(name).equalsIgnoreCase("avro")));
   }
 
-  private TestTables.TestTable create(Schema schema, PartitionSpec spec) {
-    return TestTables.create(tableDir, "test", schema, spec);
+  TestTables.TestTable create(Schema schema, PartitionSpec spec) {
+    return TestTables.create(tableDir, "test", schema, spec, formatVersion);
   }
 
   TestTables.TestTable load() {
@@ -177,12 +183,12 @@ public class TableTestBase {
   }
 
   ManifestEntry manifestEntry(ManifestEntry.Status status, Long snapshotId, DataFile file) {
-    ManifestEntry entry = new ManifestEntry(table.spec().partitionType());
+    GenericManifestEntry entry = new GenericManifestEntry(table.spec().partitionType());
     switch (status) {
       case ADDED:
         return entry.wrapAppend(snapshotId, file);
       case EXISTING:
-        return entry.wrapExisting(snapshotId, file);
+        return entry.wrapExisting(snapshotId, 0L, file);
       case DELETED:
         return entry.wrapDelete(snapshotId, file);
       default:
