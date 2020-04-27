@@ -29,6 +29,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
@@ -122,6 +123,8 @@ public class ORC {
     private org.apache.iceberg.Schema schema = null;
     private Long start = null;
     private Long length = null;
+    private Expression filter = null;
+    private boolean caseSensitive = true;
 
     private Function<TypeDescription, OrcRowReader<?>> readerFunc;
 
@@ -153,8 +156,9 @@ public class ORC {
       return this;
     }
 
-    public ReadBuilder caseSensitive(boolean caseSensitive) {
-      OrcConf.IS_SCHEMA_EVOLUTION_CASE_SENSITIVE.setBoolean(this.conf, caseSensitive);
+    public ReadBuilder caseSensitive(boolean newCaseSensitive) {
+      OrcConf.IS_SCHEMA_EVOLUTION_CASE_SENSITIVE.setBoolean(this.conf, newCaseSensitive);
+      this.caseSensitive = newCaseSensitive;
       return this;
     }
 
@@ -168,9 +172,14 @@ public class ORC {
       return this;
     }
 
+    public ReadBuilder filter(Expression newFilter) {
+      this.filter = newFilter;
+      return this;
+    }
+
     public <D> CloseableIterable<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
-      return new OrcIterable<>(file, conf, schema, start, length, readerFunc);
+      return new OrcIterable<>(file, conf, schema, start, length, readerFunc, caseSensitive, filter);
     }
   }
 
