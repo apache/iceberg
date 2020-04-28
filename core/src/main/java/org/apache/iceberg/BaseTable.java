@@ -150,7 +150,7 @@ public class BaseTable implements Table, HasTableOperations {
   }
 
   @Override
-  public RemoveSnapshots expireSnapshots() {
+  public ExpireSnapshots expireSnapshots() {
     return new RemoveSnapshots(ops);
   }
 

@@ -21,7 +21,6 @@ package org.apache.iceberg;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -329,9 +328,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         operation(),
         snapshotId,
         sequenceNumber,
-        summary(),
-        FluentIterable.from(newFiles).transform(f -> f.path().toString()).toList(),
-        FluentIterable.from(deletePaths).transform(CharSequenceWrapper::toString).toList());
+        summary());
   }
 
   private ManifestFile[] filterManifests(StrictMetricsEvaluator metricsEvaluator, List<ManifestFile> manifests)

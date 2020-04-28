@@ -129,9 +129,28 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
 
   @Override
   public Object updateEvent() {
-    //TODO: Since cherrypick can lead to a snapshot creation we can delegate to MergingSnapshotProducer to create
-    // the event. For rollback, we can return a null here to signal no event creation
-    return null;
+    if (targetSnapshotId == null) {
+      // NOOP operation, no snapshot created
+      return null;
+    }
+
+    switch (managerOperation) {
+      case ROLLBACK:
+        // rollback does not create a new snapshot
+        return null;
+      case CHERRYPICK:
+        TableMetadata tableMetadata = refresh();
+        long snapshotId = tableMetadata.currentSnapshot().snapshotId();
+        if (targetSnapshotId == snapshotId) {
+          // No new snapshot is created for fast-forward
+          return null;
+        } else {
+          // New snapshot created, we rely on super class to fire a CreateSnapshotEvent
+          return super.updateEvent();
+        }
+      default:
+        throw new UnsupportedOperationException(managerOperation + " is not supported");
+    }
   }
 
   private void validate(TableMetadata base) {

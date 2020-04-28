@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
@@ -40,6 +41,7 @@ import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED
  * This implementation will attempt to commit 5 times before throwing {@link CommitFailedException}.
  */
 class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
+  private final String tableName;
   private final TableOperations ops;
   private final PartitionSpec spec;
   private final boolean snapshotIdInheritanceEnabled;
@@ -51,8 +53,8 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   private boolean hasNewFiles = false;
 
   FastAppend(String tableName, TableOperations ops) {
-    //TODO we use tableName to publish notification
     super(ops);
+    this.tableName = tableName;
     this.ops = ops;
     this.spec = ops.current().spec();
     this.snapshotIdInheritanceEnabled = ops.current()
@@ -140,6 +142,18 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     }
 
     return newManifests;
+  }
+
+  @Override
+  public Object updateEvent() {
+    long snapshotId = snapshotId();
+    long sequenceNumber = ops.refresh().snapshot(snapshotId).sequenceNumber();
+    return new CreateSnapshotEvent(
+        tableName,
+        operation(),
+        snapshotId,
+        sequenceNumber,
+        summary());
   }
 
   @Override

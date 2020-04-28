@@ -19,9 +19,7 @@
 
 package org.apache.iceberg.events;
 
-import java.util.List;
 import java.util.Map;
-
 
 public final class CreateSnapshotEvent {
   private final String tableName;
@@ -29,19 +27,14 @@ public final class CreateSnapshotEvent {
   private final long snapshotId;
   private final long sequenceNumber;
   private final Map<String, String> summary;
-  private final List<String> addedFiles;
-  private final List<String> deleteFiles;
 
   public CreateSnapshotEvent(
-      String tableName, String operation, long snapshotId, long sequenceNumber,
-      Map<String, String> summary, List<String> addedFiles, List<String> deleteFiles) {
+      String tableName, String operation, long snapshotId, long sequenceNumber, Map<String, String> summary) {
     this.tableName = tableName;
     this.operation = operation;
     this.snapshotId = snapshotId;
     this.sequenceNumber = sequenceNumber;
     this.summary = summary;
-    this.addedFiles = addedFiles;
-    this.deleteFiles = deleteFiles;
   }
 
   public String tableName() {
@@ -62,13 +55,5 @@ public final class CreateSnapshotEvent {
 
   public Map<String, String> summary() {
     return summary;
-  }
-
-  public List<String> addedFiles() {
-    return addedFiles;
-  }
-
-  public List<String> deletedFiles() {
-    return deleteFiles;
   }
 }
