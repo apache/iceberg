@@ -126,8 +126,9 @@ public class GenericParquetWriter {
           case INT_8:
           case INT_16:
           case INT_32:
+            return ParquetValueWriters.ints(desc);
           case INT_64:
-            return ParquetValueWriters.unboxed(desc);
+            return ParquetValueWriters.longs(desc);
           case DATE:
             return new DateWriter(desc);
           case TIME_MICROS:
@@ -162,11 +163,15 @@ public class GenericParquetWriter {
         case BINARY:
           return ParquetValueWriters.byteBuffers(desc);
         case BOOLEAN:
+          return ParquetValueWriters.booleans(desc);
         case INT32:
+          return ParquetValueWriters.ints(desc);
         case INT64:
+          return ParquetValueWriters.longs(desc);
         case FLOAT:
+          return ParquetValueWriters.floats(desc);
         case DOUBLE:
-          return ParquetValueWriters.unboxed(desc);
+          return ParquetValueWriters.doubles(desc);
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }

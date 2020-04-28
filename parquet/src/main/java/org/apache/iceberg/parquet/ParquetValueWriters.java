@@ -49,7 +49,31 @@ public class ParquetValueWriters {
     return writer;
   }
 
-  public static <T> UnboxedWriter<T> unboxed(ColumnDescriptor desc) {
+  public static UnboxedWriter<Boolean> booleans(ColumnDescriptor desc) {
+    return new UnboxedWriter<>(desc);
+  }
+
+  public static UnboxedWriter<Byte> tinyints(ColumnDescriptor desc) {
+    return new ByteWriter(desc);
+  }
+
+  public static UnboxedWriter<Short> shorts(ColumnDescriptor desc) {
+    return new ShortWriter(desc);
+  }
+
+  public static UnboxedWriter<Integer> ints(ColumnDescriptor desc) {
+    return new UnboxedWriter<>(desc);
+  }
+
+  public static UnboxedWriter<Long> longs(ColumnDescriptor desc) {
+    return new UnboxedWriter<>(desc);
+  }
+
+  public static UnboxedWriter<Float> floats(ColumnDescriptor desc) {
+    return new UnboxedWriter<>(desc);
+  }
+
+  public static UnboxedWriter<Double> doubles(ColumnDescriptor desc) {
     return new UnboxedWriter<>(desc);
   }
 
@@ -135,6 +159,28 @@ public class ParquetValueWriters {
 
     public void writeDouble(int repetitionLevel, double value) {
       column.writeDouble(repetitionLevel, value);
+    }
+  }
+
+  private static class ByteWriter extends UnboxedWriter<Byte> {
+    public ByteWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, Byte value) {
+      writeInteger(repetitionLevel, value.intValue());
+    }
+  }
+
+  private static class ShortWriter extends UnboxedWriter<Short> {
+    public ShortWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, Short value) {
+      writeInteger(repetitionLevel, value.intValue());
     }
   }
 

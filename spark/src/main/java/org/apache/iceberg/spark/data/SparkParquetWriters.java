@@ -26,15 +26,12 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.parquet.ParquetTypeVisitor;
 import org.apache.iceberg.parquet.ParquetValueReaders.ReusableEntry;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
 import org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.RepeatedKeyValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.RepeatedWriter;
-import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
@@ -46,8 +43,14 @@ import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
+import org.apache.spark.sql.types.ArrayType;
+import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.types.MapType;
+import org.apache.spark.sql.types.ShortType;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkParquetWriters {
@@ -55,84 +58,73 @@ public class SparkParquetWriters {
   }
 
   @SuppressWarnings("unchecked")
-  public static <T> ParquetValueWriter<T> buildWriter(Schema schema, MessageType type) {
-    return (ParquetValueWriter<T>) ParquetTypeVisitor.visit(type, new WriteBuilder(schema, type));
+  public static <T> ParquetValueWriter<T> buildWriter(StructType dfSchema, MessageType type) {
+    return (ParquetValueWriter<T>) ParquetWithSparkSchemaVisitor.visit(dfSchema, type, new WriteBuilder(type));
   }
 
-  private static class WriteBuilder extends ParquetTypeVisitor<ParquetValueWriter<?>> {
-    private final Schema schema;
+  private static class WriteBuilder extends ParquetWithSparkSchemaVisitor<ParquetValueWriter<?>> {
     private final MessageType type;
 
-    WriteBuilder(Schema schema, MessageType type) {
-      this.schema = schema;
+    WriteBuilder(MessageType type) {
       this.type = type;
     }
 
     @Override
-    public ParquetValueWriter<?> message(MessageType message,
+    public ParquetValueWriter<?> message(StructType sStruct, MessageType message,
                                          List<ParquetValueWriter<?>> fieldWriters) {
-      return struct(message.asGroupType(), fieldWriters);
+      return struct(sStruct, message.asGroupType(), fieldWriters);
     }
 
     @Override
-    public ParquetValueWriter<?> struct(GroupType struct,
+    public ParquetValueWriter<?> struct(StructType sStruct, GroupType struct,
                                         List<ParquetValueWriter<?>> fieldWriters) {
       List<Type> fields = struct.getFields();
+      StructField[] sparkFields = sStruct.fields();
       List<ParquetValueWriter<?>> writers = Lists.newArrayListWithExpectedSize(fieldWriters.size());
       List<DataType> sparkTypes = Lists.newArrayList();
       for (int i = 0; i < fields.size(); i += 1) {
-        Type fieldType = struct.getType(i);
-        int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName()));
-        writers.add(ParquetValueWriters.option(fieldType, fieldD, fieldWriters.get(i)));
-        sparkTypes.add(SparkSchemaUtil.convert(schema.findType(fieldType.getId().intValue())));
+        writers.add(newOption(struct.getType(i), fieldWriters.get(i)));
+        sparkTypes.add(sparkFields[i].dataType());
       }
 
       return new InternalRowWriter(writers, sparkTypes);
     }
 
     @Override
-    public ParquetValueWriter<?> list(GroupType array, ParquetValueWriter<?> elementWriter) {
+    public ParquetValueWriter<?> list(ArrayType sArray, GroupType array, ParquetValueWriter<?> elementWriter) {
       GroupType repeated = array.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
       int repeatedD = type.getMaxDefinitionLevel(repeatedPath);
       int repeatedR = type.getMaxRepetitionLevel(repeatedPath);
 
-      org.apache.parquet.schema.Type elementType = repeated.getType(0);
-      int elementD = type.getMaxDefinitionLevel(path(elementType.getName()));
-
-      DataType elementSparkType = SparkSchemaUtil.convert(schema.findType(elementType.getId().intValue()));
-
       return new ArrayDataWriter<>(repeatedD, repeatedR,
-          ParquetValueWriters.option(elementType, elementD, elementWriter),
-          elementSparkType);
+          newOption(repeated.getType(0), elementWriter),
+          sArray.elementType());
     }
 
     @Override
-    public ParquetValueWriter<?> map(GroupType map,
-                                     ParquetValueWriter<?> keyWriter,
-                                     ParquetValueWriter<?> valueWriter) {
+    public ParquetValueWriter<?> map(MapType sMap, GroupType map,
+                                     ParquetValueWriter<?> keyWriter, ParquetValueWriter<?> valueWriter) {
       GroupType repeatedKeyValue = map.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
       int repeatedD = type.getMaxDefinitionLevel(repeatedPath);
       int repeatedR = type.getMaxRepetitionLevel(repeatedPath);
 
-      org.apache.parquet.schema.Type keyType = repeatedKeyValue.getType(0);
-      int keyD = type.getMaxDefinitionLevel(path(keyType.getName()));
-      DataType keySparkType = SparkSchemaUtil.convert(schema.findType(keyType.getId().intValue()));
-      org.apache.parquet.schema.Type valueType = repeatedKeyValue.getType(1);
-      int valueD = type.getMaxDefinitionLevel(path(valueType.getName()));
-      DataType valueSparkType = SparkSchemaUtil.convert(schema.findType(valueType.getId().intValue()));
-
       return new MapDataWriter<>(repeatedD, repeatedR,
-          ParquetValueWriters.option(keyType, keyD, keyWriter),
-          ParquetValueWriters.option(valueType, valueD, valueWriter),
-          keySparkType, valueSparkType);
+          newOption(repeatedKeyValue.getType(0), keyWriter),
+          newOption(repeatedKeyValue.getType(1), valueWriter),
+          sMap.keyType(), sMap.valueType());
+    }
+
+    private ParquetValueWriter<?> newOption(org.apache.parquet.schema.Type fieldType, ParquetValueWriter<?> writer) {
+      int maxD = type.getMaxDefinitionLevel(path(fieldType.getName()));
+      return ParquetValueWriters.option(fieldType, maxD, writer);
     }
 
     @Override
-    public ParquetValueWriter<?> primitive(PrimitiveType primitive) {
+    public ParquetValueWriter<?> primitive(DataType sType, PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
 
       if (primitive.getOriginalType() != null) {
@@ -145,10 +137,11 @@ public class SparkParquetWriters {
           case INT_8:
           case INT_16:
           case INT_32:
+            return ints(sType, desc);
           case INT_64:
           case TIME_MICROS:
           case TIMESTAMP_MICROS:
-            return ParquetValueWriters.unboxed(desc);
+            return ParquetValueWriters.longs(desc);
           case DECIMAL:
             DecimalMetadata decimal = primitive.getDecimalMetadata();
             switch (primitive.getPrimitiveTypeName()) {
@@ -176,15 +169,28 @@ public class SparkParquetWriters {
         case BINARY:
           return byteArrays(desc);
         case BOOLEAN:
+          return ParquetValueWriters.booleans(desc);
         case INT32:
+          return ints(sType, desc);
         case INT64:
+          return ParquetValueWriters.longs(desc);
         case FLOAT:
+          return ParquetValueWriters.floats(desc);
         case DOUBLE:
-          return ParquetValueWriters.unboxed(desc);
+          return ParquetValueWriters.doubles(desc);
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
     }
+  }
+
+  private static PrimitiveWriter<?> ints(DataType type, ColumnDescriptor desc) {
+    if (type instanceof ByteType) {
+      return ParquetValueWriters.tinyints(desc);
+    } else if (type instanceof ShortType) {
+      return ParquetValueWriters.shorts(desc);
+    }
+    return ParquetValueWriters.ints(desc);
   }
 
   private static PrimitiveWriter<UTF8String> utf8Strings(ColumnDescriptor desc) {
