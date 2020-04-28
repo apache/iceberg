@@ -23,21 +23,32 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Maps;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 
 public class GenericRecord implements Record, StructLike {
-  private static final LoadingCache<StructType, Map<String, Integer>> NAME_MAP_CACHE =
+  private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
+  private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
+  private static final LoadingCache<StructType, BiMap<String, Integer>> NAME_MAP_CACHE =
       Caffeine.newBuilder()
       .weakKeys()
       .build(struct -> {
-        Map<String, Integer> idToPos = Maps.newHashMap();
+        BiMap<String, Integer> idToPos = HashBiMap.create();
         List<Types.NestedField> fields = struct.fields();
         for (int i = 0; i < fields.size(); i += 1) {
           idToPos.put(fields.get(i).name(), i);
@@ -56,7 +67,7 @@ public class GenericRecord implements Record, StructLike {
   private final StructType struct;
   private final int size;
   private final Object[] values;
-  private final Map<String, Integer> nameToPos;
+  private final BiMap<String, Integer> nameToPos;
 
   private GenericRecord(StructType struct) {
     this.struct = struct;
@@ -117,7 +128,31 @@ public class GenericRecord implements Record, StructLike {
   @Override
   public <T> T get(int pos, Class<T> javaClass) {
     Object value = get(pos);
-    if (value == null || javaClass.isInstance(value)) {
+
+    if (value == null) {
+      return javaClass.cast(null);
+    }
+
+    if (!javaClass.isInstance(value)) {
+      Type type = struct.field(nameToPos.inverse().get(pos)).type();
+      switch (type.typeId()) {
+        case TIMESTAMP:
+          if (((Types.TimestampType) type).shouldAdjustToUTC()) {
+            value = ChronoUnit.MICROS.between(EPOCH, (OffsetDateTime) value);
+          } else {
+            value = ChronoUnit.MICROS.between(EPOCH, ((LocalDateTime) value).atOffset(ZoneOffset.UTC));
+          }
+          break;
+        case DATE:
+          value = (int) ChronoUnit.DAYS.between(EPOCH_DAY, (LocalDate) value);
+          break;
+        case TIME:
+          value = ((LocalTime) value).toNanoOfDay() / 1000;
+          break;
+      }
+    }
+
+    if (javaClass.isInstance(value)) {
       return javaClass.cast(value);
     } else {
       throw new IllegalStateException("Not an instance of " + javaClass.getName() + ": " + value);
