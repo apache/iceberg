@@ -21,13 +21,11 @@ package org.apache.iceberg;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
 import java.util.Collection;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.types.TypeUtil;
 
 /**
  * A {@link Table} implementation that exposes a table's manifest entries as rows.
@@ -61,13 +59,7 @@ public class ManifestEntriesTable extends BaseMetadataTable {
 
   @Override
   public Schema schema() {
-    Schema schema = ManifestEntry.getSchema(table.spec().partitionType());
-    if (table.spec().fields().size() < 1) {
-      // avoid returning an empty struct, which is not always supported. instead, drop the partition field (id 102)
-      return TypeUtil.selectNot(schema, Sets.newHashSet(102));
-    } else {
-      return schema;
-    }
+    return MetadataTables.entriesTableSchema(table.spec().partitionType());
   }
 
   private static class EntriesTableScan extends BaseTableScan {

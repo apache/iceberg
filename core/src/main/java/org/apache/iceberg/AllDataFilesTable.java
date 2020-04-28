@@ -29,7 +29,6 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.ThreadPools;
 
@@ -66,13 +65,7 @@ public class AllDataFilesTable extends BaseMetadataTable {
 
   @Override
   public Schema schema() {
-    Schema schema = new Schema(DataFile.getType(table.spec().partitionType()).fields());
-    if (table.spec().fields().size() < 1) {
-      // avoid returning an empty struct, which is not always supported. instead, drop the partition field (id 102)
-      return TypeUtil.selectNot(schema, Sets.newHashSet(102));
-    } else {
-      return schema;
-    }
+    return MetadataTables.filesTableSchema(table.spec().partitionType());
   }
 
   public static class AllDataFilesTableScan extends BaseAllMetadataTableScan {

@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.util.stream.Stream;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 

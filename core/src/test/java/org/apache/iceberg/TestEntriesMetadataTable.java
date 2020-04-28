@@ -50,7 +50,7 @@ public class TestEntriesMetadataTable extends TableTestBase {
 
     Table entriesTable = new ManifestEntriesTable(table.ops(), table);
 
-    Schema expectedSchema = ManifestEntry.getSchema(table.spec().partitionType());
+    Schema expectedSchema = MetadataTables.entriesTableSchema(table.spec().partitionType());
 
     assertEquals("A tableScan.select() should prune the schema",
         expectedSchema.asStruct(),
@@ -67,7 +67,7 @@ public class TestEntriesMetadataTable extends TableTestBase {
     Table entriesTable = new ManifestEntriesTable(table.ops(), table);
     TableScan scan = entriesTable.newScan();
 
-    Schema expectedSchema = ManifestEntry.getSchema(table.spec().partitionType());
+    Schema expectedSchema = MetadataTables.entriesTableSchema(table.spec().partitionType());
 
     assertEquals("A tableScan.select() should prune the schema",
         expectedSchema.asStruct(),
