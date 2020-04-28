@@ -323,6 +323,8 @@ class V1Metadata {
           return wrapped.keyMetadata();
         case 12:
           return wrapped.splitOffsets();
+        case 13:
+          return wrapped.fileType().type();
       }
       throw new IllegalArgumentException("Unknown field ordinal: " + pos);
     }
@@ -395,6 +397,11 @@ class V1Metadata {
     @Override
     public List<Long> splitOffsets() {
       return wrapped.splitOffsets();
+    }
+
+    @Override
+    public FileType fileType() {
+      return wrapped.fileType();
     }
 
     @Override

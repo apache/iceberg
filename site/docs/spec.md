@@ -244,6 +244,7 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 | **`128  upper_bounds`**           | `optional map<129: int, 130: binary>` | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all values in the column for the file.                                         |
 | **`131  key_metadata`**           | `optional binary`                     | Implementation-specific key metadata for encryption                                                                                                                                                  |
 | **`132  split_offsets`**          | `optional list`                       | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending.                                                                                     |
+| **`134  file_type`**              | `optional int`                        | Type of the data file. `0`: normal data file that has the same schema as the table's schema, `1`: position based delete file, `2`: value based delete file.                                          |
 
 Notes:
 

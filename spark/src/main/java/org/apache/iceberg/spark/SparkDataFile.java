@@ -46,6 +46,7 @@ public class SparkDataFile implements DataFile {
   private final int upperBoundsPosition;
   private final int keyMetadataPosition;
   private final int splitOffsetsPosition;
+  private final int fileTypePosition;
   private final Type lowerBoundsType;
   private final Type upperBoundsType;
   private final Type keyMetadataType;
@@ -77,6 +78,7 @@ public class SparkDataFile implements DataFile {
     upperBoundsPosition = positions.get("upper_bounds");
     keyMetadataPosition = positions.get("key_metadata");
     splitOffsetsPosition = positions.get("split_offsets");
+    fileTypePosition = positions.get("file_type");
   }
 
   public SparkDataFile wrap(Row row) {
@@ -158,6 +160,12 @@ public class SparkDataFile implements DataFile {
   @Override
   public List<Long> splitOffsets() {
     return wrapped.isNullAt(splitOffsetsPosition) ? null : wrapped.getList(splitOffsetsPosition);
+  }
+
+  @Override
+  public FileType fileType() {
+    return wrapped.isNullAt(fileTypePosition) ? FileType.DATA_FILE :
+        DataFile.FileType.values()[(Integer) wrapped.getAs(fileTypePosition)];
   }
 
   private int fieldPosition(String name, StructType sparkType) {

@@ -195,6 +195,7 @@ public class TestSparkDataFile {
     Assert.assertEquals("Upper bounds must match", expected.upperBounds(), actual.upperBounds());
     Assert.assertEquals("Key metadata must match", expected.keyMetadata(), actual.keyMetadata());
     Assert.assertEquals("Split offsets must match", expected.splitOffsets(), actual.splitOffsets());
+    Assert.assertEquals("File type must match", expected.fileType(), actual.fileType());
 
     checkStructLike(expected.partition(), actual.partition());
   }

@@ -372,5 +372,10 @@ public class TestHelpers {
     public List<Long> splitOffsets() {
       return null;
     }
+
+    @Override
+    public FileType fileType() {
+      return FileType.DATA_FILE;
+    }
   }
 }

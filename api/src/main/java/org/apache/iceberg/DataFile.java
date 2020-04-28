@@ -57,9 +57,35 @@ public interface DataFile {
         optional(128, "upper_bounds", MapType.ofRequired(129, 130,
             IntegerType.get(), BinaryType.get())),
         optional(131, "key_metadata", BinaryType.get()),
-        optional(132, "split_offsets", ListType.ofRequired(133, LongType.get()))
-        // NEXT ID TO ASSIGN: 134
+        optional(132, "split_offsets", ListType.ofRequired(133, LongType.get())),
+        optional(134, "file_type", IntegerType.get())
+        // NEXT ID TO ASSIGN: 135
     );
+  }
+
+  enum FileType {
+    DATA_FILE(0),
+    POSITION_DELETE_FILE(1),
+    EQUALITY_DELETE_FILE(2);
+
+    private final int type;
+    FileType(int type) {
+      this.type = type;
+    }
+
+    int type() {
+      return type;
+    }
+
+    @Override
+    public String toString() {
+      switch (type) {
+        case 0: return "data file";
+        case 1: return "position based delete file";
+        case 2: return "equality based delete file";
+        default: return "file type is not supported";
+      }
+    }
   }
 
   /**
@@ -140,4 +166,9 @@ public interface DataFile {
    * are determined by these offsets. The returned list must be sorted in ascending order.
    */
   List<Long> splitOffsets();
+
+  /**
+   * @return Type of data file. Either DATA_FILE, POSITION_DELETE_FILE, or EQUALITY_DELETE_FILE.
+   */
+  FileType fileType();
 }
