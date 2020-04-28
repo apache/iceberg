@@ -136,7 +136,7 @@ public class TableTestBase {
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter writer = ManifestFiles.write(table.spec(), outputFile);
+    ManifestWriter writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, null);
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -153,7 +153,7 @@ public class TableTestBase {
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter writer = ManifestFiles.write(table.spec(), outputFile);
+    ManifestWriter writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, null);
     try {
       for (ManifestEntry entry : entries) {
         writer.addEntry(entry);
@@ -170,7 +170,7 @@ public class TableTestBase {
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter writer = ManifestFiles.write(table.spec(), outputFile);
+    ManifestWriter writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, null);
     try {
       for (DataFile file : files) {
         writer.add(file);
