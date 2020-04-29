@@ -22,22 +22,18 @@ package org.apache.iceberg;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
+import com.google.common.collect.*;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.PropertyUtil;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
-import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.util.PropertyUtil;
 
 /**
  * Metadata for a table.
@@ -49,11 +45,27 @@ public class TableMetadata {
   public static TableMetadata newTableMetadata(Schema schema,
                                                PartitionSpec spec,
                                                String location) {
-    return newTableMetadata(schema, spec, location, ImmutableMap.of());
+    return newTableMetadata(schema, spec, null,
+            location, ImmutableMap.of());
   }
 
   public static TableMetadata newTableMetadata(Schema schema,
                                                PartitionSpec spec,
+                                               PrimaryKeySpec pkSpec,
+                                               String location) {
+    return newTableMetadata(schema, spec, pkSpec, location, ImmutableMap.of());
+  }
+
+  public static TableMetadata newTableMetadata(Schema schema,
+                                               PartitionSpec spec,
+                                               String location,
+                                               Map<String, String> properties) {
+    return newTableMetadata(schema, spec, null, location, ImmutableMap.of());
+  }
+
+  public static TableMetadata newTableMetadata(Schema schema,
+                                               PartitionSpec spec,
+                                               PrimaryKeySpec pkSpec,
                                                String location,
                                                Map<String, String> properties) {
     // reassign all column ids to ensure consistency
@@ -76,7 +88,7 @@ public class TableMetadata {
     return new TableMetadata(null, UUID.randomUUID().toString(), location,
         System.currentTimeMillis(),
         lastColumnId.get(), freshSchema, INITIAL_SPEC_ID, ImmutableList.of(freshSpec),
-        ImmutableMap.copyOf(properties), -1, ImmutableList.of(),
+        pkSpec, ImmutableMap.copyOf(properties), -1, ImmutableList.of(),
         ImmutableList.of(), ImmutableList.of());
   }
 
@@ -185,6 +197,8 @@ public class TableMetadata {
   private final List<HistoryEntry> snapshotLog;
   private final List<MetadataLogEntry> previousFiles;
 
+  private final PrimaryKeySpec pkSpec;
+
   TableMetadata(InputFile file,
                 String uuid,
                 String location,
@@ -198,6 +212,24 @@ public class TableMetadata {
                 List<Snapshot> snapshots,
                 List<HistoryEntry> snapshotLog,
                 List<MetadataLogEntry> previousFiles) {
+    this(file, uuid, location, lastUpdatedMillis, lastColumnId, schema, defaultSpecId, specs,
+          null, properties, currentSnapshotId, snapshots, snapshotLog, previousFiles);
+  }
+
+  TableMetadata(InputFile file,
+                String uuid,
+                String location,
+                long lastUpdatedMillis,
+                int lastColumnId,
+                Schema schema,
+                int defaultSpecId,
+                List<PartitionSpec> specs,
+                PrimaryKeySpec pkSpec,
+                Map<String, String> properties,
+                long currentSnapshotId,
+                List<Snapshot> snapshots,
+                List<HistoryEntry> snapshotLog,
+                List<MetadataLogEntry> previousFiles) {
     this.file = file;
     this.uuid = uuid;
     this.location = location;
@@ -205,6 +237,7 @@ public class TableMetadata {
     this.lastColumnId = lastColumnId;
     this.schema = schema;
     this.specs = specs;
+    this.pkSpec = pkSpec;
     this.defaultSpecId = defaultSpecId;
     this.properties = properties;
     this.currentSnapshotId = currentSnapshotId;
@@ -272,6 +305,14 @@ public class TableMetadata {
     return specs;
   }
 
+  public PrimaryKeySpec getPrimaryKeySpec() {
+    return pkSpec;
+  }
+
+  public boolean supporMutableIngestion() {
+    return pkSpec != null;
+  }
+
   public Map<Integer, PartitionSpec> specsById() {
     return specsById;
   }
@@ -329,14 +370,14 @@ public class TableMetadata {
       return this;
     } else {
       return new TableMetadata(null, UUID.randomUUID().toString(), location,
-          lastUpdatedMillis, lastColumnId, schema, defaultSpecId, specs, properties,
+          lastUpdatedMillis, lastColumnId, schema, defaultSpecId, specs, pkSpec, properties,
           currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
     }
   }
 
   public TableMetadata updateTableLocation(String newLocation) {
     return new TableMetadata(null, uuid, newLocation,
-        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
+        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, pkSpec, properties,
         currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
@@ -345,9 +386,9 @@ public class TableMetadata {
     // rebuild all of the partition specs for the new current schema
     List<PartitionSpec> updatedSpecs = Lists.transform(specs,
         spec -> updateSpecSchema(newSchema, spec));
-    return new TableMetadata(null, uuid, location,
-        System.currentTimeMillis(), newLastColumnId, newSchema, defaultSpecId, updatedSpecs, properties,
-        currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
+    return new TableMetadata(null, uuid, location, System.currentTimeMillis(),
+        newLastColumnId, newSchema, defaultSpecId, updatedSpecs, updatePkSchema(schema, pkSpec),
+        properties, currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata updatePartitionSpec(PartitionSpec newPartitionSpec) {
@@ -376,7 +417,7 @@ public class TableMetadata {
 
     return new TableMetadata(null, uuid, location,
         System.currentTimeMillis(), lastColumnId, schema, newDefaultSpecId,
-        builder.build(), properties,
+        builder.build(), pkSpec,  properties,
         currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
@@ -385,8 +426,8 @@ public class TableMetadata {
         .addAll(snapshots)
         .add(snapshot)
         .build();
-    return new TableMetadata(null, uuid, location,
-        snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
+    return new TableMetadata(null, uuid, location, snapshot.timestampMillis(),
+        lastColumnId, schema, defaultSpecId, specs, pkSpec, properties,
         currentSnapshotId, newSnapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
@@ -404,8 +445,8 @@ public class TableMetadata {
         .addAll(snapshotLog)
         .add(new SnapshotLogEntry(snapshot.timestampMillis(), snapshot.snapshotId()))
         .build();
-    return new TableMetadata(null, uuid, location,
-        snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
+    return new TableMetadata(null, uuid, location,  snapshot.timestampMillis(),
+            lastColumnId, schema, defaultSpecId, specs, pkSpec, properties,
         snapshot.snapshotId(), newSnapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
@@ -436,8 +477,8 @@ public class TableMetadata {
     }
 
     return new TableMetadata(null, uuid, location,
-        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
-        currentSnapshotId, filtered, ImmutableList.copyOf(newSnapshotLog),
+        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, pkSpec,
+            properties, currentSnapshotId, filtered, ImmutableList.copyOf(newSnapshotLog),
         addPreviousFile(file, lastUpdatedMillis));
   }
 
@@ -457,14 +498,14 @@ public class TableMetadata {
         .build();
 
     return new TableMetadata(null, uuid, location,
-        nowMillis, lastColumnId, schema, defaultSpecId, specs, properties,
+        nowMillis, lastColumnId, schema, defaultSpecId, specs, pkSpec, properties,
         snapshot.snapshotId(), snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata replaceProperties(Map<String, String> newProperties) {
     ValidationException.check(newProperties != null, "Cannot set properties to null");
     return new TableMetadata(null, uuid, location,
-        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, newProperties,
+        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, pkSpec, newProperties,
         currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis, newProperties));
   }
 
@@ -481,7 +522,7 @@ public class TableMetadata {
             Iterables.getLast(newSnapshotLog).snapshotId() == currentSnapshotId,
         "Cannot set invalid snapshot log: latest entry is not the current snapshot");
     return new TableMetadata(null, uuid, location,
-        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
+        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, pkSpec, properties,
         currentSnapshotId, snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
@@ -521,13 +562,13 @@ public class TableMetadata {
 
     return new TableMetadata(null, uuid, location,
         System.currentTimeMillis(), nextLastColumnId.get(), freshSchema,
-        specId, builder.build(), ImmutableMap.copyOf(newProperties),
+        specId, builder.build(), pkSpec, ImmutableMap.copyOf(newProperties),
         -1, snapshots, ImmutableList.of(), addPreviousFile(file, lastUpdatedMillis, newProperties));
   }
 
   public TableMetadata updateLocation(String newLocation) {
     return new TableMetadata(null, uuid, newLocation,
-        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
+        System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, pkSpec, properties,
         currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
@@ -566,6 +607,10 @@ public class TableMetadata {
     }
 
     return specBuilder.build();
+  }
+
+  private static PrimaryKeySpec updatePkSchema(Schema schema, PrimaryKeySpec pkSpec) {
+    return pkSpec.updateSchema(schema);
   }
 
   private static PartitionSpec freshSpec(int specId, Schema schema, PartitionSpec partitionSpec) {

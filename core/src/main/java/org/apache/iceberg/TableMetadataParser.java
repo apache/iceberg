@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.SortedSet;
+import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
@@ -91,6 +92,9 @@ public class TableMetadataParser {
   static final String SCHEMA = "schema";
   static final String PARTITION_SPEC = "partition-spec";
   static final String PARTITION_SPECS = "partition-specs";
+
+  static final String PRIMARY_KEY_SPEC = "pk-spec";
+
   static final String DEFAULT_SPEC_ID = "default-spec-id";
   static final String PROPERTIES = "properties";
   static final String CURRENT_SNAPSHOT_ID = "current-snapshot-id";
@@ -100,6 +104,8 @@ public class TableMetadataParser {
   static final String SNAPSHOT_LOG = "snapshot-log";
   static final String METADATA_FILE = "metadata-file";
   static final String METADATA_LOG = "metadata-log";
+
+  static final String PRIMARY_KEY = "pk";
 
   public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
     internalWrite(metadata, outputFile, true);
@@ -234,6 +240,9 @@ public class TableMetadataParser {
     int lastAssignedColumnId = JsonUtil.getInt(LAST_COLUMN_ID, node);
     Schema schema = SchemaParser.fromJson(node.get(SCHEMA));
 
+//    PrimaryKeySpec pkSpec = PrimarykeyParser.fromJson(node
+//            .get(PRIMARY_KEY_SPEC), schema);
+
     JsonNode specArray = node.get(PARTITION_SPECS);
     List<PartitionSpec> specs;
     int defaultSpecId;
@@ -296,8 +305,26 @@ public class TableMetadataParser {
     }
 
     return new TableMetadata(file, uuid, location,
-        lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs, properties,
-        currentVersionId, snapshots, ImmutableList.copyOf(entries.iterator()),
-        ImmutableList.copyOf(metadataEntries.iterator()));
+        lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs,/* pkSpec,*/
+            properties, currentVersionId, snapshots, ImmutableList.copyOf(entries.iterator()),
+            ImmutableList.copyOf(metadataEntries.iterator()));
   }
+
+//  public static class PrimarykeyParser {
+//    public static PrimaryKeySpec fromJson(JsonNode node, Schema schema) {
+//      if (node == null)
+//        return null;
+//      List<Integer> keyIndexes = JsonUtil.getStringList(PRIMARY_KEY, node).stream()
+//              .map(str -> Integer.valueOf(str)).collect(Collectors.toList());
+//      return PrimaryKeySpec.builderFor(schema).withKeyIndexes(keyIndexes).build();
+//    }
+//
+//    public static void toJson(PrimaryKeySpec pkSpec, JsonGenerator generator) throws IOException {
+//      generator.writeStartObject();
+//      generator.writeFieldName(PRIMARY_KEY);
+//      generator.writeArray(pkSpec.getKeyIndexes().stream().mapToInt(Integer::valueOf).toArray(),
+//              0, pkSpec.getKeyIndexes().size());
+//      generator.writeEndObject();
+//    }
+//  }
 }
