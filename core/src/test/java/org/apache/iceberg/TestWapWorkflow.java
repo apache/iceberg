@@ -163,7 +163,6 @@ public class TestWapWorkflow extends TableTestBase {
     table.newAppend()
         .appendFile(FILE_B)
         .commit();
-    base = readMetadata();
 
     // do setCurrentSnapshot
     table.manageSnapshots().setCurrentSnapshot(firstSnapshotId).commit();
@@ -292,8 +291,6 @@ public class TestWapWorkflow extends TableTestBase {
     table.newAppend()
         .appendFile(FILE_C)
         .commit();
-    base = readMetadata();
-    Snapshot thirdSnapshot = base.currentSnapshot();
 
     // rollback to before the second snapshot's time
     table.manageSnapshots().rollbackToTime(secondSnapshot.timestampMillis()).commit();
@@ -551,29 +548,18 @@ public class TestWapWorkflow extends TableTestBase {
         .stageOnly()
         .commit();
 
-    // // second WAP commit
-    // table.newAppend()
-    //     .appendFile(FILE_C)
-    //     .set(SnapshotSummary.STAGED_WAP_ID_PROP, "987654321")
-    //     .stageOnly()
-    //     .commit();
     base = readMetadata();
 
     // pick the snapshot that's staged but not committed
     Snapshot wap1Snapshot = base.snapshots().get(1);
-    // Snapshot wap2Snapshot = base.snapshots().get(2);
 
-    Assert.assertEquals("Should have three snapshots", 2, base.snapshots().size());
+    Assert.assertEquals("Should have two snapshots", 2, base.snapshots().size());
     Assert.assertEquals("Should have first wap id in summary", "123456789",
         wap1Snapshot.summary().get("wap.id"));
-    // Assert.assertEquals("Should have second wap id in summary", "987654321",
-    //     wap2Snapshot.summary().get(SnapshotSummary.STAGED_WAP_ID_PROP));
     Assert.assertEquals("Current snapshot should be first commit's snapshot",
         firstSnapshotId, base.currentSnapshot().snapshotId());
     Assert.assertEquals("Parent snapshot id should be same for first WAP snapshot",
         firstSnapshotId, wap1Snapshot.parentId().longValue());
-    // Assert.assertEquals("Parent snapshot id should be same for second WAP snapshot",
-    //     firstSnapshotId, wap2Snapshot.parentId().longValue());
     Assert.assertEquals("Snapshot log should indicate number of snapshots committed", 1,
         base.snapshotLog().size());
 
