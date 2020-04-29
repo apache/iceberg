@@ -455,7 +455,7 @@ public class TestLocalScan {
   }
 
   @Test
-  public void testFilterWithComplexType() throws IOException {
+  public void testFilterWithDateAndTimestamp() throws IOException {
     if (format == FileFormat.PARQUET) {
       return;
     }
