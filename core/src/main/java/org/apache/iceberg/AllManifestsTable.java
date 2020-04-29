@@ -19,9 +19,9 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
+import com.google.common.shaded.collect.ImmutableList;
+import com.google.common.shaded.collect.ImmutableMap;
+import com.google.common.shaded.collect.Iterables;
 import java.io.IOException;
 import java.util.Collection;
 import org.apache.iceberg.avro.Avro;

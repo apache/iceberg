@@ -19,8 +19,8 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Streams;
+import com.google.common.shaded.collect.Iterables;
+import com.google.common.shaded.collect.Streams;
 import org.apache.iceberg.exceptions.CherrypickAncestorCommitException;
 import org.apache.iceberg.exceptions.DuplicateWAPCommitException;
 import org.apache.iceberg.exceptions.ValidationException;

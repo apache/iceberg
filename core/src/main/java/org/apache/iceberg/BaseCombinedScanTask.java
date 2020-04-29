@@ -19,9 +19,9 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Joiner;
-import com.google.common.base.MoreObjects;
-import com.google.common.collect.ImmutableList;
+import com.google.common.shaded.base.Joiner;
+import com.google.common.shaded.base.MoreObjects;
+import com.google.common.shaded.collect.ImmutableList;
 import java.util.Collection;
 import java.util.List;
 

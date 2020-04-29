@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.common;
 
-import com.google.common.base.Preconditions;
-import com.google.common.base.Throwables;
+import com.google.common.shaded.base.Preconditions;
+import com.google.common.shaded.base.Throwables;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.security.AccessController;

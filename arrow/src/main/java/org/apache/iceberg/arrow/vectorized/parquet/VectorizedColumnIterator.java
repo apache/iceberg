@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.arrow.vectorized.parquet;
 
-import com.google.common.base.Preconditions;
+import com.google.common.shaded.base.Preconditions;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;

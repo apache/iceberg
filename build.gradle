@@ -131,8 +131,14 @@ project(':iceberg-relocate-external-dependencies') {
       include 'NOTICE'
     }
 
+    dependencies {
+      exclude(dependency('com.github.stephenc.findbugs:findbugs-annotations'))
+      exclude(dependency('org.slf4j:slf4j-api'))
+      exclude(dependency('org.checkerframework:checker-qual'))
+    }
+
     relocate 'com.google.common', 'com.google.common.shaded'
-    
+
     minimize()
   }
 }
@@ -145,7 +151,11 @@ project(':iceberg-api') {
   }
 }
 
-project(':iceberg-common') {}
+project(':iceberg-common') {
+  dependencies {
+    compile project(path: ':iceberg-relocate-external-dependencies', configuration: 'shadow')
+  }
+}
 
 project(':iceberg-core') {
   dependencies {

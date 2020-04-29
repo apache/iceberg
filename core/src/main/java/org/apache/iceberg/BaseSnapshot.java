@@ -19,11 +19,11 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.MoreObjects;
-import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
+import com.google.common.shaded.base.MoreObjects;
+import com.google.common.shaded.base.Objects;
+import com.google.common.shaded.collect.ImmutableList;
+import com.google.common.shaded.collect.Iterables;
+import com.google.common.shaded.collect.Lists;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;

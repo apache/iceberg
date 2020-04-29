@@ -19,7 +19,7 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.MoreObjects;
+import com.google.common.shaded.base.MoreObjects;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;

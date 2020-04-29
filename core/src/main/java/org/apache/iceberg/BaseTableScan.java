@@ -19,11 +19,11 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.MoreObjects;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.FluentIterable;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
+import com.google.common.shaded.base.MoreObjects;
+import com.google.common.shaded.base.Preconditions;
+import com.google.common.shaded.collect.FluentIterable;
+import com.google.common.shaded.collect.ImmutableMap;
+import com.google.common.shaded.collect.Sets;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;

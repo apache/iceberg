@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.arrow.vectorized;
 
-import com.google.common.base.Preconditions;
+import com.google.common.shaded.base.Preconditions;
 import java.util.Map;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;

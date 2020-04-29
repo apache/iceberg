@@ -19,7 +19,7 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.MoreObjects;
+import com.google.common.shaded.base.MoreObjects;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaUtil;

@@ -19,11 +19,12 @@
 
 package org.apache.iceberg.common;
 
-import com.google.common.base.Joiner;
-import com.google.common.base.MoreObjects;
-import com.google.common.base.Preconditions;
-import com.google.common.base.Throwables;
-import com.google.common.collect.Sets;
+
+import com.google.common.shaded.base.Joiner;
+import com.google.common.shaded.base.MoreObjects;
+import com.google.common.shaded.base.Preconditions;
+import com.google.common.shaded.base.Throwables;
+import com.google.common.shaded.collect.Sets;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.security.AccessController;

@@ -19,8 +19,8 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
+import com.google.common.shaded.collect.ImmutableMap;
+import com.google.common.shaded.collect.Sets;
 import java.util.Collection;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;

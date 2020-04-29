@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.common;
 
-import com.google.common.base.Joiner;
+import com.google.common.shaded.base.Joiner;
 import java.util.LinkedHashSet;
 import java.util.Set;
 

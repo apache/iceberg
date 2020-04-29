@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.arrow.vectorized.parquet;
 
-import com.google.common.base.Preconditions;
+import com.google.common.shaded.base.Preconditions;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import org.apache.parquet.bytes.ByteBufferInputStream;

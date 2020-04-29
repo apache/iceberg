@@ -19,7 +19,7 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.ImmutableMap;
+import com.google.common.shaded.collect.ImmutableMap;
 import java.util.Collection;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;

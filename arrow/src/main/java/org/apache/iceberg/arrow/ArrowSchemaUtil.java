@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.arrow;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
+import com.google.common.shaded.collect.ImmutableList;
+import com.google.common.shaded.collect.ImmutableMap;
+import com.google.common.shaded.collect.Lists;
 import java.util.List;
 import java.util.Map;
 import org.apache.arrow.vector.types.DateUnit;
