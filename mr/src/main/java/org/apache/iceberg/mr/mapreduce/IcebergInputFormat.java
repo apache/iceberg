@@ -61,14 +61,17 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
+import org.apache.iceberg.encryption.EncryptedFiles;
+import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.hadoop.HadoopInputFile;
+import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mr.SerializationUtil;
 import org.apache.iceberg.orc.ORC;
@@ -252,7 +255,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           //TODO: We do not support residual evaluation for HIVE and PIG in memory data model yet
           checkResiduals(task);
         }
-        splits.add(new IcebergSplit(conf, task));
+        splits.add(new IcebergSplit(conf, task, fileIO(table), table.encryption()));
       });
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close table scan: %s", scan);
@@ -273,6 +276,14 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     });
   }
 
+  private FileIO fileIO(Table table) {
+    if (table.io() instanceof HadoopFileIO) {
+      return new HadoopFileIO(((HadoopFileIO) table.io()).conf());
+    } else {
+      return table.io();
+    }
+  }
+
   @Override
   public RecordReader<Void, T> createRecordReader(InputSplit split, TaskAttemptContext context) {
     return new IcebergRecordReader<>();
@@ -290,12 +301,16 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private T currentRow;
     private Iterator<T> currentIterator;
     private Closeable currentCloseable;
+    private FileIO io;
+    private EncryptionManager encryptionManager;
 
     @Override
     public void initialize(InputSplit split, TaskAttemptContext newContext) {
       Configuration conf = newContext.getConfiguration();
       // For now IcebergInputFormat does its own split planning and does not accept FileSplit instances
       CombinedScanTask task = ((IcebergSplit) split).task;
+      this.io = ((IcebergSplit) split).io;
+      this.encryptionManager = ((IcebergSplit) split).encryptionManager;
       this.context = newContext;
       this.tasks = task.files().iterator();
       this.tableSchema = SchemaParser.fromJson(conf.get(TABLE_SCHEMA));
@@ -379,8 +394,10 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     private Iterator<T> open(FileScanTask currentTask, Schema readSchema) {
       DataFile file = currentTask.file();
-      // TODO we should make use of FileIO to create inputFile
-      InputFile inputFile = HadoopInputFile.fromLocation(file.path(), context.getConfiguration());
+      InputFile inputFile = encryptionManager.decrypt(EncryptedFiles.encryptedInput(
+          io.newInputFile(file.path().toString()),
+          file.keyMetadata()));
+
       CloseableIterable<T> iterable;
       switch (file.format()) {
         case AVRO:
@@ -543,10 +560,14 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private CombinedScanTask task;
     private transient String[] locations;
     private transient Configuration conf;
+    private FileIO io;
+    private EncryptionManager encryptionManager;
 
-    IcebergSplit(Configuration conf, CombinedScanTask task) {
+    IcebergSplit(Configuration conf, CombinedScanTask task, FileIO io, EncryptionManager encryptionManager) {
       this.task = task;
       this.conf = conf;
+      this.io = io;
+      this.encryptionManager = encryptionManager;
     }
 
     @Override
@@ -572,6 +593,14 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       byte[] data = SerializationUtil.serializeToBytes(this.task);
       out.writeInt(data.length);
       out.write(data);
+
+      byte[] ioData = SerializationUtil.serializeToBytes(io);
+      out.writeInt(ioData.length);
+      out.write(ioData);
+
+      byte[] encryptionManagerData = SerializationUtil.serializeToBytes(encryptionManager);
+      out.writeInt(encryptionManagerData.length);
+      out.write(encryptionManagerData);
     }
 
     @Override
@@ -579,6 +608,14 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       byte[] data = new byte[in.readInt()];
       in.readFully(data);
       this.task = SerializationUtil.deserializeFromBytes(data);
+
+      byte[] ioData = new byte[in.readInt()];
+      in.readFully(ioData);
+      this.io = SerializationUtil.deserializeFromBytes(ioData);
+
+      byte[] encryptionManagerData = new byte[in.readInt()];
+      in.readFully(encryptionManagerData);
+      this.encryptionManager = SerializationUtil.deserializeFromBytes(encryptionManagerData);
     }
   }
 }
