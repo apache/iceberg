@@ -82,6 +82,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   private DynMethods.BoundMethod flushPageStoreToWriter;
   private ColumnWriteStore writeStore;
+  private boolean isClosed = false;
   private long nextRowGroupSize = 0;
   private long recordCount = 0;
   private long nextCheckRecordCount = 10;
@@ -139,7 +140,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   @Override
   public long length() {
     try {
-      return writer.getPos() + (writeStore.isColumnFlushNeeded() ? writeStore.getBufferedSize() : 0);
+      return writer.getPos() + (isClosed ? 0 : writeStore.getBufferedSize());
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to get file length");
     }
@@ -201,8 +202,11 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   @Override
   public void close() throws IOException {
-    flushRowGroup(true);
-    writeStore.close();
-    writer.end(metadata);
+    if (!isClosed) {
+      flushRowGroup(true);
+      writeStore.close();
+      writer.end(metadata);
+      this.isClosed = true;
+    }
   }
 }
