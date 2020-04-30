@@ -26,8 +26,8 @@ import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
 
@@ -48,15 +48,22 @@ public class TestHiveCommits extends HiveTableBaseTest {
 
     TableMetadata metadataV2 = ops.current();
 
-    Assert.assertNotEquals(metadataV1.file().location(), metadataV2.file().location());
+    Assert.assertEquals(2, ops.current().schema().columns().size());
 
     HiveTableOperations spyOps = spy(ops);
-    doThrow(new RuntimeException()).when(spyOps).doUnlock(anyLong());
-    spyOps.commit(metadataV2, metadataV1);
+
+    ArgumentCaptor<Long> lockId = ArgumentCaptor.forClass(Long.class);
+    doThrow(new RuntimeException()).when(spyOps).doUnlock(lockId.capture());
+
+    try {
+      spyOps.commit(metadataV2, metadataV1);
+    } finally {
+      ops.doUnlock(lockId.getValue());
+    }
 
     ops.refresh();
 
     // the commit must succeed
-    Assert.assertEquals(metadataV1.file().location(), ops.current().file().location());
+    Assert.assertEquals(1, ops.current().schema().columns().size());
   }
 }
