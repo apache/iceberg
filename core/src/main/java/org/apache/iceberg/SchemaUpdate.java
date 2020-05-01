@@ -586,6 +586,7 @@ class SchemaUpdate implements UpdateSchema {
     return newFields;
   }
 
+  @SuppressWarnings("checkstyle:IllegalType")
   private static List<Types.NestedField> moveFields(List<Types.NestedField> fields,
                                                     Collection<Move> moves) {
     LinkedList<Types.NestedField> reordered = Lists.newLinkedList(fields);
