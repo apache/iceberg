@@ -21,6 +21,7 @@ package org.apache.iceberg.types;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -93,6 +94,10 @@ public class TypeUtil {
 
   public static Map<Integer, Types.NestedField> indexById(Types.StructType struct) {
     return visit(struct, new IndexById());
+  }
+
+  public static Map<Integer, Integer> indexParents(Types.StructType struct) {
+    return ImmutableMap.copyOf(visit(struct, new IndexParents()));
   }
 
   /**
