@@ -110,7 +110,7 @@ class RecordPartitioner extends AbstractPartitioner<Record> {
     if (isOptional) {
       // the wrapped position handles null layers
       return new WrappedPositionAccessor(p, accessor);
-    } else if (accessor instanceof PositionAccessor) {
+    } else if (accessor != null && accessor.getClass() == PositionAccessor.class) {
       return new Position2Accessor(p, (PositionAccessor) accessor);
     } else if (accessor instanceof Position2Accessor) {
       return new Position3Accessor(p, (Position2Accessor) accessor);
