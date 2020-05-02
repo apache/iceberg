@@ -33,11 +33,11 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
-@SuppressWarnings({"checkstyle:ParameterName", "checkstyle:MemberName"})
 class RecordPartitioner extends AbstractPartitioner<Record> {
 
   private final Accessor<Record>[] accessors;
 
+  @SuppressWarnings("unchecked")
   RecordPartitioner(PartitionSpec spec) {
     super(spec);
 
@@ -69,13 +69,14 @@ class RecordPartitioner extends AbstractPartitioner<Record> {
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder();
-    sb.append("GenericRecordPartitioner[");
+    StringBuilder sb = new StringBuilder(RecordPartitioner.class.toString());
+    sb.append("[");
     sb.append(super.toString());
     sb.append("]");
     return sb.toString();
   }
 
+  @SuppressWarnings("unchecked")
   @Override
   public void partition(Record record) {
     for (int i = 0; i < partitionTuple.length; i += 1) {
@@ -105,17 +106,17 @@ class RecordPartitioner extends AbstractPartitioner<Record> {
     }
   }
 
-  private static Accessor<Record> newAccessor(int p, boolean isOptional,
+  private static Accessor<Record> newAccessor(int position, boolean isOptional,
                                               Accessor<Record> accessor) {
     if (isOptional) {
       // the wrapped position handles null layers
-      return new WrappedPositionAccessor(p, accessor);
+      return new WrappedPositionAccessor(position, accessor);
     } else if (accessor != null && accessor.getClass() == PositionAccessor.class) {
-      return new Position2Accessor(p, (PositionAccessor) accessor);
+      return new Position2Accessor(position, (PositionAccessor) accessor);
     } else if (accessor instanceof Position2Accessor) {
-      return new Position3Accessor(p, (Position2Accessor) accessor);
+      return new Position3Accessor(position, (Position2Accessor) accessor);
     } else {
-      return new WrappedPositionAccessor(p, accessor);
+      return new WrappedPositionAccessor(position, accessor);
     }
   }
 
@@ -159,19 +160,19 @@ class RecordPartitioner extends AbstractPartitioner<Record> {
   }
 
   private static class PositionAccessor implements Accessor<Record> {
-    private int p;
+    private final int position;
 
-    private PositionAccessor(int p) {
-      this.p = p;
+    private PositionAccessor(int position) {
+      this.position = position;
     }
 
     @Override
     public Object get(Record record) {
-      return record.get(p);
+      return record.get(position);
     }
 
     int position() {
-      return p;
+      return position;
     }
   }
 
@@ -179,9 +180,9 @@ class RecordPartitioner extends AbstractPartitioner<Record> {
     private final int p0;
     private final int p1;
 
-    private Position2Accessor(int p, PositionAccessor wrapped) {
-      this.p0 = p;
-      this.p1 = wrapped.p;
+    private Position2Accessor(int position, PositionAccessor wrapped) {
+      this.p0 = position;
+      this.p1 = wrapped.position;
     }
 
     @Override
@@ -196,8 +197,8 @@ class RecordPartitioner extends AbstractPartitioner<Record> {
     private final int p1;
     private final int p2;
 
-    private Position3Accessor(int p, Position2Accessor wrapped) {
-      this.p0 = p;
+    private Position3Accessor(int position, Position2Accessor wrapped) {
+      this.p0 = position;
       this.p1 = wrapped.p0;
       this.p2 = wrapped.p1;
     }
@@ -211,17 +212,17 @@ class RecordPartitioner extends AbstractPartitioner<Record> {
   }
 
   private static class WrappedPositionAccessor implements Accessor<Record> {
-    private final int p;
+    private final int position;
     private final Accessor<Record> accessor;
 
-    private WrappedPositionAccessor(int p, Accessor<Record> accessor) {
-      this.p = p;
+    private WrappedPositionAccessor(int position, Accessor<Record> accessor) {
+      this.position = position;
       this.accessor = accessor;
     }
 
     @Override
     public Object get(Record record) {
-      Record inner = (Record) record.get(p);
+      Record inner = (Record) record.get(position);
       if (inner != null) {
         return accessor.get(inner);
       }
