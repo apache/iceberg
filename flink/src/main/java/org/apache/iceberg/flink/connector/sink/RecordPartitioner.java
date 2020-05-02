@@ -26,8 +26,10 @@ import java.util.Map;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.DateTimeUtil;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
@@ -90,8 +92,17 @@ class RecordPartitioner extends AbstractPartitioner<Record> {
     return TypeUtil.visit(schema, new BuildPositionAccessors());
   }
 
-  private static Accessor<Record> newAccessor(int p) {
-    return new PositionAccessor(p);
+  private static Accessor<Record> newAccessor(int position, Type type) {
+    switch (type.typeId()) {
+      case TIMESTAMP:
+        return new TimeStampAccessor(position, ((Types.TimestampType) type).shouldAdjustToUTC());
+      case TIME:
+        return new TimeAccessor(position);
+      case DATE:
+        return new DateAccessor(position);
+      default:
+        return new PositionAccessor(position);
+    }
   }
 
   private static Accessor<Record> newAccessor(int p, boolean isOptional,
@@ -129,7 +140,7 @@ class RecordPartitioner extends AbstractPartitioner<Record> {
             accessors.put(entry.getKey(), newAccessor(i, field.isOptional(), entry.getValue()));
           }
         } else {
-          accessors.put(field.fieldId(), newAccessor(i));
+          accessors.put(field.fieldId(), newAccessor(i, field.type()));
         }
       }
 
@@ -157,6 +168,10 @@ class RecordPartitioner extends AbstractPartitioner<Record> {
     @Override
     public Object get(Record record) {
       return record.get(p);
+    }
+
+    int position() {
+      return p;
     }
   }
 
@@ -211,6 +226,44 @@ class RecordPartitioner extends AbstractPartitioner<Record> {
         return accessor.get(inner);
       }
       return null;
+    }
+  }
+
+  private static class TimeStampAccessor extends PositionAccessor {
+    private final boolean withZone;
+
+    private TimeStampAccessor(int position, boolean withZone) {
+      super(position);
+      this.withZone = withZone;
+    }
+
+    @Override
+    public Object get(Record record) {
+      return withZone ?
+        DateTimeUtil.microsFromTimestamptz(record.get(position(), java.time.OffsetDateTime.class)) :
+        DateTimeUtil.microsFromTimestamp(record.get(position(), java.time.LocalDateTime.class));
+    }
+  }
+
+  private static class TimeAccessor extends PositionAccessor {
+    private TimeAccessor(int position) {
+      super(position);
+    }
+
+    @Override
+    public Object get(Record record) {
+      return DateTimeUtil.microsFromTime(record.get(position(), java.time.LocalTime.class));
+    }
+  }
+
+  private static class DateAccessor extends PositionAccessor {
+    private DateAccessor(int position) {
+      super(position);
+    }
+
+    @Override
+    public Object get(Record record) {
+      return DateTimeUtil.daysFromDate(record.get(position(), java.time.LocalDate.class));
     }
   }
 }
