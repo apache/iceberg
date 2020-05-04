@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.mr.mapreduce;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -32,7 +31,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.InputFormat;
@@ -52,27 +50,15 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.DataReader;
-import org.apache.iceberg.data.orc.GenericOrcReader;
-import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.hadoop.HadoopInputFile;
-import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.SerializationUtil;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
@@ -84,20 +70,6 @@ import org.slf4j.LoggerFactory;
  */
 public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergInputFormat.class);
-
-  static final String AS_OF_TIMESTAMP = "iceberg.mr.as.of.time";
-  static final String CASE_SENSITIVE = "iceberg.mr.case.sensitive";
-  static final String FILTER_EXPRESSION = "iceberg.mr.filter.expression";
-  static final String IN_MEMORY_DATA_MODEL = "iceberg.mr.in.memory.data.model";
-  static final String READ_SCHEMA = "iceberg.mr.read.schema";
-  static final String REUSE_CONTAINERS = "iceberg.mr.reuse.containers";
-  static final String SNAPSHOT_ID = "iceberg.mr.snapshot.id";
-  static final String SPLIT_SIZE = "iceberg.mr.split.size";
-  static final String TABLE_PATH = "iceberg.mr.table.path";
-  static final String TABLE_SCHEMA = "iceberg.mr.table.schema";
-  static final String LOCALITY = "iceberg.mr.locality";
-  static final String CATALOG = "iceberg.mr.catalog";
-  static final String SKIP_RESIDUAL_FILTERING = "skip.residual.filtering";
 
   private transient List<InputSplit> splits;
 
@@ -113,100 +85,9 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
    *
    * @param job the {@code Job} to configure
    */
-  public static ConfigBuilder configure(Job job) {
+  public static InputFormatConfig.ConfigBuilder configure(Job job) {
     job.setInputFormatClass(IcebergInputFormat.class);
-    return new ConfigBuilder(job.getConfiguration());
-  }
-
-  public static class ConfigBuilder {
-    private final Configuration conf;
-
-    public ConfigBuilder(Configuration conf) {
-      this.conf = conf;
-      // defaults
-      conf.setEnum(IN_MEMORY_DATA_MODEL, InMemoryDataModel.GENERIC);
-      conf.setBoolean(SKIP_RESIDUAL_FILTERING, false);
-      conf.setBoolean(CASE_SENSITIVE, true);
-      conf.setBoolean(REUSE_CONTAINERS, false);
-      conf.setBoolean(LOCALITY, false);
-    }
-
-    public ConfigBuilder readFrom(String path) {
-      conf.set(TABLE_PATH, path);
-      Table table = findTable(conf);
-      conf.set(TABLE_SCHEMA, SchemaParser.toJson(table.schema()));
-      return this;
-    }
-
-    public ConfigBuilder filter(Expression expression) {
-      conf.set(FILTER_EXPRESSION, SerializationUtil.serializeToBase64(expression));
-      return this;
-    }
-
-    public ConfigBuilder project(Schema schema) {
-      conf.set(READ_SCHEMA, SchemaParser.toJson(schema));
-      return this;
-    }
-
-    public ConfigBuilder reuseContainers(boolean reuse) {
-      conf.setBoolean(REUSE_CONTAINERS, reuse);
-      return this;
-    }
-
-    public ConfigBuilder caseSensitive(boolean caseSensitive) {
-      conf.setBoolean(CASE_SENSITIVE, caseSensitive);
-      return this;
-    }
-
-    public ConfigBuilder snapshotId(long snapshotId) {
-      conf.setLong(SNAPSHOT_ID, snapshotId);
-      return this;
-    }
-
-    public ConfigBuilder asOfTime(long asOfTime) {
-      conf.setLong(AS_OF_TIMESTAMP, asOfTime);
-      return this;
-    }
-
-    public ConfigBuilder splitSize(long splitSize) {
-      conf.setLong(SPLIT_SIZE, splitSize);
-      return this;
-    }
-
-    /**
-     * If this API is called. The input splits
-     * constructed will have host location information
-     */
-    public ConfigBuilder preferLocality() {
-      conf.setBoolean(LOCALITY, true);
-      return this;
-    }
-
-    public ConfigBuilder catalogFunc(Class<? extends Function<Configuration, Catalog>> catalogFuncClass) {
-      conf.setClass(CATALOG, catalogFuncClass, Function.class);
-      return this;
-    }
-
-    public ConfigBuilder useHiveRows() {
-      conf.set(IN_MEMORY_DATA_MODEL, InMemoryDataModel.HIVE.name());
-      return this;
-    }
-
-    public ConfigBuilder usePigTuples() {
-      conf.set(IN_MEMORY_DATA_MODEL, InMemoryDataModel.PIG.name());
-      return this;
-    }
-
-    /**
-     * Compute platforms pass down filters to data sources. If the data source cannot apply some filters, or only
-     * partially applies the filter, it will return the residual filter back. If the platform can correctly apply
-     * the residual filters, then it should call this api. Otherwise the current api will throw an exception if the
-     * passed in filter is not completely satisfied.
-     */
-    public ConfigBuilder skipResidualFiltering() {
-      conf.setBoolean(SKIP_RESIDUAL_FILTERING, true);
-      return this;
-    }
+    return new InputFormatConfig.ConfigBuilder(job.getConfiguration());
   }
 
   @Override
@@ -217,35 +98,35 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     Configuration conf = context.getConfiguration();
-    Table table = findTable(conf);
+    Table table = InputFormatConfig.findTable(conf);
     TableScan scan = table.newScan()
-                          .caseSensitive(conf.getBoolean(CASE_SENSITIVE, true));
-    long snapshotId = conf.getLong(SNAPSHOT_ID, -1);
+                          .caseSensitive(conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, true));
+    long snapshotId = conf.getLong(InputFormatConfig.SNAPSHOT_ID, -1);
     if (snapshotId != -1) {
       scan = scan.useSnapshot(snapshotId);
     }
-    long asOfTime = conf.getLong(AS_OF_TIMESTAMP, -1);
+    long asOfTime = conf.getLong(InputFormatConfig.AS_OF_TIMESTAMP, -1);
     if (asOfTime != -1) {
       scan = scan.asOfTime(asOfTime);
     }
-    long splitSize = conf.getLong(SPLIT_SIZE, 0);
+    long splitSize = conf.getLong(InputFormatConfig.SPLIT_SIZE, 0);
     if (splitSize > 0) {
       scan = scan.option(TableProperties.SPLIT_SIZE, String.valueOf(splitSize));
     }
-    String schemaStr = conf.get(READ_SCHEMA);
+    String schemaStr = conf.get(InputFormatConfig.READ_SCHEMA);
     if (schemaStr != null) {
       scan.project(SchemaParser.fromJson(schemaStr));
     }
 
     // TODO add a filter parser to get rid of Serialization
-    Expression filter = SerializationUtil.deserializeFromBase64(conf.get(FILTER_EXPRESSION));
+    Expression filter = SerializationUtil.deserializeFromBase64(conf.get(InputFormatConfig.FILTER_EXPRESSION));
     if (filter != null) {
       scan = scan.filter(filter);
     }
 
     splits = Lists.newArrayList();
-    boolean applyResidual = !conf.getBoolean(SKIP_RESIDUAL_FILTERING, false);
-    InMemoryDataModel model = conf.getEnum(IN_MEMORY_DATA_MODEL, InMemoryDataModel.GENERIC);
+    boolean applyResidual = !conf.getBoolean(InputFormatConfig.SKIP_RESIDUAL_FILTERING, false);
+    InMemoryDataModel model = conf.getEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL, InMemoryDataModel.GENERIC);
     try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
       tasksIterable.forEach(task -> {
         if (applyResidual && (model == InMemoryDataModel.HIVE || model == InMemoryDataModel.PIG)) {
@@ -282,8 +163,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private TaskAttemptContext context;
     private Schema tableSchema;
     private Schema expectedSchema;
-    private boolean reuseContainers;
-    private boolean caseSensitive;
     private InMemoryDataModel inMemoryDataModel;
     private Map<String, Integer> namesToPos;
     private Iterator<FileScanTask> tasks;
@@ -298,13 +177,11 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       CombinedScanTask task = ((IcebergSplit) split).task;
       this.context = newContext;
       this.tasks = task.files().iterator();
-      this.tableSchema = SchemaParser.fromJson(conf.get(TABLE_SCHEMA));
-      String readSchemaStr = conf.get(READ_SCHEMA);
+      this.tableSchema = SchemaParser.fromJson(conf.get(InputFormatConfig.TABLE_SCHEMA));
+      String readSchemaStr = conf.get(InputFormatConfig.READ_SCHEMA);
       this.expectedSchema = readSchemaStr != null ? SchemaParser.fromJson(readSchemaStr) : tableSchema;
       this.namesToPos = buildNameToPos(expectedSchema);
-      this.reuseContainers = conf.getBoolean(REUSE_CONTAINERS, false);
-      this.caseSensitive = conf.getBoolean(CASE_SENSITIVE, true);
-      this.inMemoryDataModel = conf.getEnum(IN_MEMORY_DATA_MODEL, InMemoryDataModel.GENERIC);
+      this.inMemoryDataModel = conf.getEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL, InMemoryDataModel.GENERIC);
       this.currentIterator = open(tasks.next());
     }
 
@@ -378,24 +255,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     private Iterator<T> open(FileScanTask currentTask, Schema readSchema) {
-      DataFile file = currentTask.file();
-      // TODO we should make use of FileIO to create inputFile
-      InputFile inputFile = HadoopInputFile.fromLocation(file.path(), context.getConfiguration());
-      CloseableIterable<T> iterable;
-      switch (file.format()) {
-        case AVRO:
-          iterable = newAvroIterable(inputFile, currentTask, readSchema);
-          break;
-        case ORC:
-          iterable = newOrcIterable(inputFile, currentTask, readSchema);
-          break;
-        case PARQUET:
-          iterable = newParquetIterable(inputFile, currentTask, readSchema);
-          break;
-        default:
-          throw new UnsupportedOperationException(
-              String.format("Cannot read %s file: %s", file.format().name(), file.path()));
-      }
+      org.apache.iceberg.mr.IcebergRecordReader wrappedReader = new org.apache.iceberg.mr.IcebergRecordReader();
+      CloseableIterable<T> iterable = wrappedReader.createReader(context.getConfiguration(), currentTask, readSchema);
       currentCloseable = iterable;
       return iterable.iterator();
     }
@@ -443,99 +304,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       return row;
     }
 
-    private CloseableIterable<T> applyResidualFiltering(CloseableIterable<T> iter, Expression residual,
-                                                        Schema readSchema) {
-      boolean applyResidual = !context.getConfiguration().getBoolean(SKIP_RESIDUAL_FILTERING, false);
-
-      if (applyResidual && residual != null && residual != Expressions.alwaysTrue()) {
-        Evaluator filter = new Evaluator(readSchema.asStruct(), residual, caseSensitive);
-        return CloseableIterable.filter(iter, record -> filter.eval((StructLike) record));
-      } else {
-        return iter;
-      }
-    }
-
-    private CloseableIterable<T> newAvroIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
-      Avro.ReadBuilder avroReadBuilder = Avro.read(inputFile)
-          .project(readSchema)
-          .split(task.start(), task.length());
-      if (reuseContainers) {
-        avroReadBuilder.reuseContainers();
-      }
-
-      switch (inMemoryDataModel) {
-        case PIG:
-        case HIVE:
-          //TODO implement value readers for Pig and Hive
-          throw new UnsupportedOperationException("Avro support not yet supported for Pig and Hive");
-        case GENERIC:
-          avroReadBuilder.createReaderFunc(DataReader::create);
-      }
-      return applyResidualFiltering(avroReadBuilder.build(), task.residual(), readSchema);
-    }
-
-    private CloseableIterable<T> newParquetIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
-      Parquet.ReadBuilder parquetReadBuilder = Parquet.read(inputFile)
-          .project(readSchema)
-          .filter(task.residual())
-          .caseSensitive(caseSensitive)
-          .split(task.start(), task.length());
-      if (reuseContainers) {
-        parquetReadBuilder.reuseContainers();
-      }
-
-      switch (inMemoryDataModel) {
-        case PIG:
-        case HIVE:
-          //TODO implement value readers for Pig and Hive
-          throw new UnsupportedOperationException("Parquet support not yet supported for Pig and Hive");
-        case GENERIC:
-          parquetReadBuilder.createReaderFunc(
-              fileSchema -> GenericParquetReaders.buildReader(readSchema, fileSchema));
-      }
-      return applyResidualFiltering(parquetReadBuilder.build(), task.residual(), readSchema);
-    }
-
-    private CloseableIterable<T> newOrcIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
-      ORC.ReadBuilder orcReadBuilder = ORC.read(inputFile)
-          .project(readSchema)
-          .caseSensitive(caseSensitive)
-          .split(task.start(), task.length());
-      // ORC does not support reuse containers yet
-      switch (inMemoryDataModel) {
-        case PIG:
-        case HIVE:
-          //TODO: implement value readers for Pig and Hive
-          throw new UnsupportedOperationException("ORC support not yet supported for Pig and Hive");
-        case GENERIC:
-          orcReadBuilder.createReaderFunc(fileSchema -> GenericOrcReader.buildReader(readSchema, fileSchema));
-      }
-
-      return applyResidualFiltering(orcReadBuilder.build(), task.residual(), readSchema);
-    }
-  }
-
-  private static Table findTable(Configuration conf) {
-    String path = conf.get(TABLE_PATH);
-    Preconditions.checkArgument(path != null, "Table path should not be null");
-    if (path.contains("/")) {
-      HadoopTables tables = new HadoopTables(conf);
-      return tables.load(path);
-    }
-
-    String catalogFuncClass = conf.get(CATALOG);
-    if (catalogFuncClass != null) {
-      Function<Configuration, Catalog> catalogFunc = (Function<Configuration, Catalog>)
-          DynConstructors.builder(Function.class)
-                         .impl(catalogFuncClass)
-                         .build()
-                         .newInstance();
-      Catalog catalog = catalogFunc.apply(conf);
-      TableIdentifier tableIdentifier = TableIdentifier.parse(path);
-      return catalog.loadTable(tableIdentifier);
-    } else {
-      throw new IllegalArgumentException("No custom catalog specified to load table " + path);
-    }
   }
 
   static class IcebergSplit extends InputSplit implements Writable {
@@ -556,7 +324,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     @Override
     public String[] getLocations() {
-      boolean localityPreferred = conf.getBoolean(LOCALITY, false);
+      boolean localityPreferred = conf.getBoolean(InputFormatConfig.LOCALITY, false);
       if (!localityPreferred) {
         return ANYWHERE;
       }

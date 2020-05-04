@@ -38,15 +38,12 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mr.SerializationUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,7 +57,6 @@ public class IcebergInputFormat<T> implements InputFormat<Void, T>, CombineHiveI
   private static final Logger LOG = LoggerFactory.getLogger(IcebergInputFormat.class);
 
   static final String TABLE_LOCATION = "location";
-  static final String REUSE_CONTAINERS = "iceberg.mr.reuse.containers";
 
   private Table table;
 
@@ -116,12 +112,10 @@ public class IcebergInputFormat<T> implements InputFormat<Void, T>, CombineHiveI
     private CloseableIterable<Record> reader;
     private Iterator<Record> recordIterator;
     private Record currentRecord;
-    private boolean reuseContainers;
 
     public IcebergRecordReader(InputSplit split, JobConf conf) throws IOException {
       this.split = (IcebergSplit) split;
       this.conf = conf;
-      this.reuseContainers = conf.getBoolean(REUSE_CONTAINERS, false);
       initialise();
     }
 
@@ -132,11 +126,9 @@ public class IcebergInputFormat<T> implements InputFormat<Void, T>, CombineHiveI
 
     private void nextTask() {
       FileScanTask currentTask = tasks.next();
-      DataFile file = currentTask.file();
-      InputFile inputFile = HadoopInputFile.fromLocation(file.path(), conf);
       Schema tableSchema = table.schema();
-      IcebergReaderFactory<Record> readerFactory = new IcebergReaderFactory<Record>();
-      reader = readerFactory.createReader(file, currentTask, inputFile, tableSchema, reuseContainers);
+      org.apache.iceberg.mr.IcebergRecordReader wrappedReader = new org.apache.iceberg.mr.IcebergRecordReader();
+      reader = wrappedReader.createReader(conf, currentTask, tableSchema);
       recordIterator = reader.iterator();
     }
 
