@@ -147,7 +147,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   @Override
   public Object updateEvent() {
     long snapshotId = snapshotId();
-    long sequenceNumber = ops.refresh().snapshot(snapshotId).sequenceNumber();
+    long sequenceNumber = ops.current().snapshot(snapshotId).sequenceNumber();
     return new CreateSnapshotEvent(
         tableName,
         operation(),
