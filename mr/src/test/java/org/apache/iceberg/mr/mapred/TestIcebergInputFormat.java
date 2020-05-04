@@ -21,7 +21,6 @@ package org.apache.iceberg.mr.mapred;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -84,17 +83,13 @@ public class TestIcebergInputFormat extends BaseInputFormatTest {
 
   private List<Record> readRecords(JobConf jobConf) throws IOException {
     InputSplit[] splits = inputFormat.getSplits(jobConf, 1);
-    try {
-      RecordReader reader = inputFormat.getRecordReader(splits[0], jobConf, null);
-      List<Record> records = new ArrayList<>();
-      IcebergWritable value = (IcebergWritable) reader.createValue();
-      while (reader.next(null, value)) {
-        records.add(value.getRecord().copy());
-      }
-      return records;
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
+    RecordReader reader = inputFormat.getRecordReader(splits[0], jobConf, null);
+    List<Record> records = new ArrayList<>();
+    IcebergWritable value = (IcebergWritable) reader.createValue();
+    while (reader.next(null, value)) {
+      records.add(value.getRecord().copy());
     }
+    return records;
   }
 
 }
