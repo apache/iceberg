@@ -102,8 +102,7 @@ class Writer implements DataSourceWriter {
   Writer(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
          DataSourceOptions options, boolean replacePartitions, String applicationId, Schema writeSchema,
          StructType dsSchema) {
-    this(table, io, encryptionManager, options, replacePartitions, applicationId, null, writeSchema,
-        SparkSchemaUtil.convert(writeSchema));
+    this(table, io, encryptionManager, options, replacePartitions, applicationId, null, writeSchema, dsSchema);
   }
 
   Writer(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,

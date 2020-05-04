@@ -119,6 +119,7 @@ public class ParquetWithSparkSchemaVisitor<T> {
                   // if there are 2 fields, both key and value are projected
                   keyResult = visitField(keyField, repeatedKeyValue.getType(0), visitor);
                   valueResult = visitField(valueField, repeatedKeyValue.getType(1), visitor);
+                  break;
                 case 1:
                   // if there is just one, use the name to determine what it is
                   Type keyOrValue = repeatedKeyValue.getType(0);
@@ -129,6 +130,7 @@ public class ParquetWithSparkSchemaVisitor<T> {
                     valueResult = visitField(valueField, keyOrValue, visitor);
                     // key result remains null
                   }
+                  break;
                 default:
                   // both results will remain null
               }
