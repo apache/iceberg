@@ -25,21 +25,22 @@ import org.apache.iceberg.BaseTransaction.TransactionType;
 public final class Transactions {
   private Transactions() {}
 
-  public static Transaction createOrReplaceTableTransaction(TableOperations ops, TableMetadata start) {
-    return new BaseTransaction(ops, TransactionType.CREATE_OR_REPLACE_TABLE, start);
+  public static Transaction createOrReplaceTableTransaction(
+      String tableName, TableOperations ops, TableMetadata start) {
+    return new BaseTransaction(tableName, ops, TransactionType.CREATE_OR_REPLACE_TABLE, start);
   }
 
-  public static Transaction replaceTableTransaction(TableOperations ops, TableMetadata start) {
-    return new BaseTransaction(ops, TransactionType.REPLACE_TABLE, start);
+  public static Transaction replaceTableTransaction(String tableName, TableOperations ops, TableMetadata start) {
+    return new BaseTransaction(tableName, ops, TransactionType.REPLACE_TABLE, start);
   }
 
-  public static Transaction createTableTransaction(TableOperations ops, TableMetadata start) {
+  public static Transaction createTableTransaction(String tableName, TableOperations ops, TableMetadata start) {
     Preconditions.checkArgument(ops.current() == null,
             "Cannot start create table transaction: table already exists");
-    return new BaseTransaction(ops, TransactionType.CREATE_TABLE, start);
+    return new BaseTransaction(tableName, ops, TransactionType.CREATE_TABLE, start);
   }
 
-  public static Transaction newTransaction(TableOperations ops) {
-    return new BaseTransaction(ops, TransactionType.SIMPLE, ops.refresh());
+  public static Transaction newTransaction(String tableName, TableOperations ops) {
+    return new BaseTransaction(tableName, ops, TransactionType.SIMPLE, ops.refresh());
   }
 }

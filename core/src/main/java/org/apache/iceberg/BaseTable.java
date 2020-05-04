@@ -116,17 +116,17 @@ public class BaseTable implements Table, HasTableOperations {
 
   @Override
   public AppendFiles newAppend() {
-    return new MergeAppend(ops);
+    return new MergeAppend(name, ops);
   }
 
   @Override
   public AppendFiles newFastAppend() {
-    return new FastAppend(ops);
+    return new FastAppend(name, ops);
   }
 
   @Override
   public RewriteFiles newRewrite() {
-    return new BaseRewriteFiles(ops);
+    return new BaseRewriteFiles(name, ops);
   }
 
   @Override
@@ -136,17 +136,17 @@ public class BaseTable implements Table, HasTableOperations {
 
   @Override
   public OverwriteFiles newOverwrite() {
-    return new BaseOverwriteFiles(ops);
+    return new BaseOverwriteFiles(name, ops);
   }
 
   @Override
   public ReplacePartitions newReplacePartitions() {
-    return new BaseReplacePartitions(ops);
+    return new BaseReplacePartitions(name, ops);
   }
 
   @Override
   public DeleteFiles newDelete() {
-    return new StreamingDelete(ops);
+    return new StreamingDelete(name, ops);
   }
 
   @Override
@@ -156,17 +156,17 @@ public class BaseTable implements Table, HasTableOperations {
 
   @Override
   public Rollback rollback() {
-    return new RollbackToSnapshot(ops);
+    return new RollbackToSnapshot(name, ops);
   }
 
   @Override
   public ManageSnapshots manageSnapshots() {
-    return new SnapshotManager(ops);
+    return new SnapshotManager(name, ops);
   }
 
   @Override
   public Transaction newTransaction() {
-    return Transactions.newTransaction(ops);
+    return Transactions.newTransaction(name, ops);
   }
 
   @Override
