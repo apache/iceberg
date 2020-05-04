@@ -44,6 +44,37 @@ public class TestHelpers {
 
   private TestHelpers() {}
 
+  /**
+   * Implements {@link StructLike#get} for passing data in tests.
+   */
+  public static class Row implements StructLike {
+    public static Row of(Object... values) {
+      return new Row(values);
+    }
+
+    private final Object[] values;
+
+    private Row(Object... values) {
+      this.values = values;
+    }
+
+    @Override
+    public int size() {
+      return values.length;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(values[pos]);
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("Setting values is not supported");
+    }
+  }
+
   public static DataFile writeFile(File targetFile,
       Table table, StructLike partitionData, FileFormat fileFormat, List<Record> records) throws IOException {
     if (targetFile.exists()) {

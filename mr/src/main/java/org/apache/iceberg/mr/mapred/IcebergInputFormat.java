@@ -59,6 +59,7 @@ import org.slf4j.LoggerFactory;
 public class IcebergInputFormat<T> implements InputFormat<Void, T>, CombineHiveInputFormat.AvoidSplitCombination {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergInputFormat.class);
 
+  static final String TABLE_LOCATION = "location";
   static final String REUSE_CONTAINERS = "iceberg.mr.reuse.containers";
 
   private Table table;
@@ -75,7 +76,7 @@ public class IcebergInputFormat<T> implements InputFormat<Void, T>, CombineHiveI
 
   private Table findTable(JobConf conf) throws IOException {
     HadoopTables tables = new HadoopTables(conf);
-    String tableDir = conf.get("location");
+    String tableDir = conf.get(TABLE_LOCATION);
     if (tableDir == null) {
       throw new IllegalArgumentException("Table 'location' not set in JobConf");
     }
@@ -134,8 +135,8 @@ public class IcebergInputFormat<T> implements InputFormat<Void, T>, CombineHiveI
       DataFile file = currentTask.file();
       InputFile inputFile = HadoopInputFile.fromLocation(file.path(), conf);
       Schema tableSchema = table.schema();
-
-      reader = IcebergReaderFactory.createReader(file, currentTask, inputFile, tableSchema, reuseContainers);
+      IcebergReaderFactory<Record> readerFactory = new IcebergReaderFactory<Record>();
+      reader = readerFactory.createReader(file, currentTask, inputFile, tableSchema, reuseContainers);
       recordIterator = reader.iterator();
     }
 

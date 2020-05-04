@@ -23,7 +23,6 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
@@ -32,12 +31,9 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 
-class IcebergReaderFactory {
+class IcebergReaderFactory<T> {
 
-  private IcebergReaderFactory() {
-  }
-
-  public static CloseableIterable<Record> createReader(DataFile file, FileScanTask currentTask, InputFile inputFile,
+  public CloseableIterable<T> createReader(DataFile file, FileScanTask currentTask, InputFile inputFile,
       Schema tableSchema, boolean reuseContainers) {
     switch (file.format()) {
       case AVRO:
@@ -53,7 +49,7 @@ class IcebergReaderFactory {
     }
   }
 
-  private static CloseableIterable buildAvroReader(FileScanTask task, InputFile inputFile, Schema schema,
+  private CloseableIterable<T> buildAvroReader(FileScanTask task, InputFile inputFile, Schema schema,
       boolean reuseContainers) {
     Avro.ReadBuilder builder = Avro.read(inputFile)
         .createReaderFunc(DataReader::create)
@@ -67,7 +63,7 @@ class IcebergReaderFactory {
     return builder.build();
   }
 
-  private static CloseableIterable buildOrcReader(FileScanTask task, InputFile inputFile, Schema schema,
+  private CloseableIterable<T> buildOrcReader(FileScanTask task, InputFile inputFile, Schema schema,
       boolean reuseContainers) {
     ORC.ReadBuilder builder = ORC.read(inputFile)
         .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
@@ -77,7 +73,7 @@ class IcebergReaderFactory {
     return builder.build();
   }
 
-  private static CloseableIterable buildParquetReader(FileScanTask task, InputFile inputFile, Schema schema,
+  private CloseableIterable<T> buildParquetReader(FileScanTask task, InputFile inputFile, Schema schema,
       boolean reuseContainers) {
     Parquet.ReadBuilder builder = Parquet.read(inputFile)
         .createReaderFunc(fileSchema  -> GenericParquetReaders.buildReader(schema, fileSchema))
