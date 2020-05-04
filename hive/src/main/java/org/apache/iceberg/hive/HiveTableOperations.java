@@ -296,13 +296,18 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private void unlock(Optional<Long> lockId) {
     if (lockId.isPresent()) {
       try {
-        metaClients.run(client -> {
-          client.unlock(lockId.get());
-          return null;
-        });
+        doUnlock(lockId.get());
       } catch (Exception e) {
-        throw new RuntimeException(String.format("Failed to unlock %s.%s", database, tableName), e);
+        LOG.warn("Failed to unlock {}.{}", database, tableName, e);
       }
     }
+  }
+
+  // visible for testing
+  protected void doUnlock(long lockId) throws TException, InterruptedException {
+    metaClients.run(client -> {
+      client.unlock(lockId);
+      return null;
+    });
   }
 }

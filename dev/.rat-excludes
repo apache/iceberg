@@ -1,6 +1,8 @@
 version.txt
 versions.lock
 versions.props
+books.json
+new-books.json
 build
 .gitignore
 .rat-excludes

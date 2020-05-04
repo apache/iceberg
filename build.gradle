@@ -313,9 +313,11 @@ project(':iceberg-arrow') {
     compile("org.apache.arrow:arrow-vector") {
       exclude group: 'io.netty', module: 'netty-buffer'
       exclude group: 'io.netty', module: 'netty-common'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
     compile("org.apache.arrow:arrow-memory") {
       exclude group: 'io.netty', module: 'netty-common'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
   }
 }
@@ -409,6 +411,7 @@ project(':iceberg-spark-runtime') {
       exclude group: 'commons-codec'
       exclude group: 'org.xerial.snappy'
       exclude group: 'javax.xml.bind'
+      exclude group: 'javax.annotation'
     }
   }
 
@@ -426,6 +429,7 @@ project(':iceberg-spark-runtime') {
     from(projectDir) {
       include 'LICENSE'
       include 'NOTICE'
+      include 'DISCLAIMER'
     }
 
     // Relocate dependencies to avoid conflicts
@@ -445,6 +449,7 @@ project(':iceberg-spark-runtime') {
     // relocate Arrow and related deps to shade Iceberg specific version
     relocate 'io.netty.buffer', 'org.apache.iceberg.shaded.io.netty.buffer'
     relocate 'org.apache.arrow', 'org.apache.iceberg.shaded.org.apache.arrow'
+    relocate 'com.carrotsearch', 'org.apache.iceberg.shaded.com.carrotsearch'
 
     archiveName = "iceberg-spark-runtime-${version}.${extension}"
   }
