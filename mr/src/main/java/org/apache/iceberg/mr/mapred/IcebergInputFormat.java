@@ -77,7 +77,7 @@ public class IcebergInputFormat<T> implements InputFormat<Void, T>, CombineHiveI
   }
 
   @Override
-  public RecordReader getRecordReader(InputSplit split, JobConf job, Reporter reporter) throws IOException {
+  public RecordReader<Void, T> getRecordReader(InputSplit split, JobConf job, Reporter reporter) throws IOException {
     return new IcebergRecordReader(split, job);
   }
 
@@ -86,7 +86,7 @@ public class IcebergInputFormat<T> implements InputFormat<Void, T>, CombineHiveI
     return true;
   }
 
-  public class IcebergRecordReader implements RecordReader<Void, IcebergWritable> {
+  public class IcebergRecordReader<T> implements RecordReader<Void, IcebergWritable> {
     private JobConf conf;
     private IcebergSplit split;
 
@@ -109,7 +109,8 @@ public class IcebergInputFormat<T> implements InputFormat<Void, T>, CombineHiveI
     private void nextTask() {
       FileScanTask currentTask = tasks.next();
       Schema tableSchema = table.schema();
-      org.apache.iceberg.mr.IcebergRecordReader wrappedReader = new org.apache.iceberg.mr.IcebergRecordReader();
+      org.apache.iceberg.mr.IcebergRecordReader<Record> wrappedReader =
+          new org.apache.iceberg.mr.IcebergRecordReader<Record>();
       reader = wrappedReader.createReader(conf, currentTask, tableSchema);
       recordIterator = reader.iterator();
     }

@@ -231,7 +231,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     private Iterator<T> open(FileScanTask currentTask, Schema readSchema) {
-      org.apache.iceberg.mr.IcebergRecordReader wrappedReader = new org.apache.iceberg.mr.IcebergRecordReader();
+      org.apache.iceberg.mr.IcebergRecordReader<T> wrappedReader = new org.apache.iceberg.mr.IcebergRecordReader<T>();
       CloseableIterable<T> iterable = wrappedReader.createReader(context.getConfiguration(), currentTask, readSchema);
       currentCloseable = iterable;
       return iterable.iterator();

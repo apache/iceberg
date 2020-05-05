@@ -37,7 +37,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 
-public class IcebergRecordReader {
+public class IcebergRecordReader<T> {
 
   private boolean applyResidual;
   private boolean caseSensitive;
@@ -49,7 +49,7 @@ public class IcebergRecordReader {
     this.reuseContainers = conf.getBoolean(InputFormatConfig.REUSE_CONTAINERS, false);
   }
 
-  public CloseableIterable createReader(Configuration config, FileScanTask currentTask, Schema readSchema) {
+  public CloseableIterable<T> createReader(Configuration config, FileScanTask currentTask, Schema readSchema) {
     initialize(config);
     DataFile file = currentTask.file();
     // TODO we should make use of FileIO to create inputFile
@@ -67,7 +67,7 @@ public class IcebergRecordReader {
     }
   }
 
-  private CloseableIterable newAvroIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
+  private CloseableIterable<T> newAvroIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
     Avro.ReadBuilder avroReadBuilder = Avro.read(inputFile).project(readSchema).split(task.start(), task.length());
     if (reuseContainers) {
       avroReadBuilder.reuseContainers();
@@ -76,7 +76,7 @@ public class IcebergRecordReader {
     return applyResidualFiltering(avroReadBuilder.build(), task.residual(), readSchema);
   }
 
-  private CloseableIterable newParquetIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
+  private CloseableIterable<T> newParquetIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
     Parquet.ReadBuilder parquetReadBuilder = Parquet
         .read(inputFile)
         .project(readSchema)
@@ -92,7 +92,7 @@ public class IcebergRecordReader {
     return applyResidualFiltering(parquetReadBuilder.build(), task.residual(), readSchema);
   }
 
-  private CloseableIterable newOrcIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
+  private CloseableIterable<T> newOrcIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
     ORC.ReadBuilder orcReadBuilder = ORC
         .read(inputFile)
         .project(readSchema)
@@ -103,7 +103,7 @@ public class IcebergRecordReader {
     return applyResidualFiltering(orcReadBuilder.build(), task.residual(), readSchema);
   }
 
-  private CloseableIterable applyResidualFiltering(CloseableIterable iter, Expression residual, Schema readSchema) {
+  private CloseableIterable<T> applyResidualFiltering(CloseableIterable iter, Expression residual, Schema readSchema) {
     if (applyResidual && residual != null && residual != Expressions.alwaysTrue()) {
       Evaluator filter = new Evaluator(readSchema.asStruct(), residual, caseSensitive);
       return CloseableIterable.filter(iter, record -> filter.eval((StructLike) record));
