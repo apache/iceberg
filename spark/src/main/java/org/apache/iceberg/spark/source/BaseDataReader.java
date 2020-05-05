@@ -118,6 +118,10 @@ abstract class BaseDataReader<T> implements InputPartitionReader<T> {
     return current;
   }
 
+  /**
+   * Return a {@link Pair} of {@link Schema} and {@link Iterator} over records of type T that include the identity
+   * partition columns being projected.
+   */
   abstract Pair<Schema, Iterator<T>> getJoinedSchemaAndIteratorWithIdentityPartition(
       DataFile file, FileScanTask task,
       Schema requiredSchema, Set<Integer> idColumns, PartitionSpec spec);
