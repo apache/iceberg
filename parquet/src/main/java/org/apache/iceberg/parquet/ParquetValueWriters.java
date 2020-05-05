@@ -163,7 +163,7 @@ public class ParquetValueWriters {
   }
 
   private static class ByteWriter extends UnboxedWriter<Byte> {
-    public ByteWriter(ColumnDescriptor desc) {
+    private ByteWriter(ColumnDescriptor desc) {
       super(desc);
     }
 
@@ -174,7 +174,7 @@ public class ParquetValueWriters {
   }
 
   private static class ShortWriter extends UnboxedWriter<Short> {
-    public ShortWriter(ColumnDescriptor desc) {
+    private ShortWriter(ColumnDescriptor desc) {
       super(desc);
     }
 
