@@ -20,11 +20,15 @@
 package org.apache.iceberg.mr;
 
 import com.google.common.base.Preconditions;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableScan;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynConstructors;
@@ -35,6 +39,7 @@ public class InputFormatConfig {
 
   private InputFormatConfig() {}
 
+  // configuration values for Iceberg input formats
   public static final String REUSE_CONTAINERS = "iceberg.mr.reuse.containers";
   public static final String CASE_SENSITIVE = "iceberg.mr.case.sensitive";
   public static final String SKIP_RESIDUAL_FILTERING = "skip.residual.filtering";
@@ -48,6 +53,9 @@ public class InputFormatConfig {
   public static final String TABLE_SCHEMA = "iceberg.mr.table.schema";
   public static final String LOCALITY = "iceberg.mr.locality";
   public static final String CATALOG = "iceberg.mr.catalog";
+
+  // configuration value set by Hive to contain Table location
+  public static final String TABLE_LOCATION = "location";
 
   public static class ConfigBuilder {
     private final Configuration conf;
@@ -104,8 +112,7 @@ public class InputFormatConfig {
     }
 
     /**
-     * If this API is called. The input splits
-     * constructed will have host location information
+     * If this API is called. The input splits constructed will have host location information
      */
     public ConfigBuilder preferLocality() {
       conf.setBoolean(LOCALITY, true);
@@ -119,9 +126,9 @@ public class InputFormatConfig {
 
     /**
      * Compute platforms pass down filters to data sources. If the data source cannot apply some filters, or only
-     * partially applies the filter, it will return the residual filter back. If the platform can correctly apply
-     * the residual filters, then it should call this api. Otherwise the current api will throw an exception if the
-     * passed in filter is not completely satisfied.
+     * partially applies the filter, it will return the residual filter back. If the platform can correctly apply the
+     * residual filters, then it should call this api. Otherwise the current api will throw an exception if the passed
+     * in filter is not completely satisfied.
      */
     public ConfigBuilder skipResidualFiltering() {
       conf.setBoolean(InputFormatConfig.SKIP_RESIDUAL_FILTERING, true);
@@ -130,8 +137,22 @@ public class InputFormatConfig {
   }
 
   public static Table findTable(Configuration conf) {
-    String path = conf.get(InputFormatConfig.TABLE_PATH);
-    Preconditions.checkArgument(path != null, "Table path should not be null");
+    // TODO: below is naive for Hive, we need to replace it with something more like
+    // https://github.com/ExpediaGroup/hiveberg/blob/master/src/main/java/com/expediagroup/hiveberg/
+    // TableResolverUtil.java
+    String tableLocation = conf.get(TABLE_LOCATION);
+    if (tableLocation != null) {
+      HadoopTables tables = new HadoopTables(conf);
+      try {
+        URI location = new URI(tableLocation);
+        return tables.load(location.getPath());
+      } catch (URISyntaxException e) {
+        throw new IllegalArgumentException("Unable to create URI for table location: '" + tableLocation + "'", e);
+      }
+    }
+
+    String path = conf.get(TABLE_PATH);
+    Preconditions.checkArgument(path != null, TABLE_PATH + " or " + TABLE_LOCATION + " should not be null");
     if (path.contains("/")) {
       HadoopTables tables = new HadoopTables(conf);
       return tables.load(path);
@@ -139,17 +160,44 @@ public class InputFormatConfig {
 
     String catalogFuncClass = conf.get(InputFormatConfig.CATALOG);
     if (catalogFuncClass != null) {
-      Function<Configuration, Catalog> catalogFunc = (Function<Configuration, Catalog>)
-          DynConstructors.builder(Function.class)
-                         .impl(catalogFuncClass)
-                         .build()
-                         .newInstance();
+      Function<Configuration, Catalog> catalogFunc = (Function<Configuration, Catalog>) DynConstructors
+          .builder(Function.class)
+          .impl(catalogFuncClass)
+          .build()
+          .newInstance();
       Catalog catalog = catalogFunc.apply(conf);
       TableIdentifier tableIdentifier = TableIdentifier.parse(path);
       return catalog.loadTable(tableIdentifier);
     } else {
       throw new IllegalArgumentException("No custom catalog specified to load table " + path);
     }
+  }
+
+  public static TableScan createTableScan(Configuration conf, Table table) {
+    TableScan scan = table.newScan().caseSensitive(conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, true));
+    long snapshotId = conf.getLong(InputFormatConfig.SNAPSHOT_ID, -1);
+    if (snapshotId != -1) {
+      scan = scan.useSnapshot(snapshotId);
+    }
+    long asOfTime = conf.getLong(InputFormatConfig.AS_OF_TIMESTAMP, -1);
+    if (asOfTime != -1) {
+      scan = scan.asOfTime(asOfTime);
+    }
+    long splitSize = conf.getLong(InputFormatConfig.SPLIT_SIZE, 0);
+    if (splitSize > 0) {
+      scan = scan.option(TableProperties.SPLIT_SIZE, String.valueOf(splitSize));
+    }
+    String schemaStr = conf.get(InputFormatConfig.READ_SCHEMA);
+    if (schemaStr != null) {
+      scan.project(SchemaParser.fromJson(schemaStr));
+    }
+
+    // TODO add a filter parser to get rid of Serialization
+    Expression filter = SerializationUtil.deserializeFromBase64(conf.get(InputFormatConfig.FILTER_EXPRESSION));
+    if (filter != null) {
+      scan = scan.filter(filter);
+    }
+    return scan;
   }
 
 }

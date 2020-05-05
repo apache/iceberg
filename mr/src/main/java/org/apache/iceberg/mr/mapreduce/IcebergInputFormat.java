@@ -48,7 +48,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -99,30 +98,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     Configuration conf = context.getConfiguration();
     Table table = InputFormatConfig.findTable(conf);
-    TableScan scan = table.newScan()
-                          .caseSensitive(conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, true));
-    long snapshotId = conf.getLong(InputFormatConfig.SNAPSHOT_ID, -1);
-    if (snapshotId != -1) {
-      scan = scan.useSnapshot(snapshotId);
-    }
-    long asOfTime = conf.getLong(InputFormatConfig.AS_OF_TIMESTAMP, -1);
-    if (asOfTime != -1) {
-      scan = scan.asOfTime(asOfTime);
-    }
-    long splitSize = conf.getLong(InputFormatConfig.SPLIT_SIZE, 0);
-    if (splitSize > 0) {
-      scan = scan.option(TableProperties.SPLIT_SIZE, String.valueOf(splitSize));
-    }
-    String schemaStr = conf.get(InputFormatConfig.READ_SCHEMA);
-    if (schemaStr != null) {
-      scan.project(SchemaParser.fromJson(schemaStr));
-    }
-
-    // TODO add a filter parser to get rid of Serialization
-    Expression filter = SerializationUtil.deserializeFromBase64(conf.get(InputFormatConfig.FILTER_EXPRESSION));
-    if (filter != null) {
-      scan = scan.filter(filter);
-    }
+    TableScan scan = InputFormatConfig.createTableScan(conf, table);
 
     splits = Lists.newArrayList();
     boolean applyResidual = !conf.getBoolean(InputFormatConfig.SKIP_RESIDUAL_FILTERING, false);

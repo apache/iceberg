@@ -30,6 +30,7 @@ import org.apache.hadoop.mapred.RecordReader;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.mr.BaseInputFormatTest;
+import org.apache.iceberg.mr.InputFormatConfig;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runners.Parameterized;
@@ -62,17 +63,17 @@ public class TestIcebergInputFormat extends BaseInputFormatTest {
     inputFormat.getSplits(jobConf, 1);
   }
 
-  @Test(expected = IOException.class)
+  @Test(expected = IllegalArgumentException.class)
   public void testGetSplitsInvalidLocationUri() throws IOException {
     JobConf jobConf = new JobConf();
-    jobConf.set(IcebergInputFormat.TABLE_LOCATION, "http:");
+    jobConf.set(InputFormatConfig.TABLE_LOCATION, "http:");
     inputFormat.getSplits(jobConf, 1);
   }
 
   @Override
   protected void runAndValidate(File tableLocation, List<Record> expectedRecords) throws IOException {
     JobConf jobConf = new JobConf();
-    jobConf.set(IcebergInputFormat.TABLE_LOCATION, "file:" + tableLocation);
+    jobConf.set(InputFormatConfig.TABLE_LOCATION, "file:" + tableLocation);
     validate(jobConf, expectedRecords);
   }
 

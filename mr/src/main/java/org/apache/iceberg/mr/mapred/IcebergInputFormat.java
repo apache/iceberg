@@ -22,8 +22,6 @@ package org.apache.iceberg.mr.mapred;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -41,9 +39,10 @@ import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableScan;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.SerializationUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,34 +55,17 @@ import org.slf4j.LoggerFactory;
 public class IcebergInputFormat<T> implements InputFormat<Void, T>, CombineHiveInputFormat.AvoidSplitCombination {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergInputFormat.class);
 
-  static final String TABLE_LOCATION = "location";
-
   private Table table;
 
   @Override
   public InputSplit[] getSplits(JobConf conf, int numSplits) throws IOException {
-    table = findTable(conf);
-    CloseableIterable taskIterable = table.newScan().planTasks();
+    table = InputFormatConfig.findTable(conf);
+    TableScan scan = InputFormatConfig.createTableScan(conf, table);
+    CloseableIterable<CombinedScanTask> taskIterable = scan.planTasks();
     List<CombinedScanTask> tasks = (List<CombinedScanTask>) StreamSupport
         .stream(taskIterable.spliterator(), false)
         .collect(Collectors.toList());
     return createSplits(tasks, table.location());
-  }
-
-  private Table findTable(JobConf conf) throws IOException {
-    HadoopTables tables = new HadoopTables(conf);
-    String tableDir = conf.get(TABLE_LOCATION);
-    if (tableDir == null) {
-      throw new IllegalArgumentException("Table 'location' not set in JobConf");
-    }
-    URI location = null;
-    try {
-      location = new URI(tableDir);
-    } catch (URISyntaxException e) {
-      throw new IOException("Unable to create URI for table location: '" + tableDir + "'", e);
-    }
-    table = tables.load(location.getPath());
-    return table;
   }
 
   private InputSplit[] createSplits(List<CombinedScanTask> tasks, String location) {
