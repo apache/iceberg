@@ -35,9 +35,9 @@ import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
 import org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
+import org.apache.parquet.Preconditions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
-import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.LogicalTypeAnnotationVisitor;
@@ -127,46 +127,6 @@ public class GenericParquetWriter {
         }
       }
 
-      if (primitive.getOriginalType() != null) {
-        switch (primitive.getOriginalType()) {
-          case ENUM:
-          case JSON:
-          case UTF8:
-            return ParquetValueWriters.strings(desc);
-          case INT_8:
-          case INT_16:
-          case INT_32:
-            return ParquetValueWriters.ints(desc);
-          case INT_64:
-            return ParquetValueWriters.longs(desc);
-          case DATE:
-            return new DateWriter(desc);
-          case TIME_MICROS:
-            return new TimeWriter(desc);
-          case TIMESTAMP_MICROS:
-            return new TimestamptzWriter(desc);
-          case DECIMAL:
-            DecimalMetadata decimal = primitive.getDecimalMetadata();
-            switch (primitive.getPrimitiveTypeName()) {
-              case INT32:
-                return ParquetValueWriters.decimalAsInteger(desc, decimal.getPrecision(), decimal.getScale());
-              case INT64:
-                return ParquetValueWriters.decimalAsLong(desc, decimal.getPrecision(), decimal.getScale());
-              case BINARY:
-              case FIXED_LEN_BYTE_ARRAY:
-                return ParquetValueWriters.decimalAsFixed(desc, decimal.getPrecision(), decimal.getScale());
-              default:
-                throw new UnsupportedOperationException(
-                    "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
-            }
-          case BSON:
-            return ParquetValueWriters.byteBuffers(desc);
-          default:
-            throw new UnsupportedOperationException(
-                "Unsupported logical type: " + primitive.getOriginalType());
-        }
-      }
-
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
           return new FixedWriter(desc);
@@ -234,10 +194,23 @@ public class GenericParquetWriter {
 
     @Override
     public Optional<PrimitiveWriter<?>> visit(LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampType) {
+      Preconditions.checkArgument(LogicalTypeAnnotation.TimeUnit.MICROS.equals(timestampType.getUnit()),
+          "Cannot write timestamp in %s, only MICROS is supported", timestampType.getUnit());
       if (timestampType.isAdjustedToUTC()) {
         return Optional.of(new TimestamptzWriter(desc));
       } else {
         return Optional.of(new TimestampWriter(desc));
+      }
+    }
+
+    @Override
+    public Optional<PrimitiveWriter<?>> visit(LogicalTypeAnnotation.IntLogicalTypeAnnotation intType) {
+      Preconditions.checkArgument(intType.isSigned() || intType.getBitWidth() < 64,
+          "Cannot read uint64: not a supported Java type");
+      if (intType.getBitWidth() < 64) {
+        return Optional.of(ParquetValueWriters.ints(desc));
+      } else {
+        return Optional.of(ParquetValueWriters.longs(desc));
       }
     }
 

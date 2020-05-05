@@ -29,11 +29,9 @@ import java.util.Optional;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.TimestampType;
-import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.OriginalType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type.Repetition;
 
@@ -144,41 +142,6 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
       }
     }
 
-    // fall back to original type annotation
-    OriginalType annotation = primitive.getOriginalType();
-    if (annotation != null) {
-      switch (annotation) {
-        case INT_8:
-        case UINT_8:
-        case INT_16:
-        case UINT_16:
-        case INT_32:
-          return Types.IntegerType.get();
-        case INT_64:
-          return Types.LongType.get();
-        case DATE:
-          return Types.DateType.get();
-        case TIME_MILLIS:
-        case TIME_MICROS:
-          return Types.TimeType.get();
-        case TIMESTAMP_MILLIS:
-        case TIMESTAMP_MICROS:
-          return TimestampType.withZone();
-        case JSON:
-        case ENUM:
-        case UTF8:
-          return Types.StringType.get();
-        case DECIMAL:
-          DecimalMetadata decimal = primitive.getDecimalMetadata();
-          return Types.DecimalType.of(
-              decimal.getPrecision(), decimal.getScale());
-        case BSON:
-          return Types.BinaryType.get();
-        default:
-          throw new UnsupportedOperationException("Unsupported logical type: " + annotation);
-      }
-    }
-
     // last, use the primitive type
     switch (primitive.getPrimitiveTypeName()) {
       case BOOLEAN:
@@ -236,6 +199,19 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     @Override
     public Optional<Type> visit(LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampType) {
       return Optional.of(timestampType.isAdjustedToUTC() ? TimestampType.withZone() : TimestampType.withoutZone());
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.IntLogicalTypeAnnotation intType) {
+      Preconditions.checkArgument(intType.isSigned() || intType.getBitWidth() < 64,
+          "Cannot use uint64: not a supported Java type");
+      if (intType.getBitWidth() < 32) {
+        return Optional.of(Types.IntegerType.get());
+      } else if (intType.getBitWidth() == 32 && intType.isSigned()) {
+        return Optional.of(Types.IntegerType.get());
+      } else {
+        return Optional.of(Types.LongType.get());
+      }
     }
 
     @Override
