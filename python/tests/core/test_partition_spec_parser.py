@@ -15,30 +15,22 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import unittest
-
 from iceberg.api import PartitionSpec, Schema
 from iceberg.api.types import IntegerType, NestedField, StringType
 from iceberg.core import PartitionSpecParser
 
 
-class TestPartitionSpecParser(unittest.TestCase):
+def test_to_json_conversion():
+    spec_schema = Schema(NestedField.required(1, "id", IntegerType.get()),
+                         NestedField.required(2, "data", StringType.get()))
 
-    def test_to_json_conversion(self):
-        spec_schema = Schema(NestedField.required(1, "id", IntegerType.get()),
-                             NestedField.required(2, "data", StringType.get()))
+    spec = PartitionSpec\
+        .builder_for(spec_schema) \
+        .identity("id")\
+        .bucket("data", 16)\
+        .build()
 
-        spec = PartitionSpec\
-            .builder_for(spec_schema) \
-            .identity("id")\
-            .bucket("data", 16)\
-            .build()
-
-        expected = '{"spec-id": 0, "fields": [' \
-                   '{"name": "id", "transform": "identity", "source-id": 1}, ' \
-                   '{"name": "data_bucket", "transform": "bucket[16]", "source-id": 2}]}'
-        assert expected == PartitionSpecParser.to_json(spec)
-
-
-if __name__ == '__main__':
-    unittest.main()
+    expected = '{"spec-id": 0, "fields": [' \
+               '{"name": "id", "transform": "identity", "source-id": 1}, ' \
+               '{"name": "data_bucket", "transform": "bucket[16]", "source-id": 2}]}'
+    assert expected == PartitionSpecParser.to_json(spec)
