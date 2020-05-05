@@ -38,15 +38,31 @@ public class DateTimeUtil {
     return ChronoUnit.DAYS.addTo(EPOCH_DAY, daysFromEpoch);
   }
 
+  public static int daysFromDate(LocalDate date) {
+    return (int) ChronoUnit.DAYS.between(EPOCH_DAY, date);
+  }
+
   public static LocalTime timeFromMicros(long microFromMidnight) {
     return LocalTime.ofNanoOfDay(microFromMidnight * 1000);
+  }
+
+  public static long microsFromTime(LocalTime time) {
+    return time.toNanoOfDay() / 1000;
   }
 
   public static LocalDateTime timestampFromMicros(long microsFromEpoch) {
     return ChronoUnit.MICROS.addTo(EPOCH, microsFromEpoch).toLocalDateTime();
   }
 
+  public static long microsFromTimestamp(LocalDateTime dateTime) {
+    return ChronoUnit.MICROS.between(EPOCH, dateTime.atOffset(ZoneOffset.UTC));
+  }
+
   public static OffsetDateTime timestamptzFromMicros(long microsFromEpoch) {
     return ChronoUnit.MICROS.addTo(EPOCH, microsFromEpoch);
+  }
+
+  public static long microsFromTimestamptz(OffsetDateTime dateTime) {
+    return ChronoUnit.MICROS.between(EPOCH, dateTime);
   }
 }
