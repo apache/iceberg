@@ -87,9 +87,9 @@ public class TestParquetSchemaUtil {
         .asStructType().fields());
     NameMapping nameMapping = MappingUtil.create(schema);
     MessageType messageType = ParquetSchemaUtil.convert(schema, "complex_schema");
-    MessageType typeWithIdsFromNameMapping = ParquetSchemaUtil.addFallbackIds(messageType, nameMapping);
+    MessageType typeWithIdsFromNameMapping = ParquetSchemaUtil.applyNameMapping(messageType, nameMapping);
     Schema newSchema = ParquetSchemaUtil.convert(typeWithIdsFromNameMapping);
 
-    Assert.assertEquals(schema.toString(), newSchema.toString());
+    Assert.assertEquals(schema.asStruct(), newSchema.asStruct());
   }
 }

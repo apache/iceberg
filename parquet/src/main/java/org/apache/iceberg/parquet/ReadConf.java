@@ -69,13 +69,17 @@ class ReadConf<T> {
     this.options = options;
     this.reader = newReader(file, options);
     MessageType fileSchema = reader.getFileMetaData().getSchema();
-    boolean hasIds = ParquetSchemaUtil.hasIds(fileSchema);
-    MessageType typeWithIds = hasIds ? fileSchema : ParquetSchemaUtil.addFallbackIds(fileSchema, nameMapping);
 
-    if (nameMapping == null && !hasIds) {
-      this.projection = ParquetSchemaUtil.pruneColumnsFallback(fileSchema, expectedSchema);
-    } else {
+    MessageType typeWithIds;
+    if (ParquetSchemaUtil.hasIds(fileSchema)) {
+      typeWithIds = fileSchema;
+      this.projection = ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema);
+    } else if (nameMapping != null) {
+      typeWithIds = ParquetSchemaUtil.applyNameMapping(fileSchema, nameMapping);
       this.projection = ParquetSchemaUtil.pruneColumns(typeWithIds, expectedSchema);
+    } else {
+      typeWithIds = ParquetSchemaUtil.addFallbackIds(fileSchema);
+      this.projection = ParquetSchemaUtil.pruneColumnsFallback(fileSchema, expectedSchema);
     }
 
     this.rowGroups = reader.getRowGroups();

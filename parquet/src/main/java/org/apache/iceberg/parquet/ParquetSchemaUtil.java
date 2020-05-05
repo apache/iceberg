@@ -20,17 +20,12 @@
 package org.apache.iceberg.parquet;
 
 import com.google.common.collect.Sets;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.parquet.Preconditions;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -95,20 +90,20 @@ public class ParquetSchemaUtil {
     return ParquetTypeVisitor.visit(fileSchema, new HasIds(), true);
   }
 
-  public static MessageType addFallbackIds(MessageType fileSchema, NameMapping nameMapping) {
-    if (nameMapping == null) {
-      MessageTypeBuilder builder = org.apache.parquet.schema.Types.buildMessage();
+  public static MessageType addFallbackIds(MessageType fileSchema) {
+    MessageTypeBuilder builder = org.apache.parquet.schema.Types.buildMessage();
 
-      int ordinal = 1; // ids are assigned starting at 1
-      for (Type type : fileSchema.getFields()) {
-        builder.addField(type.withId(ordinal));
-        ordinal += 1;
-      }
-
-      return builder.named(fileSchema.getName());
-    } else {
-      return (MessageType) ParquetTypeVisitor.visit(fileSchema, new AssignIdsByNameMapping(nameMapping), true);
+    int ordinal = 1; // ids are assigned starting at 1
+    for (Type type : fileSchema.getFields()) {
+      builder.addField(type.withId(ordinal));
+      ordinal += 1;
     }
+
+    return builder.named(fileSchema.getName());
+  }
+
+  public static MessageType applyNameMapping(MessageType fileSchema, NameMapping nameMapping) {
+    return (MessageType) ParquetTypeVisitor.visit(fileSchema, new AssignIdsByNameMapping(nameMapping), true);
   }
 
   public static class HasIds extends ParquetTypeVisitor<Boolean> {
@@ -129,20 +124,12 @@ public class ParquetSchemaUtil {
 
     @Override
     public Boolean list(GroupType array, Boolean hasId) {
-      if (hasId) {
-        return true;
-      } else {
-        return array.getId() != null;
-      }
+      return hasId || array.getId() != null;
     }
 
     @Override
     public Boolean map(GroupType map, Boolean keyHasId, Boolean valueHasId) {
-      if (keyHasId || valueHasId) {
-        return true;
-      } else {
-        return map.getId() != null;
-      }
+      return keyHasId || valueHasId || map.getId() != null;
     }
 
     @Override
@@ -151,85 +138,4 @@ public class ParquetSchemaUtil {
     }
   }
 
-  public static class AssignIdsByNameMapping extends ParquetTypeVisitor<Type> {
-    private final NameMapping nameMapping;
-
-    public AssignIdsByNameMapping(NameMapping nameMapping) {
-      this.nameMapping = nameMapping;
-    }
-
-    private String[] currentPath() {
-      String[] path = new String[fieldNames.size()];
-      if (!fieldNames.isEmpty()) {
-        Iterator<String> iter = fieldNames.descendingIterator();
-        for (int i = 0; iter.hasNext(); i += 1) {
-          path[i] = iter.next();
-        }
-      }
-
-      return path;
-    }
-
-    @Override
-    public Type message(MessageType message, List<Type> fields) {
-      MessageTypeBuilder builder = org.apache.parquet.schema.Types.buildMessage();
-      fields.stream().filter(Objects::nonNull).forEach(builder::addField);
-
-      return builder.named(message.getName());
-    }
-
-    @Override
-    public Type struct(GroupType struct, List<Type> types) {
-      MappedField field = nameMapping.find(currentPath());
-      if (field == null) {
-        return null;
-      }
-      List<Type> actualTypes = types.stream().filter(Objects::nonNull).collect(Collectors.toList());
-
-      return struct.withNewFields(actualTypes).withId(field.id());
-    }
-
-    @Override
-    public Type list(GroupType list, Type elementType) {
-      MappedField field = nameMapping.find(currentPath());
-      if (field == null) {
-        return null;
-      }
-
-      Preconditions.checkArgument(elementType != null,
-          "List type must have element field");
-
-      return org.apache.parquet.schema.Types.list(list.getRepetition())
-          .element(elementType)
-          .id(field.id())
-          .named(list.getName());
-    }
-
-    @Override
-    public Type map(GroupType map, Type keyType, Type valueType) {
-      MappedField field = nameMapping.find(currentPath());
-      if (field == null) {
-        return null;
-      }
-
-      Preconditions.checkArgument(keyType != null && valueType != null,
-          "Map type must have both key field and value field");
-
-      return org.apache.parquet.schema.Types.map(map.getRepetition())
-          .key(keyType)
-          .value(valueType)
-          .id(field.id())
-          .named(map.getName());
-    }
-
-    @Override
-    public Type primitive(PrimitiveType primitive) {
-      MappedField field = nameMapping.find(currentPath());
-      if (field == null) {
-        return null;
-      } else {
-        return primitive.withId(field.id());
-      }
-    }
-  }
 }

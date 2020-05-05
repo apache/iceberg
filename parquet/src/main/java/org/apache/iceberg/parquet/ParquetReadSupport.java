@@ -59,15 +59,14 @@ class ParquetReadSupport<T> extends ReadSupport<T> {
     // in the file's schema.
 
     MessageType projection;
+
     if (ParquetSchemaUtil.hasIds(fileSchema)) {
       projection = ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema);
+    } else if (nameMapping != null) {
+      MessageType typeWithIds = ParquetSchemaUtil.applyNameMapping(fileSchema, nameMapping);
+      projection = ParquetSchemaUtil.pruneColumns(typeWithIds, expectedSchema);
     } else {
-      if (nameMapping != null) {
-        MessageType typeWithIds = ParquetSchemaUtil.addFallbackIds(fileSchema, nameMapping);
-        projection = ParquetSchemaUtil.pruneColumns(typeWithIds, expectedSchema);
-      } else {
-        projection = ParquetSchemaUtil.pruneColumnsFallback(fileSchema, expectedSchema);
-      }
+      projection = ParquetSchemaUtil.pruneColumnsFallback(fileSchema, expectedSchema);
     }
 
     // override some known backward-compatibility options
