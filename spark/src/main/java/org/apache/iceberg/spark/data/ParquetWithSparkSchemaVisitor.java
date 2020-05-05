@@ -21,7 +21,7 @@ package org.apache.iceberg.spark.data;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-import java.util.LinkedList;
+import java.util.Deque;
 import java.util.List;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.parquet.schema.GroupType;
@@ -29,6 +29,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.OriginalType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
+import org.apache.parquet.schema.Type.Repetition;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.MapType;
@@ -36,15 +37,13 @@ import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
-import static org.apache.parquet.schema.Type.Repetition.REPEATED;
-
 /**
  * Visitor for traversing a Parquet type with a companion Spark type.
  *
  * @param <T> the Java class returned by the visitor
  */
 public class ParquetWithSparkSchemaVisitor<T> {
-  protected LinkedList<String> fieldNames = Lists.newLinkedList();
+  private final Deque<String> fieldNames = Lists.newLinkedList();
 
   public static <T> T visit(DataType sType, Type type, ParquetWithSparkSchemaVisitor<T> visitor) {
     Preconditions.checkArgument(sType != null, "Invalid DataType: null");
@@ -63,13 +62,13 @@ public class ParquetWithSparkSchemaVisitor<T> {
       if (annotation != null) {
         switch (annotation) {
           case LIST:
-            Preconditions.checkArgument(!group.isRepetition(REPEATED),
+            Preconditions.checkArgument(!group.isRepetition(Repetition.REPEATED),
                 "Invalid list: top-level group is repeated: %s", group);
             Preconditions.checkArgument(group.getFieldCount() == 1,
                 "Invalid list: does not contain single repeated field: %s", group);
 
             GroupType repeatedElement = group.getFields().get(0).asGroupType();
-            Preconditions.checkArgument(repeatedElement.isRepetition(REPEATED),
+            Preconditions.checkArgument(repeatedElement.isRepetition(Repetition.REPEATED),
                 "Invalid list: inner group is not repeated");
             Preconditions.checkArgument(repeatedElement.getFieldCount() <= 1,
                 "Invalid list: repeated group is not a single field: %s", group);
@@ -93,13 +92,13 @@ public class ParquetWithSparkSchemaVisitor<T> {
             }
 
           case MAP:
-            Preconditions.checkArgument(!group.isRepetition(REPEATED),
+            Preconditions.checkArgument(!group.isRepetition(Repetition.REPEATED),
                 "Invalid map: top-level group is repeated: %s", group);
             Preconditions.checkArgument(group.getFieldCount() == 1,
                 "Invalid map: does not contain single repeated field: %s", group);
 
             GroupType repeatedKeyValue = group.getType(0).asGroupType();
-            Preconditions.checkArgument(repeatedKeyValue.isRepetition(REPEATED),
+            Preconditions.checkArgument(repeatedKeyValue.isRepetition(Repetition.REPEATED),
                 "Invalid map: inner group is not repeated");
             Preconditions.checkArgument(repeatedKeyValue.getFieldCount() <= 2,
                 "Invalid map: repeated group does not have 2 fields");
