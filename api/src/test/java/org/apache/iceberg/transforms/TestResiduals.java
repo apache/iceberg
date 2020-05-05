@@ -26,6 +26,7 @@ import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.Predicate;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.expressions.UnboundPredicate;
@@ -191,18 +192,26 @@ public class TestResiduals {
         Types.NestedField.optional(51, "dateint", Types.IntegerType.get())
     );
 
+    Long date20191201 = (Long) Literal.of("2019-12-01T00:00:00.00000")
+        .to(Types.TimestampType.withoutZone()).value();
+    Long date20191202 = (Long) Literal.of("2019-12-02T00:00:00.00000")
+        .to(Types.TimestampType.withoutZone()).value();
+
     PartitionSpec spec = PartitionSpec.builderFor(schema)
         .day("ts")
         .build();
 
-    Predicate pred = in("ts", "2019-12-01T00:00:00.00000", "2019-12-01T00:00:00.00000");
+    Transform day = spec.getFieldsBySourceId(50).get(0).transform();
+    Integer tsDay = (Integer) day.apply(date20191201);
+
+    Predicate pred = in("ts", date20191201, date20191202);
     ResidualEvaluator resEval = ResidualEvaluator.of(spec,
         pred, true);
 
-    Expression residual = resEval.residualFor(Row.of(LocalDate.parse("2019-12-01")));
+    Expression residual = resEval.residualFor(Row.of(tsDay));
     Assert.assertEquals("Residual should be the original in predicate", pred, residual);
 
-    residual = resEval.residualFor(Row.of(LocalDate.parse("2019-12-01").plusDays(3)));
+    residual = resEval.residualFor(Row.of(tsDay + 3));
     Assert.assertEquals("Residual should be alwaysFalse", alwaysFalse(), residual);
   }
 
@@ -234,20 +243,26 @@ public class TestResiduals {
         Types.NestedField.optional(51, "dateint", Types.IntegerType.get())
     );
 
+    Long date20191201 = (Long) Literal.of("2019-12-01T00:00:00.00000")
+        .to(Types.TimestampType.withoutZone()).value();
+    Long date20191202 = (Long) Literal.of("2019-12-02T00:00:00.00000")
+        .to(Types.TimestampType.withoutZone()).value();
+
     PartitionSpec spec = PartitionSpec.builderFor(schema)
         .day("ts")
         .build();
 
     Transform day = spec.getFieldsBySourceId(50).get(0).transform();
+    Integer tsDay = (Integer) day.apply(date20191201);
 
-    Predicate pred = notIn("ts", "2019-12-01T00:00:00.00000", "2019-12-02T00:00:00.00000");
+    Predicate pred = notIn("ts", date20191201, date20191202);
     ResidualEvaluator resEval = ResidualEvaluator.of(spec,
         pred, true);
 
-    Expression residual = resEval.residualFor(Row.of(LocalDate.parse("2019-12-01")));
+    Expression residual = resEval.residualFor(Row.of(tsDay));
     Assert.assertEquals("Residual should be the original notIn predicate", pred, residual);
 
-    residual = resEval.residualFor(Row.of(LocalDate.parse("2019-12-01").plusDays(3)));
+    residual = resEval.residualFor(Row.of(tsDay + 3));
     Assert.assertEquals("Residual should be alwaysTrue", alwaysTrue(), residual);
   }
 }
