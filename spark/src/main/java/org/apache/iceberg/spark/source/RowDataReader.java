@@ -95,51 +95,33 @@ class RowDataReader extends BaseDataReader<InternalRow> {
     InputFileBlockHolder.set(file.path().toString(), task.start(), task.length());
 
     // schema or rows returned by readers
-    Schema finalSchema = expectedSchema;
     PartitionSpec spec = task.spec();
     Set<Integer> idColumns = spec.identitySourceIds();
+    Schema partitionSchema = TypeUtil.select(expectedSchema, idColumns);
+    boolean projectsIdentityPartitionColumns = !partitionSchema.columns().isEmpty();
 
-    // schema needed for the projection and filtering
-    StructType sparkType = SparkSchemaUtil.convert(finalSchema);
-    Schema requiredSchema = SparkSchemaUtil.prune(tableSchema, sparkType, task.residual(), caseSensitive);
-    boolean hasJoinedPartitionColumns = !idColumns.isEmpty();
-    boolean hasExtraFilterColumns = requiredSchema.columns().size() != finalSchema.columns().size();
-
-    Schema iterSchema;
-    Iterator<InternalRow> iter;
-
-    if (hasJoinedPartitionColumns) {
+    if (projectsIdentityPartitionColumns) {
       if (SUPPORTS_CONSTANTS.contains(file.format())) {
-        iterSchema = requiredSchema;
-        iter = open(task, requiredSchema, PartitionUtil.constantsMap(task, RowDataReader::convertConstant));
-      } else {
-        // schema used to read data files
-        Schema readSchema = TypeUtil.selectNot(requiredSchema, idColumns);
-        Schema partitionSchema = TypeUtil.select(requiredSchema, idColumns);
-        PartitionRowConverter convertToRow = new PartitionRowConverter(partitionSchema, spec);
-        JoinedRow joined = new JoinedRow();
-
-        InternalRow partition = convertToRow.apply(file.partition());
-        joined.withRight(partition);
-
-        // create joined rows and project from the joined schema to the final schema
-        iterSchema = TypeUtil.join(readSchema, partitionSchema);
-        iter = Iterators.transform(open(task, readSchema, ImmutableMap.of()), joined::withLeft);
+        return open(task, expectedSchema, PartitionUtil.constantsMap(task, RowDataReader::convertConstant));
       }
-    } else if (hasExtraFilterColumns) {
-      // add projection to the final schema
-      iterSchema = requiredSchema;
-      iter = open(task, requiredSchema, ImmutableMap.of());
-    } else {
-      // return the base iterator
-      iterSchema = finalSchema;
-      iter = open(task, finalSchema, ImmutableMap.of());
+
+      // schema used to read data files
+      Schema readSchema = TypeUtil.selectNot(expectedSchema, idColumns);
+      PartitionRowConverter convertToRow = new PartitionRowConverter(partitionSchema, spec);
+      JoinedRow joined = new JoinedRow();
+
+      // create joined rows and project from the joined schema to the final schema
+      Schema joinedSchema = TypeUtil.join(readSchema, partitionSchema);
+      InternalRow partition = convertToRow.apply(file.partition());
+      joined.withRight(partition);
+
+      return Iterators.transform(
+          Iterators.transform(open(task, readSchema, ImmutableMap.of()), joined::withLeft),
+          APPLY_PROJECTION.bind(projection(expectedSchema, joinedSchema))::invoke);
     }
 
-    // TODO: remove the projection by reporting the iterator's schema back to Spark
-    return Iterators.transform(
-        iter,
-        APPLY_PROJECTION.bind(projection(finalSchema, iterSchema))::invoke);
+    // return the base iterator
+    return open(task, expectedSchema, ImmutableMap.of());
   }
 
   private Iterator<InternalRow> open(FileScanTask task, Schema readSchema, Map<Integer, ?> idToConstant) {
