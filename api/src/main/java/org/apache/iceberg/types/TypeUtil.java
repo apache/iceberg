@@ -195,6 +195,30 @@ public class TypeUtil {
     public void afterField(Types.NestedField field) {
     }
 
+    public void beforeListElement(Types.NestedField elementField) {
+      beforeField(elementField);
+    }
+
+    public void afterListElement(Types.NestedField elementField) {
+      afterField(elementField);
+    }
+
+    public void beforeMapKey(Types.NestedField keyField) {
+      beforeField(keyField);
+    }
+
+    public void afterMapKey(Types.NestedField keyField) {
+      afterField(keyField);
+    }
+
+    public void beforeMapValue(Types.NestedField valueField) {
+      beforeField(valueField);
+    }
+
+    public void afterMapValue(Types.NestedField valueField) {
+      afterField(valueField);
+    }
+
     public T schema(Schema schema, T structResult) {
       return null;
     }
@@ -246,11 +270,11 @@ public class TypeUtil {
         T elementResult;
 
         Types.NestedField elementField = list.field(list.elementId());
-        visitor.beforeField(elementField);
+        visitor.beforeListElement(elementField);
         try {
           elementResult = visit(list.elementType(), visitor);
         } finally {
-          visitor.afterField(elementField);
+          visitor.afterListElement(elementField);
         }
 
         return visitor.list(list, elementResult);
@@ -261,19 +285,19 @@ public class TypeUtil {
         T valueResult;
 
         Types.NestedField keyField = map.field(map.keyId());
-        visitor.beforeField(keyField);
+        visitor.beforeMapKey(keyField);
         try {
           keyResult = visit(map.keyType(), visitor);
         } finally {
-          visitor.afterField(keyField);
+          visitor.afterMapKey(keyField);
         }
 
         Types.NestedField valueField = map.field(map.valueId());
-        visitor.beforeField(valueField);
+        visitor.beforeMapValue(valueField);
         try {
           valueResult = visit(map.valueType(), visitor);
         } finally {
-          visitor.afterField(valueField);
+          visitor.afterMapValue(valueField);
         }
 
         return visitor.map(map, keyResult, valueResult);
