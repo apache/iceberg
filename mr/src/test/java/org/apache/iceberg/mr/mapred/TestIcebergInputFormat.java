@@ -33,7 +33,6 @@ import org.apache.iceberg.mr.BaseInputFormatTest;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.junit.Assert;
 import org.junit.Test;
-import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,16 +41,6 @@ public class TestIcebergInputFormat extends BaseInputFormatTest {
   private static final Logger LOG = LoggerFactory.getLogger(TestIcebergInputFormat.class);
 
   private IcebergInputFormat inputFormat = new IcebergInputFormat();
-
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] { new Object[] { "parquet" }, new Object[] { "avro" }
-        /*
-         * , TODO: put orc back, seems to be an issue with different versions of Orc in Hive and Iceberg new
-         * Object[]{"orc"}
-         */
-    };
-  }
 
   public TestIcebergInputFormat(String fileFormat) {
     this.fileFormat = FileFormat.valueOf(fileFormat.toUpperCase(Locale.ENGLISH));
