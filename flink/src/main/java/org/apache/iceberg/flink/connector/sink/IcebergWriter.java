@@ -62,7 +62,6 @@ public class IcebergWriter<IN> extends AbstractStreamOperator<FlinkDataFile>
     implements OneInputStreamOperator<IN, FlinkDataFile> {
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergWriter.class);
-  private static final String FILE_NAME_SEPARATOR = "_";
 
   private final RecordSerializer<IN> serializer;
   private final String namespace;
@@ -78,8 +77,6 @@ public class IcebergWriter<IN> extends AbstractStreamOperator<FlinkDataFile>
   private final TimeUnit timestampUnit;
   private final long maxFileSize;
 
-  private transient String instanceId;
-  private transient String titusTaskId;
   private transient org.apache.hadoop.conf.Configuration hadoopConf;
   private transient Map<String, FileWriter> openPartitionFiles;
   private transient int subtaskId;
@@ -121,18 +118,10 @@ public class IcebergWriter<IN> extends AbstractStreamOperator<FlinkDataFile>
   @Override
   public void open() throws Exception {
     super.open();
-    init(getRuntimeContext().getIndexOfThisSubtask(),
-        getProcessingTimeService());
-  }
-
-  void init(int subtaskId1, ProcessingTimeService timerService1) throws IOException {
-    instanceId = System.getenv("EC2_INSTANCE_ID");
-    titusTaskId = System.getenv("TITUS_TASK_ID");
 
     hadoopConf = new org.apache.hadoop.conf.Configuration();
-
-    this.subtaskId = subtaskId1;
-    this.timerService = timerService1;
+    subtaskId = getRuntimeContext().getIndexOfThisSubtask();
+    timerService = getProcessingTimeService();
     openPartitionFiles = new HashMap<>();
   }
 
@@ -315,18 +304,8 @@ public class IcebergWriter<IN> extends AbstractStreamOperator<FlinkDataFile>
   }
 
   private String generateFileName() {
-    final String filename = new StringBuilder()
-        .append(subtaskId)
-        .append(FILE_NAME_SEPARATOR)
-        .append(instanceId)
-        .append(FILE_NAME_SEPARATOR)
-        .append(titusTaskId)
-        .append(FILE_NAME_SEPARATOR)
-        .append(System.currentTimeMillis())
-        .append(FILE_NAME_SEPARATOR)
-        .append(UUID.randomUUID().toString())
-        .toString();
-    return format.addExtension(filename);
+    return format.addExtension(
+        String.format("%d_%d_%s", subtaskId, System.currentTimeMillis(), UUID.randomUUID().toString()));
   }
 
   private FileWriter newWriter(final Path path, final Partitioner<Record> part) throws Exception {
