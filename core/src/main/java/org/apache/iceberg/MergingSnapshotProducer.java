@@ -525,7 +525,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     Evaluator inclusive = extractInclusiveDeleteExpression(reader);
     Evaluator strict = extractStrictDeleteExpression(reader);
     boolean hasDeletedFiles = false;
-    for (ManifestEntry<DataFile> entry : reader.entries()) {
+    for (ManifestEntry entry : reader.entries()) {
       DataFile file = entry.file();
       boolean fileDelete = deletePaths.contains(pathWrapper.set(file.path())) ||
           dropPartitions.contains(partitionWrapper.set(file.partition()));
@@ -675,11 +675,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
               // suppress deletes from previous snapshots. only files deleted by this snapshot
               // should be added to the new manifest
               if (entry.snapshotId() == snapshotId()) {
-                writer.addEntry(entry);
+                writer.delete(entry);
               }
             } else if (entry.status() == Status.ADDED && entry.snapshotId() == snapshotId()) {
               // adds from this snapshot are still adds, otherwise they should be existing
-              writer.addEntry(entry);
+              writer.add(entry);
             } else {
               // add all files from the old manifest as existing files
               writer.existing(entry);
