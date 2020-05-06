@@ -26,6 +26,7 @@ import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.avro.LogicalMap;
+import org.apache.iceberg.avro.ValueWriters;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
@@ -92,6 +93,8 @@ public abstract class AvroWithSparkSchemaVisitor<T> {
 
   private static <T> T visitUnion(DataType type, Schema union, AvroWithSparkSchemaVisitor<T> visitor) {
     List<Schema> types = union.getTypes();
+    Preconditions.checkArgument(AvroSchemaUtil.isOptionSchema(union),
+        "Cannot visit non-option union: %s", union);
     List<T> options = Lists.newArrayListWithExpectedSize(types.size());
     for (Schema branch : types) {
       if (branch.getType() == Schema.Type.NULL) {

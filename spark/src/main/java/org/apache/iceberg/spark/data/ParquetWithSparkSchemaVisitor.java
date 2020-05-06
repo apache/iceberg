@@ -192,8 +192,7 @@ public class ParquetWithSparkSchemaVisitor<T> {
     return null;
   }
 
-  public T primitive(DataType sPrimitive,
-                     PrimitiveType primitive) {
+  public T primitive(DataType sPrimitive, PrimitiveType primitive) {
     return null;
   }
 
