@@ -23,7 +23,7 @@ public class PrimaryKeySpec {
   }
 
   private void initDeltaSchema() {
-    List<Types.NestedField> columns = schema.columns();
+    List<Types.NestedField> columns = Lists.newArrayList(schema.columns());
     int maxId = 0;
     for (Types.NestedField column : columns) {
       if (column.name().equalsIgnoreCase(OFFSET_COLUMN) ||
@@ -34,7 +34,7 @@ public class PrimaryKeySpec {
     }
     columns.add(Types.NestedField.required(++maxId, OFFSET_COLUMN, Types.LongType.get()));
     columns.add(Types.NestedField.required(++maxId, DEL_COLUMN, Types.BooleanType.get()));
-    this.deltaSchema = new Schema(columns);
+    this.deltaSchema = new Schema(ImmutableList.copyOf(columns));
   }
 
   public Schema getSchema() {
@@ -63,6 +63,41 @@ public class PrimaryKeySpec {
    */
   public static Builder builderFor(Schema schema) {
     return new Builder(schema);
+  }
+
+  /**
+   * @return the list of {@link PrimaryKeyField primary key fields} for this spec.
+   */
+  public List<PrimaryKeyField> fields() {
+    return pkFields;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    PrimaryKeySpec that = (PrimaryKeySpec) o;
+    return pkFields.equals(that.pkFields);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(pkFields);
+  }
+
+  @Override
+  public String toString() {
+    StringBuilder sb = new StringBuilder();
+    sb.append("[");
+    for (PrimaryKeyField field : pkFields) {
+      sb.append("\n");
+      sb.append("  ").append(field);
+    }
+    if (pkFields.size() > 0) {
+      sb.append("\n");
+    }
+    sb.append("]");
+    return sb.toString();
   }
 
   /**
@@ -106,7 +141,7 @@ public class PrimaryKeySpec {
     }
 
     public Builder addColumn(Types.NestedField sourceColumn, PrimaryKeyLayout layout) {
-      Preconditions.checkArgument(layout == PrimaryKeyLayout.RANGE && hashInvolved,
+      Preconditions.checkArgument(layout != PrimaryKeyLayout.RANGE || !hashInvolved,
           "can not define a range layout key after hash key");
       pkFields.add(new PrimaryKeyField(sourceColumn.name(), sourceColumn.fieldId(), layout));
       if (layout == PrimaryKeyLayout.HASH && !hashInvolved)
@@ -114,12 +149,34 @@ public class PrimaryKeySpec {
       return this;
     }
 
+    Builder addColumn(int sourceId, String columnName, PrimaryKeyLayout layout) {
+      Types.NestedField column = schema.findField(sourceId);
+      Preconditions.checkNotNull(column, "Cannot find source column: %s", sourceId);
+      checkColumn(columnName, column.fieldId());
+      addColumn(column, layout);
+      return this;
+    }
+
+    private void checkColumn(String name, Integer identitySourceColumnId) {
+      Types.NestedField schemaField = schema.findField(name);
+      if (identitySourceColumnId != null) {
+        Preconditions.checkArgument(schemaField != null && schemaField.fieldId() == identitySourceColumnId,
+                "Cannot create identity primary key sourced from different field in schema: %s", name);
+      } else {
+        // for all other transforms we don't allow conflicts between primary key field name and schema field name
+        Preconditions.checkArgument(schemaField == null,
+                "Cannot create primary key from name that exists in schema: %s", name);
+      }
+      Preconditions.checkArgument(name != null && !name.isEmpty(),
+              "Cannot use empty or null primary key field name: %s", name);
+    }
+
     public PrimaryKeySpec build() {
       return new PrimaryKeySpec(schema, pkFields);
     }
   }
 
-  private static class PrimaryKeyField {
+  public static class PrimaryKeyField {
     private final String name;
     private final Integer sourceId;
     private final PrimaryKeyLayout layout;
@@ -129,10 +186,49 @@ public class PrimaryKeySpec {
       this.sourceId = sourceId;
       this.layout = layout;
     }
+
+    public String name() {
+      return name;
+    }
+
+    public Integer sourceId() {
+      return sourceId;
+    }
+
+    public PrimaryKeyLayout layout() {
+      return layout;
+    }
+
+    @Override
+    public String toString() {
+      return name + ": " + layout + "(" + sourceId + ")";
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) return true;
+      if (o == null || getClass() != o.getClass()) return false;
+      PrimaryKeyField that = (PrimaryKeyField) o;
+      return name.equals(that.name) &&
+              sourceId.equals(that.sourceId) &&
+              layout == that.layout;
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(name, sourceId, layout);
+    }
   }
 
   public enum PrimaryKeyLayout {
     HASH,
     RANGE;
+  }
+
+  private static final PrimaryKeySpec NO_PRIMARY_KEY_SPEC =
+          new PrimaryKeySpec(new Schema(), ImmutableList.of());
+
+  public static PrimaryKeySpec noPrimaryKey() {
+    return NO_PRIMARY_KEY_SPEC;
   }
 }

@@ -25,23 +25,7 @@ import java.util.Map;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.AllDataFilesTable;
-import org.apache.iceberg.AllEntriesTable;
-import org.apache.iceberg.AllManifestsTable;
-import org.apache.iceberg.BaseTable;
-import org.apache.iceberg.DataFilesTable;
-import org.apache.iceberg.HistoryTable;
-import org.apache.iceberg.ManifestEntriesTable;
-import org.apache.iceberg.ManifestsTable;
-import org.apache.iceberg.MetadataTableType;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.PartitionsTable;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.SnapshotsTable;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.Tables;
+import org.apache.iceberg.*;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 
@@ -134,8 +118,8 @@ public class HadoopTables implements Tables, Configurable {
    * @return newly created table implementation
    */
   @Override
-  public Table create(Schema schema, PartitionSpec spec, Map<String, String> properties,
-                      String location) {
+  public Table create(Schema schema, PartitionSpec spec, PrimaryKeySpec pkSpec,
+                      Map<String, String> properties, String location) {
     Preconditions.checkNotNull(schema, "A table schema is required");
 
     TableOperations ops = newTableOps(location);
@@ -145,7 +129,9 @@ public class HadoopTables implements Tables, Configurable {
 
     Map<String, String> tableProps = properties == null ? ImmutableMap.of() : properties;
     PartitionSpec partitionSpec = spec == null ? PartitionSpec.unpartitioned() : spec;
-    TableMetadata metadata = TableMetadata.newTableMetadata(schema, partitionSpec, location, tableProps);
+    PrimaryKeySpec primaryKeySpec = pkSpec == null ? PrimaryKeySpec.noPrimaryKey() : pkSpec;
+    TableMetadata metadata = TableMetadata.newTableMetadata(schema, partitionSpec, primaryKeySpec,
+            location, tableProps);
     ops.commit(null, metadata);
 
     return new BaseTable(ops, location);

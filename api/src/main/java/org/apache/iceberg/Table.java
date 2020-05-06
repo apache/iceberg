@@ -59,6 +59,13 @@ public interface Table {
   PartitionSpec spec();
 
   /**
+   * Return the {@link PrimaryKeySpec primary key spec} for this table.
+   *
+   * @return this table's partition spec
+   */
+  PrimaryKeySpec pkSpec();
+
+  /**
    * Return a map of {@link PartitionSpec partition specs} for this table.
    *
    * @return this table's partition specs map

@@ -58,6 +58,11 @@ abstract class BaseMetadataTable implements Table {
   }
 
   @Override
+  public PrimaryKeySpec pkSpec() {
+    return PrimaryKeySpec.noPrimaryKey();
+  }
+
+  @Override
   public Map<Integer, PartitionSpec> specs() {
     return ImmutableMap.of(spec.specId(), spec);
   }

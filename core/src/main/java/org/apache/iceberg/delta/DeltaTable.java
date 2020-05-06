@@ -49,6 +49,11 @@ public class DeltaTable implements Table {
         return null;
     }
 
+    @Override
+    public PrimaryKeySpec pkSpec() {
+        return null;
+    }
+
     /**
      * Return a map of {@link PartitionSpec partition specs} for this table.
      *

@@ -85,10 +85,18 @@ public class TableMetadata {
     }
     PartitionSpec freshSpec = specBuilder.build();
 
+    // rebuild the primary key spec using the new column ids
+    PrimaryKeySpec.Builder pkSpecBuilder = PrimaryKeySpec.builderFor(freshSchema);
+    for (PrimaryKeySpec.PrimaryKeyField field : pkSpec.fields()) {
+      // look up the name of the source field in the old schema to get the new schema's id
+      pkSpecBuilder.addColumn(field.name(), field.layout());
+    }
+    PrimaryKeySpec freshPkSpec = pkSpecBuilder.build();
+
     return new TableMetadata(null, UUID.randomUUID().toString(), location,
         System.currentTimeMillis(),
         lastColumnId.get(), freshSchema, INITIAL_SPEC_ID, ImmutableList.of(freshSpec),
-        pkSpec, ImmutableMap.copyOf(properties), -1, ImmutableList.of(),
+        freshPkSpec, ImmutableMap.copyOf(properties), -1, ImmutableList.of(),
         ImmutableList.of(), ImmutableList.of());
   }
 
@@ -293,6 +301,10 @@ public class TableMetadata {
     return schema;
   }
 
+  public PrimaryKeySpec pkSpec() {
+    return pkSpec;
+  }
+
   public PartitionSpec spec() {
     return specsById.get(defaultSpecId);
   }
@@ -309,8 +321,8 @@ public class TableMetadata {
     return pkSpec;
   }
 
-  public boolean supporMutableIngestion() {
-    return pkSpec != null;
+  public boolean supportMutableIngestion() {
+    return PrimaryKeySpec.noPrimaryKey().equals(pkSpec);
   }
 
   public Map<Integer, PartitionSpec> specsById() {

@@ -166,6 +166,10 @@ public class TableMetadataParser {
     generator.writeFieldName(SCHEMA);
     SchemaParser.toJson(metadata.schema(), generator);
 
+    // write primary key spec
+    generator.writeFieldName(PRIMARY_KEY_SPEC);
+    PrimaryKeySpecParser.toJsonFields(metadata.getPrimaryKeySpec(), generator);
+
     // for older readers, continue writing the default spec as "partition-spec"
     generator.writeFieldName(PARTITION_SPEC);
     PartitionSpecParser.toJsonFields(metadata.spec(), generator);
@@ -240,8 +244,7 @@ public class TableMetadataParser {
     int lastAssignedColumnId = JsonUtil.getInt(LAST_COLUMN_ID, node);
     Schema schema = SchemaParser.fromJson(node.get(SCHEMA));
 
-//    PrimaryKeySpec pkSpec = PrimarykeyParser.fromJson(node
-//            .get(PRIMARY_KEY_SPEC), schema);
+    PrimaryKeySpec pkSpec = PrimaryKeySpecParser.fromJsonFields(schema, node.get(PRIMARY_KEY_SPEC));
 
     JsonNode specArray = node.get(PARTITION_SPECS);
     List<PartitionSpec> specs;
@@ -305,26 +308,8 @@ public class TableMetadataParser {
     }
 
     return new TableMetadata(file, uuid, location,
-        lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs,/* pkSpec,*/
+        lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs, pkSpec,
             properties, currentVersionId, snapshots, ImmutableList.copyOf(entries.iterator()),
             ImmutableList.copyOf(metadataEntries.iterator()));
   }
-
-//  public static class PrimarykeyParser {
-//    public static PrimaryKeySpec fromJson(JsonNode node, Schema schema) {
-//      if (node == null)
-//        return null;
-//      List<Integer> keyIndexes = JsonUtil.getStringList(PRIMARY_KEY, node).stream()
-//              .map(str -> Integer.valueOf(str)).collect(Collectors.toList());
-//      return PrimaryKeySpec.builderFor(schema).withKeyIndexes(keyIndexes).build();
-//    }
-//
-//    public static void toJson(PrimaryKeySpec pkSpec, JsonGenerator generator) throws IOException {
-//      generator.writeStartObject();
-//      generator.writeFieldName(PRIMARY_KEY);
-//      generator.writeArray(pkSpec.getKeyIndexes().stream().mapToInt(Integer::valueOf).toArray(),
-//              0, pkSpec.getKeyIndexes().size());
-//      generator.writeEndObject();
-//    }
-//  }
 }
