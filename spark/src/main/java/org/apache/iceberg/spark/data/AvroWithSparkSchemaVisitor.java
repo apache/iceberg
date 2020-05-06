@@ -26,7 +26,6 @@ import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.avro.LogicalMap;
-import org.apache.iceberg.avro.ValueWriters;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
