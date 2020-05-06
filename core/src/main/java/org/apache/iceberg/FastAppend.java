@@ -135,11 +135,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
 
     Iterable<ManifestFile> appendManifestsWithMetadata = Iterables.transform(
         Iterables.concat(appendManifests, rewrittenAppendManifests),
-        manifest -> GenericManifestFile.copyOf(manifest)
-            .withSnapshotId(snapshotId())
-            .withSequenceNumber(base.nextSequenceNumber())
-            .build());
-
+        manifest -> GenericManifestFile.copyOf(manifest).withSnapshotId(snapshotId()).build());
     Iterables.addAll(newManifests, appendManifestsWithMetadata);
 
     if (base.currentSnapshot() != null) {

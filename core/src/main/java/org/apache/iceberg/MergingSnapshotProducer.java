@@ -277,9 +277,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
       Iterable<ManifestFile> newManifestsWithMetadata = Iterables.transform(
           newManifests,
-          manifest -> GenericManifestFile.copyOf(manifest).withSnapshotId(snapshotId())
-              .withSequenceNumber(base.nextSequenceNumber())
-              .build());
+          manifest -> GenericManifestFile.copyOf(manifest).withSnapshotId(snapshotId()).build());
 
       // filter any existing manifests
       List<ManifestFile> filtered;

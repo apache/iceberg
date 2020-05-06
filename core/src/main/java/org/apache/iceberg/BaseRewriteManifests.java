@@ -178,9 +178,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
 
     Iterable<ManifestFile> newManifestsWithMetadata = Iterables.transform(
         Iterables.concat(newManifests, addedManifests, rewrittenAddedManifests),
-        manifest -> GenericManifestFile.copyOf(manifest).withSnapshotId(snapshotId())
-            .withSequenceNumber(base.nextSequenceNumber())
-            .build());
+        manifest -> GenericManifestFile.copyOf(manifest).withSnapshotId(snapshotId()).build());
 
     // put new manifests at the beginning
     List<ManifestFile> apply = new ArrayList<>();
