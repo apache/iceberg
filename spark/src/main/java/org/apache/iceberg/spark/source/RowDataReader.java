@@ -169,6 +169,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
         .project(readSchema)
         .split(task.start(), task.length())
         .createReaderFunc(readOrcSchema -> new SparkOrcReader(readSchema, readOrcSchema, idToConstant))
+        .filter(task.residual())
         .caseSensitive(caseSensitive)
         .build();
   }

@@ -499,6 +499,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private CloseableIterable<T> newOrcIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
       ORC.ReadBuilder orcReadBuilder = ORC.read(inputFile)
           .project(readSchema)
+          .filter(task.residual())
           .caseSensitive(caseSensitive)
           .split(task.start(), task.length());
       // ORC does not support reuse containers yet
