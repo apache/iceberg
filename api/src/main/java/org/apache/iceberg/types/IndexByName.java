@@ -46,6 +46,8 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
 
   @Override
   public void beforeListElement(Types.NestedField elementField) {
+    // only add "element" to the name if the element is not a struct, so that names are more natural
+    // for example, locations.latitude instead of locations.element.latitude
     if (!elementField.type().isStructType()) {
       beforeField(elementField);
     }
@@ -53,6 +55,7 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
 
   @Override
   public void afterListElement(Types.NestedField elementField) {
+    // only remove "element" if it was added
     if (!elementField.type().isStructType()) {
       afterField(elementField);
     }
@@ -70,6 +73,7 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
 
   @Override
   public void beforeMapValue(Types.NestedField valueField) {
+    // only add "value" to the name if the value is not a struct, so that names are more natural
     if (!valueField.type().isStructType()) {
       beforeField(valueField);
     }
@@ -77,6 +81,7 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
 
   @Override
   public void afterMapValue(Types.NestedField valueField) {
+    // only remove "value" if it was added
     if (!valueField.type().isStructType()) {
       afterField(valueField);
     }
