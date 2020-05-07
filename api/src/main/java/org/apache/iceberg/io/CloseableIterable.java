@@ -32,6 +32,27 @@ import java.util.function.Predicate;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 
 public interface CloseableIterable<T> extends Iterable<T>, Closeable {
+
+  default CloseableIterator<T> closeableIterator() {
+    Iterator<T> iterator = iterator();
+    return new CloseableIterator<T>() {
+      @Override
+      public void close() throws IOException {
+        CloseableIterable.this.close();
+      }
+
+      @Override
+      public boolean hasNext() {
+        return iterator.hasNext();
+      }
+
+      @Override
+      public T next() {
+        return iterator.next();
+      }
+    };
+  }
+
   static <E> CloseableIterable<E> withNoopClose(E entry) {
     return withNoopClose(ImmutableList.of(entry));
   }
@@ -122,7 +143,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
       return iter;
     }
 
-    private static class ConcatCloseableIterator<E> implements Iterator<E>, Closeable {
+    private static class ConcatCloseableIterator<E> implements CloseableIterator<E> {
       private final Iterator<CloseableIterable<E>> iterables;
       private CloseableIterable<E> currentIterable = null;
       private Iterator<E> currentIterator = null;
