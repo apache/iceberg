@@ -21,11 +21,11 @@ package org.apache.iceberg.spark.data.vectorized;
 
 import io.netty.buffer.ArrowBuf;
 import java.math.BigInteger;
+import java.util.stream.IntStream;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.DateDayVector;
 import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
@@ -39,18 +39,17 @@ import org.apache.iceberg.arrow.vectorized.VectorHolder;
 import org.apache.parquet.Preconditions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
-import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.vectorized.ArrowColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.jetbrains.annotations.NotNull;
 
 public class ArrowVectorAccessors {
 
   private ArrowVectorAccessors() {}
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   static ArrowVectorAccessor getVectorAccessor(VectorHolder holder) {
     Dictionary dictionary = holder.dictionary();
     boolean isVectorDictEncoded = holder.isDictionaryEncoded();
@@ -58,86 +57,100 @@ public class ArrowVectorAccessors {
     FieldVector vector = holder.vector();
     PrimitiveType primitive = desc.getPrimitiveType();
     if (isVectorDictEncoded) {
-      Preconditions.checkState(vector instanceof IntVector, "Dictionary ids should be stored in IntVectors only");
-      if (primitive.getOriginalType() != null) {
-        switch (desc.getPrimitiveType().getOriginalType()) {
-          case ENUM:
-          case JSON:
-          case UTF8:
-          case BSON:
-            return new DictionaryStringAccessor((IntVector) vector, dictionary);
-          case INT_64:
-          case TIMESTAMP_MILLIS:
-          case TIMESTAMP_MICROS:
-            return new DictionaryLongAccessor((IntVector) vector, dictionary);
-          case DECIMAL:
-            switch (primitive.getPrimitiveTypeName()) {
-              case BINARY:
-              case FIXED_LEN_BYTE_ARRAY:
-                return new DictionaryDecimalBinaryAccessor(
-                    (IntVector) vector,
-                    dictionary);
-              case INT64:
-                return new DictionaryDecimalLongAccessor(
-                    (IntVector) vector,
-                    dictionary);
-              case INT32:
-                return new DictionaryDecimalIntAccessor(
-                    (IntVector) vector,
-                    dictionary);
-              default:
-                throw new UnsupportedOperationException(
-                    "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
-            }
-          default:
-            throw new UnsupportedOperationException(
-                "Unsupported logical type: " + primitive.getOriginalType());
-        }
-      } else {
-        switch (primitive.getPrimitiveTypeName()) {
-          case FIXED_LEN_BYTE_ARRAY:
-          case BINARY:
-            return new DictionaryBinaryAccessor((IntVector) vector, dictionary);
-          case FLOAT:
-            return new DictionaryFloatAccessor((IntVector) vector, dictionary);
-          case INT64:
-            return new DictionaryLongAccessor((IntVector) vector, dictionary);
-          case DOUBLE:
-            return new DictionaryDoubleAccessor((IntVector) vector, dictionary);
-          default:
-            throw new UnsupportedOperationException("Unsupported type: " + primitive);
-        }
+      return getDictionaryVectorAccessor(dictionary, desc, vector, primitive);
+    } else {
+      return getPlainVectorAccessor(vector);
+    }
+  }
+
+  @NotNull
+  private static ArrowVectorAccessor getDictionaryVectorAccessor(
+      Dictionary dictionary,
+      ColumnDescriptor desc,
+      FieldVector vector, PrimitiveType primitive) {
+    Preconditions.checkState(vector instanceof IntVector, "Dictionary ids should be stored in IntVectors only");
+    if (primitive.getOriginalType() != null) {
+      switch (desc.getPrimitiveType().getOriginalType()) {
+        case ENUM:
+        case JSON:
+        case UTF8:
+        case BSON:
+          return new DictionaryStringAccessor((IntVector) vector, dictionary);
+        case INT_64:
+        case TIMESTAMP_MILLIS:
+        case TIMESTAMP_MICROS:
+          return new DictionaryLongAccessor((IntVector) vector, dictionary);
+        case DECIMAL:
+          switch (primitive.getPrimitiveTypeName()) {
+            case BINARY:
+            case FIXED_LEN_BYTE_ARRAY:
+              return new DictionaryDecimalBinaryAccessor(
+                  (IntVector) vector,
+                  dictionary);
+            case INT64:
+              return new DictionaryDecimalLongAccessor(
+                  (IntVector) vector,
+                  dictionary);
+            case INT32:
+              return new DictionaryDecimalIntAccessor(
+                  (IntVector) vector,
+                  dictionary);
+            default:
+              throw new UnsupportedOperationException(
+                  "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
+          }
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported logical type: " + primitive.getOriginalType());
       }
     } else {
-      if (vector instanceof BitVector) {
-        return new BooleanAccessor((BitVector) vector);
-      } else if (vector instanceof IntVector) {
-        return new IntAccessor((IntVector) vector);
-      } else if (vector instanceof BigIntVector) {
-        return new LongAccessor((BigIntVector) vector);
-      } else if (vector instanceof Float4Vector) {
-        return new FloatAccessor((Float4Vector) vector);
-      } else if (vector instanceof Float8Vector) {
-        return new DoubleAccessor((Float8Vector) vector);
-      } else if (vector instanceof IcebergArrowVectors.DecimalArrowVector) {
-        return new DecimalAccessor((IcebergArrowVectors.DecimalArrowVector) vector);
-      } else if (vector instanceof IcebergArrowVectors.VarcharArrowVector) {
-        return new StringAccessor((IcebergArrowVectors.VarcharArrowVector) vector);
-      } else if (vector instanceof IcebergArrowVectors.VarBinaryArrowVector) {
-        return new BinaryAccessor((IcebergArrowVectors.VarBinaryArrowVector) vector);
-      } else if (vector instanceof DateDayVector) {
-        return new DateAccessor((DateDayVector) vector);
-      } else if (vector instanceof TimeStampMicroTZVector) {
-        return new TimestampAccessor((TimeStampMicroTZVector) vector);
-      } else if (vector instanceof ListVector) {
-        ListVector listVector = (ListVector) vector;
-        return new ArrayAccessor(listVector);
-      } else if (vector instanceof StructVector) {
-        StructVector structVector = (StructVector) vector;
-        return new StructAccessor(structVector);
+      switch (primitive.getPrimitiveTypeName()) {
+        case FIXED_LEN_BYTE_ARRAY:
+        case BINARY:
+          return new DictionaryBinaryAccessor((IntVector) vector, dictionary);
+        case FLOAT:
+          return new DictionaryFloatAccessor((IntVector) vector, dictionary);
+        case INT64:
+          return new DictionaryLongAccessor((IntVector) vector, dictionary);
+        case DOUBLE:
+          return new DictionaryDoubleAccessor((IntVector) vector, dictionary);
+        default:
+          throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
     }
-    throw new UnsupportedOperationException("Unsupported type: " + primitive);
+  }
+
+  @NotNull
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  private static ArrowVectorAccessor getPlainVectorAccessor(FieldVector vector) {
+    if (vector instanceof BitVector) {
+      return new BooleanAccessor((BitVector) vector);
+    } else if (vector instanceof IntVector) {
+      return new IntAccessor((IntVector) vector);
+    } else if (vector instanceof BigIntVector) {
+      return new LongAccessor((BigIntVector) vector);
+    } else if (vector instanceof Float4Vector) {
+      return new FloatAccessor((Float4Vector) vector);
+    } else if (vector instanceof Float8Vector) {
+      return new DoubleAccessor((Float8Vector) vector);
+    } else if (vector instanceof IcebergArrowVectors.DecimalArrowVector) {
+      return new DecimalAccessor((IcebergArrowVectors.DecimalArrowVector) vector);
+    } else if (vector instanceof IcebergArrowVectors.VarcharArrowVector) {
+      return new StringAccessor((IcebergArrowVectors.VarcharArrowVector) vector);
+    } else if (vector instanceof IcebergArrowVectors.VarBinaryArrowVector) {
+      return new BinaryAccessor((IcebergArrowVectors.VarBinaryArrowVector) vector);
+    } else if (vector instanceof DateDayVector) {
+      return new DateAccessor((DateDayVector) vector);
+    } else if (vector instanceof TimeStampMicroTZVector) {
+      return new TimestampAccessor((TimeStampMicroTZVector) vector);
+    } else if (vector instanceof ListVector) {
+      ListVector listVector = (ListVector) vector;
+      return new ArrayAccessor(listVector);
+    } else if (vector instanceof StructVector) {
+      StructVector structVector = (StructVector) vector;
+      return new StructAccessor(structVector);
+    }
+    throw new UnsupportedOperationException("Unsupported vector: " + vector.getClass());
   }
 
   private static class BooleanAccessor extends ArrowVectorAccessor {
@@ -185,18 +198,20 @@ public class ArrowVectorAccessors {
     }
   }
 
-  private static class DictionaryLongAccessor extends DictionaryArrowVectorAccessor {
+  private static class DictionaryLongAccessor extends ArrowVectorAccessor {
 
-    private final IntVector vector;
+    private final Dictionary parquetDictionary;
+    private final IntVector offsetVector;
 
     DictionaryLongAccessor(IntVector vector, Dictionary dictionary) {
-      super(vector, dictionary);
-      this.vector = vector;
+      super(vector);
+      this.offsetVector = vector;
+      this.parquetDictionary = dictionary;
     }
 
     @Override
     final long getLong(int rowId) {
-      return parquetDictionary.decodeToLong(vector.get(rowId));
+      return parquetDictionary.decodeToLong(offsetVector.get(rowId));
     }
   }
 
@@ -215,18 +230,20 @@ public class ArrowVectorAccessors {
     }
   }
 
-  private static class DictionaryFloatAccessor extends DictionaryArrowVectorAccessor {
+  private static class DictionaryFloatAccessor extends ArrowVectorAccessor {
 
-    private final IntVector vector;
+    private final IntVector offsetVector;
+    private final Dictionary parquetDictionary;
 
     DictionaryFloatAccessor(IntVector vector, Dictionary dictionary) {
-      super(vector, dictionary);
-      this.vector = vector;
+      super(vector);
+      this.parquetDictionary = dictionary;
+      this.offsetVector = vector;
     }
 
     @Override
     final float getFloat(int rowId) {
-      return parquetDictionary.decodeToFloat(vector.get(rowId));
+      return parquetDictionary.decodeToFloat(offsetVector.get(rowId));
     }
   }
 
@@ -245,33 +262,21 @@ public class ArrowVectorAccessors {
     }
   }
 
-  private static class DictionaryDoubleAccessor extends DictionaryArrowVectorAccessor {
-
+  private static class DictionaryDoubleAccessor extends ArrowVectorAccessor {
     private final IntVector vector;
+    private final double[] decodedDictionary;
 
     DictionaryDoubleAccessor(IntVector vector, Dictionary dictionary) {
-      super(vector, dictionary);
+      super(vector);
       this.vector = vector;
+      this.decodedDictionary = IntStream.rangeClosed(0, dictionary.getMaxId())
+          .mapToDouble(dictionary::decodeToDouble)
+          .toArray();
     }
 
     @Override
     final double getDouble(int rowId) {
-      return parquetDictionary.decodeToDouble(vector.get(rowId));
-    }
-  }
-
-  private static class DecimalAccessor extends ArrowVectorAccessor {
-
-    private final IcebergArrowVectors.DecimalArrowVector vector;
-
-    DecimalAccessor(IcebergArrowVectors.DecimalArrowVector vector) {
-      super(vector);
-      this.vector = vector;
-    }
-
-    @Override
-    final Decimal getDecimal(int rowId, int precision, int scale) {
-      return Decimal.apply(vector.getObject(rowId), precision, scale);
+      return decodedDictionary[vector.get(rowId)];
     }
   }
 
@@ -299,43 +304,23 @@ public class ArrowVectorAccessors {
     }
   }
 
-  @SuppressWarnings("checkstyle:VisibilityModifier")
-  private abstract static class DictionaryArrowVectorAccessor extends ArrowVectorAccessor {
-    final Dictionary parquetDictionary;
-    final IntVector dictionaryVector;
-
-    private DictionaryArrowVectorAccessor(IntVector vector, Dictionary dictionary) {
-      super(vector);
-      this.dictionaryVector = vector;
-      this.parquetDictionary = dictionary;
-    }
-  }
-
-  private static class DictionaryStringAccessor extends DictionaryArrowVectorAccessor {
+  private static class DictionaryStringAccessor extends ArrowVectorAccessor {
+    private final UTF8String[] decodedDictionary;
+    private final IntVector offsetVector;
 
     DictionaryStringAccessor(IntVector vector, Dictionary dictionary) {
-      super(vector, dictionary);
+      super(vector);
+      this.offsetVector = vector;
+      this.decodedDictionary = IntStream.rangeClosed(0, dictionary.getMaxId())
+          .mapToObj(dictionary::decodeToBinary)
+          .map(binary -> UTF8String.fromBytes(binary.getBytes()))
+          .toArray(UTF8String[]::new);
     }
 
     @Override
     final UTF8String getUTF8String(int rowId) {
-      Binary binary = parquetDictionary.decodeToBinary(dictionaryVector.get(rowId));
-      return UTF8String.fromBytes(binary.getBytesUnsafe());
-    }
-  }
-
-  private static class FixedSizeBinaryAccessor extends ArrowVectorAccessor {
-
-    private final FixedSizeBinaryVector vector;
-
-    FixedSizeBinaryAccessor(FixedSizeBinaryVector vector) {
-      super(vector);
-      this.vector = vector;
-    }
-
-    @Override
-    final byte[] getBinary(int rowId) {
-      return vector.getObject(rowId);
+      int offset = offsetVector.get(rowId);
+      return decodedDictionary[offset];
     }
   }
 
@@ -354,16 +339,23 @@ public class ArrowVectorAccessors {
     }
   }
 
-  private static class DictionaryBinaryAccessor extends DictionaryArrowVectorAccessor {
+  private static class DictionaryBinaryAccessor extends ArrowVectorAccessor {
+    private final IntVector offsetVector;
+    private final byte[][] decodedDictionary;
 
     DictionaryBinaryAccessor(IntVector vector, Dictionary dictionary) {
-      super(vector, dictionary);
+      super(vector);
+      this.offsetVector = vector;
+      this.decodedDictionary = IntStream.rangeClosed(0, dictionary.getMaxId())
+          .mapToObj(dictionary::decodeToBinary)
+          .map(binary -> binary.getBytes())
+          .toArray(byte[][]::new);
     }
 
     @Override
     final byte[] getBinary(int rowId) {
-      Binary binary = parquetDictionary.decodeToBinary(dictionaryVector.get(rowId));
-      return binary.getBytesUnsafe();
+      int offset = offsetVector.get(rowId);
+      return decodedDictionary[offset];
     }
   }
 
@@ -424,20 +416,38 @@ public class ArrowVectorAccessors {
    */
   private static class StructAccessor extends ArrowVectorAccessor {
     StructAccessor(StructVector structVector) {
-      super(structVector);
-      childColumns = new ArrowColumnVector[structVector.size()];
-      for (int i = 0; i < childColumns.length; ++i) {
-        childColumns[i] = new ArrowColumnVector(structVector.getVectorById(i));
-      }
+      super(structVector, IntStream.range(0, structVector.size())
+          .mapToObj(structVector::getVectorById)
+          .map(ArrowColumnVector::new)
+          .toArray(ArrowColumnVector[]::new));
+    }
+  }
+
+  private static class DecimalAccessor extends ArrowVectorAccessor {
+
+    private final IcebergArrowVectors.DecimalArrowVector vector;
+
+    DecimalAccessor(IcebergArrowVectors.DecimalArrowVector vector) {
+      super(vector);
+      this.vector = vector;
+    }
+
+    @Override
+    final Decimal getDecimal(int rowId, int precision, int scale) {
+      return Decimal.apply(vector.getObject(rowId), precision, scale);
     }
   }
 
   @SuppressWarnings("checkstyle:VisibilityModifier")
-  private abstract static class DictionaryDecimalAccessor extends DictionaryArrowVectorAccessor {
+  private abstract static class DictionaryDecimalAccessor extends ArrowVectorAccessor {
     final Decimal[] cache;
+    Dictionary parquetDictionary;
+    final IntVector offsetVector;
 
     private DictionaryDecimalAccessor(IntVector vector, Dictionary dictionary) {
-      super(vector, dictionary);
+      super(vector);
+      this.offsetVector = vector;
+      this.parquetDictionary = dictionary;
       this.cache = new Decimal[dictionary.getMaxId() + 1];
     }
   }
@@ -450,10 +460,10 @@ public class ArrowVectorAccessors {
 
     @Override
     final Decimal getDecimal(int rowId, int precision, int scale) {
-      int dictId = dictionaryVector.get(rowId);
+      int dictId = offsetVector.get(rowId);
       if (cache[dictId] == null) {
         cache[dictId] = Decimal.apply(
-            new BigInteger(parquetDictionary.decodeToBinary(dictId).getBytesUnsafe()).longValue(),
+            new BigInteger(parquetDictionary.decodeToBinary(dictId).getBytes()).longValue(),
             precision,
             scale);
       }
@@ -469,7 +479,7 @@ public class ArrowVectorAccessors {
 
     @Override
     final Decimal getDecimal(int rowId, int precision, int scale) {
-      int dictId = dictionaryVector.get(rowId);
+      int dictId = offsetVector.get(rowId);
       if (cache[dictId] == null) {
         cache[dictId] = Decimal.apply(parquetDictionary.decodeToLong(dictId), precision, scale);
       }
@@ -485,7 +495,7 @@ public class ArrowVectorAccessors {
 
     @Override
     final Decimal getDecimal(int rowId, int precision, int scale) {
-      int dictId = dictionaryVector.get(rowId);
+      int dictId = offsetVector.get(rowId);
       if (cache[dictId] == null) {
         cache[dictId] = Decimal.apply(parquetDictionary.decodeToInt(dictId), precision, scale);
       }

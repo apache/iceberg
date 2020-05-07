@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.data.vectorized;
 
-import java.lang.reflect.Array;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.arrow.vectorized.VectorHolder;
@@ -37,54 +36,42 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
  * {@link ColumnarBatch} returned is created by passing in the Arrow vectors populated via delegated read calls to
  * {@linkplain VectorizedArrowReader VectorReader(s)}.
  */
-public class ColumnarBatchReaders implements VectorizedReader<ColumnarBatch> {
+public class ColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
   private final VectorizedArrowReader[] readers;
 
-  public ColumnarBatchReaders(List<VectorizedReader> readers) {
-    this.readers = (VectorizedArrowReader[]) Array.newInstance(
-        VectorizedArrowReader.class, readers.size());
-    int idx = 0;
-    for (VectorizedReader reader : readers) {
-      this.readers[idx] = (VectorizedArrowReader) reader;
-      idx++;
-    }
+  public ColumnarBatchReader(List<VectorizedReader<?>> readers) {
+    this.readers = readers.stream()
+        .map(VectorizedArrowReader.class::cast)
+        .toArray(VectorizedArrowReader[]::new);
   }
 
   @Override
   public final void setRowGroupInfo(PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData) {
-    for (int i = 0; i < readers.length; i += 1) {
-      if (readers[i] != null) {
-        readers[i].setRowGroupInfo(pageStore, metaData);
+    for (VectorizedArrowReader reader : readers) {
+      if (reader != null) {
+        reader.setRowGroupInfo(pageStore, metaData);
       }
     }
   }
 
   @Override
   public void reuseContainers(boolean reuse) {
-    for (VectorizedReader reader : readers) {
+    for (VectorizedReader<?> reader : readers) {
       reader.reuseContainers(reuse);
     }
   }
 
   @Override
   public final ColumnarBatch read(int numRowsToRead) {
-    Preconditions.checkArgument(numRowsToRead > 0, "Invalid value: " + numRowsToRead);
+    Preconditions.checkArgument(numRowsToRead > 0, "Invalid number of rows to read: %s", numRowsToRead);
     ColumnVector[] arrowColumnVectors = new ColumnVector[readers.length];
-    int prevNum = 0;
     for (int i = 0; i < readers.length; i += 1) {
       VectorHolder holder = readers[i].read(numRowsToRead);
       int numRowsInVector = holder.numValues();
       Preconditions.checkState(
           numRowsInVector == numRowsToRead,
-          "Number of rows in the vector " + numRowsInVector + " didn't match expected " +
-              numRowsToRead);
-      if (prevNum > 0) {
-        // assert that all the vectors in the batch have the same number of rows
-        Preconditions.checkState(numRowsInVector == prevNum, "Number of rows in arrow vectors didn't match " +
-            "for " + readers[i - 1] + " and " + readers[i]);
-      } else {
-        prevNum = numRowsInVector;
-      }
+          "Number of rows in the vector %s didn't match expected %s ", numRowsInVector,
+          numRowsToRead);
       arrowColumnVectors[i] = IcebergArrowColumnVector.forHolder(holder, numRowsInVector);
     }
     ColumnarBatch batch = new ColumnarBatch(arrowColumnVectors);
@@ -94,8 +81,9 @@ public class ColumnarBatchReaders implements VectorizedReader<ColumnarBatch> {
 
   @Override
   public void close() {
-    for (VectorizedReader reader : readers) {
+    for (VectorizedReader<?> reader : readers) {
       reader.close();
     }
   }
+
 }

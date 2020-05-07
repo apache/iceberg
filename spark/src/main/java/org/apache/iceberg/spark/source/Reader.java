@@ -200,7 +200,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
    */
   @Override
   public List<InputPartition<ColumnarBatch>> planBatchInputPartitions() {
-    Preconditions.checkState(enableBatchRead != null && enableBatchRead, "Batched reads not enabled");
+    Preconditions.checkState(enableBatchRead(), "Batched reads not enabled");
     Preconditions.checkState(batchSize > 0, "Invalid batch size");
     String tableSchemaString = SchemaParser.toJson(table.schema());
     String expectedSchemaString = SchemaParser.toJson(lazySchema());
@@ -303,29 +303,17 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
                   .stream()
                   .allMatch(fileScanTask -> fileScanTask.file().format().equals(
                       FileFormat.PARQUET)));
-      if (!allParquetFileScanTasks) {
-        this.enableBatchRead = false;
-        return false;
-      }
 
-      int numColumns = lazySchema().columns().size();
-      if (numColumns == 0) {
-        this.enableBatchRead = false;
-        return false;
-      }
+      boolean atLeastOneColumn = lazySchema().columns().size() > 0;
 
-      boolean projectIdentityPartitionColumn =
-          tasks().stream()
-              .anyMatch(combinedScanTask -> combinedScanTask.files()
-                  .stream()
-                  .anyMatch(fileScanTask -> !fileScanTask.spec().identitySourceIds().isEmpty()));
-      if (projectIdentityPartitionColumn) {
-        this.enableBatchRead = false;
-        return false;
-      }
+      boolean hasNoIdentityProjections = tasks().stream()
+          .allMatch(combinedScanTask -> combinedScanTask.files()
+              .stream()
+              .allMatch(fileScanTask -> fileScanTask.spec().identitySourceIds().isEmpty()));
 
-      // Enable batched reads only if all requested columns are primitive otherwise revert to row-based reads
-      this.enableBatchRead = lazySchema().columns().stream().allMatch(c -> c.type().isPrimitiveType());
+      boolean onlyPrimitives = lazySchema().columns().stream().allMatch(c -> c.type().isPrimitiveType());
+
+      this.enableBatchRead = allParquetFileScanTasks && atLeastOneColumn && hasNoIdentityProjections && onlyPrimitives;
     }
     return enableBatchRead;
   }

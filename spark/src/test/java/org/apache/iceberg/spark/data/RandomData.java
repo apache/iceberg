@@ -103,13 +103,13 @@ public class RandomData {
     };
   }
 
-  public static List<Record> generateListWithFallBackDictionaryEncodingForStrings(
-          Schema schema,
-          int numRecords,
-          long seed,
-          float fraction) {
+  public static List<Record> generateListWithFallBackDictionaryEncoding(
+      Schema schema,
+      int numRecords,
+      long seed,
+      float fraction) {
     FallbackDictionaryEncodedDataGenerator generator =
-            new FallbackDictionaryEncodedDataGenerator(schema, seed, numRecords, fraction);
+        new FallbackDictionaryEncodedDataGenerator(schema, seed, numRecords, fraction);
     List<Record> records = Lists.newArrayListWithExpectedSize(numRecords);
     for (int i = 0; i < numRecords; i += 1) {
       Record rec = (Record) TypeUtil.visit(schema, generator);
@@ -627,30 +627,75 @@ public class RandomData {
   }
 
   private static class FallbackDictionaryEncodedDataGenerator extends RandomDataGenerator {
-
-    private final int numRecords;
+    private final long numValues;
     private final float fraction;
     private int current;
 
     private FallbackDictionaryEncodedDataGenerator(Schema schema, long seed, int numRecords, float fraction) {
       super(schema, seed);
-      this.numRecords = numRecords;
+      // for now, vectorized reads are only supported for primitive types
+      this.numValues =
+          numRecords * schema.columns().stream().filter(nestedField -> nestedField.type().isPrimitiveType()).count();
       this.fraction = fraction;
     }
 
     @Override
     public Object primitive(Type.PrimitiveType primitive) {
+      current++;
+      boolean dictionaryEncodable = current < fraction * numValues;
+      Object result;
       switch (primitive.typeId()) {
         case STRING:
-          if (current < fraction * numRecords) {
-            current++;
-            return "ABC";
+          result = dictionaryEncodable ? UTF8String.fromString("ABC") : randomString(random);
+          break;
+        case BOOLEAN:
+          result = true; // doesn't really matter for booleans since they are not dictionary encoded
+          break;
+        case INTEGER:
+        case DATE:
+          result = dictionaryEncodable ? 1 : random.nextInt();
+          break;
+        case LONG:
+        case TIME:
+        case TIMESTAMP:
+          result = dictionaryEncodable ? 1L : random.nextLong();
+          break;
+        case FLOAT:
+          result = dictionaryEncodable ? 1.0f : random.nextFloat();
+          break;
+        case DOUBLE:
+          result = dictionaryEncodable ? 1.0d : random.nextDouble();
+          break;
+        case FIXED:
+          byte[] fixed = new byte[((Types.FixedType) primitive).length()];
+          if (dictionaryEncodable) {
+            fixed[0] = 1;
           } else {
-            current++;
-            return super.primitive(primitive);
+            random.nextBytes(fixed);
           }
+          result = fixed;
+          break;
+        case BINARY:
+          byte[] binary;
+          if (dictionaryEncodable) {
+            binary = new byte[1];
+            binary[0] = 1;
+          } else {
+            binary = new byte[random.nextInt(50)];
+            random.nextBytes(binary);
+          }
+          result = binary;
+          break;
+        case DECIMAL:
+          Types.DecimalType type = (Types.DecimalType) primitive;
+          BigInteger unscaled = dictionaryEncodable ? new BigInteger("1") : randomUnscaled(type.precision(), random);
+          result = Decimal.apply(new BigDecimal(unscaled, type.scale()));
+          break;
+        default:
+          throw new IllegalArgumentException(
+              "Cannot generate value for unknown type: " + primitive);
       }
-      return super.primitive(primitive);
+      return super.getPrimitive(primitive, result);
     }
   }
 }

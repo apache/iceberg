@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.arrow;
+package org.apache.iceberg.arrow;
 
 import org.apache.arrow.memory.RootAllocator;
 

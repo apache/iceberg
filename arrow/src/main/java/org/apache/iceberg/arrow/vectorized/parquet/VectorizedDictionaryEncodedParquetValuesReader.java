@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.arrow.vectorized.parquet;
 
-import io.netty.buffer.ArrowBuf;
 import java.nio.ByteBuffer;
 import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.BitVectorHelper;
@@ -110,9 +109,9 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedTimestampMillis(FieldVector vector, int startOffset, int numValuesToRead,
-                                                   Dictionary dict, NullabilityHolder nullabilityHolder,
-      int typeWidth) {
+  void readBatchOfDictionaryEncodedTimestampMillis(
+      FieldVector vector, int startOffset, int numValuesToRead,
+      Dictionary dict, NullabilityHolder nullabilityHolder, int typeWidth) {
     int left = numValuesToRead;
     int idx = startOffset;
     while (left > 0) {
@@ -159,11 +158,10 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
         this.readNextGroup();
       }
       int num = Math.min(left, this.currentCount);
-      ArrowBuf dataBuffer = vector.getDataBuffer();
       switch (mode) {
         case RLE:
           for (int i = 0; i < num; i++) {
-            dataBuffer.setInt(idx * typeWidth, dict.decodeToInt(currentValue));
+            vector.getDataBuffer().setInt(idx * typeWidth, dict.decodeToInt(currentValue));
             if (setArrowValidityVector) {
               BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
             } else {
@@ -174,7 +172,8 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
           break;
         case PACKED:
           for (int i = 0; i < num; i++) {
-            dataBuffer.setInt(idx * typeWidth, dict.decodeToInt(packedValuesBuffer[packedValuesBufferIdx++]));
+            vector.getDataBuffer()
+                .setInt(idx * typeWidth, dict.decodeToInt(packedValuesBuffer[packedValuesBufferIdx++]));
             if (setArrowValidityVector) {
               BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
             } else {
@@ -282,33 +281,33 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
         case RLE:
           for (int i = 0; i < num; i++) {
             ByteBuffer buffer = dict.decodeToBinary(currentValue).toByteBuffer();
-            vector.getDataBuffer().setBytes(idx * typeWidth, buffer.array(),
-                buffer.position() + buffer.arrayOffset(), buffer.limit() - buffer.position());
-            if (setArrowValidityVector) {
-              BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
-            } else {
-              nullabilityHolder.setNotNull(idx);
-            }
+            setFixedWidthBinary(vector, typeWidth, nullabilityHolder, idx, buffer);
             idx++;
           }
           break;
         case PACKED:
           for (int i = 0; i < num; i++) {
             ByteBuffer buffer = dict.decodeToBinary(packedValuesBuffer[packedValuesBufferIdx++]).toByteBuffer();
-            vector.getDataBuffer()
-                .setBytes(idx * typeWidth, buffer.array(),
-                    buffer.position() + buffer.arrayOffset(), buffer.limit() - buffer.position());
-            if (setArrowValidityVector) {
-              BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
-            } else {
-              nullabilityHolder.setNotNull(idx);
-            }
+            setFixedWidthBinary(vector, typeWidth, nullabilityHolder, idx, buffer);
             idx++;
           }
           break;
       }
       left -= num;
       currentCount -= num;
+    }
+  }
+
+  private void setFixedWidthBinary(
+      FieldVector vector, int typeWidth, NullabilityHolder nullabilityHolder,
+      int idx, ByteBuffer buffer) {
+    vector.getDataBuffer()
+        .setBytes(idx * typeWidth, buffer.array(),
+            buffer.position() + buffer.arrayOffset(), buffer.limit() - buffer.position());
+    if (setArrowValidityVector) {
+      BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
+    } else {
+      nullabilityHolder.setNotNull(idx);
     }
   }
 

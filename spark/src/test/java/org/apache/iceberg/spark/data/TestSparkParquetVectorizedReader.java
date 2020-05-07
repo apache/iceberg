@@ -36,16 +36,10 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.Assert;
 import org.junit.Assume;
-import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestSparkParquetVectorizedReader extends AvroDataTest {
-
-  @BeforeClass
-  public static void beforeClass() {
-    TestHelpers.setArrowFlagsForVectorizedReads();
-  }
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
@@ -60,13 +54,17 @@ public class TestSparkParquetVectorizedReader extends AvroDataTest {
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
-    try (FileAppender<GenericData.Record> writer = Parquet.write(Files.localOutput(testFile))
-        .schema(schema)
-        .named("test")
-        .build()) {
+    try (FileAppender<GenericData.Record> writer = getParquetWriter(schema, testFile)) {
       writer.addAll(expected);
     }
     assertRecordsMatch(schema, expected, testFile);
+  }
+
+  FileAppender<GenericData.Record> getParquetWriter(Schema schema, File testFile) throws IOException {
+    return Parquet.write(Files.localOutput(testFile))
+        .schema(schema)
+        .named("test")
+        .build();
   }
 
   List<GenericData.Record> generateData(Schema schema) {
@@ -77,7 +75,7 @@ public class TestSparkParquetVectorizedReader extends AvroDataTest {
     try (CloseableIterable<ColumnarBatch> batchReader = Parquet.read(Files.localInput(testFile))
         .project(schema)
         .reuseContainers()
-        .createBatchedReaderFunc(type -> VectorizedSparkParquetReaders.buildReader(schema, schema, type, 10000))
+        .createBatchedReaderFunc(type -> VectorizedSparkParquetReaders.buildReader(schema, type, 10000))
         .build()) {
 
       Iterator<ColumnarBatch> batches = batchReader.iterator();
@@ -105,7 +103,6 @@ public class TestSparkParquetVectorizedReader extends AvroDataTest {
   @Test
   @Ignore
   public void testArrayOfStructs() {
-    System.out.println("Not Supported");
   }
 
   @Test

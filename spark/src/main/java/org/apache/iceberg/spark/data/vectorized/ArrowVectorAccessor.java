@@ -29,19 +29,26 @@ import org.apache.spark.unsafe.types.UTF8String;
 abstract class ArrowVectorAccessor {
 
   private final ValueVector vector;
-  ArrowColumnVector[] childColumns;
+  private final ArrowColumnVector[] childColumns;
 
   ArrowVectorAccessor(ValueVector vector) {
     this.vector = vector;
+    this.childColumns = null;
+  }
+
+  ArrowVectorAccessor(ValueVector vector, ArrowColumnVector[] children) {
+    this.vector = vector;
+    this.childColumns = children;
   }
 
   final void close() {
-    vector.close();
     if (childColumns != null) {
-      for (int i = 0; i < childColumns.length; i++) {
-        childColumns[i].close();
+      for (ArrowColumnVector column : childColumns) {
+        // Closing an ArrowColumnVector is expected to not throw any exception
+        column.close();
       }
     }
+    vector.close();
   }
 
   boolean getBoolean(int rowId) {
@@ -80,7 +87,11 @@ abstract class ArrowVectorAccessor {
     throw new UnsupportedOperationException("Unsupported type: array");
   }
 
-  ArrowColumnVector[] childColumns() {
-    return childColumns;
+  ArrowColumnVector childColumn(int pos) {
+    return childColumns[pos];
+  }
+
+  ValueVector getVector() {
+    return vector;
   }
 }

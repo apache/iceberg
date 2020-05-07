@@ -44,18 +44,18 @@ public abstract class AvroDataTest {
       optional(101, "data", Types.StringType.get()),
       required(102, "b", Types.BooleanType.get()),
       optional(103, "i", Types.IntegerType.get()),
-      required(104, "l", LongType.get()),
+      optional(104, "l", LongType.get()),
       optional(105, "f", Types.FloatType.get()),
-      required(106, "d", Types.DoubleType.get()),
+      optional(106, "d", Types.DoubleType.get()),
       optional(107, "date", Types.DateType.get()),
-      required(108, "ts", Types.TimestampType.withZone()),
-      required(110, "s", Types.StringType.get()),
+      optional(108, "ts", Types.TimestampType.withZone()),
+      optional(110, "s", Types.StringType.get()),
       //required(111, "uuid", Types.UUIDType.get()),
-      required(112, "fixed", Types.FixedType.ofLength(7)),
+      optional(112, "fixed", Types.FixedType.ofLength(7)),
       optional(113, "bytes", Types.BinaryType.get()),
-      required(114, "dec_9_0", Types.DecimalType.of(9, 0)),
-      required(115, "dec_11_2", Types.DecimalType.of(11, 2)),
-      required(116, "dec_38_10", Types.DecimalType.of(38, 10)) // spark's maximum precision
+      optional(114, "dec_9_0", Types.DecimalType.of(9, 0)),
+      optional(115, "dec_11_2", Types.DecimalType.of(11, 2)),
+      optional(116, "dec_38_10", Types.DecimalType.of(38, 10)) // spark's maximum precision
   );
 
   @Rule

@@ -19,13 +19,29 @@
 
 package org.apache.iceberg.spark.data;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.parquet.Parquet;
 
 public class TestSparkParquetFallbackToDictionaryEncodingForVectorizedReader extends TestSparkParquetVectorizedReader {
   @Override
   public List<GenericData.Record> generateData(Schema schema) {
-    return RandomData.generateListWithFallBackDictionaryEncodingForStrings(schema, 100000, 0L, 0.5f);
+    return RandomData.generateListWithFallBackDictionaryEncoding(schema, 200000, 0L, 0.05f);
   }
+
+  @Override
+  FileAppender<GenericData.Record> getParquetWriter(Schema schema, File testFile) throws IOException {
+    return Parquet.write(Files.localOutput(testFile))
+        .schema(schema)
+        .named("test")
+        .set(TableProperties.PARQUET_DICT_SIZE_BYTES, "512000")
+        .build();
+  }
+
 }

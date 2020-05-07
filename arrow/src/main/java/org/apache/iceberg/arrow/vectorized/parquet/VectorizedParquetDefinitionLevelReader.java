@@ -63,7 +63,7 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
         case PACKED:
           for (int i = 0; i < numValues; i++) {
             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
-              vector.set(idx, dictionaryEncodedValuesReader.readInteger());
+              vector.getDataBuffer().setInt(idx * IntVector.TYPE_WIDTH, dictionaryEncodedValuesReader.readInteger());
               if (setArrowValidityVector) {
                 BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
               } else {
@@ -202,7 +202,8 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
         case PACKED:
           for (int i = 0; i < numValues; i++) {
             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
-              vector.getDataBuffer().setLong(idx, dict.decodeToLong(dictionaryEncodedValuesReader.readInteger()));
+              vector.getDataBuffer().setLong(idx * typeWidth,
+                  dict.decodeToLong(dictionaryEncodedValuesReader.readInteger()));
               if (setArrowValidityVector) {
                 BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
               } else {
@@ -249,7 +250,7 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
         case PACKED:
           for (int i = 0; i < numValues; i++) {
             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
-              vector.getDataBuffer().setLong(idx,
+              vector.getDataBuffer().setLong(idx * typeWidth,
                   dict.decodeToLong(dictionaryEncodedValuesReader.readInteger()) * 1000);
               if (setArrowValidityVector) {
                 BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
@@ -428,7 +429,8 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
         case PACKED:
           for (int i = 0; i < num; i++) {
             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
-              vector.getDataBuffer().setFloat(idx, dict.decodeToFloat(dictionaryEncodedValuesReader.readInteger()));
+              vector.getDataBuffer()
+                  .setFloat(idx * typeWidth, dict.decodeToFloat(dictionaryEncodedValuesReader.readInteger()));
               if (setArrowValidityVector) {
                 BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
               } else {
@@ -517,7 +519,8 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
         case PACKED:
           for (int i = 0; i < num; i++) {
             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
-              vector.getDataBuffer().setDouble(idx, dict.decodeToDouble(dictionaryEncodedValuesReader.readInteger()));
+              vector.getDataBuffer()
+                  .setDouble(idx * typeWidth, dict.decodeToDouble(dictionaryEncodedValuesReader.readInteger()));
               if (setArrowValidityVector) {
                 BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
               } else {

@@ -456,6 +456,11 @@ project(':iceberg-spark3') {
     testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
+  test {
+    // For vectorized reads
+    systemProperty("arrow.enable_unsafe_memory_access", "true")
+    systemProperty("arrow.enable_null_check_for_get", "false")
+  }
 }
 
 project(':iceberg-pig') {

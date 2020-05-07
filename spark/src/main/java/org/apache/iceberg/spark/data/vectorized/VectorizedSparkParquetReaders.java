@@ -22,15 +22,16 @@ package org.apache.iceberg.spark.data.vectorized;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
-import org.apache.iceberg.spark.arrow.ArrowAllocation;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.GroupType;
@@ -44,29 +45,27 @@ public class VectorizedSparkParquetReaders {
   }
 
   @SuppressWarnings("unchecked")
-  public static ColumnarBatchReaders buildReader(
-      Schema tableSchema,
+  public static ColumnarBatchReader buildReader(
       Schema expectedSchema,
       MessageType fileSchema,
       Integer recordsPerBatch) {
-    return (ColumnarBatchReaders)
+    return (ColumnarBatchReader)
         TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-            new VectorizedReaderBuilder(tableSchema, expectedSchema, fileSchema, recordsPerBatch));
+            new VectorizedReaderBuilder(expectedSchema, fileSchema, recordsPerBatch));
   }
 
-  private static class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedReader> {
+  private static class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedReader<?>> {
     private final MessageType parquetSchema;
-    private final Schema tableIcebergSchema;
+    private final Schema icebergSchema;
     private final BufferAllocator rootAllocator;
     private final int batchSize;
 
     VectorizedReaderBuilder(
-        Schema tableSchema,
-        Schema projectedIcebergSchema,
+        Schema expectedSchema,
         MessageType parquetSchema,
         int bSize) {
       this.parquetSchema = parquetSchema;
-      this.tableIcebergSchema = tableSchema;
+      this.icebergSchema = expectedSchema;
       this.batchSize = bSize;
       this.rootAllocator = ArrowAllocation.rootAllocator()
           .newChildAllocator("VectorizedReadBuilder", 0, Long.MAX_VALUE);
@@ -75,44 +74,41 @@ public class VectorizedSparkParquetReaders {
     @Override
     public VectorizedReader message(
             Types.StructType expected, MessageType message,
-            List<VectorizedReader> fieldReaders) {
+            List<VectorizedReader<?>> fieldReaders) {
       return struct(expected, message.asGroupType(), fieldReaders);
     }
 
     @Override
-    public VectorizedReader struct(
+    public VectorizedReader<?> struct(
             Types.StructType expected, GroupType struct,
-            List<VectorizedReader> fieldReaders) {
+            List<VectorizedReader<?>> fieldReaders) {
 
-      Map<Integer, VectorizedReader> readersById = Maps.newHashMap();
+      Map<Integer, VectorizedReader<?>> readersById = Maps.newHashMap();
       List<Type> fields = struct.getFields();
 
-      for (int i = 0; i < fields.size(); i += 1) {
-        Type fieldType = fields.get(i);
-        int id = fieldType.getId().intValue();
-        readersById.put(id, fieldReaders.get(i));
-      }
+      IntStream.range(0, fields.size())
+          .forEach(pos -> readersById.put(fields.get(pos).getId().intValue(), fieldReaders.get(pos)));
 
       List<Types.NestedField> icebergFields = expected != null ?
           expected.fields() : ImmutableList.of();
 
-      List<VectorizedReader> reorderedFields = Lists.newArrayListWithExpectedSize(
+      List<VectorizedReader<?>> reorderedFields = Lists.newArrayListWithExpectedSize(
           icebergFields.size());
 
       for (Types.NestedField field : icebergFields) {
         int id = field.fieldId();
-        VectorizedReader reader = readersById.get(id);
+        VectorizedReader<?> reader = readersById.get(id);
         if (reader != null) {
           reorderedFields.add(reader);
         } else {
           reorderedFields.add(VectorizedArrowReader.nulls());
         }
       }
-      return new ColumnarBatchReaders(reorderedFields);
+      return new ColumnarBatchReader(reorderedFields);
     }
 
     @Override
-    public VectorizedReader primitive(
+    public VectorizedReader<?> primitive(
         org.apache.iceberg.types.Type.PrimitiveType expected,
         PrimitiveType primitive) {
 
@@ -123,20 +119,13 @@ public class VectorizedSparkParquetReaders {
       if (desc.getMaxRepetitionLevel() > 0) {
         return null;
       }
-      Types.NestedField icebergField = tableIcebergSchema.findField(parquetFieldId);
-      return new VectorizedArrowReader(desc, icebergField, rootAllocator,
-          batchSize, /* setArrowValidityVector */ false);
-    }
-
-    private String[] currentPath() {
-      String[] path = new String[fieldNames.size()];
-      if (!fieldNames.isEmpty()) {
-        Iterator<String> iter = fieldNames.descendingIterator();
-        for (int i = 0; iter.hasNext(); i += 1) {
-          path[i] = iter.next();
-        }
+      Types.NestedField icebergField = icebergSchema.findField(parquetFieldId);
+      if (icebergField == null) {
+        return null;
       }
-      return path;
+      // Set the validity buffer if null checking is enabled in arrow
+      return new VectorizedArrowReader(desc, icebergField, rootAllocator,
+          batchSize, /* setArrowValidityVector */ NullCheckingForGet.NULL_CHECKING_ENABLED);
     }
 
     protected MessageType type() {

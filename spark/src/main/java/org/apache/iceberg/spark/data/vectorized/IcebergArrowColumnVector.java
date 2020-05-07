@@ -19,10 +19,10 @@
 
 package org.apache.iceberg.spark.data.vectorized;
 
+import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.arrow.vectorized.VectorHolder;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.parquet.Preconditions;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.vectorized.ArrowColumnVector;
 import org.apache.spark.sql.vectorized.ColumnVector;
@@ -39,6 +39,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
 
   private final ArrowVectorAccessor accessor;
   private final NullabilityHolder nullabilityHolder;
+  private static final boolean USE_VECTOR_VALIDITY_BUFFER = NullCheckingForGet.NULL_CHECKING_ENABLED;
 
   public IcebergArrowColumnVector(VectorHolder holder) {
     super(SparkSchemaUtil.convert(holder.icebergType()));
@@ -53,17 +54,17 @@ public class IcebergArrowColumnVector extends ColumnVector {
 
   @Override
   public boolean hasNull() {
-    return nullabilityHolder.hasNulls();
+    return USE_VECTOR_VALIDITY_BUFFER ? accessor.getVector().getNullCount() > 0 : nullabilityHolder.hasNulls();
   }
 
   @Override
   public int numNulls() {
-    return nullabilityHolder.numNulls();
+    return USE_VECTOR_VALIDITY_BUFFER ? accessor.getVector().getNullCount() : nullabilityHolder.numNulls();
   }
 
   @Override
   public boolean isNullAt(int rowId) {
-    return nullabilityHolder.isNullAt(rowId) == 1;
+    return USE_VECTOR_VALIDITY_BUFFER ? accessor.getVector().isNull(rowId) : nullabilityHolder.isNullAt(rowId) == 1;
   }
 
   @Override
@@ -140,10 +141,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
 
   @Override
   public ArrowColumnVector getChild(int ordinal) {
-    ArrowColumnVector[] childColumns = accessor.childColumns();
-    Preconditions.checkArgument(childColumns != null && ordinal < childColumns.length, "Invalid call for getChild() " +
-        "with ordinal " + ordinal);
-    return childColumns[ordinal];
+    return accessor.childColumn(ordinal);
   }
 
   static ColumnVector forHolder(VectorHolder holder, int numRows) {

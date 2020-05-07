@@ -76,7 +76,7 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
       iter = Parquet.read(location)
           .project(readSchema)
           .split(task.start(), task.length())
-          .createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(tableSchema, readSchema,
+          .createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(readSchema,
               fileSchema, batchSize))
           .filter(task.residual())
           .caseSensitive(caseSensitive)
