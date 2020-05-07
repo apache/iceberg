@@ -48,6 +48,14 @@ public class ValueWriters {
     return BooleanWriter.INSTANCE;
   }
 
+  public static ValueWriter<Byte> tinyints() {
+    return ByteToIntegerWriter.INSTANCE;
+  }
+
+  public static ValueWriter<Short> shorts() {
+    return ShortToIntegerWriter.INSTANCE;
+  }
+
   public static ValueWriter<Integer> ints() {
     return IntegerWriter.INSTANCE;
   }
@@ -139,6 +147,30 @@ public class ValueWriters {
     @Override
     public void write(Boolean bool, Encoder encoder) throws IOException {
       encoder.writeBoolean(bool);
+    }
+  }
+
+  private static class ByteToIntegerWriter implements ValueWriter<Byte> {
+    private static final ByteToIntegerWriter INSTANCE = new ByteToIntegerWriter();
+
+    private ByteToIntegerWriter() {
+    }
+
+    @Override
+    public void write(Byte b, Encoder encoder) throws IOException {
+      encoder.writeInt(b.intValue());
+    }
+  }
+
+  private static class ShortToIntegerWriter implements ValueWriter<Short> {
+    private static final ShortToIntegerWriter INSTANCE = new ShortToIntegerWriter();
+
+    private ShortToIntegerWriter() {
+    }
+
+    @Override
+    public void write(Short s, Encoder encoder) throws IOException {
+      encoder.writeInt(s.intValue());
     }
   }
 
