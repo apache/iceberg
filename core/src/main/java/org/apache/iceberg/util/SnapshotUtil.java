@@ -20,6 +20,7 @@
 package org.apache.iceberg.util;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Snapshot;
@@ -69,8 +70,20 @@ public class SnapshotUtil {
    * This method assumes that fromSnapshotId is an ancestor of toSnapshotId.
    */
   public static List<Long> snapshotIdsBetween(Table table, long fromSnapshotId, long toSnapshotId) {
+    AtomicBoolean isAncestor = new AtomicBoolean(false);
     List<Long> snapshotIds = Lists.newArrayList(ancestorIds(table.snapshot(toSnapshotId),
-        snapshotId -> snapshotId != fromSnapshotId ? table.snapshot(snapshotId) : null));
+        snapshotId -> {
+          if (snapshotId != fromSnapshotId) {
+            return table.snapshot(snapshotId);
+          } else {
+            isAncestor.set(true);
+            return null;
+          }
+        }));
+    if (!isAncestor.get()) {
+      throw new IllegalStateException(fromSnapshotId + " is not an ancestor of " + toSnapshotId);
+    }
+
     return snapshotIds;
   }
 
