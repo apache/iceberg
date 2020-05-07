@@ -109,7 +109,7 @@ public class MicroBatches {
       return this;
     }
 
-    public MicroBatch generate(long startFileIndex, long targetSizeInBytes, boolean scanAllFiles) {
+    public MicroBatch generate(long startFileIndex, long targetSizeInBytes, boolean isStarting) {
       Preconditions.checkArgument(startFileIndex >= 0, "startFileIndex is unexpectedly smaller than 0");
       Preconditions.checkArgument(targetSizeInBytes > 0, "targetSizeInBytes should be larger than 0");
 
@@ -177,9 +177,10 @@ public class MicroBatches {
      * @param startFileIndex A startFileIndex used to skip processed files.
      * @param targetSizeInBytes Used to control the size of MicroBatch, the processed file bytes must be smaller than
      *                         this size.
-     * @param scanAllFiles Used to check whether all the data files should be processed, or only added files.
+     * @param scanAllFiles Used to check whether all the data file should be processed, or only added files.
      * @return A MicroBatch.
      */
+    @SuppressWarnings("CyclomaticComplexity")
     private MicroBatch generateMicroBatch(List<Pair<ManifestFile, Integer>> indexedManifests,
                                           long startFileIndex, long targetSizeInBytes, boolean scanAllFiles) {
       if (indexedManifests.isEmpty()) {
@@ -195,8 +196,9 @@ public class MicroBatches {
       for (int idx = 0; idx < indexedManifests.size(); idx++) {
         currentFileIndex = indexedManifests.get(idx).second();
 
-        try (CloseableIterable<FileScanTask> taskIterable = open(indexedManifests.get(idx).first(), scanAllFiles);
-            CloseableIterator<FileScanTask> taskIter = taskIterable.iterator()) {
+        try (CloseableIterable<FileScanTask> taskIterable = open(indexedManifests.get(idx).first(),
+            scanAllFiles)) {
+          CloseableIterator<FileScanTask> taskIter = taskIterable.iterator();
           while (taskIter.hasNext()) {
             FileScanTask task = taskIter.next();
             if (currentFileIndex >= startFileIndex) {

@@ -36,16 +36,19 @@ import org.apache.spark.sql.execution.streaming.StreamExecution;
 import org.apache.spark.sql.sources.DataSourceRegister;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
 import org.apache.spark.sql.sources.v2.DataSourceV2;
+import org.apache.spark.sql.sources.v2.MicroBatchReadSupport;
 import org.apache.spark.sql.sources.v2.ReadSupport;
 import org.apache.spark.sql.sources.v2.StreamWriteSupport;
 import org.apache.spark.sql.sources.v2.WriteSupport;
 import org.apache.spark.sql.sources.v2.reader.DataSourceReader;
+import org.apache.spark.sql.sources.v2.reader.streaming.MicroBatchReader;
 import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
 import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.types.StructType;
 
-public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, DataSourceRegister, StreamWriteSupport {
+public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, DataSourceRegister,
+    StreamWriteSupport, MicroBatchReadSupport {
 
   private SparkSession lazySpark = null;
   private Configuration lazyConf = null;
@@ -111,6 +114,23 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     String appId = lazySparkSession().sparkContext().applicationId();
 
     return new StreamingWriter(lazySparkSession(), table, options, queryId, mode, appId, writeSchema, dsStruct);
+  }
+
+  @Override
+  public MicroBatchReader createMicroBatchReader(Optional<StructType> schema, String checkpointLocation,
+                                                 DataSourceOptions options) {
+    if (schema.isPresent()) {
+      throw new IllegalStateException("Iceberg does not support specifying the schema at read time");
+    }
+
+    Configuration conf = new Configuration(lazyBaseConf());
+    Table table = getTableAndResolveHadoopConfiguration(options, conf);
+    String caseSensitive = lazySparkSession().conf().get("spark.sql.caseSensitive");
+
+    Broadcast<FileIO> io = lazySparkContext().broadcast(SparkUtil.serializableFileIO(table));
+    Broadcast<EncryptionManager> encryptionManager = lazySparkContext().broadcast(table.encryption());
+
+    return new StreamingReader(table, io, encryptionManager, Boolean.parseBoolean(caseSensitive), options);
   }
 
   protected Table findTable(DataSourceOptions options, Configuration conf) {
