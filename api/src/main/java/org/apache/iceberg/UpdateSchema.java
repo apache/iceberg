@@ -325,4 +325,40 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    */
   UpdateSchema deleteColumn(String name);
 
+  /**
+   * Move a column from its current position to the start of the schema or its parent struct.
+   * @param name name of the column to move
+   * @return this for method chaining
+   * @throws IllegalArgumentException If name doesn't identify a column in the schema or if this
+   *                                  change conflicts with other changes.
+   */
+  UpdateSchema moveFirst(String name);
+
+  /**
+   * Move a column from its current position to directly before a reference column.
+   * <p>
+   * The name is used to find the column to move using {@link Schema#findField(String)}. If the name identifies a nested
+   * column, it can only be moved within the nested struct that contains it.
+   *
+   * @param name name of the column to move
+   * @param beforeName name of the reference column
+   * @return this for method chaining
+   * @throws IllegalArgumentException If name doesn't identify a column in the schema or if this
+   *                                  change conflicts with other changes.
+   */
+  UpdateSchema moveBefore(String name, String beforeName);
+
+  /**
+   * Move a column from its current position to directly after a reference column.
+   * <p>
+   * The name is used to find the column to move using {@link Schema#findField(String)}. If the name identifies a nested
+   * column, it can only be moved within the nested struct that contains it.
+   *
+   * @param name name of the column to move
+   * @param afterName name of the reference column
+   * @return this for method chaining
+   * @throws IllegalArgumentException If name doesn't identify a column in the schema or if this
+   *                                  change conflicts with other changes.
+   */
+  UpdateSchema moveAfter(String name, String afterName);
 }
