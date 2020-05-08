@@ -158,6 +158,9 @@ class GenericAvroReader<T> implements DatumReader<T> {
             // Spark uses the same representation
             return ValueReaders.ints();
 
+          case "time-micros":
+            return ValueReaders.longs();
+
           case "timestamp-millis":
             // adjust to microseconds
             ValueReader<Long> longs = ValueReaders.longs();
