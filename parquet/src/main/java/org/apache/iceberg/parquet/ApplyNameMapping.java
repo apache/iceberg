@@ -49,54 +49,42 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
   @Override
   public Type struct(GroupType struct, List<Type> types) {
     MappedField field = nameMapping.find(currentPath());
-    if (field == null) {
-      return null;
-    }
     List<Type> actualTypes = types.stream().filter(Objects::nonNull).collect(Collectors.toList());
+    Type structType = struct.withNewFields(actualTypes);
 
-    return struct.withNewFields(actualTypes).withId(field.id());
+    return field == null ? structType : structType.withId(field.id());
   }
 
   @Override
   public Type list(GroupType list, Type elementType) {
-    MappedField field = nameMapping.find(currentPath());
-    if (field == null) {
-      return null;
-    }
-
     Preconditions.checkArgument(elementType != null,
         "List type must have element field");
 
-    return org.apache.parquet.schema.Types.list(list.getRepetition())
+    MappedField field = nameMapping.find(currentPath());
+    Type listType = org.apache.parquet.schema.Types.list(list.getRepetition())
         .element(elementType)
-        .id(field.id())
         .named(list.getName());
+
+    return field == null ? listType : listType.withId(field.id());
   }
 
   @Override
   public Type map(GroupType map, Type keyType, Type valueType) {
-    MappedField field = nameMapping.find(currentPath());
-    if (field == null) {
-      return null;
-    }
-
     Preconditions.checkArgument(keyType != null && valueType != null,
         "Map type must have both key field and value field");
 
-    return org.apache.parquet.schema.Types.map(map.getRepetition())
+    MappedField field = nameMapping.find(currentPath());
+    Type mapType = org.apache.parquet.schema.Types.map(map.getRepetition())
         .key(keyType)
         .value(valueType)
-        .id(field.id())
         .named(map.getName());
+
+    return field == null ? mapType : mapType.withId(field.id());
   }
 
   @Override
   public Type primitive(PrimitiveType primitive) {
     MappedField field = nameMapping.find(currentPath());
-    if (field == null) {
-      return null;
-    } else {
-      return primitive.withId(field.id());
-    }
+    return field == null ? null : primitive.withId(field.id());
   }
 }
