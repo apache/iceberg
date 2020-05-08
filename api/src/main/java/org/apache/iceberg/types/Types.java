@@ -457,8 +457,22 @@ public class Types {
       return isOptional;
     }
 
+    public NestedField asOptional() {
+      if (isOptional) {
+        return this;
+      }
+      return new NestedField(true, id, name, type, doc);
+    }
+
     public boolean isRequired() {
       return !isOptional;
+    }
+
+    public NestedField asRequired() {
+      if (!isOptional) {
+        return this;
+      }
+      return new NestedField(false, id, name, type, doc);
     }
 
     public int fieldId() {

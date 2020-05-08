@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import java.io.IOException;
 import java.util.Iterator;
@@ -114,6 +115,8 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
 
     @Override
     protected ManifestFile prepare(ManifestFile manifest) {
+      Preconditions.checkArgument(manifest.content() == ManifestContent.DATA,
+          "Cannot store delete manifests in a v1 table");
       return wrapper.wrap(manifest);
     }
 
