@@ -20,7 +20,6 @@
 package org.apache.iceberg.avro;
 
 import com.google.common.collect.Maps;
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
@@ -32,6 +31,7 @@ import org.apache.avro.io.DatumReader;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 
 public class AvroIterable<D> extends CloseableGroup implements CloseableIterable<D> {
@@ -173,7 +173,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
     }
   }
 
-  private static class AvroReuseIterator<D> implements Iterator<D>, Closeable {
+  private static class AvroReuseIterator<D> implements CloseableIterator<D> {
     private final FileReader<D> reader;
     private D reused = null;
 

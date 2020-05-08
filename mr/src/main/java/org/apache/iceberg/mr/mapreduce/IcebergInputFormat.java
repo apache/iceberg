@@ -361,7 +361,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       DataFile file = currentTask.file();
       // schema of rows returned by readers
       PartitionSpec spec = currentTask.spec();
-      Set<Integer> idColumns = Sets.intersection(spec.identitySourceIds(), TypeUtil.getProjectedIds(expectedSchema));
+      Set<Integer> idColumns =  Sets.intersection(spec.identitySourceIds(), TypeUtil.getProjectedIds(expectedSchema));
       boolean hasJoinedPartitionColumns = !idColumns.isEmpty();
 
       CloseableIterable<T> iterable;
