@@ -315,6 +315,7 @@ public class Parquet {
     private boolean reuseContainers = false;
     private int maxRecordsPerBatch = 10000;
     private NameMapping nameMapping = null;
+    private boolean applyNameMapping = false;
 
     private ReadBuilder(InputFile file) {
       this.file = file;
@@ -401,6 +402,11 @@ public class Parquet {
       return this;
     }
 
+    public ReadBuilder applyNameMapping() {
+      this.applyNameMapping = true;
+      return this;
+    }
+
     @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
     public <D> CloseableIterable<D> build() {
       if (readerFunc != null || batchedReaderFunc != null) {
@@ -427,11 +433,12 @@ public class Parquet {
         ParquetReadOptions options = optionsBuilder.build();
 
         if (batchedReaderFunc != null) {
-          return new VectorizedParquetReader(file, schema, options, batchedReaderFunc, nameMapping, filter,
-              reuseContainers, caseSensitive, maxRecordsPerBatch);
+          return new VectorizedParquetReader(file, schema, options, batchedReaderFunc, nameMapping,
+              applyNameMapping, filter, reuseContainers, caseSensitive, maxRecordsPerBatch);
         } else {
           return new org.apache.iceberg.parquet.ParquetReader<>(
-              file, schema, options, readerFunc, nameMapping, filter, reuseContainers, caseSensitive);
+              file, schema, options, readerFunc, nameMapping, applyNameMapping, filter, reuseContainers,
+              caseSensitive);
         }
       }
 

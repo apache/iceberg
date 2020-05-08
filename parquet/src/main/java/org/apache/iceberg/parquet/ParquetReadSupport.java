@@ -59,7 +59,6 @@ class ParquetReadSupport<T> extends ReadSupport<T> {
     // in the file's schema.
 
     MessageType projection;
-
     if (ParquetSchemaUtil.hasIds(fileSchema)) {
       projection = ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema);
     } else if (nameMapping != null) {

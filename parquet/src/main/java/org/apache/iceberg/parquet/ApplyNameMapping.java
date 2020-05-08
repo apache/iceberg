@@ -31,10 +31,10 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 
-class AssignIdsByNameMapping extends ParquetTypeVisitor<Type> {
+class ApplyNameMapping extends ParquetTypeVisitor<Type> {
   private final NameMapping nameMapping;
 
-  AssignIdsByNameMapping(NameMapping nameMapping) {
+  ApplyNameMapping(NameMapping nameMapping) {
     this.nameMapping = nameMapping;
   }
 

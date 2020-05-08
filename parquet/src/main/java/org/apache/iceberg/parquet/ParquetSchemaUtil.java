@@ -103,7 +103,7 @@ public class ParquetSchemaUtil {
   }
 
   public static MessageType applyNameMapping(MessageType fileSchema, NameMapping nameMapping) {
-    return (MessageType) ParquetTypeVisitor.visit(fileSchema, new AssignIdsByNameMapping(nameMapping), true);
+    return (MessageType) ParquetTypeVisitor.visit(fileSchema, new ApplyNameMapping(nameMapping), true);
   }
 
   public static class HasIds extends ParquetTypeVisitor<Boolean> {

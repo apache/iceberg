@@ -207,13 +207,13 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
   }
 
   @Test
-  public void testImportWithIncompatibleSchema() throws Exception {
+  public void testImportWithNameMapping() throws Exception {
     spark.table(qualifiedTableName).write().mode("overwrite").format("parquet")
         .saveAsTable("original_table");
 
     // The field is different so that it will project with name mapping
     Schema filteredSchema = new Schema(
-            optional(1, "data", Types.StringType.get())
+        optional(1, "data", Types.StringType.get())
     );
 
     TableIdentifier source = new TableIdentifier("original_table");
@@ -227,17 +227,17 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
     // The filter invoke the metric/dictionary row group filter in which it project schema
     // with name mapping again to match the metric read from footer.
     List<String> actual = spark.read().format("iceberg").load(DB_NAME + ".target_table")
-            .select("data")
-            .sort("data")
-            .filter("data<'c'")
-            .collectAsList()
-            .stream()
-            .map(r -> r.getString(0))
-            .collect(Collectors.toList());
+        .select("data")
+        .sort("data")
+        .filter("data<'c'")
+        .collectAsList()
+        .stream()
+        .map(r -> r.getString(0))
+        .collect(Collectors.toList());
 
     List<SimpleRecord> expected = Lists.newArrayList(
-            new SimpleRecord(2, "a"),
-            new SimpleRecord(1, "b")
+        new SimpleRecord(2, "a"),
+        new SimpleRecord(1, "b")
     );
 
     Assert.assertEquals(expected.stream().map(SimpleRecord::getData).collect(Collectors.toList()), actual);
