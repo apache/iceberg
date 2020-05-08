@@ -182,7 +182,7 @@ class PartitionKey implements StructLike {
     if (isOptional) {
       // the wrapped position handles null layers
       return new WrappedPositionAccessor(position, size, accessor);
-    } else if (accessor instanceof PositionAccessor) {
+    } else if (accessor.getClass() == PositionAccessor.class) {
       return new Position2Accessor(position, size, (PositionAccessor) accessor);
     } else if (accessor instanceof Position2Accessor) {
       return new Position3Accessor(position, size, (Position2Accessor) accessor);
