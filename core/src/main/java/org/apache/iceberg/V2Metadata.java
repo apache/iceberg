@@ -351,9 +351,9 @@ class V2Metadata {
   }
 
   /**
-   * Wrapper used to write a DataFile to v2 metadata.
+   * Wrapper used to write DataFile or DeleteFile to v2 metadata.
    */
-  static class IndexedDataFile implements DataFile, IndexedRecord {
+  static class IndexedDataFile implements DataFile, DeleteFile, IndexedRecord {
     private final org.apache.avro.Schema avroSchema;
     private final IndexedStructLike partitionWrapper;
     private DataFile wrapped = null;
@@ -377,7 +377,7 @@ class V2Metadata {
     public Object get(int pos) {
       switch (pos) {
         case 0:
-          return FileContent.DATA.id();
+          return wrapped.content().id();
         case 1:
           return wrapped.path().toString();
         case 2:
@@ -409,6 +409,11 @@ class V2Metadata {
     @Override
     public void put(int i, Object v) {
       throw new UnsupportedOperationException("Cannot read into IndexedDataFile");
+    }
+
+    @Override
+    public FileContent content() {
+      return wrapped.content();
     }
 
     @Override
@@ -472,13 +477,13 @@ class V2Metadata {
     }
 
     @Override
-    public DataFile copy() {
-      return wrapped.copy();
+    public IndexedDataFile copy() {
+      throw new UnsupportedOperationException("Cannot copy IndexedDataFile wrapper");
     }
 
     @Override
-    public DataFile copyWithoutStats() {
-      return wrapped.copyWithoutStats();
+    public IndexedDataFile copyWithoutStats() {
+      throw new UnsupportedOperationException("Cannot copy IndexedDataFile wrapper");
     }
   }
 }

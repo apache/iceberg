@@ -86,9 +86,7 @@ public interface DataFile {
   /**
    * @return the content stored in the file; one of DATA, POSITION_DELETES, or EQUALITY_DELETES
    */
-  default FileContent content() {
-    return FileContent.DATA;
-  }
+  FileContent content();
 
   /**
    * @return fully qualified path to the file, suitable for constructing a Hadoop Path

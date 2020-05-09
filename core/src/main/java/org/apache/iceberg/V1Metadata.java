@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import com.google.common.base.Preconditions;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
@@ -317,6 +318,7 @@ class V1Metadata {
     }
 
     IndexedDataFile wrap(DataFile file) {
+      Preconditions.checkArgument(!(file instanceof DeleteFile), "Cannot write delete file to v1 table: %s", file);
       this.wrapped = file;
       return this;
     }
@@ -362,6 +364,11 @@ class V1Metadata {
     @Override
     public org.apache.avro.Schema getSchema() {
       return avroSchema;
+    }
+
+    @Override
+    public FileContent content() {
+      return wrapped.content();
     }
 
     @Override
