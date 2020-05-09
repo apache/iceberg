@@ -82,25 +82,19 @@ import org.slf4j.LoggerFactory;
  * this can help reduce contention and retries
  * when committing files to Iceberg table.
  * <p>
- * Here are some known contentions
- * 1) Flink jobs running in multiple regions,
- * since Iceberg metadata service and commit only happens in us-east-1.
- * 2) auto tuning and auto lift services may update Iceberg table infrequently.
  */
 @SuppressWarnings("checkstyle:HiddenField")
 public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
     implements CheckpointedFunction, CheckpointListener {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergCommitter.class);
 
-  private static final String COMMIT_REGION_KEY = "flink.commit.region";
   private static final String COMMIT_MANIFEST_HASHES_KEY = "flink.commit.manifest.hashes";
-  private static final String WATERMARK_PROP_KEY_PREFIX = "flink.watermark.";
+  private static final String WATERMARK_PROP_KEY_PREFIX = "flink.watermark";
 
   private Configuration config;
   private final String namespace;
   private final String tableName;
 
-  private final String region;
   private final boolean watermarkEnabled;
   private final String watermarkPropKey;
   private final long snapshotRetentionHours;
@@ -131,16 +125,9 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
     namespace = config.getString(IcebergConnectorConstant.NAMESPACE, "");
     tableName = config.getString(IcebergConnectorConstant.TABLE, "");
 
-    String region = System.getenv("EC2_REGION");
-    if (Strings.isNullOrEmpty(region)) {
-      region = "us-east-1";
-      LOG.info("Iceberg committer {}.{} default region to us-east-1", namespace, tableName);
-    }
-    this.region = region;
-
     watermarkEnabled = !Strings.isNullOrEmpty(
         config.getString(IcebergConnectorConstant.WATERMARK_TIMESTAMP_FIELD, ""));
-    watermarkPropKey = WATERMARK_PROP_KEY_PREFIX + region;
+    watermarkPropKey = WATERMARK_PROP_KEY_PREFIX;
     snapshotRetentionHours = config.getLong(IcebergConnectorConstant.SNAPSHOT_RETENTION_HOURS,
         IcebergConnectorConstant.DEFAULT_SNAPSHOT_RETENTION_HOURS);
     commitRestoredManifestFiles = config.getBoolean(IcebergConnectorConstant.COMMIT_RESTORED_MANIFEST_FILES,
@@ -579,7 +566,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
           appendFiles.appendManifest(flinkManifestFile);
           hashes.add(flinkManifestFile.hash());
         }
-        appendFiles.set(COMMIT_REGION_KEY, region);
+
         appendFiles.set(COMMIT_MANIFEST_HASHES_KEY, FlinkManifestFileUtil.hashesListToString(hashes));
         appendFiles.commit();
         LOG.info("Iceberg committer {}.{} appended {} manifest files to transaction",
