@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.transforms;
 
-import java.time.LocalDate;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers.Row;
