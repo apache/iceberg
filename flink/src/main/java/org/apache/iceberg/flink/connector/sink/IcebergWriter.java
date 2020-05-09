@@ -174,18 +174,6 @@ public class IcebergWriter<IN> extends AbstractStreamOperator<FlinkDataFile>
         flinkDataFile.getIcebergDataFile().fileSizeInBytes(), flinkDataFile.getIcebergDataFile().path());
   }
 
-  /**
-   * This method is called after all records have been added to the operators via the methods
-   * {@link org.apache.flink.streaming.api.operators.OneInputStreamOperator#processElement(StreamRecord)}, or
-   * {@link org.apache.flink.streaming.api.operators.TwoInputStreamOperator#processElement1(StreamRecord)} and
-   * {@link org.apache.flink.streaming.api.operators.TwoInputStreamOperator#processElement2(StreamRecord)}.
-   *
-   * <p>The method is expected to flush all remaining buffered data. Exceptions during this
-   * flushing of buffered should be propagated, in order to cause the operation to be recognized
-   * as failed, because the last data items are not processed properly.
-   *
-   * @throws java.lang.Exception An exception in this method causes the operator to fail.
-   */
   @Override
   public void close() throws Exception {
     super.close();
@@ -196,13 +184,6 @@ public class IcebergWriter<IN> extends AbstractStreamOperator<FlinkDataFile>
     LOG.info("Iceberg writer {}.{} subtask {} completed close", namespace, tableName, subtaskId);
   }
 
-  /**
-   * This method is called at the very end of the operator's life, both in the case of a successful
-   * completion of the operation, and in the case of a failure and canceling.
-   *
-   * <p>This method is expected to make a thorough effort to release all resources
-   * that the operator has acquired.
-   */
   @Override
   public void dispose() throws Exception {
     super.dispose();
