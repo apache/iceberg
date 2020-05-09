@@ -19,6 +19,9 @@
 
 package org.apache.iceberg.expressions;
 
+import java.util.Map;
+import org.apache.iceberg.Accessor;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
@@ -45,7 +48,14 @@ public class UnboundTransform<S, T> implements UnboundTerm<T>, Term {
   @SuppressWarnings("unchecked")
   @Override
   public BoundTransform<S, T> bind(Types.StructType struct, boolean caseSensitive) {
-    BoundReference<S> boundRef = ref.bind(struct, caseSensitive);
+    return bind(struct, null, caseSensitive);
+  }
+
+  @Override
+  public BoundTransform<S, T> bind(Types.StructType struct, Map<Integer, Accessor<StructLike>> accessors,
+                                   boolean caseSensitive) {
+    BoundReference<S> boundRef =
+        accessors == null ? ref.bind(struct, caseSensitive) : ref.bind(struct, accessors, caseSensitive);
 
     Transform<S, T> typeTransform;
     try {

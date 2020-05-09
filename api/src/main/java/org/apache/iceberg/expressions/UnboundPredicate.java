@@ -25,7 +25,10 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.Accessor;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.CharSequenceSet;
@@ -103,6 +106,21 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
   @Override
   public Expression bind(StructType struct, boolean caseSensitive) {
     BoundTerm<T> bound = term().bind(struct, caseSensitive);
+
+    if (literals == null) {
+      return bindUnaryOperation(bound);
+    }
+
+    if (op() == Operation.IN || op() == Operation.NOT_IN) {
+      return bindInOperation(bound);
+    }
+
+    return bindLiteralOperation(bound);
+  }
+
+  @Override
+  public Expression bind(StructType struct, Map<Integer, Accessor<StructLike>> accessors, boolean caseSensitive) {
+    BoundTerm<T> bound = term().bind(struct, accessors, caseSensitive);
 
     if (literals == null) {
       return bindUnaryOperation(bound);

@@ -180,16 +180,7 @@ public class Accessors {
   }
 
   private static Accessor<StructLike> newAccessor(int pos, Type type) {
-    switch (type.typeId()) {
-      case DATE:
-        return new DateAccessor(pos, type);
-      case TIME:
-        return new TimeAccessor(pos, type);
-      case TIMESTAMP:
-        return new TimeStampAccessor(pos, type);
-      default:
-        return new PositionAccessor(pos, type);
-    }
+    return new PositionAccessor(pos, type);
   }
 
   private static Accessor<StructLike> newAccessor(int pos, boolean isOptional,

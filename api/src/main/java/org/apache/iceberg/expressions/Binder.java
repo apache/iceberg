@@ -22,7 +22,10 @@ package org.apache.iceberg.expressions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.Accessor;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
 import org.apache.iceberg.types.Type;
@@ -60,6 +63,34 @@ public class Binder {
                                 Expression expr,
                                 boolean caseSensitive) {
     return ExpressionVisitors.visit(expr, new BindVisitor(struct, caseSensitive));
+  }
+
+  /**
+   * Replaces all unbound/named references with bound references to fields in the given struct.
+   * <p>
+   * When a reference is resolved, any literal used in a predicate for that field is converted to
+   * the field's type using {@link Literal#to(Type)}. If automatic conversion to that type isn't
+   * allowed, a {@link ValidationException validation exception} is thrown.
+   * <p>
+   * The result expression may be simplified when constructed. For example, {@code isNull("a")} is
+   * replaced with {@code alwaysFalse()} when {@code "a"} is resolved to a required field.
+   * <p>
+   * The expression cannot contain references that are already bound, or an
+   * {@link IllegalStateException} will be thrown.
+   *
+   * @param struct The {@link StructType struct type} to resolve references by name.
+   * @param expr An {@link Expression expression} to rewrite with bound references.
+   * @param accessors A map to {@link Accessor accessor} to access the {@link StructLike StructLike} value
+   * @param caseSensitive A boolean flag to control whether the bind should enforce case sensitivity.
+   * @return the expression rewritten with bound references
+   * @throws ValidationException if literals do not match bound references
+   * @throws IllegalStateException if any references are already bound
+   */
+  public static Expression bind(StructType struct,
+                                Expression expr,
+                                Map<Integer, Accessor<StructLike>> accessors,
+                                boolean caseSensitive) {
+    return ExpressionVisitors.visit(expr, new BindVisitor(struct, accessors, caseSensitive));
   }
 
   /**
@@ -104,10 +135,17 @@ public class Binder {
   private static class BindVisitor extends ExpressionVisitor<Expression> {
     private final StructType struct;
     private final boolean caseSensitive;
+    private Map<Integer, Accessor<StructLike>> accessors = null;
 
     private BindVisitor(StructType struct, boolean caseSensitive) {
       this.struct = struct;
       this.caseSensitive = caseSensitive;
+    }
+
+    private BindVisitor(StructType struct, Map<Integer, Accessor<StructLike>> accessors, boolean caseSensitive) {
+      this.struct = struct;
+      this.caseSensitive = caseSensitive;
+      this.accessors = accessors;
     }
 
     @Override
@@ -142,7 +180,7 @@ public class Binder {
 
     @Override
     public <T> Expression predicate(UnboundPredicate<T> pred) {
-      return pred.bind(struct, caseSensitive);
+      return accessors == null ? pred.bind(struct, caseSensitive) : pred.bind(struct, accessors, caseSensitive);
     }
   }
 

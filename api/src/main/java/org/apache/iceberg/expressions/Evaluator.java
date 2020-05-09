@@ -21,7 +21,9 @@ package org.apache.iceberg.expressions;
 
 import java.io.Serializable;
 import java.util.Comparator;
+import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.Accessor;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundVisitor;
 import org.apache.iceberg.types.Types.StructType;
@@ -50,6 +52,11 @@ public class Evaluator implements Serializable {
 
   public Evaluator(StructType struct, Expression unbound, boolean caseSensitive) {
     this.expr = Binder.bind(struct, unbound, caseSensitive);
+  }
+
+  public Evaluator(StructType struct, Expression unbound, Map<Integer, Accessor<StructLike>> accessors,
+                   boolean caseSensitive) {
+    this.expr = Binder.bind(struct, unbound, accessors, caseSensitive);
   }
 
   public boolean eval(StructLike data) {
