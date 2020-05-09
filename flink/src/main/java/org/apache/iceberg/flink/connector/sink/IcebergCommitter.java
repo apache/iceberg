@@ -51,6 +51,7 @@ import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
@@ -381,7 +382,7 @@ public class IcebergCommitter extends RichSinkFunction<FlinkDataFile>
       // Iceberg requires file format suffix right now
       final String manifestFileNameWithSuffix = manifestFileName + ".avro";
       OutputFile outputFile = io.newOutputFile(icebergManifestFileDir + manifestFileNameWithSuffix);
-      ManifestWriter manifestWriter = ManifestWriter.write(spec, outputFile);  // TODO: deprecating
+      ManifestWriter manifestWriter = ManifestFiles.write(spec, outputFile);
 
       // stats
       long recordCount = 0;
