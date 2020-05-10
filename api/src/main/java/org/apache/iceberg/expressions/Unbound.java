@@ -43,7 +43,7 @@ public interface Unbound<T, B> {
    * Bind this value expression to concrete types.
    *
    * @param struct input data types
-   * @param accessors the accessors for the struct
+   * @param accessors the accessors for the struct like value
    * @param caseSensitive whether binding should match columns using case sensitive resolution
    * @return a bound value expression
    */

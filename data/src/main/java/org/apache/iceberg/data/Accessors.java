@@ -37,13 +37,6 @@ public class Accessors {
   private Accessors() {
   }
 
-  public static Integer toPosition(Accessor<StructLike> accessor) {
-    if (accessor instanceof PositionAccessor) {
-      return ((PositionAccessor) accessor).position();
-    }
-    throw new IllegalArgumentException("Cannot convert nested accessor to position");
-  }
-
   static Map<Integer, Accessor<StructLike>> forSchema(Schema schema) {
     return TypeUtil.visit(schema, new BuildPositionAccessors());
   }

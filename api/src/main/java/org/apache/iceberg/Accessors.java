@@ -20,13 +20,6 @@
 package org.apache.iceberg;
 
 import com.google.common.collect.Maps;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.types.Type;
@@ -34,9 +27,6 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 public class Accessors {
-  private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
-  private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
-
   private Accessors() {
   }
 
@@ -194,47 +184,6 @@ public class Accessors {
       return new Position3Accessor(pos, (Position2Accessor) accessor);
     } else {
       return new WrappedPositionAccessor(pos, accessor);
-    }
-  }
-
-  private static class DateAccessor extends PositionAccessor {
-    private DateAccessor(int pos, Type type) {
-      super(pos, type);
-    }
-
-    @Override
-    public Object get(StructLike record) {
-      LocalDate value = record.get(position(), LocalDate.class);
-      return (int) ChronoUnit.DAYS.between(EPOCH_DAY, value);
-    }
-  }
-
-  private static class TimeAccessor extends PositionAccessor {
-    private TimeAccessor(int pos, Type type) {
-      super(pos, type);
-    }
-
-    @Override
-    public Object get(StructLike record) {
-      LocalTime value = record.get(position(), LocalTime.class);
-      return value.toNanoOfDay() / 1000;
-    }
-  }
-
-  private static class TimeStampAccessor extends PositionAccessor {
-    private TimeStampAccessor(int pos, Type type) {
-      super(pos, type);
-    }
-
-    @Override
-    public Object get(StructLike record) {
-      if (((Types.TimestampType) type().asPrimitiveType()).shouldAdjustToUTC()) {
-        OffsetDateTime value = record.get(position(), OffsetDateTime.class);
-        return ChronoUnit.MICROS.between(EPOCH, value);
-      } else {
-        LocalDateTime value = record.get(position(), LocalDateTime.class);
-        return ChronoUnit.MICROS.between(EPOCH, value.atOffset(ZoneOffset.UTC));
-      }
     }
   }
 
