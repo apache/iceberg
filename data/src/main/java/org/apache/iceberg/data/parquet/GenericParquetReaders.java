@@ -245,6 +245,8 @@ public class GenericParquetReaders {
             }
           case TIME_MICROS:
             return new TimeReader(desc);
+          case TIME_MILLIS:
+            return new TimeMillisReader(desc);
           case DECIMAL:
             DecimalMetadata decimal = primitive.getDecimalMetadata();
             switch (primitive.getPrimitiveTypeName()) {
@@ -353,6 +355,17 @@ public class GenericParquetReaders {
     @Override
     public OffsetDateTime read(OffsetDateTime reuse) {
       return EPOCH.plus(column.nextLong() * 1000, ChronoUnit.MICROS);
+    }
+  }
+
+  private static class TimeMillisReader extends PrimitiveReader<LocalTime> {
+    private TimeMillisReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public LocalTime read(LocalTime reuse) {
+      return LocalTime.ofNanoOfDay(column.nextLong() * 1000000L);
     }
   }
 
