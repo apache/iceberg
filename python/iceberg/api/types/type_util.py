@@ -16,6 +16,7 @@
 # under the License.
 
 import math
+from typing import List
 
 from .type import (Type,
                    TypeID)
@@ -238,7 +239,6 @@ class VisitFieldFuture(object):
         return self.visitor.field(self.field, VisitFuture(self.field.type, self.visitor).get)
 
 
-@staticmethod
 def decimal_required_bytes(precision):
     if precision < 0 or precision > 40:
         raise RuntimeError("Unsupported decimal precision: %s" % precision)
@@ -451,11 +451,11 @@ class CheckCompatibility(CustomOrderSchemaVisitor):
     def read_compatibility_errors(read_schema, write_schema):
         visit(write_schema, CheckCompatibility(read_schema, False))
 
-    NO_ERRORS = []
+    NO_ERRORS: List[str] = []
 
     def __init__(self, schema, check_ordering):
         self.schema = schema
-        self.check_ordering
+        self.check_ordering = check_ordering
         self.current_type = None
 
     def schema(self, schema, struct_result):

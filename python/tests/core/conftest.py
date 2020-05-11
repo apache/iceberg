@@ -19,6 +19,7 @@ import os
 import random
 import tempfile
 import time
+from typing import Dict
 
 from iceberg.api import Files, PartitionSpec, Schema
 from iceberg.api.types import BooleanType, IntegerType, LongType, NestedField, StringType
@@ -35,8 +36,8 @@ from iceberg.exceptions import AlreadyExistsException, CommitFailedException
 import pytest
 
 SCHEMA = Schema([NestedField.optional(1, "b", BooleanType.get())])
-METADATA = dict()
-VERSIONS = dict()
+METADATA: Dict[str, TableMetadata] = dict()
+VERSIONS: Dict[str, int] = dict()
 
 
 class LocalTableOperations(TableOperations):

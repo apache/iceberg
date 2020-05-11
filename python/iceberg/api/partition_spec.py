@@ -231,7 +231,7 @@ class PartitionSpecBuilder(object):
         return self
 
     def year(self, source_name):
-        name = "%s_year".format(source_name)
+        name = f"{source_name}_year"
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
@@ -240,7 +240,7 @@ class PartitionSpecBuilder(object):
         return self
 
     def month(self, source_name):
-        name = "%s_month".format(source_name)
+        name = f"{source_name}_month"
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
@@ -249,7 +249,7 @@ class PartitionSpecBuilder(object):
         return self
 
     def day(self, source_name):
-        name = "%s_day".format(source_name)
+        name = f"{source_name}_day"
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
@@ -258,7 +258,7 @@ class PartitionSpecBuilder(object):
         return self
 
     def hour(self, source_name):
-        name = "%s_hour".format(source_name)
+        name = f"{source_name}_hour"
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
@@ -267,7 +267,7 @@ class PartitionSpecBuilder(object):
         return self
 
     def bucket(self, source_name, num_buckets):
-        name = "%s_bucket".format(source_name)
+        name = f"{source_name}_bucket"
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
@@ -276,7 +276,7 @@ class PartitionSpecBuilder(object):
         return self
 
     def truncate(self, source_name, width):
-        name = "%s_truncate".format(source_name)
+        name = f"{source_name}_truncate"
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,

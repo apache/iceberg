@@ -38,7 +38,9 @@ matrix:
     install: pip install tox-travis "virtualenv<20.0.0"
     before_script:
       - cd python
-    script: tox
+    script:
+      - pre-commit run --all-files
+      - tox
     deploy:
       provider: pypi
       user: TBD

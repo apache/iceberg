@@ -17,7 +17,7 @@
 
 
 class Filterable(object):
-    ALL_COLUMNS = ("*",)
+    ALL_COLUMNS = ["*"]
 
     def select(self, columns):
         raise NotImplementedError()

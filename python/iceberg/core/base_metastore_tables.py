@@ -50,4 +50,4 @@ class BaseMetastoreTables(Tables):
         if warehouse_location is None:
             raise RuntimeError("Warehouse location is not set: hive.metastore.warehouse.dir=null")
 
-        return "%s/%s.db/%s".format(warehouse_location, database, table)
+        return f"{warehouse_location}/{database}.db/{table}"

@@ -37,9 +37,9 @@ _logger = logging.getLogger(__name__)
 
 class DataTableScan(BaseTableScan):
 
-    SNAPSHOT_COLUMNS = ("snapshot_id", "file_path", "file_ordinal", "file_format", "block_size_in_bytes",
+    SNAPSHOT_COLUMNS = ["snapshot_id", "file_path", "file_ordinal", "file_format", "block_size_in_bytes",
                         "file_size_in_bytes", "record_count", "partition", "value_counts", "null_value_counts",
-                        "lower_bounds", "upper_bounds")
+                        "lower_bounds", "upper_bounds"]
 
     def __init__(self, ops, table, schema=None, snapshot_id=None, row_filter=None,
                  case_sensitive=True, selected_columns=None, options=None, minused_cols=None):
