@@ -30,6 +30,14 @@ pip install -e .
 ```
 
 ## Testing
+
+Static analysis is done using pre-commit. This can easily be installed using:
+
+```bash
+pip install pre-commit
+pre-commit run --all-files
+```
+
 Testing is done using tox. The config can be found in `tox.ini` within the python directory of the iceberg project.
 
 ```
