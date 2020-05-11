@@ -104,7 +104,7 @@ apply from: 'deploy.gradle'
 apply from: 'tasks.gradle'
 apply from: 'jmh.gradle'
 
-project(':iceberg-relocate-external-dependencies') {
+project(':iceberg-bundled-guava') {
   apply plugin: 'com.github.johnrengelman.shadow'
   
   tasks.javadoc.enabled = false
@@ -144,7 +144,7 @@ project(':iceberg-relocate-external-dependencies') {
 
 project(':iceberg-api') {
   dependencies {
-    compile project(path: ':iceberg-relocate-external-dependencies', configuration: 'shadow')
+    compile project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     testCompile "org.apache.avro:avro"
     testCompile 'joda-time:joda-time'
   }
@@ -152,7 +152,7 @@ project(':iceberg-api') {
 
 project(':iceberg-common') {
   dependencies {
-    compile project(path: ':iceberg-relocate-external-dependencies', configuration: 'shadow')
+    compile project(path: ':iceberg-bundled-guava', configuration: 'shadow')
   }
 }
 
