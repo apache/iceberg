@@ -659,4 +659,513 @@ public class TestSchemaUpdate {
         }
     );
   }
+
+  @Test
+  public void testMultipleMoves() {
+    Schema schema = new Schema(
+        required(1, "a", Types.IntegerType.get()),
+        required(2, "b", Types.IntegerType.get()),
+        required(3, "c", Types.IntegerType.get()),
+        required(4, "d", Types.IntegerType.get()));
+
+    Schema expected = new Schema(
+        required(3, "c", Types.IntegerType.get()),
+        required(2, "b", Types.IntegerType.get()),
+        required(4, "d", Types.IntegerType.get()),
+        required(1, "a", Types.IntegerType.get()));
+
+    // moves are applied in order
+    Schema actual = new SchemaUpdate(schema, 4)
+        .moveFirst("d")
+        .moveFirst("c")
+        .moveAfter("b", "d")
+        .moveBefore("d", "a")
+        .apply();
+
+    Assert.assertEquals("Schema should match", expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testMoveTopLevelColumnFirst() {
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "data", Types.StringType.get()));
+    Schema expected = new Schema(
+        required(2, "data", Types.StringType.get()),
+        required(1, "id", Types.LongType.get()));
+
+    Schema actual = new SchemaUpdate(schema, 2)
+        .moveFirst("data")
+        .apply();
+
+    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testMoveTopLevelColumnBeforeFirst() {
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "data", Types.StringType.get()));
+    Schema expected = new Schema(
+        required(2, "data", Types.StringType.get()),
+        required(1, "id", Types.LongType.get()));
+
+    Schema actual = new SchemaUpdate(schema, 2)
+        .moveBefore("data", "id")
+        .apply();
+
+    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testMoveTopLevelColumnAfterLast() {
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "data", Types.StringType.get()));
+    Schema expected = new Schema(
+        required(2, "data", Types.StringType.get()),
+        required(1, "id", Types.LongType.get()));
+
+    Schema actual = new SchemaUpdate(schema, 2)
+        .moveAfter("id", "data")
+        .apply();
+
+    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testMoveTopLevelColumnAfter() {
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "data", Types.StringType.get()),
+        optional(3, "ts", Types.TimestampType.withZone()));
+    Schema expected = new Schema(
+        required(1, "id", Types.LongType.get()),
+        optional(3, "ts", Types.TimestampType.withZone()),
+        required(2, "data", Types.StringType.get()));
+
+    Schema actual = new SchemaUpdate(schema, 3)
+        .moveAfter("ts", "id")
+        .apply();
+
+    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testMoveTopLevelColumnBefore() {
+    Schema schema = new Schema(
+        optional(3, "ts", Types.TimestampType.withZone()),
+        required(1, "id", Types.LongType.get()),
+        required(2, "data", Types.StringType.get()));
+    Schema expected = new Schema(
+        required(1, "id", Types.LongType.get()),
+        optional(3, "ts", Types.TimestampType.withZone()),
+        required(2, "data", Types.StringType.get()));
+
+    Schema actual = new SchemaUpdate(schema, 3)
+        .moveBefore("ts", "data")
+        .apply();
+
+    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testMoveNestedFieldFirst() {
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "struct", Types.StructType.of(
+            required(3, "count", Types.LongType.get()),
+            required(4, "data", Types.StringType.get()))));
+    Schema expected = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "struct", Types.StructType.of(
+            required(4, "data", Types.StringType.get()),
+            required(3, "count", Types.LongType.get()))));
+
+    Schema actual = new SchemaUpdate(schema, 4)
+        .moveFirst("struct.data")
+        .apply();
+
+    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testMoveNestedFieldBeforeFirst() {
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "struct", Types.StructType.of(
+            required(3, "count", Types.LongType.get()),
+            required(4, "data", Types.StringType.get()))));
+    Schema expected = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "struct", Types.StructType.of(
+            required(4, "data", Types.StringType.get()),
+            required(3, "count", Types.LongType.get()))));
+
+    Schema actual = new SchemaUpdate(schema, 4)
+        .moveBefore("struct.data", "struct.count")
+        .apply();
+
+    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testMoveNestedFieldAfterLast() {
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "struct", Types.StructType.of(
+            required(3, "count", Types.LongType.get()),
+            required(4, "data", Types.StringType.get()))));
+    Schema expected = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "struct", Types.StructType.of(
+            required(4, "data", Types.StringType.get()),
+            required(3, "count", Types.LongType.get()))));
+
+    Schema actual = new SchemaUpdate(schema, 4)
+        .moveAfter("struct.count", "struct.data")
+        .apply();
+
+    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testMoveNestedFieldAfter() {
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "struct", Types.StructType.of(
+            required(3, "count", Types.LongType.get()),
+            required(4, "data", Types.StringType.get()),
+            optional(5, "ts", Types.TimestampType.withZone()))));
+    Schema expected = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "struct", Types.StructType.of(
+            required(3, "count", Types.LongType.get()),
+            optional(5, "ts", Types.TimestampType.withZone()),
+            required(4, "data", Types.StringType.get()))));
+
+    Schema actual = new SchemaUpdate(schema, 5)
+        .moveAfter("struct.ts", "struct.count")
+        .apply();
+
+    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testMoveNestedFieldBefore() {
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "struct", Types.StructType.of(
+            optional(5, "ts", Types.TimestampType.withZone()),
+            required(3, "count", Types.LongType.get()),
+            required(4, "data", Types.StringType.get()))));
+    Schema expected = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "struct", Types.StructType.of(
+            required(3, "count", Types.LongType.get()),
+            optional(5, "ts", Types.TimestampType.withZone()),
+            required(4, "data", Types.StringType.get()))));
+
+    Schema actual = new SchemaUpdate(schema, 5)
+        .moveBefore("struct.ts", "struct.data")
+        .apply();
+
+    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testMoveListElementField() {
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "list", Types.ListType.ofOptional(6, Types.StructType.of(
+            optional(5, "ts", Types.TimestampType.withZone()),
+            required(3, "count", Types.LongType.get()),
+            required(4, "data", Types.StringType.get())))));
+    Schema expected = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "list", Types.ListType.ofOptional(6, Types.StructType.of(
+            required(3, "count", Types.LongType.get()),
+            optional(5, "ts", Types.TimestampType.withZone()),
+            required(4, "data", Types.StringType.get())))));
+
+    Schema actual = new SchemaUpdate(schema, 6)
+        .moveBefore("list.ts", "list.data")
+        .apply();
+
+    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testMoveMapValueStructField() {
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "map", Types.MapType.ofOptional(6, 7, Types.StringType.get(), Types.StructType.of(
+            optional(5, "ts", Types.TimestampType.withZone()),
+            required(3, "count", Types.LongType.get()),
+            required(4, "data", Types.StringType.get())))));
+    Schema expected = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "map", Types.MapType.ofOptional(6, 7, Types.StringType.get(), Types.StructType.of(
+            required(3, "count", Types.LongType.get()),
+            optional(5, "ts", Types.TimestampType.withZone()),
+            required(4, "data", Types.StringType.get())))));
+
+    Schema actual = new SchemaUpdate(schema, 7)
+        .moveBefore("map.ts", "map.data")
+        .apply();
+
+    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testMoveAddedTopLevelColumn() {
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "data", Types.StringType.get()));
+    Schema expected = new Schema(
+        required(1, "id", Types.LongType.get()),
+        optional(3, "ts", Types.TimestampType.withZone()),
+        required(2, "data", Types.StringType.get()));
+
+    Schema actual = new SchemaUpdate(schema, 2)
+        .addColumn("ts", Types.TimestampType.withZone())
+        .moveAfter("ts", "id")
+        .apply();
+
+    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testMoveAddedTopLevelColumnAfterAddedColumn() {
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "data", Types.StringType.get()));
+    Schema expected = new Schema(
+        required(1, "id", Types.LongType.get()),
+        optional(3, "ts", Types.TimestampType.withZone()),
+        optional(4, "count", Types.LongType.get()),
+        required(2, "data", Types.StringType.get()));
+
+    Schema actual = new SchemaUpdate(schema, 2)
+        .addColumn("ts", Types.TimestampType.withZone())
+        .addColumn("count", Types.LongType.get())
+        .moveAfter("ts", "id")
+        .moveAfter("count", "ts")
+        .apply();
+
+    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testMoveAddedNestedStructField() {
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "struct", Types.StructType.of(
+            required(3, "count", Types.LongType.get()),
+            required(4, "data", Types.StringType.get()))));
+    Schema expected = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "struct", Types.StructType.of(
+            optional(5, "ts", Types.TimestampType.withZone()),
+            required(3, "count", Types.LongType.get()),
+            required(4, "data", Types.StringType.get()))));
+
+    Schema actual = new SchemaUpdate(schema, 4)
+        .addColumn("struct", "ts", Types.TimestampType.withZone())
+        .moveBefore("struct.ts", "struct.count")
+        .apply();
+
+    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testMoveAddedNestedStructFieldBeforeAddedColumn() {
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "struct", Types.StructType.of(
+            required(3, "count", Types.LongType.get()),
+            required(4, "data", Types.StringType.get()))));
+    Schema expected = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "struct", Types.StructType.of(
+            optional(6, "size", Types.LongType.get()),
+            optional(5, "ts", Types.TimestampType.withZone()),
+            required(3, "count", Types.LongType.get()),
+            required(4, "data", Types.StringType.get()))));
+
+    Schema actual = new SchemaUpdate(schema, 4)
+        .addColumn("struct", "ts", Types.TimestampType.withZone())
+        .addColumn("struct", "size", Types.LongType.get())
+        .moveBefore("struct.ts", "struct.count")
+        .moveBefore("struct.size", "struct.ts")
+        .apply();
+
+    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testMoveSelfReferenceFails() {
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "data", Types.StringType.get()));
+
+    AssertHelpers.assertThrows("Should fail move for a field that is not in the schema",
+        IllegalArgumentException.class, "Cannot move id before itself", () ->
+            new SchemaUpdate(schema, 2)
+                .moveBefore("id", "id")
+                .apply());
+
+    AssertHelpers.assertThrows("Should fail move for a field that is not in the schema",
+        IllegalArgumentException.class, "Cannot move id after itself", () ->
+            new SchemaUpdate(schema, 2)
+                .moveAfter("id", "id")
+                .apply());
+  }
+
+  @Test
+  public void testMoveMissingColumnFails() {
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "data", Types.StringType.get()));
+
+    AssertHelpers.assertThrows("Should fail move for a field that is not in the schema",
+        IllegalArgumentException.class, "Cannot move missing column", () ->
+            new SchemaUpdate(schema, 2)
+                .moveFirst("items")
+                .apply());
+
+    AssertHelpers.assertThrows("Should fail move for a field that is not in the schema",
+        IllegalArgumentException.class, "Cannot move missing column", () ->
+            new SchemaUpdate(schema, 2)
+                .moveBefore("items", "id")
+                .apply());
+
+    AssertHelpers.assertThrows("Should fail move for a field that is not in the schema",
+        IllegalArgumentException.class, "Cannot move missing column", () ->
+            new SchemaUpdate(schema, 2)
+                .moveAfter("items", "data")
+                .apply());
+  }
+
+  @Test
+  public void testMoveBeforeAddFails() {
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "data", Types.StringType.get()));
+
+    AssertHelpers.assertThrows("Should fail move for a field that has not been added yet",
+        IllegalArgumentException.class, "Cannot move missing column", () ->
+            new SchemaUpdate(schema, 2)
+                .moveFirst("ts")
+                .addColumn("ts", Types.TimestampType.withZone())
+                .apply());
+
+    AssertHelpers.assertThrows("Should fail move for a field that has not been added yet",
+        IllegalArgumentException.class, "Cannot move missing column", () ->
+            new SchemaUpdate(schema, 2)
+                .moveBefore("ts", "id")
+                .addColumn("ts", Types.TimestampType.withZone())
+                .apply());
+
+    AssertHelpers.assertThrows("Should fail move for a field that has not been added yet",
+        IllegalArgumentException.class, "Cannot move missing column", () ->
+            new SchemaUpdate(schema, 2)
+                .moveAfter("ts", "data")
+                .addColumn("ts", Types.TimestampType.withZone())
+                .apply());
+  }
+
+  @Test
+  public void testMoveMissingReferenceColumnFails() {
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "data", Types.StringType.get()));
+
+    AssertHelpers.assertThrows("Should fail move before a field that is not in the schema",
+        IllegalArgumentException.class, "Cannot move id before missing column", () ->
+            new SchemaUpdate(schema, 2)
+                .moveBefore("id", "items")
+                .apply());
+
+    AssertHelpers.assertThrows("Should fail move after for a field that is not in the schema",
+        IllegalArgumentException.class, "Cannot move data after missing column", () ->
+            new SchemaUpdate(schema, 2)
+                .moveAfter("data", "items")
+                .apply());
+  }
+
+  @Test
+  public void testMovePrimitiveMapKeyFails() {
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "data", Types.StringType.get()),
+        optional(3, "map", Types.MapType.ofRequired(4, 5, Types.StringType.get(), Types.StringType.get())));
+
+    AssertHelpers.assertThrows("Should fail move for map key",
+        IllegalArgumentException.class, "Cannot move fields in non-struct type", () ->
+            new SchemaUpdate(schema, 5)
+                .moveBefore("map.key", "map.value")
+                .apply());
+  }
+
+  @Test
+  public void testMovePrimitiveMapValueFails() {
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "data", Types.StringType.get()),
+        optional(3, "map", Types.MapType.ofRequired(4, 5, Types.StringType.get(), Types.StructType.of())));
+
+    AssertHelpers.assertThrows("Should fail move for map value",
+        IllegalArgumentException.class, "Cannot move fields in non-struct type", () ->
+            new SchemaUpdate(schema, 5)
+                .moveBefore("map.value", "map.key")
+                .apply());
+  }
+
+  @Test
+  public void testMovePrimitiveListElementFails() {
+    Schema schema = new Schema(
+        required(1, "id", Types.LongType.get()),
+        required(2, "data", Types.StringType.get()),
+        optional(3, "list", Types.ListType.ofRequired(4, Types.StringType.get())));
+
+    AssertHelpers.assertThrows("Should fail move for list element",
+        IllegalArgumentException.class, "Cannot move fields in non-struct type", () ->
+            new SchemaUpdate(schema, 4)
+                .moveBefore("list.element", "list")
+                .apply());
+  }
+
+  @Test
+  public void testMoveTopLevelBetweenStructsFails() {
+    Schema schema = new Schema(
+        required(1, "a", Types.IntegerType.get()),
+        required(2, "b", Types.IntegerType.get()),
+        required(3, "struct", Types.StructType.of(
+            required(4, "x", Types.IntegerType.get()),
+            required(5, "y", Types.IntegerType.get()))));
+
+    AssertHelpers.assertThrows("Should fail move between separate structs",
+        IllegalArgumentException.class, "Cannot move field a to a different struct", () ->
+            new SchemaUpdate(schema, 5)
+                .moveBefore("a", "struct.x")
+                .apply());
+  }
+
+  @Test
+  public void testMoveBetweenStructsFails() {
+    Schema schema = new Schema(
+        required(1, "s1", Types.StructType.of(
+            required(3, "a", Types.IntegerType.get()),
+            required(4, "b", Types.IntegerType.get()))),
+        required(2, "s2", Types.StructType.of(
+            required(5, "x", Types.IntegerType.get()),
+            required(6, "y", Types.IntegerType.get()))));
+
+    AssertHelpers.assertThrows("Should fail move between separate structs",
+        IllegalArgumentException.class, "Cannot move field s2.x to a different struct", () ->
+            new SchemaUpdate(schema, 6)
+                .moveBefore("s2.x", "s1.a")
+                .apply());
+  }
 }

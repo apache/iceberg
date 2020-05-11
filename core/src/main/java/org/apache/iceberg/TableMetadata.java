@@ -48,10 +48,30 @@ public class TableMetadata {
   static final int SUPPORTED_TABLE_FORMAT_VERSION = 2;
   static final int INITIAL_SPEC_ID = 0;
 
+  /**
+   * @deprecated will be removed in 0.9.0; use newTableMetadata(Schema, PartitionSpec, String, Map) instead.
+   */
+  @Deprecated
+  public static TableMetadata newTableMetadata(TableOperations ops,
+                                               Schema schema,
+                                               PartitionSpec spec,
+                                               String location,
+                                               Map<String, String> properties) {
+    return newTableMetadata(schema, spec, location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+  }
+
   public static TableMetadata newTableMetadata(Schema schema,
                                                PartitionSpec spec,
                                                String location,
                                                Map<String, String> properties) {
+    return newTableMetadata(schema, spec, location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+  }
+
+  static TableMetadata newTableMetadata(Schema schema,
+                                        PartitionSpec spec,
+                                        String location,
+                                        Map<String, String> properties,
+                                        int formatVersion) {
     // reassign all column ids to ensure consistency
     AtomicInteger lastColumnId = new AtomicInteger(0);
     Schema freshSchema = TypeUtil.assignFreshIds(schema, lastColumnId::incrementAndGet);
@@ -70,7 +90,7 @@ public class TableMetadata {
     }
     PartitionSpec freshSpec = specBuilder.build();
 
-    return new TableMetadata(null, DEFAULT_TABLE_FORMAT_VERSION, UUID.randomUUID().toString(), location,
+    return new TableMetadata(null, formatVersion, UUID.randomUUID().toString(), location,
         INITIAL_SEQUENCE_NUMBER, System.currentTimeMillis(),
         lastColumnId.get(), freshSchema, INITIAL_SPEC_ID, ImmutableList.of(freshSpec),
         ImmutableMap.copyOf(properties), -1, ImmutableList.of(),

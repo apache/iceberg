@@ -235,7 +235,7 @@ class PartitionSpecBuilder(object):
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
-                                          source_name,
+                                          name,
                                           Transforms.year(source_column.types)))
         return self
 
@@ -244,7 +244,7 @@ class PartitionSpecBuilder(object):
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
-                                          source_name,
+                                          name,
                                           Transforms.month(source_column.types)))
         return self
 
@@ -253,7 +253,7 @@ class PartitionSpecBuilder(object):
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
-                                          source_name,
+                                          name,
                                           Transforms.day(source_column.types)))
         return self
 
@@ -262,7 +262,7 @@ class PartitionSpecBuilder(object):
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
-                                          source_name,
+                                          name,
                                           Transforms.hour(source_column.type)))
         return self
 
@@ -271,7 +271,7 @@ class PartitionSpecBuilder(object):
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
-                                          source_name,
+                                          name,
                                           Transforms.bucket(source_column.type, num_buckets)))
         return self
 
@@ -280,7 +280,7 @@ class PartitionSpecBuilder(object):
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
-                                          source_name,
+                                          name,
                                           Transforms.truncate(source_column.types, width)))
         return self
 

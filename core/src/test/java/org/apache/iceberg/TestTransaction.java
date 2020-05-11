@@ -31,8 +31,23 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.io.OutputFile;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestTransaction extends TableTestBase {
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { 1 },
+        new Object[] { 2 },
+    };
+  }
+
+  public TestTransaction(int formatVersion) {
+    super(formatVersion);
+  }
+
   @Test
   public void testEmptyTransaction() {
     Assert.assertEquals("Table should be on version 0", 0, (int) version());

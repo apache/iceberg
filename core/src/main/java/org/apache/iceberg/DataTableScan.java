@@ -26,12 +26,8 @@ import java.util.Collection;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.util.ThreadPools;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class DataTableScan extends BaseTableScan {
-  private static final Logger LOG = LoggerFactory.getLogger(DataTableScan.class);
-
   static final ImmutableList<String> SCAN_COLUMNS = ImmutableList.of(
       "snapshot_id", "file_path", "file_ordinal", "file_format", "block_size_in_bytes",
       "file_size_in_bytes", "record_count", "partition", "key_metadata"

@@ -38,12 +38,20 @@ public class TestTables {
 
   private TestTables() {}
 
-  public static TestTable create(File temp, String name, Schema schema, PartitionSpec spec) {
+  private static TestTable upgrade(File temp, String name, int newFormatVersion) {
+    TestTable table = load(temp, name);
+    TableOperations ops = table.ops();
+    TableMetadata base = ops.current();
+    ops.commit(base, ops.current().upgradeToFormatVersion(newFormatVersion));
+    return table;
+  }
+
+  public static TestTable create(File temp, String name, Schema schema, PartitionSpec spec, int formatVersion) {
     TestTableOperations ops = new TestTableOperations(name, temp);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
     }
-    ops.commit(null, TableMetadata.newTableMetadata(schema, spec, temp.toString(), ImmutableMap.of()));
+    ops.commit(null, TableMetadata.newTableMetadata(schema, spec, temp.toString(), ImmutableMap.of(), formatVersion));
     return new TestTable(ops, name);
   }
 
@@ -53,9 +61,10 @@ public class TestTables {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
     }
 
-    TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, temp.toString(), ImmutableMap.of());
+    TableMetadata metadata = TableMetadata.newTableMetadata(
+        schema, spec, temp.toString(), ImmutableMap.of(), 1);
 
-    return Transactions.createTableTransaction(ops, metadata);
+    return Transactions.createTableTransaction(name, ops, metadata);
   }
 
   public static Transaction beginReplace(File temp, String name, Schema schema, PartitionSpec spec) {
@@ -70,10 +79,10 @@ public class TestTables {
     TableMetadata metadata;
     if (current != null) {
       metadata = current.buildReplacement(schema, spec, properties);
-      return Transactions.replaceTableTransaction(ops, metadata);
+      return Transactions.replaceTableTransaction(name, ops, metadata);
     } else {
       metadata = newTableMetadata(schema, spec, temp.toString(), properties);
-      return Transactions.createTableTransaction(ops, metadata);
+      return Transactions.createTableTransaction(name, ops, metadata);
     }
   }
 

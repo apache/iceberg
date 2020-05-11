@@ -35,6 +35,7 @@ import org.apache.spark.sql.sources.v2.DataSourceOptions;
 import org.apache.spark.sql.sources.v2.writer.WriterCommitMessage;
 import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
+import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,8 +50,8 @@ public class StreamingWriter extends Writer implements StreamWriter {
 
   StreamingWriter(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
                   DataSourceOptions options, String queryId, OutputMode mode, String applicationId,
-                  Schema dsSchema) {
-    super(table, io, encryptionManager, options, false, applicationId, dsSchema);
+                  Schema writeSchema, StructType dsSchema) {
+    super(table, io, encryptionManager, options, false, applicationId, writeSchema, dsSchema);
     this.queryId = queryId;
     this.mode = mode;
   }

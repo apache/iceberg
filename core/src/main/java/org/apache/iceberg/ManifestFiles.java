@@ -20,10 +20,8 @@
 package org.apache.iceberg;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.util.Map;
-import java.util.Set;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -73,7 +71,6 @@ public class ManifestFiles {
    * @return a manifest writer
    */
   public static ManifestWriter write(PartitionSpec spec, OutputFile outputFile) {
-    // always use a v1 writer for appended manifests because sequence number must be inherited
     return write(1, spec, outputFile, null);
   }
 
@@ -86,7 +83,7 @@ public class ManifestFiles {
    * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
    * @return a manifest writer
    */
-  static ManifestWriter write(int formatVersion, PartitionSpec spec, OutputFile outputFile, Long snapshotId) {
+  public static ManifestWriter write(int formatVersion, PartitionSpec spec, OutputFile outputFile, Long snapshotId) {
     switch (formatVersion) {
       case 1:
         return new ManifestWriter.V1Writer(spec, outputFile, snapshotId);
@@ -96,23 +93,45 @@ public class ManifestFiles {
     throw new UnsupportedOperationException("Cannot write manifest for table version: " + formatVersion);
   }
 
-  static ManifestFile copyAppendManifest(int formatVersion, ManifestReader reader, OutputFile outputFile,
-                                         long snapshotId, SnapshotSummary.Builder summaryBuilder) {
-    return copyManifest(
-        formatVersion, reader, outputFile, snapshotId, summaryBuilder, Sets.newHashSet(ManifestEntry.Status.ADDED));
+  static ManifestFile copyAppendManifest(int formatVersion,
+                                         InputFile toCopy, Map<Integer, PartitionSpec> specsById,
+                                         OutputFile outputFile, long snapshotId,
+                                         SnapshotSummary.Builder summaryBuilder) {
+    // use metadata that will add the current snapshot's ID for the rewrite
+    InheritableMetadata inheritableMetadata = InheritableMetadataFactory.forCopy(snapshotId);
+    try (ManifestReader reader = new ManifestReader(toCopy, specsById, inheritableMetadata)) {
+      return copyManifestInternal(
+          formatVersion, reader, outputFile, snapshotId, summaryBuilder, ManifestEntry.Status.ADDED);
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to close manifest: %s", toCopy.location());
+    }
   }
 
-  static ManifestFile copyManifest(int formatVersion, ManifestReader reader, OutputFile outputFile, long snapshotId,
-                                   SnapshotSummary.Builder summaryBuilder,
-                                   Set<ManifestEntry.Status> allowedEntryStatuses) {
+  static ManifestFile copyRewriteManifest(int formatVersion,
+                                          InputFile toCopy, Map<Integer, PartitionSpec> specsById,
+                                          OutputFile outputFile, long snapshotId,
+                                          SnapshotSummary.Builder summaryBuilder) {
+    // for a rewritten manifest all snapshot ids should be set. use empty metadata to throw an exception if it is not
+    InheritableMetadata inheritableMetadata = InheritableMetadataFactory.empty();
+    try (ManifestReader reader = new ManifestReader(toCopy, specsById, inheritableMetadata)) {
+      return copyManifestInternal(
+          formatVersion, reader, outputFile, snapshotId, summaryBuilder, ManifestEntry.Status.EXISTING);
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to close manifest: %s", toCopy.location());
+    }
+  }
+
+  private static ManifestFile copyManifestInternal(int formatVersion, ManifestReader reader, OutputFile outputFile,
+                                                   long snapshotId, SnapshotSummary.Builder summaryBuilder,
+                                                   ManifestEntry.Status allowedEntryStatus) {
     ManifestWriter writer = write(formatVersion, reader.spec(), outputFile, snapshotId);
     boolean threw = true;
     try {
       for (ManifestEntry entry : reader.entries()) {
         Preconditions.checkArgument(
-            allowedEntryStatuses.contains(entry.status()),
-            "Invalid manifest entry status: %s (allowed statuses: %s)",
-            entry.status(), allowedEntryStatuses);
+            allowedEntryStatus == entry.status(),
+            "Invalid manifest entry status: %s (allowed status: %s)",
+            entry.status(), allowedEntryStatus);
         switch (entry.status()) {
           case ADDED:
             summaryBuilder.addedFile(reader.spec(), entry.file());

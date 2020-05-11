@@ -117,6 +117,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
       return wrapper.wrap(manifest);
     }
 
+    @Override
     protected FileAppender<ManifestFile> newAppender(OutputFile file, Map<String, String> meta) {
       try {
         return Avro.write(file)

@@ -25,7 +25,7 @@ import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.types.Types;
 
-class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData.SchemaConstructable {
+class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData.SchemaConstructable, StructLike {
   private final org.apache.avro.Schema schema;
   private final V1Metadata.IndexedDataFile fileWrapper;
   private Status status = Status.EXISTING;
@@ -82,6 +82,7 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
   /**
    * @return the status of the file, whether EXISTING, ADDED, or DELETED
    */
+  @Override
   public Status status() {
     return status;
   }
@@ -89,6 +90,7 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
   /**
    * @return id of the snapshot in which the file was added to the table
    */
+  @Override
   public Long snapshotId() {
     return snapshotId;
   }
@@ -101,14 +103,17 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
   /**
    * @return a file
    */
+  @Override
   public DataFile file() {
     return file;
   }
 
+  @Override
   public ManifestEntry copy() {
     return new GenericManifestEntry(this, true /* full copy */);
   }
 
+  @Override
   public ManifestEntry copyWithoutStats() {
     return new GenericManifestEntry(this, false /* drop stats */);
   }
@@ -144,6 +149,11 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
   }
 
   @Override
+  public <T> void set(int pos, T value) {
+    put(pos, value);
+  }
+
+  @Override
   public Object get(int i) {
     switch (i) {
       case 0:
@@ -164,8 +174,18 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
   }
 
   @Override
+  public <T> T get(int pos, Class<T> javaClass) {
+    return javaClass.cast(get(pos));
+  }
+
+  @Override
   public org.apache.avro.Schema getSchema() {
     return schema;
+  }
+
+  @Override
+  public int size() {
+    return 4;
   }
 
   @Override

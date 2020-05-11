@@ -160,4 +160,14 @@ public class ParquetTypeVisitor<T> {
   public T primitive(PrimitiveType primitive) {
     return null;
   }
+
+  protected String[] currentPath() {
+    return Lists.newArrayList(fieldNames.descendingIterator()).toArray(new String[0]);
+  }
+
+  protected String[] path(String name) {
+    List<String> list = Lists.newArrayList(fieldNames.descendingIterator());
+    list.add(name);
+    return list.toArray(new String[0]);
+  }
 }

@@ -39,6 +39,7 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
@@ -144,12 +145,20 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
   private Schema lazySchema() {
     if (schema == null) {
       if (requestedSchema != null) {
-        this.schema = SparkSchemaUtil.prune(table.schema(), requestedSchema);
+        // the projection should include all columns that will be returned, including those only used in filters
+        this.schema = SparkSchemaUtil.prune(table.schema(), requestedSchema, filterExpression(), caseSensitive);
       } else {
         this.schema = table.schema();
       }
     }
     return schema;
+  }
+
+  private Expression filterExpression() {
+    if (filterExpressions != null) {
+      return filterExpressions.stream().reduce(Expressions.alwaysTrue(), Expressions::and);
+    }
+    return Expressions.alwaysTrue();
   }
 
   private StructType lazyType() {

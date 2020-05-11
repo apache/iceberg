@@ -66,7 +66,7 @@ import org.slf4j.LoggerFactory;
  * <em>Note:</em> It is dangerous to call this action with a short retention interval as it might corrupt
  * the state of the table if another operation is writing at the same time.
  */
-public class RemoveOrphanFilesAction implements Action<List<String>> {
+public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
 
   private static final Logger LOG = LoggerFactory.getLogger(RemoveOrphanFilesAction.class);
 
@@ -94,6 +94,11 @@ public class RemoveOrphanFilesAction implements Action<List<String>> {
     this.table = table;
     this.ops = ((HasTableOperations) table).operations();
     this.location = table.location();
+  }
+
+  @Override
+  protected Table table() {
+    return table;
   }
 
   /**
@@ -247,18 +252,6 @@ public class RemoveOrphanFilesAction implements Action<List<String>> {
       }
     } catch (IOException e) {
       throw new RuntimeIOException(e);
-    }
-  }
-
-  private String metadataTableName(MetadataTableType type) {
-    String tableName = table.toString();
-    if (tableName.contains("/")) {
-      return tableName + "#" + type;
-    } else if (tableName.startsWith("hadoop.") || tableName.startsWith("hive.")) {
-      // HiveCatalog and HadoopCatalog prepend a logical name which we need to drop for Spark 2.4
-      return tableName.replaceFirst("(hadoop\\.)|(hive\\.)", "") + "." + type;
-    } else {
-      return tableName + "." + type;
     }
   }
 
