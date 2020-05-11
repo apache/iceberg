@@ -385,7 +385,7 @@ class DecimalType(PrimitiveType):
         return TypeID.DECIMAL
 
     def __repr__(self):
-        return "decimal(%s, %s)" % (self.precision, self.scale)
+        return "decimal({}, {})".format(self.precision, self.scale)
 
     def __str__(self):
         return self.__repr__()
@@ -433,7 +433,7 @@ class NestedField():
         return self.id
 
     def __repr__(self):
-        return "%s: %s: %s %s(%s)" % (self.id,
+        return "{}: {}: {} {}({})".format(self.id,
                                       self.name,
                                       "optional" if self.is_optional else "required",
                                       self.type,
@@ -700,7 +700,7 @@ class MapType(NestedType):
         return not self.is_value_optional()
 
     def __str__(self):
-        return "map<%s, %s>" % (self.key_field.type, self.value_field.type)
+        return "map<{}, {}>".format(self.key_field.type, self.value_field.type)
 
     def __eq__(self, other):
         if id(self) == id(other):

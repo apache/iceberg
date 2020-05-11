@@ -53,7 +53,7 @@ class BaseTable(Table):
 
     def snapshots_with_summary_property(self, prop_key, prop_val):
         if prop_key is None:
-            raise RuntimeError("Property Key cannot be None: (%s, %s)" % (prop_key, prop_val))
+            raise RuntimeError("Property Key cannot be None: ({}, {})".format(prop_key, prop_val))
 
         for snapshot in self.ops.current().snapshots:
             if prop_key in snapshot.summary.keys() and snapshot.summary.get(prop_key) == prop_val:

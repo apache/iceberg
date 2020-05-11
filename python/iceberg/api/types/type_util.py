@@ -492,7 +492,7 @@ class CheckCompatibility(CustomOrderSchemaVisitor):
                 if field is not None:
                     ordinal = id_to_ord[id]
                     if last_ordinal >= ordinal:
-                        errors.append("%s is out of order before %s" % (read_field.name,
+                        errors.append("{} is out of order before {}".format(read_field.name,
                                                                         new_struct.fields[last_ordinal].name))
                     last_ordinal = ordinal
 

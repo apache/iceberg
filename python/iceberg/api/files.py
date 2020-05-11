@@ -106,10 +106,10 @@ class SeekableFileInputStream(SeekableInputStream):
             return len(new_b), new_b
 
         if off is not None and read_len is None or off is None and read_len is not None:
-            raise RuntimeError("Invalid args: read_len(%s), off(%s)" % (read_len, off))
+            raise RuntimeError("Invalid args: read_len({}), off({})".format(read_len, off))
 
         if read_len < 0 or off < 0 or (len(b) - off < read_len):
-            raise RuntimeError("Invalid args: read_len(%s), off(%s), len_b_offset(%s)" % (read_len, off, len(b) - off))
+            raise RuntimeError("Invalid args: read_len({}), off({}), len_b_offset({})".format(read_len, off, len(b) - off))
 
         new_b = bytes(self.stream.read(read_len), "utf8")
 

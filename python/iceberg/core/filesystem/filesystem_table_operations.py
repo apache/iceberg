@@ -83,7 +83,7 @@ class FilesystemTableOperations(TableOperations):
         fs = get_fs(str(final_metadata_file), self.conf)
 
         if fs.exists(final_metadata_file):
-            raise CommitFailedException("Version %s already exists: %s" % (next_version, final_metadata_file))
+            raise CommitFailedException("Version {} already exists: {}".format(next_version, final_metadata_file))
 
         if not fs.rename(temp_metadata_file, final_metadata_file):
             raise CommitFailedException("Failed to commit changes using rename: %s" % final_metadata_file)

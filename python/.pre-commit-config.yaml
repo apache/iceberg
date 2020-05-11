@@ -5,3 +5,7 @@ repos:
     rev: v0.770
     hooks:
       - id: mypy
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v2.1.0
+    hooks:
+      - id: pyupgrade

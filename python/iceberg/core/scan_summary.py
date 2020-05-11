@@ -308,8 +308,8 @@ class PartitionMetrics(object):
         return self
 
     def __repr__(self):
-        items = ("%s=%r" % (k, v) for k, v in self.__dict__.items())
-        return "%s(%s)" % (self.__class__.__name__, ','.join(items))
+        items = ("{}={!r}".format(k, v) for k, v in self.__dict__.items())
+        return "{}({})".format(self.__class__.__name__, ','.join(items))
 
     def __str__(self):
         return self.__repr__()

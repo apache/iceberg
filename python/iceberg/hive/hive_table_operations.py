@@ -37,12 +37,12 @@ class HiveTableOperations(BaseMetastoreTableOperations):
         table_type = tbl_info.parameters.get(BaseMetastoreTableOperations.TABLE_TYPE_PROP)
 
         if table_type is None or table_type.lower() != BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE:
-            raise RuntimeError("Invalid table, not Iceberg: %s.%s" % (self.database,
+            raise RuntimeError("Invalid table, not Iceberg: {}.{}".format(self.database,
                                                                       self.table))
 
         metadata_location = tbl_info.parameters.get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP)
         if metadata_location is None:
-            raise RuntimeError("Invalid table, missing metadata_location: %s.%s" % (self.database,
+            raise RuntimeError("Invalid table, missing metadata_location: {}.{}".format(self.database,
                                                                                     self.table))
 
         self.refresh_from_metadata_location(metadata_location)

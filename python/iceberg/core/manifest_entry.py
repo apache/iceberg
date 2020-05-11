@@ -49,7 +49,7 @@ class ManifestEntry():
             self.file = to_copy.file.copy()
 
         if self.schema is None:
-            raise RuntimeError("Invalid arguments schema=%s, partition_type=%s, to_copy=%s" % (self.schema,
+            raise RuntimeError("Invalid arguments schema={}, partition_type={}, to_copy={}".format(self.schema,
                                                                                                partition_type,
                                                                                                to_copy))
 
@@ -112,7 +112,7 @@ class ManifestEntry():
             return self.file
 
     def __repr__(self):
-        return "ManifestEntry(status=%s, snapshot_id=%s, file=%s" % (self.status, self.snapshot_id, self.file)
+        return "ManifestEntry(status={}, snapshot_id={}, file={}".format(self.status, self.snapshot_id, self.file)
 
     def __str__(self):
         return self.__repr__()

@@ -93,6 +93,6 @@ class DataTableScan(BaseTableScan):
             try:
                 return int(scan_split_size_str)
             except ValueError:
-                _logger.warning("Invalid %s option: %s" % (TableProperties.SPLIT_SIZE, scan_split_size_str))
+                _logger.warning("Invalid {} option: {}".format(TableProperties.SPLIT_SIZE, scan_split_size_str))
 
         return int(self.ops.current().properties.get(TableProperties.SPLIT_SIZE, TableProperties.SPLIT_SIZE_DEFAULT))

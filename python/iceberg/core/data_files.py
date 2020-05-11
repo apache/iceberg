@@ -50,11 +50,11 @@ class DataFiles(object):
 
         partitions = partition_path.split("/")
         if len(partitions) > len(spec.fields):
-            raise RuntimeError("Invalid partition data, too many fields (expecting %s): %s" % (len(spec.fields),
+            raise RuntimeError("Invalid partition data, too many fields (expecting {}): {}".format(len(spec.fields),
                                                                                                partition_path))
 
         if len(partitions) < len(spec.fields):
-            raise RuntimeError("Invalid partition data, not enough fields(expecting %s): %s" % (len(spec.fields),
+            raise RuntimeError("Invalid partition data, not enough fields(expecting {}): {}".format(len(spec.fields),
                                                                                                 partition_path))
 
         for i, part in enumerate(partitions):

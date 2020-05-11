@@ -203,7 +203,7 @@ class AvroToIceberg(object):
         avro_field_type = avro_field.get(AvroToIceberg.FIELD_TYPE_PROP)
         avro_logical_type = avro_field.get(AvroToIceberg.FIELD_LOGICAL_TYPE_PROP)
         if avro_field_type != "array" or avro_logical_type != "map":
-            raise RuntimeError("Avro type must be array and logical type must be map: %s" % (avro_field_type,
+            raise RuntimeError("Avro type must be array and logical type must be map: {}".format(avro_field_type,
                                                                                              avro_logical_type))
         is_optional = False
         items = avro_field.get(AvroToIceberg.FIELD_ITEMS_PROP)
@@ -267,7 +267,7 @@ class AvroToIceberg(object):
             return avro_row[field.name]
         except KeyError:
             if field.is_required:
-                raise RuntimeError("Field is required but missing in source %s\n%s:" % (field, avro_row))
+                raise RuntimeError("Field is required but missing in source {}\n{}:".format(field, avro_row))
 
     @staticmethod
     def get_field_from_struct(avro_row, field):
@@ -282,7 +282,7 @@ class AvroToIceberg(object):
             return avro_row[field.name]
         except KeyError:
             if field.is_required:
-                raise RuntimeError("Field is required but missing in source %s\n%s:" % (field, avro_row))
+                raise RuntimeError("Field is required but missing in source {}\n{}:".format(field, avro_row))
 
     @staticmethod
     def get_field_from_map(avro_row, field):
@@ -292,7 +292,7 @@ class AvroToIceberg(object):
             avro_value = avro_row[field.name]
         except KeyError:
             if field.is_required:
-                raise RuntimeError("Field is required but missing in source %s\n%s:" % (field, avro_row))
+                raise RuntimeError("Field is required but missing in source {}\n{}:".format(field, avro_row))
             else:
                 return None
 

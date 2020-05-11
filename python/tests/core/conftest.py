@@ -68,7 +68,7 @@ class LocalTableOperations(TableOperations):
 def create(temp, name, schema, spec):
     ops = TestTableOperations(name, temp)
     if ops.current() is not None:
-        raise AlreadyExistsException("Table %s already exists at location: %s" % (name, temp))
+        raise AlreadyExistsException("Table {} already exists at location: {}".format(name, temp))
     ops.commit(None, TableMetadata.new_table_metadata(ops, schema, spec, str(temp)))
     return TestTable(ops, name)
 
@@ -148,7 +148,7 @@ class TestTables(object):
         ops = TestTableOperations(name, temp)
 
         if ops.current() is not None:
-            raise RuntimeError("Table %s already exists at location: %s" % (name, temp))
+            raise RuntimeError("Table {} already exists at location: {}".format(name, temp))
 
         ops.commit(None, TableMetadata.new_table_metadata(ops, schema, spec, str(temp)))
         return TestTable(ops, name)

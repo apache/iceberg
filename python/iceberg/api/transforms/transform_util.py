@@ -26,16 +26,16 @@ class TransformUtil(object):
 
     @staticmethod
     def human_year(year_ordinal):
-        return "{0:0=4d}".format(TransformUtil.EPOCH_YEAR + year_ordinal)
+        return "{:0=4d}".format(TransformUtil.EPOCH_YEAR + year_ordinal)
 
     @staticmethod
     def human_month(month_ordinal):
-        return "{0:0=4d}-{1:0=2d}".format(TransformUtil.EPOCH_YEAR + int(month_ordinal / 12), 1 + int(month_ordinal % 12))
+        return "{:0=4d}-{:0=2d}".format(TransformUtil.EPOCH_YEAR + int(month_ordinal / 12), 1 + int(month_ordinal % 12))
 
     @staticmethod
     def human_day(day_ordinal):
         day = TransformUtil.EPOCH + timedelta(days=day_ordinal)
-        return "{0:0=4d}-{1:0=2d}-{2:0=2d}".format(day.year, day.month, day.day)
+        return "{:0=4d}-{:0=2d}-{:0=2d}".format(day.year, day.month, day.day)
 
     @staticmethod
     def human_time(micros_from_midnight):
@@ -55,7 +55,7 @@ class TransformUtil(object):
     @staticmethod
     def human_hour(hour_ordinal):
         time = TransformUtil.EPOCH + timedelta(hours=hour_ordinal)
-        return "{0:0=4d}-{1:0=2d}-{2:0=2d}-{3:0=2d}".format(time.year, time.month, time.day, time.hour)
+        return "{:0=4d}-{:0=2d}-{:0=2d}-{:0=2d}".format(time.year, time.month, time.day, time.hour)
 
     @staticmethod
     def base_64_encode(buffer):

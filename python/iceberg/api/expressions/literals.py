@@ -381,7 +381,7 @@ class StringLiteral(BaseLiteral):
             timestamp = dateutil.parser.parse(self.value)
             EPOCH = Literals.EPOCH
             if bool(timestamp.tzinfo) != bool(type_var.adjust_to_utc):
-                raise RuntimeError("Cannot convert to %s when string is: %s" % (type_var, self.value))
+                raise RuntimeError("Cannot convert to {} when string is: {}".format(type_var, self.value))
 
             if timestamp.tzinfo is not None:
                 EPOCH = EPOCH.replace(tzinfo=pytz.UTC)
