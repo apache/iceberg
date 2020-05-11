@@ -25,6 +25,7 @@ remote_branch: asf-site
 use_directory_urls: true
 
 theme: cinder
+copyright: "Copyright 2018-2020 <a href='https://www.apache.org/'>The Apache Software Foundation</a><br />Apache Iceberg, Iceberg, Apache, the Apache feather logo, and the Apache Iceberg project logo are either registered<br />trademarks or trademarks of The Apache Software Foundation in the United States and other countries."
 extra_css:
   - css/extra.css
 plugins:
@@ -44,6 +45,7 @@ nav:
     - Community: community.md
     - Releases: releases.md
     - Disclaimer: disclaimer.md
+    - Trademarks: trademarks.md
     - How to Release: how-to-release.md
   - User docs:
     - Getting Started: getting-started.md
@@ -72,5 +74,11 @@ nav:
     - Definitions: terms.md
     - Spec: spec.md
   - Iceberg on GitHub: https://github.com/apache/incubator-iceberg
+  - ASF:
+    - License: https://www.apache.org/licenses/
+    - Security: https://www.apache.org/security/
+    - Sponsors: https://www.apache.org/foundation/thanks.html
+    - Donate: https://www.apache.org/foundation/sponsorship.html
+    - Events: https://www.apache.org/events/current-event.html
 redirects:
   time-travel/index: snapshots/index
