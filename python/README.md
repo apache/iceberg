@@ -34,7 +34,7 @@ pip install -e .
 Static analysis is done using pre-commit. This can easily be installed using:
 
 ```bash
-pip install pre-commit
+pip install -e .[dev]__
 pre-commit run --all-files
 ```
 
