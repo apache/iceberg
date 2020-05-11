@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.catalog;
 
-import com.google.common.shaded.base.Preconditions;
-import com.google.common.shaded.base.Splitter;
-import com.google.common.shaded.collect.Iterables;
 import java.util.Arrays;
 import java.util.Objects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 /**
  * Identifies a table in iceberg catalog.

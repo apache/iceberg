@@ -113,7 +113,7 @@ project(':iceberg-relocate-external-dependencies') {
   tasks.install.dependsOn tasks.shadowJar
   
   dependencies {    
-    compile('com.google.guava:guava:28.0-jre') {
+    compile('com.google.guava:guava') {
       exclude group: 'com.google.code.findbugs'
       // may be LGPL - use ALv2 findbugs-annotations instead
       exclude group: 'com.google.errorprone'
@@ -128,7 +128,6 @@ project(':iceberg-relocate-external-dependencies') {
     // include the LICENSE and NOTICE files for the shaded Jar
     from(projectDir) {
       include 'LICENSE'
-      include 'NOTICE'
     }
 
     dependencies {
@@ -137,7 +136,7 @@ project(':iceberg-relocate-external-dependencies') {
       exclude(dependency('org.checkerframework:checker-qual'))
     }
 
-    relocate 'com.google.common', 'com.google.common.shaded'
+    relocate 'com.google.common', 'org.apache.iceberg.relocated.com.google.common'
 
     minimize()
   }

@@ -19,12 +19,12 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.shaded.collect.ImmutableSet;
-import com.google.common.shaded.collect.Sets;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.StructType;
 

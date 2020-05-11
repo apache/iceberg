@@ -9,6 +9,7 @@ org.apache.spark:spark-avro_2.11 = 2.4.5
 org.apache.pig:pig = 0.14.0
 org.apache.commons:commons-lang3 = 3.9
 com.fasterxml.jackson.*:* = 2.10.0
+com.google.guava:guava = 28.0-jre
 com.github.ben-manes.caffeine:caffeine = 2.7.0
 org.apache.arrow:arrow-vector = 0.14.1
 

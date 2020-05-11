@@ -19,9 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.shaded.base.MoreObjects;
-import com.google.common.shaded.base.Objects;
-import com.google.common.shaded.collect.Lists;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
@@ -31,6 +28,9 @@ import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData.SchemaConstructable;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 
 public class GenericManifestFile

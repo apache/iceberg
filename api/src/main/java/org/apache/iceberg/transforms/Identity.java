@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.transforms;
 
-import com.google.common.shaded.base.Objects;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 

@@ -19,11 +19,11 @@
 
 package org.apache.iceberg;
 
-import com.google.common.shaded.collect.ImmutableMap;
 import java.util.Collection;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 class StaticTableScan extends BaseTableScan {
   private final Function<StaticTableScan, DataTask> buildTask;

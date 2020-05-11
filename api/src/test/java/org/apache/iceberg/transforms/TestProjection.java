@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.transforms;
 
-import com.google.common.shaded.collect.Lists;
 import java.util.List;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -30,6 +29,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Or;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
