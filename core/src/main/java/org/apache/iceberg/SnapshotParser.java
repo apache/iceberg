@@ -39,6 +39,7 @@ public class SnapshotParser {
 
   private static final String SNAPSHOT_ID = "snapshot-id";
   private static final String PARENT_SNAPSHOT_ID = "parent-snapshot-id";
+  private static final String DELTA_SNAPSHOT_ID = "delta-snapshot-id";
   private static final String TIMESTAMP_MS = "timestamp-ms";
   private static final String SUMMARY = "summary";
   private static final String OPERATION = "operation";
@@ -51,6 +52,9 @@ public class SnapshotParser {
     generator.writeNumberField(SNAPSHOT_ID, snapshot.snapshotId());
     if (snapshot.parentId() != null) {
       generator.writeNumberField(PARENT_SNAPSHOT_ID, snapshot.parentId());
+    }
+    if (snapshot.deltaSnapshotId() != null) {
+      generator.writeNumberField(DELTA_SNAPSHOT_ID, snapshot.deltaSnapshotId());
     }
     generator.writeNumberField(TIMESTAMP_MS, snapshot.timestampMillis());
 
@@ -108,6 +112,10 @@ public class SnapshotParser {
     if (node.has(PARENT_SNAPSHOT_ID)) {
       parentId = JsonUtil.getLong(PARENT_SNAPSHOT_ID, node);
     }
+    Long deltaId = null;
+    if (node.has(DELTA_SNAPSHOT_ID)) {
+      deltaId = JsonUtil.getLong(DELTA_SNAPSHOT_ID, node);
+    }
     long timestamp = JsonUtil.getLong(TIMESTAMP_MS, node);
 
     Map<String, String> summary = null;
@@ -142,7 +150,7 @@ public class SnapshotParser {
       // loaded lazily, if it is needed
       List<ManifestFile> manifests = Lists.transform(JsonUtil.getStringList(MANIFESTS, node),
           location -> new GenericManifestFile(io.newInputFile(location), 0));
-      return new BaseSnapshot(io, versionId, parentId, timestamp, operation, summary, manifests);
+      return new BaseSnapshot(io, versionId, parentId, timestamp, operation, summary, manifests, deltaId);
     }
   }
 

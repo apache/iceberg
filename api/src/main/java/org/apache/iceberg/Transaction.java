@@ -78,6 +78,13 @@ public interface Transaction {
   }
 
   /**
+   * Create a new {@link AppendDeltaFiles append API} to add delta files to this table.
+   *
+   * @return a new {@link AppendFiles}
+   */
+  AppendDeltaFiles newDeltaAppend();
+
+  /**
    * Create a new {@link RewriteFiles rewrite API} to replace files in this table.
    *
    * @return a new {@link RewriteFiles}

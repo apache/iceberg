@@ -21,6 +21,8 @@ package org.apache.iceberg;
 
 import java.util.List;
 import java.util.Map;
+
+import org.apache.iceberg.delta.DeltaTable;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -67,6 +69,20 @@ public class BaseTable implements Table, HasTableOperations {
   @Override
   public PrimaryKeySpec pkSpec() {
     return ops.current().pkSpec();
+  }
+
+  @Override
+  public boolean supportMutableIngestion() {
+    return ops.current().supportMutableIngestion();
+  }
+
+  @Override
+  public Table deltaTable() {
+    if (supportMutableIngestion()) {
+      return new DeltaTable(ops, this);
+    } else {
+      throw new UnsupportedOperationException("Table do not support mutable ingestion.");
+    }
   }
 
   @Override
@@ -152,6 +168,11 @@ public class BaseTable implements Table, HasTableOperations {
   @Override
   public DeleteFiles newDelete() {
     return new StreamingDelete(ops);
+  }
+
+  @Override
+  public AppendDeltaFiles newDeltaAppend() {
+    return new DeltaAppend(ops);
   }
 
   @Override

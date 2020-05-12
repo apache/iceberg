@@ -66,6 +66,24 @@ public interface Table {
   PrimaryKeySpec pkSpec();
 
   /**
+   * Return if the table support mutable ingestion.
+   *
+   * @return whether table support mutable ingestion
+   */
+  default boolean supportMutableIngestion() {
+    return false;
+  }
+
+  /**
+   * Return the delta table of this table.
+   *
+   * @return this table's delta table
+   */
+  default Table deltaTable() {
+    throw new UnsupportedOperationException("Table do not support mutable ingestion.");
+  }
+
+  /**
    * Return a map of {@link PartitionSpec partition specs} for this table.
    *
    * @return this table's partition specs map
@@ -198,6 +216,13 @@ public interface Table {
    * @return a new {@link DeleteFiles}
    */
   DeleteFiles newDelete();
+
+  /**
+   * Create a new {@link AppendDeltaFiles append API} to add delta files to this table and commit.
+   *
+   * @return a new {@link AppendDeltaFiles}
+   */
+  AppendDeltaFiles newDeltaAppend();
 
   /**
    * Create a new {@link ExpireSnapshots expire API} to manage snapshots in this table and commit.

@@ -138,6 +138,11 @@ abstract class BaseMetadataTable implements Table {
   }
 
   @Override
+  public AppendDeltaFiles newDeltaAppend() {
+    throw new UnsupportedOperationException("Cannot append to a metadata table");
+  }
+
+  @Override
   public ExpireSnapshots expireSnapshots() {
     throw new UnsupportedOperationException("Cannot expire snapshots from a metadata table");
   }

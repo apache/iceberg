@@ -9,8 +9,8 @@ import java.util.*;
 
 public class PrimaryKeySpec {
 
-  private static final String OFFSET_COLUMN = "_iceberg_offset";
-  private static final String DEL_COLUMN = "_iceberg_del";
+  public static final String OFFSET_COLUMN = "_iceberg_offset";
+  public static final String DEL_COLUMN = "_iceberg_del";
 
   private Schema schema;
   private final ImmutableList<PrimaryKeyField> pkFields;
@@ -56,10 +56,10 @@ public class PrimaryKeySpec {
   }
 
   /**
-   * Creates a new {@link PrimaryKeySpec.Builder partition spec builder} for the given {@link Schema}.
+   * Creates a new {@link PrimaryKeySpec.Builder primary key spec builder} for the given {@link Schema}.
    *
    * @param schema a schema
-   * @return a partition spec builder for the given schema
+   * @return a primary key spec builder for the given schema
    */
   public static Builder builderFor(Schema schema) {
     return new Builder(schema);

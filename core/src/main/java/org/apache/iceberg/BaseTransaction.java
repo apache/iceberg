@@ -134,6 +134,14 @@ class BaseTransaction implements Transaction {
   }
 
   @Override
+  public AppendDeltaFiles newDeltaAppend() {
+    checkLastOperationCommitted("AppendDeltaFiles");
+    DeltaAppend append = new DeltaAppend(transactionOps);
+    updates.add(append);
+    return append;
+  }
+
+  @Override
   public RewriteFiles newRewrite() {
     checkLastOperationCommitted("RewriteFiles");
     RewriteFiles rewrite = new BaseRewriteFiles(transactionOps);
@@ -578,6 +586,11 @@ class BaseTransaction implements Transaction {
     @Override
     public DeleteFiles newDelete() {
       return BaseTransaction.this.newDelete();
+    }
+
+    @Override
+    public AppendDeltaFiles newDeltaAppend() {
+      return null;
     }
 
     @Override

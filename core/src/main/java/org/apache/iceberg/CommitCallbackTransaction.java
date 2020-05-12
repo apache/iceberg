@@ -58,6 +58,11 @@ class CommitCallbackTransaction implements Transaction {
   }
 
   @Override
+  public AppendDeltaFiles newDeltaAppend() {
+    return wrapped.newDeltaAppend();
+  }
+
+  @Override
   public AppendFiles newAppend() {
     return wrapped.newAppend();
   }

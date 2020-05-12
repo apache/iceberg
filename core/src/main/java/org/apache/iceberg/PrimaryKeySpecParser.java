@@ -36,7 +36,7 @@ public class PrimaryKeySpecParser {
 
   private static void buildFromJsonFields(PrimaryKeySpec.Builder builder, JsonNode json) {
     Preconditions.checkArgument(json.isArray(),
-            "Cannot parse primary key spec fields, not an array: %s", json);
+              "Cannot parse primary key spec fields, not an array: %s", json);
 
     Iterator<JsonNode> elements = json.elements();
     while (elements.hasNext()) {

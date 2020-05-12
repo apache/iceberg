@@ -104,4 +104,11 @@ public interface Snapshot {
    * @return the location of the manifest list for this Snapshot
    */
   String manifestListLocation();
+
+  /**
+   * Return the delta snapshot ID which this snapshot depend on.
+   *
+   * @return a long ID
+   */
+  Long deltaSnapshotId();
 }

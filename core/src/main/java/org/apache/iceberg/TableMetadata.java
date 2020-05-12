@@ -28,6 +28,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,10 +43,12 @@ public class TableMetadata {
   static final int TABLE_FORMAT_VERSION = 1;
   static final int INITIAL_SPEC_ID = 0;
 
+  public static final String DELTA_FOLDER_NAME = "delta";
+
   public static TableMetadata newTableMetadata(Schema schema,
                                                PartitionSpec spec,
                                                String location) {
-    return newTableMetadata(schema, spec, null,
+    return newTableMetadata(schema, spec, PrimaryKeySpec.noPrimaryKey(),
             location, ImmutableMap.of());
   }
 
@@ -60,7 +63,7 @@ public class TableMetadata {
                                                PartitionSpec spec,
                                                String location,
                                                Map<String, String> properties) {
-    return newTableMetadata(schema, spec, null, location, ImmutableMap.of());
+    return newTableMetadata(schema, spec, PrimaryKeySpec.noPrimaryKey(), location, ImmutableMap.of());
   }
 
   public static TableMetadata newTableMetadata(Schema schema,
@@ -97,7 +100,7 @@ public class TableMetadata {
         System.currentTimeMillis(),
         lastColumnId.get(), freshSchema, INITIAL_SPEC_ID, ImmutableList.of(freshSpec),
         freshPkSpec, ImmutableMap.copyOf(properties), -1, ImmutableList.of(),
-        ImmutableList.of(), ImmutableList.of());
+        ImmutableList.of(), ImmutableList.of(), -1, ImmutableList.of());
   }
 
   public static class SnapshotLogEntry implements HistoryEntry {
@@ -206,6 +209,10 @@ public class TableMetadata {
   private final List<MetadataLogEntry> previousFiles;
 
   private final PrimaryKeySpec pkSpec;
+  private final String deltaLocation;
+  private final long currentDeltaSnapshotId;
+  private final List<DeltaSnapshot> deltaSnapshots;
+  private final Map<Long, DeltaSnapshot> deltaSnapshotsById;
 
   TableMetadata(InputFile file,
                 String uuid,
@@ -221,7 +228,8 @@ public class TableMetadata {
                 List<HistoryEntry> snapshotLog,
                 List<MetadataLogEntry> previousFiles) {
     this(file, uuid, location, lastUpdatedMillis, lastColumnId, schema, defaultSpecId, specs,
-          null, properties, currentSnapshotId, snapshots, snapshotLog, previousFiles);
+          PrimaryKeySpec.noPrimaryKey(), properties, currentSnapshotId, snapshots, snapshotLog,
+            previousFiles, -1L, ImmutableList.of());
   }
 
   TableMetadata(InputFile file,
@@ -237,7 +245,31 @@ public class TableMetadata {
                 long currentSnapshotId,
                 List<Snapshot> snapshots,
                 List<HistoryEntry> snapshotLog,
-                List<MetadataLogEntry> previousFiles) {
+                List<MetadataLogEntry> previousFiles,
+                long currentDeltaSnapshotId,
+                List<DeltaSnapshot> deltaSnapshots) {
+    this(file, uuid, location, produceDeltaLocation(location), lastUpdatedMillis, lastColumnId, schema, defaultSpecId, specs,
+            pkSpec, properties, currentSnapshotId, snapshots, snapshotLog,
+            previousFiles, currentDeltaSnapshotId, deltaSnapshots);
+  }
+
+  TableMetadata(InputFile file,
+                String uuid,
+                String location,
+                String deltaLocation,
+                long lastUpdatedMillis,
+                int lastColumnId,
+                Schema schema,
+                int defaultSpecId,
+                List<PartitionSpec> specs,
+                PrimaryKeySpec pkSpec,
+                Map<String, String> properties,
+                long currentSnapshotId,
+                List<Snapshot> snapshots,
+                List<HistoryEntry> snapshotLog,
+                List<MetadataLogEntry> previousFiles,
+                long currentDeltaSnapshotId,
+                List<DeltaSnapshot> deltaSnapshots) {
     this.file = file;
     this.uuid = uuid;
     this.location = location;
@@ -252,9 +284,13 @@ public class TableMetadata {
     this.snapshots = snapshots;
     this.snapshotLog = snapshotLog;
     this.previousFiles = previousFiles;
+    this.currentDeltaSnapshotId = currentDeltaSnapshotId;
+    this.deltaSnapshots = deltaSnapshots;
 
     this.snapshotsById = indexSnapshots(snapshots);
     this.specsById = indexSpecs(specs);
+    this.deltaSnapshotsById = indexDeltaSnapshots(deltaSnapshots);
+    this.deltaLocation = deltaLocation;
 
     HistoryEntry last = null;
     for (HistoryEntry logEntry : snapshotLog) {
@@ -322,7 +358,7 @@ public class TableMetadata {
   }
 
   public boolean supportMutableIngestion() {
-    return PrimaryKeySpec.noPrimaryKey().equals(pkSpec);
+    return !PrimaryKeySpec.noPrimaryKey().equals(pkSpec);
   }
 
   public Map<Integer, PartitionSpec> specsById() {
@@ -377,20 +413,30 @@ public class TableMetadata {
     return previousFiles;
   }
 
+  public DeltaSnapshot currentDeltaSnapshot() {
+    return deltaSnapshotsById.get(currentDeltaSnapshotId);
+  }
+
+  public String deltaLocation() {
+    return deltaLocation;
+  }
+
   public TableMetadata withUUID() {
     if (uuid != null) {
       return this;
     } else {
       return new TableMetadata(null, UUID.randomUUID().toString(), location,
           lastUpdatedMillis, lastColumnId, schema, defaultSpecId, specs, pkSpec, properties,
-          currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
+          currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis),
+          currentDeltaSnapshotId, deltaSnapshots);
     }
   }
 
   public TableMetadata updateTableLocation(String newLocation) {
     return new TableMetadata(null, uuid, newLocation,
         System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, pkSpec, properties,
-        currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
+        currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis),
+        currentDeltaSnapshotId, deltaSnapshots);
   }
 
   public TableMetadata updateSchema(Schema newSchema, int newLastColumnId) {
@@ -400,7 +446,8 @@ public class TableMetadata {
         spec -> updateSpecSchema(newSchema, spec));
     return new TableMetadata(null, uuid, location, System.currentTimeMillis(),
         newLastColumnId, newSchema, defaultSpecId, updatedSpecs, updatePkSchema(schema, pkSpec),
-        properties, currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
+        properties, currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis),
+        currentDeltaSnapshotId, deltaSnapshots);
   }
 
   public TableMetadata updatePartitionSpec(PartitionSpec newPartitionSpec) {
@@ -430,7 +477,8 @@ public class TableMetadata {
     return new TableMetadata(null, uuid, location,
         System.currentTimeMillis(), lastColumnId, schema, newDefaultSpecId,
         builder.build(), pkSpec,  properties,
-        currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
+        currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis),
+        currentDeltaSnapshotId, deltaSnapshots);
   }
 
   public TableMetadata addStagedSnapshot(Snapshot snapshot) {
@@ -440,7 +488,8 @@ public class TableMetadata {
         .build();
     return new TableMetadata(null, uuid, location, snapshot.timestampMillis(),
         lastColumnId, schema, defaultSpecId, specs, pkSpec, properties,
-        currentSnapshotId, newSnapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
+        currentSnapshotId, newSnapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis),
+        currentDeltaSnapshotId, deltaSnapshots);
   }
 
   public TableMetadata replaceCurrentSnapshot(Snapshot snapshot) {
@@ -459,7 +508,8 @@ public class TableMetadata {
         .build();
     return new TableMetadata(null, uuid, location,  snapshot.timestampMillis(),
             lastColumnId, schema, defaultSpecId, specs, pkSpec, properties,
-        snapshot.snapshotId(), newSnapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
+        snapshot.snapshotId(), newSnapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis),
+        currentDeltaSnapshotId, deltaSnapshots);
   }
 
   public TableMetadata removeSnapshotsIf(Predicate<Snapshot> removeIf) {
@@ -491,7 +541,7 @@ public class TableMetadata {
     return new TableMetadata(null, uuid, location,
         System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, pkSpec,
             properties, currentSnapshotId, filtered, ImmutableList.copyOf(newSnapshotLog),
-        addPreviousFile(file, lastUpdatedMillis));
+        addPreviousFile(file, lastUpdatedMillis), currentDeltaSnapshotId, deltaSnapshots);
   }
 
   private TableMetadata setCurrentSnapshotTo(Snapshot snapshot) {
@@ -511,14 +561,16 @@ public class TableMetadata {
 
     return new TableMetadata(null, uuid, location,
         nowMillis, lastColumnId, schema, defaultSpecId, specs, pkSpec, properties,
-        snapshot.snapshotId(), snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
+        snapshot.snapshotId(), snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis),
+        currentDeltaSnapshotId, deltaSnapshots);
   }
 
   public TableMetadata replaceProperties(Map<String, String> newProperties) {
     ValidationException.check(newProperties != null, "Cannot set properties to null");
     return new TableMetadata(null, uuid, location,
         System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, pkSpec, newProperties,
-        currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis, newProperties));
+        currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis, newProperties),
+        currentDeltaSnapshotId, deltaSnapshots);
   }
 
   public TableMetadata removeSnapshotLogEntries(Set<Long> snapshotIds) {
@@ -535,7 +587,8 @@ public class TableMetadata {
         "Cannot set invalid snapshot log: latest entry is not the current snapshot");
     return new TableMetadata(null, uuid, location,
         System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, pkSpec, properties,
-        currentSnapshotId, snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
+        currentSnapshotId, snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis),
+        currentDeltaSnapshotId, deltaSnapshots);
   }
 
   public TableMetadata buildReplacement(Schema updatedSchema, PartitionSpec updatedPartitionSpec,
@@ -575,13 +628,15 @@ public class TableMetadata {
     return new TableMetadata(null, uuid, location,
         System.currentTimeMillis(), nextLastColumnId.get(), freshSchema,
         specId, builder.build(), pkSpec, ImmutableMap.copyOf(newProperties),
-        -1, snapshots, ImmutableList.of(), addPreviousFile(file, lastUpdatedMillis, newProperties));
+        -1, snapshots, ImmutableList.of(), addPreviousFile(file, lastUpdatedMillis, newProperties),
+        currentDeltaSnapshotId, deltaSnapshots);
   }
 
   public TableMetadata updateLocation(String newLocation) {
     return new TableMetadata(null, uuid, newLocation,
         System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs, pkSpec, properties,
-        currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
+        currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis),
+        currentDeltaSnapshotId, deltaSnapshots);
   }
 
   private List<MetadataLogEntry> addPreviousFile(InputFile previousFile, long timestampMillis) {
@@ -655,5 +710,17 @@ public class TableMetadata {
       builder.put(spec.specId(), spec);
     }
     return builder.build();
+  }
+
+  private static Map<Long, DeltaSnapshot> indexDeltaSnapshots(List<DeltaSnapshot> snapshots) {
+    ImmutableMap.Builder<Long, DeltaSnapshot> builder = ImmutableMap.builder();
+    for (DeltaSnapshot version : snapshots) {
+      builder.put(version.snapshotId(), version);
+    }
+    return builder.build();
+  }
+
+  private static String produceDeltaLocation(String tableLocation) {
+    return String.format("%s/%s", tableLocation, DELTA_FOLDER_NAME);
   }
 }

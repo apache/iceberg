@@ -175,6 +175,11 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @Override
+  public String deltaManifestFileLocation(String fileName) {
+    return deltaManifestPath(fileName).toString();
+  }
+
+  @Override
   public TableOperations temp(TableMetadata uncommittedMetadata) {
     return new TableOperations() {
       @Override
@@ -250,6 +255,10 @@ public class HadoopTableOperations implements TableOperations {
 
   private Path metadataPath(String filename) {
     return new Path(new Path(location, "metadata"), filename);
+  }
+
+  private Path deltaManifestPath(String filename) {
+    return new Path(new Path(current().deltaLocation()), filename);
   }
 
   private Path versionHintFile() {

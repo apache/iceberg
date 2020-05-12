@@ -43,6 +43,8 @@ class BaseSnapshot implements Snapshot {
   private final String operation;
   private final Map<String, String> summary;
 
+  private final Long deltaSnapshotId;
+
   // lazily initialized
   private List<ManifestFile> manifests = null;
   private List<DataFile> cachedAdds = null;
@@ -66,6 +68,17 @@ class BaseSnapshot implements Snapshot {
                String operation,
                Map<String, String> summary,
                InputFile manifestList) {
+    this(io, snapshotId, parentId, timestampMillis, operation, summary, manifestList, (Long)null);
+  }
+
+  BaseSnapshot(FileIO io,
+               long snapshotId,
+               Long parentId,
+               long timestampMillis,
+               String operation,
+               Map<String, String> summary,
+               InputFile manifestList,
+               Long deltaSnapshotId) {
     this.io = io;
     this.snapshotId = snapshotId;
     this.parentId = parentId;
@@ -73,6 +86,7 @@ class BaseSnapshot implements Snapshot {
     this.operation = operation;
     this.summary = summary;
     this.manifestList = manifestList;
+    this.deltaSnapshotId = deltaSnapshotId;
   }
 
   BaseSnapshot(FileIO io,
@@ -83,6 +97,18 @@ class BaseSnapshot implements Snapshot {
                Map<String, String> summary,
                List<ManifestFile> manifests) {
     this(io, snapshotId, parentId, timestampMillis, operation, summary, (InputFile) null);
+    this.manifests = manifests;
+  }
+
+  BaseSnapshot(FileIO io,
+               long snapshotId,
+               Long parentId,
+               long timestampMillis,
+               String operation,
+               Map<String, String> summary,
+               List<ManifestFile> manifests,
+               Long deltaSnapshotId) {
+    this(io, snapshotId, parentId, timestampMillis, operation, summary, (InputFile) null, deltaSnapshotId);
     this.manifests = manifests;
   }
 
@@ -152,6 +178,11 @@ class BaseSnapshot implements Snapshot {
   @Override
   public String manifestListLocation() {
     return manifestList != null ? manifestList.location() : null;
+  }
+
+  @Override
+  public Long deltaSnapshotId() {
+    return deltaSnapshotId;
   }
 
   private void cacheChanges() {

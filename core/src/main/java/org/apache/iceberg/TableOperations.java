@@ -59,6 +59,12 @@ public interface TableOperations {
   void commit(TableMetadata base, TableMetadata metadata);
 
   /**
+   * Commit new delta files to table
+   * @param deltaSnapshot new delta snapshot with updates
+   */
+  default void deltaCommit(DeltaSnapshot deltaSnapshot) {}
+
+  /**
    * @return a {@link FileIO} to read and write table data and metadata files
    */
   FileIO io();
@@ -79,6 +85,15 @@ public interface TableOperations {
    * by e.g. {@link FileIO#newOutputFile(String)}.
    */
   String metadataFileLocation(String fileName);
+
+  /**
+   * Given the name of a delta manifest file, obtain the full path of that file using an appropriate base
+   * location of the implementation's choosing.
+   * <p>
+   * The file may not exist yet, in which case the path should be returned as if it were to be created
+   * by e.g. {@link FileIO#newOutputFile(String)}.
+   */
+  default String deltaManifestFileLocation(String fileName) {return null;}
 
   /**
    * Returns a {@link LocationProvider} that supplies locations for new new data files.

@@ -106,6 +106,8 @@ public class TableMetadataParser {
   static final String METADATA_LOG = "metadata-log";
 
   static final String PRIMARY_KEY = "pk";
+  static final String DELTA_LOCATION = "delta-location";
+  static final String DELTA_MANIFEST = "delta-manifest";
 
   public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
     internalWrite(metadata, outputFile, true);
@@ -160,6 +162,9 @@ public class TableMetadataParser {
     generator.writeNumberField(FORMAT_VERSION, TableMetadata.TABLE_FORMAT_VERSION);
     generator.writeStringField(TABLE_UUID, metadata.uuid());
     generator.writeStringField(LOCATION, metadata.location());
+    if (metadata.supportMutableIngestion()) {
+      generator.writeStringField(DELTA_LOCATION, metadata.deltaLocation());
+    }
     generator.writeNumberField(LAST_UPDATED_MILLIS, metadata.lastUpdatedMillis());
     generator.writeNumberField(LAST_COLUMN_ID, metadata.lastColumnId());
 
@@ -167,8 +172,10 @@ public class TableMetadataParser {
     SchemaParser.toJson(metadata.schema(), generator);
 
     // write primary key spec
-    generator.writeFieldName(PRIMARY_KEY_SPEC);
-    PrimaryKeySpecParser.toJsonFields(metadata.getPrimaryKeySpec(), generator);
+    if (metadata.supportMutableIngestion()) {
+      generator.writeFieldName(PRIMARY_KEY_SPEC);
+      PrimaryKeySpecParser.toJsonFields(metadata.getPrimaryKeySpec(), generator);
+    }
 
     // for older readers, continue writing the default spec as "partition-spec"
     generator.writeFieldName(PARTITION_SPEC);
@@ -244,7 +251,14 @@ public class TableMetadataParser {
     int lastAssignedColumnId = JsonUtil.getInt(LAST_COLUMN_ID, node);
     Schema schema = SchemaParser.fromJson(node.get(SCHEMA));
 
-    PrimaryKeySpec pkSpec = PrimaryKeySpecParser.fromJsonFields(schema, node.get(PRIMARY_KEY_SPEC));
+    String deltaLocation = null;
+    if (node.has(DELTA_LOCATION)) {
+      deltaLocation = JsonUtil.getString(DELTA_LOCATION, node);
+    }
+    PrimaryKeySpec pkSpec = PrimaryKeySpec.noPrimaryKey();
+    if (node.has(PRIMARY_KEY_SPEC)) {
+      pkSpec = PrimaryKeySpecParser.fromJsonFields(schema, node.get(PRIMARY_KEY_SPEC));
+    }
 
     JsonNode specArray = node.get(PARTITION_SPECS);
     List<PartitionSpec> specs;
@@ -307,9 +321,9 @@ public class TableMetadataParser {
       }
     }
 
-    return new TableMetadata(file, uuid, location,
+    return new TableMetadata(file, uuid, location, deltaLocation,
         lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs, pkSpec,
             properties, currentVersionId, snapshots, ImmutableList.copyOf(entries.iterator()),
-            ImmutableList.copyOf(metadataEntries.iterator()));
+            ImmutableList.copyOf(metadataEntries.iterator()), -1L, ImmutableList.of());
   }
 }
