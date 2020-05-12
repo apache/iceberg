@@ -57,7 +57,7 @@ abstract class BaseManifestReader<T, ThisT> extends CloseableGroup implements Cl
 
   protected enum FileType {
     DATA_FILES(GenericDataFile.class.getName()),
-    DELETE_FILES(GenericDeleteFile.class.getName());
+    DELETE_FILES("...");
 
     private final String fileClass;
 
@@ -85,8 +85,6 @@ abstract class BaseManifestReader<T, ThisT> extends CloseableGroup implements Cl
   private boolean caseSensitive = true;
 
   // lazily initialized
-  private List<ManifestEntry> cachedAdds = null;
-  private List<ManifestEntry> cachedDeletes = null;
   private Evaluator lazyEvaluator = null;
   private InclusiveMetricsEvaluator lazyMetricsEvaluator = null;
 
