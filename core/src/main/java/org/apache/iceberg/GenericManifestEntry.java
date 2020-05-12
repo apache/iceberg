@@ -27,7 +27,6 @@ import org.apache.iceberg.types.Types;
 
 class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData.SchemaConstructable, StructLike {
   private final org.apache.avro.Schema schema;
-  private final V1Metadata.IndexedDataFile fileWrapper;
   private Status status = Status.EXISTING;
   private Long snapshotId = null;
   private Long sequenceNumber = null;
@@ -35,17 +34,14 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
 
   GenericManifestEntry(org.apache.avro.Schema schema) {
     this.schema = schema;
-    this.fileWrapper = null; // do not use the file wrapper to read
   }
 
   GenericManifestEntry(Types.StructType partitionType) {
     this.schema = AvroSchemaUtil.convert(V1Metadata.entrySchema(partitionType), "manifest_entry");
-    this.fileWrapper = new V1Metadata.IndexedDataFile(schema.getField("data_file").schema());
   }
 
   private GenericManifestEntry(GenericManifestEntry toCopy, boolean fullCopy) {
     this.schema = toCopy.schema;
-    this.fileWrapper = new V1Metadata.IndexedDataFile(schema.getField("data_file").schema());
     this.status = toCopy.status;
     this.snapshotId = toCopy.snapshotId;
     if (fullCopy) {
@@ -163,11 +159,7 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
       case 2:
         return sequenceNumber;
       case 3:
-        if (fileWrapper == null || file instanceof GenericDataFile) {
-          return file;
-        } else {
-          return fileWrapper.wrap(file);
-        }
+        return file;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + i);
     }
