@@ -67,13 +67,13 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     TableMetadata metadata = TableMetadata.newTableMetadata(
         schema, spec, baseLocation, properties == null ? Maps.newHashMap() : properties);
 
-    ops.commit(null, metadata);
-
     try {
-      return new BaseTable(ops, fullTableName(name(), identifier));
+      ops.commit(null, metadata);
     } catch (CommitFailedException ignored) {
       throw new AlreadyExistsException("Table was created concurrently: " + identifier);
     }
+
+    return new BaseTable(ops, fullTableName(name(), identifier));
   }
 
   @Override
