@@ -373,7 +373,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       } else {
         iterable = open(currentTask, expectedSchema);
       }
-      return iterable.closeableIterator();
+      return iterable.iterator();
     }
 
     private CloseableIterable<T> open(FileScanTask currentTask, Schema readSchema) {

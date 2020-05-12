@@ -20,7 +20,54 @@
 package org.apache.iceberg.io;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.Iterator;
 
 public interface CloseableIterator<T> extends Iterator<T>, Closeable {
+
+  static <E> CloseableIterator<E> withNoopClose(Iterator<E> iterator) {
+    if (iterator instanceof CloseableIterator) {
+      return (CloseableIterator<E>) iterator;
+    }
+    return new CloseableIterator<E>() {
+      @Override
+      public void close() throws IOException {
+        // do nothing.
+      }
+
+      @Override
+      public boolean hasNext() {
+        return iterator.hasNext();
+      }
+
+      @Override
+      public E next() {
+        return iterator.next();
+      }
+    };
+  }
+
+  static <E> CloseableIterator<E> withClose(Iterator<E> iterator) {
+    if (iterator instanceof CloseableIterator) {
+      return (CloseableIterator<E>) iterator;
+    }
+    return new CloseableIterator<E>() {
+      @Override
+      public void close() throws IOException {
+        if (iterator instanceof Closeable) {
+          ((Closeable) iterator).close();
+        }
+      }
+
+      @Override
+      public boolean hasNext() {
+        return iterator.hasNext();
+      }
+
+      @Override
+      public E next() {
+        return iterator.next();
+      }
+    };
+  }
 }

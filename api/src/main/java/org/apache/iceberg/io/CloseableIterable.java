@@ -33,29 +33,13 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 
 public interface CloseableIterable<T> extends Iterable<T>, Closeable {
 
-  default CloseableIterator<T> closeableIterator() {
-    Iterator<T> iterator = iterator();
-    return new CloseableIterator<T>() {
-      @Override
-      public void close() throws IOException {
-        // Notice that the CloseableIterable#close will close all open iterators created by Iterable.
-        // Here we only need to close the current iterator instead of all the created iterators.
-        if (iterator instanceof Closeable) {
-          ((Closeable) iterator).close();
-        }
-      }
-
-      @Override
-      public boolean hasNext() {
-        return iterator.hasNext();
-      }
-
-      @Override
-      public T next() {
-        return iterator.next();
-      }
-    };
-  }
+  /**
+   * Returns an closeable iterator over elements of type {@code T}.
+   *
+   * @return an {@link CloseableIterator}.
+   */
+  @Override
+  CloseableIterator<T> iterator();
 
   static <E> CloseableIterable<E> withNoopClose(E entry) {
     return withNoopClose(ImmutableList.of(entry));
@@ -68,8 +52,8 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
       }
 
       @Override
-      public Iterator<E> iterator() {
-        return iterable.iterator();
+      public CloseableIterator<E> iterator() {
+        return CloseableIterator.withNoopClose(iterable.iterator());
       }
     };
   }
@@ -86,8 +70,8 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
       }
 
       @Override
-      public Iterator<E> iterator() {
-        return iterable.iterator();
+      public CloseableIterator<E> iterator() {
+        return CloseableIterator.withClose(iterable.iterator());
       }
     };
   }
@@ -106,9 +90,16 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
       }
 
       @Override
-      public Iterator<O> iterator() {
-        return new Iterator<O>() {
+      public CloseableIterator<O> iterator() {
+        return new CloseableIterator<O>() {
           private final Iterator<I> inner = iterable.iterator();
+
+          @Override
+          public void close() throws IOException {
+            if (inner instanceof Closeable) {
+              ((Closeable) inner).close();
+            }
+          }
 
           @Override
           public boolean hasNext() {
@@ -141,7 +132,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
     }
 
     @Override
-    public Iterator<E> iterator() {
+    public CloseableIterator<E> iterator() {
       ConcatCloseableIterator<E> iter = new ConcatCloseableIterator<>(inputs);
       addCloseable(iter);
       return iter;
@@ -217,5 +208,4 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
       }
     }
   }
-
 }

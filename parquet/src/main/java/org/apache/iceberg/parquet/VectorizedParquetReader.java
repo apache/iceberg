@@ -20,7 +20,6 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -78,7 +77,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
   }
 
   @Override
-  public Iterator<T> iterator() {
+  public CloseableIterator<T> iterator() {
     FileIterator<T> iter = new FileIterator<>(init());
     addCloseable(iter);
     return iter;

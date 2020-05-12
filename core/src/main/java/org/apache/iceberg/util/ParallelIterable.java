@@ -44,7 +44,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
   }
 
   @Override
-  public Iterator<T> iterator() {
+  public CloseableIterator<T> iterator() {
     ParallelIterator<T> iter = new ParallelIterator<>(iterables, workerPool);
     addCloseable(iter);
     return iter;

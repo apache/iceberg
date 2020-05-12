@@ -72,7 +72,7 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
   }
 
   @Override
-  public Iterator<Record> iterator() {
+  public CloseableIterator<Record> iterator() {
     ScanIterator iter = new ScanIterator(tasks, caseSensitive);
     addCloseable(iter);
     return iter;

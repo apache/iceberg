@@ -61,7 +61,7 @@ abstract class BaseDataReader<T> implements InputPartitionReader<T> {
     ImmutableMap.Builder<String, InputFile> inputFileBuilder = ImmutableMap.builder();
     decryptedFiles.forEach(decrypted -> inputFileBuilder.put(decrypted.location(), decrypted));
     this.inputFiles = inputFileBuilder.build();
-    this.currentIterator = CloseableIterable.<T>empty().closeableIterator();
+    this.currentIterator = CloseableIterable.<T>empty().iterator();
   }
 
   @Override

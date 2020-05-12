@@ -102,7 +102,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
     if (projectsIdentityPartitionColumns) {
       if (SUPPORTS_CONSTANTS.contains(file.format())) {
         return open(task, expectedSchema, PartitionUtil.constantsMap(task, RowDataReader::convertConstant))
-            .closeableIterator();
+            .iterator();
       }
 
       // schema used to read data files
@@ -118,11 +118,11 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       CloseableIterable<InternalRow> transformedIterable = CloseableIterable.transform(
           CloseableIterable.transform(open(task, readSchema, ImmutableMap.of()), joined::withLeft),
           APPLY_PROJECTION.bind(projection(expectedSchema, joinedSchema))::invoke);
-      return transformedIterable.closeableIterator();
+      return transformedIterable.iterator();
     }
 
     // return the base iterator
-    return open(task, expectedSchema, ImmutableMap.of()).closeableIterator();
+    return open(task, expectedSchema, ImmutableMap.of()).iterator();
   }
 
   private CloseableIterable<InternalRow> open(FileScanTask task, Schema readSchema, Map<Integer, ?> idToConstant) {

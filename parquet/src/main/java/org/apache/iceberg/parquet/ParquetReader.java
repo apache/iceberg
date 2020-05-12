@@ -20,7 +20,6 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -70,7 +69,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   }
 
   @Override
-  public Iterator<T> iterator() {
+  public CloseableIterator<T> iterator() {
     FileIterator<T> iter = new FileIterator<>(init());
     addCloseable(iter);
     return iter;

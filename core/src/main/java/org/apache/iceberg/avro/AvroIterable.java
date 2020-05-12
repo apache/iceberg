@@ -73,7 +73,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
   }
 
   @Override
-  public Iterator<D> iterator() {
+  public CloseableIterator<D> iterator() {
     FileReader<D> fileReader = initMetadata(newFileReader());
 
     if (start != null) {
@@ -86,7 +86,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
       return new AvroReuseIterator<>(fileReader);
     }
 
-    return fileReader;
+    return CloseableIterator.withClose(fileReader);
   }
 
   private DataFileReader<D> newFileReader() {
