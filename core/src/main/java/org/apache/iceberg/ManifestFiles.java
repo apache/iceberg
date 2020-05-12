@@ -113,6 +113,26 @@ public class ManifestFiles {
     return new DeleteManifestReader(file, specsById, inheritableMetadata);
   }
 
+  /**
+   * Create a new {@link ManifestWriter} for the given format version.
+   *
+   * @param formatVersion a target format version
+   * @param spec a {@link PartitionSpec}
+   * @param outputFile an {@link OutputFile} where the manifest will be written
+   * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
+   * @return a manifest writer
+   */
+  public static ManifestWriter<DeleteFile> writeDeleteManifest(int formatVersion, PartitionSpec spec,
+                                                               OutputFile outputFile, Long snapshotId) {
+    switch (formatVersion) {
+      case 1:
+        throw new IllegalArgumentException("Cannot write delete files in a v1 table");
+      case 2:
+        return new ManifestWriter.V2DeleteWriter(spec, outputFile, snapshotId);
+    }
+    throw new UnsupportedOperationException("Cannot write manifest for table version: " + formatVersion);
+  }
+
   static ManifestFile copyAppendManifest(int formatVersion,
                                          InputFile toCopy, Map<Integer, PartitionSpec> specsById,
                                          OutputFile outputFile, long snapshotId,
