@@ -50,7 +50,7 @@ import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
  * @param <T> The Java class of files returned by this reader.
  * @param <ThisT> The Java class of this reader, returned by configuration methods.
  */
-abstract class BaseManifestReader<T, ThisT> extends CloseableGroup implements CloseableIterable<T> {
+abstract class BaseManifestReader<T extends DataFile, ThisT> extends CloseableGroup implements CloseableIterable<T> {
   static final ImmutableList<String> ALL_COLUMNS = ImmutableList.of("*");
   private static final Set<String> STATS_COLUMNS = Sets.newHashSet(
       "value_counts", "null_value_counts", "lower_bounds", "upper_bounds");

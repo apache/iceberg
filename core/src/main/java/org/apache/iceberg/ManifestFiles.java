@@ -55,6 +55,8 @@ public class ManifestFiles {
    * @return a {@link ManifestReader}
    */
   public static ManifestReader read(ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    Preconditions.checkArgument(manifest.content() == ManifestContent.DATA,
+        "Cannot read a delete manifest with a ManifestReader: %s", manifest);
     InputFile file = io.newInputFile(manifest.path());
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
     return new ManifestReader(file, specsById, inheritableMetadata);
@@ -70,7 +72,7 @@ public class ManifestFiles {
    * @param outputFile the destination file location
    * @return a manifest writer
    */
-  public static ManifestWriter write(PartitionSpec spec, OutputFile outputFile) {
+  public static ManifestWriter<DataFile> write(PartitionSpec spec, OutputFile outputFile) {
     return write(1, spec, outputFile, null);
   }
 
@@ -83,7 +85,8 @@ public class ManifestFiles {
    * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
    * @return a manifest writer
    */
-  public static ManifestWriter write(int formatVersion, PartitionSpec spec, OutputFile outputFile, Long snapshotId) {
+  public static ManifestWriter<DataFile> write(int formatVersion, PartitionSpec spec, OutputFile outputFile,
+                                               Long snapshotId) {
     switch (formatVersion) {
       case 1:
         return new ManifestWriter.V1Writer(spec, outputFile, snapshotId);
@@ -91,6 +94,23 @@ public class ManifestFiles {
         return new ManifestWriter.V2Writer(spec, outputFile, snapshotId);
     }
     throw new UnsupportedOperationException("Cannot write manifest for table version: " + formatVersion);
+  }
+
+  /**
+   * Returns a new {@link DeleteManifestReader} for a {@link ManifestFile}.
+   *
+   * @param manifest a {@link ManifestFile}
+   * @param io a {@link FileIO}
+   * @param specsById a Map from spec ID to partition spec
+   * @return a {@link DeleteManifestReader}
+   */
+  public static DeleteManifestReader readDeleteManifest(ManifestFile manifest, FileIO io,
+                                                        Map<Integer, PartitionSpec> specsById) {
+    Preconditions.checkArgument(manifest.content() == ManifestContent.DELETES,
+        "Cannot read a data manifest with a DeleteManifestReader: %s", manifest);
+    InputFile file = io.newInputFile(manifest.path());
+    InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
+    return new DeleteManifestReader(file, specsById, inheritableMetadata);
   }
 
   static ManifestFile copyAppendManifest(int formatVersion,
