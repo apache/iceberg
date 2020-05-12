@@ -21,7 +21,12 @@ package org.apache.iceberg.avro;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
+
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
+
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
@@ -102,15 +107,47 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
     return Types.StructType.of(newFields);
   }
 
+  private Boolean isOfType(Type type, Set<Type.TypeID> validTypes) {
+    return type.isPrimitiveType() && validTypes.contains(type.typeId());
+  }
+
   @Override
   public Type union(Schema union, List<Type> options) {
     Preconditions.checkArgument(AvroSchemaUtil.isOptionSchema(union),
         "Unsupported type: non-option union: %s", union);
-    // records, arrays, and maps will check nullability later
-    if (options.get(0) == null) {
-      return options.get(1);
+    if (AvroSchemaUtil.isOptionSchema(union)) {
+      // records, arrays, and maps will check nullability later
+      if (options.get(0) == null) {
+        return options.get(1);
+      } else {
+        return options.get(0);
+      }
     } else {
-      return options.get(0);
+      Set<Type.TypeID> longTypes = new HashSet<>();
+      longTypes.add(Type.TypeID.INTEGER);
+      longTypes.add(Type.TypeID.LONG);
+
+      Set<Type.TypeID> doubleTypes = new HashSet<>();
+      longTypes.add(Type.TypeID.FLOAT);
+      longTypes.add(Type.TypeID.DOUBLE);
+
+      if (options.size() == 1) {
+        return options.get(0);
+      } else if (options.size() == 2 && isOfType(options.get(0), longTypes) && isOfType(options.get(1), longTypes)) {
+        return Types.LongType.get();
+      } else if (options.size() == 2 && isOfType(options.get(0), longTypes) && isOfType(options.get(1), doubleTypes)) {
+        return Types.DoubleType.get();
+      } else {
+        // Convert complex unions to struct types where field names are member0, member1, etc.
+        // This is consistent with the behavior of the spark Avro SchemaConverter
+        List<Types.NestedField> fields = Lists.newArrayListWithExpectedSize(options.size());
+        for (int i = 0; i < options.size(); i += 1) {
+          Type fieldType = options.get(i);
+          // All fields are optional because only one of them is set at a time
+          fields.add(Types.NestedField.optional(allocateId(), "member" + i, fieldType);
+        }
+        return Types.StructType.of(fields);
+      }
     }
   }
 
