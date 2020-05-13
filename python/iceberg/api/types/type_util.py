@@ -498,10 +498,10 @@ class CheckCompatibility(CustomOrderSchemaVisitor):
 
         return errors
 
-    def field(self, field, field_result):
+    def field(self, field, field_result) -> List[str]:
         struct = self.current_type.as_struct_type()
         curr_field = struct.field(field.field_id)
-        errors = list()
+        errors = []
 
         if curr_field is None:
             if not field.is_optional:
