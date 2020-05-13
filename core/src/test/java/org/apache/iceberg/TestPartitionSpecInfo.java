@@ -29,9 +29,12 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+@RunWith(Parameterized.class)
 public class TestPartitionSpecInfo {
 
   @Rule
@@ -40,6 +43,20 @@ public class TestPartitionSpecInfo {
       required(1, "id", Types.IntegerType.get()),
       required(2, "data", Types.StringType.get()));
   private File tableDir = null;
+
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { 1 },
+        new Object[] { 2 },
+    };
+  }
+
+  private final int formatVersion;
+
+  public TestPartitionSpecInfo(int formatVersion) {
+    this.formatVersion = formatVersion;
+  }
 
   @Before
   public void setupTableDir() throws IOException {
@@ -54,9 +71,10 @@ public class TestPartitionSpecInfo {
   @Test
   public void testSpecInfoUnpartitionedTable() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec);
+    TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
 
     Assert.assertEquals(spec, table.spec());
+    Assert.assertEquals(spec.lastAssignedFieldId(), table.spec().lastAssignedFieldId());
     Assert.assertEquals(ImmutableMap.of(spec.specId(), spec), table.specs());
     Assert.assertNull(table.specs().get(Integer.MAX_VALUE));
   }
@@ -64,19 +82,20 @@ public class TestPartitionSpecInfo {
   @Test
   public void testSpecInfoPartitionedTable() {
     PartitionSpec spec = PartitionSpec.builderFor(schema).identity("data").build();
-    TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec);
+    TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
 
     Assert.assertEquals(spec, table.spec());
+    Assert.assertEquals(spec.lastAssignedFieldId(), table.spec().lastAssignedFieldId());
     Assert.assertEquals(ImmutableMap.of(spec.specId(), spec), table.specs());
     Assert.assertNull(table.specs().get(Integer.MAX_VALUE));
   }
 
   @Test
-  public void testSpecInfoPartitionSpecEvolution() {
+  public void testSpecInfoPartitionSpecEvolutionForV1Table() {
     PartitionSpec spec = PartitionSpec.builderFor(schema)
         .bucket("data", 4)
         .build();
-    TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec);
+    TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
 
     Assert.assertEquals(spec, table.spec());
 

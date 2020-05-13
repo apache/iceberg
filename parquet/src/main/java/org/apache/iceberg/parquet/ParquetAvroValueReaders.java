@@ -26,7 +26,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -230,32 +229,6 @@ public class ParquetAvroValueReaders {
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
-    }
-
-    private String[] currentPath() {
-      String[] path = new String[fieldNames.size()];
-      if (!fieldNames.isEmpty()) {
-        Iterator<String> iter = fieldNames.descendingIterator();
-        for (int i = 0; iter.hasNext(); i += 1) {
-          path[i] = iter.next();
-        }
-      }
-
-      return path;
-    }
-
-    private String[] path(String name) {
-      String[] path = new String[fieldNames.size() + 1];
-      path[fieldNames.size()] = name;
-
-      if (!fieldNames.isEmpty()) {
-        Iterator<String> iter = fieldNames.descendingIterator();
-        for (int i = 0; iter.hasNext(); i += 1) {
-          path[i] = iter.next();
-        }
-      }
-
-      return path;
     }
   }
 

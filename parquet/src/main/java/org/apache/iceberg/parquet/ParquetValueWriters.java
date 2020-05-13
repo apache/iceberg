@@ -49,7 +49,31 @@ public class ParquetValueWriters {
     return writer;
   }
 
-  public static <T> UnboxedWriter<T> unboxed(ColumnDescriptor desc) {
+  public static UnboxedWriter<Boolean> booleans(ColumnDescriptor desc) {
+    return new UnboxedWriter<>(desc);
+  }
+
+  public static UnboxedWriter<Byte> tinyints(ColumnDescriptor desc) {
+    return new ByteWriter(desc);
+  }
+
+  public static UnboxedWriter<Short> shorts(ColumnDescriptor desc) {
+    return new ShortWriter(desc);
+  }
+
+  public static UnboxedWriter<Integer> ints(ColumnDescriptor desc) {
+    return new UnboxedWriter<>(desc);
+  }
+
+  public static UnboxedWriter<Long> longs(ColumnDescriptor desc) {
+    return new UnboxedWriter<>(desc);
+  }
+
+  public static UnboxedWriter<Float> floats(ColumnDescriptor desc) {
+    return new UnboxedWriter<>(desc);
+  }
+
+  public static UnboxedWriter<Double> doubles(ColumnDescriptor desc) {
     return new UnboxedWriter<>(desc);
   }
 
@@ -138,6 +162,28 @@ public class ParquetValueWriters {
     }
   }
 
+  private static class ByteWriter extends UnboxedWriter<Byte> {
+    private ByteWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, Byte value) {
+      writeInteger(repetitionLevel, value.intValue());
+    }
+  }
+
+  private static class ShortWriter extends UnboxedWriter<Short> {
+    private ShortWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, Short value) {
+      writeInteger(repetitionLevel, value.intValue());
+    }
+  }
+
   private static class IntegerDecimalWriter extends PrimitiveWriter<BigDecimal> {
     private final int precision;
     private final int scale;
@@ -190,7 +236,7 @@ public class ParquetValueWriters {
       super(desc);
       this.precision = precision;
       this.scale = scale;
-      this.length = TypeUtil.decimalRequriedBytes(precision);
+      this.length = TypeUtil.decimalRequiredBytes(precision);
       this.bytes = ThreadLocal.withInitial(() -> new byte[length]);
     }
 

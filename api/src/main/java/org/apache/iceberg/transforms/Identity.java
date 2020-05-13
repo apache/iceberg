@@ -72,6 +72,11 @@ class Identity<T> implements Transform<T, T> {
   }
 
   @Override
+  public boolean isIdentity() {
+    return true;
+  }
+
+  @Override
   public String toHumanString(T value) {
     if (value == null) {
       return "null";

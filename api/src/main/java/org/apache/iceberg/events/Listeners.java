@@ -20,11 +20,10 @@
 package org.apache.iceberg.events;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * Static registration and notification for listeners.
@@ -33,21 +32,10 @@ public class Listeners {
   private Listeners() {
   }
 
-  private static final Map<Class<?>, List<Listener<?>>> listeners = Maps.newConcurrentMap();
+  private static final Map<Class<?>, Queue<Listener<?>>> listeners = Maps.newConcurrentMap();
 
   public static <E> void register(Listener<E> listener, Class<E> eventType) {
-    List<Listener<?>> list = listeners.get(eventType);
-
-    if (list == null) {
-      synchronized (listeners) {
-        list = listeners.get(eventType);
-        if (list == null) {
-          list = Lists.newArrayList();
-          listeners.put(eventType, list);
-        }
-      }
-    }
-
+    Queue<Listener<?>> list = listeners.computeIfAbsent(eventType, k -> new ConcurrentLinkedQueue<>());
     list.add(listener);
   }
 
@@ -55,11 +43,10 @@ public class Listeners {
   public static <E> void notifyAll(E event) {
     Preconditions.checkNotNull(event, "Cannot notify listeners for a null event.");
 
-    List<Listener<?>> list = listeners.get(event.getClass());
+    Queue<Listener<?>> list = listeners.get(event.getClass());
     if (list != null) {
-      Iterator<Listener<?>> iter = list.iterator();
-      while (iter.hasNext()) {
-        Listener<E> listener = (Listener<E>) iter.next();
+      for (Listener<?> value : list) {
+        Listener<E> listener = (Listener<E>) value;
         listener.notify(event);
       }
     }

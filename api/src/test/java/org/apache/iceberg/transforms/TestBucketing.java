@@ -42,7 +42,7 @@ public class TestBucketing {
   private static Constructor<UUID> uuidBytesConstructor;
 
   @BeforeClass
-  public static void getUUIDConstrutor() {
+  public static void getUUIDConstructor() {
     try {
       uuidBytesConstructor = UUID.class.getDeclaredConstructor(byte[].class);
       uuidBytesConstructor.setAccessible(true);

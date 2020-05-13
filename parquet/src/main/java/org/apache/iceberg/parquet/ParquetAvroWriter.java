@@ -20,7 +20,6 @@
 package org.apache.iceberg.parquet;
 
 import com.google.common.collect.Lists;
-import java.util.Iterator;
 import java.util.List;
 import org.apache.avro.generic.GenericData.Fixed;
 import org.apache.avro.generic.IndexedRecord;
@@ -119,10 +118,11 @@ public class ParquetAvroWriter {
           case INT_8:
           case INT_16:
           case INT_32:
+            return ParquetValueWriters.ints(desc);
           case INT_64:
           case TIME_MICROS:
           case TIMESTAMP_MICROS:
-            return ParquetValueWriters.unboxed(desc);
+            return ParquetValueWriters.longs(desc);
           case DECIMAL:
             DecimalMetadata decimal = primitive.getDecimalMetadata();
             switch (primitive.getPrimitiveTypeName()) {
@@ -154,40 +154,18 @@ public class ParquetAvroWriter {
         case BINARY:
           return ParquetValueWriters.byteBuffers(desc);
         case BOOLEAN:
+          return ParquetValueWriters.booleans(desc);
         case INT32:
+          return ParquetValueWriters.ints(desc);
         case INT64:
+          return ParquetValueWriters.longs(desc);
         case FLOAT:
+          return ParquetValueWriters.floats(desc);
         case DOUBLE:
-          return ParquetValueWriters.unboxed(desc);
+          return ParquetValueWriters.doubles(desc);
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
-    }
-
-    private String[] currentPath() {
-      String[] path = new String[fieldNames.size()];
-      if (!fieldNames.isEmpty()) {
-        Iterator<String> iter = fieldNames.descendingIterator();
-        for (int i = 0; iter.hasNext(); i += 1) {
-          path[i] = iter.next();
-        }
-      }
-
-      return path;
-    }
-
-    private String[] path(String name) {
-      String[] path = new String[fieldNames.size() + 1];
-      path[fieldNames.size()] = name;
-
-      if (!fieldNames.isEmpty()) {
-        Iterator<String> iter = fieldNames.descendingIterator();
-        for (int i = 0; iter.hasNext(); i += 1) {
-          path[i] = iter.next();
-        }
-      }
-
-      return path;
     }
   }
 

@@ -20,6 +20,7 @@
 package org.apache.iceberg.data.parquet;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.time.Instant;
@@ -29,7 +30,6 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
@@ -65,23 +65,28 @@ public class GenericParquetReaders {
   private GenericParquetReaders() {
   }
 
-  @SuppressWarnings("unchecked")
   public static ParquetValueReader<GenericRecord> buildReader(Schema expectedSchema,
                                                               MessageType fileSchema) {
+    return buildReader(expectedSchema, fileSchema, ImmutableMap.of());
+  }
+  @SuppressWarnings("unchecked")
+  public static ParquetValueReader<GenericRecord> buildReader(Schema expectedSchema,
+                                                              MessageType fileSchema,
+                                                              Map<Integer, ?> idToConstant) {
     if (ParquetSchemaUtil.hasIds(fileSchema)) {
       return (ParquetValueReader<GenericRecord>)
           TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-              new ReadBuilder(fileSchema));
+              new ReadBuilder(fileSchema, idToConstant));
     } else {
       return (ParquetValueReader<GenericRecord>)
           TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-              new FallbackReadBuilder(fileSchema));
+              new FallbackReadBuilder(fileSchema, idToConstant));
     }
   }
 
   private static class FallbackReadBuilder extends ReadBuilder {
-    FallbackReadBuilder(MessageType type) {
-      super(type);
+    FallbackReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
+      super(type, idToConstant);
     }
 
     @Override
@@ -112,9 +117,11 @@ public class GenericParquetReaders {
 
   private static class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
     private final MessageType type;
+    private final Map<Integer, ?> idToConstant;
 
-    ReadBuilder(MessageType type) {
+    ReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
       this.type = type;
+      this.idToConstant = idToConstant;
     }
 
     @Override
@@ -145,13 +152,19 @@ public class GenericParquetReaders {
       List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
-        ParquetValueReader<?> reader = readersById.get(id);
-        if (reader != null) {
-          reorderedFields.add(reader);
-          types.add(typesById.get(id));
-        } else {
-          reorderedFields.add(ParquetValueReaders.nulls());
+        if (idToConstant.containsKey(id)) {
+          // containsKey is used because the constant may be null
+          reorderedFields.add(ParquetValueReaders.constant(idToConstant.get(id)));
           types.add(null);
+        } else {
+          ParquetValueReader<?> reader = readersById.get(id);
+          if (reader != null) {
+            reorderedFields.add(reader);
+            types.add(typesById.get(id));
+          } else {
+            reorderedFields.add(ParquetValueReaders.nulls());
+            types.add(null);
+          }
         }
       }
 
@@ -282,32 +295,6 @@ public class GenericParquetReaders {
 
     MessageType type() {
       return type;
-    }
-
-    private String[] currentPath() {
-      String[] path = new String[fieldNames.size()];
-      if (!fieldNames.isEmpty()) {
-        Iterator<String> iter = fieldNames.descendingIterator();
-        for (int i = 0; iter.hasNext(); i += 1) {
-          path[i] = iter.next();
-        }
-      }
-
-      return path;
-    }
-
-    protected String[] path(String name) {
-      String[] path = new String[fieldNames.size() + 1];
-      path[fieldNames.size()] = name;
-
-      if (!fieldNames.isEmpty()) {
-        Iterator<String> iter = fieldNames.descendingIterator();
-        for (int i = 0; iter.hasNext(); i += 1) {
-          path[i] = iter.next();
-        }
-      }
-
-      return path;
     }
   }
 

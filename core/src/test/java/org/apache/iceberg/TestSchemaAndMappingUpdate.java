@@ -32,8 +32,23 @@ import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestSchemaAndMappingUpdate extends TableTestBase {
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { 1 },
+        new Object[] { 2 },
+    };
+  }
+
+  public TestSchemaAndMappingUpdate(int formatVersion) {
+    super(formatVersion);
+  }
+
   @Test
   public void testAddPrimitiveColumn() {
     NameMapping mapping = MappingUtil.create(table.schema());

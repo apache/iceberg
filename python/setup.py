@@ -32,8 +32,6 @@ setup(
                       'fastparquet>=0.3.1',
                       'hmsclient',
                       'mmh3',
-                      'mo_future<2.50.19316',
-                      'moz_sql_parser==2.44.19084',
                       'pyparsing',
                       'python-dateutil',
                       'pytz',

@@ -52,8 +52,10 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.data.SparkAvroWriter;
+import org.apache.iceberg.spark.data.SparkOrcWriter;
 import org.apache.iceberg.spark.data.SparkParquetWriters;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -64,6 +66,7 @@ import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
 import org.apache.spark.sql.sources.v2.writer.DataWriter;
 import org.apache.spark.sql.sources.v2.writer.DataWriterFactory;
 import org.apache.spark.sql.sources.v2.writer.WriterCommitMessage;
+import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -92,16 +95,18 @@ class Writer implements DataSourceWriter {
   private final String applicationId;
   private final String wapId;
   private final long targetFileSize;
-  private final Schema dsSchema;
+  private final Schema writeSchema;
+  private final StructType dsSchema;
 
   Writer(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
-         DataSourceOptions options, boolean replacePartitions, String applicationId, Schema dsSchema) {
-    this(table, io, encryptionManager, options, replacePartitions, applicationId, null, dsSchema);
+         DataSourceOptions options, boolean replacePartitions, String applicationId, Schema writeSchema,
+         StructType dsSchema) {
+    this(table, io, encryptionManager, options, replacePartitions, applicationId, null, writeSchema, dsSchema);
   }
 
   Writer(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
          DataSourceOptions options, boolean replacePartitions, String applicationId, String wapId,
-         Schema dsSchema) {
+         Schema writeSchema, StructType dsSchema) {
     this.table = table;
     this.format = getFileFormat(table.properties(), options);
     this.io = io;
@@ -109,6 +114,7 @@ class Writer implements DataSourceWriter {
     this.replacePartitions = replacePartitions;
     this.applicationId = applicationId;
     this.wapId = wapId;
+    this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
 
     long tableTargetFileSize = PropertyUtil.propertyAsLong(
@@ -132,7 +138,7 @@ class Writer implements DataSourceWriter {
   public DataWriterFactory<InternalRow> createWriterFactory() {
     return new WriterFactory(
         table.spec(), format, table.locationProvider(), table.properties(), io, encryptionManager, targetFileSize,
-        dsSchema);
+        writeSchema, dsSchema);
   }
 
   @Override
@@ -258,12 +264,13 @@ class Writer implements DataSourceWriter {
     private final Broadcast<FileIO> io;
     private final Broadcast<EncryptionManager> encryptionManager;
     private final long targetFileSize;
-    private final Schema dsSchema;
+    private final Schema writeSchema;
+    private final StructType dsSchema;
 
     WriterFactory(PartitionSpec spec, FileFormat format, LocationProvider locations,
                   Map<String, String> properties, Broadcast<FileIO> io,
                   Broadcast<EncryptionManager> encryptionManager, long targetFileSize,
-                  Schema dsSchema) {
+                  Schema writeSchema, StructType dsSchema) {
       this.spec = spec;
       this.format = format;
       this.locations = locations;
@@ -271,6 +278,7 @@ class Writer implements DataSourceWriter {
       this.io = io;
       this.encryptionManager = encryptionManager;
       this.targetFileSize = targetFileSize;
+      this.writeSchema = writeSchema;
       this.dsSchema = dsSchema;
     }
 
@@ -282,7 +290,8 @@ class Writer implements DataSourceWriter {
       if (spec.fields().isEmpty()) {
         return new UnpartitionedWriter(spec, format, appenderFactory, fileFactory, io.value(), targetFileSize);
       } else {
-        return new PartitionedWriter(spec, format, appenderFactory, fileFactory, io.value(), targetFileSize, dsSchema);
+        return new PartitionedWriter(
+            spec, format, appenderFactory, fileFactory, io.value(), targetFileSize, writeSchema);
       }
     }
 
@@ -297,7 +306,7 @@ class Writer implements DataSourceWriter {
                   .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(dsSchema, msgType))
                   .setAll(properties)
                   .metricsConfig(metricsConfig)
-                  .schema(dsSchema)
+                  .schema(writeSchema)
                   .overwrite()
                   .build();
 
@@ -305,7 +314,15 @@ class Writer implements DataSourceWriter {
               return Avro.write(file)
                   .createWriterFunc(ignored -> new SparkAvroWriter(dsSchema))
                   .setAll(properties)
-                  .schema(dsSchema)
+                  .schema(writeSchema)
+                  .overwrite()
+                  .build();
+
+            case ORC:
+              return ORC.write(file)
+                  .createWriterFunc(SparkOrcWriter::new)
+                  .setAll(properties)
+                  .schema(writeSchema)
                   .overwrite()
                   .build();
 
@@ -389,7 +406,9 @@ class Writer implements DataSourceWriter {
     public abstract void write(InternalRow row) throws IOException;
 
     public void writeInternal(InternalRow row)  throws IOException {
-      if (currentRows % ROWS_DIVISOR == 0 && currentAppender.length() >= targetFileSize) {
+      //TODO: ORC file now not support target file size before closed
+      if  (!format.equals(FileFormat.ORC) &&
+          currentRows % ROWS_DIVISOR == 0 && currentAppender.length() >= targetFileSize) {
         closeCurrent();
         openCurrent();
       }
@@ -433,6 +452,7 @@ class Writer implements DataSourceWriter {
         currentAppender.close();
         // metrics are only valid after the appender is closed
         Metrics metrics = currentAppender.metrics();
+        long fileSizeInBytes = currentAppender.length();
         List<Long> splitOffsets = currentAppender.splitOffsets();
         this.currentAppender = null;
 
@@ -440,7 +460,9 @@ class Writer implements DataSourceWriter {
           fileIo.deleteFile(currentFile.encryptingOutputFile());
         } else {
           DataFile dataFile = DataFiles.builder(spec)
-              .withEncryptedOutputFile(currentFile)
+              .withEncryptionKeyMetadata(currentFile.keyMetadata())
+              .withPath(currentFile.encryptingOutputFile().location())
+              .withFileSizeInBytes(fileSizeInBytes)
               .withPartition(spec.fields().size() == 0 ? null : currentKey) // set null if unpartitioned
               .withMetrics(metrics)
               .withSplitOffsets(splitOffsets)

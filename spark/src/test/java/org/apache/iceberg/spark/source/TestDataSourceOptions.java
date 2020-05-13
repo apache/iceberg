@@ -28,6 +28,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -283,5 +284,84 @@ public class TestDataSourceOptions {
         .as(Encoders.bean(SimpleRecord.class))
         .collectAsList();
     Assert.assertEquals("Records should match", expectedRecords.subList(2, 3), result1);
+  }
+
+  @Test
+  public void testMetadataSplitSizeOptionOverrideTableProperties() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> options = Maps.newHashMap();
+    Table table = tables.create(SCHEMA, spec, options, tableLocation);
+
+    List<SimpleRecord> expectedRecords = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b")
+    );
+    Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
+    // produce 1st manifest
+    originalDf.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+    // produce 2nd manifest
+    originalDf.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+
+    Assert.assertEquals("Must be 2 manifests", 2, manifests.size());
+
+    // set the target metadata split size so each manifest ends up in a separate split
+    table.updateProperties()
+        .set(TableProperties.METADATA_SPLIT_SIZE, String.valueOf(manifests.get(0).length()))
+        .commit();
+
+    Dataset<Row> entriesDf = spark.read()
+        .format("iceberg")
+        .load(tableLocation + "#entries");
+    Assert.assertEquals("Num partitions must match", 2, entriesDf.javaRDD().getNumPartitions());
+
+    // override the table property using options
+    entriesDf = spark.read()
+        .format("iceberg")
+        .option("split-size", String.valueOf(128 * 1024 * 1024))
+        .load(tableLocation + "#entries");
+    Assert.assertEquals("Num partitions must match", 1, entriesDf.javaRDD().getNumPartitions());
+  }
+
+  @Test
+  public void testDefaultMetadataSplitSize() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> options = Maps.newHashMap();
+    tables.create(SCHEMA, spec, options, tableLocation);
+
+    List<SimpleRecord> expectedRecords = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b")
+    );
+    Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
+    originalDf.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    int splitSize = (int) TableProperties.METADATA_SPLIT_SIZE_DEFAULT; // 32MB split size
+
+    int expectedSplits = ((int) tables.load(tableLocation + "#entries")
+        .currentSnapshot().manifests().get(0).length() + splitSize - 1) / splitSize;
+
+    Dataset<Row> metadataDf = spark.read()
+        .format("iceberg")
+        .load(tableLocation + "#entries");
+
+    int partitionNum = metadataDf.javaRDD().getNumPartitions();
+    Assert.assertEquals("Spark partitions should match", expectedSplits, partitionNum);
   }
 }

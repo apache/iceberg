@@ -19,19 +19,13 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.MoreObjects;
-import java.util.Collection;
-import org.apache.avro.generic.IndexedRecord;
-import org.apache.avro.specific.SpecificData;
-import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.types.Types.IntegerType;
-import org.apache.iceberg.types.Types.LongType;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
+interface ManifestEntry {
   enum Status {
     EXISTING(0),
     ADDED(1),
@@ -48,143 +42,56 @@ class ManifestEntry implements IndexedRecord, SpecificData.SchemaConstructable {
     }
   }
 
-  private final org.apache.avro.Schema schema;
-  private Status status = Status.EXISTING;
-  private Long snapshotId = null;
-  private DataFile file = null;
-
-  ManifestEntry(org.apache.avro.Schema schema) {
-    this.schema = schema;
-  }
-
-  ManifestEntry(StructType partitionType) {
-    this.schema = AvroSchemaUtil.convert(getSchema(partitionType), "manifest_entry");
-  }
-
-  private ManifestEntry(ManifestEntry toCopy, boolean fullCopy) {
-    this.schema = toCopy.schema;
-    this.status = toCopy.status;
-    this.snapshotId = toCopy.snapshotId;
-    if (fullCopy) {
-      this.file = toCopy.file().copy();
-    } else {
-      this.file = toCopy.file().copyWithoutStats();
-    }
-  }
-
-  ManifestEntry wrapExisting(Long newSnapshotId, DataFile newFile) {
-    this.status = Status.EXISTING;
-    this.snapshotId = newSnapshotId;
-    this.file = newFile;
-    return this;
-  }
-
-  ManifestEntry wrapAppend(Long newSnapshotId, DataFile newFile) {
-    this.status = Status.ADDED;
-    this.snapshotId = newSnapshotId;
-    this.file = newFile;
-    return this;
-  }
-
-  ManifestEntry wrapDelete(Long newSnapshotId, DataFile newFile) {
-    this.status = Status.DELETED;
-    this.snapshotId = newSnapshotId;
-    this.file = newFile;
-    return this;
-  }
-
-  /**
-   * @return the status of the file, whether EXISTING, ADDED, or DELETED
-   */
-  public Status status() {
-    return status;
-  }
-
-  /**
-   * @return id of the snapshot in which the file was added to the table
-   */
-  public Long snapshotId() {
-    return snapshotId;
-  }
-
-  /**
-   * @return a file
-   */
-  public DataFile file() {
-    return file;
-  }
-
-  public ManifestEntry copy() {
-    return new ManifestEntry(this, true /* full copy */);
-  }
-
-  public ManifestEntry copyWithoutStats() {
-    return new ManifestEntry(this, false /* drop stats */);
-  }
-
-  public void setSnapshotId(Long snapshotId) {
-    this.snapshotId = snapshotId;
-  }
-
-  @Override
-  public void put(int i, Object v) {
-    switch (i) {
-      case 0:
-        this.status = Status.values()[(Integer) v];
-        return;
-      case 1:
-        this.snapshotId = (Long) v;
-        return;
-      case 2:
-        this.file = (DataFile) v;
-        return;
-      default:
-        // ignore the object, it must be from a newer version of the format
-    }
-  }
-
-  @Override
-  public Object get(int i) {
-    switch (i) {
-      case 0:
-        return status.id();
-      case 1:
-        return snapshotId;
-      case 2:
-        return file;
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + i);
-    }
-  }
-
-  @Override
-  public org.apache.avro.Schema getSchema() {
-    return schema;
-  }
+  // ids for data-file columns are assigned from 1000
+  Types.NestedField STATUS = required(0, "status", Types.IntegerType.get());
+  Types.NestedField SNAPSHOT_ID = optional(1, "snapshot_id", Types.LongType.get());
+  Types.NestedField SEQUENCE_NUMBER = optional(3, "sequence_number", Types.LongType.get());
+  int DATA_FILE_ID = 2;
+  // next ID to assign: 4
 
   static Schema getSchema(StructType partitionType) {
     return wrapFileSchema(DataFile.getType(partitionType));
   }
 
-  static Schema projectSchema(StructType partitionType, Collection<String> columns) {
-    return wrapFileSchema(
-        new Schema(DataFile.getType(partitionType).fields()).select(columns).asStruct());
+  static Schema wrapFileSchema(StructType fileType) {
+    return new Schema(STATUS, SNAPSHOT_ID, SEQUENCE_NUMBER, required(DATA_FILE_ID, "data_file", fileType));
   }
 
-  static Schema wrapFileSchema(StructType fileStruct) {
-    // ids for top-level columns are assigned from 1000
-    return new Schema(
-        required(0, "status", IntegerType.get()),
-        optional(1, "snapshot_id", LongType.get()),
-        required(2, "data_file", fileStruct));
-  }
+  /**
+   * @return the status of the file, whether EXISTING, ADDED, or DELETED
+   */
+  Status status();
 
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("status", status)
-        .add("snapshot_id", snapshotId)
-        .add("file", file)
-        .toString();
-  }
+  /**
+   * @return id of the snapshot in which the file was added to the table
+   */
+  Long snapshotId();
+
+  /**
+   * Set the snapshot id for this manifest entry.
+   *
+   * @param snapshotId a long snapshot id
+   */
+  void setSnapshotId(long snapshotId);
+
+  /**
+   * @return the sequence number of the snapshot in which the file was added to the table
+   */
+  Long sequenceNumber();
+
+  /**
+   * Set the sequence number for this manifest entry.
+   *
+   * @param sequenceNumber a sequence number
+   */
+  void setSequenceNumber(long sequenceNumber);
+
+  /**
+   * @return a file
+   */
+  DataFile file();
+
+  ManifestEntry copy();
+
+  ManifestEntry copyWithoutStats();
 }

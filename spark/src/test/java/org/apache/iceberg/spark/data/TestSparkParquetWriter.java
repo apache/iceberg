@@ -27,6 +27,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.Assert;
@@ -78,7 +79,7 @@ public class TestSparkParquetWriter {
 
     try (FileAppender<InternalRow> writer = Parquet.write(Files.localOutput(testFile))
         .schema(COMPLEX_SCHEMA)
-        .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(COMPLEX_SCHEMA, msgType))
+        .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(COMPLEX_SCHEMA), msgType))
         .build()) {
       writer.addAll(records);
     }

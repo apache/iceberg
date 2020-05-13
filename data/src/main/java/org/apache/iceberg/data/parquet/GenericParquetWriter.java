@@ -27,18 +27,20 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.parquet.ParquetTypeVisitor;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
 import org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
+import org.apache.parquet.Preconditions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
-import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.LogicalTypeAnnotationVisitor;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
@@ -117,43 +119,11 @@ public class GenericParquetWriter {
     @Override
     public ParquetValueWriter<?> primitive(PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
-
-      if (primitive.getOriginalType() != null) {
-        switch (primitive.getOriginalType()) {
-          case ENUM:
-          case JSON:
-          case UTF8:
-            return ParquetValueWriters.strings(desc);
-          case INT_8:
-          case INT_16:
-          case INT_32:
-          case INT_64:
-            return ParquetValueWriters.unboxed(desc);
-          case DATE:
-            return new DateWriter(desc);
-          case TIME_MICROS:
-            return new TimeWriter(desc);
-          case TIMESTAMP_MICROS:
-            return new TimestamptzWriter(desc);
-          case DECIMAL:
-            DecimalMetadata decimal = primitive.getDecimalMetadata();
-            switch (primitive.getPrimitiveTypeName()) {
-              case INT32:
-                return ParquetValueWriters.decimalAsInteger(desc, decimal.getPrecision(), decimal.getScale());
-              case INT64:
-                return ParquetValueWriters.decimalAsLong(desc, decimal.getPrecision(), decimal.getScale());
-              case BINARY:
-              case FIXED_LEN_BYTE_ARRAY:
-                return ParquetValueWriters.decimalAsFixed(desc, decimal.getPrecision(), decimal.getScale());
-              default:
-                throw new UnsupportedOperationException(
-                    "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
-            }
-          case BSON:
-            return ParquetValueWriters.byteBuffers(desc);
-          default:
-            throw new UnsupportedOperationException(
-                "Unsupported logical type: " + primitive.getOriginalType());
+      LogicalTypeAnnotation logicalType = primitive.getLogicalTypeAnnotation();
+      if (logicalType != null) {
+        Optional<PrimitiveWriter<?>> writer = logicalType.accept(new LogicalTypeWriterVisitor(desc));
+        if (writer.isPresent()) {
+          return writer.get();
         }
       }
 
@@ -163,40 +133,95 @@ public class GenericParquetWriter {
         case BINARY:
           return ParquetValueWriters.byteBuffers(desc);
         case BOOLEAN:
+          return ParquetValueWriters.booleans(desc);
         case INT32:
+          return ParquetValueWriters.ints(desc);
         case INT64:
+          return ParquetValueWriters.longs(desc);
         case FLOAT:
+          return ParquetValueWriters.floats(desc);
         case DOUBLE:
-          return ParquetValueWriters.unboxed(desc);
+          return ParquetValueWriters.doubles(desc);
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
     }
+  }
 
-    private String[] currentPath() {
-      String[] path = new String[fieldNames.size()];
-      if (!fieldNames.isEmpty()) {
-        Iterator<String> iter = fieldNames.descendingIterator();
-        for (int i = 0; iter.hasNext(); i += 1) {
-          path[i] = iter.next();
-        }
-      }
+  private static class LogicalTypeWriterVisitor implements LogicalTypeAnnotationVisitor<PrimitiveWriter<?>> {
+    private final ColumnDescriptor desc;
 
-      return path;
+    private LogicalTypeWriterVisitor(ColumnDescriptor desc) {
+      this.desc = desc;
     }
 
-    private String[] path(String name) {
-      String[] path = new String[fieldNames.size() + 1];
-      path[fieldNames.size()] = name;
+    @Override
+    public Optional<PrimitiveWriter<?>> visit(LogicalTypeAnnotation.StringLogicalTypeAnnotation stringType) {
+      return Optional.of(ParquetValueWriters.strings(desc));
+    }
 
-      if (!fieldNames.isEmpty()) {
-        Iterator<String> iter = fieldNames.descendingIterator();
-        for (int i = 0; iter.hasNext(); i += 1) {
-          path[i] = iter.next();
-        }
+    @Override
+    public Optional<PrimitiveWriter<?>> visit(LogicalTypeAnnotation.EnumLogicalTypeAnnotation enumType) {
+      return Optional.of(ParquetValueWriters.strings(desc));
+    }
+
+    @Override
+    public Optional<PrimitiveWriter<?>> visit(LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimalType) {
+      switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
+        case INT32:
+          return Optional.of(ParquetValueWriters.decimalAsInteger(
+              desc, decimalType.getPrecision(), decimalType.getScale()));
+        case INT64:
+          return Optional.of(ParquetValueWriters.decimalAsLong(
+              desc, decimalType.getPrecision(), decimalType.getScale()));
+        case BINARY:
+        case FIXED_LEN_BYTE_ARRAY:
+          return Optional.of(ParquetValueWriters.decimalAsFixed(
+              desc, decimalType.getPrecision(), decimalType.getScale()));
       }
+      return Optional.empty();
+    }
 
-      return path;
+    @Override
+    public Optional<PrimitiveWriter<?>> visit(LogicalTypeAnnotation.DateLogicalTypeAnnotation dateType) {
+      return Optional.of(new DateWriter(desc));
+    }
+
+    @Override
+    public Optional<PrimitiveWriter<?>> visit(LogicalTypeAnnotation.TimeLogicalTypeAnnotation timeType) {
+      return Optional.of(new TimeWriter(desc));
+    }
+
+    @Override
+    public Optional<PrimitiveWriter<?>> visit(LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampType) {
+      Preconditions.checkArgument(LogicalTypeAnnotation.TimeUnit.MICROS.equals(timestampType.getUnit()),
+          "Cannot write timestamp in %s, only MICROS is supported", timestampType.getUnit());
+      if (timestampType.isAdjustedToUTC()) {
+        return Optional.of(new TimestamptzWriter(desc));
+      } else {
+        return Optional.of(new TimestampWriter(desc));
+      }
+    }
+
+    @Override
+    public Optional<PrimitiveWriter<?>> visit(LogicalTypeAnnotation.IntLogicalTypeAnnotation intType) {
+      Preconditions.checkArgument(intType.isSigned() || intType.getBitWidth() < 64,
+          "Cannot read uint64: not a supported Java type");
+      if (intType.getBitWidth() < 64) {
+        return Optional.of(ParquetValueWriters.ints(desc));
+      } else {
+        return Optional.of(ParquetValueWriters.longs(desc));
+      }
+    }
+
+    @Override
+    public Optional<PrimitiveWriter<?>> visit(LogicalTypeAnnotation.JsonLogicalTypeAnnotation jsonLogicalType) {
+      return Optional.of(ParquetValueWriters.strings(desc));
+    }
+
+    @Override
+    public Optional<PrimitiveWriter<?>> visit(LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonType) {
+      return Optional.of(ParquetValueWriters.byteBuffers(desc));
     }
   }
 

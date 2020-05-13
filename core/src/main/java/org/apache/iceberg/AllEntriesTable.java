@@ -68,13 +68,7 @@ public class AllEntriesTable extends BaseMetadataTable {
     }
   }
 
-  @Override
-  public String location() {
-    return table.currentSnapshot().manifestListLocation();
-  }
-
-  private static class Scan extends BaseTableScan {
-    private static final long TARGET_SPLIT_SIZE = 32 * 1024 * 1024; // 32 MB
+  private static class Scan extends BaseAllMetadataTableScan {
 
     Scan(TableOperations ops, Table table, Schema schema) {
       super(ops, table, schema);
@@ -98,7 +92,8 @@ public class AllEntriesTable extends BaseMetadataTable {
 
     @Override
     protected long targetSplitSize(TableOperations ops) {
-      return TARGET_SPLIT_SIZE;
+      return ops.current().propertyAsLong(
+          TableProperties.METADATA_SPLIT_SIZE, TableProperties.METADATA_SPLIT_SIZE_DEFAULT);
     }
 
     @Override

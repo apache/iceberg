@@ -32,13 +32,27 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.TableProperties.MANIFEST_MERGE_ENABLED;
 import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+@RunWith(Parameterized.class)
 public class TestRewriteManifests extends TableTestBase {
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { 1 },
+        new Object[] { 2 },
+    };
+  }
+
+  public TestRewriteManifests(int formatVersion) {
+    super(formatVersion);
+  }
 
   @Test
   public void testRewriteManifestsAppendedDirectly() throws IOException {
@@ -102,7 +116,7 @@ public class TestRewriteManifests extends TableTestBase {
     // get the correct file order
     List<DataFile> files;
     List<Long> ids;
-    try (ManifestReader reader = ManifestReader.read(manifests.get(0), table.io())) {
+    try (ManifestReader reader = ManifestFiles.read(manifests.get(0), table.io())) {
       if (reader.iterator().next().path().equals(FILE_A.path())) {
         files = Arrays.asList(FILE_A, FILE_B);
         ids = Arrays.asList(manifestAppendId, fileAppendId);
@@ -176,7 +190,7 @@ public class TestRewriteManifests extends TableTestBase {
     // get the file order correct
     List<DataFile> files;
     List<Long> ids;
-    try (ManifestReader reader = ManifestReader.read(manifests.get(0), table.io())) {
+    try (ManifestReader reader = ManifestFiles.read(manifests.get(0), table.io())) {
       if (reader.iterator().next().path().equals(FILE_A.path())) {
         files = Arrays.asList(FILE_A, FILE_B);
         ids = Arrays.asList(appendIdA, appendIdB);
@@ -218,7 +232,7 @@ public class TestRewriteManifests extends TableTestBase {
     table.rewriteManifests()
       .clusterBy(file -> "file")
       .rewriteIf(manifest -> {
-        try (ManifestReader reader = ManifestReader.read(manifest, table.io())) {
+        try (ManifestReader reader = ManifestFiles.read(manifest, table.io())) {
           return !reader.iterator().next().path().equals(FILE_A.path());
         } catch (IOException x) {
           throw new RuntimeIOException(x);
@@ -232,7 +246,7 @@ public class TestRewriteManifests extends TableTestBase {
     // get the file order correct
     List<DataFile> files;
     List<Long> ids;
-    try (ManifestReader reader = ManifestReader.read(manifests.get(0), table.io())) {
+    try (ManifestReader reader = ManifestFiles.read(manifests.get(0), table.io())) {
       if (reader.iterator().next().path().equals(FILE_B.path())) {
         files = Arrays.asList(FILE_B, FILE_C);
         ids = Arrays.asList(appendIdB, appendIdC);
@@ -302,7 +316,7 @@ public class TestRewriteManifests extends TableTestBase {
     table.rewriteManifests()
       .clusterBy(file -> "file")
       .rewriteIf(manifest -> {
-        try (ManifestReader reader = ManifestReader.read(manifest, table.io())) {
+        try (ManifestReader reader = ManifestFiles.read(manifest, table.io())) {
           return !reader.iterator().next().path().equals(FILE_A.path());
         } catch (IOException x) {
           throw new RuntimeIOException(x);
@@ -322,7 +336,7 @@ public class TestRewriteManifests extends TableTestBase {
     // get the file order correct
     List<DataFile> files;
     List<Long> ids;
-    try (ManifestReader reader = ManifestReader.read(manifests.get(0), table.io())) {
+    try (ManifestReader reader = ManifestFiles.read(manifests.get(0), table.io())) {
       if (reader.iterator().next().path().equals(FILE_A.path())) {
         files = Arrays.asList(FILE_A, FILE_B);
         ids = Arrays.asList(appendIdA, appendIdB);
@@ -885,7 +899,7 @@ public class TestRewriteManifests extends TableTestBase {
         .addManifest(newManifest)
         .clusterBy(dataFile -> "const-value")
         .rewriteIf(manifest -> {
-          try (ManifestReader reader = ManifestReader.read(manifest, table.io())) {
+          try (ManifestReader reader = ManifestFiles.read(manifest, table.io())) {
             return !reader.iterator().next().path().equals(FILE_B.path());
           } catch (IOException x) {
             throw new RuntimeIOException(x);
@@ -941,9 +955,10 @@ public class TestRewriteManifests extends TableTestBase {
 
     Assert.assertEquals(3, Iterables.size(table.snapshots()));
 
-    ManifestFile newManifest = writeManifest(
-        "manifest-file-1.avro",
-        manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_A));
+    ManifestEntry entry = manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_A);
+    // update the entry's sequence number or else it will be rejected by the writer
+    entry.setSequenceNumber(firstSnapshot.sequenceNumber());
+    ManifestFile newManifest = writeManifest("manifest-file-1.avro", entry);
 
     RewriteManifests rewriteManifests = table.rewriteManifests()
         .deleteManifest(firstSnapshotManifest)
@@ -990,9 +1005,11 @@ public class TestRewriteManifests extends TableTestBase {
     Assert.assertEquals(1, manifests.size());
     ManifestFile manifest = manifests.get(0);
 
-    ManifestFile invalidAddedFileManifest = writeManifest(
-        "manifest-file-2.avro",
-        manifestEntry(ManifestEntry.Status.ADDED, snapshot.snapshotId(), FILE_A));
+    ManifestEntry appendEntry = manifestEntry(ManifestEntry.Status.ADDED, snapshot.snapshotId(), FILE_A);
+    // update the entry's sequence number or else it will be rejected by the writer
+    appendEntry.setSequenceNumber(snapshot.sequenceNumber());
+
+    ManifestFile invalidAddedFileManifest = writeManifest("manifest-file-2.avro", appendEntry);
 
     AssertHelpers.assertThrows("Should reject commit",
         IllegalArgumentException.class, "Cannot add manifest with added files",
@@ -1001,9 +1018,11 @@ public class TestRewriteManifests extends TableTestBase {
             .addManifest(invalidAddedFileManifest)
             .commit());
 
-    ManifestFile invalidDeletedFileManifest = writeManifest(
-        "manifest-file-3.avro",
-        manifestEntry(ManifestEntry.Status.DELETED, snapshot.snapshotId(), FILE_A));
+    ManifestEntry deleteEntry = manifestEntry(ManifestEntry.Status.DELETED, snapshot.snapshotId(), FILE_A);
+    // update the entry's sequence number or else it will be rejected by the writer
+    deleteEntry.setSequenceNumber(snapshot.sequenceNumber());
+
+    ManifestFile invalidDeletedFileManifest = writeManifest("manifest-file-3.avro", deleteEntry);
 
     AssertHelpers.assertThrows("Should reject commit",
         IllegalArgumentException.class, "Cannot add manifest with deleted files",

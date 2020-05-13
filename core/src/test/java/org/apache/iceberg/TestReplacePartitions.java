@@ -25,7 +25,10 @@ import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestReplacePartitions extends TableTestBase {
 
   static final DataFile FILE_E = DataFiles.builder(SPEC)
@@ -48,6 +51,18 @@ public class TestReplacePartitions extends TableTestBase {
       .withPartitionPath("data_bucket=10") // no other partition
       .withRecordCount(0)
       .build();
+
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { 1 },
+        new Object[] { 2 },
+    };
+  }
+
+  public TestReplacePartitions(int formatVersion) {
+    super(formatVersion);
+  }
 
   @Test
   public void testReplaceOnePartition() {
@@ -114,7 +129,7 @@ public class TestReplacePartitions extends TableTestBase {
     Assert.assertTrue(tableDir.delete());
 
     Table unpartitioned = TestTables.create(
-        tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned());
+        tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
 
     Assert.assertEquals("Table version should be 0",
         0, (long) TestTables.metadataVersion("unpartitioned"));
@@ -153,7 +168,7 @@ public class TestReplacePartitions extends TableTestBase {
     Assert.assertTrue(tableDir.delete());
 
     Table unpartitioned = TestTables.create(
-        tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned());
+        tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
 
     // ensure the overwrite results in a merge
     unpartitioned.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();

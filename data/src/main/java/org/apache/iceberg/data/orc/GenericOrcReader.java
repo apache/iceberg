@@ -23,13 +23,22 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcValueReader;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
@@ -53,6 +62,9 @@ public class GenericOrcReader implements OrcValueReader<Record> {
   private final List<TypeDescription> columns;
   private final Converter[] converters;
 
+  private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
+  private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
+
   private GenericOrcReader(Schema expectedSchema, TypeDescription readSchema) {
     this.schema = expectedSchema;
     this.columns = readSchema.getChildren();
@@ -70,8 +82,7 @@ public class GenericOrcReader implements OrcValueReader<Record> {
     return newConverters;
   }
 
-  public static OrcValueReader<Record> buildReader(Schema expectedSchema,
-                                                   TypeDescription fileSchema) {
+  public static OrcValueReader<Record> buildReader(Schema expectedSchema, TypeDescription fileSchema) {
     return new GenericOrcReader(expectedSchema, fileSchema);
   }
 
@@ -85,147 +96,140 @@ public class GenericOrcReader implements OrcValueReader<Record> {
   }
 
   interface Converter<T> {
-    T convert(ColumnVector vector, int row);
-  }
-
-  private static class BooleanConverter implements Converter<Boolean> {
-    @Override
-    public Boolean convert(ColumnVector vector, int row) {
+    default T convert(ColumnVector vector, int row) {
       int rowIndex = vector.isRepeating ? 0 : row;
       if (!vector.noNulls && vector.isNull[rowIndex]) {
         return null;
       } else {
-        return ((LongColumnVector) vector).vector[rowIndex] != 0;
+        return convertNonNullValue(vector, rowIndex);
       }
+    }
+
+    T convertNonNullValue(ColumnVector vector, int row);
+  }
+
+  private static class BooleanConverter implements Converter<Boolean> {
+    @Override
+    public Boolean convertNonNullValue(ColumnVector vector, int row) {
+      return ((LongColumnVector) vector).vector[row] != 0;
     }
   }
 
   private static class ByteConverter implements Converter<Byte> {
     @Override
-    public Byte convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return (byte) ((LongColumnVector) vector).vector[rowIndex];
-      }
+    public Byte convertNonNullValue(ColumnVector vector, int row) {
+      return (byte) ((LongColumnVector) vector).vector[row];
     }
   }
 
   private static class ShortConverter implements Converter<Short> {
     @Override
-    public Short convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return (short) ((LongColumnVector) vector).vector[rowIndex];
-      }
+    public Short convertNonNullValue(ColumnVector vector, int row) {
+      return (short) ((LongColumnVector) vector).vector[row];
     }
   }
 
   private static class IntConverter implements Converter<Integer> {
     @Override
-    public Integer convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return (int) ((LongColumnVector) vector).vector[rowIndex];
-      }
+    public Integer convertNonNullValue(ColumnVector vector, int row) {
+      return (int) ((LongColumnVector) vector).vector[row];
+    }
+  }
+
+  private static class TimeConverter implements Converter<LocalTime> {
+    @Override
+    public LocalTime convertNonNullValue(ColumnVector vector, int row) {
+      return LocalTime.ofNanoOfDay(((LongColumnVector) vector).vector[row] * 1_000);
+    }
+  }
+
+  private static class DateConverter implements Converter<LocalDate> {
+    @Override
+    public LocalDate convertNonNullValue(ColumnVector vector, int row) {
+      return EPOCH_DAY.plusDays((int) ((LongColumnVector) vector).vector[row]);
     }
   }
 
   private static class LongConverter implements Converter<Long> {
     @Override
-    public Long convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return ((LongColumnVector) vector).vector[rowIndex];
-      }
+    public Long convertNonNullValue(ColumnVector vector, int row) {
+      return ((LongColumnVector) vector).vector[row];
     }
   }
 
   private static class FloatConverter implements Converter<Float> {
     @Override
-    public Float convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return (float) ((DoubleColumnVector) vector).vector[rowIndex];
-      }
+    public Float convertNonNullValue(ColumnVector vector, int row) {
+      return (float) ((DoubleColumnVector) vector).vector[row];
     }
   }
 
   private static class DoubleConverter implements Converter<Double> {
     @Override
-    public Double convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return ((DoubleColumnVector) vector).vector[rowIndex];
-      }
+    public Double convertNonNullValue(ColumnVector vector, int row) {
+      return ((DoubleColumnVector) vector).vector[row];
     }
   }
 
-  private static class TimestampConverter implements Converter<Long> {
-    private Long convert(TimestampColumnVector vector, int row) {
-      // compute microseconds past 1970.
-      return (vector.time[row] / 1000) * 1_000_000 + vector.nanos[row] / 1000;
-    }
-
+  private static class TimestampTzConverter implements Converter<OffsetDateTime> {
     @Override
-    public Long convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return convert((TimestampColumnVector) vector, rowIndex);
-      }
+    public OffsetDateTime convertNonNullValue(ColumnVector vector, int row) {
+      TimestampColumnVector tcv = (TimestampColumnVector) vector;
+      return Instant.ofEpochSecond(Math.floorDiv(tcv.time[row], 1_000), tcv.nanos[row]).atOffset(ZoneOffset.UTC);
     }
   }
 
-  private static class BinaryConverter implements Converter<byte[]> {
+  private static class TimestampConverter implements Converter<LocalDateTime> {
     @Override
-    public byte[] convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        BytesColumnVector bytesVector = (BytesColumnVector) vector;
-        return Arrays.copyOfRange(bytesVector.vector[rowIndex],
-            bytesVector.start[rowIndex],
-            bytesVector.start[rowIndex] + bytesVector.length[rowIndex]);
-      }
+    public LocalDateTime convertNonNullValue(ColumnVector vector, int row) {
+      TimestampColumnVector tcv = (TimestampColumnVector) vector;
+      return Instant.ofEpochSecond(Math.floorDiv(tcv.time[row], 1_000), tcv.nanos[row]).atOffset(ZoneOffset.UTC)
+          .toLocalDateTime();
+    }
+  }
+
+  private static class FixedConverter implements Converter<byte[]> {
+    @Override
+    public byte[] convertNonNullValue(ColumnVector vector, int row) {
+      BytesColumnVector bytesVector = (BytesColumnVector) vector;
+      return Arrays.copyOfRange(bytesVector.vector[row], bytesVector.start[row],
+          bytesVector.start[row] + bytesVector.length[row]);
+    }
+  }
+
+  private static class BinaryConverter implements Converter<ByteBuffer> {
+    @Override
+    public ByteBuffer convertNonNullValue(ColumnVector vector, int row) {
+      BytesColumnVector bytesVector = (BytesColumnVector) vector;
+      return ByteBuffer.wrap(bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row]);
+    }
+  }
+
+  private static class UUIDConverter implements Converter<UUID> {
+    @Override
+    public UUID convertNonNullValue(ColumnVector vector, int row) {
+      BytesColumnVector bytesVector = (BytesColumnVector) vector;
+      ByteBuffer buf = ByteBuffer.wrap(bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row]);
+      long mostSigBits = buf.getLong();
+      long leastSigBits = buf.getLong();
+      return new UUID(mostSigBits, leastSigBits);
     }
   }
 
   private static class StringConverter implements Converter<String> {
     @Override
-    public String convert(ColumnVector vector, int row) {
-      BinaryConverter converter = new BinaryConverter();
-      byte[] byteData = converter.convert(vector, row);
-      if (byteData == null) {
-        return null;
-      }
-      return new String(byteData, StandardCharsets.UTF_8);
+    public String convertNonNullValue(ColumnVector vector, int row) {
+      BytesColumnVector bytesVector = (BytesColumnVector) vector;
+      return new String(bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row],
+          StandardCharsets.UTF_8);
     }
   }
 
   private static class DecimalConverter implements Converter<BigDecimal> {
     @Override
-    public BigDecimal convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return ((DecimalColumnVector) vector).vector[rowIndex]
-            .getHiveDecimal().bigDecimalValue();
-      }
+    public BigDecimal convertNonNullValue(ColumnVector vector, int row) {
+      DecimalColumnVector cv = (DecimalColumnVector) vector;
+      return cv.vector[row].getHiveDecimal().bigDecimalValue().setScale(cv.scale);
     }
   }
 
@@ -243,29 +247,21 @@ public class GenericOrcReader implements OrcValueReader<Record> {
           .get(0), child);
     }
 
-    List<?> readList(ListColumnVector vector, int row) {
-      int offset = (int) vector.offsets[row];
-      int length = (int) vector.lengths[row];
+    @Override
+    public List<?> convertNonNullValue(ColumnVector vector, int row) {
+      ListColumnVector listVector = (ListColumnVector) vector;
+      int offset = (int) listVector.offsets[row];
+      int length = (int) listVector.lengths[row];
 
       List<Object> list = Lists.newArrayListWithExpectedSize(length);
       for (int c = 0; c < length; ++c) {
-        list.add(childConverter.convert(vector.child, offset + c));
+        list.add(childConverter.convert(listVector.child, offset + c));
       }
       return list;
     }
-
-    @Override
-    public List<?> convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return readList((ListColumnVector) vector, rowIndex);
-      }
-    }
   }
 
-  private static class MapConverter implements Converter {
+  private static class MapConverter implements Converter<Map<?, ?>> {
     private final Converter keyConvert;
     private final Converter valueConvert;
 
@@ -279,29 +275,20 @@ public class GenericOrcReader implements OrcValueReader<Record> {
       valueConvert = buildConverter(mapFields.get(1), valueType);
     }
 
-    Map<?, ?> readMap(MapColumnVector vector, int row) {
-      final int offset = (int) vector.offsets[row];
-      final int length = (int) vector.lengths[row];
+    @Override
+    public Map<?, ?> convertNonNullValue(ColumnVector vector, int row) {
+      MapColumnVector mapVector = (MapColumnVector) vector;
+      final int offset = (int) mapVector.offsets[row];
+      final int length = (int) mapVector.lengths[row];
 
-      // serialize the keys
-      Map<String, Object> map = Maps.newHashMapWithExpectedSize(length);
+      Map<Object, Object> map = Maps.newHashMapWithExpectedSize(length);
       for (int c = 0; c < length; ++c) {
-        String key = String.valueOf(keyConvert.convert(vector.keys, offset + c));
-        Object value = valueConvert.convert(vector.values, offset + c);
+        Object key = keyConvert.convert(mapVector.keys, offset + c);
+        Object value = valueConvert.convert(mapVector.values, offset + c);
         map.put(key, value);
       }
 
       return map;
-    }
-
-    @Override
-    public Map convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return readMap((MapColumnVector) vector, rowIndex);
-      }
     }
   }
 
@@ -322,27 +309,18 @@ public class GenericOrcReader implements OrcValueReader<Record> {
       }
     }
 
-    Record writeStruct(StructColumnVector vector, int row) {
+    @Override
+    public Record convertNonNullValue(ColumnVector vector, int row) {
+      StructColumnVector structVector = (StructColumnVector) vector;
       Record data = GenericRecord.create(icebergStructSchema);
       for (int c = 0; c < children.length; ++c) {
-        data.set(c, children[c].convert(vector.fields[c], row));
+        data.set(c, children[c].convert(structVector.fields[c], row));
       }
       return data;
     }
-
-    @Override
-    public Record convert(ColumnVector vector, int row) {
-      int rowIndex = vector.isRepeating ? 0 : row;
-      if (!vector.noNulls && vector.isNull[rowIndex]) {
-        return null;
-      } else {
-        return writeStruct((StructColumnVector) vector, rowIndex);
-      }
-    }
   }
 
-  private static Converter buildConverter(final Types.NestedField icebergField,
-                                          final TypeDescription schema) {
+  private static Converter buildConverter(final Types.NestedField icebergField, final TypeDescription schema) {
     switch (schema.getCategory()) {
       case BOOLEAN:
         return new BooleanConverter();
@@ -351,20 +329,45 @@ public class GenericOrcReader implements OrcValueReader<Record> {
       case SHORT:
         return new ShortConverter();
       case DATE:
+        return new DateConverter();
       case INT:
         return new IntConverter();
       case LONG:
-        return new LongConverter();
+        String longAttributeValue = schema.getAttributeValue(ORCSchemaUtil.ICEBERG_LONG_TYPE_ATTRIBUTE);
+        ORCSchemaUtil.LongType longType = longAttributeValue == null ? ORCSchemaUtil.LongType.LONG :
+            ORCSchemaUtil.LongType.valueOf(longAttributeValue);
+        switch (longType) {
+          case TIME:
+            return new TimeConverter();
+          case LONG:
+            return new LongConverter();
+          default:
+            throw new IllegalStateException("Unhandled Long type found in ORC type attribute: " + longType);
+        }
       case FLOAT:
         return new FloatConverter();
       case DOUBLE:
         return new DoubleConverter();
       case TIMESTAMP:
         return new TimestampConverter();
+      case TIMESTAMP_INSTANT:
+        return new TimestampTzConverter();
       case DECIMAL:
         return new DecimalConverter();
       case BINARY:
-        return new BinaryConverter();
+        String binaryAttributeValue = schema.getAttributeValue(ORCSchemaUtil.ICEBERG_BINARY_TYPE_ATTRIBUTE);
+        ORCSchemaUtil.BinaryType binaryType = binaryAttributeValue == null ? ORCSchemaUtil.BinaryType.BINARY :
+            ORCSchemaUtil.BinaryType.valueOf(binaryAttributeValue);
+        switch (binaryType) {
+          case UUID:
+            return new UUIDConverter();
+          case FIXED:
+            return new FixedConverter();
+          case BINARY:
+            return new BinaryConverter();
+          default:
+            throw new IllegalStateException("Unhandled Binary type found in ORC type attribute: " + binaryType);
+        }
       case STRING:
       case CHAR:
       case VARCHAR:

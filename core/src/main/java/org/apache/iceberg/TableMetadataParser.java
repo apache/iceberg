@@ -87,6 +87,7 @@ public class TableMetadataParser {
   static final String FORMAT_VERSION = "format-version";
   static final String TABLE_UUID = "table-uuid";
   static final String LOCATION = "location";
+  static final String LAST_SEQUENCE_NUMBER = "last-sequence-number";
   static final String LAST_UPDATED_MILLIS = "last-updated-ms";
   static final String LAST_COLUMN_ID = "last-column-id";
   static final String SCHEMA = "schema";
@@ -159,11 +160,15 @@ public class TableMetadataParser {
   private static void toJson(TableMetadata metadata, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
 
-    generator.writeNumberField(FORMAT_VERSION, TableMetadata.TABLE_FORMAT_VERSION);
+    generator.writeNumberField(FORMAT_VERSION, metadata.formatVersion());
     generator.writeStringField(TABLE_UUID, metadata.uuid());
     generator.writeStringField(LOCATION, metadata.location());
     if (metadata.supportMutableIngestion()) {
       generator.writeStringField(DELTA_LOCATION, metadata.deltaLocation());
+    }
+
+    if (metadata.formatVersion() > 1) {
+      generator.writeNumberField(LAST_SEQUENCE_NUMBER, metadata.lastSequenceNumber());
     }
     generator.writeNumberField(LAST_UPDATED_MILLIS, metadata.lastUpdatedMillis());
     generator.writeNumberField(LAST_COLUMN_ID, metadata.lastColumnId());
@@ -178,8 +183,10 @@ public class TableMetadataParser {
     }
 
     // for older readers, continue writing the default spec as "partition-spec"
-    generator.writeFieldName(PARTITION_SPEC);
-    PartitionSpecParser.toJsonFields(metadata.spec(), generator);
+    if (metadata.formatVersion() == 1) {
+      generator.writeFieldName(PARTITION_SPEC);
+      PartitionSpecParser.toJsonFields(metadata.spec(), generator);
+    }
 
     // write the default spec ID and spec list
     generator.writeNumberField(DEFAULT_SPEC_ID, metadata.defaultSpecId());
@@ -225,6 +232,14 @@ public class TableMetadataParser {
     generator.writeEndObject();
   }
 
+  /**
+   * @deprecated will be removed in 0.9.0; use read(FileIO, InputFile) instead.
+   */
+  @Deprecated
+  public static TableMetadata read(TableOperations ops, InputFile file) {
+    return read(ops.io(), file);
+  }
+
   public static TableMetadata read(FileIO io, String path) {
     return read(io, io.newInputFile(path));
   }
@@ -243,11 +258,17 @@ public class TableMetadataParser {
         "Cannot parse metadata from a non-object: %s", node);
 
     int formatVersion = JsonUtil.getInt(FORMAT_VERSION, node);
-    Preconditions.checkArgument(formatVersion == TableMetadata.TABLE_FORMAT_VERSION,
+    Preconditions.checkArgument(formatVersion <= TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION,
         "Cannot read unsupported version %s", formatVersion);
 
     String uuid = JsonUtil.getStringOrNull(TABLE_UUID, node);
     String location = JsonUtil.getString(LOCATION, node);
+    long lastSequenceNumber;
+    if (formatVersion > 1) {
+      lastSequenceNumber = JsonUtil.getLong(LAST_SEQUENCE_NUMBER, node);
+    } else {
+      lastSequenceNumber = TableMetadata.INITIAL_SEQUENCE_NUMBER;
+    }
     int lastAssignedColumnId = JsonUtil.getInt(LAST_COLUMN_ID, node);
     Schema schema = SchemaParser.fromJson(node.get(SCHEMA));
 
@@ -321,9 +342,9 @@ public class TableMetadataParser {
       }
     }
 
-    return new TableMetadata(file, uuid, location, deltaLocation,
-        lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs, pkSpec,
-            properties, currentVersionId, snapshots, ImmutableList.copyOf(entries.iterator()),
-            ImmutableList.copyOf(metadataEntries.iterator()), -1L, ImmutableList.of());
+    return new TableMetadata(file, formatVersion, uuid, location, deltaLocation,
+        lastSequenceNumber, lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs, pkSpec, properties,
+        currentVersionId, snapshots, ImmutableList.copyOf(entries.iterator()),
+        ImmutableList.copyOf(metadataEntries.iterator()), -1, ImmutableList.of());
   }
 }

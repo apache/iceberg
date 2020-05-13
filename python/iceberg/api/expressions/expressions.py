@@ -23,6 +23,7 @@ from .expression import (And,
                          Operation,
                          Or,
                          TRUE)
+from .expression_parser import parse_expr_string
 from .predicate import (Predicate,
                         UnboundPredicate)
 from .reference import NamedReference
@@ -128,9 +129,6 @@ class Expressions(object):
 
     @staticmethod
     def convert_string_to_expr(predicate_string):
-        from moz_sql_parser import parse
-        from pyparsing import ParseException
-
         expr_map = {"and": (Expressions.and_,),
                     "eq": (Expressions.equal,),
                     "exists": (Expressions.not_null,),
@@ -143,72 +141,7 @@ class Expressions(object):
                     "not": (Expressions.not_,),
                     "or": (Expressions.or_,)}
 
-        dummy_query = "SELECT * FROM tbl WHERE {}".format(predicate_string)  # nosec
-        try:
-            expr = (Expressions.
-                    _transform_to_binary_tuples(Expressions.
-                                                _transform_between_op(parse(dummy_query)["where"])))
-            return Expressions._get_expr(expr, expr_map)
-        except ParseException as pe:
-            _logger.error("Error parsing string expression into iceberg expression: %s" % str(pe))
-            raise
-
-    @staticmethod
-    def _get_expr(node, expr_map):
-        if isinstance(node, dict):
-            for i in node.keys():
-                op = i
-            if op == "literal":
-                return node["literal"]
-            mapped_op = expr_map.get(op, expr_map)
-            if len(mapped_op) == 1:
-                mapped_op = mapped_op[0]
-            if mapped_op is None:
-                raise RuntimeError("no mapping for op: %s" % op)
-            if mapped_op in (Expressions.not_, Expressions.not_null, Expressions.is_null):
-                return mapped_op(Expressions._get_expr(node[op], expr_map))
-
-            return mapped_op(*Expressions._get_expr(node[op], expr_map))
-        elif isinstance(node, (list, tuple)):
-            return (Expressions._get_expr(item, expr_map) for item in node)
-        elif isinstance(node, (str, int, float)):
-            return node
-        else:
-            raise RuntimeError("unknown node type" % node)
-
-    @staticmethod
-    def _transform_to_binary_tuples(expr):
-        if not isinstance(expr, dict):
-            return expr
-        for op in expr.keys():
-            if op in ("exists", "literal", "missing", "not"):
-                return expr
-            new_expr = [Expressions._transform_to_binary_tuples(child)
-                        for child in expr[op]]
-            while len(new_expr) > 2:
-                new_and = {op: [new_expr[-2], new_expr[-1]]}
-                new_expr[-2] = new_and
-                del new_expr[-1]
-            expr[op] = new_expr
-
-        return expr
-
-    @staticmethod
-    def _transform_between_op(expr):
-        if isinstance(expr, (bool, float, int, str)):
-            return expr
-        for op, children in expr.items():
-            if op in ("exists", "literal", "missing", "not"):
-                return expr
-            new_children = []
-            for child in children:
-                new_children.append(Expressions._transform_between_op(child))
-            expr[op] = new_children
-            if op == "between":
-                return {"and": [{"gte": [expr[op][0], expr[op][1]]},
-                                {"lte": [expr[op][0], expr[op][2]]}]}
-            else:
-                return expr
+        return parse_expr_string(predicate_string, expr_map)
 
 
 class ExpressionVisitors(object):

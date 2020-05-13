@@ -120,7 +120,7 @@ public class SparkValueWriters {
     private DecimalWriter(int precision, int scale) {
       this.precision = precision;
       this.scale = scale;
-      this.length = TypeUtil.decimalRequriedBytes(precision);
+      this.length = TypeUtil.decimalRequiredBytes(precision);
       this.bytes = ThreadLocal.withInitial(() -> new byte[length]);
     }
 

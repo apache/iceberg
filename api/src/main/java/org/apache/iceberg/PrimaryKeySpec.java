@@ -3,6 +3,7 @@ package org.apache.iceberg;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.*;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 import java.util.*;

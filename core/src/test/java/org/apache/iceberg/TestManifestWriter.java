@@ -24,22 +24,36 @@ import java.util.UUID;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestManifestWriter extends TableTestBase {
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { 1 },
+        new Object[] { 2 },
+    };
+  }
+
+  public TestManifestWriter(int formatVersion) {
+    super(formatVersion);
+  }
 
   @Test
   public void testManifestStats() throws IOException {
     ManifestFile manifest = writeManifest(
         "manifest.avro",
-        manifestEntry(Status.ADDED, 100L, newFile(10)),
-        manifestEntry(Status.ADDED, 100L, newFile(20)),
-        manifestEntry(Status.ADDED, 100L, newFile(5)),
-        manifestEntry(Status.ADDED, 100L, newFile(5)),
-        manifestEntry(Status.EXISTING, 100L, newFile(15)),
-        manifestEntry(Status.EXISTING, 100L, newFile(10)),
-        manifestEntry(Status.EXISTING, 100L, newFile(1)),
-        manifestEntry(Status.DELETED, 100L, newFile(5)),
-        manifestEntry(Status.DELETED, 100L, newFile(2)));
+        manifestEntry(Status.ADDED, null, newFile(10)),
+        manifestEntry(Status.ADDED, null, newFile(20)),
+        manifestEntry(Status.ADDED, null, newFile(5)),
+        manifestEntry(Status.ADDED, null, newFile(5)),
+        manifestEntry(Status.EXISTING, null, newFile(15)),
+        manifestEntry(Status.EXISTING, null, newFile(10)),
+        manifestEntry(Status.EXISTING, null, newFile(1)),
+        manifestEntry(Status.DELETED, null, newFile(5)),
+        manifestEntry(Status.DELETED, null, newFile(2)));
 
     Assert.assertTrue("Added files should be present", manifest.hasAddedFiles());
     Assert.assertEquals("Added files count should match", 4, (int) manifest.addedFilesCount());

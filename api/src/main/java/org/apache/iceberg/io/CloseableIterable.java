@@ -26,6 +26,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -183,7 +184,11 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
 
       @Override
       public E next() {
-        return currentIterator.next();
+        if (hasNext()) {
+          return currentIterator.next();
+        } else {
+          throw new NoSuchElementException();
+        }
       }
     }
   }

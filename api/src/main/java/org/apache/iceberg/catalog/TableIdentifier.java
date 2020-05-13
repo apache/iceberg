@@ -57,7 +57,7 @@ public class TableIdentifier {
 
   /**
    * Whether the namespace is empty.
-   * @return true if the namespace is empty, false otherwise
+   * @return true if the namespace is not empty, false otherwise
    */
   public boolean hasNamespace() {
     return !namespace.isEmpty();
@@ -106,6 +106,10 @@ public class TableIdentifier {
 
   @Override
   public String toString() {
-    return namespace.toString() + "." + name;
+    if (hasNamespace()) {
+      return namespace.toString() + "." + name;
+    } else {
+      return name;
+    }
   }
 }

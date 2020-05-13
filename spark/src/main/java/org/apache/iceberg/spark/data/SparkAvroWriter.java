@@ -20,36 +20,39 @@
 package org.apache.iceberg.spark.data;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Encoder;
-import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.avro.AvroSchemaVisitor;
 import org.apache.iceberg.avro.ValueWriter;
 import org.apache.iceberg.avro.ValueWriters;
-import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.types.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.types.ArrayType;
+import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
-import org.apache.spark.unsafe.types.UTF8String;
+import org.apache.spark.sql.types.MapType;
+import org.apache.spark.sql.types.ShortType;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
 
 public class SparkAvroWriter implements DatumWriter<InternalRow> {
-  private final org.apache.iceberg.Schema schema;
+  private final StructType dsSchema;
   private ValueWriter<InternalRow> writer = null;
 
-  public SparkAvroWriter(org.apache.iceberg.Schema schema) {
-    this.schema = schema;
+  public SparkAvroWriter(StructType dsSchema) {
+    this.dsSchema = dsSchema;
   }
 
   @Override
   @SuppressWarnings("unchecked")
   public void setSchema(Schema schema) {
-    this.writer = (ValueWriter<InternalRow>) AvroSchemaVisitor.visit(schema, new WriteBuilder(this.schema));
+    this.writer = (ValueWriter<InternalRow>) AvroWithSparkSchemaVisitor
+        .visit(dsSchema, schema, new WriteBuilder());
   }
 
   @Override
@@ -57,26 +60,15 @@ public class SparkAvroWriter implements DatumWriter<InternalRow> {
     writer.write(datum, out);
   }
 
-  private static class WriteBuilder extends AvroSchemaVisitor<ValueWriter<?>> {
-    private final org.apache.iceberg.Schema schema;
-
-    private WriteBuilder(org.apache.iceberg.Schema schema) {
-      this.schema = schema;
-    }
-
+  private static class WriteBuilder extends AvroWithSparkSchemaVisitor<ValueWriter<?>> {
     @Override
-    public ValueWriter<?> record(Schema record, List<String> names, List<ValueWriter<?>> fields) {
-      List<DataType> types = Lists.newArrayList();
-      for (Schema.Field field : record.getFields()) {
-        int fieldId = AvroSchemaUtil.getFieldId(field);
-        Type fieldType = schema.findType(fieldId);
-        types.add(SparkSchemaUtil.convert(fieldType));
-      }
+    public ValueWriter<?> record(StructType struct, Schema record, List<String> names, List<ValueWriter<?>> fields) {
+      List<DataType> types = Stream.of(struct.fields()).map(StructField::dataType).collect(Collectors.toList());
       return SparkValueWriters.struct(fields, types);
     }
 
     @Override
-    public ValueWriter<?> union(Schema union, List<ValueWriter<?>> options) {
+    public ValueWriter<?> union(DataType type, Schema union, List<ValueWriter<?>> options) {
       Preconditions.checkArgument(options.contains(ValueWriters.nulls()),
           "Cannot create writer for non-option union: %s", union);
       Preconditions.checkArgument(options.size() == 2,
@@ -89,33 +81,22 @@ public class SparkAvroWriter implements DatumWriter<InternalRow> {
     }
 
     @Override
-    public ValueWriter<?> array(Schema array, ValueWriter<?> elementWriter) {
-      LogicalType logical = array.getLogicalType();
-      if (logical != null && "map".equals(logical.getName())) {
-        int keyFieldId = AvroSchemaUtil.getFieldId(array.getElementType().getField("key"));
-        Type keyType = schema.findType(keyFieldId);
-        int valueFieldId = AvroSchemaUtil.getFieldId(array.getElementType().getField("value"));
-        Type valueType = schema.findType(valueFieldId);
-        ValueWriter<?>[] writers = ((SparkValueWriters.StructWriter) elementWriter).writers();
-        return SparkValueWriters.arrayMap(
-            writers[0], SparkSchemaUtil.convert(keyType), writers[1], SparkSchemaUtil.convert(valueType));
-      }
-
-      Type elementType = schema.findType(AvroSchemaUtil.getElementId(array));
-      return SparkValueWriters.array(elementWriter, SparkSchemaUtil.convert(elementType));
+    public ValueWriter<?> array(ArrayType sArray, Schema array, ValueWriter<?> elementWriter) {
+      return SparkValueWriters.array(elementWriter, sArray.elementType());
     }
 
     @Override
-    public ValueWriter<?> map(Schema map, ValueWriter<?> valueReader) {
-      Type keyType = schema.findType(AvroSchemaUtil.getKeyId(map));
-      Type valueType = schema.findType(AvroSchemaUtil.getValueId(map));
-      ValueWriter<UTF8String> writer = SparkValueWriters.strings();
-      return SparkValueWriters.map(
-          writer, SparkSchemaUtil.convert(keyType), valueReader, SparkSchemaUtil.convert(valueType));
+    public ValueWriter<?> map(MapType sMap, Schema map, ValueWriter<?> valueReader) {
+      return SparkValueWriters.map(SparkValueWriters.strings(), sMap.keyType(), valueReader, sMap.valueType());
     }
 
     @Override
-    public ValueWriter<?> primitive(Schema primitive) {
+    public ValueWriter<?> map(MapType sMap, Schema map, ValueWriter<?> keyWriter, ValueWriter<?> valueWriter) {
+      return SparkValueWriters.arrayMap(keyWriter, sMap.keyType(), valueWriter, sMap.valueType());
+    }
+
+    @Override
+    public ValueWriter<?> primitive(DataType type, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
         switch (logicalType.getName()) {
@@ -145,6 +126,11 @@ public class SparkAvroWriter implements DatumWriter<InternalRow> {
         case BOOLEAN:
           return ValueWriters.booleans();
         case INT:
+          if (type instanceof ByteType) {
+            return ValueWriters.tinyints();
+          } else if (type instanceof ShortType) {
+            return ValueWriters.shorts();
+          }
           return ValueWriters.ints();
         case LONG:
           return ValueWriters.longs();

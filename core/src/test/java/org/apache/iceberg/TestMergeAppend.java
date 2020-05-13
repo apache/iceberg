@@ -27,12 +27,28 @@ import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static com.google.common.collect.Iterators.concat;
 
+@RunWith(Parameterized.class)
 public class TestMergeAppend extends TableTestBase {
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { 1 },
+        new Object[] { 2 },
+    };
+  }
+
+  public TestMergeAppend(int formatVersion) {
+    super(formatVersion);
+  }
+
   @Test
   public void testEmptyTableAppend() {
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
@@ -647,5 +663,99 @@ public class TestMergeAppend extends TableTestBase {
         () -> table.newAppend()
             .appendManifest(manifestWithDeletedFiles)
             .commit());
+  }
+
+
+  @Test
+  public void testUpdatePartitionSpecFieldIdsForV1Table() {
+    TableMetadata base = readMetadata();
+
+    // build the new spec using the table's schema, which uses fresh IDs
+    PartitionSpec newSpec = PartitionSpec.builderFor(base.schema())
+        .bucket("id", 16)
+        .identity("data")
+        .bucket("data", 4)
+        .bucket("data", 16, "data_partition") // reuse field id although different target name
+        .build();
+
+    // commit the new partition spec to the table manually
+    table.ops().commit(base, base.updatePartitionSpec(newSpec));
+
+    List<PartitionSpec> partitionSpecs = table.ops().current().specs();
+    PartitionSpec partitionSpec = partitionSpecs.get(0);
+    Assert.assertEquals(1000, partitionSpec.lastAssignedFieldId());
+
+    Types.StructType structType = partitionSpec.partitionType();
+    List<Types.NestedField> fields = structType.fields();
+    Assert.assertEquals(1, fields.size());
+    Assert.assertEquals("data_bucket", fields.get(0).name());
+    Assert.assertEquals(1000, fields.get(0).fieldId());
+
+    partitionSpec = partitionSpecs.get(1);
+    Assert.assertEquals(1003, partitionSpec.lastAssignedFieldId());
+
+    structType = partitionSpec.partitionType();
+    fields = structType.fields();
+    Assert.assertEquals(4, fields.size());
+    Assert.assertEquals("id_bucket", fields.get(0).name());
+    Assert.assertEquals(1000, fields.get(0).fieldId());
+    Assert.assertEquals("data", fields.get(1).name());
+    Assert.assertEquals(1001, fields.get(1).fieldId());
+    Assert.assertEquals("data_bucket", fields.get(2).name());
+    Assert.assertEquals(1002, fields.get(2).fieldId());
+    Assert.assertEquals("data_partition", fields.get(3).name());
+    Assert.assertEquals(1003, fields.get(3).fieldId());
+  }
+
+  @Test
+  public void testManifestEntryFieldIdsForChangedPartitionSpecForV1Table() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    TableMetadata base = readMetadata();
+    Assert.assertEquals("Should create 1 manifest for initial write",
+        1, base.currentSnapshot().manifests().size());
+    ManifestFile initialManifest = base.currentSnapshot().manifests().get(0);
+
+    // build the new spec using the table's schema, which uses fresh IDs
+    PartitionSpec newSpec = PartitionSpec.builderFor(base.schema())
+        .bucket("id", 8)
+        .bucket("data", 8)
+        .build();
+
+    // commit the new partition spec to the table manually
+    table.ops().commit(base, base.updatePartitionSpec(newSpec));
+
+    DataFile newFile = DataFiles.builder(table.spec())
+        .copy(FILE_B)
+        .build();
+
+    Snapshot pending = table.newAppend()
+        .appendFile(newFile)
+        .apply();
+
+    Assert.assertEquals("Should use 2 manifest files",
+        2, pending.manifests().size());
+
+    // new manifest comes first
+    validateManifest(pending.manifests().get(0), ids(pending.snapshotId()), files(newFile));
+
+    Assert.assertEquals("Second manifest should be the initial manifest with the old spec",
+        initialManifest, pending.manifests().get(1));
+
+    // field ids of manifest entries in two manifests with different specs of the same source field should be different
+    ManifestEntry entry = ManifestFiles.read(pending.manifests().get(0), FILE_IO).entries().iterator().next();
+    Types.NestedField field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(0);
+    Assert.assertEquals(1000, field.fieldId());
+    Assert.assertEquals("id_bucket", field.name());
+    field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(1);
+    Assert.assertEquals(1001, field.fieldId());
+    Assert.assertEquals("data_bucket", field.name());
+
+    entry = ManifestFiles.read(pending.manifests().get(1), FILE_IO).entries().iterator().next();
+    field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(0);
+    Assert.assertEquals(1000, field.fieldId());
+    Assert.assertEquals("data_bucket", field.name());
   }
 }

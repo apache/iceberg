@@ -28,16 +28,18 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 
 class BaseSnapshot implements Snapshot {
+  private static final long INITIAL_SEQUENCE_NUMBER = 0;
+
   private final FileIO io;
   private final long snapshotId;
   private final Long parentId;
+  private final long sequenceNumber;
   private final long timestampMillis;
   private final InputFile manifestList;
   private final String operation;
@@ -62,16 +64,18 @@ class BaseSnapshot implements Snapshot {
   }
 
   BaseSnapshot(FileIO io,
+               long sequenceNumber,
                long snapshotId,
                Long parentId,
                long timestampMillis,
                String operation,
                Map<String, String> summary,
                InputFile manifestList) {
-    this(io, snapshotId, parentId, timestampMillis, operation, summary, manifestList, (Long)null);
+    this(io, sequenceNumber, snapshotId, parentId, timestampMillis, operation, summary, manifestList, (Long)null);
   }
 
   BaseSnapshot(FileIO io,
+               long sequenceNumber,
                long snapshotId,
                Long parentId,
                long timestampMillis,
@@ -80,6 +84,7 @@ class BaseSnapshot implements Snapshot {
                InputFile manifestList,
                Long deltaSnapshotId) {
     this.io = io;
+    this.sequenceNumber = sequenceNumber;
     this.snapshotId = snapshotId;
     this.parentId = parentId;
     this.timestampMillis = timestampMillis;
@@ -96,7 +101,7 @@ class BaseSnapshot implements Snapshot {
                String operation,
                Map<String, String> summary,
                List<ManifestFile> manifests) {
-    this(io, snapshotId, parentId, timestampMillis, operation, summary, (InputFile) null);
+    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, (InputFile) null);
     this.manifests = manifests;
   }
 
@@ -108,8 +113,13 @@ class BaseSnapshot implements Snapshot {
                Map<String, String> summary,
                List<ManifestFile> manifests,
                Long deltaSnapshotId) {
-    this(io, snapshotId, parentId, timestampMillis, operation, summary, (InputFile) null, deltaSnapshotId);
+    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, (InputFile) null, deltaSnapshotId);
     this.manifests = manifests;
+  }
+
+  @Override
+  public long sequenceNumber() {
+    return sequenceNumber;
   }
 
   @Override
@@ -141,19 +151,7 @@ class BaseSnapshot implements Snapshot {
   public List<ManifestFile> manifests() {
     if (manifests == null) {
       // if manifests isn't set, then the snapshotFile is set and should be read to get the list
-      try (CloseableIterable<ManifestFile> files = Avro.read(manifestList)
-          .rename("manifest_file", GenericManifestFile.class.getName())
-          .rename("partitions", GenericPartitionFieldSummary.class.getName())
-          .rename("r508", GenericPartitionFieldSummary.class.getName())
-          .project(ManifestFile.schema())
-          .reuseContainers(false)
-          .build()) {
-
-        this.manifests = Lists.newLinkedList(files);
-
-      } catch (IOException e) {
-        throw new RuntimeIOException(e, "Cannot read manifest list file: %s", manifestList.location());
-      }
+      this.manifests = ManifestLists.read(manifestList);
     }
 
     return manifests;

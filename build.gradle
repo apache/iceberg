@@ -94,6 +94,13 @@ subprojects {
     testCompile 'org.slf4j:slf4j-simple'
     testCompile 'org.mockito:mockito-core'
   }
+
+  test {
+    testLogging {
+      events "failed"
+      exceptionFormat "full"
+    }
+  }
 }
 
 apply from: 'baseline.gradle'
@@ -220,6 +227,24 @@ project(':iceberg-hive') {
   }
 }
 
+project(':iceberg-mr') {
+  dependencies {
+    compile project(':iceberg-api')
+    compile project(':iceberg-core')
+    compile project(':iceberg-orc')
+    compile project(':iceberg-parquet')
+    compile project(':iceberg-data')
+
+    compileOnly("org.apache.hadoop:hadoop-client") {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
+
+    testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
+  }
+}
+
 project(':iceberg-orc') {
   dependencies {
     compile project(':iceberg-api')
@@ -275,9 +300,11 @@ project(':iceberg-arrow') {
     compile("org.apache.arrow:arrow-vector") {
       exclude group: 'io.netty', module: 'netty-buffer'
       exclude group: 'io.netty', module: 'netty-common'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
     compile("org.apache.arrow:arrow-memory") {
       exclude group: 'io.netty', module: 'netty-common'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
   }
 }
@@ -289,6 +316,7 @@ project(':iceberg-spark') {
     compile project(':iceberg-api')
     compile project(':iceberg-common')
     compile project(':iceberg-core')
+    compile project(':iceberg-data')
     compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
     compile project(':iceberg-arrow')
@@ -370,6 +398,7 @@ project(':iceberg-spark-runtime') {
       exclude group: 'commons-codec'
       exclude group: 'org.xerial.snappy'
       exclude group: 'javax.xml.bind'
+      exclude group: 'javax.annotation'
     }
   }
 
@@ -387,6 +416,7 @@ project(':iceberg-spark-runtime') {
     from(projectDir) {
       include 'LICENSE'
       include 'NOTICE'
+      include 'DISCLAIMER'
     }
 
     // Relocate dependencies to avoid conflicts
@@ -406,6 +436,7 @@ project(':iceberg-spark-runtime') {
     // relocate Arrow and related deps to shade Iceberg specific version
     relocate 'io.netty.buffer', 'org.apache.iceberg.shaded.io.netty.buffer'
     relocate 'org.apache.arrow', 'org.apache.iceberg.shaded.org.apache.arrow'
+    relocate 'com.carrotsearch', 'org.apache.iceberg.shaded.com.carrotsearch'
 
     archiveName = "iceberg-spark-runtime-${version}.${extension}"
   }

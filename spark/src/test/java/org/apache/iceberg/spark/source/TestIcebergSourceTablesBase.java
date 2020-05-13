@@ -33,6 +33,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.actions.Actions;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -115,11 +116,19 @@ public abstract class TestIcebergSourceTablesBase {
         .load(loadLocation(tableIdentifier, "entries"))
         .collectAsList();
 
-    Assert.assertEquals("Should only contain one manifest", 1, table.currentSnapshot().manifests().size());
-    InputFile manifest = table.io().newInputFile(table.currentSnapshot().manifests().get(0).path());
-    List<GenericData.Record> expected;
+    Snapshot snapshot = table.currentSnapshot();
+
+    Assert.assertEquals("Should only contain one manifest", 1, snapshot.manifests().size());
+
+    InputFile manifest = table.io().newInputFile(snapshot.manifests().get(0).path());
+    List<GenericData.Record> expected = Lists.newArrayList();
     try (CloseableIterable<GenericData.Record> rows = Avro.read(manifest).project(entriesTable.schema()).build()) {
-      expected = Lists.newArrayList(rows);
+      // each row must inherit snapshot_id and sequence_number
+      rows.forEach(row -> {
+        row.put(1, snapshot.snapshotId());
+        row.put(2, 0L);
+        expected.add(row);
+      });
     }
 
     Assert.assertEquals("Entries table should have one row", 1, expected.size());
@@ -278,6 +287,53 @@ public abstract class TestIcebergSourceTablesBase {
   }
 
   @Test
+  public void testEntriesTableWithSnapshotIdInheritance() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_inheritance_test");
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
+    Table table = createTable(tableIdentifier, SCHEMA, spec);
+
+    table.updateProperties()
+        .set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true")
+        .commit();
+
+    List<SimpleRecord> records = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b")
+    );
+
+    try {
+      Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
+      inputDF.select("id", "data").write()
+          .format("parquet")
+          .mode("append")
+          .partitionBy("id")
+          .saveAsTable("parquet_table");
+
+      String stagingLocation = table.location() + "/metadata";
+      SparkTableUtil.importSparkTable(
+          spark, new org.apache.spark.sql.catalyst.TableIdentifier("parquet_table"), table, stagingLocation);
+
+      List<Row> actual = spark.read()
+          .format("iceberg")
+          .load(loadLocation(tableIdentifier, "entries"))
+          .select("sequence_number", "snapshot_id", "data_file")
+          .collectAsList();
+
+      table.refresh();
+
+      long snapshotId = table.currentSnapshot().snapshotId();
+
+      Assert.assertEquals("Entries table should have 2 rows", 2, actual.size());
+      Assert.assertEquals("Sequence number must match", 0, actual.get(0).getLong(0));
+      Assert.assertEquals("Snapshot id must match", snapshotId, actual.get(0).getLong(1));
+      Assert.assertEquals("Sequence number must match", 0, actual.get(1).getLong(0));
+      Assert.assertEquals("Snapshot id must match", snapshotId, actual.get(1).getLong(1));
+    } finally {
+      spark.sql("DROP TABLE parquet_table");
+    }
+  }
+
+  @Test
   public void testFilesUnpartitionedTable() throws Exception {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "unpartitioned_files_test");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
@@ -324,6 +380,50 @@ public abstract class TestIcebergSourceTablesBase {
     Assert.assertEquals("Files table should have one row", 1, expected.size());
     Assert.assertEquals("Actual results should have one row", 1, actual.size());
     TestHelpers.assertEqualsSafe(filesTable.schema().asStruct(), expected.get(0), actual.get(0));
+  }
+
+  @Test
+  public void testAllMetadataTablesWithStagedCommits() throws Exception {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "stage_aggregate_table_test");
+    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
+
+    table.updateProperties().set(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, "true").commit();
+    spark.conf().set("spark.wap.id", "1234567");
+    Dataset<Row> df1 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
+    Dataset<Row> df2 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(2, "b")), SimpleRecord.class);
+
+    df1.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    // add a second file
+    df2.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    List<Row> actualAllData = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier, "all_data_files"))
+        .collectAsList();
+
+    List<Row> actualAllManifests = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier, "all_manifests"))
+        .collectAsList();
+
+    List<Row> actualAllEntries = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier, "all_entries"))
+        .collectAsList();
+
+    Assert.assertTrue("Stage table should have some snapshots", table.snapshots().iterator().hasNext());
+    Assert.assertEquals("Stage table should have null currentSnapshot",
+        null, table.currentSnapshot());
+    Assert.assertEquals("Actual results should have two rows", 2, actualAllData.size());
+    Assert.assertEquals("Actual results should have two rows", 2, actualAllManifests.size());
+    Assert.assertEquals("Actual results should have two rows", 2, actualAllEntries.size());
   }
 
   @Test
@@ -687,5 +787,47 @@ public abstract class TestIcebergSourceTablesBase {
 
     Assert.assertEquals("Actual results should have one row", 1, actualAfterFirstCommit.size());
     TestHelpers.assertEqualsSafe(partitionsTable.schema().asStruct(), expected.get(0), actualAfterFirstCommit.get(0));
+  }
+
+  @Test
+  public void testRemoveOrphanFilesActionSupport() throws InterruptedException {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
+    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
+
+    List<SimpleRecord> records = Lists.newArrayList(
+        new SimpleRecord(1, "1")
+    );
+
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+
+    df.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    df.write().mode("append").parquet(table.location() + "/data");
+
+    // sleep for 1 second to ensure files will be old enough
+    Thread.sleep(1000);
+
+    Actions actions = Actions.forTable(table);
+
+    List<String> result1 = actions.removeOrphanFiles()
+        .location(table.location() + "/metadata")
+        .olderThan(System.currentTimeMillis())
+        .execute();
+    Assert.assertTrue("Should not delete any metadata files", result1.isEmpty());
+
+    List<String> result2 = actions.removeOrphanFiles()
+        .olderThan(System.currentTimeMillis())
+        .execute();
+    Assert.assertEquals("Should delete 1 data file", 1, result2.size());
+
+    Dataset<Row> resultDF = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
+    List<SimpleRecord> actualRecords = resultDF
+        .as(Encoders.bean(SimpleRecord.class))
+        .collectAsList();
+
+    Assert.assertEquals("Rows must match", records, actualRecords);
   }
 }

@@ -26,9 +26,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 
 import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
@@ -40,6 +41,7 @@ import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED
  * This implementation will attempt to commit 5 times before throwing {@link CommitFailedException}.
  */
 class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
+  private final String tableName;
   private final TableOperations ops;
   private final PartitionSpec spec;
   private final boolean snapshotIdInheritanceEnabled;
@@ -48,11 +50,11 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
   private ManifestFile newManifest = null;
-  private final AtomicInteger manifestCount = new AtomicInteger(0);
   private boolean hasNewFiles = false;
 
-  FastAppend(TableOperations ops) {
+  FastAppend(String tableName, TableOperations ops) {
     super(ops);
+    this.tableName = tableName;
     this.ops = ops;
     this.spec = ops.current().spec();
     this.snapshotIdInheritanceEnabled = ops.current()
@@ -109,12 +111,11 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   }
 
   private ManifestFile copyManifest(ManifestFile manifest) {
-    try (ManifestReader reader = ManifestReader.read(manifest, ops.io(), ops.current().specsById())) {
-      OutputFile newManifestPath = manifestPath(manifestCount.getAndIncrement());
-      return ManifestWriter.copyAppendManifest(reader, newManifestPath, snapshotId(), summaryBuilder);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest);
-    }
+    TableMetadata current = ops.current();
+    InputFile toCopy = ops.io().newInputFile(manifest.path());
+    OutputFile newManifestPath = newManifestOutput();
+    return ManifestFiles.copyAppendManifest(
+        current.formatVersion(), toCopy, current.specsById(), newManifestPath, snapshotId(), summaryBuilder);
   }
 
   @Override
@@ -144,6 +145,18 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   }
 
   @Override
+  public Object updateEvent() {
+    long snapshotId = snapshotId();
+    long sequenceNumber = ops.current().snapshot(snapshotId).sequenceNumber();
+    return new CreateSnapshotEvent(
+        tableName,
+        operation(),
+        snapshotId,
+        sequenceNumber,
+        summary());
+  }
+
+  @Override
   protected void cleanUncommitted(Set<ManifestFile> committed) {
     if (newManifest != null && !committed.contains(newManifest)) {
       deleteFile(newManifest.path());
@@ -165,9 +178,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     }
 
     if (newManifest == null && newFiles.size() > 0) {
-      OutputFile out = manifestPath(manifestCount.getAndIncrement());
-
-      ManifestWriter writer = new ManifestWriter(spec, out, snapshotId());
+      ManifestWriter writer = newManifestWriter(spec);
       try {
         writer.addAll(newFiles);
       } finally {

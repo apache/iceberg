@@ -23,84 +23,102 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.util.Deque;
+import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
 
-public class IndexByName extends TypeUtil.CustomOrderSchemaVisitor<Map<String, Integer>> {
+public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
   private static final Joiner DOT = Joiner.on(".");
 
   private final Deque<String> fieldNames = Lists.newLinkedList();
   private final Map<String, Integer> nameToId = Maps.newHashMap();
 
   @Override
-  public Map<String, Integer> schema(Schema schema, Supplier<Map<String, Integer>> structResult) {
-    return structResult.get();
+  public void beforeField(Types.NestedField field) {
+    fieldNames.push(field.name());
   }
 
   @Override
-  public Map<String, Integer> struct(Types.StructType struct, Iterable<Map<String, Integer>> fieldResults) {
-    // iterate through the fields to update the index for each one, use size to avoid errorprone failure
-    Lists.newArrayList(fieldResults).size();
+  public void afterField(Types.NestedField field) {
+    fieldNames.pop();
+  }
+
+  @Override
+  public void beforeListElement(Types.NestedField elementField) {
+    // only add "element" to the name if the element is not a struct, so that names are more natural
+    // for example, locations.latitude instead of locations.element.latitude
+    if (!elementField.type().isStructType()) {
+      beforeField(elementField);
+    }
+  }
+
+  @Override
+  public void afterListElement(Types.NestedField elementField) {
+    // only remove "element" if it was added
+    if (!elementField.type().isStructType()) {
+      afterField(elementField);
+    }
+  }
+
+  @Override
+  public void beforeMapKey(Types.NestedField keyField) {
+    beforeField(keyField);
+  }
+
+  @Override
+  public void afterMapKey(Types.NestedField keyField) {
+    afterField(keyField);
+  }
+
+  @Override
+  public void beforeMapValue(Types.NestedField valueField) {
+    // only add "value" to the name if the value is not a struct, so that names are more natural
+    if (!valueField.type().isStructType()) {
+      beforeField(valueField);
+    }
+  }
+
+  @Override
+  public void afterMapValue(Types.NestedField valueField) {
+    // only remove "value" if it was added
+    if (!valueField.type().isStructType()) {
+      afterField(valueField);
+    }
+  }
+
+  @Override
+  public Map<String, Integer> schema(Schema schema, Map<String, Integer> structResult) {
     return nameToId;
   }
 
   @Override
-  public Map<String, Integer> field(Types.NestedField field, Supplier<Map<String, Integer>> fieldResult) {
-    withName(field.name(), fieldResult::get);
+  public Map<String, Integer> struct(Types.StructType struct, List<Map<String, Integer>> fieldResults) {
+    return nameToId;
+  }
+
+  @Override
+  public Map<String, Integer> field(Types.NestedField field, Map<String, Integer> fieldResult) {
     addField(field.name(), field.fieldId());
-    return null;
+    return nameToId;
   }
 
   @Override
-  public Map<String, Integer> list(Types.ListType list, Supplier<Map<String, Integer>> elementResult) {
-    // add element
-    for (Types.NestedField field : list.fields()) {
-      addField(field.name(), field.fieldId());
-    }
-
-    if (list.elementType().isStructType()) {
-      // return to avoid errorprone failure
-      return elementResult.get();
-    }
-
-    withName("element", elementResult::get);
-
-    return null;
+  public Map<String, Integer> list(Types.ListType list, Map<String, Integer> elementResult) {
+    addField("element", list.elementId());
+    return nameToId;
   }
 
   @Override
-  public Map<String, Integer> map(Types.MapType map,
-                                  Supplier<Map<String, Integer>> keyResult,
-                                  Supplier<Map<String, Integer>> valueResult) {
-    withName("key", keyResult::get);
-
-    // add key and value
-    for (Types.NestedField field : map.fields()) {
-      addField(field.name(), field.fieldId());
-    }
-
-    if (map.valueType().isStructType()) {
-      // return to avoid errorprone failure
-      return valueResult.get();
-    }
-
-    withName("value", valueResult::get);
-
-    return null;
+  public Map<String, Integer> map(Types.MapType map, Map<String, Integer> keyResult, Map<String, Integer> valueResult) {
+    addField("key", map.keyId());
+    addField("value", map.valueId());
+    return nameToId;
   }
 
-  private <T> T withName(String name, Callable<T> callable) {
-    fieldNames.push(name);
-    try {
-      return callable.call();
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    } finally {
-      fieldNames.pop();
-    }
+  @Override
+  public Map<String, Integer> primitive(Type.PrimitiveType primitive) {
+    return nameToId;
   }
 
   private void addField(String name, int fieldId) {

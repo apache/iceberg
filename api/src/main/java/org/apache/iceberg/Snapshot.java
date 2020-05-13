@@ -32,6 +32,15 @@ import java.util.Map;
  */
 public interface Snapshot {
   /**
+   * Return this snapshot's sequence number.
+   * <p>
+   * Sequence numbers are assigned when a snapshot is committed.
+   *
+   * @return a long sequence number
+   */
+  long sequenceNumber();
+
+  /**
    * Return this snapshot's ID.
    *
    * @return a long ID

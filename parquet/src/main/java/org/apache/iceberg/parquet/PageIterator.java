@@ -91,6 +91,7 @@ abstract class PageIterator<T> extends BasePageIterator implements TripleIterato
     super(desc, writerVersion);
   }
 
+  @Override
   public void setPage(DataPage page) {
     super.setPage(page);
     advance();

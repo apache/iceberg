@@ -100,8 +100,8 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
         "Save mode %s is not supported", mode);
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
-    Schema dsSchema = SparkSchemaUtil.convert(table.schema(), dsStruct);
-    validateWriteSchema(table.schema(), dsSchema, checkNullability(options), checkOrdering(options));
+    Schema writeSchema = SparkSchemaUtil.convert(table.schema(), dsStruct);
+    validateWriteSchema(table.schema(), writeSchema, checkNullability(options), checkOrdering(options));
     validatePartitionTransforms(table.spec());
     String appId = lazySparkSession().sparkContext().applicationId();
     String wapId = lazySparkSession().conf().get("spark.wap.id", null);
@@ -110,7 +110,8 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Broadcast<FileIO> io = lazySparkContext().broadcast(fileIO(table));
     Broadcast<EncryptionManager> encryptionManager = lazySparkContext().broadcast(table.encryption());
 
-    return Optional.of(new Writer(table, io, encryptionManager, options, replacePartitions, appId, wapId, dsSchema));
+    return Optional.of(new Writer(
+        table, io, encryptionManager, options, replacePartitions, appId, wapId, writeSchema, dsStruct));
   }
 
   @Override
@@ -121,8 +122,8 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
         "Output mode %s is not supported", mode);
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
-    Schema dsSchema = SparkSchemaUtil.convert(table.schema(), dsStruct);
-    validateWriteSchema(table.schema(), dsSchema, checkNullability(options), checkOrdering(options));
+    Schema writeSchema = SparkSchemaUtil.convert(table.schema(), dsStruct);
+    validateWriteSchema(table.schema(), writeSchema, checkNullability(options), checkOrdering(options));
     validatePartitionTransforms(table.spec());
     // Spark 2.4.x passes runId to createStreamWriter instead of real queryId,
     // so we fetch it directly from sparkContext to make writes idempotent
@@ -132,7 +133,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Broadcast<FileIO> io = lazySparkContext().broadcast(fileIO(table));
     Broadcast<EncryptionManager> encryptionManager = lazySparkContext().broadcast(table.encryption());
 
-    return new StreamingWriter(table, io, encryptionManager, options, queryId, mode, appId, dsSchema);
+    return new StreamingWriter(table, io, encryptionManager, options, queryId, mode, appId, writeSchema, dsStruct);
   }
 
   protected Table findTable(DataSourceOptions options, Configuration conf) {

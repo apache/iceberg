@@ -33,13 +33,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
@@ -57,9 +57,6 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
   private static final String REPLACED_MANIFESTS_COUNT = "manifests-replaced";
   private static final String PROCESSED_ENTRY_COUNT = "entries-processed";
 
-  private static final ImmutableSet<ManifestEntry.Status> ALLOWED_ENTRY_STATUSES = ImmutableSet.of(
-      ManifestEntry.Status.EXISTING);
-
   private final TableOperations ops;
   private final Map<Integer, PartitionSpec> specsById;
   private final long manifestTargetSizeBytes;
@@ -74,7 +71,6 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
   private final Set<ManifestFile> rewrittenManifests = Sets.newConcurrentHashSet();
   private final Map<Object, WriterWrapper> writers = Maps.newConcurrentMap();
 
-  private final AtomicInteger manifestSuffix = new AtomicInteger(0);
   private final AtomicLong entryCount = new AtomicLong(0);
 
   private Function<DataFile, Object> clusterByFunc;
@@ -156,12 +152,11 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
   }
 
   private ManifestFile copyManifest(ManifestFile manifest) {
-    try (ManifestReader reader = ManifestReader.read(manifest, ops.io(), specsById)) {
-      OutputFile newFile = manifestPath(manifestSuffix.getAndIncrement());
-      return ManifestWriter.copyManifest(reader, newFile, snapshotId(), summaryBuilder, ALLOWED_ENTRY_STATUSES);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest);
-    }
+    TableMetadata current = ops.current();
+    InputFile toCopy = ops.io().newInputFile(manifest.path());
+    OutputFile newFile = newManifestOutput();
+    return ManifestFiles.copyRewriteManifest(
+        current.formatVersion(), toCopy, specsById, newFile, snapshotId(), summaryBuilder);
   }
 
   @Override
@@ -239,7 +234,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
               keptManifests.add(manifest);
             } else {
               rewrittenManifests.add(manifest);
-              try (ManifestReader reader = ManifestReader.read(manifest, ops.io(), ops.current().specsById())) {
+              try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
                 FilteredManifest filteredManifest = reader.select(Arrays.asList("*"));
                 filteredManifest.liveEntries().forEach(
                     entry -> appendEntry(entry, clusterByFunc.apply(entry.file()), manifest.partitionSpecId())
@@ -336,16 +331,12 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
 
     synchronized void addEntry(ManifestEntry entry) {
       if (writer == null) {
-        writer = newWriter();
+        writer = newManifestWriter(spec);
       } else if (writer.length() >= getManifestTargetSizeBytes()) {
         close();
-        writer = newWriter();
+        writer = newManifestWriter(spec);
       }
       writer.existing(entry);
-    }
-
-    private ManifestWriter newWriter() {
-      return new ManifestWriter(spec, manifestPath(manifestSuffix.getAndIncrement()), snapshotId());
     }
 
     synchronized void close() {

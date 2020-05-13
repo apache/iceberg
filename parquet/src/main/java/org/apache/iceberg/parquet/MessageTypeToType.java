@@ -20,17 +20,18 @@
 package org.apache.iceberg.parquet;
 
 import com.google.common.base.Joiner;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.parquet.Preconditions;
-import org.apache.parquet.schema.DecimalMetadata;
+import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.OriginalType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type.Repetition;
 
@@ -71,7 +72,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
       Preconditions.checkArgument(
           !field.isRepetition(Repetition.REPEATED),
-          "Fields cannot have repetition REPEATED: {}", field);
+          "Fields cannot have repetition REPEATED: %s", field);
 
       int fieldId = getId(field);
 
@@ -94,7 +95,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
     Preconditions.checkArgument(
         !element.isRepetition(Repetition.REPEATED),
-        "Elements cannot have repetition REPEATED: {}", element);
+        "Elements cannot have repetition REPEATED: %s", element);
 
     int elementFieldId = getId(element);
 
@@ -115,7 +116,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
     Preconditions.checkArgument(
         !value.isRepetition(Repetition.REPEATED),
-        "Values cannot have repetition REPEATED: {}", value);
+        "Values cannot have repetition REPEATED: %s", value);
 
     int keyFieldId = getId(key);
     int valueFieldId = getId(value);
@@ -132,39 +133,16 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
   @Override
   public Type primitive(PrimitiveType primitive) {
-    OriginalType annotation = primitive.getOriginalType();
-    if (annotation != null) {
-      switch (annotation) {
-        case INT_8:
-        case UINT_8:
-        case INT_16:
-        case UINT_16:
-        case INT_32:
-          return Types.IntegerType.get();
-        case INT_64:
-          return Types.LongType.get();
-        case DATE:
-          return Types.DateType.get();
-        case TIME_MILLIS:
-        case TIME_MICROS:
-          return Types.TimeType.get();
-        case TIMESTAMP_MILLIS:
-        case TIMESTAMP_MICROS:
-          return Types.TimestampType.withZone();
-        case JSON:
-        case BSON:
-        case ENUM:
-        case UTF8:
-          return Types.StringType.get();
-        case DECIMAL:
-          DecimalMetadata decimal = primitive.getDecimalMetadata();
-          return Types.DecimalType.of(
-              decimal.getPrecision(), decimal.getScale());
-        default:
-          throw new UnsupportedOperationException("Unsupported logical type: " + annotation);
+    // first, use the logical type annotation, if present
+    LogicalTypeAnnotation logicalType = primitive.getLogicalTypeAnnotation();
+    if (logicalType != null) {
+      Optional<Type> converted = logicalType.accept(ParquetLogicalTypeVisitor.get());
+      if (converted.isPresent()) {
+        return converted.get();
       }
     }
 
+    // last, use the primitive type
     switch (primitive.getPrimitiveTypeName()) {
       case BOOLEAN:
         return Types.BooleanType.get();
@@ -184,6 +162,67 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
     throw new UnsupportedOperationException(
         "Cannot convert unknown primitive type: " + primitive);
+  }
+
+  private static class ParquetLogicalTypeVisitor implements LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<Type> {
+    private static final ParquetLogicalTypeVisitor INSTANCE = new ParquetLogicalTypeVisitor();
+
+    private static ParquetLogicalTypeVisitor get() {
+      return INSTANCE;
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.StringLogicalTypeAnnotation stringType) {
+      return Optional.of(Types.StringType.get());
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.EnumLogicalTypeAnnotation enumType) {
+      return Optional.of(Types.StringType.get());
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimalType) {
+      return Optional.of(Types.DecimalType.of(decimalType.getPrecision(), decimalType.getScale()));
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.DateLogicalTypeAnnotation dateType) {
+      return Optional.of(Types.DateType.get());
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.TimeLogicalTypeAnnotation timeType) {
+      return Optional.of(Types.TimeType.get());
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampType) {
+      return Optional.of(timestampType.isAdjustedToUTC() ? TimestampType.withZone() : TimestampType.withoutZone());
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.IntLogicalTypeAnnotation intType) {
+      Preconditions.checkArgument(intType.isSigned() || intType.getBitWidth() < 64,
+          "Cannot use uint64: not a supported Java type");
+      if (intType.getBitWidth() < 32) {
+        return Optional.of(Types.IntegerType.get());
+      } else if (intType.getBitWidth() == 32 && intType.isSigned()) {
+        return Optional.of(Types.IntegerType.get());
+      } else {
+        return Optional.of(Types.LongType.get());
+      }
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.JsonLogicalTypeAnnotation jsonType) {
+      return Optional.of(Types.StringType.get());
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonType) {
+      return Optional.of(Types.BinaryType.get());
+    }
   }
 
   private void addAlias(String name, int fieldId) {
