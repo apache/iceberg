@@ -106,7 +106,7 @@ public class PartitionSpecParser {
     generator.writeEndArray();
   }
 
-  static String toJsonFields(PartitionSpec spec) {
+  public static String toJsonFields(PartitionSpec spec) {
     try {
       StringWriter writer = new StringWriter();
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
