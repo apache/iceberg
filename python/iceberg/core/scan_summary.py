@@ -22,7 +22,7 @@ from iceberg.api import DataOperations
 from iceberg.api.expressions import Expressions, Literal, Operation, UnboundPredicate
 from iceberg.api.types import TimestampType
 
-from .manifest_group import ManifestGroup
+from .manifest_group import ManifestGroup  # type: ignore
 from .util import str_as_bool
 
 TIMESTAMP_RANGE_MAP = {Operation.LT: lambda min_val, max_val, val: (min_val, val - 1 if val - 1 < max_val else max_val),

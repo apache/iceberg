@@ -19,7 +19,7 @@
 
 import logging
 
-from pyparsing import (
+from pyparsing import (  # type: ignore
     alphanums,
     alphas,
     CaselessKeyword,

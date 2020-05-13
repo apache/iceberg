@@ -19,7 +19,7 @@ import math
 import struct
 import sys
 
-import mmh3
+import mmh3  # type: ignore
 
 from .transform import Transform
 from .transform_util import TransformUtil

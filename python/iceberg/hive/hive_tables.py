@@ -18,7 +18,7 @@
 #
 
 
-from hmsclient import hmsclient
+from hmsclient import hmsclient  # type: ignore
 from iceberg.core import BaseMetastoreTables
 
 from .hive_table_operations import HiveTableOperations
