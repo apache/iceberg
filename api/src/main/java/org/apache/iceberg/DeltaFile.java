@@ -34,24 +34,27 @@ public interface DeltaFile {
   CharSequence path();
 
   /**
-   * @return format of the data file
+   * @return format of the delta file
    */
   FileFormat format();
 
   /**
-   * @return partition data for this file as a {@link StructLike}
+   * @return primary key data for this file as a {@link StructLike}
    */
   StructLike primaryKey();
 
   /**
-   * @return the number of top-level records in the data file
+   * @return the number of top-level records in the delta file
    */
   long rowCount();
 
+  /**
+   * @return the number of top-level delete records in the delta file
+   */
   long deleteCount();
 
   /**
-   * @return the data file size in bytes
+   * @return the delta file size in bytes
    */
   long fileSizeInBytes();
 
@@ -70,7 +73,7 @@ public interface DeltaFile {
   DeltaFile copy();
 
   /**
-   * Copies this {@link DataFile data file} without file stats. Manifest readers can reuse data file instances; use
+   * Copies this {@link DeltaFile data file} without file stats. Manifest readers can reuse data file instances; use
    * this method to copy data without stats when collecting files.
    *
    * @return a copy of this data file, without lower bounds, upper bounds, value counts, or null value counts

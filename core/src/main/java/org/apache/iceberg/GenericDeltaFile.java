@@ -13,24 +13,26 @@ public class GenericDeltaFile implements DeltaFile {
   private String filePath = null;
   private FileFormat format = null;
   private Long rowCount = null;
+  private Long deleteCount = null;
   private long fileSizeInBytes = -1L;
 
   // optional fields
   private byte[] keyMetadata = null;
   private List<Long> splitOffsets = null;
 
-  public GenericDeltaFile(String filePath, FileFormat format, Long rowCount, long fileSizeInBytes,
-                          List<Long> splitOffsets) {
+  public GenericDeltaFile(String filePath, FileFormat format, Long rowCount, Long deleteCount,
+                          long fileSizeInBytes, List<Long> splitOffsets) {
     this.filePath = filePath;
     this.format = format;
     this.rowCount = rowCount;
+    this.deleteCount = deleteCount;
     this.fileSizeInBytes = fileSizeInBytes;
     this.splitOffsets = splitOffsets;
   }
 
-  public GenericDeltaFile(String filePath, FileFormat format, Long rowCount, long fileSizeInBytes,
+  public GenericDeltaFile(String filePath, FileFormat format, Long rowCount, Long deleteCount, long fileSizeInBytes,
                           ByteBuffer keyMetadata, List<Long> splitOffsets) {
-    this(filePath, format, rowCount, fileSizeInBytes, splitOffsets);
+    this(filePath, format, rowCount, deleteCount, fileSizeInBytes, splitOffsets);
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
   }
 
@@ -38,6 +40,7 @@ public class GenericDeltaFile implements DeltaFile {
     this.filePath = toCopy.filePath;
     this.format = toCopy.format;
     this.rowCount = toCopy.rowCount;
+    this.deleteCount = toCopy.deleteCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     this.keyMetadata = toCopy.keyMetadata == null ? null : Arrays.copyOf(toCopy.keyMetadata, toCopy.keyMetadata.length);
     this.splitOffsets = copy(toCopy.splitOffsets);
@@ -64,6 +67,11 @@ public class GenericDeltaFile implements DeltaFile {
   }
 
   @Override
+  public long deleteCount() {
+    return deleteCount;
+  }
+
+  @Override
   public long fileSizeInBytes() {
     return fileSizeInBytes;
   }
@@ -76,6 +84,11 @@ public class GenericDeltaFile implements DeltaFile {
   @Override
   public DeltaFile copy() {
     return new GenericDeltaFile(this);
+  }
+
+  @Override
+  public DeltaFile copyWithoutStats() {
+    return null;
   }
 
   @Override
