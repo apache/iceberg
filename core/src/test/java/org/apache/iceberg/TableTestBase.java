@@ -88,7 +88,9 @@ public class TableTestBase {
   public TestTables.TestTable table = null;
 
   protected final int formatVersion;
+  @SuppressWarnings("checkstyle:MemberName")
   protected final Assertions V1Assert;
+  @SuppressWarnings("checkstyle:MemberName")
   protected final Assertions V2Assert;
 
   public TableTestBase(int formatVersion) {
