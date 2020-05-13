@@ -151,6 +151,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
               "Cannot read unknown format: " + task.file().format());
       }
     }
+
     return iter;
   }
 

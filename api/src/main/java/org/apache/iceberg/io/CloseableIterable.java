@@ -53,7 +53,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
 
       @Override
       public CloseableIterator<E> iterator() {
-        return CloseableIterator.withNoopClose(iterable.iterator());
+        return CloseableIterator.withClose(iterable.iterator());
       }
     };
   }
@@ -206,4 +206,5 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
       }
     }
   }
+
 }

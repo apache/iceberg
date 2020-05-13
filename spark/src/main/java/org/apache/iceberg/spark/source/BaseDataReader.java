@@ -29,7 +29,6 @@ import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -61,7 +60,7 @@ abstract class BaseDataReader<T> implements InputPartitionReader<T> {
     ImmutableMap.Builder<String, InputFile> inputFileBuilder = ImmutableMap.builder();
     decryptedFiles.forEach(decrypted -> inputFileBuilder.put(decrypted.location(), decrypted));
     this.inputFiles = inputFileBuilder.build();
-    this.currentIterator = CloseableIterable.<T>empty().iterator();
+    this.currentIterator = CloseableIterator.empty();
   }
 
   @Override

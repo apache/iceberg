@@ -373,6 +373,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       } else {
         iterable = open(currentTask, expectedSchema);
       }
+
       return iterable.iterator();
     }
 
@@ -395,6 +396,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           throw new UnsupportedOperationException(
               String.format("Cannot read %s file: %s", file.format().name(), file.path()));
       }
+
       return iterable;
     }
 
