@@ -226,11 +226,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
   }
 
   private void addAlias(String name, int fieldId) {
-    String fullName = name;
-    if (!fieldNames.isEmpty()) {
-      fullName = DOT.join(DOT.join(fieldNames.descendingIterator()), name);
-    }
-    aliasToId.put(fullName, fieldId);
+    aliasToId.put(DOT.join(path(name)), fieldId);
   }
 
   protected int nextId() {
