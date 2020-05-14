@@ -251,8 +251,6 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
         .stageOnly()
         .commit();
 
-    Snapshot snapshot = table.currentSnapshot();
-
     Assert.assertEquals("Snapshot sequence number should be 1", 1,
         table.currentSnapshot().sequenceNumber());
 
@@ -315,9 +313,10 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
 
     for (ManifestFile manifest : table.currentSnapshot().manifests()) {
       for (ManifestEntry entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
-        if (expectedSeqs != null) {
+        String path = entry.file().path().toString();
+        if (fileToSeqMap.containsKey(path)) {
           Assert.assertEquals("Sequence number should match expected",
-              fileToSeqMap.get(entry.file().path().toString()), entry.sequenceNumber());
+              fileToSeqMap.get(path), entry.sequenceNumber());
         }
       }
     }
@@ -334,9 +333,10 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
         expectedSequenceNumber, manifestFile.sequenceNumber());
 
     for (ManifestEntry entry : ManifestFiles.read(manifestFile, FILE_IO).entries()) {
-      if (expectedSeqs != null) {
+      String path = entry.file().path().toString();
+      if (fileToSeqMap.containsKey(path)) {
         Assert.assertEquals("Sequence number should match expected",
-            fileToSeqMap.get(entry.file().path().toString()), entry.sequenceNumber());
+            fileToSeqMap.get(path), entry.sequenceNumber());
       }
     }
   }
