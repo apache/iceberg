@@ -87,7 +87,7 @@ public class ParquetSchemaUtil {
   }
 
   public static boolean hasIds(MessageType fileSchema) {
-    return ParquetTypeVisitor.visit(fileSchema, new HasIds(), true);
+    return ParquetTypeVisitor.visit(fileSchema, new HasIds());
   }
 
   public static MessageType addFallbackIds(MessageType fileSchema) {
@@ -103,7 +103,7 @@ public class ParquetSchemaUtil {
   }
 
   public static MessageType applyNameMapping(MessageType fileSchema, NameMapping nameMapping) {
-    return (MessageType) ParquetTypeVisitor.visit(fileSchema, new ApplyNameMapping(nameMapping), true);
+    return (MessageType) ParquetTypeVisitor.visit(fileSchema, new ApplyNameMapping(nameMapping));
   }
 
   public static class HasIds extends ParquetTypeVisitor<Boolean> {

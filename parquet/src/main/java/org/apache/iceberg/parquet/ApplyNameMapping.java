@@ -87,4 +87,20 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
     MappedField field = nameMapping.find(currentPath());
     return field == null ? null : primitive.withId(field.id());
   }
+
+  @Override
+  public void beforeRepeatedElement(Type element) {
+  }
+
+  @Override
+  public void afterRepeatedElement(Type element) {
+  }
+
+  @Override
+  public void beforeRepeatedKeyValue(Type keyValue) {
+  }
+
+  @Override
+  public void afterRepeatedKeyValue(Type keyValue) {
+  }
 }
