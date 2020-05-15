@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.data.parquet;
 
-import com.google.common.collect.Lists;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -34,6 +33,7 @@ import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
 import org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.DecimalMetadata;

@@ -20,16 +20,16 @@
 package org.apache.iceberg.common;
 
 
-import com.google.common.shaded.base.Joiner;
-import com.google.common.shaded.base.MoreObjects;
-import com.google.common.shaded.base.Preconditions;
-import com.google.common.shaded.base.Throwables;
-import com.google.common.shaded.collect.Sets;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Throwables;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 
 public class DynFields {

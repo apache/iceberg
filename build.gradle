@@ -104,7 +104,7 @@ apply from: 'deploy.gradle'
 apply from: 'tasks.gradle'
 apply from: 'jmh.gradle'
 
-project(':iceberg-relocate-external-dependencies') {
+project(':iceberg-bundled-guava') {
   apply plugin: 'com.github.johnrengelman.shadow'
   
   tasks.javadoc.enabled = false
@@ -113,7 +113,7 @@ project(':iceberg-relocate-external-dependencies') {
   tasks.install.dependsOn tasks.shadowJar
   
   dependencies {    
-    compile('com.google.guava:guava:28.0-jre') {
+    compile('com.google.guava:guava') {
       exclude group: 'com.google.code.findbugs'
       // may be LGPL - use ALv2 findbugs-annotations instead
       exclude group: 'com.google.errorprone'
@@ -128,7 +128,6 @@ project(':iceberg-relocate-external-dependencies') {
     // include the LICENSE and NOTICE files for the shaded Jar
     from(projectDir) {
       include 'LICENSE'
-      include 'NOTICE'
     }
 
     dependencies {
@@ -137,7 +136,7 @@ project(':iceberg-relocate-external-dependencies') {
       exclude(dependency('org.checkerframework:checker-qual'))
     }
 
-    relocate 'com.google.common', 'com.google.common.shaded'
+    relocate 'com.google.common', 'org.apache.iceberg.relocated.com.google.common'
 
     minimize()
   }
@@ -145,7 +144,7 @@ project(':iceberg-relocate-external-dependencies') {
 
 project(':iceberg-api') {
   dependencies {
-    compile project(path: ':iceberg-relocate-external-dependencies', configuration: 'shadow')
+    compile project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     testCompile "org.apache.avro:avro"
     testCompile 'joda-time:joda-time'
   }
@@ -153,7 +152,7 @@ project(':iceberg-api') {
 
 project(':iceberg-common') {
   dependencies {
-    compile project(path: ':iceberg-relocate-external-dependencies', configuration: 'shadow')
+    compile project(path: ':iceberg-bundled-guava', configuration: 'shadow')
   }
 }
 

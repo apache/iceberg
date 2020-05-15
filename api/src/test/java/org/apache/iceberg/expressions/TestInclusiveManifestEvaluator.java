@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.shaded.collect.ImmutableList;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.ManifestFile;
@@ -27,6 +26,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;

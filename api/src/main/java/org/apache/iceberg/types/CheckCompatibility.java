@@ -19,15 +19,15 @@
 
 package org.apache.iceberg.types;
 
-import com.google.common.shaded.base.Preconditions;
-import com.google.common.shaded.collect.ImmutableList;
-import com.google.common.shaded.collect.Lists;
-import com.google.common.shaded.collect.Maps;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<String>> {
   /**

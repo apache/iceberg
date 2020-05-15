@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.data.avro;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.MapMaker;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -38,6 +36,8 @@ import org.apache.avro.message.MissingSchemaException;
 import org.apache.avro.message.SchemaStore;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.avro.ProjectionDatumReader;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 
 public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
   private static final ThreadLocal<byte[]> HEADER_BUFFER =

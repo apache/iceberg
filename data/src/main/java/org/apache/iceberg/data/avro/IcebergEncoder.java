@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.data.avro;
 
-import com.google.common.primitives.Bytes;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -33,6 +32,7 @@ import org.apache.avro.io.EncoderFactory;
 import org.apache.avro.message.MessageEncoder;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.primitives.Bytes;
 
 public class IcebergEncoder<D> implements MessageEncoder<D> {
 

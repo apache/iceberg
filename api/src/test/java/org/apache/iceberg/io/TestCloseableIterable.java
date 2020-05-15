@@ -19,10 +19,10 @@
 
 package org.apache.iceberg.io;
 
-import com.google.common.shaded.collect.Iterables;
-import com.google.common.shaded.collect.Lists;
 import java.util.NoSuchElementException;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
 

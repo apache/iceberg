@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.arrow.vectorized;
 
-import com.google.common.shaded.base.Preconditions;
 import java.util.Map;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
@@ -38,6 +37,7 @@ import org.apache.iceberg.arrow.ArrowSchemaUtil;
 import org.apache.iceberg.arrow.vectorized.parquet.VectorizedColumnIterator;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.VectorizedReader;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;

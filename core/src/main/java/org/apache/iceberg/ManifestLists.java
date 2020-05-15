@@ -19,8 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.avro.Avro;
@@ -28,6 +26,8 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class ManifestLists {
   private ManifestLists() {

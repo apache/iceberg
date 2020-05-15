@@ -19,12 +19,12 @@
 
 package org.apache.iceberg;
 
-import com.google.common.shaded.collect.ImmutableMap;
-import com.google.common.shaded.collect.Sets;
 import java.util.Collection;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 
 /**

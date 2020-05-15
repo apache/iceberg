@@ -19,14 +19,14 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
