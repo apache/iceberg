@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.data.orc;
 
-import com.google.common.collect.Lists;
 import java.io.File;
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -36,6 +35,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.orc.ORC;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;

@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.data.avro;
 
-import com.google.common.collect.Lists;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -32,6 +31,7 @@ import org.apache.iceberg.data.DataTestHelpers;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 
 public class TestGenericData extends DataTest {

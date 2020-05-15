@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.base.Preconditions;
 import org.apache.avro.LogicalType;
 import org.apache.avro.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class LogicalMap extends LogicalType {
   static final String NAME = "map";

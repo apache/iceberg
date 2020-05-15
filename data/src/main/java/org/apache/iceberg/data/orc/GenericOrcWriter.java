@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.data.orc;
 
-import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -37,6 +36,7 @@ import java.util.UUID;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcValueWriter;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.common.type.HiveDecimal;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
