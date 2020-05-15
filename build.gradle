@@ -113,7 +113,7 @@ project(':iceberg-bundled-guava') {
   tasks.install.dependsOn tasks.shadowJar
   
   dependencies {    
-    compile('com.google.guava:guava') {
+    compileOnly('com.google.guava:guava') {
       exclude group: 'com.google.code.findbugs'
       // may be LGPL - use ALv2 findbugs-annotations instead
       exclude group: 'com.google.errorprone'
@@ -155,7 +155,7 @@ project(':iceberg-common') {
     compile project(path: ':iceberg-bundled-guava', configuration: 'shadow')
   }
 }
-
+     
 project(':iceberg-core') {
   dependencies {
     compile project(':iceberg-api')
