@@ -25,7 +25,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,6 +38,7 @@ import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.types.Types;
 
@@ -219,11 +219,12 @@ abstract class BaseManifestReader<T, ThisT> extends CloseableGroup implements Cl
    */
   @Override
   @SuppressWarnings("unchecked")
-  public Iterator<T> iterator() {
+  public CloseableIterator<T> iterator() {
     if (dropStats(rowFilter, columns)) {
-      return (Iterator<T>) CloseableIterable.transform(liveEntries(), e -> e.file().copyWithoutStats()).iterator();
+      return (CloseableIterator<T>) CloseableIterable.transform(liveEntries(), e -> e.file().copyWithoutStats())
+          .iterator();
     } else {
-      return (Iterator<T>) CloseableIterable.transform(liveEntries(), e -> e.file().copy()).iterator();
+      return (CloseableIterator<T>) CloseableIterable.transform(liveEntries(), e -> e.file().copy()).iterator();
     }
   }
 
