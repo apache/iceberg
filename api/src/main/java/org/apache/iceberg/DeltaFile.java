@@ -10,21 +10,19 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public interface DeltaFile {
-  static Types.StructType getType(Types.StructType partitionType) {
+  static Types.StructType getType(Types.StructType partitionType, Types.StructType primaryKeyType) {
     // IDs start at 100 to leave room for changes to ManifestEntry
     return Types.StructType.of(
-        required(100, "file_path", Types.StringType.get()),
-        required(101, "file_format", Types.StringType.get()),
-        required(102, "primary_key", partitionType),
-        required(103, "record_count", Types.LongType.get()),
-        required(104, "file_size_in_bytes", Types.LongType.get()),
-        optional(105, "row_counts", Types.MapType.ofRequired(119, 120,
-            Types.IntegerType.get(), Types.LongType.get())),
-        optional(106, "delete_counts", Types.MapType.ofRequired(119, 120,
-            Types.IntegerType.get(), Types.LongType.get())),
-        optional(107, "key_metadata", Types.BinaryType.get()),
-        optional(108, "split_offsets", Types.ListType.ofRequired(133, Types.LongType.get()))
-        // NEXT ID TO ASSIGN: 134
+        required(200, "file_path", Types.StringType.get()),
+        required(201, "file_format", Types.StringType.get()),
+        optional(202, "partition", partitionType),
+        optional(203, "primary_key", primaryKeyType),
+        required(204, "file_size_in_bytes", Types.LongType.get()),
+        required(205, "row_count", Types.LongType.get()),
+        required(206, "delete_count", Types.LongType.get()),
+        optional(211, "key_metadata", Types.BinaryType.get()),
+        optional(212, "split_offsets", Types.ListType.ofRequired(213, Types.LongType.get()))
+        // NEXT ID TO ASSIGN: 214
     );
   }
 
@@ -37,6 +35,11 @@ public interface DeltaFile {
    * @return format of the delta file
    */
   FileFormat format();
+
+  /**
+   * @return partition data for this file as a {@link StructLike}
+   */
+  StructLike partition();
 
   /**
    * @return primary key data for this file as a {@link StructLike}

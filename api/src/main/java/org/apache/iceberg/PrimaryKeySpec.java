@@ -7,9 +7,13 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class PrimaryKeySpec {
-
+  // IDs for pk fields start at 1000
+  private static final int PK_DATA_ID_START = 10000;
   public static final String OFFSET_COLUMN = "_iceberg_offset";
   public static final String DEL_COLUMN = "_iceberg_del";
 
@@ -33,8 +37,8 @@ public class PrimaryKeySpec {
       if (column.fieldId() > maxId)
         maxId = column.fieldId();
     }
-    columns.add(Types.NestedField.required(++maxId, OFFSET_COLUMN, Types.LongType.get()));
-    columns.add(Types.NestedField.required(++maxId, DEL_COLUMN, Types.BooleanType.get()));
+    columns.add(required(++maxId, OFFSET_COLUMN, Types.LongType.get()));
+    columns.add(required(++maxId, DEL_COLUMN, Types.BooleanType.get()));
     this.deltaSchema = new Schema(ImmutableList.copyOf(columns));
   }
 
@@ -54,6 +58,21 @@ public class PrimaryKeySpec {
     });
     this.schema = schema;
     return this;
+  }
+
+  /**
+   * @return a {@link Types.StructType} for primary key data defined by this spec.
+   */
+  public Types.StructType primaryKeyType() {
+    List<Types.NestedField> structFields = Lists.newArrayListWithExpectedSize(pkFields.size());
+
+    for (PrimaryKeyField field : pkFields) {
+      Types.NestedField sourceField = schema.findField(field.sourceId());
+      structFields.add(Types.NestedField.optional(field.fieldId, field.name(),
+              primaryKeyDataType(sourceField, field.layout)));
+    }
+
+    return Types.StructType.of(structFields);
   }
 
   /**
@@ -107,12 +126,17 @@ public class PrimaryKeySpec {
    * Call {@link #builderFor(Schema)} to create a new builder.
    */
   public static class Builder {
+    private final AtomicInteger lastAssignedFieldId = new AtomicInteger(PK_DATA_ID_START - 1);
     private final Schema schema;
     private List<PrimaryKeyField> pkFields = new ArrayList<>();
     private boolean hashInvolved = false;
 
     private Builder(Schema schema) {
       this.schema = schema;
+    }
+
+    private int nextFieldId() {
+      return lastAssignedFieldId.incrementAndGet();
     }
 
     public Builder addColumn(String columnName) {
@@ -144,7 +168,7 @@ public class PrimaryKeySpec {
     public Builder addColumn(Types.NestedField sourceColumn, PrimaryKeyLayout layout) {
       Preconditions.checkArgument(layout != PrimaryKeyLayout.RANGE || !hashInvolved,
           "can not define a range layout key after hash key");
-      pkFields.add(new PrimaryKeyField(sourceColumn.name(), sourceColumn.fieldId(), layout));
+      pkFields.add(new PrimaryKeyField(sourceColumn.name(), sourceColumn.fieldId(), nextFieldId(), layout));
       if (layout == PrimaryKeyLayout.HASH && !hashInvolved)
         hashInvolved = true;
       return this;
@@ -180,16 +204,22 @@ public class PrimaryKeySpec {
   public static class PrimaryKeyField {
     private final String name;
     private final Integer sourceId;
+    private final int fieldId;
     private final PrimaryKeyLayout layout;
 
-    PrimaryKeyField(String name, Integer sourceId, PrimaryKeyLayout layout) {
+    PrimaryKeyField(String name, Integer sourceId, int fieldId, PrimaryKeyLayout layout) {
       this.name = name;
       this.sourceId = sourceId;
+      this.fieldId = fieldId;
       this.layout = layout;
     }
 
     public String name() {
       return name;
+    }
+
+    public Integer fieldId() {
+      return fieldId;
     }
 
     public Integer sourceId() {
@@ -231,5 +261,19 @@ public class PrimaryKeySpec {
 
   public static PrimaryKeySpec noPrimaryKey() {
     return NO_PRIMARY_KEY_SPEC;
+  }
+
+  private static Type primaryKeyDataType(Types.NestedField sourceColumn, PrimaryKeyLayout layout) {
+    int filedId = sourceColumn.fieldId();
+    switch (layout) {
+      case HASH:
+        return Types.StructType.of(required(filedId * 10 + 1, "lower_bound", sourceColumn.type()),
+                required(filedId * 10 + 2, "upper_bound", sourceColumn.type()));
+      case RANGE:
+        return Types.StructType.of(required(filedId * 10 + 1, "bucket_number", Types.LongType.get()),
+                required(filedId * 10 + 2, "bucket", Types.LongType.get()));
+      default:
+        throw new IllegalArgumentException("Unknown primary layout :" + layout);
+    }
   }
 }

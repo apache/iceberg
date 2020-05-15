@@ -7,18 +7,17 @@ import java.util.List;
 public class BaseDeltaSnapshot implements DeltaSnapshot {
 
   private final long snapshotId;
-  private final Long parentId;
   private final long timestampMillis;
-  private final InputFile manifestFile;
+  private final List<DeltaFile> deltaFiles;
+  private final DeltaSnapshot parentSnapshot;
 
-  // lazily initialized
-  private List<DeltaFile> cachedDeltas = null;
+  private InputFile manifestFile;
 
-  public BaseDeltaSnapshot(long snapshotId, Long parentId, long timestampMillis, InputFile manifestFile) {
+  public BaseDeltaSnapshot(long snapshotId, DeltaSnapshot parentSnapshot, long timestampMillis, List<DeltaFile> deltaFiles) {
     this.snapshotId = snapshotId;
-    this.parentId = parentId;
     this.timestampMillis = timestampMillis;
-    this.manifestFile = manifestFile;
+    this.deltaFiles = deltaFiles;
+    this.parentSnapshot = parentSnapshot;
   }
 
   @Override
@@ -28,7 +27,7 @@ public class BaseDeltaSnapshot implements DeltaSnapshot {
 
   @Override
   public Long parentId() {
-    return parentId;
+    return parentSnapshot == null ? null : parentSnapshot.snapshotId();
   }
 
   @Override
@@ -38,11 +37,21 @@ public class BaseDeltaSnapshot implements DeltaSnapshot {
 
   @Override
   public Iterable<DeltaFile> deltaFiles() {
-    return null;
+    return deltaFiles;
   }
 
   @Override
   public String manifestLocation() {
     return manifestFile != null ? manifestFile.location() : null;
+  }
+
+  @Override
+  public String parentManifestLocation() {
+    return parentSnapshot == null ? null : parentSnapshot.manifestLocation();
+  }
+
+  @Override
+  public DeltaSnapshot parent() {
+    return parentSnapshot;
   }
 }

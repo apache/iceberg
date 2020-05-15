@@ -22,6 +22,7 @@ public class DeltaFiles {
     private String filePath = null;
     private FileFormat format = null;
     private long rowCount = -1L;
+    private long deleteCount = -1L;
     private long fileSizeInBytes = -1L;
 
     // optional fields
@@ -36,6 +37,7 @@ public class DeltaFiles {
       this.filePath = null;
       this.format = null;
       this.rowCount = -1L;
+      this.deleteCount = -1L;
       this.fileSizeInBytes = -1L;
       this.splitOffsets = null;
     }
@@ -44,6 +46,7 @@ public class DeltaFiles {
       this.filePath = toCopy.path().toString();
       this.format = toCopy.format();
       this.rowCount = toCopy.rowCount();
+      this.deleteCount = toCopy.deleteCount();
       this.fileSizeInBytes = toCopy.fileSizeInBytes();
       this.keyMetadata = toCopy.keyMetadata() == null ? null
               : ByteBuffers.copy(toCopy.keyMetadata());
@@ -82,9 +85,13 @@ public class DeltaFiles {
       return this;
     }
 
-
     public DeltaFiles.Builder withRowCount(long newRowCount) {
       this.rowCount = newRowCount;
+      return this;
+    }
+
+    public DeltaFiles.Builder withDeleteCount(long newDeleteCount) {
+      this.rowCount = newDeleteCount;
       return this;
     }
 
@@ -112,7 +119,7 @@ public class DeltaFiles {
       Preconditions.checkArgument(fileSizeInBytes >= 0, "File size is required");
       Preconditions.checkArgument(rowCount >= 0, "Record count is required");
 
-      return new GenericDeltaFile(filePath, format, rowCount, fileSizeInBytes,
+      return new GenericDeltaFile(filePath, format, rowCount, deleteCount, fileSizeInBytes,
               keyMetadata, splitOffsets);
     }
   }

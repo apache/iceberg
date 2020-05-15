@@ -21,8 +21,6 @@ public class DeltaAppend implements AppendDeltaFiles {
   private static final Logger LOG = LoggerFactory.getLogger(DeltaAppend.class);
 
   private final TableOperations ops;
-  private final String commitUUID = UUID.randomUUID().toString();
-  private final AtomicInteger attempt = new AtomicInteger(0);
   private volatile Long snapshotId = null;
   private TableMetadata tableMetadata;
   private final List<DeltaFile> newFiles = Lists.newArrayList();
@@ -41,12 +39,9 @@ public class DeltaAppend implements AppendDeltaFiles {
   @Override
   public DeltaSnapshot apply() {
     this.tableMetadata = refresh();
-    Long parentDeltaSnapshotId = tableMetadata.currentDeltaSnapshot() != null ?
-            tableMetadata.currentDeltaSnapshot().snapshotId() : null;
+    DeltaSnapshot currentSnapshot = tableMetadata.currentDeltaSnapshot();
     long snapshotId = snapshotId();
-    OutputFile manifestFile = manifestPath();
-    return new BaseDeltaSnapshot(snapshotId, parentDeltaSnapshotId, System.currentTimeMillis(),
-            ops.io().newInputFile(manifestFile.location()));
+    return new BaseDeltaSnapshot(snapshotId, currentSnapshot, System.currentTimeMillis(), newFiles);
   }
 
   @Override
@@ -78,11 +73,6 @@ public class DeltaAppend implements AppendDeltaFiles {
   protected TableMetadata refresh() {
     this.tableMetadata = ops.refresh();
     return tableMetadata;
-  }
-
-  protected OutputFile manifestPath() {
-    return ops.io().newOutputFile(ops.deltaManifestFileLocation(FileFormat.AVRO.addExtension(
-            String.format("delta-snap-%d-%d-%s", snapshotId(), attempt.incrementAndGet(), commitUUID))));
   }
 
   protected long snapshotId() {

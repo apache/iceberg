@@ -1,7 +1,5 @@
-package org.apache.iceberg.delta;
+package org.apache.iceberg;
 
-import org.apache.iceberg.DeltaFile;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 
 import static org.apache.iceberg.types.Types.NestedField.required;

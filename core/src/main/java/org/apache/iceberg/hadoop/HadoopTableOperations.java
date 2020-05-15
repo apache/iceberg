@@ -31,11 +31,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.LocationProviders;
-import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.TableMetadataParser;
-import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.*;
+import org.apache.iceberg.delta.DeltaManifestWriter;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -57,10 +54,13 @@ public class HadoopTableOperations implements TableOperations {
 
   private final Configuration conf;
   private final Path location;
+
   private HadoopFileIO defaultFileIo = null;
+  private Path deltaLocation = null;
 
   private volatile TableMetadata currentMetadata = null;
   private volatile Integer version = null;
+  private volatile Integer deltaVersion = null;
   private volatile boolean shouldRefresh = true;
 
   protected HadoopTableOperations(Path location, Configuration conf) {
@@ -90,7 +90,8 @@ public class HadoopTableOperations implements TableOperations {
 
   @Override
   public TableMetadata refresh() {
-    int ver = version != null ? version : readVersionHint();
+    int ver = version != null ? version : readVersionHint(false);
+    int delta_ver = deltaVersion != null ? deltaVersion : readVersionHint(true);
     try {
       Path metadataFile = getMetadataFile(ver);
       if (version == null && metadataFile == null && ver == 0) {
@@ -109,6 +110,8 @@ public class HadoopTableOperations implements TableOperations {
 
       updateVersionAndMetadata(ver, metadataFile.toString());
 
+      this.deltaLocation = new Path(currentMetadata.deltaLocation());
+      this.deltaVersion = delta_ver;
       this.shouldRefresh = false;
       return currentMetadata;
     } catch (IOException e) {
@@ -159,9 +162,51 @@ public class HadoopTableOperations implements TableOperations {
     renameToFinal(fs, tempMetadataFile, finalMetadataFile);
 
     // update the best-effort version pointer
-    writeVersionHint(nextVersion);
+    writeVersionHint(nextVersion, false);
 
     deleteRemovedMetadataFiles(base, metadata);
+
+    this.shouldRefresh = true;
+  }
+
+  @Override
+  public void deltaCommit(DeltaSnapshot deltaSnapshot) {
+    if (currentMetadata.currentSnapshot() != deltaSnapshot.parent()) {
+      throw new CommitFailedException("Cannot commit changes based on stale delta snapshot");
+    }
+
+    if (currentMetadata.currentSnapshot() == deltaSnapshot) {
+      LOG.info("Nothing to commit.");
+      return;
+    }
+
+    Path manifestTempPath = deltaManifestPath(FileFormat.AVRO.addExtension(UUID.randomUUID().toString()));
+    try (DeltaManifestWriter writer = DeltaManifestWriter.write(currentMetadata, deltaSnapshot,
+            io().newOutputFile(manifestTempPath.toString()))) {
+      writer.addAll(deltaSnapshot.deltaFiles());
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to write delta manifest: %s", manifestTempPath);
+    }
+
+    int nextVersion = deltaVersion + 1;
+    Path finalManifestFile = deltaManifestPath(nextVersion);
+    FileSystem fs = getFileSystem(manifestTempPath, conf);
+
+    try {
+      if (fs.exists(finalManifestFile)) {
+        throw new CommitFailedException(
+                "Version %d already exists: %s", nextVersion, finalManifestFile);
+      }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e,
+              "Failed to check if next version exists: " + finalManifestFile);
+    }
+
+    // this rename operation is the atomic commit operation
+    renameToFinal(fs, manifestTempPath, finalManifestFile);
+
+    // update the best-effort version pointer
+    writeVersionHint(nextVersion, true);
 
     this.shouldRefresh = true;
   }
@@ -267,16 +312,26 @@ public class HadoopTableOperations implements TableOperations {
     return new Path(new Path(location, "metadata"), filename);
   }
 
+
   private Path deltaManifestPath(String filename) {
-    return new Path(new Path(current().deltaLocation()), filename);
+    return new Path(new Path(deltaLocation, "delta_snapshots"), filename);
   }
 
-  private Path versionHintFile() {
-    return metadataPath("version-hint.text");
+  private Path deltaManifestPath(int deltaVersion) {
+    return deltaManifestPath(FileFormat.AVRO.addExtension("v" + deltaVersion));
   }
 
-  private void writeVersionHint(int versionToWrite) {
-    Path versionHintFile = versionHintFile();
+  private Path versionHintFile(boolean delta) {
+    if (delta) {
+      return deltaManifestPath("version-hint.text");
+    } else {
+      return metadataPath("version-hint.text");
+    }
+
+  }
+
+  private void writeVersionHint(int versionToWrite, boolean delta) {
+    Path versionHintFile = versionHintFile(delta);
     FileSystem fs = getFileSystem(versionHintFile, conf);
 
     try (FSDataOutputStream out = fs.create(versionHintFile, true /* overwrite */)) {
@@ -286,8 +341,10 @@ public class HadoopTableOperations implements TableOperations {
     }
   }
 
-  private int readVersionHint() {
-    Path versionHintFile = versionHintFile();
+  private int readVersionHint(boolean delta) {
+    if (delta && deltaLocation == null)
+      return 0;
+    Path versionHintFile = versionHintFile(delta);
     try {
       FileSystem fs = Util.getFs(versionHintFile, conf);
       if (!fs.exists(versionHintFile)) {

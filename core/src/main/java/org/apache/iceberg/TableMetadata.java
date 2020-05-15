@@ -51,21 +51,21 @@ public class TableMetadata {
                                                PartitionSpec spec,
                                                String location) {
     return newTableMetadata(schema, spec, PrimaryKeySpec.noPrimaryKey(),
-            location, ImmutableMap.of(), DEFAULT_TABLE_FORMAT_VERSION);
+            location, null, ImmutableMap.of(), DEFAULT_TABLE_FORMAT_VERSION);
   }
 
   public static TableMetadata newTableMetadata(Schema schema,
                                                PartitionSpec spec,
                                                PrimaryKeySpec pkSpec,
                                                String location) {
-    return newTableMetadata(schema, spec, pkSpec, location, ImmutableMap.of(), DEFAULT_TABLE_FORMAT_VERSION);
+    return newTableMetadata(schema, spec, pkSpec, location, produceDeltaLocation(location), ImmutableMap.of(), DEFAULT_TABLE_FORMAT_VERSION);
   }
 
   public static TableMetadata newTableMetadata(Schema schema,
                                                PartitionSpec spec,
                                                String location,
                                                Map<String, String> properties) {
-    return newTableMetadata(schema, spec, PrimaryKeySpec.noPrimaryKey(), location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+    return newTableMetadata(schema, spec, PrimaryKeySpec.noPrimaryKey(), location, null, properties, DEFAULT_TABLE_FORMAT_VERSION);
   }
 
   /**
@@ -77,7 +77,7 @@ public class TableMetadata {
                                                PartitionSpec spec,
                                                String location,
                                                Map<String, String> properties) {
-    return newTableMetadata(schema, spec, PrimaryKeySpec.noPrimaryKey(), location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+    return newTableMetadata(schema, spec, PrimaryKeySpec.noPrimaryKey(), location, null, properties, DEFAULT_TABLE_FORMAT_VERSION);
   }
 
   public static TableMetadata newTableMetadata(Schema schema,
@@ -85,7 +85,7 @@ public class TableMetadata {
                                                PrimaryKeySpec pkSpec,
                                                String location,
                                                Map<String, String> properties) {
-    return newTableMetadata(schema, spec, pkSpec, location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+    return newTableMetadata(schema, spec, pkSpec, location, produceDeltaLocation(location), properties, DEFAULT_TABLE_FORMAT_VERSION);
   }
 
   public static TableMetadata newTableMetadata(Schema schema,
@@ -93,13 +93,14 @@ public class TableMetadata {
                                         String location,
                                         Map<String, String> properties,
                                         int formatVersion) {
-    return newTableMetadata(schema, spec, PrimaryKeySpec.noPrimaryKey(), location, properties, formatVersion);
+    return newTableMetadata(schema, spec, PrimaryKeySpec.noPrimaryKey(), location, null, properties, formatVersion);
   }
 
   static TableMetadata newTableMetadata(Schema schema,
                                         PartitionSpec spec,
                                         PrimaryKeySpec pkSpec,
                                         String location,
+                                        String deltaLocation,
                                         Map<String, String> properties,
                                         int formatVersion) {
     // reassign all column ids to ensure consistency
@@ -129,7 +130,7 @@ public class TableMetadata {
     PrimaryKeySpec freshPkSpec = pkSpecBuilder.build();
 
     return new TableMetadata(null, formatVersion, UUID.randomUUID().toString(), location,
-        produceDeltaLocation(pkSpec, location), INITIAL_SEQUENCE_NUMBER, System.currentTimeMillis(),
+        deltaLocation, INITIAL_SEQUENCE_NUMBER, System.currentTimeMillis(),
         lastColumnId.get(), freshSchema, INITIAL_SPEC_ID, ImmutableList.of(freshSpec),
         freshPkSpec, ImmutableMap.copyOf(properties), -1, ImmutableList.of(),
         ImmutableList.of(), ImmutableList.of(), -1, ImmutableList.of());
@@ -795,11 +796,7 @@ public class TableMetadata {
     return builder.build();
   }
 
-  private static String produceDeltaLocation(PrimaryKeySpec pkSpec, String tableLocation) {
-    if (pkSpec == null || PrimaryKeySpec.noPrimaryKey().equals(pkSpec)) {
-      return null;
-    } else {
-      return String.format("%s/%s", tableLocation, DELTA_FOLDER_NAME);
-    }
+  public static String produceDeltaLocation(String tableLocation) {
+    return String.format("%s/%s", tableLocation, DELTA_FOLDER_NAME);
   }
 }

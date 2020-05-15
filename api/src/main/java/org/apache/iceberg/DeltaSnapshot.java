@@ -38,9 +38,18 @@ public interface DeltaSnapshot {
   Iterable<DeltaFile> deltaFiles();
 
   /**
-   * Return the location of this snapshot's manifest list, or null if it is not separate.
+   * Return the location of this snapshot's manifest, or null if it is not separate.
    *
    * @return the location of the manifest list for this Snapshot
    */
   String manifestLocation();
+
+  /**
+   * Return the location of this parent snapshot's manifest, or null if it is not separate.
+   *
+   * @return the location of the manifest for this Snapshot's parent
+   */
+  String parentManifestLocation();
+
+  DeltaSnapshot parent();
 }

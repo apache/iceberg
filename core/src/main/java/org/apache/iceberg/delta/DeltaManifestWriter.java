@@ -15,68 +15,50 @@ public class DeltaManifestWriter implements FileAppender<DeltaFile> {
   private static final Logger LOG = LoggerFactory.getLogger(ManifestWriter.class);
 
 
-  /**
-   * Create a new {@link ManifestWriter}.
-   * <p>
-   * Manifests created by this writer have all entry snapshot IDs set to null.
-   * All entries will inherit the snapshot ID that will be assigned to the manifest on commit.
-   *
-   * @param spec {@link PartitionSpec} used to produce {@link DataFile} partition tuples
-   * @param outputFile the destination file location
-   * @return a manifest writer
-   */
- /* public static DeltaManifestWriter write(PartitionSpec spec, OutputFile outputFile,
-                                          Long parentSnapshotId, String parentDeltaManifestPat) {
-    return new DeltaManifestWriter(spec, outputFile, null);
-  }*/
+
+ public static DeltaManifestWriter write(TableMetadata metadata, DeltaSnapshot snapshot, OutputFile file) {
+    return new DeltaManifestWriter(metadata.spec(), metadata.pkSpec(), file, snapshot.snapshotId(),
+            snapshot.parentId(), snapshot.parentManifestLocation());
+  }
 
   private final OutputFile file;
   private final int specId;
-  private final FileAppender<DeltaManifestEntry> writer;
+  private final FileAppender<GenericDeltaManifestEntry> writer;
   private final Long snapshotId;
   private final Long parentSnapshotId;
   private final String parentDeltaManifestPath;
-  private final DeltaManifestEntry reused;
+  private final GenericDeltaManifestEntry reused;
 
   private boolean closed = false;
   private long rowCount = 0L;
   private long deletedRows = 0L;
   private int fileCount = 0;
 
-  DeltaManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId,
+  DeltaManifestWriter(PartitionSpec spec, PrimaryKeySpec pkSpec, OutputFile file, Long snapshotId,
                       Long parentSnapshotId, String parentDeltaManifestPath) {
     this.file = file;
     this.specId = spec.specId();
-    this.writer = newAppender(FileFormat.AVRO, spec, file,
+    this.writer = newAppender(FileFormat.AVRO, spec, pkSpec, file,
         parentSnapshotId, parentDeltaManifestPath);
     this.snapshotId = snapshotId;
-    this.reused = new DeltaManifestEntry(spec.partitionType());
+    this.reused = new GenericDeltaManifestEntry(spec.partitionType(), pkSpec.primaryKeyType());
     this.parentSnapshotId = parentSnapshotId;
     this.parentDeltaManifestPath = parentDeltaManifestPath;
   }
 
-  void addEntry(DeltaManifestEntry entry) {
+  void addEntry(GenericDeltaManifestEntry entry) {
     fileCount += 1;
     rowCount += entry.file().rowCount();
     deletedRows += entry.file().deleteCount();
     writer.add(entry);
   }
 
-  /**
-   * Add an added entry for a data file.
-   * <p>
-   * The entry's snapshot ID will be this manifest's snapshot ID.
-   *
-   * @param addedFile a data file
-   */
   @Override
   public void add(DeltaFile addedFile) {
-    // TODO: this assumes that file is a GenericDataFile that can be written directly to Avro
-    // Eventually, this should check in case there are other DataFile implementations.
     addEntry(reused.wrap(snapshotId, addedFile));
   }
 
-  public void add(DeltaManifestEntry entry) {
+  public void add(GenericDeltaManifestEntry entry) {
     addEntry(reused.wrap(snapshotId, entry.file()));
   }
 
@@ -91,22 +73,16 @@ public class DeltaManifestWriter implements FileAppender<DeltaFile> {
     return writer.length();
   }
 
-/*  public ManifestFile toManifestFile() {
-    Preconditions.checkState(closed, "Cannot build ManifestFile, writer is not closed");
-    return new GenericManifestFile(file.location(), writer.length(), specId, snapshotId,
-        addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries());
-  }*/
-
   @Override
   public void close() throws IOException {
     this.closed = true;
     writer.close();
   }
 
-  private static <D> FileAppender<D> newAppender(FileFormat format, PartitionSpec spec,
+  private static <D> FileAppender<D> newAppender(FileFormat format, PartitionSpec spec, PrimaryKeySpec pkSpec,
                                                  OutputFile file, Long parentSnapshotId,
                                                  String parentDeltaManifestPath) {
-    Schema manifestSchema = DeltaManifestEntry.getSchema(spec.partitionType());
+    Schema manifestSchema = DeltaManifestEntry.getSchema(spec.partitionType(), pkSpec.primaryKeyType());
     try {
       switch (format) {
         case AVRO:

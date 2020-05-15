@@ -1,6 +1,11 @@
 package org.apache.iceberg;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import org.apache.avro.Schema;
+import org.apache.avro.generic.IndexedRecord;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 
 import java.nio.ByteBuffer;
@@ -8,7 +13,17 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-public class GenericDeltaFile implements DeltaFile {
+public class GenericDeltaFile implements DeltaFile , IndexedRecord {
+  private static final Types.StructType EMPTY_STRUCT_TYPE = Types.StructType.of();
+  private static final PartitionData EMPTY_PARTITION_DATA = new PartitionData(EMPTY_STRUCT_TYPE) {
+    @Override
+    public PartitionData copy() {
+      return this; // this does not change
+    }
+  };
+
+  private Types.StructType partitionType;
+  private Types.StructType primaryKeyType;
 
   private String filePath = null;
   private FileFormat format = null;
@@ -20,10 +35,16 @@ public class GenericDeltaFile implements DeltaFile {
   private byte[] keyMetadata = null;
   private List<Long> splitOffsets = null;
 
-  public GenericDeltaFile(String filePath, FileFormat format, Long rowCount, Long deleteCount,
+  // cached schema
+  private transient org.apache.avro.Schema avroSchema = null;
+
+  public GenericDeltaFile(String filePath, FileFormat format, PartitionData partition,
+                          Types.StructType pkType, Long rowCount, Long deleteCount,
                           long fileSizeInBytes, List<Long> splitOffsets) {
     this.filePath = filePath;
     this.format = format;
+    this.partitionType = partition.getPartitionType();
+    this.primaryKeyType = pkType;
     this.rowCount = rowCount;
     this.deleteCount = deleteCount;
     this.fileSizeInBytes = fileSizeInBytes;
@@ -32,7 +53,7 @@ public class GenericDeltaFile implements DeltaFile {
 
   public GenericDeltaFile(String filePath, FileFormat format, Long rowCount, Long deleteCount, long fileSizeInBytes,
                           ByteBuffer keyMetadata, List<Long> splitOffsets) {
-    this(filePath, format, rowCount, deleteCount, fileSizeInBytes, splitOffsets);
+    this(filePath, format, EMPTY_PARTITION_DATA, EMPTY_STRUCT_TYPE, rowCount, deleteCount, fileSizeInBytes, splitOffsets);
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
   }
 
@@ -54,6 +75,11 @@ public class GenericDeltaFile implements DeltaFile {
   @Override
   public FileFormat format() {
     return format;
+  }
+
+  @Override
+  public StructLike partition() {
+    return null;
   }
 
   @Override
@@ -103,5 +129,47 @@ public class GenericDeltaFile implements DeltaFile {
       return Collections.unmodifiableList(copy);
     }
     return null;
+  }
+
+  @Override
+  public void put(int i, Object v) {
+
+  }
+
+  @Override
+  public Object get(int i) {
+    int pos = i;
+    switch (pos) {
+      case 0:
+        return filePath;
+      case 1:
+        return format != null ? format.toString() : null;
+      case 2:
+      case 3:
+        return null;
+      case 4:
+        return fileSizeInBytes;
+      case 5:
+        return rowCount;
+      case 6:
+        return deleteCount;
+      case 7:
+        return keyMetadata();
+      case 8:
+        return splitOffsets;
+      default:
+        throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+    }
+  }
+
+  @Override
+  public Schema getSchema() {
+    if (avroSchema == null) {
+      Types.StructType type = DeltaFile.getType(partitionType, primaryKeyType);
+      this.avroSchema = AvroSchemaUtil.convert(type, ImmutableMap.of(
+              type, GenericDataFile.class.getName(),
+              partitionType, PartitionData.class.getName()));
+    }
+    return avroSchema;
   }
 }
