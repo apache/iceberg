@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.hive;
 
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Maps;
 import java.io.IOException;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.AssertHelpers;
@@ -34,6 +32,8 @@ import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
 import org.junit.Assert;

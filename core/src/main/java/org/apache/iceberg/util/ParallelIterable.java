@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.util;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterables;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
@@ -31,6 +29,8 @@ import java.util.concurrent.Future;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 public class ParallelIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private final Iterable<? extends Iterable<T>> iterables;

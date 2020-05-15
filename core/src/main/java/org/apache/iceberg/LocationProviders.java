@@ -19,10 +19,10 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
 import java.util.Map;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;

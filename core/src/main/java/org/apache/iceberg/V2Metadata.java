@@ -19,10 +19,10 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
 import java.util.List;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 
 import static org.apache.iceberg.types.Types.NestedField.required;

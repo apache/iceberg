@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.collect.MapMaker;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
@@ -34,6 +33,7 @@ import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.ResolvingDecoder;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 
 class GenericAvroReader<T> implements DatumReader<T> {
 

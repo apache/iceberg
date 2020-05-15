@@ -22,13 +22,13 @@ package org.apache.iceberg.util;
 import com.github.benmanes.caffeine.cache.CacheLoader;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
-import com.google.common.base.Objects;
-import com.google.common.collect.Lists;
 import java.io.Serializable;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.reflect.ReflectData;
 import org.apache.avro.specific.SpecificData;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class Pair<X, Y> implements IndexedRecord, SpecificData.SchemaConstructable, Serializable {
   public static <X, Y> Pair<X, Y> of(X first, Y second) {

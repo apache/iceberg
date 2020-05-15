@@ -19,8 +19,8 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Append implementation that produces a minimal number of manifest files.

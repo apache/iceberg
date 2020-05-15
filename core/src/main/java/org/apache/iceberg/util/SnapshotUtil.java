@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.util;
 
-import com.google.common.collect.Lists;
 import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class SnapshotUtil {
   private SnapshotUtil() {

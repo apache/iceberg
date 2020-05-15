@@ -19,8 +19,8 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements RewriteFiles {
   BaseRewriteFiles(TableOperations ops) {

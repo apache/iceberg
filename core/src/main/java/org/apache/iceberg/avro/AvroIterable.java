@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.collect.Maps;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
@@ -33,6 +32,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class AvroIterable<D> extends CloseableGroup implements CloseableIterable<D> {
   private final InputFile file;
