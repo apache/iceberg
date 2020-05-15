@@ -58,7 +58,7 @@ class PartitionSpec(object):
     def java_classes(self):
         if self.__java_classes is None:
             self.__java_classes
-        for i, field in enumerate(self.__fields):
+        for field in self.__fields:
             source_type = self.schema.find_type(field.source_id)
             result = field.transform().get_result_by_type(source_type)
             self.__java_classes.append(result.type_id.java_class())

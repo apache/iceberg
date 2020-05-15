@@ -182,7 +182,7 @@ class S3File(object):
     def flush(self):
         pass
 
-    def next(self):
+    def __next__(self):
         return next(self.readline())
 
     def read(self, n=0):
@@ -251,6 +251,3 @@ class S3File(object):
 
     def __iter__(self):
         return self
-
-    def __next__(self):
-        return self.next()

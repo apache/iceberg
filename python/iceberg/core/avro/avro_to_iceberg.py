@@ -203,8 +203,7 @@ class AvroToIceberg(object):
         avro_field_type = avro_field.get(AvroToIceberg.FIELD_TYPE_PROP)
         avro_logical_type = avro_field.get(AvroToIceberg.FIELD_LOGICAL_TYPE_PROP)
         if avro_field_type != "array" or avro_logical_type != "map":
-            raise RuntimeError("Avro type must be array and logical type must be map: %s" % (avro_field_type,
-                                                                                             avro_logical_type))
+            raise RuntimeError("Avro type must be array and logical type must be map: %s" % avro_logical_type)
         is_optional = False
         items = avro_field.get(AvroToIceberg.FIELD_ITEMS_PROP)
         for field in items.get(AvroToIceberg.FIELD_FIELDS_PROP, list()):

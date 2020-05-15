@@ -192,7 +192,6 @@ class BaseSnapshot implements Snapshot {
         manifest -> Objects.equal(manifest.snapshotId(), snapshotId));
     try (CloseableIterable<ManifestEntry> entries = new ManifestGroup(io, changedManifests)
         .ignoreExisting()
-        .select(ManifestReader.ALL_COLUMNS)
         .entries()) {
       for (ManifestEntry entry : entries) {
         switch (entry.status()) {

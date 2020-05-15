@@ -20,11 +20,8 @@ import collections
 
 class CloseableIterable(collections.Iterator):
 
-    def next(self):
-        raise NotImplementedError()
-
     def __next__(self):
-        return self.next()
+        raise NotImplementedError()
 
     def close(self):
         raise NotImplementedError()
