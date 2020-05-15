@@ -21,12 +21,10 @@ package org.apache.iceberg.spark.source;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -43,6 +41,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
@@ -88,7 +87,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
   }
 
   @Override
-  Iterator<InternalRow> open(FileScanTask task) {
+  CloseableIterator<InternalRow> open(FileScanTask task) {
     DataFile file = task.file();
 
     // update the current file for Spark's filename() function
@@ -102,7 +101,8 @@ class RowDataReader extends BaseDataReader<InternalRow> {
 
     if (projectsIdentityPartitionColumns) {
       if (SUPPORTS_CONSTANTS.contains(file.format())) {
-        return open(task, expectedSchema, PartitionUtil.constantsMap(task, RowDataReader::convertConstant));
+        return open(task, expectedSchema, PartitionUtil.constantsMap(task, RowDataReader::convertConstant))
+            .iterator();
       }
 
       // schema used to read data files
@@ -115,16 +115,17 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       InternalRow partition = convertToRow.apply(file.partition());
       joined.withRight(partition);
 
-      return Iterators.transform(
-          Iterators.transform(open(task, readSchema, ImmutableMap.of()), joined::withLeft),
+      CloseableIterable<InternalRow> transformedIterable = CloseableIterable.transform(
+          CloseableIterable.transform(open(task, readSchema, ImmutableMap.of()), joined::withLeft),
           APPLY_PROJECTION.bind(projection(expectedSchema, joinedSchema))::invoke);
+      return transformedIterable.iterator();
     }
 
     // return the base iterator
-    return open(task, expectedSchema, ImmutableMap.of());
+    return open(task, expectedSchema, ImmutableMap.of()).iterator();
   }
 
-  private Iterator<InternalRow> open(FileScanTask task, Schema readSchema, Map<Integer, ?> idToConstant) {
+  private CloseableIterable<InternalRow> open(FileScanTask task, Schema readSchema, Map<Integer, ?> idToConstant) {
     CloseableIterable<InternalRow> iter;
     if (task.isDataTask()) {
       iter = newDataIterable(task.asDataTask(), readSchema);
@@ -151,9 +152,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       }
     }
 
-    this.currentCloseable = iter;
-
-    return iter.iterator();
+    return iter;
   }
 
   private CloseableIterable<InternalRow> newAvroIterable(
