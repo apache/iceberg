@@ -122,7 +122,7 @@ project(':iceberg-bundled-guava') {
   }
   
   shadowJar {
-    configurations = [project.configurations.compile]
+    configurations = [project.configurations.compileOnly]
     zip64 true
 
     // include the LICENSE and NOTICE files for the shaded Jar
