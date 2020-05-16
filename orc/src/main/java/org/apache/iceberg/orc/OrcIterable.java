@@ -27,6 +27,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.orc.Reader;
 import org.apache.orc.TypeDescription;
@@ -56,14 +57,15 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
 
   @SuppressWarnings("unchecked")
   @Override
-  public Iterator<T> iterator() {
+  public CloseableIterator<T> iterator() {
     Reader orcFileReader = ORC.newFileReader(file, config);
     addCloseable(orcFileReader);
     TypeDescription readOrcSchema = ORCSchemaUtil.buildOrcProjection(schema, orcFileReader.getSchema());
 
-    return new OrcIterator(
+    Iterator<T> iterator = new OrcIterator(
         newOrcIterator(file, readOrcSchema, start, length, orcFileReader),
         readerFunction.apply(readOrcSchema));
+    return CloseableIterator.withClose(iterator);
   }
 
   private static VectorizedRowBatchIterator newOrcIterator(InputFile file,

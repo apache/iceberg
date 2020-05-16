@@ -40,6 +40,12 @@ setup(
                       'pandas',
                       'pyarrow'
                       ],
+    extras_require={
+        "dev": [
+            "tox-travis==0.12",
+            "virtualenv<20.0.0",
+        ],
+    },
     setup_requires=['setupmeta'],
     license="Apache License 2.0",
     classifiers=[

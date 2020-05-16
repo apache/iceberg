@@ -35,9 +35,9 @@ matrix:
 
   - language: python
     python: 3.6
-    install: pip install tox-travis "virtualenv<20.0.0"
     before_script:
       - cd python
+      - pip install -e .[dev]
     script: tox
     deploy:
       provider: pypi

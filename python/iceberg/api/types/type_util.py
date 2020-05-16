@@ -403,7 +403,7 @@ class AssignFreshIds(CustomOrderSchemaVisitor):
         length = len(struct.fields)
         new_ids = list()
 
-        for i in range(length):
+        for _ in range(length):
             new_ids.append(self.next_id())
 
         new_fields = list()
