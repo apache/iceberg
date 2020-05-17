@@ -101,7 +101,7 @@ class BucketInteger(Bucket):
         return Bucket.MURMUR3.hash(struct.pack("q", value))
 
     def can_transform(self, type_var):
-        return type_var.type_id() in [TypeID.INTEGER, TypeID.DATE]
+        return type_var.type_id in [TypeID.INTEGER, TypeID.DATE]
 
 
 class BucketLong(Bucket):
@@ -112,9 +112,9 @@ class BucketLong(Bucket):
         return Bucket.MURMUR3.hash(struct.pack("q", value))
 
     def can_transform(self, type_var):
-        return type_var.type_id() in [TypeID.LONG,
-                                      TypeID.TIME,
-                                      TypeID.TIMESTAMP]
+        return type_var.type_id in [TypeID.LONG,
+                                    TypeID.TIME,
+                                    TypeID.TIMESTAMP]
 
 
 class BucketFloat(Bucket):
@@ -125,7 +125,7 @@ class BucketFloat(Bucket):
         return Bucket.MURMUR3.hash(struct.pack("d", value))
 
     def can_transform(self, type_var):
-        return type_var.type_id() == TypeID.FLOAT
+        return type_var.type_id == TypeID.FLOAT
 
 
 class BucketDouble(Bucket):
@@ -136,7 +136,7 @@ class BucketDouble(Bucket):
         return Bucket.MURMUR3.hash(struct.pack("d", value))
 
     def can_transform(self, type_var):
-        return type_var.type_id() == TypeID.DOUBLE
+        return type_var.type_id == TypeID.DOUBLE
 
 
 class BucketDecimal(Bucket):

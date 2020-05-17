@@ -236,7 +236,7 @@ class PartitionSpecBuilder(object):
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
                                           name,
-                                          Transforms.year(source_column.types)))
+                                          Transforms.year(source_column.type)))
         return self
 
     def month(self, source_name):
@@ -245,7 +245,7 @@ class PartitionSpecBuilder(object):
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
                                           name,
-                                          Transforms.month(source_column.types)))
+                                          Transforms.month(source_column.type)))
         return self
 
     def day(self, source_name):
@@ -254,7 +254,7 @@ class PartitionSpecBuilder(object):
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
                                           name,
-                                          Transforms.day(source_column.types)))
+                                          Transforms.day(source_column.type)))
         return self
 
     def hour(self, source_name):
@@ -281,7 +281,7 @@ class PartitionSpecBuilder(object):
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
                                           name,
-                                          Transforms.truncate(source_column.types, width)))
+                                          Transforms.truncate(source_column.type, width)))
         return self
 
     def add(self, source_id, name, transform):
