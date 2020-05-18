@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
 import org.apache.iceberg.TableMetadataParser.Codec;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types.BooleanType;
@@ -74,7 +75,7 @@ public class TableMetadataParserTest {
     TableMetadata metadata = newTableMetadata(SCHEMA, unpartitioned(), location, properties);
     TableMetadataParser.write(metadata, outputFile);
     Assert.assertEquals(codec == Codec.GZIP, isCompressed(fileName));
-    TableMetadata actualMetadata = TableMetadataParser.read(null, Files.localInput(new File(fileName)));
+    TableMetadata actualMetadata = TableMetadataParser.read((FileIO) null, Files.localInput(new File(fileName)));
     verifyMetadata(metadata, actualMetadata);
   }
 

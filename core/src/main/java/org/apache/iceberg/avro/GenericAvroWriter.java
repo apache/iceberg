@@ -91,6 +91,9 @@ class GenericAvroWriter<T> implements DatumWriter<T> {
           case "date":
             return ValueWriters.ints();
 
+          case "time-micros":
+            return ValueWriters.longs();
+
           case "timestamp-micros":
             return ValueWriters.longs();
 

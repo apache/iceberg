@@ -37,7 +37,7 @@ class DataFiles(object):
         if data is None:
             data = DataFiles.new_partition_data(spec)
 
-        for i, field in enumerate(spec.fields):
+        for i, _ in enumerate(spec.fields):
             data.set(i, partition_data.get(i))
 
         return data

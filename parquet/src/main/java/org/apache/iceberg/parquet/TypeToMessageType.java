@@ -30,16 +30,14 @@ import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.TimeUnit;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 
-import static org.apache.parquet.schema.OriginalType.DATE;
-import static org.apache.parquet.schema.OriginalType.DECIMAL;
-import static org.apache.parquet.schema.OriginalType.TIMESTAMP_MICROS;
-import static org.apache.parquet.schema.OriginalType.TIME_MICROS;
-import static org.apache.parquet.schema.OriginalType.UTF8;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BOOLEAN;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.DOUBLE;
@@ -51,6 +49,14 @@ import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
 public class TypeToMessageType {
   public static final int DECIMAL_INT32_MAX_DIGITS = 9;
   public static final int DECIMAL_INT64_MAX_DIGITS = 18;
+  private static final LogicalTypeAnnotation STRING = LogicalTypeAnnotation.stringType();
+  private static final LogicalTypeAnnotation DATE = LogicalTypeAnnotation.dateType();
+  private static final LogicalTypeAnnotation TIME_MICROS = LogicalTypeAnnotation
+      .timeType(false /* not adjusted to UTC */, TimeUnit.MICROS);
+  private static final LogicalTypeAnnotation TIMESTAMP_MICROS = LogicalTypeAnnotation
+      .timestampType(false /* not adjusted to UTC */, TimeUnit.MICROS);
+  private static final LogicalTypeAnnotation TIMESTAMPTZ_MICROS = LogicalTypeAnnotation
+      .timestampType(true /* adjusted to UTC */, TimeUnit.MICROS);
 
   public MessageType convert(Schema schema, String name) {
     Types.MessageTypeBuilder builder = Types.buildMessage();
@@ -130,9 +136,13 @@ public class TypeToMessageType {
       case TIME:
         return Types.primitive(INT64, repetition).as(TIME_MICROS).id(id).named(name);
       case TIMESTAMP:
-        return Types.primitive(INT64, repetition).as(TIMESTAMP_MICROS).id(id).named(name);
+        if (((TimestampType) primitive).shouldAdjustToUTC()) {
+          return Types.primitive(INT64, repetition).as(TIMESTAMPTZ_MICROS).id(id).named(name);
+        } else {
+          return Types.primitive(INT64, repetition).as(TIMESTAMP_MICROS).id(id).named(name);
+        }
       case STRING:
-        return Types.primitive(BINARY, repetition).as(UTF8).id(id).named(name);
+        return Types.primitive(BINARY, repetition).as(STRING).id(id).named(name);
       case BINARY:
         return Types.primitive(BINARY, repetition).id(id).named(name);
       case FIXED:
@@ -148,18 +158,14 @@ public class TypeToMessageType {
         if (decimal.precision() <= DECIMAL_INT32_MAX_DIGITS) {
           // store as an int
           return Types.primitive(INT32, repetition)
-              .as(DECIMAL)
-              .precision(decimal.precision())
-              .scale(decimal.scale())
+              .as(decimalAnnotation(decimal.precision(), decimal.scale()))
               .id(id)
               .named(name);
 
         } else if (decimal.precision() <= DECIMAL_INT64_MAX_DIGITS) {
           // store as a long
           return Types.primitive(INT64, repetition)
-              .as(DECIMAL)
-              .precision(decimal.precision())
-              .scale(decimal.scale())
+              .as(decimalAnnotation(decimal.precision(), decimal.scale()))
               .id(id)
               .named(name);
 
@@ -167,9 +173,7 @@ public class TypeToMessageType {
           // store as a fixed-length array
           int minLength = TypeUtil.decimalRequiredBytes(decimal.precision());
           return Types.primitive(FIXED_LEN_BYTE_ARRAY, repetition).length(minLength)
-              .as(DECIMAL)
-              .precision(decimal.precision())
-              .scale(decimal.scale())
+              .as(decimalAnnotation(decimal.precision(), decimal.scale()))
               .id(id)
               .named(name);
         }
@@ -180,5 +184,9 @@ public class TypeToMessageType {
       default:
         throw new UnsupportedOperationException("Unsupported type for Parquet: " + primitive);
     }
+  }
+
+  private static LogicalTypeAnnotation decimalAnnotation(int precision, int scale) {
+    return LogicalTypeAnnotation.decimalType(scale, precision);
   }
 }

@@ -57,9 +57,6 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
   private static final String REPLACED_MANIFESTS_COUNT = "manifests-replaced";
   private static final String PROCESSED_ENTRY_COUNT = "entries-processed";
 
-  private static final ImmutableSet<ManifestEntry.Status> ALLOWED_ENTRY_STATUSES = ImmutableSet.of(
-      ManifestEntry.Status.EXISTING);
-
   private final TableOperations ops;
   private final Map<Integer, PartitionSpec> specsById;
   private final long manifestTargetSizeBytes;
@@ -237,9 +234,9 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
               keptManifests.add(manifest);
             } else {
               rewrittenManifests.add(manifest);
-              try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
-                FilteredManifest filteredManifest = reader.select(Arrays.asList("*"));
-                filteredManifest.liveEntries().forEach(
+              try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())
+                  .select(Arrays.asList("*"))) {
+                reader.liveEntries().forEach(
                     entry -> appendEntry(entry, clusterByFunc.apply(entry.file()), manifest.partitionSpecId())
                 );
 

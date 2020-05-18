@@ -28,8 +28,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * This implementation will attempt to commit 5 times before throwing {@link CommitFailedException}.
  */
 class MergeAppend extends MergingSnapshotProducer<AppendFiles> implements AppendFiles {
-  MergeAppend(TableOperations ops) {
-    super(ops);
+  MergeAppend(String tableName, TableOperations ops) {
+    super(tableName, ops);
   }
 
   @Override

@@ -39,8 +39,8 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
   private String snapshotOperation = null;
   private Long requiredCurrentSnapshotId = null;
 
-  SnapshotManager(TableOperations ops) {
-    super(ops);
+  SnapshotManager(String tableName, TableOperations ops) {
+    super(tableName, ops);
   }
 
   @Override
@@ -125,6 +125,32 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
         isCurrentAncestor(current, snapshotId),
         "Cannot roll back to snapshot, not an ancestor of the current state: %s", snapshotId);
     return setCurrentSnapshot(snapshotId);
+  }
+
+  @Override
+  public Object updateEvent() {
+    if (targetSnapshotId == null) {
+      // NOOP operation, no snapshot created
+      return null;
+    }
+
+    switch (managerOperation) {
+      case ROLLBACK:
+        // rollback does not create a new snapshot
+        return null;
+      case CHERRYPICK:
+        TableMetadata tableMetadata = refresh();
+        long snapshotId = tableMetadata.currentSnapshot().snapshotId();
+        if (targetSnapshotId == snapshotId) {
+          // No new snapshot is created for fast-forward
+          return null;
+        } else {
+          // New snapshot created, we rely on super class to fire a CreateSnapshotEvent
+          return super.updateEvent();
+        }
+      default:
+        throw new UnsupportedOperationException(managerOperation + " is not supported");
+    }
   }
 
   private void validate(TableMetadata base) {

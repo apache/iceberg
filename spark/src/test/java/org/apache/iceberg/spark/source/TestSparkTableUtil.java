@@ -71,6 +71,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
             .config("spark.hadoop.hive.metastore.uris", metastoreURI)
             .config("hive.exec.dynamic.partition", "true")
             .config("hive.exec.dynamic.partition.mode", "nonstrict")
+            .config("spark.sql.legacy.allowCreatingManagedTableUsingNonemptyLocation", "true")
             .getOrCreate();
   }
 

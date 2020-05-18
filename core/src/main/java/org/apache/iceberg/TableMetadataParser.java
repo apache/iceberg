@@ -214,6 +214,14 @@ public class TableMetadataParser {
     generator.writeEndObject();
   }
 
+  /**
+   * @deprecated will be removed in 0.9.0; use read(FileIO, InputFile) instead.
+   */
+  @Deprecated
+  public static TableMetadata read(TableOperations ops, InputFile file) {
+    return read(ops.io(), file);
+  }
+
   public static TableMetadata read(FileIO io, String path) {
     return read(io, io.newInputFile(path));
   }

@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.arrow.vectorized;
 
-import javax.annotation.Nullable;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
@@ -33,7 +32,6 @@ public class VectorHolder {
   private final FieldVector vector;
   private final boolean isDictionaryEncoded;
 
-  @Nullable
   private final Dictionary dictionary;
   private final NullabilityHolder nullabilityHolder;
 

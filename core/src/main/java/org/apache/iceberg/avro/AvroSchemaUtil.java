@@ -119,7 +119,7 @@ public class AvroSchemaUtil {
     return false;
   }
 
-  static boolean isOptionSchema(Schema schema) {
+  public static boolean isOptionSchema(Schema schema) {
     if (schema.getType() == UNION && schema.getTypes().size() == 2) {
       if (schema.getTypes().get(0).getType() == Schema.Type.NULL) {
         return true;
@@ -162,7 +162,7 @@ public class AvroSchemaUtil {
     }
   }
 
-  static boolean isKeyValueSchema(Schema schema) {
+  public static boolean isKeyValueSchema(Schema schema) {
     return schema.getType() == RECORD && schema.getFields().size() == 2;
   }
 

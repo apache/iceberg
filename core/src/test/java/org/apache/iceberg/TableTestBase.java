@@ -132,11 +132,15 @@ public class TableTestBase {
   }
 
   ManifestFile writeManifest(DataFile... files) throws IOException {
+    return writeManifest(null, files);
+  }
+
+  ManifestFile writeManifest(Long snapshotId, DataFile... files) throws IOException {
     File manifestFile = temp.newFile("input.m0.avro");
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter writer = ManifestFiles.write(table.spec(), outputFile);
+    ManifestWriter writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId);
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -149,11 +153,19 @@ public class TableTestBase {
   }
 
   ManifestFile writeManifest(String fileName, ManifestEntry... entries) throws IOException {
+    return writeManifest(null, fileName, entries);
+  }
+
+  ManifestFile writeManifest(Long snapshotId, ManifestEntry... entries) throws IOException {
+    return writeManifest(snapshotId, "input.m0.avro", entries);
+  }
+
+  ManifestFile writeManifest(Long snapshotId, String fileName, ManifestEntry... entries) throws IOException {
     File manifestFile = temp.newFile(fileName);
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter writer = ManifestFiles.write(table.spec(), outputFile);
+    ManifestWriter writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId);
     try {
       for (ManifestEntry entry : entries) {
         writer.addEntry(entry);
@@ -170,7 +182,7 @@ public class TableTestBase {
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter writer = ManifestFiles.write(table.spec(), outputFile);
+    ManifestWriter writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, null);
     try {
       for (DataFile file : files) {
         writer.add(file);

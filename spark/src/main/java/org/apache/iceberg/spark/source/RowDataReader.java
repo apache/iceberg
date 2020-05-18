@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.source;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -38,13 +37,13 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -88,61 +87,45 @@ class RowDataReader extends BaseDataReader<InternalRow> {
   }
 
   @Override
-  Iterator<InternalRow> open(FileScanTask task) {
+  CloseableIterator<InternalRow> open(FileScanTask task) {
     DataFile file = task.file();
 
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(file.path().toString(), task.start(), task.length());
 
     // schema or rows returned by readers
-    Schema finalSchema = expectedSchema;
     PartitionSpec spec = task.spec();
     Set<Integer> idColumns = spec.identitySourceIds();
+    Schema partitionSchema = TypeUtil.select(expectedSchema, idColumns);
+    boolean projectsIdentityPartitionColumns = !partitionSchema.columns().isEmpty();
 
-    // schema needed for the projection and filtering
-    StructType sparkType = SparkSchemaUtil.convert(finalSchema);
-    Schema requiredSchema = SparkSchemaUtil.prune(tableSchema, sparkType, task.residual(), caseSensitive);
-    boolean hasJoinedPartitionColumns = !idColumns.isEmpty();
-    boolean hasExtraFilterColumns = requiredSchema.columns().size() != finalSchema.columns().size();
-
-    Schema iterSchema;
-    Iterator<InternalRow> iter;
-
-    if (hasJoinedPartitionColumns) {
+    if (projectsIdentityPartitionColumns) {
       if (SUPPORTS_CONSTANTS.contains(file.format())) {
-        iterSchema = requiredSchema;
-        iter = open(task, requiredSchema, PartitionUtil.constantsMap(task, RowDataReader::convertConstant));
-      } else {
-        // schema used to read data files
-        Schema readSchema = TypeUtil.selectNot(requiredSchema, idColumns);
-        Schema partitionSchema = TypeUtil.select(requiredSchema, idColumns);
-        PartitionRowConverter convertToRow = new PartitionRowConverter(partitionSchema, spec);
-        JoinedRow joined = new JoinedRow();
-
-        InternalRow partition = convertToRow.apply(file.partition());
-        joined.withRight(partition);
-
-        // create joined rows and project from the joined schema to the final schema
-        iterSchema = TypeUtil.join(readSchema, partitionSchema);
-        iter = Iterators.transform(open(task, readSchema, ImmutableMap.of()), joined::withLeft);
+        return open(task, expectedSchema, PartitionUtil.constantsMap(task, RowDataReader::convertConstant))
+            .iterator();
       }
-    } else if (hasExtraFilterColumns) {
-      // add projection to the final schema
-      iterSchema = requiredSchema;
-      iter = open(task, requiredSchema, ImmutableMap.of());
-    } else {
-      // return the base iterator
-      iterSchema = finalSchema;
-      iter = open(task, finalSchema, ImmutableMap.of());
+
+      // schema used to read data files
+      Schema readSchema = TypeUtil.selectNot(expectedSchema, idColumns);
+      PartitionRowConverter convertToRow = new PartitionRowConverter(partitionSchema, spec);
+      JoinedRow joined = new JoinedRow();
+
+      // create joined rows and project from the joined schema to the final schema
+      Schema joinedSchema = TypeUtil.join(readSchema, partitionSchema);
+      InternalRow partition = convertToRow.apply(file.partition());
+      joined.withRight(partition);
+
+      CloseableIterable<InternalRow> transformedIterable = CloseableIterable.transform(
+          CloseableIterable.transform(open(task, readSchema, ImmutableMap.of()), joined::withLeft),
+          APPLY_PROJECTION.bind(projection(expectedSchema, joinedSchema))::invoke);
+      return transformedIterable.iterator();
     }
 
-    // TODO: remove the projection by reporting the iterator's schema back to Spark
-    return Iterators.transform(
-        iter,
-        APPLY_PROJECTION.bind(projection(finalSchema, iterSchema))::invoke);
+    // return the base iterator
+    return open(task, expectedSchema, ImmutableMap.of()).iterator();
   }
 
-  private Iterator<InternalRow> open(FileScanTask task, Schema readSchema, Map<Integer, ?> idToConstant) {
+  private CloseableIterable<InternalRow> open(FileScanTask task, Schema readSchema, Map<Integer, ?> idToConstant) {
     CloseableIterable<InternalRow> iter;
     if (task.isDataTask()) {
       iter = newDataIterable(task.asDataTask(), readSchema);
@@ -169,9 +152,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       }
     }
 
-    this.currentCloseable = iter;
-
-    return iter.iterator();
+    return iter;
   }
 
   private CloseableIterable<InternalRow> newAvroIterable(

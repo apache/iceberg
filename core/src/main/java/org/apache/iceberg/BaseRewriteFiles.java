@@ -23,8 +23,8 @@ import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements RewriteFiles {
-  BaseRewriteFiles(TableOperations ops) {
-    super(ops);
+  BaseRewriteFiles(String tableName, TableOperations ops) {
+    super(tableName, ops);
 
     // replace files must fail if any of the deleted paths is missing and cannot be deleted
     failMissingDeletePaths();
