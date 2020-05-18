@@ -106,11 +106,27 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
   public Type union(Schema union, List<Type> options) {
     Preconditions.checkArgument(AvroSchemaUtil.isOptionSchema(union),
         "Unsupported type: non-option union: %s", union);
-    // records, arrays, and maps will check nullability later
-    if (options.get(0) == null) {
-      return options.get(1);
-    } else {
+    if (options.size() == 1) {
       return options.get(0);
+    } else if (options.size() == 2) {
+      if (options.get(0) == null) {
+        return options.get(1);
+      } else {
+        return options.get(0);
+      }
+    } else {
+      // Convert complex unions to struct types where field names are member0, member1, etc.
+      // This is consistent with the behavior of the spark Avro SchemaConverter
+      List<Types.NestedField> fields = Lists.newArrayListWithExpectedSize(options.size());
+      for (int i = 0; i < options.size(); i += 1) {
+        Type fieldType = options.get(i);
+        if (fieldType == null) {
+          continue;
+        }
+        // All fields are optional because only one of them is set at a time
+        fields.add(Types.NestedField.optional(allocateId(), "member" + i, fieldType));
+      }
+      return Types.StructType.of(fields);
     }
   }
 
@@ -133,7 +149,6 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
         return Types.MapType.ofRequired(
             keyField.fieldId(), valueField.fieldId(), keyField.type(), valueField.type());
       }
-
     } else {
       // normal array
       Schema elementSchema = array.getElementType();
@@ -169,18 +184,15 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
         return Types.DecimalType.of(
             ((LogicalTypes.Decimal) logical).getPrecision(),
             ((LogicalTypes.Decimal) logical).getScale());
-
       } else if (logical instanceof LogicalTypes.Date) {
         return Types.DateType.get();
-
       } else if (
           logical instanceof LogicalTypes.TimeMillis ||
-          logical instanceof LogicalTypes.TimeMicros) {
+              logical instanceof LogicalTypes.TimeMicros) {
         return Types.TimeType.get();
-
       } else if (
           logical instanceof LogicalTypes.TimestampMillis ||
-          logical instanceof LogicalTypes.TimestampMicros) {
+              logical instanceof LogicalTypes.TimestampMicros) {
         Object adjustToUTC = primitive.getObjectProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP);
         Preconditions.checkArgument(adjustToUTC instanceof Boolean,
             "Invalid value for adjust-to-utc: %s", adjustToUTC);
@@ -189,7 +201,6 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
         } else {
           return Types.TimestampType.withoutZone();
         }
-
       } else if (LogicalTypes.uuid().getName().equals(name)) {
         return Types.UUIDType.get();
       }

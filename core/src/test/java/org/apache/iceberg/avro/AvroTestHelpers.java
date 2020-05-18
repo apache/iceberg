@@ -37,7 +37,6 @@ class AvroTestHelpers {
 
   static Schema.Field optionalField(int id, String name, Schema schema) {
     return addId(id, new Schema.Field(name, toOption(schema), null, JsonProperties.NULL_VALUE));
-
   }
 
   static Schema.Field requiredField(int id, String name, Schema schema) {
@@ -117,7 +116,6 @@ class AvroTestHelpers {
       case LONG:
       case FLOAT:
       case DOUBLE:
-      case STRING:
       case DATE:
       case TIME:
       case TIMESTAMP:
@@ -126,6 +124,9 @@ class AvroTestHelpers {
       case BINARY:
       case DECIMAL:
         Assert.assertEquals("Primitive value should be equal to expected", expected, actual);
+        break;
+      case STRING:
+        Assert.assertEquals("String value should be equal to expected", expected.toString(), actual.toString());
         break;
       case STRUCT:
         Assert.assertTrue("Expected should be a Record", expected instanceof Record);

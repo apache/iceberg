@@ -21,10 +21,13 @@ package org.apache.iceberg.avro;
 
 import com.google.common.base.Preconditions;
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericData;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Encoder;
 
@@ -52,7 +55,14 @@ class GenericAvroWriter<T> implements DatumWriter<T> {
 
     @Override
     public ValueWriter<?> record(Schema record, List<String> names, List<ValueWriter<?>> fields) {
-      return ValueWriters.record(fields);
+      // this is horrible hack, is there better way to do this?
+      boolean isUnionSchema = record.getFields().stream().anyMatch(f -> f.schema().isUnion());
+      boolean isRecordFromUnionSchema = names.stream().allMatch(f -> f.startsWith("member"));
+      if (isUnionSchema && isRecordFromUnionSchema) {
+        return new UnionSchemaWriter<>(record, fields);
+      } else {
+        return ValueWriters.record(fields);
+      }
     }
 
     @Override
@@ -130,6 +140,40 @@ class GenericAvroWriter<T> implements DatumWriter<T> {
           return ValueWriters.byteBuffers();
         default:
           throw new IllegalArgumentException("Unsupported type: " + primitive);
+      }
+    }
+  }
+
+  public static class UnionSchemaWriter<V extends Object> implements ValueWriter<V> {
+    private final ValueWriter<Object>[] writers;
+    private final Schema schema;
+
+    @SuppressWarnings("unchecked")
+    protected UnionSchemaWriter(Schema schema, List<ValueWriter<?>> writers) {
+      this.schema = Schema.createUnion(schema.getFields()
+          .stream()
+          .flatMap(x -> x.schema().getTypes().stream())
+          .filter(x -> x.getType() != Schema.Type.NULL) // only process non-null types
+          .collect(Collectors.toList()));
+      this.writers = (ValueWriter<Object>[]) Array.newInstance(ValueWriter.class, writers.size());
+      for (int i = 0; i < this.writers.length; i += 1) {
+        this.writers[i] = (ValueWriter<Object>) writers.get(i);
+      }
+    }
+
+    public ValueWriter<?> writer(int pos) {
+      return writers[pos];
+    }
+
+    @Override
+    public void write(V row, Encoder encoder) throws IOException {
+      int index = GenericData.get().resolveUnion(schema, row);
+      for (int i = 0; i < this.writers.length; i += 1) {
+        if (i == index) {
+          writers[i].write(row, encoder);
+        } else {
+          writers[i].write(null, encoder);
+        }
       }
     }
   }
