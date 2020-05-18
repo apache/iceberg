@@ -27,8 +27,10 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.types.Types;
 
 public class GenericEvaluator extends Evaluator {
-  public GenericEvaluator(Types.StructType structType, Expression unbound, Map<Integer, Accessor<StructLike>> accessors,
+  public GenericEvaluator(Types.StructType structType,
+                          Expression unbound,
+                          Map<Integer, Accessor<StructLike>> idToAccessor,
                           boolean caseSensitive) {
-    super(structType, unbound, accessors, caseSensitive);
+    super(structType, unbound, idToAccessor, caseSensitive);
   }
 }

@@ -29,12 +29,10 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import org.apache.avro.generic.GenericData;
-import org.apache.iceberg.Accessor;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.avro.Avro;
@@ -162,9 +160,8 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
           this.currentCloseable = reader;
 
           if (task.residual() != null && task.residual() != Expressions.alwaysTrue()) {
-            Map<Integer, Accessor<StructLike>> accessors = Accessors.forSchema(projection);
             Evaluator filter = new GenericEvaluator(projection.asStruct(), task.residual(),
-                accessors, caseSensitive);
+                Accessors.forSchema(projection), caseSensitive);
             this.currentIterator = Iterables.filter(reader, filter::eval).iterator();
           } else {
             this.currentIterator = reader.iterator();

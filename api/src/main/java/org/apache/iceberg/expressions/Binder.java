@@ -80,7 +80,7 @@ public class Binder {
    *
    * @param struct The {@link StructType struct type} to resolve references by name.
    * @param expr An {@link Expression expression} to rewrite with bound references.
-   * @param accessors A map to {@link Accessor accessor} to access the {@link StructLike StructLike} value
+   * @param idToAccessor A map that map the type ID to the value {@link Accessor accessor}
    * @param caseSensitive A boolean flag to control whether the bind should enforce case sensitivity.
    * @return the expression rewritten with bound references
    * @throws ValidationException if literals do not match bound references
@@ -88,9 +88,9 @@ public class Binder {
    */
   public static Expression bind(StructType struct,
                                 Expression expr,
-                                Map<Integer, Accessor<StructLike>> accessors,
+                                Map<Integer, Accessor<StructLike>> idToAccessor,
                                 boolean caseSensitive) {
-    return ExpressionVisitors.visit(expr, new BindVisitor(struct, accessors, caseSensitive));
+    return ExpressionVisitors.visit(expr, new BindVisitor(struct, idToAccessor, caseSensitive));
   }
 
   /**
@@ -135,17 +135,17 @@ public class Binder {
   private static class BindVisitor extends ExpressionVisitor<Expression> {
     private final StructType struct;
     private final boolean caseSensitive;
-    private Map<Integer, Accessor<StructLike>> accessors = null;
+    private Map<Integer, Accessor<StructLike>> idToAccessor = null;
 
     private BindVisitor(StructType struct, boolean caseSensitive) {
       this.struct = struct;
       this.caseSensitive = caseSensitive;
     }
 
-    private BindVisitor(StructType struct, Map<Integer, Accessor<StructLike>> accessors, boolean caseSensitive) {
+    private BindVisitor(StructType struct, Map<Integer, Accessor<StructLike>> idToAccessor, boolean caseSensitive) {
       this.struct = struct;
       this.caseSensitive = caseSensitive;
-      this.accessors = accessors;
+      this.idToAccessor = idToAccessor;
     }
 
     @Override
@@ -180,7 +180,7 @@ public class Binder {
 
     @Override
     public <T> Expression predicate(UnboundPredicate<T> pred) {
-      return accessors == null ? pred.bind(struct, caseSensitive) : pred.bind(struct, accessors, caseSensitive);
+      return idToAccessor == null ? pred.bind(struct, caseSensitive) : pred.bind(struct, idToAccessor, caseSensitive);
     }
   }
 
