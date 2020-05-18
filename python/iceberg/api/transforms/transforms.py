@@ -47,7 +47,7 @@ class Transforms(object):
 
         if match is not None:
             name = match.group(1)
-            w = match.group(2)
+            w = int(match.group(2))
             if name.lower() == "truncate":
                 return Truncate.get(type_var, w)
             elif name.lower() == "bucket":
