@@ -50,9 +50,9 @@ subprojects {
   pluginManager.withPlugin('com.diffplug.gradle.spotless') {
     spotless {
       java {
-        target 'src/main/java/**/*.java', 'src/main/test/**/*.java'
+        target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'src/jmh/java/**/*.java'
         removeUnusedImports()
-        importOrder(['', 'static '])
+        importOrder '', 'static '
         trimTrailingWhitespace()
         indentWithSpaces 2
         endWithNewline()
