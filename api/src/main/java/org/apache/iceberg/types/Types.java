@@ -514,28 +514,37 @@ public class Types {
   public static class StructType extends NestedType {
     private static final Joiner FIELD_SEP = Joiner.on(", ");
 
+    public static StructType of(boolean isUnion, NestedField... fields) {
+      return of(Arrays.asList(fields), isUnion);
+    }
+
     public static StructType of(NestedField... fields) {
       return of(Arrays.asList(fields));
     }
 
     public static StructType of(List<NestedField> fields) {
-      return new StructType(fields);
+      return new StructType(fields, false);
+    }
+
+    public static StructType of(List<NestedField> fields, boolean isUnionSchema) {
+      return new StructType(fields, isUnionSchema);
     }
 
     private final NestedField[] fields;
-
+    private final boolean isUnionSchema;
     // lazy values
     private transient List<NestedField> fieldList = null;
     private transient Map<String, NestedField> fieldsByName = null;
     private transient Map<String, NestedField> fieldsByLowerCaseName = null;
     private transient Map<Integer, NestedField> fieldsById = null;
 
-    private StructType(List<NestedField> fields) {
+    private StructType(List<NestedField> fields, boolean isUnionSchema) {
       Preconditions.checkNotNull(fields, "Field list cannot be null");
       this.fields = new NestedField[fields.size()];
       for (int i = 0; i < this.fields.length; i += 1) {
         this.fields[i] = fields.get(i);
       }
+      this.isUnionSchema = isUnionSchema;
     }
 
     @Override
@@ -640,6 +649,13 @@ public class Types {
         this.fieldsById = byIdBuilder.build();
       }
       return fieldsById;
+    }
+
+    /**
+     * @return true if struct represents union schema
+     */
+    public boolean isUnionSchema() {
+      return isUnionSchema;
     }
   }
 

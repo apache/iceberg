@@ -100,7 +100,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
       Types.NestedField structField = structFields.get(i);
       String origFieldName = structField.name();
       boolean isValidFieldName = AvroSchemaUtil.validAvroName(origFieldName);
-      String fieldName =  isValidFieldName ? origFieldName : AvroSchemaUtil.sanitize(origFieldName);
+      String fieldName = isValidFieldName ? origFieldName : AvroSchemaUtil.sanitize(origFieldName);
       Schema.Field field = new Schema.Field(
           fieldName, fieldSchemas.get(i), null,
           structField.isOptional() ? JsonProperties.NULL_VALUE : null);
@@ -112,7 +112,9 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
     }
 
     recordSchema = Schema.createRecord(recordName, null, null, false, fields);
-
+    if (struct.isUnionSchema()) {
+      recordSchema.addProp(AvroSchemaUtil.UNION_SCHEMA_TO_RECORD, true);
+    }
     results.put(struct, recordSchema);
 
     return recordSchema;
@@ -160,7 +162,6 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
           map.isValueOptional() ? AvroSchemaUtil.toOption(valueSchema) : valueSchema);
       mapSchema.addProp(AvroSchemaUtil.KEY_ID_PROP, map.keyId());
       mapSchema.addProp(AvroSchemaUtil.VALUE_ID_PROP, map.valueId());
-
     } else {
       mapSchema = AvroSchemaUtil.createMap(map.keyId(), keySchema,
           map.valueId(), map.isValueOptional() ? AvroSchemaUtil.toOption(valueSchema) : valueSchema);

@@ -55,10 +55,8 @@ class GenericAvroWriter<T> implements DatumWriter<T> {
 
     @Override
     public ValueWriter<?> record(Schema record, List<String> names, List<ValueWriter<?>> fields) {
-      // this is horrible hack, is there better way to do this?
-      boolean isUnionSchema = record.getFields().stream().anyMatch(f -> f.schema().isUnion());
-      boolean isRecordFromUnionSchema = names.stream().allMatch(f -> f.startsWith("member"));
-      if (isUnionSchema && isRecordFromUnionSchema) {
+      Object isUnionSchema = record.getObjectProp(AvroSchemaUtil.UNION_SCHEMA_TO_RECORD);
+      if (isUnionSchema != null && (boolean) isUnionSchema) {
         return new UnionSchemaWriter<>(record, fields);
       } else {
         return ValueWriters.record(fields);

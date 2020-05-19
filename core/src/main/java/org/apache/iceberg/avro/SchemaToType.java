@@ -126,7 +126,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
         // All fields are optional because only one of them is set at a time
         fields.add(Types.NestedField.optional(allocateId(), "member" + i, fieldType));
       }
-      return Types.StructType.of(fields);
+      return Types.StructType.of(fields, true);
     }
   }
 
