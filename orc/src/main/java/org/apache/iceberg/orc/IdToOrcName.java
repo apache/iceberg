@@ -24,10 +24,10 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.util.Deque;
+import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
@@ -48,64 +48,90 @@ import org.apache.iceberg.types.Types;
  * map -> struct value -> field         map.field         map._value.field
  * </pre>
  */
-class IdToOrcName extends TypeUtil.CustomOrderSchemaVisitor<Map<Integer, String>> {
+class IdToOrcName extends TypeUtil.SchemaVisitor<Map<Integer, String>> {
   private static final Joiner DOT = Joiner.on(".");
 
   private final Deque<String> fieldNames = Lists.newLinkedList();
   private final Map<Integer, String> idToName = Maps.newHashMap();
 
   @Override
-  public Map<Integer, String> schema(Schema schema, Supplier<Map<Integer, String>> structResult) {
-    return structResult.get();
+  public void beforeField(Types.NestedField field) {
+    fieldNames.push(field.name());
   }
 
   @Override
-  public Map<Integer, String> struct(Types.StructType struct, Iterable<Map<Integer, String>> fieldResults) {
-    // iterate through the fields to generate column names for each one, use size to avoid errorprone failure
-    Lists.newArrayList(fieldResults).size();
+  public void afterField(Types.NestedField field) {
+    fieldNames.pop();
+  }
+
+  @Override
+  public void beforeListElement(Types.NestedField elementField) {
+    fieldNames.push("_elem");
+  }
+
+  @Override
+  public void afterListElement(Types.NestedField elementField) {
+    fieldNames.pop();
+  }
+
+  @Override
+  public void beforeMapKey(Types.NestedField keyField) {
+    fieldNames.push("_key");
+  }
+
+  @Override
+  public void afterMapKey(Types.NestedField keyField) {
+    fieldNames.pop();
+  }
+
+  @Override
+  public void beforeMapValue(Types.NestedField valueField) {
+    fieldNames.push("_value");
+  }
+
+  @Override
+  public void afterMapValue(Types.NestedField valueField) {
+    fieldNames.pop();
+  }
+
+  @Override
+  public Map<Integer, String> schema(Schema schema, Map<Integer, String> structResult) {
+    return structResult;
+  }
+
+  @Override
+  public Map<Integer, String> struct(Types.StructType struct, List<Map<Integer, String>> fieldResults) {
     return idToName;
   }
 
   @Override
-  public Map<Integer, String> field(Types.NestedField field, Supplier<Map<Integer, String>> fieldResult) {
-    withName(field.name(), fieldResult::get);
+  public Map<Integer, String> field(Types.NestedField field, Map<Integer, String> fieldResult) {
     addField(field.name(), field.fieldId());
-    return null;
+    return idToName;
   }
 
   @Override
-  public Map<Integer, String> list(Types.ListType list, Supplier<Map<Integer, String>> elementResult) {
-    withName("_elem", elementResult::get);
+  public Map<Integer, String> list(Types.ListType list, Map<Integer, String> elementResult) {
     addField("_elem", list.elementId());
-    return null;
+    return idToName;
   }
 
   @Override
-  public Map<Integer, String> map(Types.MapType map,
-      Supplier<Map<Integer, String>> keyResult,
-      Supplier<Map<Integer, String>> valueResult) {
-    withName("_key", keyResult::get);
-    withName("_value", valueResult::get);
+  public Map<Integer, String> map(Types.MapType map, Map<Integer, String> keyResult, Map<Integer, String> valueResult) {
     addField("_key", map.keyId());
     addField("_value", map.valueId());
-    return null;
+    return idToName;
   }
 
-  private <T> T withName(String name, Callable<T> callable) {
-    fieldNames.push(name);
-    try {
-      return callable.call();
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    } finally {
-      fieldNames.pop();
-    }
+  @Override
+  public Map<Integer, String> primitive(Type.PrimitiveType primitive) {
+    return idToName;
   }
 
   private void addField(String name, int fieldId) {
-    withName(name, () -> {
-      return idToName.put(fieldId, DOT.join(Iterables.transform(fieldNames::descendingIterator, this::quoteName)));
-    });
+    List<String> fullName = Lists.newArrayList(fieldNames.descendingIterator());
+    fullName.add(name);
+    idToName.put(fieldId, DOT.join(Iterables.transform(fullName, this::quoteName)));
   }
 
   private String quoteName(String name) {
