@@ -25,27 +25,30 @@ import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.types.Types;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-public class PositionBasedDeleteRecord implements IndexedRecord, SpecificData.SchemaConstructable {
+class PositionBasedDeleteRecord implements IndexedRecord, SpecificData.SchemaConstructable {
 
   private transient org.apache.avro.Schema avroSchema = null;
   private String filePath = null;
   private Long position = null;
 
-  /**
-   * Used by Avro reflection to instantiate this class when reading manifest files.
-   */
-  @SuppressWarnings("checkstyle:RedundantModifier") // Must be public
-  public PositionBasedDeleteRecord(org.apache.avro.Schema avroSchema) {
-    this.avroSchema = avroSchema;
-  }
-
   static org.apache.iceberg.Schema schema() {
     return new org.apache.iceberg.Schema(
         required(0, "file_path", Types.StringType.get()),
-        optional(1, "position", Types.LongType.get()));
+        required(1, "position", Types.LongType.get()));
+  }
+
+  /**
+   * Used by Avro reflection to instantiate this class when reading manifest files.
+   */
+  PositionBasedDeleteRecord(org.apache.avro.Schema avroSchema) {
+    this.avroSchema = avroSchema;
+  }
+
+  PositionBasedDeleteRecord(String path, Long pos) {
+    this.filePath = path;
+    this.position = pos;
   }
 
   @Override
