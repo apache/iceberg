@@ -512,4 +512,11 @@ public final class ORCSchemaUtil {
 
     return maxId;
   }
+
+  /**
+   * Generates mapping from field IDs to ORC qualified names. See {@link IdToOrcName} for details.
+   */
+  public static Map<Integer, String> idToOrcName(Schema schema) {
+    return TypeUtil.visit(schema, new IdToOrcName());
+  }
 }

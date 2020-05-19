@@ -19,22 +19,14 @@
 
 package org.apache.iceberg.orc;
 
-import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.Deque;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.function.Supplier;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Bound;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Expression;
@@ -42,8 +34,6 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.TypeID;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.common.type.HiveDecimal;
 import org.apache.orc.storage.ql.io.sarg.PredicateLeaf;
@@ -52,10 +42,10 @@ import org.apache.orc.storage.ql.io.sarg.SearchArgument.TruthValue;
 import org.apache.orc.storage.ql.io.sarg.SearchArgumentFactory;
 import org.apache.orc.storage.serde2.io.HiveDecimalWritable;
 
-public class ExpressionToSearchArgument extends ExpressionVisitors.BoundVisitor<ExpressionToSearchArgument.Action> {
+class ExpressionToSearchArgument extends ExpressionVisitors.BoundVisitor<ExpressionToSearchArgument.Action> {
 
-  static SearchArgument visit(Expression expr, TypeDescription readSchema) {
-    Map<Integer, String> idToColumnName = TypeUtil.visit(ORCSchemaUtil.convert(readSchema), new IdToQuotedColumnName());
+  static SearchArgument convert(Expression expr, TypeDescription readSchema) {
+    Map<Integer, String> idToColumnName = ORCSchemaUtil.idToOrcName(ORCSchemaUtil.convert(readSchema));
     SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
     ExpressionVisitors.visit(expr, new ExpressionToSearchArgument(builder, idToColumnName)).invoke();
     return builder.build();
@@ -148,6 +138,8 @@ public class ExpressionToSearchArgument extends ExpressionVisitors.BoundVisitor<
 
   @Override
   public <T> Action gt(Bound<T> expr, Literal<T> lit) {
+    // ORC SearchArguments do not have a greaterThan predicate, so we use not(lessThanOrEquals)
+    // e.g. x > 5 => not(x <= 5)
     return () -> this.builder.startNot()
           .lessThanEquals(idToColumnName.get(expr.ref().fieldId()),
               type(expr.ref().type()),
@@ -157,6 +149,8 @@ public class ExpressionToSearchArgument extends ExpressionVisitors.BoundVisitor<
 
   @Override
   public <T> Action gtEq(Bound<T> expr, Literal<T> lit) {
+    // ORC SearchArguments do not have a greaterThanOrEquals predicate, so we use not(lessThan)
+    // e.g. x >= 5 => not(x < 5)
     return () -> this.builder.startNot()
           .lessThan(idToColumnName.get(expr.ref().fieldId()),
               type(expr.ref().type()),
@@ -266,90 +260,6 @@ public class ExpressionToSearchArgument extends ExpressionVisitors.BoundVisitor<
         return new HiveDecimalWritable(HiveDecimal.create((BigDecimal) icebergLiteral, false));
       default:
         throw new UnsupportedOperationException("Type " + icebergType + " not supported in ORC SearchArguments");
-    }
-  }
-
-  /**
-   * Generates mapping from field IDs to fully qualified column names compatible with ORC convention for a given
-   * {@link Schema}
-   *
-   * This visitor also enclose column names in backticks i.e. ` so that ORC can correctly parse column names with
-   * special characters. A comparison of ORC convention with Iceberg convention is provided below
-   * <pre>
-   *                                      Iceberg           ORC
-   * field                                field             field
-   * struct -> field                      struct.field      struct.field
-   * list -> element                      list.element      list._elem
-   * list -> struct element -> field      list.field        list._elem.field
-   * map -> key                           map.key           map._key
-   * map -> value                         map.value         map._value
-   * map -> struct key -> field           map.key.field     map._key.field
-   * map -> struct value -> field         map.field         map._value.field
-   * </pre>
-   */
-  static class IdToQuotedColumnName extends TypeUtil.CustomOrderSchemaVisitor<Map<Integer, String>> {
-    private static final Joiner DOT = Joiner.on(".");
-
-    private final Deque<String> fieldNames = Lists.newLinkedList();
-    private final Map<Integer, String> idToName = Maps.newHashMap();
-
-    @Override
-    public Map<Integer, String> schema(Schema schema, Supplier<Map<Integer, String>> structResult) {
-      return structResult.get();
-    }
-
-    @Override
-    public Map<Integer, String> struct(Types.StructType struct, Iterable<Map<Integer, String>> fieldResults) {
-      // iterate through the fields to generate column names for each one, use size to avoid errorprone failure
-      Lists.newArrayList(fieldResults).size();
-      return idToName;
-    }
-
-    @Override
-    public Map<Integer, String> field(Types.NestedField field, Supplier<Map<Integer, String>> fieldResult) {
-      withName(field.name(), fieldResult::get);
-      addField(field.name(), field.fieldId());
-      return null;
-    }
-
-    @Override
-    public Map<Integer, String> list(Types.ListType list, Supplier<Map<Integer, String>> elementResult) {
-      withName("_elem", elementResult::get);
-      addField("_elem", list.elementId());
-      return null;
-    }
-
-    @Override
-    public Map<Integer, String> map(Types.MapType map,
-        Supplier<Map<Integer, String>> keyResult,
-        Supplier<Map<Integer, String>> valueResult) {
-      withName("_key", keyResult::get);
-      withName("_value", valueResult::get);
-      addField("_key", map.keyId());
-      addField("_value", map.valueId());
-      return null;
-    }
-
-    private <T> T withName(String name, Callable<T> callable) {
-      fieldNames.push(name);
-      try {
-        return callable.call();
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      } finally {
-        fieldNames.pop();
-      }
-    }
-
-    private void addField(String name, int fieldId) {
-      withName(name, () -> {
-        return idToName.put(fieldId, DOT.join(Iterables.transform(fieldNames::descendingIterator, this::quoteName)));
-      });
-    }
-
-    private String quoteName(String name) {
-      String escapedName = name.replace("`", "``"); // if the column name contains ` then escape it with another `
-      return "`" + escapedName + "`";
     }
   }
 }

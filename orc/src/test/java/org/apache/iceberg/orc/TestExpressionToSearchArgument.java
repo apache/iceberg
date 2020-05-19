@@ -26,14 +26,11 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.Map;
 import java.util.TimeZone;
 import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.orc.ExpressionToSearchArgument.IdToQuotedColumnName;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.io.sarg.PredicateLeaf.Type;
@@ -100,7 +97,7 @@ public class TestExpressionToSearchArgument {
         .end()
         .build();
 
-    SearchArgument actual = ExpressionToSearchArgument.visit(boundFilter, ORCSchemaUtil.convert(schema));
+    SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
     Assert.assertEquals(expected.toString(), actual.toString());
   }
 
@@ -127,7 +124,7 @@ public class TestExpressionToSearchArgument {
           .end()
           .build();
 
-      SearchArgument actual = ExpressionToSearchArgument.visit(boundFilter, ORCSchemaUtil.convert(schema));
+      SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
       Assert.assertEquals(expected.toString(), actual.toString());
     }
   }
@@ -159,7 +156,7 @@ public class TestExpressionToSearchArgument {
         .literal(TruthValue.YES_NO_NULL)
         .build();
 
-    SearchArgument actual = ExpressionToSearchArgument.visit(boundFilter, ORCSchemaUtil.convert(schema));
+    SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
     Assert.assertEquals(expected.toString(), actual.toString());
   }
 
@@ -189,7 +186,7 @@ public class TestExpressionToSearchArgument {
         .end()
         .build();
 
-    SearchArgument actual = ExpressionToSearchArgument.visit(boundFilter, ORCSchemaUtil.convert(schema));
+    SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
     Assert.assertEquals(expected.toString(), actual.toString());
   }
 
@@ -216,7 +213,7 @@ public class TestExpressionToSearchArgument {
         .end()
         .build();
 
-    SearchArgument actual = ExpressionToSearchArgument.visit(boundFilter, ORCSchemaUtil.convert(schema));
+    SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
     Assert.assertEquals(expected.toString(), actual.toString());
   }
 
@@ -240,7 +237,7 @@ public class TestExpressionToSearchArgument {
         .equals("`int`", Type.LONG, 1L)
         .build();
 
-    SearchArgument actual = ExpressionToSearchArgument.visit(boundFilter, readSchema);
+    SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, readSchema);
     Assert.assertEquals(expected.toString(), actual.toString());
 
     // for columns not in the file, buildOrcProjection will append field names with _r<ID>
@@ -251,63 +248,7 @@ public class TestExpressionToSearchArgument {
         .equals("`float_added_r3`", Type.FLOAT, 1.0)
         .build();
 
-    actual = ExpressionToSearchArgument.visit(boundFilter, readSchema);
+    actual = ExpressionToSearchArgument.convert(boundFilter, readSchema);
     Assert.assertEquals(expected.toString(), actual.toString());
-  }
-
-  @Test
-  public void testIdToQuotedColumnName() {
-    Schema schema = new Schema(
-        required(1, "long", Types.LongType.get()),
-        required(2, "struct", Types.StructType.of(
-            required(3, "long", Types.LongType.get())
-        )),
-        required(4, "listOfLongs", Types.ListType.ofRequired(5, Types.LongType.get())),
-        required(6, "listOfStructs", Types.ListType.ofRequired(7, Types.StructType.of(
-            required(8, "long", Types.LongType.get())
-        ))),
-        required(9, "map", Types.MapType.ofRequired(10, 11, Types.LongType.get(), Types.LongType.get())),
-        required(12, "mapOfStructs", Types.MapType.ofRequired(13, 14,
-            Types.StructType.of(required(15, "long", Types.LongType.get())),
-            Types.StructType.of(required(16, "long", Types.LongType.get()))
-        )),
-        required(17, "listOfMapsOfStruct", Types.ListType.ofRequired(18, Types.MapType.ofRequired(19, 20,
-            Types.StructType.of(required(21, "long", Types.LongType.get())),
-            Types.StructType.of(required(22, "long", Types.LongType.get()))
-        ))),
-        required(23, "col.with.dots", Types.StructType.of(
-            required(24, "inner.col.with.dots", Types.LongType.get())
-        )),
-        required(25, "colW!th$peci@lCh@rs", Types.LongType.get()),
-        required(26, "colWith`Quotes`", Types.LongType.get())
-    );
-
-    Map<Integer, String> actual = TypeUtil.visit(schema, new IdToQuotedColumnName());
-    Assert.assertEquals("`long`", actual.get(1));
-    Assert.assertEquals("`struct`", actual.get(2));
-    Assert.assertEquals("`struct`.`long`", actual.get(3));
-    Assert.assertEquals("`listOfLongs`", actual.get(4));
-    Assert.assertEquals("`listOfLongs`.`_elem`", actual.get(5));
-    Assert.assertEquals("`listOfStructs`", actual.get(6));
-    Assert.assertEquals("`listOfStructs`.`_elem`", actual.get(7));
-    Assert.assertEquals("`listOfStructs`.`_elem`.`long`", actual.get(8));
-    Assert.assertEquals("`map`", actual.get(9));
-    Assert.assertEquals("`map`.`_key`", actual.get(10));
-    Assert.assertEquals("`map`.`_value`", actual.get(11));
-    Assert.assertEquals("`mapOfStructs`", actual.get(12));
-    Assert.assertEquals("`mapOfStructs`.`_key`", actual.get(13));
-    Assert.assertEquals("`mapOfStructs`.`_value`", actual.get(14));
-    Assert.assertEquals("`mapOfStructs`.`_key`.`long`", actual.get(15));
-    Assert.assertEquals("`mapOfStructs`.`_value`.`long`", actual.get(16));
-    Assert.assertEquals("`listOfMapsOfStruct`", actual.get(17));
-    Assert.assertEquals("`listOfMapsOfStruct`.`_elem`", actual.get(18));
-    Assert.assertEquals("`listOfMapsOfStruct`.`_elem`.`_key`", actual.get(19));
-    Assert.assertEquals("`listOfMapsOfStruct`.`_elem`.`_value`", actual.get(20));
-    Assert.assertEquals("`listOfMapsOfStruct`.`_elem`.`_key`.`long`", actual.get(21));
-    Assert.assertEquals("`listOfMapsOfStruct`.`_elem`.`_value`.`long`", actual.get(22));
-    Assert.assertEquals("`col.with.dots`", actual.get(23));
-    Assert.assertEquals("`col.with.dots`.`inner.col.with.dots`", actual.get(24));
-    Assert.assertEquals("`colW!th$peci@lCh@rs`", actual.get(25));
-    Assert.assertEquals("`colWith``Quotes```", actual.get(26));
   }
 }

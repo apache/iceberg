@@ -73,7 +73,7 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
     SearchArgument sarg = null;
     if (filter != null) {
       Expression boundFilter = Binder.bind(schema.asStruct(), filter, caseSensitive);
-      sarg = ExpressionToSearchArgument.visit(boundFilter, readOrcSchema);
+      sarg = ExpressionToSearchArgument.convert(boundFilter, readOrcSchema);
     }
     Iterator<T> iterator = new OrcIterator(
         newOrcIterator(file, readOrcSchema, start, length, orcFileReader, sarg),
