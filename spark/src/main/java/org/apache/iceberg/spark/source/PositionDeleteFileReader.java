@@ -19,64 +19,61 @@
 
 package org.apache.iceberg.spark.source;
 
-import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.encryption.EncryptedFiles;
-import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.data.SparkAvroReader;
 import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.iceberg.spark.data.SparkParquetReaders;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 
-public class DeleteRecordReader {
-  private final DataFile file;
-  private final Schema schema;
-  private final EncryptionManager encryptionManager;
-  private final FileIO io;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
-  public DeleteRecordReader(FileIO io, DataFile file, EncryptionManager encryptionManager, Schema schema) {
-    this.io = io;
-    this.file = file;
-    this.encryptionManager = encryptionManager;
-    this.schema = schema;
+class PositionDeleteFileReader {
+  private final InputFile inputFile;
+  private final FileFormat format;
+
+  private static final Schema deleteSchema = new Schema(
+      required(1, "file_path", Types.StringType.get()),
+      required(2, "position", Types.LongType.get())
+  );
+
+  PositionDeleteFileReader(InputFile inputFile, FileFormat format) {
+    this.inputFile = inputFile;
+    this.format = format;
   }
 
   public CloseableIterable<InternalRow> open(long start, long length) {
-    InputFile inputFile = encryptionManager.decrypt(
-        EncryptedFiles.encryptedInput(io.newInputFile(file.path().toString()), file.keyMetadata()));
-
-    switch (file.format()) {
+    switch (format) {
       case PARQUET:
         return Parquet.read(inputFile)
-            .project(schema)
+            .project(deleteSchema)
             .split(start, length)
-            .createReaderFunc(fileSchema -> SparkParquetReaders.buildReader(schema, fileSchema))
+            .createReaderFunc(fileSchema -> SparkParquetReaders.buildReader(deleteSchema, fileSchema))
             .build();
 
       case AVRO:
         return Avro.read(inputFile)
             .reuseContainers()
-            .project(schema)
+            .project(deleteSchema)
             .split(start, length)
             .createReaderFunc(SparkAvroReader::new)
             .build();
 
       case ORC:
         return ORC.read(inputFile)
-            .project(schema)
+            .project(deleteSchema)
             .split(start, length)
             .createReaderFunc(SparkOrcReader::new)
             .build();
 
       default:
-        throw new UnsupportedOperationException(
-            "Cannot read unknown format: " + file.format());
+        throw new UnsupportedOperationException("Cannot read unknown format: " + format);
     }
   }
 }

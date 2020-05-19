@@ -32,10 +32,9 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.encryption.PlaintextEncryptionManager;
-import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.data.RandomData;
@@ -55,7 +54,7 @@ import org.junit.runners.Parameterized;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
-public class TestDeleteRecordReader {
+public class TestPositionDeleteFileReadWrite {
 
   private static final Configuration CONF = new Configuration();
   private final FileFormat format;
@@ -76,7 +75,7 @@ public class TestDeleteRecordReader {
     };
   }
 
-  public TestDeleteRecordReader(String format) {
+  public TestPositionDeleteFileReadWrite(String format) {
     this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
   }
 
@@ -117,16 +116,16 @@ public class TestDeleteRecordReader {
             "Cannot read unknown format: " + format);
     }
 
+    InputFile inputFile = HadoopInputFile.fromPath(new Path(testFile.toURI().getPath()), CONF);
+
     DataFile file = DataFiles.builder(PartitionSpec.unpartitioned())
-        .withInputFile(HadoopInputFile.fromPath(new Path(testFile.toURI().getPath()), CONF))
+        .withInputFile(inputFile)
         .withFormat(format)
         .withRecordCount(100)
         .withFileSizeInBytes(testFile.length())
         .build();
 
-    DeleteRecordReader reader = new DeleteRecordReader(new HadoopFileIO(CONF), file, new PlaintextEncryptionManager(),
-        SCHEMA);
-
+    PositionDeleteFileReader reader = new PositionDeleteFileReader(inputFile, format);
     Iterator<InternalRow> rows = reader.open(0, file.fileSizeInBytes()).iterator();
 
     for (InternalRow row : expected) {

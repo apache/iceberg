@@ -35,8 +35,8 @@ class PositionBasedDeleteRecord implements IndexedRecord, SpecificData.SchemaCon
 
   static org.apache.iceberg.Schema schema() {
     return new org.apache.iceberg.Schema(
-        required(0, "file_path", Types.StringType.get()),
-        required(1, "position", Types.LongType.get()));
+        required(1, "file_path", Types.StringType.get()),
+        required(2, "position", Types.LongType.get()));
   }
 
   /**
