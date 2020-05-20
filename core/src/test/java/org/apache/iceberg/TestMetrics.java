@@ -411,11 +411,9 @@ public abstract class TestMetrics {
 
   private void assertCounts(int fieldId, long valueCount, long nullValueCount, Metrics metrics) {
     Map<Integer, Long> valueCounts = metrics.valueCounts();
+    Map<Integer, Long> nullValueCounts = metrics.nullValueCounts();
     Assert.assertEquals(valueCount, (long) valueCounts.get(fieldId));
-    if (fileFormat().hasNullCounts()) {
-      Map<Integer, Long> nullValueCounts = metrics.nullValueCounts();
-      Assert.assertEquals(nullValueCount, (long) nullValueCounts.get(fieldId));
-    }
+    Assert.assertEquals(nullValueCount, (long) nullValueCounts.get(fieldId));
   }
 
   protected <T> void assertBounds(int fieldId, Type type, T lowerBound, T upperBound, Metrics metrics) {

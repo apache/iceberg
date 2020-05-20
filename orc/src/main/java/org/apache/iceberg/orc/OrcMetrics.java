@@ -21,7 +21,6 @@ package org.apache.iceberg.orc;
 
 import com.google.common.collect.Maps;
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -29,7 +28,6 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.util.Date;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.hadoop.conf.Configuration;
@@ -47,21 +45,19 @@ import org.apache.orc.DateColumnStatistics;
 import org.apache.orc.DecimalColumnStatistics;
 import org.apache.orc.DoubleColumnStatistics;
 import org.apache.orc.IntegerColumnStatistics;
-import org.apache.orc.OrcFile;
 import org.apache.orc.Reader;
 import org.apache.orc.StringColumnStatistics;
 import org.apache.orc.TimestampColumnStatistics;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
-import org.apache.orc.storage.common.type.HiveDecimal;
 
 public class OrcMetrics {
 
   private OrcMetrics() {
   }
 
-  static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
-  static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
+  private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
+  private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
   public static Metrics fromInputFile(InputFile file) {
     final Configuration config = (file instanceof HadoopInputFile) ?
@@ -70,7 +66,7 @@ public class OrcMetrics {
   }
 
   static Metrics fromInputFile(InputFile file, Configuration config) {
-    try (final Reader orcReader = ORC.newFileReader(file, config)) {
+    try (Reader orcReader = ORC.newFileReader(file, config)) {
       return buildOrcMetrics(orcReader.getNumberOfRows(),
           orcReader.getSchema(), orcReader.getStatistics());
     } catch (IOException ioe) {
@@ -81,7 +77,7 @@ public class OrcMetrics {
   private static Metrics buildOrcMetrics(final long numOfRows, final TypeDescription orcSchema,
                                          final ColumnStatistics[] colStats) {
     final Schema schema = ORCSchemaUtil.convert(orcSchema);
-    Map<Integer, Long> columSizes = Maps.newHashMapWithExpectedSize(colStats.length);
+    Map<Integer, Long> columnSizes = Maps.newHashMapWithExpectedSize(colStats.length);
     Map<Integer, Long> valueCounts = Maps.newHashMapWithExpectedSize(colStats.length);
     Map<Integer, Long> nullCounts = Maps.newHashMapWithExpectedSize(colStats.length);
     Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
@@ -102,20 +98,23 @@ public class OrcMetrics {
         } else {
           nullCounts.put(fieldId, 0L);
         }
-        columSizes.put(fieldId, colStat.getBytesOnDisk());
-        valueCounts.put(fieldId, colStat.getNumberOfValues());
 
-        Optional<ByteBuffer> orcMin = (colStat.getNumberOfValues() > 0)
-            ? fromOrcMin(icebergCol, colStat) : Optional.empty();
+        columnSizes.put(fieldId, colStat.getBytesOnDisk());
+        if (nullCounts.containsKey(fieldId)) {
+          valueCounts.put(fieldId, colStat.getNumberOfValues() + nullCounts.get(fieldId));
+        }
+
+        Optional<ByteBuffer> orcMin = (colStat.getNumberOfValues() > 0) ?
+            fromOrcMin(icebergCol, colStat) : Optional.empty();
         orcMin.ifPresent(byteBuffer -> lowerBounds.put(icebergCol.fieldId(), byteBuffer));
-        Optional<ByteBuffer> orcMax = (colStat.getNumberOfValues() > 0)
-            ? fromOrcMax(icebergCol, colStat) : Optional.empty();
+        Optional<ByteBuffer> orcMax = (colStat.getNumberOfValues() > 0) ?
+            fromOrcMax(icebergCol, colStat) : Optional.empty();
         orcMax.ifPresent(byteBuffer -> upperBounds.put(icebergCol.fieldId(), byteBuffer));
       }
     }
 
     return new Metrics(numOfRows,
-        columSizes,
+        columnSizes,
         valueCounts,
         nullCounts,
         lowerBounds,
@@ -137,105 +136,82 @@ public class OrcMetrics {
 
   private static Optional<ByteBuffer> fromOrcMin(Types.NestedField column,
                                                  ColumnStatistics columnStats) {
-    ByteBuffer min = null;
+    Object min = null;
     if (columnStats instanceof IntegerColumnStatistics) {
-      IntegerColumnStatistics intColStats = (IntegerColumnStatistics) columnStats;
+      min = ((IntegerColumnStatistics) columnStats).getMinimum();
       if (column.type().typeId() == Type.TypeID.INTEGER) {
-        min = Conversions.toByteBuffer(column.type(), (int) intColStats.getMinimum());
-      } else {
-        min = Conversions.toByteBuffer(column.type(), intColStats.getMinimum());
+        min = Math.toIntExact((long) min);
       }
     } else if (columnStats instanceof DoubleColumnStatistics) {
-      double minVal = ((DoubleColumnStatistics) columnStats).getMinimum();
-      if (column.type().typeId() == Type.TypeID.DOUBLE) {
-        min = Conversions.toByteBuffer(column.type(), minVal);
-      } else {
-        min = Conversions.toByteBuffer(column.type(), (float) minVal);
+      min = ((DoubleColumnStatistics) columnStats).getMinimum();
+      if (column.type().typeId() == Type.TypeID.FLOAT) {
+        min = ((Double) min).floatValue();
       }
     } else if (columnStats instanceof StringColumnStatistics) {
-      String minStats = ((StringColumnStatistics) columnStats).getMinimum();
-      if (minStats != null) {
-        min = Conversions.toByteBuffer(column.type(), minStats);
-      }
+      min = ((StringColumnStatistics) columnStats).getMinimum();
     } else if (columnStats instanceof DecimalColumnStatistics) {
-      HiveDecimal minStats = ((DecimalColumnStatistics) columnStats).getMinimum();
-      if (minStats != null) {
-        BigDecimal minValue = minStats.bigDecimalValue()
-            .setScale(((Types.DecimalType) column.type()).scale());
-        min = Conversions.toByteBuffer(column.type(), minValue);
-      }
+      min = Optional
+          .ofNullable(((DecimalColumnStatistics) columnStats).getMinimum())
+          .map(minStats -> minStats.bigDecimalValue()
+              .setScale(((Types.DecimalType) column.type()).scale()))
+          .orElse(null);
     } else if (columnStats instanceof DateColumnStatistics) {
-      Date minStats = ((DateColumnStatistics) columnStats).getMinimum();
-      if (minStats != null) {
-        min = Conversions.toByteBuffer(column.type(), (int) ChronoUnit.DAYS.between(
-            EPOCH_DAY, EPOCH.plus(minStats.getTime(), ChronoUnit.MILLIS).toLocalDate()));
-      }
+      min = Optional.ofNullable(((DateColumnStatistics) columnStats).getMinimum())
+          .map(minStats ->
+              Math.toIntExact(ChronoUnit.DAYS.between(EPOCH_DAY,
+                  EPOCH.plus(minStats.getTime(), ChronoUnit.MILLIS).toLocalDate())))
+          .orElse(null);
     } else if (columnStats instanceof TimestampColumnStatistics) {
-      Timestamp minStats = ((TimestampColumnStatistics) columnStats).getMinimum();
-      if (minStats != null) {
-        min = Conversions.toByteBuffer(column.type(), toMicros(minStats));
-      }
+      TimestampColumnStatistics tColStats = (TimestampColumnStatistics) columnStats;
+      Timestamp minValue = tColStats.getMinimumUTC();
+      min = Optional.ofNullable(minValue)
+          .map(OrcMetrics::toMicros)
+          .orElse(null);
     } else if (columnStats instanceof BooleanColumnStatistics) {
       BooleanColumnStatistics booleanStats = (BooleanColumnStatistics) columnStats;
-      if (booleanStats.getFalseCount() > 0) {
-        min = Conversions.toByteBuffer(column.type(), false);
-      } else if (booleanStats.getTrueCount() > 0) {
-        min = Conversions.toByteBuffer(column.type(), true);
-      }
+      min = booleanStats.getFalseCount() <= 0;
     }
-    return Optional.ofNullable(min);
+    return Optional.ofNullable(Conversions.toByteBuffer(column.type(), min));
   }
 
   private static Optional<ByteBuffer> fromOrcMax(Types.NestedField column,
                                                  ColumnStatistics columnStats) {
-    ByteBuffer max = null;
+    Object max = null;
     if (columnStats instanceof IntegerColumnStatistics) {
-      IntegerColumnStatistics intColStats = (IntegerColumnStatistics) columnStats;
+      max = ((IntegerColumnStatistics) columnStats).getMaximum();
       if (column.type().typeId() == Type.TypeID.INTEGER) {
-        max = Conversions.toByteBuffer(column.type(), (int) intColStats.getMaximum());
-      } else {
-        max = Conversions.toByteBuffer(column.type(), intColStats.getMaximum());
+        max = Math.toIntExact((long) max);
       }
     } else if (columnStats instanceof DoubleColumnStatistics) {
-      double maxVal = ((DoubleColumnStatistics) columnStats).getMaximum();
-      if (column.type().typeId() == Type.TypeID.DOUBLE) {
-        max = Conversions.toByteBuffer(column.type(), maxVal);
-      } else {
-        max = Conversions.toByteBuffer(column.type(), (float) maxVal);
+      max = ((DoubleColumnStatistics) columnStats).getMaximum();
+      if (column.type().typeId() == Type.TypeID.FLOAT) {
+        max = ((Double) max).floatValue();
       }
     } else if (columnStats instanceof StringColumnStatistics) {
-      String minStats = ((StringColumnStatistics) columnStats).getMaximum();
-      if (minStats != null) {
-        max = Conversions.toByteBuffer(column.type(), minStats);
-      }
+      max = ((StringColumnStatistics) columnStats).getMaximum();
     } else if (columnStats instanceof DecimalColumnStatistics) {
-      HiveDecimal maxStats = ((DecimalColumnStatistics) columnStats).getMaximum();
-      if (maxStats != null) {
-        BigDecimal maxValue = maxStats.bigDecimalValue()
-            .setScale(((Types.DecimalType) column.type()).scale());
-        max = Conversions.toByteBuffer(column.type(), maxValue);
-      }
-
+      max = Optional
+          .ofNullable(((DecimalColumnStatistics) columnStats).getMaximum())
+          .map(maxStats -> maxStats.bigDecimalValue()
+              .setScale(((Types.DecimalType) column.type()).scale()))
+          .orElse(null);
     } else if (columnStats instanceof DateColumnStatistics) {
-      Date maxStats = ((DateColumnStatistics) columnStats).getMaximum();
-      if (maxStats != null) {
-        max = Conversions.toByteBuffer(column.type(), (int) ChronoUnit.DAYS.between(
-            EPOCH_DAY, EPOCH.plus(maxStats.getTime(), ChronoUnit.MILLIS).toLocalDate()));
-      }
+      max = Optional.ofNullable(((DateColumnStatistics) columnStats).getMaximum())
+          .map(maxStats ->
+              (int) ChronoUnit.DAYS.between(EPOCH_DAY,
+                  EPOCH.plus(maxStats.getTime(), ChronoUnit.MILLIS).toLocalDate()))
+          .orElse(null);
     } else if (columnStats instanceof TimestampColumnStatistics) {
-      Timestamp maxStats = ((TimestampColumnStatistics) columnStats).getMaximum();
-      if (maxStats != null) {
-        max = Conversions.toByteBuffer(column.type(), toMicros(maxStats));
-      }
+      TimestampColumnStatistics tColStats = (TimestampColumnStatistics) columnStats;
+      Timestamp maxValue = tColStats.getMaximumUTC();
+      max = Optional.ofNullable(maxValue)
+          .map(OrcMetrics::toMicros)
+          .orElse(null);
     } else if (columnStats instanceof BooleanColumnStatistics) {
       BooleanColumnStatistics booleanStats = (BooleanColumnStatistics) columnStats;
-      if (booleanStats.getTrueCount() > 0) {
-        max = Conversions.toByteBuffer(column.type(), true);
-      } else if (booleanStats.getFalseCount() > 0) {
-        max = Conversions.toByteBuffer(column.type(), false);
-      }
+      max = booleanStats.getTrueCount() > 0;
     }
-    return Optional.ofNullable(max);
+    return Optional.ofNullable(Conversions.toByteBuffer(column.type(), max));
   }
 
 }

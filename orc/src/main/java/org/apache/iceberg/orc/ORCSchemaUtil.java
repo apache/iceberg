@@ -85,8 +85,8 @@ public final class ORCSchemaUtil {
     }
   }
 
-  static final String ICEBERG_ID_ATTRIBUTE = "iceberg.id";
-  static final String ICEBERG_REQUIRED_ATTRIBUTE = "iceberg.required";
+  private static final String ICEBERG_ID_ATTRIBUTE = "iceberg.id";
+  private static final String ICEBERG_REQUIRED_ATTRIBUTE = "iceberg.required";
 
   /**
    * The name of the ORC {@link TypeDescription} attribute indicating the Iceberg type corresponding to an
@@ -99,7 +99,6 @@ public final class ORCSchemaUtil {
    */
   public static final String ICEBERG_LONG_TYPE_ATTRIBUTE = "iceberg.long-type";
   private static final String ICEBERG_FIELD_LENGTH = "iceberg.length";
-  static final String ICEBERG_INTEGER_TYPE_ATTRIBUTE = "iceberg.integer-type";
 
   private static final ImmutableMap<Type.TypeID, TypeDescription.Category> TYPE_MAPPING =
       ImmutableMap.<Type.TypeID, TypeDescription.Category>builder()

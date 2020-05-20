@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.orc;
 
-import static org.apache.iceberg.Files.localOutput;
-
 import com.google.common.collect.Lists;
 import java.io.File;
 import java.io.IOException;
@@ -30,6 +28,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.orc.avro.GenericDataOrcWriter;
@@ -60,11 +59,11 @@ public class OrcWritingTestUtils {
     File tmpFolder = temp.newFolder("parquet");
     String filename = UUID.randomUUID().toString();
     File file = new File(tmpFolder, FileFormat.ORC.addExtension(filename));
-    try (FileAppender<GenericData.Record> writer = ORC.write(localOutput(file))
+    try (FileAppender<GenericData.Record> writer = ORC.write(Files.localOutput(file))
         .schema(schema)
         .setAll(properties)
-        .createWriterFunc((createWriterFunc != null)
-            ? createWriterFunc : GenericDataOrcWriter::buildWriter)
+        .createWriterFunc((createWriterFunc != null) ?
+            createWriterFunc : GenericDataOrcWriter::buildWriter)
         .build()) {
       writer.addAll(Lists.newArrayList(records));
     }

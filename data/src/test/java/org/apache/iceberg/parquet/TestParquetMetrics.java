@@ -51,6 +51,11 @@ public class TestParquetMetrics extends TestMetrics {
   public TemporaryFolder temp = new TemporaryFolder();
 
   @Override
+  protected FileFormat fileFormat() {
+    return FileFormat.PARQUET;
+  }
+
+  @Override
   public Metrics getMetrics(InputFile file) {
     return ParquetUtil.fileMetrics(file);
   }

@@ -24,11 +24,9 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.util.Map;
 import org.apache.avro.generic.GenericData;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Metrics;
@@ -43,8 +41,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.Files.localInput;
-import static org.apache.iceberg.types.Conversions.fromByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -53,7 +49,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
  */
 public class TestOrcMetrics extends TestMetrics {
 
-  static final ImmutableSet<Object> BINARY_TYPES =ImmutableSet.of(Type.TypeID.BINARY,
+  static final ImmutableSet<Object> BINARY_TYPES = ImmutableSet.of(Type.TypeID.BINARY,
       Type.TypeID.FIXED, Type.TypeID.UUID);
 
   @Rule
@@ -80,12 +76,6 @@ public class TestOrcMetrics extends TestMetrics {
     return OrcWritingTestUtils.writeRecords(temp, schema, properties, records);
   }
 
-  @Override
-  public int splitCount(File orcFile) throws IOException {
-    return OrcFileUtils.getStripeInformation(new Configuration(), localInput(orcFile).location())
-        .size();
-  }
-
   private boolean isBinaryType(Type type) {
     return BINARY_TYPES.contains(type.typeId());
   }
@@ -93,18 +83,13 @@ public class TestOrcMetrics extends TestMetrics {
   @Override
   protected <T> void assertBounds(int fieldId, Type type, T lowerBound, T upperBound, Metrics metrics) {
     if (isBinaryType(type)) {
+      Assert.assertFalse("ORC binary field should not have lower bounds.",
+          metrics.lowerBounds().containsKey(fieldId));
+      Assert.assertFalse("ORC binary field should not have upper bounds.",
+          metrics.lowerBounds().containsKey(fieldId));
       return;
     }
-
-    Map<Integer, ByteBuffer> lowerBounds = metrics.lowerBounds();
-    Map<Integer, ByteBuffer> upperBounds = metrics.upperBounds();
-
-    Assert.assertEquals(
-        lowerBound,
-        lowerBounds.containsKey(fieldId) ? fromByteBuffer(type, lowerBounds.get(fieldId)) : null);
-    Assert.assertEquals(
-        upperBound,
-        upperBounds.containsKey(fieldId) ? fromByteBuffer(type, upperBounds.get(fieldId)) : null);
+    super.assertBounds(fieldId, type, lowerBound, upperBound, metrics);
   }
 
   @Test

@@ -26,7 +26,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.orc.OrcValueWriter;
@@ -42,10 +41,7 @@ import org.apache.orc.storage.ql.exec.vector.MapColumnVector;
 import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
-import org.apache.orc.storage.serde2.io.HiveDecimalWritable;
 
-/**
- */
 public class GenericDataOrcWriter implements OrcValueWriter<GenericData.Record> {
 
   private final Converter[] converters;
@@ -223,7 +219,7 @@ public class GenericDataOrcWriter implements OrcValueWriter<GenericData.Record> 
   }
 
   static class UUIDConverter implements Converter<UUID> {
-    final BytesConverter bytesConverter;
+    private final BytesConverter bytesConverter;
 
     UUIDConverter() {
       bytesConverter = new BytesConverter();
@@ -248,7 +244,7 @@ public class GenericDataOrcWriter implements OrcValueWriter<GenericData.Record> 
   }
 
   static class FixedConverter implements Converter<GenericData.Fixed> {
-    final BytesConverter bytesConverter;
+    private final BytesConverter bytesConverter;
 
     FixedConverter() {
       bytesConverter = new BytesConverter();

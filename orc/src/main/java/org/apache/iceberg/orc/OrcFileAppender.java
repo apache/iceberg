@@ -36,6 +36,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.orc.OrcFile;
+import org.apache.orc.Reader;
 import org.apache.orc.StripeInformation;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
@@ -103,8 +104,12 @@ class OrcFileAppender<D> implements FileAppender<D> {
   @Override
   public List<Long> splitOffsets() {
     Preconditions.checkState(isClosed, "File is not yet closed");
-    List<StripeInformation> stripes = OrcFileUtils.getStripeInformation(conf, file.location());
-    return Collections.unmodifiableList(Lists.transform(stripes, StripeInformation::getOffset));
+    try (Reader reader = ORC.newFileReader(file.toInputFile(), conf)) {
+      List<StripeInformation> stripes = reader.getStripes();
+      return Collections.unmodifiableList(Lists.transform(stripes, StripeInformation::getOffset));
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Can't close ORC reader %s", file.location());
+    }
   }
 
   @Override
