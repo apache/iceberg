@@ -70,16 +70,13 @@ public class OrcMetrics {
   }
 
   static Metrics fromInputFile(InputFile file, Configuration config) {
-    try {
-      final Reader orcReader = OrcFile.createReader(new Path(file.location()),
-          OrcFile.readerOptions(config));
+    try (final Reader orcReader = ORC.newFileReader(file, config)) {
       return buildOrcMetrics(orcReader.getNumberOfRows(),
           orcReader.getSchema(), orcReader.getStatistics());
     } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Failed to read footer of file: %s", file);
+      throw new RuntimeIOException(ioe, "Failed to open file: %s", file.location());
     }
   }
-
 
   private static Metrics buildOrcMetrics(final long numOfRows, final TypeDescription orcSchema,
                                          final ColumnStatistics[] colStats) {
@@ -124,8 +121,6 @@ public class OrcMetrics {
         lowerBounds,
         upperBounds);
   }
-
-
 
   static Metrics fromWriter(Writer writer) {
     try {
