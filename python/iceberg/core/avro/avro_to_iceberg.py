@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import fastavro  # type: ignore
+import fastavro
 from iceberg.api import Schema
 from iceberg.api.types import (BinaryType,
                                BooleanType,

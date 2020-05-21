@@ -21,11 +21,11 @@ import re
 import time
 from urllib.parse import urlparse
 
-import boto3  # type: ignore
-from botocore.credentials import RefreshableCredentials  # type: ignore
-from botocore.exceptions import ClientError  # type: ignore
-from botocore.session import get_session  # type: ignore
-from retrying import retry  # type: ignore
+import boto3
+from botocore.credentials import RefreshableCredentials
+from botocore.exceptions import ClientError
+from botocore.session import get_session
+from retrying import retry
 
 from .file_status import FileStatus
 from .file_system import FileSystem

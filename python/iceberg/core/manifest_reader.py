@@ -17,7 +17,7 @@
 
 import logging
 
-import fastavro  # type: ignore
+import fastavro
 from iceberg.api import FileFormat, Filterable
 from iceberg.api.expressions import Expressions, inclusive
 from iceberg.api.io import CloseableGroup

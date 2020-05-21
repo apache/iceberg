@@ -17,7 +17,7 @@
 
 import json
 
-from fastavro import parse_schema, writer  # type: ignore
+from fastavro import parse_schema, writer
 from iceberg.api import ManifestFile
 from iceberg.api.io import FileAppender
 from iceberg.core import GenericManifestFile

@@ -18,7 +18,7 @@
 import logging
 import uuid
 
-from retrying import retry  # type: ignore
+from retrying import retry
 
 from .table_metadata_parser import TableMetadataParser
 from .table_operations import TableOperations
