@@ -541,20 +541,5 @@ public class TestRemoveOrphanFilesAction {
         .execute();
     Assert.assertEquals("Action should find 1 file", invalidFiles, result);
     Assert.assertTrue("Invalid file should be present", fs.exists(new Path(invalidFiles.get(0))));
-
-    List<String> result1 = actions.removeOrphanFiles()
-        .olderThan(System.currentTimeMillis())
-        .execute();
-    Assert.assertEquals("Action should delete 1 file", invalidFiles, result1);
-    Assert.assertFalse("Invalid file should not be present", fs.exists(new Path(invalidFiles.get(0))));
-
-    List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
-    expectedRecords.addAll(records);
-
-    Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords = resultDF
-        .as(Encoders.bean(ThreeColumnRecord.class))
-        .collectAsList();
-    Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
   }
 }
