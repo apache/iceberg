@@ -38,3 +38,6 @@ bin/
 
 # Hive/metastore files
 metastore_db/
+
+# Python stuff
+python/.mypy_cache/

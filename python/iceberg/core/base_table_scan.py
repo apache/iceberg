@@ -34,9 +34,9 @@ _logger = logging.getLogger(__name__)
 
 class BaseTableScan(CloseableGroup, TableScan):
     DATE_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
-    SNAPSHOT_COLUMNS = ["snapshot_id", "file_path", "file_ordinal", "file_format", "block_size_in_bytes",
+    SNAPSHOT_COLUMNS = ("snapshot_id", "file_path", "file_ordinal", "file_format", "block_size_in_bytes",
                         "file_size_in_bytes", "record_count", "partition", "value_counts", "null_value_counts",
-                        "lower_bounds", "upper_bounds"]
+                        "lower_bounds", "upper_bounds")
 
     def new_refined_scan(self, ops, table, schema, snapshot_id, row_filter,
                          case_sensitive, selected_columns, options, minused_cols):
