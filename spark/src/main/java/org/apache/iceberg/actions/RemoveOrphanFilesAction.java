@@ -141,7 +141,7 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
     Dataset<Row> validFileDF = validDataFileDF.union(validMetadataFileDF);
     Dataset<Row> actualFileDF = buildActualFileDF();
 
-    Column joinCond = validFileDF.col("file_path").equalTo(actualFileDF.col("file_path"));
+    Column joinCond = actualFileDF.col("file_path").contains(validFileDF.col("file_path"));
     List<String> orphanFiles = actualFileDF.join(validFileDF, joinCond, "leftanti")
         .as(Encoders.STRING())
         .collectAsList();
