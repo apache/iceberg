@@ -32,13 +32,13 @@ class PartitionSpec(object):
 
     @staticmethod
     def UNPARTITIONED_SPEC():
-        return PartitionSpec(Schema(), 0, [])
+        return PartitionSpec(Schema(), 0, [], PartitionSpec.PARTITION_DATA_ID_START - 1)
 
     @staticmethod
     def unpartitioned():
         return PartitionSpec.UNPARTITIONED_SPEC()
 
-    def __init__(self, schema, spec_id, fields):
+    def __init__(self, schema, spec_id, fields, last_assigned_field_id):
         self.fields_by_source_id = None
         self.fields_by_name = None
         self.__java_classes = None
@@ -49,6 +49,7 @@ class PartitionSpec(object):
         self.__fields = list()
         for field in fields:
             self.__fields.append(field)
+        self.last_assigned_field_id = last_assigned_field_id
 
     @property
     def fields(self):
@@ -70,10 +71,10 @@ class PartitionSpec(object):
 
     def partition_type(self):
         struct_fields = list()
-        for i, field in enumerate(self.__fields):
+        for _i, field in enumerate(self.__fields):
             source_type = self.schema.find_type(field.source_id)
             result_type = field.transform.get_result_type(source_type)
-            struct_fields.append(NestedField.optional(PartitionSpec.PARTITION_DATA_ID_START + i,
+            struct_fields.append(NestedField.optional(field.field_id,
                                                       field.name,
                                                       result_type))
 
@@ -170,9 +171,10 @@ class PartitionSpec(object):
         sb = ["["]
 
         for field in self.__fields:
-            sb.append("\n {name}: {transform}({source_id})".format(name=field.name,
-                                                                   transform=str(field.transform),
-                                                                   source_id=field.source_id))
+            sb.append("\n {field_id}: {name}: {transform}({source_id})".format(field_id=field.field_id,
+                                                                               name=field.name,
+                                                                               transform=str(field.transform),
+                                                                               source_id=field.source_id))
 
         if len(self.__fields) > 0:
             sb.append("\n")
@@ -201,6 +203,11 @@ class PartitionSpecBuilder(object):
         self.fields = list()
         self.partition_names = set()
         self.spec_id = 0
+        self.last_assigned_field_id = PartitionSpec.PARTITION_DATA_ID_START - 1
+
+    def __next_field_id(self):
+        self.last_assigned_field_id = self.last_assigned_field_id + 1
+        return self.last_assigned_field_id
 
     def with_spec_id(self, spec_id):
         self.spec_id = spec_id
@@ -226,6 +233,7 @@ class PartitionSpecBuilder(object):
         self.check_and_add_partition_name(source_name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
+                                          self.__next_field_id(),
                                           source_name,
                                           Transforms.identity(source_column.type)))
         return self
@@ -235,8 +243,9 @@ class PartitionSpecBuilder(object):
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
+                                          self.__next_field_id(),
                                           name,
-                                          Transforms.year(source_column.types)))
+                                          Transforms.year(source_column.type)))
         return self
 
     def month(self, source_name):
@@ -244,8 +253,9 @@ class PartitionSpecBuilder(object):
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
+                                          self.__next_field_id(),
                                           name,
-                                          Transforms.month(source_column.types)))
+                                          Transforms.month(source_column.type)))
         return self
 
     def day(self, source_name):
@@ -253,8 +263,9 @@ class PartitionSpecBuilder(object):
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
+                                          self.__next_field_id(),
                                           name,
-                                          Transforms.day(source_column.types)))
+                                          Transforms.day(source_column.type)))
         return self
 
     def hour(self, source_name):
@@ -262,6 +273,7 @@ class PartitionSpecBuilder(object):
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
+                                          self.__next_field_id(),
                                           name,
                                           Transforms.hour(source_column.type)))
         return self
@@ -271,6 +283,7 @@ class PartitionSpecBuilder(object):
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
+                                          self.__next_field_id(),
                                           name,
                                           Transforms.bucket(source_column.type, num_buckets)))
         return self
@@ -280,11 +293,15 @@ class PartitionSpecBuilder(object):
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
+                                          self.__next_field_id(),
                                           name,
-                                          Transforms.truncate(source_column.types, width)))
+                                          Transforms.truncate(source_column.type, width)))
         return self
 
-    def add(self, source_id, name, transform):
+    def add_without_field_id(self, source_id, name, transform):
+        return self.add(source_id, self.__next_field_id(), name, transform)
+
+    def add(self, source_id, field_id, name, transform):
         self.check_and_add_partition_name(name)
         column = self.schema.find_field(source_id)
         if column is None:
@@ -292,12 +309,14 @@ class PartitionSpecBuilder(object):
 
         transform_obj = Transforms.from_string(column.type, transform)
         field = PartitionField(source_id,
+                               field_id,
                                name,
                                transform_obj)
         self.fields.append(field)
+        self.last_assigned_field_id = max(self.last_assigned_field_id, field_id)
         return self
 
     def build(self):
-        spec = PartitionSpec(self.schema, self.spec_id, self.fields)
+        spec = PartitionSpec(self.schema, self.spec_id, self.fields, self.last_assigned_field_id)
         PartitionSpec.check_compatibility(spec, self.schema)
         return spec

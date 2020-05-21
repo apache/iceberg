@@ -31,6 +31,7 @@ import java.util.concurrent.Future;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 
 public class ParallelIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private final Iterable<? extends Iterable<T>> iterables;
@@ -43,13 +44,13 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
   }
 
   @Override
-  public Iterator<T> iterator() {
+  public CloseableIterator<T> iterator() {
     ParallelIterator<T> iter = new ParallelIterator<>(iterables, workerPool);
     addCloseable(iter);
     return iter;
   }
 
-  private static class ParallelIterator<T> implements Iterator<T>, Closeable {
+  private static class ParallelIterator<T> implements CloseableIterator<T> {
     private final Iterator<Runnable> tasks;
     private final ExecutorService workerPool;
     private final Future<?>[] taskFutures;

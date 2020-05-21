@@ -19,9 +19,7 @@
 
 package org.apache.iceberg.parquet;
 
-import java.io.Closeable;
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -32,6 +30,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.page.PageReadStore;
@@ -78,13 +77,13 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
   }
 
   @Override
-  public Iterator<T> iterator() {
+  public CloseableIterator<T> iterator() {
     FileIterator<T> iter = new FileIterator<>(init());
     addCloseable(iter);
     return iter;
   }
 
-  private static class FileIterator<T> implements Iterator<T>, Closeable {
+  private static class FileIterator<T> implements CloseableIterator<T> {
     private final ParquetFileReader reader;
     private final boolean[] shouldSkip;
     private final VectorizedReader<T> model;

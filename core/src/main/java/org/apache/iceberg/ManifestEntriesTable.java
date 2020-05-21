@@ -128,7 +128,7 @@ public class ManifestEntriesTable extends BaseMetadataTable {
     @Override
     public CloseableIterable<StructLike> rows() {
       return CloseableIterable.transform(
-          ManifestFiles.read(manifest, io).project(fileSchema).allEntries(),
+          ManifestFiles.read(manifest, io).project(fileSchema).entries(),
           file -> (GenericManifestEntry) file);
     }
 
