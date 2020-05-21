@@ -107,8 +107,6 @@ apply from: 'jmh.gradle'
 project(':iceberg-bundled-guava') {
   apply plugin: 'com.github.johnrengelman.shadow'
   
-  tasks.javadoc.enabled = false
-  tasks.javadocJar.enabled = false
   tasks.assemble.dependsOn tasks.shadowJar
   tasks.install.dependsOn tasks.shadowJar
   
@@ -121,6 +119,11 @@ project(':iceberg-bundled-guava') {
     }
   }
   
+  jar {
+    classifier 'empty'
+    enabled = false
+  }
+  
   shadowJar {
     configurations = [project.configurations.compileOnly]
     zip64 true
@@ -128,6 +131,7 @@ project(':iceberg-bundled-guava') {
     // include the LICENSE and NOTICE files for the shaded Jar
     from(projectDir) {
       include 'LICENSE'
+      include 'NOTICE'
     }
 
     dependencies {

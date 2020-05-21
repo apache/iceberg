@@ -52,7 +52,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 //inspired in part by https://github.com/apache/avro/blob/release-1.8.2/lang/java/guava/src/main/java/org/apache/avro/GuavaClasses.java
-class GuavaClasses {
+public class GuavaClasses {
 
   /*
    * Referencing Guava classes here includes them in the minimized and relocated Guava jar
