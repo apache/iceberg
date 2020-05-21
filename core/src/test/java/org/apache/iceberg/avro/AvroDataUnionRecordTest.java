@@ -43,7 +43,7 @@ public class AvroDataUnionRecordTest {
   public TemporaryFolder temp = new TemporaryFolder();
 
   protected void writeAndValidate(
-      List<GenericData.Record> expected,
+      List<GenericData.Record> actualWrite,
       List<GenericData.Record> expectedRead,
       Schema icebergSchema) throws IOException {
     File testFile = temp.newFile();
@@ -53,7 +53,7 @@ public class AvroDataUnionRecordTest {
         .schema(icebergSchema)
         .named("test")
         .build()) {
-      for (GenericData.Record rec : expected) {
+      for (GenericData.Record rec : actualWrite) {
         writer.add(rec);
       }
     }
@@ -104,7 +104,7 @@ public class AvroDataUnionRecordTest {
         avroSchemaUnionRecord.getFields().get(0).schema().getTypes().get(1).getValueType().getTypes().get(1);
 
     List<GenericData.Record> expectedRead = new ArrayList<>();
-    List<GenericData.Record> expected = new ArrayList<>();
+    List<GenericData.Record> actualWrite = new ArrayList<>();
 
     for (long i = 0; i < 10; i++) {
       Map<String, Object> map = new HashMap<>();
@@ -116,10 +116,10 @@ public class AvroDataUnionRecordTest {
       GenericData.Record record = new GenericRecordBuilder(avroSchema)
           .set("map", map)
           .build();
-      expected.add(record);
+      actualWrite.add(record);
       expectedRead.add(recordRead);
     }
-    writeAndValidate(expected, expectedRead, icebergSchema);
+    writeAndValidate(actualWrite, expectedRead, icebergSchema);
   }
 
   private void updateMapsForUnionSchema(
@@ -137,7 +137,6 @@ public class AvroDataUnionRecordTest {
 
     map.entrySet().stream().forEach(e -> {
       String key = e.getKey();
-      Object value = e.getValue();
       GenericData.Record record = getGenericRecordForUnionType(unionRecordSchema, map, key);
       mapRead.put(key, record);
     });
