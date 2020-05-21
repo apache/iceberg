@@ -24,13 +24,11 @@ import java.util.Map;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
-import org.apache.arrow.vector.DateDayVector;
 import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
-import org.apache.arrow.vector.TimeStampMicroTZVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
@@ -188,18 +186,14 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           case INT_8:
           case INT_16:
           case INT_32:
+          case DATE:
             this.vec = arrowField.createVector(rootAlloc);
             ((IntVector) vec).allocateNew(batchSize);
             this.readType =  ReadType.INT;
             this.typeWidth = (int) IntVector.TYPE_WIDTH;
             break;
-          case DATE:
-            this.vec = arrowField.createVector(rootAlloc);
-            ((DateDayVector) vec).allocateNew(batchSize);
-            this.readType =  ReadType.INT;
-            this.typeWidth = (int) IntVector.TYPE_WIDTH;
-            break;
           case INT_64:
+          case TIMESTAMP_MICROS:
             this.vec = arrowField.createVector(rootAlloc);
             ((BigIntVector) vec).allocateNew(batchSize);
             this.readType =  ReadType.LONG;
@@ -209,12 +203,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
             this.vec = arrowField.createVector(rootAlloc);
             ((BigIntVector) vec).allocateNew(batchSize);
             this.readType =  ReadType.TIMESTAMP_MILLIS;
-            this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
-            break;
-          case TIMESTAMP_MICROS:
-            this.vec = arrowField.createVector(rootAlloc);
-            ((TimeStampMicroTZVector) vec).allocateNew(batchSize);
-            this.readType =  ReadType.LONG;
             this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
             break;
           case DECIMAL:
