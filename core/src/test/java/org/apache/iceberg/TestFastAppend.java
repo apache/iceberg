@@ -52,13 +52,21 @@ public class TestFastAppend extends TableTestBase {
 
     TableMetadata base = readMetadata();
     Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
+    Assert.assertEquals("Table should start with last-sequence-number 0", 0, base.lastSequenceNumber());
 
-    Snapshot pending = table.newFastAppend()
+    table.newFastAppend()
         .appendFile(FILE_A)
         .appendFile(FILE_B)
-        .apply();
+        .commit();
 
-    validateSnapshot(base.currentSnapshot(), pending, FILE_A, FILE_B);
+    Snapshot snap = table.currentSnapshot();
+
+    validateSnapshot(base.currentSnapshot(), snap, 1, FILE_A, FILE_B);
+
+    V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
+
+    V1Assert.assertEquals("Table should end with last-sequence-number 0", 0, base.lastSequenceNumber());
   }
 
   @Test
@@ -67,17 +75,25 @@ public class TestFastAppend extends TableTestBase {
 
     TableMetadata base = readMetadata();
     Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
+    Assert.assertEquals("Table should start with last-sequence-number 0", 0, base.lastSequenceNumber());
 
     ManifestFile manifest = writeManifest(FILE_A, FILE_B);
-    Snapshot pending = table.newFastAppend()
+    table.newFastAppend()
         .appendManifest(manifest)
-        .apply();
+        .commit();
 
-    validateSnapshot(base.currentSnapshot(), pending, FILE_A, FILE_B);
+    Snapshot snap = table.currentSnapshot();
+
+    validateSnapshot(base.currentSnapshot(), snap, 1, FILE_A, FILE_B);
 
     // validate that the metadata summary is correct when using appendManifest
     Assert.assertEquals("Summary metadata should include 2 added files",
-        "2", pending.summary().get("added-data-files"));
+        "2", snap.summary().get("added-data-files"));
+
+    V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
+
+    V1Assert.assertEquals("Table should end with last-sequence-number 0", 0, base.lastSequenceNumber());
   }
 
   @Test
@@ -86,22 +102,32 @@ public class TestFastAppend extends TableTestBase {
 
     TableMetadata base = readMetadata();
     Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
+    Assert.assertEquals("Table should start with last-sequence-number 0", 0, base.lastSequenceNumber());
 
     ManifestFile manifest = writeManifest(FILE_A, FILE_B);
-    Snapshot pending = table.newFastAppend()
+    table.newFastAppend()
         .appendFile(FILE_C)
         .appendFile(FILE_D)
         .appendManifest(manifest)
-        .apply();
+        .commit();
 
-    long pendingId = pending.snapshotId();
+    Snapshot snap = table.currentSnapshot();
 
-    validateManifest(pending.manifests().get(0),
-        ids(pendingId, pendingId),
+    long commitId = snap.snapshotId();
+
+    validateManifest(snap.manifests().get(0),
+        seqs(1, 1),
+        ids(commitId, commitId),
         files(FILE_C, FILE_D));
-    validateManifest(pending.manifests().get(1),
-        ids(pendingId, pendingId),
+    validateManifest(snap.manifests().get(1),
+        seqs(1, 1),
+        ids(commitId, commitId),
         files(FILE_A, FILE_B));
+
+    V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
+
+    V1Assert.assertEquals("Table should end with last-sequence-number 0", 0, base.lastSequenceNumber());
   }
 
   @Test
