@@ -29,47 +29,38 @@ import org.apache.orc.storage.ql.exec.vector.ColumnVector;
 import org.apache.orc.storage.ql.exec.vector.DoubleColumnVector;
 import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
 import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
-import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 
 public class OrcValueReaders {
   private OrcValueReaders() {
   }
 
-  public static OrcValReader<?> booleans() {
+  public static OrcValReader<Boolean> booleans() {
     return BooleanReader.INSTANCE;
   }
 
-  public static OrcValReader<?> shorts() {
-    return ShortReader.INSTANCE;
-  }
-
-  public static OrcValReader<?> ints() {
+  public static OrcValReader<Integer> ints() {
     return IntegerReader.INSTANCE;
   }
 
-  public static OrcValReader<?> longs() {
+  public static OrcValReader<Long> longs() {
     return LongReader.INSTANCE;
   }
 
-  public static OrcValReader<?> floats() {
+  public static OrcValReader<Float> floats() {
     return FloatReader.INSTANCE;
   }
 
-  public static OrcValReader<?> doubles() {
+  public static OrcValReader<Double> doubles() {
     return DoubleReader.INSTANCE;
   }
 
-  public static OrcValReader<?> bytes() {
+  public static OrcValReader<byte[]> bytes() {
     return BytesReader.INSTANCE;
   }
 
-  public static OrcValReader<?> byteReader() {
-    return ByteReader.INSTANCE;
-  }
-
   private static class BooleanReader implements OrcValReader<Boolean> {
-    static final OrcValReader<?> INSTANCE = new BooleanReader();
+    static final BooleanReader INSTANCE = new BooleanReader();
 
     private BooleanReader() {
     }
@@ -80,20 +71,8 @@ public class OrcValueReaders {
     }
   }
 
-  private static class ShortReader implements OrcValReader<Short> {
-    static final OrcValReader<?> INSTANCE = new ShortReader();
-
-    private ShortReader() {
-    }
-
-    @Override
-    public Short nonNullRead(ColumnVector vector, int row) {
-      return (short) ((LongColumnVector) vector).vector[row];
-    }
-  }
-
   private static class IntegerReader implements OrcValReader<Integer> {
-    static final OrcValReader<?> INSTANCE = new IntegerReader();
+    static final IntegerReader INSTANCE = new IntegerReader();
 
     private IntegerReader() {
     }
@@ -105,7 +84,7 @@ public class OrcValueReaders {
   }
 
   private static class LongReader implements OrcValReader<Long> {
-    static final OrcValReader<?> INSTANCE = new LongReader();
+    static final LongReader INSTANCE = new LongReader();
 
     private LongReader() {
     }
@@ -137,18 +116,6 @@ public class OrcValueReaders {
     @Override
     public Double nonNullRead(ColumnVector vector, int row) {
       return ((DoubleColumnVector) vector).vector[row];
-    }
-  }
-
-  private static class ByteReader implements OrcValReader<Byte> {
-    private static final ByteReader INSTANCE = new ByteReader();
-
-    private ByteReader() {
-    }
-
-    @Override
-    public Byte nonNullRead(ColumnVector vector, int row) {
-      return (byte) ((LongColumnVector) vector).vector[row];
     }
   }
 
@@ -198,8 +165,6 @@ public class OrcValueReaders {
 
     protected abstract T create();
 
-    protected abstract T reuseOrCreate();
-
     protected abstract void set(T struct, int pos, Object value);
 
     public OrcValReader<?> reader(int pos) {
@@ -210,10 +175,6 @@ public class OrcValueReaders {
     public T nonNullRead(ColumnVector vector, int row) {
       StructColumnVector structVector = (StructColumnVector) vector;
       return readInternal(create(), structVector.fields, row);
-    }
-
-    public T read(VectorizedRowBatch batch, int row) {
-      return readInternal(reuseOrCreate(), batch.cols, row);
     }
 
     private T readInternal(T struct, ColumnVector[] columnVectors, int row) {

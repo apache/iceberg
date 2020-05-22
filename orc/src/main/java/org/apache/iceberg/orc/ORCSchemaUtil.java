@@ -503,7 +503,7 @@ public final class ORCSchemaUtil {
     }
   }
 
-  static int getMaxIcebergId(TypeDescription originalOrcSchema) {
+  private static int getMaxIcebergId(TypeDescription originalOrcSchema) {
     int maxId = icebergID(originalOrcSchema).orElse(0);
     final List<TypeDescription> children = Optional.ofNullable(originalOrcSchema.getChildren())
         .orElse(Collections.emptyList());

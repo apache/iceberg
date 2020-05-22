@@ -35,27 +35,26 @@ public abstract class OrcSchemaWithTypeVisitor<T> {
   public static <T> T visit(Type iType, TypeDescription schema, OrcSchemaWithTypeVisitor<T> visitor) {
     switch (schema.getCategory()) {
       case STRUCT:
-        return visitRecord(iType.asStructType(), schema, visitor);
+        return visitRecord(iType != null ? iType.asStructType() : null, schema, visitor);
 
       case UNION:
-        // We don't have an answer for union types.
-        throw new IllegalArgumentException("Can't handle " + schema);
+        throw new UnsupportedOperationException("Cannot handle " + schema);
 
       case LIST:
-        Types.ListType list = iType.asListType();
-        return visitor.array(
+        Types.ListType list = iType != null ? iType.asListType() : null;
+        return visitor.list(
             list, schema,
             visit(list.elementType(), schema.getChildren().get(0), visitor));
 
       case MAP:
-        Types.MapType map = iType.asMapType();
+        Types.MapType map = iType != null ? iType.asMapType() : null;
         return visitor.map(
             map, schema,
-            visit(map.keyType(), schema.getChildren().get(0), visitor),
-            visit(map.valueType(), schema.getChildren().get(1), visitor));
+            visit(map != null ? map.keyType() : null, schema.getChildren().get(0), visitor),
+            visit(map != null ? map.valueType() : null, schema.getChildren().get(1), visitor));
 
       default:
-        return visitor.primitive(iType.asPrimitiveType(), schema);
+        return visitor.primitive(iType != null ? iType.asPrimitiveType() : null, schema);
     }
   }
 
@@ -76,7 +75,7 @@ public abstract class OrcSchemaWithTypeVisitor<T> {
     return null;
   }
 
-  public T array(Types.ListType iList, TypeDescription array, T element) {
+  public T list(Types.ListType iList, TypeDescription array, T element) {
     return null;
   }
 

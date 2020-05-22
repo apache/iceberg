@@ -47,7 +47,7 @@ class SparkOrcValueReaders {
   private SparkOrcValueReaders() {
   }
 
-  static OrcValReader<UTF8String> strings() {
+  static OrcValReader<UTF8String> utf8String() {
     return StringReader.INSTANCE;
   }
 
@@ -70,7 +70,6 @@ class SparkOrcValueReaders {
 
   private static class ArrayReader implements OrcValReader<ArrayData> {
     private final OrcValReader<?> elementReader;
-    private final List<Object> reusedList = Lists.newArrayList();
 
     private ArrayReader(OrcValReader<?> elementReader) {
       this.elementReader = elementReader;
@@ -78,23 +77,20 @@ class SparkOrcValueReaders {
 
     @Override
     public ArrayData nonNullRead(ColumnVector vector, int row) {
-      reusedList.clear();
       ListColumnVector listVector = (ListColumnVector) vector;
       int offset = (int) listVector.offsets[row];
       int length = (int) listVector.lengths[row];
+      List<Object> elements = Lists.newArrayListWithExpectedSize(length);
       for (int c = 0; c < length; ++c) {
-        reusedList.add(elementReader.read(listVector.child, offset + c));
+        elements.add(elementReader.read(listVector.child, offset + c));
       }
-      return new GenericArrayData(reusedList.toArray());
+      return new GenericArrayData(elements.toArray());
     }
   }
 
   private static class MapReader implements OrcValReader<MapData> {
     private final OrcValReader<?> keyReader;
     private final OrcValReader<?> valueReader;
-
-    private final List<Object> reusedKeyList = Lists.newArrayList();
-    private final List<Object> reusedValueList = Lists.newArrayList();
 
     private MapReader(OrcValReader<?> keyReader, OrcValReader<?> valueReader) {
       this.keyReader = keyReader;
@@ -103,25 +99,24 @@ class SparkOrcValueReaders {
 
     @Override
     public MapData nonNullRead(ColumnVector vector, int row) {
-      reusedKeyList.clear();
-      reusedValueList.clear();
       MapColumnVector mapVector = (MapColumnVector) vector;
       int offset = (int) mapVector.offsets[row];
       long length = mapVector.lengths[row];
+      List<Object> keys = Lists.newArrayListWithExpectedSize((int) length);
+      List<Object> values = Lists.newArrayListWithExpectedSize((int) length);
       for (int c = 0; c < length; c++) {
-        reusedKeyList.add(keyReader.read(mapVector.keys, offset + c));
-        reusedValueList.add(valueReader.read(mapVector.values, offset + c));
+        keys.add(keyReader.read(mapVector.keys, offset + c));
+        values.add(valueReader.read(mapVector.values, offset + c));
       }
 
       return new ArrayBasedMapData(
-          new GenericArrayData(reusedKeyList.toArray()),
-          new GenericArrayData(reusedValueList.toArray()));
+          new GenericArrayData(keys.toArray()),
+          new GenericArrayData(values.toArray()));
     }
   }
 
   static class StructReader extends OrcValueReaders.StructReader<InternalRow> {
     private final int numFields;
-    private InternalRow internalRow;
 
     protected StructReader(List<OrcValReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
       super(readers, struct, idToConstant);
@@ -131,14 +126,6 @@ class SparkOrcValueReaders {
     @Override
     protected InternalRow create() {
       return new GenericInternalRow(numFields);
-    }
-
-    @Override
-    protected InternalRow reuseOrCreate() {
-      if (internalRow == null) {
-        internalRow = new GenericInternalRow(numFields);
-      }
-      return internalRow;
     }
 
     @Override

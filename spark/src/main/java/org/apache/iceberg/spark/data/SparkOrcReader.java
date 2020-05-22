@@ -29,12 +29,13 @@ import org.apache.iceberg.orc.OrcValueReaders;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
+import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.Decimal;
 
 /**
- * Converts the OrcInterator, which returns ORC's VectorizedRowBatch to a
+ * Converts the OrcIterator, which returns ORC's VectorizedRowBatch to a
  * set of Spark's UnsafeRows.
  *
  * It minimizes allocations by reusing most of the objects in the implementation.
@@ -49,13 +50,13 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
   @SuppressWarnings("unchecked")
   public SparkOrcReader(
       org.apache.iceberg.Schema expectedSchema, TypeDescription readOrcSchema, Map<Integer, ?> idToConstant) {
-    reader = (SparkOrcValueReaders.StructReader) OrcSchemaWithTypeVisitor.visit(
+    this.reader = (SparkOrcValueReaders.StructReader) OrcSchemaWithTypeVisitor.visit(
         expectedSchema, readOrcSchema, new ReadBuilder(idToConstant));
   }
 
   @Override
   public InternalRow read(VectorizedRowBatch batch, int row) {
-    return reader.read(batch, row);
+    return reader.read(new StructColumnVector(batch.size, batch.cols), row);
   }
 
   private static class ReadBuilder extends OrcSchemaWithTypeVisitor<OrcValReader<?>> {
@@ -72,7 +73,7 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
     }
 
     @Override
-    public OrcValReader<?> array(Types.ListType iList, TypeDescription array, OrcValReader<?> elementReader) {
+    public OrcValReader<?> list(Types.ListType iList, TypeDescription array, OrcValReader<?> elementReader) {
       return SparkOrcValueReaders.array(elementReader);
     }
 
@@ -88,9 +89,9 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
         case BOOLEAN:
           return OrcValueReaders.booleans();
         case BYTE:
-          return OrcValueReaders.byteReader();
+          // Iceberg does not have a byte type. Use int
         case SHORT:
-          return OrcValueReaders.shorts();
+          // Iceberg does not have a short type. Use int
         case DATE:
         case INT:
           return OrcValueReaders.ints();
@@ -111,7 +112,7 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
         case CHAR:
         case VARCHAR:
         case STRING:
-          return SparkOrcValueReaders.strings();
+          return SparkOrcValueReaders.utf8String();
         case BINARY:
           return OrcValueReaders.bytes();
         default:
