@@ -123,7 +123,7 @@ public class ORC {
     private Long start = null;
     private Long length = null;
 
-    private Function<TypeDescription, OrcValueReader<?>> readerFunc;
+    private Function<TypeDescription, OrcRowReader<?>> readerFunc;
 
     private ReadBuilder(InputFile file) {
       Preconditions.checkNotNull(file, "Input file cannot be null");
@@ -163,7 +163,7 @@ public class ORC {
       return this;
     }
 
-    public ReadBuilder createReaderFunc(Function<TypeDescription, OrcValueReader<?>> readerFunction) {
+    public ReadBuilder createReaderFunc(Function<TypeDescription, OrcRowReader<?>> readerFunction) {
       this.readerFunc = readerFunction;
       return this;
     }
