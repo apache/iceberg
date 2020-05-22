@@ -52,7 +52,7 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
     List<Type> actualTypes = types.stream().filter(Objects::nonNull).collect(Collectors.toList());
     Type structType = struct.withNewFields(actualTypes);
 
-    return field == null ? structType : structType.withId(field.id());
+    return field == null ? null : structType.withId(field.id());
   }
 
   @Override
@@ -65,7 +65,7 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
         .element(elementType)
         .named(list.getName());
 
-    return field == null ? listType : listType.withId(field.id());
+    return field == null ? null : listType.withId(field.id());
   }
 
   @Override
@@ -79,7 +79,7 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
         .value(valueType)
         .named(map.getName());
 
-    return field == null ? mapType : mapType.withId(field.id());
+    return field == null ? null : mapType.withId(field.id());
   }
 
   @Override
