@@ -19,18 +19,16 @@
 
 package org.apache.iceberg.orc;
 
-import org.apache.orc.storage.ql.exec.vector.ColumnVector;
+import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
+/**
+ * Used for implementing ORC row readers.
+ */
+public interface OrcRowReader<T> {
 
-public interface OrcValReader<T> {
-  default T read(ColumnVector vector, int row) {
-    int rowIndex = vector.isRepeating ? 0 : row;
-    if (!vector.noNulls && vector.isNull[rowIndex]) {
-      return null;
-    } else {
-      return nonNullRead(vector, rowIndex);
-    }
-  }
+  /**
+   * Reads a row.
+   */
+  T read(VectorizedRowBatch batch, int row);
 
-  T nonNullRead(ColumnVector vector, int row);
 }

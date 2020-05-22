@@ -35,31 +35,31 @@ public class OrcValueReaders {
   private OrcValueReaders() {
   }
 
-  public static OrcValReader<Boolean> booleans() {
+  public static OrcValueReader<Boolean> booleans() {
     return BooleanReader.INSTANCE;
   }
 
-  public static OrcValReader<Integer> ints() {
+  public static OrcValueReader<Integer> ints() {
     return IntegerReader.INSTANCE;
   }
 
-  public static OrcValReader<Long> longs() {
+  public static OrcValueReader<Long> longs() {
     return LongReader.INSTANCE;
   }
 
-  public static OrcValReader<Float> floats() {
+  public static OrcValueReader<Float> floats() {
     return FloatReader.INSTANCE;
   }
 
-  public static OrcValReader<Double> doubles() {
+  public static OrcValueReader<Double> doubles() {
     return DoubleReader.INSTANCE;
   }
 
-  public static OrcValReader<byte[]> bytes() {
+  public static OrcValueReader<byte[]> bytes() {
     return BytesReader.INSTANCE;
   }
 
-  private static class BooleanReader implements OrcValReader<Boolean> {
+  private static class BooleanReader implements OrcValueReader<Boolean> {
     static final BooleanReader INSTANCE = new BooleanReader();
 
     private BooleanReader() {
@@ -71,7 +71,7 @@ public class OrcValueReaders {
     }
   }
 
-  private static class IntegerReader implements OrcValReader<Integer> {
+  private static class IntegerReader implements OrcValueReader<Integer> {
     static final IntegerReader INSTANCE = new IntegerReader();
 
     private IntegerReader() {
@@ -83,7 +83,7 @@ public class OrcValueReaders {
     }
   }
 
-  private static class LongReader implements OrcValReader<Long> {
+  private static class LongReader implements OrcValueReader<Long> {
     static final LongReader INSTANCE = new LongReader();
 
     private LongReader() {
@@ -95,7 +95,7 @@ public class OrcValueReaders {
     }
   }
 
-  private static class FloatReader implements OrcValReader<Float> {
+  private static class FloatReader implements OrcValueReader<Float> {
     private static final FloatReader INSTANCE = new FloatReader();
 
     private FloatReader() {
@@ -107,7 +107,7 @@ public class OrcValueReaders {
     }
   }
 
-  private static class DoubleReader implements OrcValReader<Double> {
+  private static class DoubleReader implements OrcValueReader<Double> {
     private static final DoubleReader INSTANCE = new DoubleReader();
 
     private DoubleReader() {
@@ -119,7 +119,7 @@ public class OrcValueReaders {
     }
   }
 
-  private static class BytesReader implements OrcValReader<byte[]> {
+  private static class BytesReader implements OrcValueReader<byte[]> {
     private static final BytesReader INSTANCE = new BytesReader();
 
     private BytesReader() {
@@ -134,19 +134,19 @@ public class OrcValueReaders {
     }
   }
 
-  public abstract static class StructReader<T> implements OrcValReader<T> {
-    private final OrcValReader<?>[] readers;
+  public abstract static class StructReader<T> implements OrcValueReader<T> {
+    private final OrcValueReader<?>[] readers;
     private final int[] positions;
     private final Object[] constants;
 
-    protected StructReader(List<OrcValReader<?>> readers) {
-      this.readers = readers.toArray(new OrcValReader[0]);
+    protected StructReader(List<OrcValueReader<?>> readers) {
+      this.readers = readers.toArray(new OrcValueReader[0]);
       this.positions = new int[0];
       this.constants = new Object[0];
     }
 
-    protected StructReader(List<OrcValReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
-      this.readers = readers.toArray(new OrcValReader[0]);
+    protected StructReader(List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
+      this.readers = readers.toArray(new OrcValueReader[0]);
       List<Types.NestedField> fields = struct.fields();
       List<Integer> positionList = Lists.newArrayListWithCapacity(fields.size());
       List<Object> constantList = Lists.newArrayListWithCapacity(fields.size());
@@ -167,7 +167,7 @@ public class OrcValueReaders {
 
     protected abstract void set(T struct, int pos, Object value);
 
-    public OrcValReader<?> reader(int pos) {
+    public OrcValueReader<?> reader(int pos) {
       return readers[pos];
     }
 

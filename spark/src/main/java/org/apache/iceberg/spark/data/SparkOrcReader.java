@@ -22,8 +22,8 @@ package org.apache.iceberg.spark.data;
 import com.google.common.collect.ImmutableMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.orc.OrcRowReader;
 import org.apache.iceberg.orc.OrcSchemaWithTypeVisitor;
-import org.apache.iceberg.orc.OrcValReader;
 import org.apache.iceberg.orc.OrcValueReader;
 import org.apache.iceberg.orc.OrcValueReaders;
 import org.apache.iceberg.types.Type;
@@ -40,8 +40,8 @@ import org.apache.spark.sql.types.Decimal;
  *
  * It minimizes allocations by reusing most of the objects in the implementation.
  */
-public class SparkOrcReader implements OrcValueReader<InternalRow> {
-  private final SparkOrcValueReaders.StructReader reader;
+public class SparkOrcReader implements OrcRowReader<InternalRow> {
+  private final OrcValueReader<?> reader;
 
   public SparkOrcReader(org.apache.iceberg.Schema expectedSchema, TypeDescription readSchema) {
     this(expectedSchema, readSchema, ImmutableMap.of());
@@ -50,16 +50,15 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
   @SuppressWarnings("unchecked")
   public SparkOrcReader(
       org.apache.iceberg.Schema expectedSchema, TypeDescription readOrcSchema, Map<Integer, ?> idToConstant) {
-    this.reader = (SparkOrcValueReaders.StructReader) OrcSchemaWithTypeVisitor.visit(
-        expectedSchema, readOrcSchema, new ReadBuilder(idToConstant));
+    this.reader = OrcSchemaWithTypeVisitor.visit(expectedSchema, readOrcSchema, new ReadBuilder(idToConstant));
   }
 
   @Override
   public InternalRow read(VectorizedRowBatch batch, int row) {
-    return reader.read(new StructColumnVector(batch.size, batch.cols), row);
+    return (InternalRow) reader.read(new StructColumnVector(batch.size, batch.cols), row);
   }
 
-  private static class ReadBuilder extends OrcSchemaWithTypeVisitor<OrcValReader<?>> {
+  private static class ReadBuilder extends OrcSchemaWithTypeVisitor<OrcValueReader<?>> {
     private final Map<Integer, ?> idToConstant;
 
     private ReadBuilder(Map<Integer, ?> idToConstant) {
@@ -67,24 +66,24 @@ public class SparkOrcReader implements OrcValueReader<InternalRow> {
     }
 
     @Override
-    public OrcValReader<?> record(
-        Types.StructType expected, TypeDescription record, List<String> names, List<OrcValReader<?>> fields) {
+    public OrcValueReader<?> record(
+        Types.StructType expected, TypeDescription record, List<String> names, List<OrcValueReader<?>> fields) {
       return SparkOrcValueReaders.struct(fields, expected, idToConstant);
     }
 
     @Override
-    public OrcValReader<?> list(Types.ListType iList, TypeDescription array, OrcValReader<?> elementReader) {
+    public OrcValueReader<?> list(Types.ListType iList, TypeDescription array, OrcValueReader<?> elementReader) {
       return SparkOrcValueReaders.array(elementReader);
     }
 
     @Override
-    public OrcValReader<?> map(
-        Types.MapType iMap, TypeDescription map, OrcValReader<?> keyReader, OrcValReader<?> valueReader) {
+    public OrcValueReader<?> map(
+        Types.MapType iMap, TypeDescription map, OrcValueReader<?> keyReader, OrcValueReader<?> valueReader) {
       return SparkOrcValueReaders.map(keyReader, valueReader);
     }
 
     @Override
-    public OrcValReader<?> primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
+    public OrcValueReader<?> primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
       switch (primitive.getCategory()) {
         case BOOLEAN:
           return OrcValueReaders.booleans();

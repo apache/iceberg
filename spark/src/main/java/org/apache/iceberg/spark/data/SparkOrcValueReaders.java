@@ -23,7 +23,7 @@ import com.google.common.collect.Lists;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.orc.OrcValReader;
+import org.apache.iceberg.orc.OrcValueReader;
 import org.apache.iceberg.orc.OrcValueReaders;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
@@ -47,31 +47,31 @@ class SparkOrcValueReaders {
   private SparkOrcValueReaders() {
   }
 
-  static OrcValReader<UTF8String> utf8String() {
+  static OrcValueReader<UTF8String> utf8String() {
     return StringReader.INSTANCE;
   }
 
-  static OrcValReader<?> timestampTzs() {
+  static OrcValueReader<?> timestampTzs() {
     return TimestampTzReader.INSTANCE;
   }
 
-  static OrcValReader<?> struct(
-      List<OrcValReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
+  static OrcValueReader<?> struct(
+      List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
     return new StructReader(readers, struct, idToConstant);
   }
 
-  static OrcValReader<?> array(OrcValReader<?> elementReader) {
+  static OrcValueReader<?> array(OrcValueReader<?> elementReader) {
     return new ArrayReader(elementReader);
   }
 
-  static OrcValReader<?> map(OrcValReader<?> keyReader, OrcValReader<?> valueReader) {
+  static OrcValueReader<?> map(OrcValueReader<?> keyReader, OrcValueReader<?> valueReader) {
     return new MapReader(keyReader, valueReader);
   }
 
-  private static class ArrayReader implements OrcValReader<ArrayData> {
-    private final OrcValReader<?> elementReader;
+  private static class ArrayReader implements OrcValueReader<ArrayData> {
+    private final OrcValueReader<?> elementReader;
 
-    private ArrayReader(OrcValReader<?> elementReader) {
+    private ArrayReader(OrcValueReader<?> elementReader) {
       this.elementReader = elementReader;
     }
 
@@ -88,11 +88,11 @@ class SparkOrcValueReaders {
     }
   }
 
-  private static class MapReader implements OrcValReader<MapData> {
-    private final OrcValReader<?> keyReader;
-    private final OrcValReader<?> valueReader;
+  private static class MapReader implements OrcValueReader<MapData> {
+    private final OrcValueReader<?> keyReader;
+    private final OrcValueReader<?> valueReader;
 
-    private MapReader(OrcValReader<?> keyReader, OrcValReader<?> valueReader) {
+    private MapReader(OrcValueReader<?> keyReader, OrcValueReader<?> valueReader) {
       this.keyReader = keyReader;
       this.valueReader = valueReader;
     }
@@ -118,7 +118,7 @@ class SparkOrcValueReaders {
   static class StructReader extends OrcValueReaders.StructReader<InternalRow> {
     private final int numFields;
 
-    protected StructReader(List<OrcValReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
+    protected StructReader(List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
       super(readers, struct, idToConstant);
       this.numFields = readers.size();
     }
@@ -138,7 +138,7 @@ class SparkOrcValueReaders {
     }
   }
 
-  private static class StringReader implements OrcValReader<UTF8String> {
+  private static class StringReader implements OrcValueReader<UTF8String> {
     private static final StringReader INSTANCE = new StringReader();
 
     private StringReader() {
@@ -151,7 +151,7 @@ class SparkOrcValueReaders {
     }
   }
 
-  private static class TimestampTzReader implements OrcValReader<Long> {
+  private static class TimestampTzReader implements OrcValueReader<Long> {
     private static final TimestampTzReader INSTANCE = new TimestampTzReader();
 
     private TimestampTzReader() {
@@ -164,7 +164,7 @@ class SparkOrcValueReaders {
     }
   }
 
-  static class Decimal18Reader implements OrcValReader<Decimal> {
+  static class Decimal18Reader implements OrcValueReader<Decimal> {
     //TODO: these are being unused. check for bug
     private final int precision;
     private final int scale;
@@ -181,7 +181,7 @@ class SparkOrcValueReaders {
     }
   }
 
-  static class Decimal38Reader implements OrcValReader<Decimal> {
+  static class Decimal38Reader implements OrcValueReader<Decimal> {
     private final int precision;
     private final int scale;
 

@@ -67,7 +67,7 @@ public final class ORCSchemaUtil {
     }
   }
 
-  static final String ICEBERG_ID_ATTRIBUTE = "iceberg.id";
+  private static final String ICEBERG_ID_ATTRIBUTE = "iceberg.id";
   private static final String ICEBERG_REQUIRED_ATTRIBUTE = "iceberg.required";
 
   /**
@@ -214,7 +214,6 @@ public final class ORCSchemaUtil {
         "Error in ORC file, children fields and names do not match.");
 
     List<Types.NestedField> icebergFields = Lists.newArrayListWithExpectedSize(children.size());
-    // TODO how we get field ids from ORC schema
     AtomicInteger lastColumnId = new AtomicInteger(getMaxIcebergId(orcSchema));
     for (int i = 0; i < children.size(); i++) {
       icebergFields.add(convertOrcToIceberg(children.get(i), childrenNames.get(i),
@@ -378,7 +377,7 @@ public final class ORCSchemaUtil {
     }
   }
 
-  static Optional<Integer> icebergID(TypeDescription orcType) {
+  private static Optional<Integer> icebergID(TypeDescription orcType) {
     return Optional.ofNullable(orcType.getAttributeValue(ICEBERG_ID_ATTRIBUTE))
         .map(Integer::parseInt);
   }
