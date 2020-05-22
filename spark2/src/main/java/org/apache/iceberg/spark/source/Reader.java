@@ -46,6 +46,7 @@ import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.hive.legacy.LegacyHiveTable;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.orc.OrcRowFilterUtils;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -329,13 +330,19 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
                   .allMatch(fileScanTask -> fileScanTask.file().format().equals(
                       FileFormat.ORC)));
 
+      boolean hasNoRowFilters =
+          tasks().stream()
+              .allMatch(combinedScanTask -> !combinedScanTask.isDataTask() && combinedScanTask.files()
+                  .stream()
+                  .allMatch(fileScanTask -> OrcRowFilterUtils.rowFilterFromTask(fileScanTask) == null));
+
       boolean atLeastOneColumn = lazySchema().columns().size() > 0;
 
       boolean onlyPrimitives = lazySchema().columns().stream().allMatch(c -> c.type().isPrimitiveType());
 
       boolean hasNoDeleteFiles = tasks().stream().noneMatch(TableScanUtil::hasDeletes);
 
-      this.readUsingBatch = batchReadsEnabled && hasNoDeleteFiles && (allOrcFileScanTasks ||
+      this.readUsingBatch = batchReadsEnabled && hasNoDeleteFiles && ((allOrcFileScanTasks && hasNoRowFilters) ||
           (allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives));
     }
     return readUsingBatch;

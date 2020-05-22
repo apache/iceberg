@@ -177,7 +177,7 @@ public class BaseFileScanTask implements FileScanTask {
     }
   }
 
-  private static final class SplitScanTask implements FileScanTask {
+  public static final class SplitScanTask implements FileScanTask {
     private final long len;
     private final long offset;
     private final FileScanTask fileScanTask;
@@ -221,6 +221,10 @@ public class BaseFileScanTask implements FileScanTask {
     @Override
     public Iterable<FileScanTask> split(long splitSize) {
       throw new UnsupportedOperationException("Cannot split a task which is already split");
+    }
+
+    public FileScanTask underlyingFileScanTask() {
+      return fileScanTask;
     }
   }
 }

@@ -20,6 +20,7 @@
 package org.apache.iceberg.orc;
 
 import java.io.IOException;
+import java.util.Set;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
@@ -33,6 +34,9 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.orc.Reader;
 import org.apache.orc.TypeDescription;
@@ -54,11 +58,13 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private final Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction;
   private final int recordsPerBatch;
   private NameMapping nameMapping;
+  private final OrcRowFilter rowFilter;
 
   OrcIterable(InputFile file, Configuration config, Schema schema,
               NameMapping nameMapping, Long start, Long length,
               Function<TypeDescription, OrcRowReader<?>> readerFunction, boolean caseSensitive, Expression filter,
-              Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction, int recordsPerBatch) {
+              Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction, int recordsPerBatch,
+              OrcRowFilter rowFilter) {
     this.schema = schema;
     this.readerFunction = readerFunction;
     this.file = file;
@@ -70,6 +76,7 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
     this.filter = (filter == Expressions.alwaysTrue()) ? null : filter;
     this.batchReaderFunction = batchReaderFunction;
     this.recordsPerBatch = recordsPerBatch;
+    this.rowFilter = rowFilter;
   }
 
   @SuppressWarnings("unchecked")
@@ -96,16 +103,37 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
       sarg = ExpressionToSearchArgument.convert(boundFilter, readOrcSchema);
     }
 
-    VectorizedRowBatchIterator rowBatchIterator = newOrcIterator(file, readOrcSchema, start, length, orcFileReader,
-        sarg, recordsPerBatch);
-    if (batchReaderFunction != null) {
-      OrcBatchReader<T> batchReader = (OrcBatchReader<T>) batchReaderFunction.apply(readOrcSchema);
-      return CloseableIterator.transform(rowBatchIterator, pair -> {
-        batchReader.setBatchContext(pair.second());
-        return batchReader.read(pair.first());
-      });
+    if (rowFilter == null) {
+      VectorizedRowBatchIterator rowBatchIterator = newOrcIterator(file, readOrcSchema, start, length, orcFileReader,
+          sarg, recordsPerBatch);
+      if (batchReaderFunction != null) {
+        OrcBatchReader<T> batchReader = (OrcBatchReader<T>) batchReaderFunction.apply(readOrcSchema);
+        return CloseableIterator.transform(rowBatchIterator, pair -> {
+          batchReader.setBatchContext(pair.second());
+          return batchReader.read(pair.first());
+        });
+      } else {
+        return new OrcRowIterator<>(rowBatchIterator, (OrcRowReader<T>) readerFunction.apply(readOrcSchema),
+            null, null);
+      }
     } else {
-      return new OrcRowIterator<>(rowBatchIterator, (OrcRowReader<T>) readerFunction.apply(readOrcSchema));
+      Preconditions.checkArgument(batchReaderFunction == null,
+          "Row-level filtering not supported by vectorized reader");
+      Set<Integer> filterColumnIds = TypeUtil.getProjectedIds(rowFilter.requiredSchema());
+      Set<Integer> filterColumnIdsNotInReadSchema = Sets.difference(filterColumnIds,
+          TypeUtil.getProjectedIds(schema));
+      Schema extraFilterColumns = TypeUtil.select(rowFilter.requiredSchema(), filterColumnIdsNotInReadSchema);
+      Schema finalReadSchema = TypeUtil.join(schema, extraFilterColumns);
+
+      TypeDescription finalReadOrcSchema = ORCSchemaUtil.buildOrcProjection(finalReadSchema,
+          orcFileReader.getSchema());
+      TypeDescription rowFilterOrcSchema = ORCSchemaUtil.buildOrcProjection(rowFilter.requiredSchema(),
+          orcFileReader.getSchema());
+      RowFilterValueReader filterReader = new RowFilterValueReader(finalReadOrcSchema, rowFilterOrcSchema);
+
+      return new OrcRowIterator<>(
+          newOrcIterator(file, finalReadOrcSchema, start, length, orcFileReader, sarg, recordsPerBatch),
+          (OrcRowReader<T>) readerFunction.apply(readOrcSchema), rowFilter, filterReader);
     }
   }
 
@@ -131,37 +159,67 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
 
   private static class OrcRowIterator<T> implements CloseableIterator<T> {
 
-    private int nextRow;
-    private VectorizedRowBatch current;
-    private int currentBatchSize;
+    private int currentRow;
+    private VectorizedRowBatch currentBatch;
+    private boolean advanced = false;
 
     private final VectorizedRowBatchIterator batchIter;
     private final OrcRowReader<T> reader;
+    private final OrcRowFilter filter;
+    private final RowFilterValueReader filterReader;
 
-    OrcRowIterator(VectorizedRowBatchIterator batchIter, OrcRowReader<T> reader) {
+    OrcRowIterator(VectorizedRowBatchIterator batchIter, OrcRowReader<T> reader, OrcRowFilter filter,
+        RowFilterValueReader filterReader) {
       this.batchIter = batchIter;
       this.reader = reader;
-      current = null;
-      nextRow = 0;
-      currentBatchSize = 0;
+      this.filter = filter;
+      this.filterReader = filterReader;
+      currentBatch = null;
+      currentRow = 0;
+    }
+
+    private void advance() {
+      if (!advanced) {
+        while (true) {
+          currentRow++;
+          // if batch has been consumed, move to next batch
+          if (currentBatch == null || currentRow >= currentBatch.size) {
+            if (batchIter.hasNext()) {
+              Pair<VectorizedRowBatch, Long> nextBatch = batchIter.next();
+              currentBatch = nextBatch.first();
+              currentRow = 0;
+              reader.setBatchContext(nextBatch.second());
+              if (filterReader != null) {
+                filterReader.setBatchContext(nextBatch.second());
+              }
+            } else {
+              // no more batches left to process
+              currentBatch = null;
+              currentRow = -1;
+              break;
+            }
+          }
+          if (filter == null || filter.shouldKeep(filterReader.read(currentBatch, currentRow))) {
+            // we have found our row
+            break;
+          }
+        }
+        advanced = true;
+      }
     }
 
     @Override
     public boolean hasNext() {
-      return (current != null && nextRow < currentBatchSize) || batchIter.hasNext();
+      advance();
+      return currentBatch != null;
     }
 
     @Override
     public T next() {
-      if (current == null || nextRow >= currentBatchSize) {
-        Pair<VectorizedRowBatch, Long> nextBatch = batchIter.next();
-        current = nextBatch.first();
-        currentBatchSize = current.size;
-        nextRow = 0;
-        this.reader.setBatchContext(nextBatch.second());
-      }
-
-      return this.reader.read(current, nextRow++);
+      advance();
+      // mark current row as used
+      advanced = false;
+      return this.reader.read(currentBatch, currentRow);
     }
 
     @Override
