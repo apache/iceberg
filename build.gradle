@@ -120,11 +120,12 @@ project(':iceberg-bundled-guava') {
   }
   
   jar {
-    classifier 'empty'
     enabled = false
   }
   
   shadowJar {
+    baseName = 'iceberg-bundled-guava'
+    classifier = ''
     configurations = [project.configurations.compileOnly]
     zip64 true
 
