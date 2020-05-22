@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 
 import com.google.common.collect.Lists;
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.DataFiles;
@@ -38,7 +39,12 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.Metadata;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -375,5 +381,57 @@ public class TestPartitionValues {
     } finally {
       TestTables.clearTables();
     }
+  }
+
+  /**
+   * To verify if WrappedPositionAccessor is generated against a string field within a nested field,
+   * rather than a Position2Accessor.
+   * Or when building the partition path, a ClassCastException is thrown with the message like:
+   * Cannot cast org.apache.spark.unsafe.types.UTF8String to java.lang.CharSequence
+   */
+  @Test
+  public void TestPartitionedByNestedString() throws Exception {
+    // schema and partition spec
+    Schema nestedSchema = new Schema(
+        Types.NestedField.required(1, "struct",
+            Types.StructType.of(Types.NestedField.required(2, "string", Types.StringType.get()))
+        )
+    );
+    PartitionSpec spec = PartitionSpec.builderFor(nestedSchema).identity("struct.string").build();
+
+    // create table
+    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
+    String baseLocation = temp.newFolder("partition_by_nested_string").toString();
+    tables.create(nestedSchema, spec, baseLocation);
+
+    // input data frame
+    StructField[] structFields = {
+        new StructField("struct",
+            DataTypes.createStructType(
+                new StructField[] {
+                    new StructField("string", DataTypes.StringType, false, Metadata.empty())
+                }
+            ),
+            false, Metadata.empty()
+        )
+    };
+
+    List<Row> rows = new ArrayList<>();
+    rows.add(RowFactory.create(RowFactory.create("nested_string_value")));
+    Dataset<Row> sourceDF = spark.createDataFrame(rows, new StructType(structFields));
+
+    // write into iceberg
+    sourceDF.write()
+        .format("iceberg")
+        .mode("append")
+        .save(baseLocation);
+
+    // verify
+    List<Row> actual = spark.read()
+        .format("iceberg")
+        .load(baseLocation)
+        .collectAsList();
+
+    Assert.assertEquals("Number of rows should match", rows.size(), actual.size());
   }
 }
