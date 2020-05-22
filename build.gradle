@@ -124,8 +124,7 @@ project(':iceberg-bundled-guava') {
   }
   
   shadowJar {
-    baseName = 'iceberg-bundled-guava'
-    classifier = ''
+    classifier = null
     configurations = [project.configurations.compileOnly]
     zip64 true
 
