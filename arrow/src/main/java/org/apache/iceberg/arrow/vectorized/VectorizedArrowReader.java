@@ -44,7 +44,6 @@ import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
-import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.PrimitiveType;
 
 /**
@@ -127,18 +126,15 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       } else {
         switch (readType) {
           case FIXED_LENGTH_DECIMAL:
-            ((IcebergArrowVectors.DecimalArrowVector) vec).setNullabilityHolder(nullabilityHolder);
             vectorizedColumnIterator.nextBatchFixedLengthDecimal(vec, typeWidth, nullabilityHolder);
             break;
           case INT_LONG_BACKED_DECIMAL:
-            ((IcebergArrowVectors.DecimalArrowVector) vec).setNullabilityHolder(nullabilityHolder);
             vectorizedColumnIterator.nextBatchIntLongBackedDecimal(vec, typeWidth, nullabilityHolder);
             break;
           case VARBINARY:
             vectorizedColumnIterator.nextBatchVarWidthType(vec, nullabilityHolder);
             break;
           case VARCHAR:
-            ((IcebergArrowVectors.VarcharArrowVector) vec).setNullabilityHolder(nullabilityHolder);
             vectorizedColumnIterator.nextBatchVarWidthType(vec, nullabilityHolder);
             break;
           case FIXED_WIDTH_BINARY:
@@ -189,7 +185,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           case JSON:
           case UTF8:
           case BSON:
-            this.vec = new IcebergArrowVectors.VarcharArrowVector(icebergField.name(), rootAlloc);
+            this.vec = arrowField.createVector(rootAlloc);
             //TODO: Possibly use the uncompressed page size info to set the initial capacity
             vec.setInitialCapacity(batchSize * AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
             vec.allocateNewSafe();
@@ -229,9 +225,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
             this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
             break;
           case DECIMAL:
-            DecimalMetadata decimal = primitive.getDecimalMetadata();
-            this.vec = new IcebergArrowVectors.DecimalArrowVector(icebergField.name(), rootAlloc,
-                decimal.getPrecision(), decimal.getScale());
+            this.vec = arrowField.createVector(rootAlloc);
             ((DecimalVector) vec).allocateNew(batchSize);
             switch (primitive.getPrimitiveTypeName()) {
               case BINARY:
