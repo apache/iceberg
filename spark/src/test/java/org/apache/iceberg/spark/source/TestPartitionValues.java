@@ -390,7 +390,7 @@ public class TestPartitionValues {
    * Cannot cast org.apache.spark.unsafe.types.UTF8String to java.lang.CharSequence
    */
   @Test
-  public void TestPartitionedByNestedString() throws Exception {
+  public void testPartitionedByNestedString() throws Exception {
     // schema and partition spec
     Schema nestedSchema = new Schema(
         Types.NestedField.required(1, "struct",
