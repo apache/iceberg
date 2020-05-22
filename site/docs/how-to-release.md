@@ -36,7 +36,7 @@ For more information, see the Gradle [signing documentation](https://docs.gradle
 To create the source release artifacts, run the `source-release.sh` script with the release version and release candidate number:
 
 ```bash
-dev/source-release.sh 0.7.0 0
+dev/source-release.sh 0.8.1 0
 ```
 ```
 Preparing source for apache-iceberg-0.8.1-rc0
