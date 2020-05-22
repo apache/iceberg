@@ -41,7 +41,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.parquet.HadoopReadOptions;
 import org.apache.parquet.ParquetReadOptions;
@@ -444,7 +443,7 @@ public class Parquet {
 
       ParquetReadBuilder<D> builder = new ParquetReadBuilder<>(ParquetIO.file(file));
 
-      builder.project(schema).withNameMapping(MappingUtil.create(schema));
+      builder.project(schema);
 
       if (readSupport != null) {
         builder.readSupport((ReadSupport<D>) readSupport);
@@ -488,6 +487,10 @@ public class Parquet {
 
       if (start != null) {
         builder.withFileRange(start, start + length);
+      }
+
+      if (nameMapping != null) {
+        builder.withNameMapping(nameMapping);
       }
 
       return new ParquetIterable<>(builder);
