@@ -22,14 +22,14 @@
 [![](https://travis-ci.org/apache/incubator-iceberg.svg?branch=master)](https://travis-ci.org/apache/incubator-iceberg)
 [![](https://badges.gitter.im/iceberg-tables/Lobby.svg)](https://gitter.im/iceberg-tables/Lobby)
 
-Apache Iceberg (incubating) is a new table format for storing large, slow-moving tabular data. It is designed to improve on the de-facto standard table layout built into Hive, Presto, and Spark.
+Apache Iceberg is a new table format for storing large, slow-moving tabular data. It is designed to improve on the de-facto standard table layout built into Hive, Presto, and Spark.
 
-Background and documentation is available at <https://iceberg.incubator.apache.org>
+Background and documentation is available at <https://iceberg.apache.org>
 
 
 ## Status
 
-Iceberg is under active development in the Apache Incubator.
+Iceberg is under active development at the Apache Software Foundation.
 
 The core Java library that tracks table snapshots and metadata is complete, but still evolving. Current work is focused on integrating Iceberg into Spark and Presto.
 
