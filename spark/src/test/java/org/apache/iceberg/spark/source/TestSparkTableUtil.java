@@ -32,6 +32,9 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveTableBaseTest;
+import org.apache.iceberg.mapping.MappingUtil;
+import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
@@ -51,6 +54,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import scala.collection.Seq;
 
+import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TestSparkTableUtil extends HiveTableBaseTest {
@@ -216,13 +220,20 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
         optional(1, "data", Types.StringType.get())
     );
 
+    NameMapping nameMapping = MappingUtil.create(filteredSchema);
+
+
     TableIdentifier source = new TableIdentifier("original_table");
     Table table = catalog.createTable(
         org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "target_table"),
         filteredSchema,
         SparkSchemaUtil.specForTable(spark, "original_table"));
+
+    table.updateProperties().set(DEFAULT_NAME_MAPPING, NameMappingParser.toJson(nameMapping)).commit();
+
     File stagingDir = temp.newFolder("staging-dir");
     SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
+
 
     // The filter invoke the metric/dictionary row group filter in which it project schema
     // with name mapping again to match the metric read from footer.

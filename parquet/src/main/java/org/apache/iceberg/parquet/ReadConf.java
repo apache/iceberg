@@ -31,7 +31,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -64,8 +63,8 @@ class ReadConf<T> {
   @SuppressWarnings("unchecked")
   ReadConf(InputFile file, ParquetReadOptions options, Schema expectedSchema, Expression filter,
            Function<MessageType, ParquetValueReader<?>> readerFunc, Function<MessageType,
-           VectorizedReader<?>> batchedReaderFunc, NameMapping nameMapping, boolean applyNameMapping,
-           boolean reuseContainers, boolean caseSensitive, Integer bSize) {
+           VectorizedReader<?>> batchedReaderFunc, NameMapping nameMapping, boolean reuseContainers,
+           boolean caseSensitive, Integer bSize) {
     this.file = file;
     this.options = options;
     this.reader = newReader(file, options);
@@ -75,14 +74,8 @@ class ReadConf<T> {
     if (ParquetSchemaUtil.hasIds(fileSchema)) {
       typeWithIds = fileSchema;
       this.projection = ParquetSchemaUtil.pruneColumns(fileSchema, expectedSchema);
-    } else if (applyNameMapping) {
-      NameMapping actualNameMapping;
-      if (nameMapping == null) {
-        actualNameMapping = MappingUtil.create(expectedSchema);
-      } else {
-        actualNameMapping = nameMapping;
-      }
-      typeWithIds = ParquetSchemaUtil.applyNameMapping(fileSchema, actualNameMapping);
+    } else if (nameMapping != null) {
+      typeWithIds = ParquetSchemaUtil.applyNameMapping(fileSchema, nameMapping);
       this.projection = ParquetSchemaUtil.pruneColumns(typeWithIds, expectedSchema);
     } else {
       typeWithIds = ParquetSchemaUtil.addFallbackIds(fileSchema);

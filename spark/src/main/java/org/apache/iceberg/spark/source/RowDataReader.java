@@ -45,6 +45,7 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -76,14 +77,16 @@ class RowDataReader extends BaseDataReader<InternalRow> {
 
   private final Schema tableSchema;
   private final Schema expectedSchema;
+  private final NameMapping nameMapping;
   private final boolean caseSensitive;
 
   RowDataReader(
-      CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
+      CombinedScanTask task, Schema tableSchema, Schema expectedSchema, NameMapping nameMapping, FileIO fileIo,
       EncryptionManager encryptionManager, boolean caseSensitive) {
     super(task, fileIo, encryptionManager);
     this.tableSchema = tableSchema;
     this.expectedSchema = expectedSchema;
+    this.nameMapping = nameMapping;
     this.caseSensitive = caseSensitive;
   }
 
@@ -174,14 +177,14 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       FileScanTask task,
       Schema readSchema,
       Map<Integer, ?> idToConstant) {
-    return Parquet.read(location)
-        .project(readSchema)
-        .applyNameMapping()
+    Parquet.ReadBuilder builder = Parquet.read(location)
         .split(task.start(), task.length())
+        .project(readSchema)
         .createReaderFunc(fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema, idToConstant))
         .filter(task.residual())
-        .caseSensitive(caseSensitive)
-        .build();
+        .caseSensitive(caseSensitive);
+
+    return nameMapping != null ? builder.withNameMapping(nameMapping).build() : builder.build();
   }
 
   private CloseableIterable<InternalRow> newOrcIterable(

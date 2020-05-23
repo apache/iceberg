@@ -44,6 +44,8 @@ import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.broadcast.Broadcast;
@@ -63,6 +65,8 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
 
 class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushDownRequiredColumns,
     SupportsReportStatistics {
@@ -177,11 +181,12 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
   public List<InputPartition<InternalRow>> planInputPartitions() {
     String tableSchemaString = SchemaParser.toJson(table.schema());
     String expectedSchemaString = SchemaParser.toJson(lazySchema());
+    String nameMappingString = table.properties().get(DEFAULT_NAME_MAPPING);
 
     List<InputPartition<InternalRow>> readTasks = Lists.newArrayList();
     for (CombinedScanTask task : tasks()) {
       readTasks.add(
-          new ReadTask(task, tableSchemaString, expectedSchemaString, io, encryptionManager,
+          new ReadTask(task, tableSchemaString, expectedSchemaString, nameMappingString, io, encryptionManager,
               caseSensitive, localityPreferred));
     }
 
@@ -306,6 +311,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     private final CombinedScanTask task;
     private final String tableSchemaString;
     private final String expectedSchemaString;
+    private final String nameMappingString;
     private final Broadcast<FileIO> io;
     private final Broadcast<EncryptionManager> encryptionManager;
     private final boolean caseSensitive;
@@ -313,10 +319,11 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
 
     private transient Schema tableSchema = null;
     private transient Schema expectedSchema = null;
+    private transient NameMapping nameMapping = null;
     private transient String[] preferredLocations;
 
     private ReadTask(CombinedScanTask task, String tableSchemaString, String expectedSchemaString,
-                     Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
+                     String nameMappingString, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
                      boolean caseSensitive, boolean localityPreferred) {
       this.task = task;
       this.tableSchemaString = tableSchemaString;
@@ -326,11 +333,12 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       this.caseSensitive = caseSensitive;
       this.localityPreferred = localityPreferred;
       this.preferredLocations = getPreferredLocations();
+      this.nameMappingString = nameMappingString;
     }
 
     @Override
     public InputPartitionReader<InternalRow> createPartitionReader() {
-      return new RowDataReader(task, lazyTableSchema(), lazyExpectedSchema(), io.value(),
+      return new RowDataReader(task, lazyTableSchema(), lazyExpectedSchema(), lazyNameMapping(), io.value(),
         encryptionManager.value(), caseSensitive);
     }
 
@@ -351,6 +359,13 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
         this.expectedSchema = SchemaParser.fromJson(expectedSchemaString);
       }
       return expectedSchema;
+    }
+
+    private NameMapping lazyNameMapping() {
+      if (nameMapping == null && nameMappingString != null) {
+        this.nameMapping = NameMappingParser.fromJson(nameMappingString);
+      }
+      return nameMapping;
     }
 
     private String[] getPreferredLocations() {
