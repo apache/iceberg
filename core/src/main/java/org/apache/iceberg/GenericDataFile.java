@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import com.google.common.base.MoreObjects;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -66,8 +67,6 @@ class GenericDataFile
 
   // cached schema
   private transient org.apache.avro.Schema avroSchema = null;
-
-  private static final long DEFAULT_BLOCK_SIZE = 64 * 1024 * 1024;
 
   /**
    * Used by Avro reflection to instantiate this class when reading manifest files.
@@ -197,6 +196,11 @@ class GenericDataFile
   }
 
   @Override
+  public FileContent content() {
+    return FileContent.DATA;
+  }
+
+  @Override
   public CharSequence path() {
     return filePath;
   }
@@ -274,22 +278,24 @@ class GenericDataFile
     }
     switch (pos) {
       case 0:
+        Preconditions.checkState(v == null || (Integer) v == FileContent.DATA.id(),
+            "Invalid content for a DataFile: %s", v);
+        return;
+      case 1:
         // always coerce to String for Serializable
         this.filePath = v.toString();
         return;
-      case 1:
+      case 2:
         this.format = FileFormat.valueOf(v.toString());
         return;
-      case 2:
+      case 3:
         this.partitionData = (PartitionData) v;
         return;
-      case 3:
+      case 4:
         this.recordCount = (Long) v;
         return;
-      case 4:
-        this.fileSizeInBytes = (Long) v;
-        return;
       case 5:
+        this.fileSizeInBytes = (Long) v;
         return;
       case 6:
         this.columnSizes = (Map<Integer, Long>) v;
@@ -331,19 +337,17 @@ class GenericDataFile
     }
     switch (pos) {
       case 0:
-        return filePath;
+        return FileContent.DATA.id();
       case 1:
-        return format != null ? format.toString() : null;
+        return filePath;
       case 2:
-        return partitionData;
+        return format != null ? format.toString() : null;
       case 3:
-        return recordCount;
+        return partitionData;
       case 4:
-        return fileSizeInBytes;
+        return recordCount;
       case 5:
-        // block_size_in_bytes is not used. However, it is a required avro field in DataFile. So
-        // to maintain compatibility, we need to return something.
-        return DEFAULT_BLOCK_SIZE;
+        return fileSizeInBytes;
       case 6:
         return columnSizes;
       case 7:
@@ -377,7 +381,7 @@ class GenericDataFile
 
   @Override
   public int size() {
-    return 13;
+    return DataFile.getType(EMPTY_STRUCT_TYPE).fields().size();
   }
 
   @Override
