@@ -19,9 +19,6 @@
 
 package org.apache.iceberg.expressions;
 
-import java.util.Map;
-import org.apache.iceberg.Accessor;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Types;
 
 /**
@@ -38,16 +35,6 @@ public interface Unbound<T, B> {
    * @return a bound value expression
    */
   B bind(Types.StructType struct, boolean caseSensitive);
-
-  /**
-   * Bind this value expression to concrete types.
-   *
-   * @param struct input data types
-   * @param accessors the accessors for the struct like value
-   * @param caseSensitive whether binding should match columns using case sensitive resolution
-   * @return a bound value expression
-   */
-  B bind(Types.StructType struct, Map<Integer, Accessor<StructLike>> accessors, boolean caseSensitive);
 
   /**
    * @return this expression's underlying reference

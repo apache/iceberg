@@ -160,9 +160,11 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
           this.currentCloseable = reader;
 
           if (task.residual() != null && task.residual() != Expressions.alwaysTrue()) {
-            Evaluator filter = new GenericEvaluator(projection.asStruct(), task.residual(),
-                Accessors.forSchema(projection), caseSensitive);
-            this.currentIterator = Iterables.filter(reader, filter::eval).iterator();
+            Evaluator filter = new Evaluator(projection.asStruct(), task.residual(), caseSensitive);
+            this.currentIterator = Iterables.filter(reader, record -> {
+              InternalRecordWrapper wrapperRecord = new InternalRecordWrapper(record.struct()).wrap(record);
+              return filter.eval(wrapperRecord);
+            }).iterator();
           } else {
             this.currentIterator = reader.iterator();
           }

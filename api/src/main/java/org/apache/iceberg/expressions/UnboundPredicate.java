@@ -25,10 +25,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import org.apache.iceberg.Accessor;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.CharSequenceSet;
@@ -105,22 +102,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
    */
   @Override
   public Expression bind(StructType struct, boolean caseSensitive) {
-    return bind(struct, null, caseSensitive);
-  }
-
-  /**
-   * Bind this UnboundPredicate.
-   *
-   * @param struct The {@link StructType struct type} to resolve references by name.
-   * @param accessors The accessors used to access values in struct
-   * @param caseSensitive A boolean flag to control whether the bind should enforce case sensitivity.
-   * @return an {@link Expression}
-   * @throws ValidationException if literals do not match bound references, or if comparison on expression is invalid
-   */
-  @Override
-  public Expression bind(StructType struct, Map<Integer, Accessor<StructLike>> accessors, boolean caseSensitive) {
-    BoundTerm<T> bound =
-        accessors == null ? term().bind(struct, caseSensitive) : term().bind(struct, accessors, caseSensitive);
+    BoundTerm<T> bound = term().bind(struct, caseSensitive);
 
     if (literals == null) {
       return bindUnaryOperation(bound);

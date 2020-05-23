@@ -20,10 +20,7 @@
 package org.apache.iceberg.expressions;
 
 import com.google.common.base.Preconditions;
-import java.util.Map;
-import org.apache.iceberg.Accessor;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 
@@ -41,12 +38,6 @@ public class NamedReference<T> implements UnboundTerm<T>, Reference<T> {
 
   @Override
   public BoundReference<T> bind(Types.StructType struct, boolean caseSensitive) {
-    return bind(struct, null, caseSensitive);
-  }
-
-  @Override
-  public BoundReference<T> bind(Types.StructType struct, Map<Integer, Accessor<StructLike>> accessors,
-                                boolean caseSensitive) {
     Schema schema = new Schema(struct.fields());
     Types.NestedField field = caseSensitive ?
         schema.findField(name) :
@@ -55,11 +46,7 @@ public class NamedReference<T> implements UnboundTerm<T>, Reference<T> {
     ValidationException.check(field != null,
         "Cannot find field '%s' in struct: %s", name, schema.asStruct());
 
-    if (accessors != null) {
-      return new BoundReference<>(field, accessors.get(field.fieldId()));
-    } else {
-      return new BoundReference<>(field, schema.accessorForField(field.fieldId()));
-    }
+    return new BoundReference<>(field, schema.accessorForField(field.fieldId()));
   }
 
   @Override
