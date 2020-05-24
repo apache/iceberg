@@ -100,7 +100,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
       Types.NestedField structField = structFields.get(i);
       String origFieldName = structField.name();
       boolean isValidFieldName = AvroSchemaUtil.validAvroName(origFieldName);
-      String fieldName = isValidFieldName ? origFieldName : AvroSchemaUtil.sanitize(origFieldName);
+      String fieldName =  isValidFieldName ? origFieldName : AvroSchemaUtil.sanitize(origFieldName);
       Schema.Field field = new Schema.Field(
           fieldName, fieldSchemas.get(i), null,
           structField.isOptional() ? JsonProperties.NULL_VALUE : null);

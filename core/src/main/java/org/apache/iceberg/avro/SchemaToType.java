@@ -149,6 +149,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
         return Types.MapType.ofRequired(
             keyField.fieldId(), valueField.fieldId(), keyField.type(), valueField.type());
       }
+
     } else {
       // normal array
       Schema elementSchema = array.getElementType();
@@ -184,15 +185,18 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
         return Types.DecimalType.of(
             ((LogicalTypes.Decimal) logical).getPrecision(),
             ((LogicalTypes.Decimal) logical).getScale());
+
       } else if (logical instanceof LogicalTypes.Date) {
         return Types.DateType.get();
+
       } else if (
           logical instanceof LogicalTypes.TimeMillis ||
-              logical instanceof LogicalTypes.TimeMicros) {
+          logical instanceof LogicalTypes.TimeMicros) {
         return Types.TimeType.get();
+
       } else if (
           logical instanceof LogicalTypes.TimestampMillis ||
-              logical instanceof LogicalTypes.TimestampMicros) {
+          logical instanceof LogicalTypes.TimestampMicros) {
         Object adjustToUTC = primitive.getObjectProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP);
         Preconditions.checkArgument(adjustToUTC instanceof Boolean,
             "Invalid value for adjust-to-utc: %s", adjustToUTC);
@@ -201,6 +205,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
         } else {
           return Types.TimestampType.withoutZone();
         }
+
       } else if (LogicalTypes.uuid().getName().equals(name)) {
         return Types.UUIDType.get();
       }
