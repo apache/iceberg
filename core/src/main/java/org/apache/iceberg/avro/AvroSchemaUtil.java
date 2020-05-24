@@ -55,15 +55,13 @@ public class AvroSchemaUtil {
   private static final Schema.Type UNION = Schema.Type.UNION;
   private static final Schema.Type RECORD = Schema.Type.RECORD;
 
-  public static Schema convert(
-      org.apache.iceberg.Schema schema,
-      String tableName) {
+  public static Schema convert(org.apache.iceberg.Schema schema,
+                               String tableName) {
     return convert(schema, ImmutableMap.of(schema.asStruct(), tableName));
   }
 
-  public static Schema convert(
-      org.apache.iceberg.Schema schema,
-      Map<Types.StructType, String> names) {
+  public static Schema convert(org.apache.iceberg.Schema schema,
+                               Map<Types.StructType, String> names) {
     return TypeUtil.visit(schema, new TypeToSchema(names));
   }
 
@@ -102,16 +100,15 @@ public class AvroSchemaUtil {
     return new PruneColumns(selectedIds, nameMapping).rootSchema(schema);
   }
 
-  public static Schema buildAvroProjection(
-      Schema schema, org.apache.iceberg.Schema expected,
-      Map<String, String> renames) {
+  public static Schema buildAvroProjection(Schema schema, org.apache.iceberg.Schema expected,
+                                           Map<String, String> renames) {
     return AvroCustomOrderSchemaVisitor.visit(schema, new BuildAvroProjection(expected, renames));
   }
 
   public static boolean isTimestamptz(Schema schema) {
     LogicalType logicalType = schema.getLogicalType();
     if (logicalType != null && logicalType instanceof LogicalTypes.TimestampMicros) {
-      // timestamptz is adjusted isOptionSchemato UTC
+      // timestamptz is adjusted to UTC
       Object value = schema.getObjectProp(ADJUST_TO_UTC_PROP);
       if (value instanceof Boolean) {
         return (Boolean) value;
@@ -170,9 +167,8 @@ public class AvroSchemaUtil {
     return schema.getType() == RECORD && schema.getFields().size() == 2;
   }
 
-  static Schema createMap(
-      int keyId, Schema keySchema,
-      int valueId, Schema valueSchema) {
+  static Schema createMap(int keyId, Schema keySchema,
+                          int valueId, Schema valueSchema) {
     String keyValueName = "k" + keyId + "_v" + valueId;
 
     Schema.Field keyField = new Schema.Field("key", keySchema, null, (Object) null);
@@ -186,10 +182,9 @@ public class AvroSchemaUtil {
         keyValueName, null, null, false, ImmutableList.of(keyField, valueField))));
   }
 
-  static Schema createProjectionMap(
-      String recordName,
-      int keyId, String keyName, Schema keySchema,
-      int valueId, String valueName, Schema valueSchema) {
+  static Schema createProjectionMap(String recordName,
+                          int keyId, String keyName, Schema keySchema,
+                          int valueId, String valueName, Schema valueSchema) {
     String keyValueName = "k" + keyId + "_v" + valueId;
 
     Schema.Field keyField = new Schema.Field("key", keySchema, null, (Object) null);
