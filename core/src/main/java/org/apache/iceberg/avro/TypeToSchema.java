@@ -112,7 +112,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
     }
 
     recordSchema = Schema.createRecord(recordName, null, null, false, fields);
-    if (struct.isUnionSchema()) {
+    if (struct.isConvertedFromUnionSchema()) {
       recordSchema.addProp(AvroSchemaUtil.UNION_SCHEMA_TO_RECORD, true);
     }
     results.put(struct, recordSchema);

@@ -526,25 +526,25 @@ public class Types {
       return new StructType(fields, false);
     }
 
-    public static StructType of(List<NestedField> fields, boolean isUnionSchema) {
-      return new StructType(fields, isUnionSchema);
+    public static StructType of(List<NestedField> fields, boolean convertedFromUnionSchema) {
+      return new StructType(fields, convertedFromUnionSchema);
     }
 
     private final NestedField[] fields;
-    private final boolean isUnionSchema;
+    private final boolean convertedFromUnionSchema;
     // lazy values
     private transient List<NestedField> fieldList = null;
     private transient Map<String, NestedField> fieldsByName = null;
     private transient Map<String, NestedField> fieldsByLowerCaseName = null;
     private transient Map<Integer, NestedField> fieldsById = null;
 
-    private StructType(List<NestedField> fields, boolean isUnionSchema) {
+    private StructType(List<NestedField> fields, boolean convertedFromUnionSchema) {
       Preconditions.checkNotNull(fields, "Field list cannot be null");
       this.fields = new NestedField[fields.size()];
       for (int i = 0; i < this.fields.length; i += 1) {
         this.fields[i] = fields.get(i);
       }
-      this.isUnionSchema = isUnionSchema;
+      this.convertedFromUnionSchema = convertedFromUnionSchema;
     }
 
     @Override
@@ -652,10 +652,10 @@ public class Types {
     }
 
     /**
-     * @return true if struct represents union schema
+     * @return true if struct represents union schema converted to struct type
      */
-    public boolean isUnionSchema() {
-      return isUnionSchema;
+    public boolean isConvertedFromUnionSchema() {
+      return convertedFromUnionSchema;
     }
   }
 
