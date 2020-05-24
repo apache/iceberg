@@ -111,7 +111,7 @@ public class AvroSchemaUtil {
   public static boolean isTimestamptz(Schema schema) {
     LogicalType logicalType = schema.getLogicalType();
     if (logicalType != null && logicalType instanceof LogicalTypes.TimestampMicros) {
-      // timestamptz is adjusted to UTC
+      // timestamptz is adjusted isOptionSchemato UTC
       Object value = schema.getObjectProp(ADJUST_TO_UTC_PROP);
       if (value instanceof Boolean) {
         return (Boolean) value;
@@ -127,7 +127,7 @@ public class AvroSchemaUtil {
     if (schema.getType() == UNION && schema.getTypes().size() >= 2) {
       if (schema.getTypes().get(0).getType() == Schema.Type.NULL) {
         return true;
-      } else if (schema.getTypes().get(1).getType() == Schema.Type.NULL) {
+      } else if (schema.getTypes().size() == 2 && schema.getTypes().get(1).getType() == Schema.Type.NULL) {
         return true;
       }
     }
