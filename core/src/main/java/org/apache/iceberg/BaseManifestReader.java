@@ -57,7 +57,7 @@ abstract class BaseManifestReader<T, ThisT> extends CloseableGroup implements Cl
 
   protected enum FileType {
     DATA_FILES(GenericDataFile.class.getName()),
-    DELETE_FILES("...");
+    DELETE_FILES(GenericDeleteFile.class.getName());
 
     private final String fileClass;
 
