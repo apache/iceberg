@@ -25,6 +25,9 @@ import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.expressions.Binder;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -32,6 +35,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.orc.Reader;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
+import org.apache.orc.storage.ql.io.sarg.SearchArgument;
 
 /**
  * Iterable used to read rows from ORC.
@@ -43,16 +47,20 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private final Long start;
   private final Long length;
   private final Function<TypeDescription, OrcRowReader<?>> readerFunction;
+  private final Expression filter;
+  private final boolean caseSensitive;
 
   OrcIterable(InputFile file, Configuration config, Schema schema,
               Long start, Long length,
-              Function<TypeDescription, OrcRowReader<?>> readerFunction) {
+              Function<TypeDescription, OrcRowReader<?>> readerFunction, boolean caseSensitive, Expression filter) {
     this.schema = schema;
     this.readerFunction = readerFunction;
     this.file = file;
     this.start = start;
     this.length = length;
     this.config = config;
+    this.caseSensitive = caseSensitive;
+    this.filter = (filter == Expressions.alwaysTrue()) ? null : filter;
   }
 
   @SuppressWarnings("unchecked")
@@ -62,8 +70,13 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
     addCloseable(orcFileReader);
     TypeDescription readOrcSchema = ORCSchemaUtil.buildOrcProjection(schema, orcFileReader.getSchema());
 
+    SearchArgument sarg = null;
+    if (filter != null) {
+      Expression boundFilter = Binder.bind(schema.asStruct(), filter, caseSensitive);
+      sarg = ExpressionToSearchArgument.convert(boundFilter, readOrcSchema);
+    }
     Iterator<T> iterator = new OrcIterator(
-        newOrcIterator(file, readOrcSchema, start, length, orcFileReader),
+        newOrcIterator(file, readOrcSchema, start, length, orcFileReader, sarg),
         readerFunction.apply(readOrcSchema));
     return CloseableIterator.withClose(iterator);
   }
@@ -71,12 +84,13 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private static VectorizedRowBatchIterator newOrcIterator(InputFile file,
                                                            TypeDescription readerSchema,
                                                            Long start, Long length,
-                                                           Reader orcFileReader) {
+                                                           Reader orcFileReader, SearchArgument sarg) {
     final Reader.Options options = orcFileReader.options();
     if (start != null) {
       options.range(start, length);
     }
     options.schema(readerSchema);
+    options.searchArgument(sarg, new String[]{});
 
     try {
       return new VectorizedRowBatchIterator(file.location(), readerSchema, orcFileReader.rows(options));
