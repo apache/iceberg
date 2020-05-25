@@ -91,14 +91,6 @@ public class TestManifestWriterVersions {
   }
 
   @Test
-  public void testV1WriteDeleteFileToDataManifest() {
-    // v1 should never accept a DeleteFile
-    AssertHelpers.assertThrows("Should reject DeleteFile added to a data manifest",
-        IllegalArgumentException.class, "Cannot write DeleteFile to a data manifest",
-        () -> writeManifest(DELETE_FILE, 1));
-  }
-
-  @Test
   public void testV1WriteWithInheritance() throws IOException {
     ManifestFile manifest = writeAndReadManifestList(writeManifest(1), 1);
     checkManifest(manifest, 0L);
@@ -123,15 +115,6 @@ public class TestManifestWriterVersions {
 
     // v2 should use the correct sequence number by inheriting it
     checkEntry(readManifest(manifest), SEQUENCE_NUMBER, FileContent.DATA);
-  }
-
-  @Test
-  public void testV2WriteDeleteFileToDataManifest() {
-    // writing a DataFile to a delete manifest can't happen because a DataFile is not a DeleteFile
-    // but a DeleteFile is a DataFile to avoid adding a base file interface to the public API
-    AssertHelpers.assertThrows("Should reject DeleteFile added to a data manifest",
-        IllegalArgumentException.class, "Cannot write DeleteFile to a data manifest",
-        () -> writeManifest(DELETE_FILE, 2));
   }
 
   @Test
@@ -186,21 +169,21 @@ public class TestManifestWriterVersions {
     checkRewrittenEntry(readManifest(manifest2), 0L, FileContent.DATA);
   }
 
-  void checkEntry(ManifestEntry entry, Long expectedSequenceNumber, FileContent content) {
+  void checkEntry(ManifestEntry<?> entry, Long expectedSequenceNumber, FileContent content) {
     Assert.assertEquals("Status", ManifestEntry.Status.ADDED, entry.status());
     Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, entry.snapshotId());
     Assert.assertEquals("Sequence number", expectedSequenceNumber, entry.sequenceNumber());
     checkDataFile(entry.file(), content);
   }
 
-  void checkRewrittenEntry(ManifestEntry entry, Long expectedSequenceNumber, FileContent content) {
+  void checkRewrittenEntry(ManifestEntry<DataFile> entry, Long expectedSequenceNumber, FileContent content) {
     Assert.assertEquals("Status", ManifestEntry.Status.EXISTING, entry.status());
     Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, entry.snapshotId());
     Assert.assertEquals("Sequence number", expectedSequenceNumber, entry.sequenceNumber());
     checkDataFile(entry.file(), content);
   }
 
-  void checkDataFile(DataFile dataFile, FileContent content) {
+  void checkDataFile(ContentFile<?> dataFile, FileContent content) {
     // DataFile is the superclass of DeleteFile, so this method can check both
     Assert.assertEquals("Content", content, dataFile.content());
     Assert.assertEquals("Path", PATH, dataFile.path());
@@ -279,9 +262,9 @@ public class TestManifestWriterVersions {
     return writer.toManifestFile();
   }
 
-  private ManifestEntry readManifest(ManifestFile manifest) throws IOException {
-    try (CloseableIterable<ManifestEntry> reader = ManifestFiles.read(manifest, FILE_IO).entries()) {
-      List<ManifestEntry> files = Lists.newArrayList(reader);
+  private ManifestEntry<DataFile> readManifest(ManifestFile manifest) throws IOException {
+    try (CloseableIterable<ManifestEntry<DataFile>> reader = ManifestFiles.read(manifest, FILE_IO).entries()) {
+      List<ManifestEntry<DataFile>> files = Lists.newArrayList(reader);
       Assert.assertEquals("Should contain only one data file", 1, files.size());
       return files.get(0);
     }
@@ -299,10 +282,10 @@ public class TestManifestWriterVersions {
     return writer.toManifestFile();
   }
 
-  private ManifestEntry readDeleteManifest(ManifestFile manifest) throws IOException {
-    try (CloseableIterable<ManifestEntry> reader =
+  private ManifestEntry<DeleteFile> readDeleteManifest(ManifestFile manifest) throws IOException {
+    try (CloseableIterable<ManifestEntry<DeleteFile>> reader =
              ManifestFiles.readDeleteManifest(manifest, FILE_IO, null).entries()) {
-      List<ManifestEntry> entries = Lists.newArrayList(reader);
+      List<ManifestEntry<DeleteFile>> entries = Lists.newArrayList(reader);
       Assert.assertEquals("Should contain only one data file", 1, entries.size());
       return entries.get(0);
     }

@@ -331,7 +331,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         ops.metadataFileLocation(FileFormat.AVRO.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement())));
   }
 
-  protected ManifestWriter newManifestWriter(PartitionSpec spec) {
+  protected ManifestWriter<DataFile> newManifestWriter(PartitionSpec spec) {
     return ManifestFiles.write(ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
   }
 
@@ -358,7 +358,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
       Long snapshotId = null;
       long maxSnapshotId = Long.MIN_VALUE;
-      for (ManifestEntry entry : reader.entries()) {
+      for (ManifestEntry<DataFile> entry : reader.entries()) {
         if (entry.snapshotId() > maxSnapshotId) {
           maxSnapshotId = entry.snapshotId();
         }

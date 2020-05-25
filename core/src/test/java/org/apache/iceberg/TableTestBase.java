@@ -147,7 +147,7 @@ public class TableTestBase {
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId);
+    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId);
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -159,22 +159,22 @@ public class TableTestBase {
     return writer.toManifestFile();
   }
 
-  ManifestFile writeManifest(String fileName, ManifestEntry... entries) throws IOException {
+  ManifestFile writeManifest(String fileName, ManifestEntry<DataFile>... entries) throws IOException {
     return writeManifest(null, fileName, entries);
   }
 
-  ManifestFile writeManifest(Long snapshotId, ManifestEntry... entries) throws IOException {
+  ManifestFile writeManifest(Long snapshotId, ManifestEntry<DataFile>... entries) throws IOException {
     return writeManifest(snapshotId, "input.m0.avro", entries);
   }
 
-  ManifestFile writeManifest(Long snapshotId, String fileName, ManifestEntry... entries) throws IOException {
+  ManifestFile writeManifest(Long snapshotId, String fileName, ManifestEntry<DataFile>... entries) throws IOException {
     File manifestFile = temp.newFile(fileName);
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId);
+    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId);
     try {
-      for (ManifestEntry entry : entries) {
+      for (ManifestEntry<DataFile> entry : entries) {
         writer.addEntry(entry);
       }
     } finally {
@@ -189,7 +189,7 @@ public class TableTestBase {
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, null);
+    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, null);
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -201,8 +201,8 @@ public class TableTestBase {
     return writer.toManifestFile();
   }
 
-  ManifestEntry manifestEntry(ManifestEntry.Status status, Long snapshotId, DataFile file) {
-    GenericManifestEntry entry = new GenericManifestEntry(table.spec().partitionType());
+  ManifestEntry<DataFile> manifestEntry(ManifestEntry.Status status, Long snapshotId, DataFile file) {
+    GenericManifestEntry<DataFile> entry = new GenericManifestEntry<>(table.spec().partitionType());
     switch (status) {
       case ADDED:
         return entry.wrapAppend(snapshotId, file);
@@ -240,7 +240,7 @@ public class TableTestBase {
     long id = snap.snapshotId();
     Iterator<String> newPaths = paths(newFiles).iterator();
 
-    for (ManifestEntry entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
+    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
       if (sequenceNumber != null) {
         V1Assert.assertEquals("Sequence number should default to 0", 0, entry.sequenceNumber().longValue());
@@ -283,7 +283,7 @@ public class TableTestBase {
                         Iterator<Long> seqs,
                         Iterator<Long> ids,
                         Iterator<DataFile> expectedFiles) {
-    for (ManifestEntry entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
+    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
       if (seqs != null) {
@@ -303,7 +303,7 @@ public class TableTestBase {
                                       Iterator<Long> ids,
                                       Iterator<DataFile> expectedFiles,
                                       Iterator<ManifestEntry.Status> expectedStatuses) {
-    for (ManifestEntry entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
+    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
       final ManifestEntry.Status expectedStatus = expectedStatuses.next();

@@ -51,7 +51,7 @@ class InheritableMetadataFactory {
     }
 
     @Override
-    public ManifestEntry apply(ManifestEntry manifestEntry) {
+    public <F extends ContentFile<F>> ManifestEntry<F> apply(ManifestEntry<F> manifestEntry) {
       if (manifestEntry.snapshotId() == null) {
         manifestEntry.setSnapshotId(snapshotId);
       }
@@ -70,7 +70,7 @@ class InheritableMetadataFactory {
     }
 
     @Override
-    public ManifestEntry apply(ManifestEntry manifestEntry) {
+    public <F extends ContentFile<F>> ManifestEntry<F> apply(ManifestEntry<F> manifestEntry) {
       manifestEntry.setSnapshotId(snapshotId);
       return manifestEntry;
     }
@@ -81,7 +81,7 @@ class InheritableMetadataFactory {
     private EmptyInheritableMetadata() {}
 
     @Override
-    public ManifestEntry apply(ManifestEntry manifestEntry) {
+    public <F extends ContentFile<F>> ManifestEntry<F> apply(ManifestEntry<F> manifestEntry) {
       if (manifestEntry.snapshotId() == null) {
         throw new IllegalArgumentException("Entries must have explicit snapshot ids if inherited metadata is empty");
       }

@@ -31,16 +31,16 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  *
  * @param <F> Java class of files written to the manifest, either {@link DataFile} or {@link DeleteFile}.
  */
-public abstract class ManifestWriter<F extends DataFile> implements FileAppender<F> {
+public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAppender<F> {
   // stand-in for the current sequence number that will be assigned when the commit is successful
   // this is replaced when writing a manifest list by the ManifestFile wrapper
   static final long UNASSIGNED_SEQ = -1L;
 
   private final OutputFile file;
   private final int specId;
-  private final FileAppender<ManifestEntry> writer;
+  private final FileAppender<ManifestEntry<F>> writer;
   private final Long snapshotId;
-  private final GenericManifestEntry reused;
+  private final GenericManifestEntry<F> reused;
   private final PartitionSummary stats;
 
   private boolean closed = false;
@@ -57,19 +57,19 @@ public abstract class ManifestWriter<F extends DataFile> implements FileAppender
     this.specId = spec.specId();
     this.writer = newAppender(spec, file);
     this.snapshotId = snapshotId;
-    this.reused = new GenericManifestEntry(spec.partitionType());
+    this.reused = new GenericManifestEntry<>(spec.partitionType());
     this.stats = new PartitionSummary(spec);
   }
 
-  protected abstract ManifestEntry prepare(ManifestEntry entry);
+  protected abstract ManifestEntry<F> prepare(ManifestEntry<F> entry);
 
-  protected abstract FileAppender<ManifestEntry> newAppender(PartitionSpec spec, OutputFile outputFile);
+  protected abstract FileAppender<ManifestEntry<F>> newAppender(PartitionSpec spec, OutputFile outputFile);
 
   protected ManifestContent content() {
     return ManifestContent.DATA;
   }
 
-  void addEntry(ManifestEntry entry) {
+  void addEntry(ManifestEntry<F> entry) {
     switch (entry.status()) {
       case ADDED:
         addedFiles += 1;
@@ -103,7 +103,7 @@ public abstract class ManifestWriter<F extends DataFile> implements FileAppender
     addEntry(reused.wrapAppend(snapshotId, addedFile));
   }
 
-  void add(ManifestEntry entry) {
+  void add(ManifestEntry<F> entry) {
     addEntry(reused.wrapAppend(snapshotId, entry.file()));
   }
 
@@ -118,7 +118,7 @@ public abstract class ManifestWriter<F extends DataFile> implements FileAppender
     addEntry(reused.wrapExisting(fileSnapshotId, sequenceNumber, existingFile));
   }
 
-  void existing(ManifestEntry entry) {
+  void existing(ManifestEntry<F> entry) {
     addEntry(reused.wrapExisting(entry.snapshotId(), entry.sequenceNumber(), entry.file()));
   }
 
@@ -133,7 +133,7 @@ public abstract class ManifestWriter<F extends DataFile> implements FileAppender
     addEntry(reused.wrapDelete(snapshotId, deletedFile));
   }
 
-  void delete(ManifestEntry entry) {
+  void delete(ManifestEntry<F> entry) {
     // Use the current Snapshot ID for the delete. It is safe to delete the data file from disk
     // when this Snapshot has been removed or when there are no Snapshots older than this one.
     addEntry(reused.wrapDelete(snapshotId, entry.file()));
@@ -166,22 +166,20 @@ public abstract class ManifestWriter<F extends DataFile> implements FileAppender
   }
 
   static class V2Writer extends ManifestWriter<DataFile> {
-    private final V2Metadata.IndexedManifestEntry entryWrapper;
+    private final V2Metadata.IndexedManifestEntry<DataFile> entryWrapper;
 
     V2Writer(PartitionSpec spec, OutputFile file, Long snapshotId) {
       super(spec, file, snapshotId);
-      this.entryWrapper = new V2Metadata.IndexedManifestEntry(snapshotId, spec.partitionType());
+      this.entryWrapper = new V2Metadata.IndexedManifestEntry<>(snapshotId, spec.partitionType());
     }
 
     @Override
-    protected ManifestEntry prepare(ManifestEntry entry) {
-      Preconditions.checkArgument(!(entry.file() instanceof DeleteFile),
-          "Cannot write DeleteFile to a data manifest: %s", entry.file());
+    protected ManifestEntry<DataFile> prepare(ManifestEntry<DataFile> entry) {
       return entryWrapper.wrap(entry);
     }
 
     @Override
-    protected FileAppender<ManifestEntry> newAppender(PartitionSpec spec, OutputFile file) {
+    protected FileAppender<ManifestEntry<DataFile>> newAppender(PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V2Metadata.entrySchema(spec.partitionType());
       try {
         return Avro.write(file)
@@ -201,20 +199,20 @@ public abstract class ManifestWriter<F extends DataFile> implements FileAppender
   }
 
   static class V2DeleteWriter extends ManifestWriter<DeleteFile> {
-    private final V2Metadata.IndexedManifestEntry entryWrapper;
+    private final V2Metadata.IndexedManifestEntry<DeleteFile> entryWrapper;
 
     V2DeleteWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
       super(spec, file, snapshotId);
-      this.entryWrapper = new V2Metadata.IndexedManifestEntry(snapshotId, spec.partitionType());
+      this.entryWrapper = new V2Metadata.IndexedManifestEntry<>(snapshotId, spec.partitionType());
     }
 
     @Override
-    protected ManifestEntry prepare(ManifestEntry entry) {
+    protected ManifestEntry<DeleteFile> prepare(ManifestEntry<DeleteFile> entry) {
       return entryWrapper.wrap(entry);
     }
 
     @Override
-    protected FileAppender<ManifestEntry> newAppender(PartitionSpec spec, OutputFile file) {
+    protected FileAppender<ManifestEntry<DeleteFile>> newAppender(PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V2Metadata.entrySchema(spec.partitionType());
       try {
         return Avro.write(file)
@@ -247,14 +245,12 @@ public abstract class ManifestWriter<F extends DataFile> implements FileAppender
     }
 
     @Override
-    protected ManifestEntry prepare(ManifestEntry entry) {
-      Preconditions.checkArgument(!(entry.file() instanceof DeleteFile),
-          "Cannot write DeleteFile to a data manifest: %s", entry.file());
+    protected ManifestEntry<DataFile> prepare(ManifestEntry<DataFile> entry) {
       return entryWrapper.wrap(entry);
     }
 
     @Override
-    protected FileAppender<ManifestEntry> newAppender(PartitionSpec spec, OutputFile file) {
+    protected FileAppender<ManifestEntry<DataFile>> newAppender(PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V1Metadata.entrySchema(spec.partitionType());
       try {
         return Avro.write(file)

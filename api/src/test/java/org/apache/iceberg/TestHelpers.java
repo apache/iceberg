@@ -312,11 +312,6 @@ public class TestHelpers {
     }
 
     @Override
-    public FileContent content() {
-      return FileContent.DATA;
-    }
-
-    @Override
     public CharSequence path() {
       return path;
     }

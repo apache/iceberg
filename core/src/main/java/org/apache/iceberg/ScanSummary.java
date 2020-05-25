@@ -218,7 +218,7 @@ public class ScanSummary {
       TopN<String, PartitionMetrics> topN = new TopN<>(
           limit, throwIfLimited, Comparators.charSequences());
 
-      try (CloseableIterable<ManifestEntry> entries = new ManifestGroup(ops.io(), manifests)
+      try (CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(ops.io(), manifests)
           .specsById(ops.current().specsById())
           .filterData(rowFilter)
           .ignoreDeleted()
@@ -226,7 +226,7 @@ public class ScanSummary {
           .entries()) {
 
         PartitionSpec spec = table.spec();
-        for (ManifestEntry entry : entries) {
+        for (ManifestEntry<?> entry : entries) {
           Long timestamp = snapshotTimestamps.get(entry.snapshotId());
 
           // if filtering, skip timestamps that are outside the range
@@ -280,7 +280,7 @@ public class ScanSummary {
       return this;
     }
 
-    private PartitionMetrics updateFromFile(DataFile file, Long timestampMillis) {
+    private PartitionMetrics updateFromFile(ContentFile<?> file, Long timestampMillis) {
       this.fileCount += 1;
       this.recordCount += file.recordCount();
       this.totalSize += file.fileSizeInBytes();

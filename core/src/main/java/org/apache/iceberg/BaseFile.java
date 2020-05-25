@@ -39,7 +39,8 @@ import org.apache.iceberg.util.ByteBuffers;
 /**
  * Base class for both {@link DataFile} and {@link DeleteFile}.
  */
-abstract class BaseFile<ThisT> implements IndexedRecord, StructLike, SpecificData.SchemaConstructable, Serializable {
+abstract class BaseFile<F>
+    implements ContentFile<F>, IndexedRecord, StructLike, SpecificData.SchemaConstructable, Serializable {
   static final Types.StructType EMPTY_STRUCT_TYPE = Types.StructType.of();
   static final PartitionData EMPTY_PARTITION_DATA = new PartitionData(EMPTY_STRUCT_TYPE) {
     @Override
@@ -142,7 +143,7 @@ abstract class BaseFile<ThisT> implements IndexedRecord, StructLike, SpecificDat
    * @param toCopy a generic data file to copy.
    * @param fullCopy whether to copy all fields or to drop column-level stats
    */
-  BaseFile(BaseFile<ThisT> toCopy, boolean fullCopy) {
+  BaseFile(BaseFile<F> toCopy, boolean fullCopy) {
     this.content = toCopy.content;
     this.filePath = toCopy.filePath;
     this.format = toCopy.format;
@@ -342,10 +343,6 @@ abstract class BaseFile<ThisT> implements IndexedRecord, StructLike, SpecificDat
   public List<Long> splitOffsets() {
     return splitOffsets;
   }
-
-  public abstract ThisT copyWithoutStats();
-
-  public abstract ThisT copy();
 
   private static <K, V> Map<K, V> copy(Map<K, V> map) {
     if (map != null) {

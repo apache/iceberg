@@ -164,10 +164,10 @@ public class ManifestFiles {
   private static ManifestFile copyManifestInternal(int formatVersion, ManifestReader reader, OutputFile outputFile,
                                                    long snapshotId, SnapshotSummary.Builder summaryBuilder,
                                                    ManifestEntry.Status allowedEntryStatus) {
-    ManifestWriter writer = write(formatVersion, reader.spec(), outputFile, snapshotId);
+    ManifestWriter<DataFile> writer = write(formatVersion, reader.spec(), outputFile, snapshotId);
     boolean threw = true;
     try {
-      for (ManifestEntry entry : reader.entries()) {
+      for (ManifestEntry<DataFile> entry : reader.entries()) {
         Preconditions.checkArgument(
             allowedEntryStatus == entry.status(),
             "Invalid manifest entry status: %s (allowed status: %s)",

@@ -287,7 +287,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
     return activeFilesCount;
   }
 
-  private void appendEntry(ManifestEntry entry, Object key, int partitionSpecId) {
+  private void appendEntry(ManifestEntry<DataFile> entry, Object key, int partitionSpecId) {
     Preconditions.checkNotNull(entry, "Manifest entry cannot be null");
     Preconditions.checkNotNull(key, "Key cannot be null");
 
@@ -323,13 +323,13 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
 
   class WriterWrapper {
     private final PartitionSpec spec;
-    private ManifestWriter writer;
+    private ManifestWriter<DataFile> writer;
 
     WriterWrapper(PartitionSpec spec) {
       this.spec = spec;
     }
 
-    synchronized void addEntry(ManifestEntry entry) {
+    synchronized void addEntry(ManifestEntry<DataFile> entry) {
       if (writer == null) {
         writer = newManifestWriter(spec);
       } else if (writer.length() >= getManifestTargetSizeBytes()) {

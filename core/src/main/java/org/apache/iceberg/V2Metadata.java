@@ -257,19 +257,19 @@ class V2Metadata {
     );
   }
 
-  static class IndexedManifestEntry implements ManifestEntry, IndexedRecord {
+  static class IndexedManifestEntry<F extends ContentFile<F>> implements ManifestEntry<F>, IndexedRecord {
     private final org.apache.avro.Schema avroSchema;
     private final Long commitSnapshotId;
-    private final IndexedDataFile fileWrapper;
-    private ManifestEntry wrapped = null;
+    private final IndexedDataFile<?> fileWrapper;
+    private ManifestEntry<F> wrapped = null;
 
     IndexedManifestEntry(Long commitSnapshotId, Types.StructType partitionType) {
       this.avroSchema = AvroSchemaUtil.convert(entrySchema(partitionType), "manifest_entry");
       this.commitSnapshotId = commitSnapshotId;
-      this.fileWrapper = new IndexedDataFile(partitionType);
+      this.fileWrapper = new IndexedDataFile<>(partitionType);
     }
 
-    public IndexedManifestEntry wrap(ManifestEntry entry) {
+    public IndexedManifestEntry<F> wrap(ManifestEntry<F> entry) {
       this.wrapped = entry;
       return this;
     }
@@ -335,17 +335,17 @@ class V2Metadata {
     }
 
     @Override
-    public DataFile file() {
+    public F file() {
       return wrapped.file();
     }
 
     @Override
-    public ManifestEntry copy() {
+    public ManifestEntry<F> copy() {
       return wrapped.copy();
     }
 
     @Override
-    public ManifestEntry copyWithoutStats() {
+    public ManifestEntry<F> copyWithoutStats() {
       return wrapped.copyWithoutStats();
     }
   }
@@ -353,18 +353,19 @@ class V2Metadata {
   /**
    * Wrapper used to write DataFile or DeleteFile to v2 metadata.
    */
-  static class IndexedDataFile implements DataFile, DeleteFile, IndexedRecord {
+  static class IndexedDataFile<F> implements ContentFile<F>, IndexedRecord {
     private final org.apache.avro.Schema avroSchema;
     private final IndexedStructLike partitionWrapper;
-    private DataFile wrapped = null;
+    private ContentFile<F> wrapped = null;
 
     IndexedDataFile(Types.StructType partitionType) {
       this.avroSchema = AvroSchemaUtil.convert(fileType(partitionType), "data_file");
       this.partitionWrapper = new IndexedStructLike(avroSchema.getField("partition").schema());
     }
 
-    IndexedDataFile wrap(DataFile file) {
-      this.wrapped = file;
+    @SuppressWarnings("unchecked")
+    IndexedDataFile<F> wrap(ContentFile<?> file) {
+      this.wrapped = (ContentFile<F>) file;
       return this;
     }
 
@@ -477,12 +478,12 @@ class V2Metadata {
     }
 
     @Override
-    public IndexedDataFile copy() {
+    public F copy() {
       throw new UnsupportedOperationException("Cannot copy IndexedDataFile wrapper");
     }
 
     @Override
-    public IndexedDataFile copyWithoutStats() {
+    public F copyWithoutStats() {
       throw new UnsupportedOperationException("Cannot copy IndexedDataFile wrapper");
     }
   }
