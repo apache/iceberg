@@ -19,7 +19,7 @@
 
 ![](site/docs/img/Iceberg-logo.png)
 
-[![](https://travis-ci.org/apache/incubator-iceberg.svg?branch=master)](https://travis-ci.org/apache/incubator-iceberg)
+[![](https://travis-ci.org/apache/iceberg.svg?branch=master)](https://travis-ci.org/apache/iceberg)
 [![](https://badges.gitter.im/iceberg-tables/Lobby.svg)](https://gitter.im/iceberg-tables/Lobby)
 
 Apache Iceberg is a new table format for storing large, slow-moving tabular data. It is designed to improve on the de-facto standard table layout built into Hive, Presto, and Spark.

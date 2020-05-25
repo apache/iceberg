@@ -26,14 +26,14 @@ Community discussions happen primarily on the dev mailing list or on specific is
 
 ## Contributing
 
-Iceberg uses Apache's GitHub integration. The code is available at <https://github.com/apache/incubator-iceberg>
+Iceberg uses Apache's GitHub integration. The code is available at <https://github.com/apache/iceberg>
 
 The Iceberg community prefers to receive contributions as [Github pull requests][github-pr-docs].
 
 * [View open pull requests][iceberg-prs]
 * [Learn about pull requests][github-pr-docs]
 
-[iceberg-prs]: https://github.com/apache/incubator-iceberg/pulls
+[iceberg-prs]: https://github.com/apache/iceberg/pulls
 [github-pr-docs]: https://help.github.com/articles/about-pull-requests/
 
 
@@ -44,8 +44,8 @@ Issues are tracked in GitHub:
 * [View open issues][open-issues]
 * [Open a new issue][new-issue]
 
-[open-issues]: https://github.com/apache/incubator-iceberg/issues
-[new-issue]: https://github.com/apache/incubator-iceberg/issues/new
+[open-issues]: https://github.com/apache/iceberg/issues
+[new-issue]: https://github.com/apache/iceberg/issues/new
 
 
 ## Mailing Lists

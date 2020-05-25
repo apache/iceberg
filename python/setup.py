@@ -20,11 +20,11 @@ from setuptools import setup
 
 setup(
     name='iceberg',
-    maintainer='Apache Incubator Iceberg Devs',
+    maintainer='Apache Iceberg Devs',
     author_email='dev@iceberg.apache.org',
     description='Iceberg is a new table format for storing large, slow-moving tabular data',
     keywords='iceberg',
-    url='https://github.com/apache/incubator-iceberg/blob/master/README.md',
+    url='https://github.com/apache/iceberg/blob/master/README.md',
     python_requires='>=3.6',
     install_requires=['botocore',
                       'boto3',
