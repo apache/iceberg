@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.data;
+package org.apache.iceberg.spark.data.parquet.vectorized;
 
 import java.io.File;
 import java.io.IOException;
@@ -30,6 +30,9 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.spark.data.AvroDataTest;
+import org.apache.iceberg.spark.data.RandomData;
+import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -39,7 +42,7 @@ import org.junit.Assume;
 import org.junit.Ignore;
 import org.junit.Test;
 
-public class TestSparkParquetVectorizedReader extends AvroDataTest {
+public class TestParquetVectorizedReads extends AvroDataTest {
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {

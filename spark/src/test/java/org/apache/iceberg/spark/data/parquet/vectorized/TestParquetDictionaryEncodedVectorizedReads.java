@@ -17,13 +17,14 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.data;
+package org.apache.iceberg.spark.data.parquet.vectorized;
 
 import java.util.List;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.spark.data.RandomData;
 
-public class TestSparkParquetDictionaryEncodedVectorizedReader extends TestSparkParquetVectorizedReader {
+public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVectorizedReads {
   @Override
   List<GenericData.Record> generateData(Schema schema) {
     return RandomData.generateDictionaryEncodableData(schema, 100000, 0L);

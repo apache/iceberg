@@ -470,7 +470,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
     @Override
     public InputPartitionReader<ColumnarBatch> createPartitionReader() {
-      return new BatchDataReader(task, lazyTableSchema(), lazyExpectedSchema(), io.value(),
+      return new BatchDataReader(task, lazyExpectedSchema(), io.value(),
           encryptionManager.value(), caseSensitive, batchSize);
     }
   }

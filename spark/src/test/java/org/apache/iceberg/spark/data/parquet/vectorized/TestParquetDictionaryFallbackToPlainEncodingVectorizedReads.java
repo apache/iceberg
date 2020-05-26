@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.data;
+package org.apache.iceberg.spark.data.parquet.vectorized;
 
 import java.io.File;
 import java.io.IOException;
@@ -28,11 +28,12 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.spark.data.RandomData;
 
-public class TestSparkParquetFallbackToDictionaryEncodingForVectorizedReader extends TestSparkParquetVectorizedReader {
+public class TestParquetDictionaryFallbackToPlainEncodingVectorizedReads extends TestParquetVectorizedReads {
   @Override
   public List<GenericData.Record> generateData(Schema schema) {
-    return RandomData.generateListWithFallBackDictionaryEncoding(schema, 200000, 0L, 0.05f);
+    return RandomData.generateListWithDictionaryFallbackToPlainEncoding(schema, 200000, 0L, 0.05f);
   }
 
   @Override

@@ -103,13 +103,13 @@ public class RandomData {
     };
   }
 
-  public static List<Record> generateListWithFallBackDictionaryEncoding(
+  public static List<Record> generateListWithDictionaryFallbackToPlainEncoding(
       Schema schema,
       int numRecords,
       long seed,
       float fraction) {
-    FallbackDictionaryEncodedDataGenerator generator =
-        new FallbackDictionaryEncodedDataGenerator(schema, seed, numRecords, fraction);
+    DictionaryFallbackToPlainEncodingDataGenerator generator =
+        new DictionaryFallbackToPlainEncodingDataGenerator(schema, seed, numRecords, fraction);
     List<Record> records = Lists.newArrayListWithExpectedSize(numRecords);
     for (int i = 0; i < numRecords; i += 1) {
       Record rec = (Record) TypeUtil.visit(schema, generator);
@@ -626,12 +626,12 @@ public class RandomData {
     }
   }
 
-  private static class FallbackDictionaryEncodedDataGenerator extends RandomDataGenerator {
+  private static class DictionaryFallbackToPlainEncodingDataGenerator extends RandomDataGenerator {
     private final long numValues;
     private final float fraction;
     private int current;
 
-    private FallbackDictionaryEncodedDataGenerator(Schema schema, long seed, int numRecords, float fraction) {
+    private DictionaryFallbackToPlainEncodingDataGenerator(Schema schema, long seed, int numRecords, float fraction) {
       super(schema, seed);
       // for now, vectorized reads are only supported for primitive types
       this.numValues =

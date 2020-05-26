@@ -33,7 +33,7 @@ abstract class ArrowVectorAccessor {
 
   ArrowVectorAccessor(ValueVector vector) {
     this.vector = vector;
-    this.childColumns = null;
+    this.childColumns = new ArrowColumnVector[0];
   }
 
   ArrowVectorAccessor(ValueVector vector, ArrowColumnVector[] children) {
@@ -42,11 +42,9 @@ abstract class ArrowVectorAccessor {
   }
 
   final void close() {
-    if (childColumns != null) {
-      for (ArrowColumnVector column : childColumns) {
-        // Closing an ArrowColumnVector is expected to not throw any exception
-        column.close();
-      }
+    for (ArrowColumnVector column : childColumns) {
+      // Closing an ArrowColumnVector is expected to not throw any exception
+      column.close();
     }
     vector.close();
   }

@@ -20,63 +20,43 @@
 package org.apache.iceberg.spark.source;
 
 import com.google.common.base.Preconditions;
-import java.util.Iterator;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
-import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 class BatchDataReader extends BaseDataReader<ColumnarBatch> {
-  private final Schema tableSchema;
   private final Schema expectedSchema;
   private final boolean caseSensitive;
   private final int batchSize;
 
   BatchDataReader(
-      CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
+      CombinedScanTask task, Schema expectedSchema, FileIO fileIo,
       EncryptionManager encryptionManager, boolean caseSensitive, int size) {
     super(task, fileIo, encryptionManager);
-    this.tableSchema = tableSchema;
     this.expectedSchema = expectedSchema;
     this.caseSensitive = caseSensitive;
     this.batchSize = size;
   }
 
   @Override
-  Iterator<ColumnarBatch> open(FileScanTask task) {
-    // schema or rows returned by readers
-    Schema finalSchema = expectedSchema;
-    // schema needed for the projection and filtering
-    StructType sparkType = SparkSchemaUtil.convert(finalSchema);
-    Schema requiredSchema = SparkSchemaUtil.prune(tableSchema, sparkType, task.residual(), caseSensitive);
-    boolean hasExtraFilterColumns = requiredSchema.columns().size() != finalSchema.columns().size();
-    Iterator<ColumnarBatch> iter;
-    if (hasExtraFilterColumns) {
-      iter = open(task, requiredSchema);
-    } else {
-      iter = open(task, finalSchema);
-    }
-    return iter;
-  }
-
-  private Iterator<ColumnarBatch> open(FileScanTask task, Schema readSchema) {
+  CloseableIterator<ColumnarBatch> open(FileScanTask task) {
     CloseableIterable<ColumnarBatch> iter;
     InputFile location = getInputFile(task);
     Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
     if (task.file().format() == FileFormat.PARQUET) {
       iter = Parquet.read(location)
-          .project(readSchema)
+          .project(expectedSchema)
           .split(task.start(), task.length())
-          .createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(readSchema,
+          .createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(expectedSchema,
               fileSchema, batchSize))
           .filter(task.residual())
           .caseSensitive(caseSensitive)
@@ -90,7 +70,6 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
       throw new UnsupportedOperationException(
           "Format: " + task.file().format() + " not supported for batched reads");
     }
-    this.currentCloseable = iter;
     return iter.iterator();
   }
 }

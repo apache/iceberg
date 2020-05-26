@@ -44,7 +44,6 @@ public class VectorizedSparkParquetReaders {
   private VectorizedSparkParquetReaders() {
   }
 
-  @SuppressWarnings("unchecked")
   public static ColumnarBatchReader buildReader(
       Schema expectedSchema,
       MessageType fileSchema,
@@ -72,7 +71,7 @@ public class VectorizedSparkParquetReaders {
     }
 
     @Override
-    public VectorizedReader message(
+    public VectorizedReader<?> message(
             Types.StructType expected, MessageType message,
             List<VectorizedReader<?>> fieldReaders) {
       return struct(expected, message.asGroupType(), fieldReaders);

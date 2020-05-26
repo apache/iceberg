@@ -199,19 +199,20 @@ public class ArrowVectorAccessors {
   }
 
   private static class DictionaryLongAccessor extends ArrowVectorAccessor {
-
-    private final Dictionary parquetDictionary;
     private final IntVector offsetVector;
+    private final long[] decodedDictionary;
 
     DictionaryLongAccessor(IntVector vector, Dictionary dictionary) {
       super(vector);
       this.offsetVector = vector;
-      this.parquetDictionary = dictionary;
+      this.decodedDictionary = IntStream.rangeClosed(0, dictionary.getMaxId())
+          .mapToLong(dictionary::decodeToLong)
+          .toArray();
     }
 
     @Override
     final long getLong(int rowId) {
-      return parquetDictionary.decodeToLong(offsetVector.get(rowId));
+      return decodedDictionary[offsetVector.get(rowId)];
     }
   }
 
@@ -231,19 +232,21 @@ public class ArrowVectorAccessors {
   }
 
   private static class DictionaryFloatAccessor extends ArrowVectorAccessor {
-
     private final IntVector offsetVector;
-    private final Dictionary parquetDictionary;
+    private final float[] decodedDictionary;
 
     DictionaryFloatAccessor(IntVector vector, Dictionary dictionary) {
       super(vector);
-      this.parquetDictionary = dictionary;
       this.offsetVector = vector;
+      this.decodedDictionary = new float[dictionary.getMaxId() + 1];
+      for (int i = 0; i <= dictionary.getMaxId(); i++) {
+        decodedDictionary[i] = dictionary.decodeToFloat(i);
+      }
     }
 
     @Override
     final float getFloat(int rowId) {
-      return parquetDictionary.decodeToFloat(offsetVector.get(rowId));
+      return decodedDictionary[offsetVector.get(rowId)];
     }
   }
 
@@ -263,12 +266,12 @@ public class ArrowVectorAccessors {
   }
 
   private static class DictionaryDoubleAccessor extends ArrowVectorAccessor {
-    private final IntVector vector;
+    private final IntVector offsetVector;
     private final double[] decodedDictionary;
 
     DictionaryDoubleAccessor(IntVector vector, Dictionary dictionary) {
       super(vector);
-      this.vector = vector;
+      this.offsetVector = vector;
       this.decodedDictionary = IntStream.rangeClosed(0, dictionary.getMaxId())
           .mapToDouble(dictionary::decodeToDouble)
           .toArray();
@@ -276,7 +279,7 @@ public class ArrowVectorAccessors {
 
     @Override
     final double getDouble(int rowId) {
-      return decodedDictionary[vector.get(rowId)];
+      return decodedDictionary[offsetVector.get(rowId)];
     }
   }
 

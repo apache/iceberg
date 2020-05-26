@@ -30,11 +30,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -55,11 +53,6 @@ public abstract class TestReadProjection {
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
-
-  @BeforeClass
-  public static void beforeClass() {
-    TestHelpers.setArrowFlagsForVectorizedReads();
-  }
 
   @Test
   public void testFullProjection() throws Exception {
