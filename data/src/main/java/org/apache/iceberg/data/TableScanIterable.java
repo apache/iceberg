@@ -133,11 +133,13 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
     private final boolean caseSensitive;
     private Closeable currentCloseable = null;
     private Iterator<Record> currentIterator = Collections.emptyIterator();
+    private final InternalRecordWrapper recordWrapper;
 
     private ScanIterator(CloseableIterable<CombinedScanTask> tasks, boolean caseSensitive) {
       this.tasks = Lists.newArrayList(Iterables.concat(
           CloseableIterable.transform(tasks, CombinedScanTask::files))).iterator();
       this.caseSensitive = caseSensitive;
+      this.recordWrapper = new InternalRecordWrapper(projection.asStruct());
     }
 
     @Override
@@ -161,10 +163,8 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
 
           if (task.residual() != null && task.residual() != Expressions.alwaysTrue()) {
             Evaluator filter = new Evaluator(projection.asStruct(), task.residual(), caseSensitive);
-            this.currentIterator = Iterables.filter(reader, record -> {
-              InternalRecordWrapper wrapperRecord = new InternalRecordWrapper(record.struct()).wrap(record);
-              return filter.eval(wrapperRecord);
-            }).iterator();
+            this.currentIterator = Iterables.filter(reader,
+                record -> filter.eval(recordWrapper.wrap(record))).iterator();
           } else {
             this.currentIterator = reader.iterator();
           }
