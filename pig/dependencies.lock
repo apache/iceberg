@@ -1,0 +1,921 @@
+{
+    "allProcessors": {
+        "com.palantir.baseline:baseline-error-prone": {
+            "locked": "0.55.0",
+            "requested": "0.55.0"
+        }
+    },
+    "annotationProcessor": {
+        "com.palantir.baseline:baseline-error-prone": {
+            "locked": "0.55.0",
+            "requested": "0.55.0"
+        }
+    },
+    "checkstyle": {
+        "com.puppycrawl.tools:checkstyle": {
+            "locked": "8.13"
+        }
+    },
+    "compile": {
+        "com.fasterxml.jackson.core:jackson-core": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.10.2"
+        },
+        "com.fasterxml.jackson.core:jackson-databind": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.10.2"
+        },
+        "com.github.ben-manes.caffeine:caffeine": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.7.0"
+        },
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.3.9-1"
+        },
+        "com.google.guava:guava": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "28.0-jre"
+        },
+        "org.apache.avro:avro": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "1.9.2"
+        },
+        "org.apache.commons:commons-lang3": {
+            "locked": "3.9"
+        },
+        "org.apache.iceberg:iceberg-api": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-common": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-core": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-parquet": {
+            "project": true
+        },
+        "org.apache.parquet:parquet-avro": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.11.0"
+        },
+        "org.slf4j:slf4j-api": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.7.25"
+        }
+    },
+    "compileClasspath": {
+        "com.fasterxml.jackson.core:jackson-core": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.10.2"
+        },
+        "com.fasterxml.jackson.core:jackson-databind": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.10.2"
+        },
+        "com.github.ben-manes.caffeine:caffeine": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.7.0"
+        },
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.3.9-1"
+        },
+        "com.google.guava:guava": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "28.0-jre"
+        },
+        "org.apache.avro:avro": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "1.9.2"
+        },
+        "org.apache.commons:commons-lang3": {
+            "locked": "3.9"
+        },
+        "org.apache.hadoop:hadoop-client": {
+            "locked": "2.7.3"
+        },
+        "org.apache.hadoop:hadoop-mapreduce-client-core": {
+            "locked": "2.7.3"
+        },
+        "org.apache.iceberg:iceberg-api": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-common": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-core": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-parquet": {
+            "project": true
+        },
+        "org.apache.parquet:parquet-avro": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.11.0"
+        },
+        "org.apache.pig:pig": {
+            "locked": "0.14.0"
+        },
+        "org.slf4j:slf4j-api": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.7.25"
+        }
+    },
+    "compileOnly": {
+        "org.apache.hadoop:hadoop-client": {
+            "locked": "2.7.3"
+        },
+        "org.apache.hadoop:hadoop-mapreduce-client-core": {
+            "locked": "2.7.3"
+        },
+        "org.apache.pig:pig": {
+            "locked": "0.14.0"
+        }
+    },
+    "default": {
+        "com.fasterxml.jackson.core:jackson-core": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.10.2"
+        },
+        "com.fasterxml.jackson.core:jackson-databind": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.10.2"
+        },
+        "com.github.ben-manes.caffeine:caffeine": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.7.0"
+        },
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.3.9-1"
+        },
+        "com.google.guava:guava": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "28.0-jre"
+        },
+        "org.apache.avro:avro": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "1.9.2"
+        },
+        "org.apache.commons:commons-lang3": {
+            "locked": "3.9"
+        },
+        "org.apache.iceberg:iceberg-api": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-common": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-core": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-parquet": {
+            "project": true
+        },
+        "org.apache.parquet:parquet-avro": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.11.0"
+        },
+        "org.slf4j:slf4j-api": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.7.25"
+        }
+    },
+    "errorprone": {
+        "com.palantir.baseline:baseline-error-prone": {
+            "locked": "0.55.0",
+            "requested": "0.55.0"
+        }
+    },
+    "errorproneJavac": {
+        "com.google.errorprone:javac": {
+            "locked": "9+181-r4173-1",
+            "requested": "9+181-r4173-1"
+        }
+    },
+    "runtime": {
+        "com.fasterxml.jackson.core:jackson-core": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.10.2"
+        },
+        "com.fasterxml.jackson.core:jackson-databind": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.10.2"
+        },
+        "com.github.ben-manes.caffeine:caffeine": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.7.0"
+        },
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.3.9-1"
+        },
+        "com.google.guava:guava": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "28.0-jre"
+        },
+        "org.apache.avro:avro": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "1.9.2"
+        },
+        "org.apache.commons:commons-lang3": {
+            "locked": "3.9"
+        },
+        "org.apache.iceberg:iceberg-api": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-common": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-core": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-parquet": {
+            "project": true
+        },
+        "org.apache.parquet:parquet-avro": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.11.0"
+        },
+        "org.slf4j:slf4j-api": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.7.25"
+        }
+    },
+    "runtimeClasspath": {
+        "com.fasterxml.jackson.core:jackson-core": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.10.2"
+        },
+        "com.fasterxml.jackson.core:jackson-databind": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.10.2"
+        },
+        "com.github.ben-manes.caffeine:caffeine": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.7.0"
+        },
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.3.9-1"
+        },
+        "com.google.guava:guava": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "28.0-jre"
+        },
+        "org.apache.avro:avro": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "1.9.2"
+        },
+        "org.apache.commons:commons-lang3": {
+            "locked": "3.9"
+        },
+        "org.apache.iceberg:iceberg-api": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-common": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-core": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-parquet": {
+            "project": true
+        },
+        "org.apache.parquet:parquet-avro": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.11.0"
+        },
+        "org.slf4j:slf4j-api": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.7.25"
+        }
+    },
+    "testAnnotationProcessor": {
+        "com.palantir.baseline:baseline-error-prone": {
+            "locked": "0.55.0",
+            "requested": "0.55.0"
+        }
+    },
+    "testCompile": {
+        "com.fasterxml.jackson.core:jackson-core": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.10.2"
+        },
+        "com.fasterxml.jackson.core:jackson-databind": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.10.2"
+        },
+        "com.github.ben-manes.caffeine:caffeine": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.7.0"
+        },
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.3.9-1"
+        },
+        "com.google.guava:guava": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "28.0-jre"
+        },
+        "junit:junit": {
+            "locked": "4.12"
+        },
+        "org.apache.avro:avro": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "1.9.2"
+        },
+        "org.apache.commons:commons-lang3": {
+            "locked": "3.9"
+        },
+        "org.apache.hadoop:hadoop-client": {
+            "locked": "2.7.3"
+        },
+        "org.apache.hadoop:hadoop-common": {
+            "locked": "2.7.3"
+        },
+        "org.apache.hadoop:hadoop-hdfs": {
+            "locked": "2.7.3"
+        },
+        "org.apache.hadoop:hadoop-mapreduce-client-core": {
+            "locked": "2.7.3"
+        },
+        "org.apache.hadoop:hadoop-minicluster": {
+            "locked": "2.7.3"
+        },
+        "org.apache.iceberg:iceberg-api": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-common": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-core": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-parquet": {
+            "project": true
+        },
+        "org.apache.parquet:parquet-avro": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.11.0"
+        },
+        "org.apache.pig:pig": {
+            "locked": "0.14.0"
+        },
+        "org.mockito:mockito-core": {
+            "locked": "1.10.19"
+        },
+        "org.slf4j:slf4j-api": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.7.25"
+        },
+        "org.slf4j:slf4j-simple": {
+            "locked": "1.7.25"
+        }
+    },
+    "testCompileClasspath": {
+        "com.fasterxml.jackson.core:jackson-core": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.10.2"
+        },
+        "com.fasterxml.jackson.core:jackson-databind": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.10.2"
+        },
+        "com.github.ben-manes.caffeine:caffeine": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.7.0"
+        },
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.3.9-1"
+        },
+        "com.google.guava:guava": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "28.0-jre"
+        },
+        "junit:junit": {
+            "locked": "4.12"
+        },
+        "org.apache.avro:avro": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "1.9.2"
+        },
+        "org.apache.commons:commons-lang3": {
+            "locked": "3.9"
+        },
+        "org.apache.hadoop:hadoop-client": {
+            "locked": "2.7.3"
+        },
+        "org.apache.hadoop:hadoop-common": {
+            "locked": "2.7.3"
+        },
+        "org.apache.hadoop:hadoop-hdfs": {
+            "locked": "2.7.3"
+        },
+        "org.apache.hadoop:hadoop-mapreduce-client-core": {
+            "locked": "2.7.3"
+        },
+        "org.apache.hadoop:hadoop-minicluster": {
+            "locked": "2.7.3"
+        },
+        "org.apache.iceberg:iceberg-api": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-common": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-core": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-parquet": {
+            "project": true
+        },
+        "org.apache.parquet:parquet-avro": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.11.0"
+        },
+        "org.apache.pig:pig": {
+            "locked": "0.14.0"
+        },
+        "org.mockito:mockito-core": {
+            "locked": "1.10.19"
+        },
+        "org.slf4j:slf4j-api": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.7.25"
+        },
+        "org.slf4j:slf4j-simple": {
+            "locked": "1.7.25"
+        }
+    },
+    "testRuntime": {
+        "com.fasterxml.jackson.core:jackson-core": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.10.2"
+        },
+        "com.fasterxml.jackson.core:jackson-databind": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.10.2"
+        },
+        "com.github.ben-manes.caffeine:caffeine": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.7.0"
+        },
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.3.9-1"
+        },
+        "com.google.guava:guava": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "28.0-jre"
+        },
+        "junit:junit": {
+            "locked": "4.12"
+        },
+        "org.apache.avro:avro": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "1.9.2"
+        },
+        "org.apache.commons:commons-lang3": {
+            "locked": "3.9"
+        },
+        "org.apache.hadoop:hadoop-client": {
+            "locked": "2.7.3"
+        },
+        "org.apache.hadoop:hadoop-common": {
+            "locked": "2.7.3"
+        },
+        "org.apache.hadoop:hadoop-hdfs": {
+            "locked": "2.7.3"
+        },
+        "org.apache.hadoop:hadoop-mapreduce-client-core": {
+            "locked": "2.7.3"
+        },
+        "org.apache.hadoop:hadoop-minicluster": {
+            "locked": "2.7.3"
+        },
+        "org.apache.iceberg:iceberg-api": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-common": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-core": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-parquet": {
+            "project": true
+        },
+        "org.apache.parquet:parquet-avro": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.11.0"
+        },
+        "org.apache.pig:pig": {
+            "locked": "0.14.0"
+        },
+        "org.mockito:mockito-core": {
+            "locked": "1.10.19"
+        },
+        "org.slf4j:slf4j-api": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.7.25"
+        },
+        "org.slf4j:slf4j-simple": {
+            "locked": "1.7.25"
+        }
+    },
+    "testRuntimeClasspath": {
+        "com.fasterxml.jackson.core:jackson-core": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.10.2"
+        },
+        "com.fasterxml.jackson.core:jackson-databind": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.10.2"
+        },
+        "com.github.ben-manes.caffeine:caffeine": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "2.7.0"
+        },
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.3.9-1"
+        },
+        "com.google.guava:guava": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "28.0-jre"
+        },
+        "junit:junit": {
+            "locked": "4.12"
+        },
+        "org.apache.avro:avro": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "locked": "1.9.2"
+        },
+        "org.apache.commons:commons-lang3": {
+            "locked": "3.9"
+        },
+        "org.apache.hadoop:hadoop-client": {
+            "locked": "2.7.3"
+        },
+        "org.apache.hadoop:hadoop-common": {
+            "locked": "2.7.3"
+        },
+        "org.apache.hadoop:hadoop-hdfs": {
+            "locked": "2.7.3"
+        },
+        "org.apache.hadoop:hadoop-mapreduce-client-core": {
+            "locked": "2.7.3"
+        },
+        "org.apache.hadoop:hadoop-minicluster": {
+            "locked": "2.7.3"
+        },
+        "org.apache.iceberg:iceberg-api": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-common": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-core"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-core": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "project": true
+        },
+        "org.apache.iceberg:iceberg-parquet": {
+            "project": true
+        },
+        "org.apache.parquet:parquet-avro": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.11.0"
+        },
+        "org.apache.pig:pig": {
+            "locked": "0.14.0"
+        },
+        "org.mockito:mockito-core": {
+            "locked": "1.10.19"
+        },
+        "org.slf4j:slf4j-api": {
+            "firstLevelTransitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-parquet"
+            ],
+            "locked": "1.7.25"
+        },
+        "org.slf4j:slf4j-simple": {
+            "locked": "1.7.25"
+        }
+    }
+}

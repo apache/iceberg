@@ -1,0 +1,7 @@
+{
+    "baseline": {
+        "com.palantir.baseline:gradle-baseline-java-config": {
+            "locked": "0.55.0"
+        }
+    }
+}
