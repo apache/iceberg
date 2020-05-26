@@ -56,6 +56,7 @@ import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -456,6 +457,7 @@ public class TestLocalScan {
 
   @Test
   public void testFilterWithDateAndTimestamp() throws IOException {
+    Assume.assumeFalse(format == FileFormat.ORC);
     Schema schema = new Schema(
         required(1, "timestamp_with_zone", Types.TimestampType.withZone()),
         required(2, "timestamp_without_zone", Types.TimestampType.withoutZone()),
