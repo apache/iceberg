@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.hadoop;
 
-import com.google.common.collect.Lists;
-import com.google.common.io.Files;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -37,6 +35,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TestTables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.io.Files;
 import org.apache.iceberg.types.Types;
 import org.junit.Before;
 import org.junit.Rule;

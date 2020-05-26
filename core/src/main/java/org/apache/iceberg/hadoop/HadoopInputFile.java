@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.hadoop;
 
-import com.google.common.base.Preconditions;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import org.apache.hadoop.conf.Configuration;
@@ -30,6 +29,7 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * {@link InputFile} implementation using the Hadoop {@link FileSystem} API.

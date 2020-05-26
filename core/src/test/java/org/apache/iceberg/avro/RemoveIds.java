@@ -19,10 +19,10 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.collect.Lists;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class RemoveIds extends AvroSchemaVisitor<Schema> {
   @Override

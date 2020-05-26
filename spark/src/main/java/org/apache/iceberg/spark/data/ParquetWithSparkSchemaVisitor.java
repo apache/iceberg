@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.spark.data;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
 import java.util.Deque;
 import java.util.List;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.OriginalType;

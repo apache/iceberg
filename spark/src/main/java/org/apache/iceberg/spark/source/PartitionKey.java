@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.source;
 
-import com.google.common.collect.Maps;
 import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -29,6 +28,7 @@ import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Type;

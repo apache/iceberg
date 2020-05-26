@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.data.avro;
 
-import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.util.List;
 import org.apache.avro.LogicalType;
@@ -32,6 +31,7 @@ import org.apache.iceberg.avro.AvroSchemaVisitor;
 import org.apache.iceberg.avro.LogicalMap;
 import org.apache.iceberg.avro.ValueWriter;
 import org.apache.iceberg.avro.ValueWriters;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class DataWriter<T> implements DatumWriter<T> {
   private ValueWriter<T> writer = null;

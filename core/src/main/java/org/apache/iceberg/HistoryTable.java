@@ -19,12 +19,12 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 

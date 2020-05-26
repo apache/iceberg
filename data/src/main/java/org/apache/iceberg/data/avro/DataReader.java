@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.data.avro;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.MapMaker;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
@@ -37,6 +35,8 @@ import org.apache.iceberg.avro.AvroSchemaWithTypeVisitor;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 

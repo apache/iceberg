@@ -19,10 +19,10 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Iterables;
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;

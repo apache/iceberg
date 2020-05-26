@@ -19,10 +19,10 @@
 
 package org.apache.iceberg.mapping;
 
-import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableList;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 /**
  * Represents a mapping from external schema names to Iceberg type IDs.

@@ -19,9 +19,6 @@
 
 package org.apache.iceberg.spark.source;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
@@ -32,6 +29,9 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.sources.v2.reader.InputPartitionReader;
 
@@ -40,6 +40,7 @@ import org.apache.spark.sql.sources.v2.reader.InputPartitionReader;
  *
  * @param <T> is the Java class returned by this reader whose objects contain one or more rows.
  */
+@SuppressWarnings("checkstyle:VisibilityModifier")
 abstract class BaseDataReader<T> implements InputPartitionReader<T> {
   private final Iterator<FileScanTask> tasks;
   private final FileIO fileIo;

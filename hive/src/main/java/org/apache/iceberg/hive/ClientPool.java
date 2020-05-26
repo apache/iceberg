@@ -19,10 +19,10 @@
 
 package org.apache.iceberg.hive;
 
-import com.google.common.base.Preconditions;
 import java.io.Closeable;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

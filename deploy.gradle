@@ -57,7 +57,11 @@ subprojects {
   publishing {
     publications {
       apache(MavenPublication) {
-        from components.java
+        if (tasks.matching({task -> task.name == 'shadowJar'}).isEmpty()) {
+          from components.java
+        } else {
+          project.shadow.component(it)
+        }
 
         artifact sourceJar
         artifact javadocJar

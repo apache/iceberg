@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.data;
 
-import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -33,6 +32,7 @@ import org.apache.avro.io.Decoder;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;

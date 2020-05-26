@@ -19,8 +19,8 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
 import org.apache.iceberg.BaseTransaction.TransactionType;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public final class Transactions {
   private Transactions() {}

@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
@@ -34,6 +33,7 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.Encoder;
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.TypeUtil;
 
 public class ValueWriters {

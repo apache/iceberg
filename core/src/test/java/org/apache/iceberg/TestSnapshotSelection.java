@@ -19,10 +19,10 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;

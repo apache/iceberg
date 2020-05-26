@@ -19,8 +19,8 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Maps;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
 

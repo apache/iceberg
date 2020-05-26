@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.data;
 
-import com.google.common.collect.Lists;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -29,6 +28,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.Assert;
 

@@ -19,21 +19,21 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static com.google.common.collect.Iterators.concat;
+import static org.apache.iceberg.relocated.com.google.common.collect.Iterators.concat;
 
 @RunWith(Parameterized.class)
 public class TestMergeAppend extends TableTestBase {

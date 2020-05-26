@@ -19,12 +19,12 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.ImmutableMap;
 import java.util.Map;
 import org.apache.iceberg.MetricsModes.Counts;
 import org.apache.iceberg.MetricsModes.Full;
 import org.apache.iceberg.MetricsModes.None;
 import org.apache.iceberg.MetricsModes.Truncate;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;

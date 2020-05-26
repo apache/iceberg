@@ -19,9 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -37,6 +34,9 @@ import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericFixed;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.BinaryType;

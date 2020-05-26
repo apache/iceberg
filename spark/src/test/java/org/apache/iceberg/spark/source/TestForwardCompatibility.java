@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.source;
 
-import com.google.common.collect.Lists;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -41,6 +40,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;

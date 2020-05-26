@@ -19,12 +19,12 @@
 
 package org.apache.iceberg.types;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class IndexParents extends TypeUtil.SchemaVisitor<Map<Integer, Integer>> {
   private final Map<Integer, Integer> idToParent = Maps.newHashMap();

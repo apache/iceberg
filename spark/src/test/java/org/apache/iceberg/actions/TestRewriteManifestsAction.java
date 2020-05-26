@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.actions;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -33,6 +31,8 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;

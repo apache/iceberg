@@ -19,11 +19,11 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Joiner;
-import com.google.common.base.MoreObjects;
-import com.google.common.collect.ImmutableList;
 import java.util.Collection;
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class BaseCombinedScanTask implements CombinedScanTask {
   private final List<FileScanTask> tasks;
