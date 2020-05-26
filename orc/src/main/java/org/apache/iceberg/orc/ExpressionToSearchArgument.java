@@ -53,6 +53,7 @@ class ExpressionToSearchArgument extends ExpressionVisitors.BoundVisitor<Express
 
   // Currently every predicate in ORC requires a PredicateLeaf.Type field which is not available for these Iceberg types
   private static final Set<TypeID> UNSUPPORTED_TYPES = ImmutableSet.of(
+      TypeID.TIMESTAMP, // Temporarily disable filters on Timestamp columns due to ORC-611
       TypeID.BINARY,
       TypeID.FIXED,
       TypeID.UUID,
@@ -254,8 +255,10 @@ class ExpressionToSearchArgument extends ExpressionVisitors.BoundVisitor<Express
         return Date.valueOf(LocalDate.ofEpochDay((Integer) icebergLiteral));
       case TIMESTAMP:
         long microsFromEpoch = (Long) icebergLiteral;
-        return Timestamp.from(Instant.ofEpochSecond(Math.floorDiv(microsFromEpoch, 1_000_000),
-            (microsFromEpoch % 1_000_000) * 1_000));
+        return Timestamp.from(Instant.ofEpochSecond(
+            Math.floorDiv(microsFromEpoch, 1_000_000),
+            Math.floorMod(microsFromEpoch, 1_000_000) * 1_000
+        ));
       case DECIMAL:
         return new HiveDecimalWritable(HiveDecimal.create((BigDecimal) icebergLiteral, false));
       default:
