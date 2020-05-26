@@ -26,6 +26,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 abstract class ManifestListWriter implements FileAppender<ManifestFile> {
@@ -114,6 +115,8 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
 
     @Override
     protected ManifestFile prepare(ManifestFile manifest) {
+      Preconditions.checkArgument(manifest.content() == ManifestContent.DATA,
+          "Cannot store delete manifests in a v1 table");
       return wrapper.wrap(manifest);
     }
 

@@ -46,6 +46,7 @@ public class GenericManifestFile
   private String manifestPath = null;
   private Long length = null;
   private int specId = -1;
+  private ManifestContent content = ManifestContent.DATA;
   private long sequenceNumber = 0;
   private long minSequenceNumber = 0;
   private Long snapshotId = null;
@@ -101,7 +102,7 @@ public class GenericManifestFile
     this.fromProjectionPos = null;
   }
 
-  public GenericManifestFile(String path, long length, int specId,
+  public GenericManifestFile(String path, long length, int specId, ManifestContent content,
                              long sequenceNumber, long minSequenceNumber, Long snapshotId,
                              int addedFilesCount, long addedRowsCount, int existingFilesCount,
                              long existingRowsCount, int deletedFilesCount, long deletedRowsCount,
@@ -110,6 +111,7 @@ public class GenericManifestFile
     this.manifestPath = path;
     this.length = length;
     this.specId = specId;
+    this.content = content;
     this.sequenceNumber = sequenceNumber;
     this.minSequenceNumber = minSequenceNumber;
     this.snapshotId = snapshotId;
@@ -133,6 +135,7 @@ public class GenericManifestFile
     this.manifestPath = toCopy.manifestPath;
     this.length = toCopy.length;
     this.specId = toCopy.specId;
+    this.content = toCopy.content;
     this.sequenceNumber = toCopy.sequenceNumber;
     this.minSequenceNumber = toCopy.minSequenceNumber;
     this.snapshotId = toCopy.snapshotId;
@@ -178,6 +181,11 @@ public class GenericManifestFile
   @Override
   public int partitionSpecId() {
     return specId;
+  }
+
+  @Override
+  public ManifestContent content() {
+    return content;
   }
 
   @Override
@@ -255,24 +263,26 @@ public class GenericManifestFile
       case 2:
         return specId;
       case 3:
-        return sequenceNumber;
+        return content.id();
       case 4:
-        return minSequenceNumber;
+        return sequenceNumber;
       case 5:
-        return snapshotId;
+        return minSequenceNumber;
       case 6:
-        return addedFilesCount;
+        return snapshotId;
       case 7:
-        return existingFilesCount;
+        return addedFilesCount;
       case 8:
-        return deletedFilesCount;
+        return existingFilesCount;
       case 9:
-        return addedRowsCount;
+        return deletedFilesCount;
       case 10:
-        return existingRowsCount;
+        return addedRowsCount;
       case 11:
-        return deletedRowsCount;
+        return existingRowsCount;
       case 12:
+        return deletedRowsCount;
+      case 13:
         return partitions;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
@@ -299,33 +309,36 @@ public class GenericManifestFile
         this.specId = (Integer) value;
         return;
       case 3:
-        this.sequenceNumber = value != null ? (Long) value : 0;
+        this.content = value != null ? ManifestContent.values()[(Integer) value] : ManifestContent.DATA;
         return;
       case 4:
-        this.minSequenceNumber = value != null ? (Long) value : 0;
+        this.sequenceNumber = value != null ? (Long) value : 0;
         return;
       case 5:
-        this.snapshotId = (Long) value;
+        this.minSequenceNumber = value != null ? (Long) value : 0;
         return;
       case 6:
-        this.addedFilesCount = (Integer) value;
+        this.snapshotId = (Long) value;
         return;
       case 7:
-        this.existingFilesCount = (Integer) value;
+        this.addedFilesCount = (Integer) value;
         return;
       case 8:
-        this.deletedFilesCount = (Integer) value;
+        this.existingFilesCount = (Integer) value;
         return;
       case 9:
-        this.addedRowsCount = (Long) value;
+        this.deletedFilesCount = (Integer) value;
         return;
       case 10:
-        this.existingRowsCount = (Long) value;
+        this.addedRowsCount = (Long) value;
         return;
       case 11:
-        this.deletedRowsCount = (Long) value;
+        this.existingRowsCount = (Long) value;
         return;
       case 12:
+        this.deletedRowsCount = (Long) value;
+        return;
+      case 13:
         this.partitions = (List<PartitionFieldSummary>) value;
         return;
       default:
@@ -393,7 +406,7 @@ public class GenericManifestFile
         this.manifestFile = new GenericManifestFile((GenericManifestFile) toCopy);
       } else {
         this.manifestFile = new GenericManifestFile(
-            toCopy.path(), toCopy.length(), toCopy.partitionSpecId(),
+            toCopy.path(), toCopy.length(), toCopy.partitionSpecId(), toCopy.content(),
             toCopy.sequenceNumber(), toCopy.minSequenceNumber(), toCopy.snapshotId(),
             toCopy.addedFilesCount(), toCopy.addedRowsCount(), toCopy.existingFilesCount(),
             toCopy.existingRowsCount(), toCopy.deletedFilesCount(), toCopy.deletedRowsCount(),

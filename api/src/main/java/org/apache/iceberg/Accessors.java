@@ -178,7 +178,7 @@ public class Accessors {
     if (isOptional) {
       // the wrapped position handles null layers
       return new WrappedPositionAccessor(pos, accessor);
-    } else if (accessor instanceof PositionAccessor) {
+    } else if (accessor.getClass() == PositionAccessor.class) {
       return new Position2Accessor(pos, (PositionAccessor) accessor);
     } else if (accessor instanceof Position2Accessor) {
       return new Position3Accessor(pos, (Position2Accessor) accessor);

@@ -75,7 +75,7 @@ subprojects {
 
         groupId = 'org.apache.iceberg'
         pom {
-          name = 'Apache Iceberg (incubating)'
+          name = 'Apache Iceberg'
           description = 'A table format for huge analytic datasets'
           url = 'https://iceberg.apache.org'
           licenses {

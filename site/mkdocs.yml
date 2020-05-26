@@ -17,7 +17,7 @@
 # under the License.
 #
 
-site_name: Apache Iceberg (incubating)
+site_name: Apache Iceberg
 site_description: A table format for large, slow-moving tabular data
 
 remote_name: apache
@@ -44,7 +44,6 @@ nav:
   - Project:
     - Community: community.md
     - Releases: releases.md
-    - Disclaimer: disclaimer.md
     - Trademarks: trademarks.md
     - How to Release: how-to-release.md
   - User docs:

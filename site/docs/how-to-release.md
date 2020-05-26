@@ -36,13 +36,13 @@ For more information, see the Gradle [signing documentation](https://docs.gradle
 To create the source release artifacts, run the `source-release.sh` script with the release version and release candidate number:
 
 ```bash
-dev/source-release.sh 0.7.0 0
+dev/source-release.sh 0.8.1 0
 ```
 ```
-Preparing source for apache-iceberg-0.7.0-incubating-rc0
+Preparing source for apache-iceberg-0.8.1-rc0
 ...
 Success! The release candidate is available here:
-  https://dist.apache.org/repos/dist/dev/incubator/iceberg/apache-iceberg-0.7.0-incubating-rc0/
+  https://dist.apache.org/repos/dist/dev/incubator/iceberg/apache-iceberg-0.8.1-rc0/
 
 Commit SHA1: 4b4716c76559b3cdf3487e6b60ab52950241989b
 ```
@@ -60,8 +60,8 @@ Convenience binaries are created using the source release tarball from in the la
 Untar the source release and go into the release directory:
 
 ```bash
-tar xzf apache-iceberg-0.7.0-incubating.tar.gz
-cd apache-iceberg-0.7.0-incubating
+tar xzf apache-iceberg-0.8.1.tar.gz
+cd apache-iceberg-0.8.1
 ```
 
 To build and publish the convenience binaries, run the `dev/stage-binaries.sh` script. This will push to a release staging repository.
@@ -76,7 +76,7 @@ Next, you need to close the staging repository:
 2. In the menu on the left, choose "Staging Repositories"
 3. Select the Iceberg repository
 4. At the top, select "Close" and follow the instructions
-    * In the comment field use "Apache Iceberg (incubating) &lt;version&gt; RC&lt;num&gt;"
+    * In the comment field use "Apache Iceberg &lt;version&gt; RC&lt;num&gt;"
 
 ### Start a VOTE thread
 

@@ -100,11 +100,13 @@ public class AllEntriesTable extends BaseMetadataTable {
     protected CloseableIterable<FileScanTask> planFiles(
         TableOperations ops, Snapshot snapshot, Expression rowFilter, boolean caseSensitive, boolean colStats) {
       CloseableIterable<ManifestFile> manifests = AllDataFilesTable.allManifestFiles(ops.current().snapshots());
+      Schema fileSchema = new Schema(schema().findType("data_file").asStructType().fields());
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
+      ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(rowFilter);
 
-      return CloseableIterable.transform(manifests, manifest -> new BaseFileScanTask(
-          DataFiles.fromManifest(manifest), schemaString, specString, ResidualEvaluator.unpartitioned(rowFilter)));
+      return CloseableIterable.transform(manifests, manifest -> new ManifestEntriesTable.ManifestReadTask(
+          ops.io(), manifest, fileSchema, schemaString, specString, residuals));
     }
   }
 }

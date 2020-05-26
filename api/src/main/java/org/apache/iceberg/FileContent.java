@@ -17,20 +17,23 @@
  * under the License.
  */
 
-package org.apache.iceberg.orc;
+package org.apache.iceberg;
 
-import org.apache.orc.storage.ql.exec.vector.ColumnVector;
+/**
+ * Content type stored in a file, one of DATA, POSITION_DELETES, or EQUALITY_DELETES.
+ */
+public enum FileContent {
+  DATA(0),
+  POSITION_DELETES(1),
+  EQUALITY_DELETES(2);
 
+  private final int id;
 
-public interface OrcValueReader<T> {
-  default T read(ColumnVector vector, int row) {
-    int rowIndex = vector.isRepeating ? 0 : row;
-    if (!vector.noNulls && vector.isNull[rowIndex]) {
-      return null;
-    } else {
-      return nonNullRead(vector, rowIndex);
-    }
+  FileContent(int id) {
+    this.id = id;
   }
 
-  T nonNullRead(ColumnVector vector, int row);
+  public int id() {
+    return id;
+  }
 }

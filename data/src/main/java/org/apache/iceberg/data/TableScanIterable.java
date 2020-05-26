@@ -113,7 +113,8 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
         ORC.ReadBuilder orc = ORC.read(input)
                 .project(projection)
                 .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(projection, fileSchema))
-                .split(task.start(), task.length());
+                .split(task.start(), task.length())
+                .filter(task.residual());
 
         return orc.build();
 

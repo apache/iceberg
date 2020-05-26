@@ -452,7 +452,6 @@ project(':iceberg-spark-runtime') {
     from(projectDir) {
       include 'LICENSE'
       include 'NOTICE'
-      include 'DISCLAIMER'
     }
 
     // Relocate dependencies to avoid conflicts
