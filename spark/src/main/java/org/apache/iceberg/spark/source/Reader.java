@@ -126,7 +126,9 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       String scheme = "no_exist";
       try {
         Configuration conf = new Configuration(SparkSession.active().sparkContext().hadoopConfiguration());
-        // merge hadoop config passed as options
+        // merge hadoop config set on table
+        mergeIcebergHadoopConfs(conf, table.properties());
+        // merge hadoop config passed as options and overwrite the one on table
         mergeIcebergHadoopConfs(conf, options.asMap());
         FileSystem fs = new Path(table.location()).getFileSystem(conf);
         scheme = fs.getScheme().toLowerCase(Locale.ENGLISH);
