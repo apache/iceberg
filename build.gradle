@@ -45,6 +45,8 @@ if (JavaVersion.current() != JavaVersion.VERSION_1_8) {
   throw new GradleException("This build must be run with Java 8")
 }
 
+apply from: 'jmh.gradle'
+
 dependencyRecommendations {
   propertiesFile file: file('versions.props')
 }
@@ -558,5 +560,4 @@ String getJavadocVersion() {
 apply from: 'baseline.gradle'
 apply from: 'deploy.gradle'
 apply from: 'tasks.gradle'
-apply from: 'jmh.gradle'
 
