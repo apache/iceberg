@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -124,8 +125,12 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     if (io.getValue() instanceof HadoopFileIO) {
       String scheme = "no_exist";
       try {
-        FileSystem fs = new Path(table.location()).getFileSystem(
-            SparkSession.active().sparkContext().hadoopConfiguration());
+        Configuration conf = new Configuration(SparkSession.active().sparkContext().hadoopConfiguration());
+        // merge hadoop config set on table
+        mergeIcebergHadoopConfs(conf, table.properties());
+        // merge hadoop config passed as options and overwrite the one on table
+        mergeIcebergHadoopConfs(conf, options.asMap());
+        FileSystem fs = new Path(table.location()).getFileSystem(conf);
         scheme = fs.getScheme().toLowerCase(Locale.ENGLISH);
       } catch (IOException ioe) {
         LOG.warn("Failed to get Hadoop Filesystem", ioe);
@@ -242,6 +247,13 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     }
 
     return new Stats(sizeInBytes, numRows);
+  }
+
+  private static void mergeIcebergHadoopConfs(
+      Configuration baseConf, Map<String, String> options) {
+    options.keySet().stream()
+        .filter(key -> key.startsWith("hadoop."))
+        .forEach(key -> baseConf.set(key.replaceFirst("hadoop.", ""), options.get(key)));
   }
 
   private List<CombinedScanTask> tasks() {
