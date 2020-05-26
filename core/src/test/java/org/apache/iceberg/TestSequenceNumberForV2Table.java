@@ -37,24 +37,6 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
   }
 
   @Test
-  public void testFastAppend() throws IOException {
-    table.newFastAppend().appendFile(FILE_A).commit();
-    ManifestFile manifestFile = table.currentSnapshot().manifests().get(0);
-    validateManifestEntries(manifestFile, 1, files(FILE_A), seqs(1));
-
-    table.newFastAppend().appendFile(FILE_B).commit();
-    Assert.assertEquals(2, table.currentSnapshot().sequenceNumber());
-    manifestFile = table.currentSnapshot().manifests().stream()
-        .filter(manifest -> manifest.snapshotId() == table.currentSnapshot().snapshotId())
-        .collect(Collectors.toList()).get(0);
-    validateManifestEntries(manifestFile, 2, files(FILE_B), seqs(2));
-
-    manifestFile = writeManifest(FILE_C, FILE_D);
-    table.newFastAppend().appendManifest(manifestFile).commit();
-    validateDataFiles(files(FILE_A, FILE_B, FILE_C, FILE_D), seqs(1, 2, 3, 3));
-  }
-
-  @Test
   public void testMergeAppend() throws IOException {
     table.newAppend().appendFile(FILE_A).commit();
     ManifestFile manifestFile = table.currentSnapshot().manifests().get(0);
@@ -273,6 +255,8 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
 
     Assert.assertEquals("Snapshot sequence number should be 4",
         4, table.currentSnapshot().sequenceNumber());
+
+
     validateDataFiles(files(FILE_A, FILE_B, FILE_C), seqs(1, 4, 3));
   }
 
@@ -298,7 +282,7 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
 
     // cherry-pick snapshot, this will fast forward
     table.manageSnapshots().cherrypick(stagedSnapshot.snapshotId()).commit();
-    Assert.assertEquals("Snapshot sequence number should be 4",
+    Assert.assertEquals("Snapshot sequence number should be 2",
         2, table.currentSnapshot().sequenceNumber());
 
     validateDataFiles(files(FILE_A, FILE_B), seqs(1, 2));
