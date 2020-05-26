@@ -254,8 +254,10 @@ class ExpressionToSearchArgument extends ExpressionVisitors.BoundVisitor<Express
         return Date.valueOf(LocalDate.ofEpochDay((Integer) icebergLiteral));
       case TIMESTAMP:
         long microsFromEpoch = (Long) icebergLiteral;
-        return Timestamp.from(Instant.ofEpochSecond(Math.floorDiv(microsFromEpoch, 1_000_000),
-            (microsFromEpoch % 1_000_000) * 1_000));
+        return Timestamp.from(Instant.ofEpochSecond(
+            Math.floorDiv(microsFromEpoch, 1_000_000),
+            Math.floorMod(microsFromEpoch, 1_000_000) * 1_000
+        ));
       case DECIMAL:
         return new HiveDecimalWritable(HiveDecimal.create((BigDecimal) icebergLiteral, false));
       default:
