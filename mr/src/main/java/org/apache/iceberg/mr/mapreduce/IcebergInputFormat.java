@@ -22,6 +22,7 @@ package org.apache.iceberg.mr.mapreduce;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +39,6 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
@@ -50,8 +50,6 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynConstructors;
-import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
@@ -70,10 +68,8 @@ import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PartitionUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -284,7 +280,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private boolean reuseContainers;
     private boolean caseSensitive;
     private InMemoryDataModel inMemoryDataModel;
-    private Map<String, Integer> namesToPos;
     private Iterator<FileScanTask> tasks;
     private T currentRow;
     private CloseableIterator<T> currentIterator;
@@ -299,7 +294,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       this.tableSchema = SchemaParser.fromJson(conf.get(TABLE_SCHEMA));
       String readSchemaStr = conf.get(READ_SCHEMA);
       this.expectedSchema = readSchemaStr != null ? SchemaParser.fromJson(readSchemaStr) : tableSchema;
-      this.namesToPos = buildNameToPos(expectedSchema);
       this.reuseContainers = conf.getBoolean(REUSE_CONTAINERS, false);
       this.caseSensitive = conf.getBoolean(CASE_SENSITIVE, true);
       this.inMemoryDataModel = conf.getEnum(IN_MEMORY_DATA_MODEL, InMemoryDataModel.GENERIC);
@@ -348,49 +342,38 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       currentIterator.close();
     }
 
-    private static Map<String, Integer> buildNameToPos(Schema expectedSchema) {
-      Map<String, Integer> nameToPos = Maps.newHashMap();
-      for (int pos = 0; pos < expectedSchema.asStruct().fields().size(); pos++) {
-        Types.NestedField field = expectedSchema.asStruct().fields().get(pos);
-        nameToPos.put(field.name(), pos);
-      }
-      return nameToPos;
-    }
-
-    private CloseableIterator<T> open(FileScanTask currentTask) {
-      DataFile file = currentTask.file();
-      // schema of rows returned by readers
-      PartitionSpec spec = currentTask.spec();
-      Set<Integer> idColumns =  Sets.intersection(spec.identitySourceIds(), TypeUtil.getProjectedIds(expectedSchema));
-      boolean hasJoinedPartitionColumns = !idColumns.isEmpty();
+    private CloseableIterator<T> open(FileScanTask task) {
+      PartitionSpec spec = task.spec();
+      Set<Integer> idColumns = spec.identitySourceIds();
+      Schema partitionSchema = TypeUtil.select(expectedSchema, idColumns);
+      boolean projectsIdentityPartitionColumns = !partitionSchema.columns().isEmpty();
 
       CloseableIterable<T> iterable;
-      if (hasJoinedPartitionColumns) {
-        Schema readDataSchema = TypeUtil.selectNot(expectedSchema, idColumns);
-        Schema identityPartitionSchema = TypeUtil.select(expectedSchema, idColumns);
-        iterable = CloseableIterable.transform(open(currentTask, readDataSchema),
-            row -> withIdentityPartitionColumns(row, identityPartitionSchema, spec, file.partition()));
+      if (projectsIdentityPartitionColumns) {
+        //TODO: seems like we have to specify a converter to convert the partition values
+        // Maybe we can use the one in TableScanIterable?
+        iterable = open(task, expectedSchema, PartitionUtil.constantsMap(task));
       } else {
-        iterable = open(currentTask, expectedSchema);
+        iterable = open(task, expectedSchema, Collections.emptyMap());
       }
 
       return iterable.iterator();
     }
 
-    private CloseableIterable<T> open(FileScanTask currentTask, Schema readSchema) {
+    private CloseableIterable<T> open(FileScanTask currentTask, Schema readSchema, Map<Integer, ?> idToConstant) {
       DataFile file = currentTask.file();
       // TODO we should make use of FileIO to create inputFile
       InputFile inputFile = HadoopInputFile.fromLocation(file.path(), context.getConfiguration());
       CloseableIterable<T> iterable;
       switch (file.format()) {
         case AVRO:
-          iterable = newAvroIterable(inputFile, currentTask, readSchema);
+          iterable = newAvroIterable(inputFile, currentTask, readSchema, idToConstant);
           break;
         case ORC:
-          iterable = newOrcIterable(inputFile, currentTask, readSchema);
+          iterable = newOrcIterable(inputFile, currentTask, readSchema, idToConstant);
           break;
         case PARQUET:
-          iterable = newParquetIterable(inputFile, currentTask, readSchema);
+          iterable = newParquetIterable(inputFile, currentTask, readSchema, idToConstant);
           break;
         default:
           throw new UnsupportedOperationException(
@@ -398,49 +381,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       }
 
       return iterable;
-    }
-
-    @SuppressWarnings("unchecked")
-    private T withIdentityPartitionColumns(
-        T row, Schema identityPartitionSchema, PartitionSpec spec, StructLike partition) {
-      switch (inMemoryDataModel) {
-        case PIG:
-        case HIVE:
-          throw new UnsupportedOperationException(
-              "Adding partition columns to Pig and Hive data model are not supported yet");
-        case GENERIC:
-          return (T) withIdentityPartitionColumns((Record) row, identityPartitionSchema, spec, partition);
-      }
-      return row;
-    }
-
-    private Record withIdentityPartitionColumns(
-        Record record, Schema identityPartitionSchema, PartitionSpec spec, StructLike partitionTuple) {
-      List<PartitionField> partitionFields = spec.fields();
-      List<Types.NestedField> identityColumns = identityPartitionSchema.columns();
-      GenericRecord row = GenericRecord.create(expectedSchema.asStruct());
-      namesToPos.forEach((name, pos) -> {
-        Object field = record.getField(name);
-        if (field != null) {
-          row.set(pos, field);
-        }
-
-        // if the current name, pos points to an identity partition column, we set the
-        // column at pos correctly by reading the corresponding value from partitionTuple`
-        for (int i = 0; i < identityColumns.size(); i++) {
-          Types.NestedField identityColumn = identityColumns.get(i);
-          for (int j = 0; j < partitionFields.size(); j++) {
-            PartitionField partitionField = partitionFields.get(j);
-            if (name.equals(identityColumn.name()) &&
-                identityColumn.fieldId() == partitionField.sourceId() &&
-                "identity".equals(partitionField.transform().toString())) {
-              row.set(pos, partitionTuple.get(j, spec.javaClasses()[j]));
-            }
-          }
-        }
-      });
-
-      return row;
     }
 
     private CloseableIterable<T> applyResidualFiltering(CloseableIterable<T> iter, Expression residual,
@@ -455,7 +395,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       }
     }
 
-    private CloseableIterable<T> newAvroIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
+    private CloseableIterable<T> newAvroIterable(
+        InputFile inputFile, FileScanTask task, Schema readSchema, Map<Integer, ?> idToConstant) {
       Avro.ReadBuilder avroReadBuilder = Avro.read(inputFile)
           .project(readSchema)
           .split(task.start(), task.length());
@@ -469,12 +410,14 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           //TODO implement value readers for Pig and Hive
           throw new UnsupportedOperationException("Avro support not yet supported for Pig and Hive");
         case GENERIC:
-          avroReadBuilder.createReaderFunc(DataReader::create);
+          avroReadBuilder.createReaderFunc(
+              (expIcebergSchema, expAvroSchema) -> DataReader.create(expIcebergSchema, expAvroSchema, idToConstant));
       }
       return applyResidualFiltering(avroReadBuilder.build(), task.residual(), readSchema);
     }
 
-    private CloseableIterable<T> newParquetIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
+    private CloseableIterable<T> newParquetIterable(InputFile inputFile, FileScanTask task, Schema readSchema,
+        Map<Integer, ?> idToConstant) {
       Parquet.ReadBuilder parquetReadBuilder = Parquet.read(inputFile)
           .project(readSchema)
           .filter(task.residual())
@@ -491,12 +434,13 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           throw new UnsupportedOperationException("Parquet support not yet supported for Pig and Hive");
         case GENERIC:
           parquetReadBuilder.createReaderFunc(
-              fileSchema -> GenericParquetReaders.buildReader(readSchema, fileSchema));
+              fileSchema -> GenericParquetReaders.buildReader(readSchema, fileSchema, idToConstant));
       }
       return applyResidualFiltering(parquetReadBuilder.build(), task.residual(), readSchema);
     }
 
-    private CloseableIterable<T> newOrcIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
+    private CloseableIterable<T> newOrcIterable(InputFile inputFile, FileScanTask task, Schema readSchema,
+        Map<Integer, ?> idToConstant) {
       ORC.ReadBuilder orcReadBuilder = ORC.read(inputFile)
           .project(readSchema)
           .filter(task.residual())
@@ -509,7 +453,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           //TODO: implement value readers for Pig and Hive
           throw new UnsupportedOperationException("ORC support not yet supported for Pig and Hive");
         case GENERIC:
-          orcReadBuilder.createReaderFunc(fileSchema -> GenericOrcReader.buildReader(readSchema, fileSchema));
+          orcReadBuilder.createReaderFunc(
+              fileSchema -> GenericOrcReader.buildReader(readSchema, fileSchema, idToConstant));
       }
 
       return applyResidualFiltering(orcReadBuilder.build(), task.residual(), readSchema);
