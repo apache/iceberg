@@ -56,6 +56,7 @@ import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -67,6 +68,7 @@ import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
 import static org.apache.iceberg.DataFiles.fromInputFile;
+import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.hadoop.HadoopOutputFile.fromPath;
@@ -391,13 +393,17 @@ public class TestLocalScan {
   }
 
   private DataFile writeFile(String location, String filename, List<Record> records) throws IOException {
+    return writeFile(location, filename, SCHEMA, records);
+  }
+
+  private DataFile writeFile(String location, String filename, Schema schema, List<Record> records) throws IOException {
     Path path = new Path(location, filename);
     FileFormat fileFormat = FileFormat.fromFileName(filename);
     Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
     switch (fileFormat) {
       case AVRO:
         FileAppender<Record> avroAppender = Avro.write(fromPath(path, CONF))
-            .schema(SCHEMA)
+            .schema(schema)
             .createWriterFunc(DataWriter::create)
             .named(fileFormat.name())
             .build();
@@ -414,7 +420,7 @@ public class TestLocalScan {
 
       case PARQUET:
         FileAppender<Record> parquetAppender = Parquet.write(fromPath(path, CONF))
-            .schema(SCHEMA)
+            .schema(schema)
             .createWriterFunc(GenericParquetWriter::buildWriter)
             .build();
         try {
@@ -430,7 +436,7 @@ public class TestLocalScan {
 
       case ORC:
         FileAppender<Record> orcAppender = ORC.write(fromPath(path, CONF))
-            .schema(SCHEMA)
+            .schema(schema)
             .createWriterFunc(GenericOrcWriter::buildWriter)
             .build();
         try {
@@ -446,6 +452,42 @@ public class TestLocalScan {
 
       default:
         throw new UnsupportedOperationException("Cannot write format: " + fileFormat);
+    }
+  }
+
+  @Test
+  public void testFilterWithDateAndTimestamp() throws IOException {
+    Assume.assumeFalse(format == FileFormat.ORC);
+    Schema schema = new Schema(
+        required(1, "timestamp_with_zone", Types.TimestampType.withZone()),
+        required(2, "timestamp_without_zone", Types.TimestampType.withoutZone()),
+        required(3, "date", Types.DateType.get()),
+        required(4, "time", Types.TimeType.get())
+    );
+
+    File tableLocation = temp.newFolder("complex_filter_table");
+    Assert.assertTrue(tableLocation.delete());
+
+    Table table = TABLES.create(
+        schema, PartitionSpec.unpartitioned(),
+        ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()),
+        tableLocation.getAbsolutePath());
+
+    List<Record> expected = RandomGenericData.generate(schema, 100, 435691832918L);
+    DataFile file = writeFile(tableLocation.toString(), format.addExtension("record-file"), schema, expected);
+    table.newFastAppend().appendFile(file).commit();
+
+    for (Record r : expected) {
+      Iterable<Record> filterResult = IcebergGenerics.read(table)
+          .where(equal("timestamp_with_zone", r.getField("timestamp_with_zone").toString()))
+          .where(equal("timestamp_without_zone", r.getField("timestamp_without_zone").toString()))
+          .where(equal("date", r.getField("date").toString()))
+          .where(equal("time", r.getField("time").toString()))
+          .build();
+
+      Assert.assertTrue(filterResult.iterator().hasNext());
+      Record readRecord = filterResult.iterator().next();
+      Assert.assertEquals(r.getField("timestamp_with_zone"), readRecord.getField("timestamp_with_zone"));
     }
   }
 
