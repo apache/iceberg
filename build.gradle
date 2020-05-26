@@ -399,13 +399,36 @@ project(':iceberg-spark') {
       }
     }
 
-    // spark-avro is required only for JMH tests, so ideally we would add this
-    // dependency only to the jmh configuration, however gradle-consistent-versions
-    // plugin does not respect this configuration and does not seem to have a way
-    // to add custom configurations in its lockable configuration detection
-    compileOnly("org.apache.spark:spark-avro_2.11") {
+    jmh("org.apache.spark:spark-avro_2.11") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
+  }
+}
+
+project(':iceberg-spark3') {
+  dependencies {
+    compile project(':iceberg-api')
+    compile project(':iceberg-common')
+    compile project(':iceberg-core')
+    compile project(':iceberg-data')
+    compile project(':iceberg-orc')
+    compile project(':iceberg-parquet')
+    compile project(':iceberg-arrow')
+    compile project(':iceberg-hive')
+    compile project(':iceberg-spark')
+
+    compileOnly "org.apache.avro:avro"
+    compileOnly("org.apache.spark:spark-hive_2.12:3.0.0-preview2") {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
+
+    testCompile "org.apache.hadoop:hadoop-hdfs::tests"
+    testCompile "org.apache.hadoop:hadoop-common::tests"
+    testCompile("org.apache.hadoop:hadoop-minicluster") {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
+    testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
 }
 
