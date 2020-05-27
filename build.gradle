@@ -550,14 +550,19 @@ project(':iceberg-flink') {
   apply plugin: 'com.commercehub.gradle.plugin.avro'
 
   dependencies {
-    compile project(':iceberg-api')
-    compile project(':iceberg-core')
     compile project(':iceberg-data')
     compile project(path: ':iceberg-data', configuration: 'testArtifacts')  // TODO: to remove, for RandomGenericData
     compile project(':iceberg-hive')
     compile project(':iceberg-parquet')
 
-    compileOnly("org.apache.flink:flink-streaming-java_2.11")
+    compileOnly("org.apache.flink:flink-streaming-java_2.11") {
+      exclude group: 'com.esotericsoftware.kryo', module: 'kryo'
+      exclude group: 'com.github.scopt', module: 'scopt_2.11'
+      exclude group: 'com.typesafe'
+      exclude group: 'com.typesafe.akka'
+      exclude group: 'org.clapper', module: 'grizzled-slf4j_2.11'
+      exclude group: 'org.reactivestreams', module: 'reactive-streams'
+    }
     compileOnly("org.apache.flink:flink-connector-filesystem_2.11")
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -567,6 +572,16 @@ project(':iceberg-flink') {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hbase'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'co.cask.tephra'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'org.eclipse.jetty.aggregate', module: 'jetty-all'
+      exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
+      exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
+      exclude group: 'com.tdunning', module: 'json'
+      exclude group: 'javax.transaction', module: 'transaction-api'
+      exclude group: 'com.zaxxer', module: 'HikariCP'
     }
   }
 }
