@@ -99,26 +99,26 @@ public class TestRewriteFiles extends TableTestBase {
     TableMetadata base = readMetadata();
     long baseSnapshotId = base.currentSnapshot().snapshotId();
     Assert.assertEquals("Should create 1 manifest for initial write",
-        1, base.currentSnapshot().manifests().size());
-    ManifestFile initialManifest = base.currentSnapshot().manifests().get(0);
+        1, base.currentSnapshot().allManifests().size());
+    ManifestFile initialManifest = base.currentSnapshot().allManifests().get(0);
 
     Snapshot pending = table.newRewrite()
         .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_C))
         .apply();
 
     Assert.assertEquals("Should contain 2 manifest",
-        2, pending.manifests().size());
+        2, pending.allManifests().size());
     Assert.assertFalse("Should not contain manifest from initial write",
-        pending.manifests().contains(initialManifest));
+        pending.allManifests().contains(initialManifest));
 
     long pendingId = pending.snapshotId();
 
-    validateManifestEntries(pending.manifests().get(0),
+    validateManifestEntries(pending.allManifests().get(0),
         ids(pendingId),
         files(FILE_C),
         statuses(ADDED));
 
-    validateManifestEntries(pending.manifests().get(1),
+    validateManifestEntries(pending.allManifests().get(1),
         ids(pendingId, pendingId, baseSnapshotId),
         files(FILE_A, FILE_A, FILE_B),
         statuses(DELETED, DELETED, EXISTING));
@@ -139,26 +139,26 @@ public class TestRewriteFiles extends TableTestBase {
     TableMetadata base = readMetadata();
     long baseSnapshotId = base.currentSnapshot().snapshotId();
     Assert.assertEquals("Should create 1 manifest for initial write",
-        1, base.currentSnapshot().manifests().size());
-    ManifestFile initialManifest = base.currentSnapshot().manifests().get(0);
+        1, base.currentSnapshot().allManifests().size());
+    ManifestFile initialManifest = base.currentSnapshot().allManifests().get(0);
 
     Snapshot pending = table.newRewrite()
         .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_C))
         .apply();
 
     Assert.assertEquals("Should contain 2 manifest",
-        2, pending.manifests().size());
+        2, pending.allManifests().size());
     Assert.assertFalse("Should not contain manifest from initial write",
-        pending.manifests().contains(initialManifest));
+        pending.allManifests().contains(initialManifest));
 
     long pendingId = pending.snapshotId();
 
-    validateManifestEntries(pending.manifests().get(0),
+    validateManifestEntries(pending.allManifests().get(0),
         ids(pendingId),
         files(FILE_C),
         statuses(ADDED));
 
-    validateManifestEntries(pending.manifests().get(1),
+    validateManifestEntries(pending.allManifests().get(1),
         ids(pendingId, baseSnapshotId),
         files(FILE_A, FILE_B),
         statuses(DELETED, EXISTING));
@@ -179,9 +179,9 @@ public class TestRewriteFiles extends TableTestBase {
         .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_B));
     Snapshot pending = rewrite.apply();
 
-    Assert.assertEquals("Should produce 2 manifests", 2, pending.manifests().size());
-    ManifestFile manifest1 = pending.manifests().get(0);
-    ManifestFile manifest2 = pending.manifests().get(1);
+    Assert.assertEquals("Should produce 2 manifests", 2, pending.allManifests().size());
+    ManifestFile manifest1 = pending.allManifests().get(0);
+    ManifestFile manifest2 = pending.allManifests().get(1);
 
     validateManifestEntries(manifest1,
         ids(pending.snapshotId()), files(FILE_B), statuses(ADDED));
@@ -209,9 +209,9 @@ public class TestRewriteFiles extends TableTestBase {
     RewriteFiles rewrite = table.newRewrite().rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_B));
     Snapshot pending = rewrite.apply();
 
-    Assert.assertEquals("Should produce 2 manifests", 2, pending.manifests().size());
-    ManifestFile manifest1 = pending.manifests().get(0);
-    ManifestFile manifest2 = pending.manifests().get(1);
+    Assert.assertEquals("Should produce 2 manifests", 2, pending.allManifests().size());
+    ManifestFile manifest1 = pending.allManifests().get(0);
+    ManifestFile manifest2 = pending.allManifests().get(1);
 
     validateManifestEntries(manifest1,
         ids(pending.snapshotId()), files(FILE_B), statuses(ADDED));
@@ -225,7 +225,7 @@ public class TestRewriteFiles extends TableTestBase {
 
     TableMetadata metadata = readMetadata();
     Assert.assertTrue("Should commit the manifest for append",
-        metadata.currentSnapshot().manifests().contains(manifest2));
+        metadata.currentSnapshot().allManifests().contains(manifest2));
 
     // 2 manifests added by rewrite and 1 original manifest should be found.
     Assert.assertEquals("Only 3 manifests should exist", 3, listManifestFiles().size());
@@ -242,7 +242,7 @@ public class TestRewriteFiles extends TableTestBase {
 
     TableMetadata base = readMetadata();
     Assert.assertEquals("Should create 1 manifest for initial write",
-        1, base.currentSnapshot().manifests().size());
+        1, base.currentSnapshot().allManifests().size());
 
     AssertHelpers.assertThrows("Expected an exception",
         ValidationException.class,
@@ -264,7 +264,7 @@ public class TestRewriteFiles extends TableTestBase {
 
     TableMetadata base = readMetadata();
     Assert.assertEquals("Should create 1 manifest for initial write",
-        1, base.currentSnapshot().manifests().size());
+        1, base.currentSnapshot().allManifests().size());
 
     RewriteFiles rewrite = table.newRewrite();
     Snapshot pending = rewrite
@@ -272,16 +272,16 @@ public class TestRewriteFiles extends TableTestBase {
         .apply();
 
     Assert.assertEquals("Should contain 2 manifest",
-        2, pending.manifests().size());
+        2, pending.allManifests().size());
 
     long pendingId = pending.snapshotId();
 
-    validateManifestEntries(pending.manifests().get(0),
+    validateManifestEntries(pending.allManifests().get(0),
         ids(pendingId),
         files(FILE_B),
         statuses(ADDED));
 
-    validateManifestEntries(pending.manifests().get(1),
+    validateManifestEntries(pending.allManifests().get(1),
         ids(pendingId, base.currentSnapshot().snapshotId()),
         files(FILE_A),
         statuses(DELETED));

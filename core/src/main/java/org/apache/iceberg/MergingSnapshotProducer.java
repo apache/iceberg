@@ -283,7 +283,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       // filter any existing manifests
       List<ManifestFile> filtered;
       if (current != null) {
-        List<ManifestFile> manifests = current.manifests();
+        List<ManifestFile> manifests = current.dataManifests();
         filtered = Arrays.asList(filterManifests(metricsEvaluator, manifests));
       } else {
         filtered = ImmutableList.of();
@@ -297,6 +297,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       Set<CharSequenceWrapper> deletedFiles = deletedFiles(unmergedManifests);
 
       List<ManifestFile> manifests = Lists.newArrayList();
+      if (current != null) {
+        manifests.addAll(current.deleteManifests());
+      }
       if (mergeEnabled) {
         groupManifestsByPartitionSpec(groups, unmergedManifests);
         for (Map.Entry<Integer, List<ManifestFile>> entry : groups.entrySet()) {

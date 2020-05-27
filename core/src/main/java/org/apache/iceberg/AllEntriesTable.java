@@ -19,16 +19,22 @@
 
 package org.apache.iceberg;
 
+import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.ParallelIterable;
+import org.apache.iceberg.util.ThreadPools;
 
 /**
- * A {@link Table} implementation that exposes a table's manifest entries as rows.
+ * A {@link Table} implementation that exposes a table's manifest entries as rows, for both delete and data files.
  * <p>
  * WARNING: this table exposes internal details, like files that have been deleted. For a table of the live data files,
  * use {@link DataFilesTable}.
@@ -99,7 +105,7 @@ public class AllEntriesTable extends BaseMetadataTable {
     @Override
     protected CloseableIterable<FileScanTask> planFiles(
         TableOperations ops, Snapshot snapshot, Expression rowFilter, boolean caseSensitive, boolean colStats) {
-      CloseableIterable<ManifestFile> manifests = AllDataFilesTable.allManifestFiles(ops.current().snapshots());
+      CloseableIterable<ManifestFile> manifests = allManifestFiles(ops.current().snapshots());
       Schema fileSchema = new Schema(schema().findType("data_file").asStructType().fields());
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
@@ -107,6 +113,15 @@ public class AllEntriesTable extends BaseMetadataTable {
 
       return CloseableIterable.transform(manifests, manifest -> new ManifestEntriesTable.ManifestReadTask(
           ops.io(), manifest, fileSchema, schemaString, specString, residuals));
+    }
+  }
+
+  private static CloseableIterable<ManifestFile> allManifestFiles(List<Snapshot> snapshots) {
+    try (CloseableIterable<ManifestFile> iterable = new ParallelIterable<>(
+        Iterables.transform(snapshots, Snapshot::allManifests), ThreadPools.getWorkerPool())) {
+      return CloseableIterable.withNoopClose(Sets.newHashSet(iterable));
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to close parallel iterable");
     }
   }
 }

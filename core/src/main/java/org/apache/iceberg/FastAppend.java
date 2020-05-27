@@ -122,6 +122,10 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   public List<ManifestFile> apply(TableMetadata base) {
     List<ManifestFile> newManifests = Lists.newArrayList();
 
+    if (base.currentSnapshot() != null) {
+      newManifests.addAll(base.currentSnapshot().deleteManifests());
+    }
+
     try {
       ManifestFile manifest = writeManifest();
       if (manifest != null) {
@@ -138,7 +142,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     Iterables.addAll(newManifests, appendManifestsWithMetadata);
 
     if (base.currentSnapshot() != null) {
-      newManifests.addAll(base.currentSnapshot().manifests());
+      newManifests.addAll(base.currentSnapshot().dataManifests());
     }
 
     return newManifests;

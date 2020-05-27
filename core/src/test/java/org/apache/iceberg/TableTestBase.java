@@ -224,10 +224,10 @@ public class TableTestBase {
   }
 
   void validateSnapshot(Snapshot old, Snapshot snap, Long sequenceNumber, DataFile... newFiles) {
-    List<ManifestFile> oldManifests = old != null ? old.manifests() : ImmutableList.of();
+    List<ManifestFile> oldManifests = old != null ? old.dataManifests() : ImmutableList.of();
 
     // copy the manifests to a modifiable list and remove the existing manifests
-    List<ManifestFile> newManifests = Lists.newArrayList(snap.manifests());
+    List<ManifestFile> newManifests = Lists.newArrayList(snap.dataManifests());
     for (ManifestFile oldManifest : oldManifests) {
       Assert.assertTrue("New snapshot should contain old manifests",
           newManifests.remove(oldManifest));

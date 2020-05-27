@@ -286,7 +286,7 @@ public class RewriteManifestsAction
       return ImmutableList.of();
     }
 
-    return currentSnapshot.manifests().stream()
+    return currentSnapshot.dataManifests().stream()
         .filter(manifest -> manifest.partitionSpecId() == spec.specId() && predicate.test(manifest))
         .collect(Collectors.toList());
   }

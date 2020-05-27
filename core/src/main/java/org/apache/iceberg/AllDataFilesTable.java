@@ -119,7 +119,7 @@ public class AllDataFilesTable extends BaseMetadataTable {
     @Override
     protected CloseableIterable<FileScanTask> planFiles(
         TableOperations ops, Snapshot snapshot, Expression rowFilter, boolean caseSensitive, boolean colStats) {
-      CloseableIterable<ManifestFile> manifests = allManifestFiles(ops.current().snapshots());
+      CloseableIterable<ManifestFile> manifests = allDataManifestFiles(ops.current().snapshots());
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
       ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(rowFilter);
@@ -133,9 +133,9 @@ public class AllDataFilesTable extends BaseMetadataTable {
     }
   }
 
-  static CloseableIterable<ManifestFile> allManifestFiles(List<Snapshot> snapshots) {
+  private static CloseableIterable<ManifestFile> allDataManifestFiles(List<Snapshot> snapshots) {
     try (CloseableIterable<ManifestFile> iterable = new ParallelIterable<>(
-        Iterables.transform(snapshots, Snapshot::manifests), ThreadPools.getWorkerPool())) {
+        Iterables.transform(snapshots, Snapshot::dataManifests), ThreadPools.getWorkerPool())) {
       return CloseableIterable.withNoopClose(Sets.newHashSet(iterable));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close parallel iterable");

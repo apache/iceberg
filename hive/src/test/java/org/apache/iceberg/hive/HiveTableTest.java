@@ -197,7 +197,7 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     String manifestListLocation = table.currentSnapshot().manifestListLocation().replace("file:", "");
 
-    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
 
     Assert.assertTrue("Drop (table and data) should return true and drop the table",
         catalog.dropTable(TABLE_IDENTIFIER));

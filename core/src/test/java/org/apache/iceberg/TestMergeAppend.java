@@ -62,11 +62,11 @@ public class TestMergeAppend extends TableTestBase {
         .apply();
 
     Assert.assertEquals("Should create 1 manifest for initial write",
-        1, pending.manifests().size());
+        1, pending.allManifests().size());
 
     long pendingId = pending.snapshotId();
 
-    validateManifest(pending.manifests().get(0), ids(pendingId, pendingId), files(FILE_A, FILE_B));
+    validateManifest(pending.allManifests().get(0), ids(pendingId, pendingId), files(FILE_A, FILE_B));
   }
 
   @Test
@@ -104,10 +104,10 @@ public class TestMergeAppend extends TableTestBase {
 
     long pendingId = pending.snapshotId();
 
-    validateManifest(pending.manifests().get(0),
+    validateManifest(pending.allManifests().get(0),
         ids(pendingId, pendingId),
         files(FILE_C, FILE_D));
-    validateManifest(pending.manifests().get(1),
+    validateManifest(pending.allManifests().get(1),
         ids(pendingId, pendingId),
         files(FILE_A, FILE_B));
   }
@@ -131,8 +131,8 @@ public class TestMergeAppend extends TableTestBase {
 
     long pendingId = pending.snapshotId();
 
-    Assert.assertEquals("Should create 1 merged manifest", 1, pending.manifests().size());
-    validateManifest(pending.manifests().get(0),
+    Assert.assertEquals("Should create 1 merged manifest", 1, pending.allManifests().size());
+    validateManifest(pending.allManifests().get(0),
         ids(pendingId, pendingId, pendingId, pendingId),
         files(FILE_C, FILE_D, FILE_A, FILE_B));
   }
@@ -152,8 +152,8 @@ public class TestMergeAppend extends TableTestBase {
     TableMetadata base = readMetadata();
     long baseId = base.currentSnapshot().snapshotId();
     Assert.assertEquals("Should create 1 manifest for initial write",
-        1, base.currentSnapshot().manifests().size());
-    ManifestFile initialManifest = base.currentSnapshot().manifests().get(0);
+        1, base.currentSnapshot().allManifests().size());
+    ManifestFile initialManifest = base.currentSnapshot().allManifests().get(0);
 
     Snapshot pending = table.newAppend()
         .appendFile(FILE_C)
@@ -161,8 +161,8 @@ public class TestMergeAppend extends TableTestBase {
         .apply();
 
     Assert.assertEquals("Should contain 1 merged manifest for second write",
-        1, pending.manifests().size());
-    ManifestFile newManifest = pending.manifests().get(0);
+        1, pending.allManifests().size());
+    ManifestFile newManifest = pending.allManifests().get(0);
     Assert.assertNotEquals("Should not contain manifest from initial write",
         initialManifest, newManifest);
 
@@ -194,7 +194,7 @@ public class TestMergeAppend extends TableTestBase {
         .commit();
 
     Assert.assertEquals("Should contain 2 merged manifest for first write",
-        2, readMetadata().currentSnapshot().manifests().size());
+        2, readMetadata().currentSnapshot().allManifests().size());
 
     table.newAppend()
         .appendManifest(manifest)
@@ -203,7 +203,7 @@ public class TestMergeAppend extends TableTestBase {
         .commit();
 
     Assert.assertEquals("Should contain 3 merged manifest for second write",
-        3, readMetadata().currentSnapshot().manifests().size());
+        3, readMetadata().currentSnapshot().allManifests().size());
 
     // validate that the metadata summary is correct when using appendManifest
     Assert.assertEquals("Summary metadata should include 3 added files",
@@ -228,7 +228,7 @@ public class TestMergeAppend extends TableTestBase {
         .apply();
 
     Assert.assertEquals("Should contain 3 merged manifest after 1st write write",
-        3, pending.manifests().size());
+        3, pending.allManifests().size());
 
     // validate that the metadata summary is correct when using appendManifest
     Assert.assertEquals("Summary metadata should include 4 added files",
@@ -250,8 +250,8 @@ public class TestMergeAppend extends TableTestBase {
     TableMetadata base = readMetadata();
     long baseId = base.currentSnapshot().snapshotId();
     Assert.assertEquals("Should create 1 manifest for initial write",
-        1, base.currentSnapshot().manifests().size());
-    ManifestFile initialManifest = base.currentSnapshot().manifests().get(0);
+        1, base.currentSnapshot().allManifests().size());
+    ManifestFile initialManifest = base.currentSnapshot().allManifests().get(0);
 
     table.newDelete()
         .deleteFile(FILE_A)
@@ -260,8 +260,8 @@ public class TestMergeAppend extends TableTestBase {
     TableMetadata delete = readMetadata();
     long deleteId = delete.currentSnapshot().snapshotId();
     Assert.assertEquals("Should create 1 filtered manifest for delete",
-        1, delete.currentSnapshot().manifests().size());
-    ManifestFile deleteManifest = delete.currentSnapshot().manifests().get(0);
+        1, delete.currentSnapshot().allManifests().size());
+    ManifestFile deleteManifest = delete.currentSnapshot().allManifests().get(0);
 
     validateManifestEntries(deleteManifest,
         ids(deleteId, baseId),
@@ -274,8 +274,8 @@ public class TestMergeAppend extends TableTestBase {
         .apply();
 
     Assert.assertEquals("Should contain 1 merged manifest for second write",
-        1, pending.manifests().size());
-    ManifestFile newManifest = pending.manifests().get(0);
+        1, pending.allManifests().size());
+    ManifestFile newManifest = pending.allManifests().get(0);
     Assert.assertNotEquals("Should not contain manifest from initial write",
         initialManifest, newManifest);
 
@@ -306,7 +306,7 @@ public class TestMergeAppend extends TableTestBase {
     long idFileB = readMetadata().currentSnapshot().snapshotId();
 
     Assert.assertEquals("Should have 2 manifests from setup writes",
-        2, readMetadata().currentSnapshot().manifests().size());
+        2, readMetadata().currentSnapshot().allManifests().size());
 
     table.newAppend()
         .appendFile(FILE_C)
@@ -315,16 +315,16 @@ public class TestMergeAppend extends TableTestBase {
 
     TableMetadata base = readMetadata();
     Assert.assertEquals("Should have 3 unmerged manifests",
-        3, base.currentSnapshot().manifests().size());
-    Set<ManifestFile> unmerged = Sets.newHashSet(base.currentSnapshot().manifests());
+        3, base.currentSnapshot().allManifests().size());
+    Set<ManifestFile> unmerged = Sets.newHashSet(base.currentSnapshot().allManifests());
 
     Snapshot pending = table.newAppend()
         .appendFile(FILE_D)
         .apply();
 
     Assert.assertEquals("Should contain 1 merged manifest after the 4th write",
-        1, pending.manifests().size());
-    ManifestFile newManifest = pending.manifests().get(0);
+        1, pending.allManifests().size());
+    ManifestFile newManifest = pending.allManifests().get(0);
     Assert.assertFalse("Should not contain previous manifests", unmerged.contains(newManifest));
 
     long pendingId = pending.snapshotId();
@@ -351,8 +351,8 @@ public class TestMergeAppend extends TableTestBase {
     TableMetadata base = readMetadata();
     long baseId = base.currentSnapshot().snapshotId();
     Assert.assertEquals("Should create 1 manifest for initial write",
-        1, base.currentSnapshot().manifests().size());
-    ManifestFile initialManifest = base.currentSnapshot().manifests().get(0);
+        1, base.currentSnapshot().allManifests().size());
+    ManifestFile initialManifest = base.currentSnapshot().allManifests().get(0);
 
     Snapshot pending = table.newAppend()
         .appendFile(FILE_C)
@@ -360,15 +360,15 @@ public class TestMergeAppend extends TableTestBase {
         .apply();
 
     Assert.assertEquals("Should contain 2 unmerged manifests after second write",
-        2, pending.manifests().size());
-    ManifestFile newManifest = pending.manifests().get(0);
+        2, pending.allManifests().size());
+    ManifestFile newManifest = pending.allManifests().get(0);
     Assert.assertNotEquals("Should not contain manifest from initial write",
         initialManifest, newManifest);
 
     long pendingId = pending.snapshotId();
     validateManifest(newManifest, ids(pendingId, pendingId), files(FILE_C, FILE_D));
 
-    validateManifest(pending.manifests().get(1), ids(baseId, baseId), files(initialManifest));
+    validateManifest(pending.allManifests().get(1), ids(baseId, baseId), files(initialManifest));
   }
 
   @Test
@@ -380,8 +380,8 @@ public class TestMergeAppend extends TableTestBase {
 
     TableMetadata base = readMetadata();
     Assert.assertEquals("Should create 1 manifest for initial write",
-        1, base.currentSnapshot().manifests().size());
-    ManifestFile initialManifest = base.currentSnapshot().manifests().get(0);
+        1, base.currentSnapshot().allManifests().size());
+    ManifestFile initialManifest = base.currentSnapshot().allManifests().get(0);
 
     // build the new spec using the table's schema, which uses fresh IDs
     PartitionSpec newSpec = PartitionSpec.builderFor(base.schema())
@@ -402,13 +402,13 @@ public class TestMergeAppend extends TableTestBase {
         .apply();
 
     Assert.assertEquals("Should use 2 manifest files",
-        2, pending.manifests().size());
+        2, pending.allManifests().size());
 
     // new manifest comes first
-    validateManifest(pending.manifests().get(0), ids(pending.snapshotId()), files(newFileC));
+    validateManifest(pending.allManifests().get(0), ids(pending.snapshotId()), files(newFileC));
 
     Assert.assertEquals("Second manifest should be the initial manifest with the old spec",
-        initialManifest, pending.manifests().get(1));
+        initialManifest, pending.allManifests().get(1));
   }
 
   @Test
@@ -426,8 +426,8 @@ public class TestMergeAppend extends TableTestBase {
 
     TableMetadata base = readMetadata();
     Assert.assertEquals("Should contain 2 manifests",
-        2, base.currentSnapshot().manifests().size());
-    ManifestFile manifest = base.currentSnapshot().manifests().get(0);
+        2, base.currentSnapshot().allManifests().size());
+    ManifestFile manifest = base.currentSnapshot().allManifests().get(0);
 
     // build the new spec using the table's schema, which uses fresh IDs
     PartitionSpec newSpec = PartitionSpec.builderFor(base.schema())
@@ -448,12 +448,12 @@ public class TestMergeAppend extends TableTestBase {
         .apply();
 
     Assert.assertEquals("Should use 2 manifest files",
-        2, pending.manifests().size());
+        2, pending.allManifests().size());
     Assert.assertFalse("First manifest should not be in the new snapshot",
-        pending.manifests().contains(manifest));
+        pending.allManifests().contains(manifest));
 
-    validateManifest(pending.manifests().get(0), ids(pending.snapshotId()), files(newFileC));
-    validateManifest(pending.manifests().get(1), ids(id2, id1), files(FILE_B, FILE_A));
+    validateManifest(pending.allManifests().get(0), ids(pending.snapshotId()), files(newFileC));
+    validateManifest(pending.allManifests().get(1), ids(id2, id1), files(FILE_B, FILE_A));
   }
 
   @Test
@@ -467,15 +467,15 @@ public class TestMergeAppend extends TableTestBase {
 
     TableMetadata base = readMetadata();
     long baseId = base.currentSnapshot().snapshotId();
-    ManifestFile initialManifest = base.currentSnapshot().manifests().get(0);
+    ManifestFile initialManifest = base.currentSnapshot().allManifests().get(0);
 
     table.ops().failCommits(5);
 
     AppendFiles append = table.newAppend().appendFile(FILE_B);
     Snapshot pending = append.apply();
 
-    Assert.assertEquals("Should merge to 1 manifest", 1, pending.manifests().size());
-    ManifestFile newManifest = pending.manifests().get(0);
+    Assert.assertEquals("Should merge to 1 manifest", 1, pending.allManifests().size());
+    ManifestFile newManifest = pending.allManifests().get(0);
 
     Assert.assertTrue("Should create new manifest", new File(newManifest.path()).exists());
     validateManifest(newManifest,
@@ -497,7 +497,7 @@ public class TestMergeAppend extends TableTestBase {
     ManifestFile manifest = writeManifest(FILE_A, FILE_B);
     AppendFiles append = table.newAppend().appendManifest(manifest);
     Snapshot pending = append.apply();
-    ManifestFile newManifest = pending.manifests().get(0);
+    ManifestFile newManifest = pending.allManifests().get(0);
     Assert.assertTrue("Should create new manifest", new File(newManifest.path()).exists());
 
     AssertHelpers.assertThrows("Should retry 4 times and throw last failure",
@@ -517,15 +517,15 @@ public class TestMergeAppend extends TableTestBase {
 
     TableMetadata base = readMetadata();
     long baseId = base.currentSnapshot().snapshotId();
-    ManifestFile initialManifest = base.currentSnapshot().manifests().get(0);
+    ManifestFile initialManifest = base.currentSnapshot().allManifests().get(0);
 
     table.ops().failCommits(3);
 
     AppendFiles append = table.newAppend().appendFile(FILE_B);
     Snapshot pending = append.apply();
 
-    Assert.assertEquals("Should merge to 1 manifest", 1, pending.manifests().size());
-    ManifestFile newManifest = pending.manifests().get(0);
+    Assert.assertEquals("Should merge to 1 manifest", 1, pending.allManifests().size());
+    ManifestFile newManifest = pending.allManifests().get(0);
 
     Assert.assertTrue("Should create new manifest", new File(newManifest.path()).exists());
     validateManifest(newManifest,
@@ -537,7 +537,7 @@ public class TestMergeAppend extends TableTestBase {
     TableMetadata metadata = readMetadata();
     Assert.assertTrue("Should reuse the new manifest", new File(newManifest.path()).exists());
     Assert.assertEquals("Should commit the same new manifest during retry",
-        Lists.newArrayList(newManifest), metadata.currentSnapshot().manifests());
+        Lists.newArrayList(newManifest), metadata.currentSnapshot().allManifests());
   }
 
   @Test
@@ -558,7 +558,7 @@ public class TestMergeAppend extends TableTestBase {
 
     Snapshot snapshot = table.currentSnapshot();
     long snapshotId = snapshot.snapshotId();
-    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
     Assert.assertEquals("Should have 1 committed manifest", 1, manifests.size());
 
     validateManifestEntries(manifests.get(0),
@@ -606,7 +606,7 @@ public class TestMergeAppend extends TableTestBase {
 
     Snapshot snapshot = table.currentSnapshot();
 
-    Assert.assertEquals("Manifests should be merged into 1", 1, snapshot.manifests().size());
+    Assert.assertEquals("Manifests should be merged into 1", 1, snapshot.allManifests().size());
     Assert.assertFalse("Merged append manifest should be deleted", new File(manifest2.path()).exists());
   }
 
@@ -715,8 +715,8 @@ public class TestMergeAppend extends TableTestBase {
 
     TableMetadata base = readMetadata();
     Assert.assertEquals("Should create 1 manifest for initial write",
-        1, base.currentSnapshot().manifests().size());
-    ManifestFile initialManifest = base.currentSnapshot().manifests().get(0);
+        1, base.currentSnapshot().allManifests().size());
+    ManifestFile initialManifest = base.currentSnapshot().allManifests().get(0);
 
     // build the new spec using the table's schema, which uses fresh IDs
     PartitionSpec newSpec = PartitionSpec.builderFor(base.schema())
@@ -736,16 +736,16 @@ public class TestMergeAppend extends TableTestBase {
         .apply();
 
     Assert.assertEquals("Should use 2 manifest files",
-        2, pending.manifests().size());
+        2, pending.allManifests().size());
 
     // new manifest comes first
-    validateManifest(pending.manifests().get(0), ids(pending.snapshotId()), files(newFile));
+    validateManifest(pending.allManifests().get(0), ids(pending.snapshotId()), files(newFile));
 
     Assert.assertEquals("Second manifest should be the initial manifest with the old spec",
-        initialManifest, pending.manifests().get(1));
+        initialManifest, pending.allManifests().get(1));
 
     // field ids of manifest entries in two manifests with different specs of the same source field should be different
-    ManifestEntry<DataFile> entry = ManifestFiles.read(pending.manifests().get(0), FILE_IO).entries().iterator().next();
+    ManifestEntry<DataFile> entry = ManifestFiles.read(pending.allManifests().get(0), FILE_IO).entries().iterator().next();
     Types.NestedField field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(0);
     Assert.assertEquals(1000, field.fieldId());
     Assert.assertEquals("id_bucket", field.name());
@@ -753,7 +753,7 @@ public class TestMergeAppend extends TableTestBase {
     Assert.assertEquals(1001, field.fieldId());
     Assert.assertEquals("data_bucket", field.name());
 
-    entry = ManifestFiles.read(pending.manifests().get(1), FILE_IO).entries().iterator().next();
+    entry = ManifestFiles.read(pending.allManifests().get(1), FILE_IO).entries().iterator().next();
     field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(0);
     Assert.assertEquals(1000, field.fieldId());
     Assert.assertEquals("data_bucket", field.name());

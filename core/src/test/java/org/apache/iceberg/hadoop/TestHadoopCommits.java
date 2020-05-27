@@ -283,7 +283,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     TableMetadata metadata = readMetadataVersion(3);
     Assert.assertEquals("Current snapshot should contain 2 manifests",
-        2, metadata.currentSnapshot().manifests().size());
+        2, metadata.currentSnapshot().allManifests().size());
   }
 
   @Test
@@ -306,7 +306,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     TableMetadata metadata = readMetadataVersion(5);
     Assert.assertEquals("Current snapshot should contain 1 merged manifest",
-        1, metadata.currentSnapshot().manifests().size());
+        1, metadata.currentSnapshot().allManifests().size());
   }
 
   @Test

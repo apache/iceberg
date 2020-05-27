@@ -220,7 +220,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     Set<String> manifestListsToDelete = Sets.newHashSet();
     Set<ManifestFile> manifestsToDelete = Sets.newHashSet();
     for (Snapshot snapshot : metadata.snapshots()) {
-      manifestsToDelete.addAll(snapshot.manifests());
+      // add all manifests to the delete set because both data and delete files should be removed
+      Iterables.addAll(manifestsToDelete, snapshot.allManifests());
       // add the manifest list to the delete set, if present
       if (snapshot.manifestListLocation() != null) {
         manifestListsToDelete.add(snapshot.manifestListLocation());
