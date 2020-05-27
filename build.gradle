@@ -66,11 +66,25 @@ subprojects {
   apply plugin: 'nebula.dependency-lock'
   apply plugin: 'java'
 
+  dependencyLock {
+    includeTransitives = true
+  }
+
+  dependencyResolutionVerifierExtension {
+    shouldFailTheBuild = false
+  }
+
   configurations {
     testCompile.extendsFrom compileOnly
     all {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.mortbay.jetty'
+
+      resolutionStrategy {
+        force 'com.fasterxml.jackson.module:jackson-module-scala_2.11:2.10.2'
+        force 'com.fasterxml.jackson.module:jackson-module-scala_2.12:2.10.2'
+        force 'com.fasterxml.jackson.module:jackson-module-paranamer:2.10.2'
+      }
     }
 
     testArtifacts
@@ -97,6 +111,7 @@ subprojects {
 
     testCompile 'junit:junit'
     testCompile 'org.slf4j:slf4j-simple'
+
     testCompile 'org.mockito:mockito-core'
   }
 
@@ -365,6 +380,15 @@ project(':iceberg-spark') {
     if (name.startsWith("incrementalScalaAnalysis")) {
       extendsFrom = []
     }
+
+    resolutionStrategy {
+      // Spark 2.4.4 can only use the below datanucleus version, the versions introduced
+      // by Hive 2.3.6 will meet lots of unexpected issues, so here force to use the versions
+      // introduced by Hive 1.2.1.
+      force 'org.datanucleus:datanucleus-api-jdo:3.2.6'
+      force 'org.datanucleus:datanucleus-core:3.2.10'
+      force 'org.datanucleus:datanucleus-rdbms:3.2.9'
+    }
   }
 
   dependencies {
@@ -389,17 +413,6 @@ project(':iceberg-spark') {
     }
     testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
-
-    // Spark 2.4.4 can only use the below datanucleus version, the versions introduced
-    // by Hive 2.3.6 will meet lots of unexpected issues, so here force to use the versions
-    // introduced by Hive 1.2.1.
-    configurations.all {
-      resolutionStrategy {
-        force 'org.datanucleus:datanucleus-api-jdo:3.2.6'
-        force 'org.datanucleus:datanucleus-core:3.2.10'
-        force 'org.datanucleus:datanucleus-rdbms:3.2.9'
-      }
-    }
 
     jmh("org.apache.spark:spark-avro_2.11") {
       exclude group: 'org.apache.avro', module: 'avro'

@@ -1,53 +1,303 @@
 {
-    "allProcessors": {
-        "com.palantir.baseline:baseline-error-prone": {
-            "locked": "0.55.0",
-            "requested": "0.55.0"
-        }
-    },
-    "annotationProcessor": {
-        "com.palantir.baseline:baseline-error-prone": {
-            "locked": "0.55.0",
-            "requested": "0.55.0"
-        }
-    },
-    "checkstyle": {
-        "com.puppycrawl.tools:checkstyle": {
-            "locked": "8.13"
-        }
-    },
     "compile": {
-        "com.github.stephenc.findbugs:findbugs-annotations": {
-            "locked": "1.3.9-1"
+        "com.carrotsearch:hppc": {
+            "locked": "0.7.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
         },
-        "com.google.guava:guava": {
-            "locked": "28.0-jre"
+        "com.fasterxml.jackson.core:jackson-annotations": {
+            "locked": "2.10.2",
+            "transitive": [
+                "com.fasterxml.jackson.core:jackson-databind",
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
+        "com.fasterxml.jackson.core:jackson-core": {
+            "locked": "2.10.2",
+            "transitive": [
+                "com.fasterxml.jackson.core:jackson-databind",
+                "org.apache.arrow:arrow-vector",
+                "org.apache.avro:avro",
+                "org.apache.iceberg:iceberg-core"
+            ]
+        },
+        "com.fasterxml.jackson.core:jackson-databind": {
+            "locked": "2.10.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector",
+                "org.apache.avro:avro",
+                "org.apache.iceberg:iceberg-core"
+            ]
+        },
+        "com.github.ben-manes.caffeine:caffeine": {
+            "locked": "2.7.0",
+            "transitive": [
+                "org.apache.iceberg:iceberg-core"
+            ]
+        },
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1",
+            "transitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-arrow",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-data",
+                "org.apache.iceberg:iceberg-hive",
+                "org.apache.iceberg:iceberg-orc",
+                "org.apache.iceberg:iceberg-parquet",
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "com.google.errorprone:error_prone_annotations": {
+            "locked": "2.3.3",
+            "transitive": [
+                "com.github.ben-manes.caffeine:caffeine"
+            ]
+        },
+        "com.google.flatbuffers:flatbuffers-java": {
+            "locked": "1.9.0",
+            "transitive": [
+                "org.apache.arrow:arrow-format",
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
+        "io.airlift:aircompressor": {
+            "locked": "0.15",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
+        },
+        "io.netty:netty-buffer": {
+            "locked": "4.1.27.Final",
+            "transitive": [
+                "org.apache.arrow:arrow-memory"
+            ]
+        },
+        "org.apache.arrow:arrow-format": {
+            "locked": "0.14.1",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
+        "org.apache.arrow:arrow-memory": {
+            "locked": "0.14.1",
+            "transitive": [
+                "org.apache.arrow:arrow-vector",
+                "org.apache.iceberg:iceberg-arrow"
+            ]
+        },
+        "org.apache.arrow:arrow-vector": {
+            "locked": "0.14.1",
+            "transitive": [
+                "org.apache.iceberg:iceberg-arrow"
+            ]
+        },
+        "org.apache.avro:avro": {
+            "locked": "1.9.2",
+            "transitive": [
+                "org.apache.iceberg:iceberg-core"
+            ]
+        },
+        "org.apache.iceberg:iceberg-api": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-arrow",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-data",
+                "org.apache.iceberg:iceberg-orc",
+                "org.apache.iceberg:iceberg-parquet",
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-arrow": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-bundled-guava": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common"
+            ]
+        },
+        "org.apache.iceberg:iceberg-common": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-core": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-data",
+                "org.apache.iceberg:iceberg-hive",
+                "org.apache.iceberg:iceberg-orc",
+                "org.apache.iceberg:iceberg-parquet",
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-data": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-hive": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-orc": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-parquet": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-arrow",
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-spark": {
+            "project": true
+        },
+        "org.apache.orc:orc-core": {
+            "locked": "1.6.3",
+            "transitive": [
+                "org.apache.iceberg:iceberg-orc"
+            ]
+        },
+        "org.apache.orc:orc-shims": {
+            "locked": "1.6.3",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
+        },
+        "org.apache.parquet:parquet-avro": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.iceberg:iceberg-parquet"
+            ]
+        },
+        "org.apache.parquet:parquet-column": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro",
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.parquet:parquet-common": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-column",
+                "org.apache.parquet:parquet-encoding"
+            ]
+        },
+        "org.apache.parquet:parquet-encoding": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-column"
+            ]
+        },
+        "org.apache.parquet:parquet-format-structures": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro",
+                "org.apache.parquet:parquet-common",
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.parquet:parquet-hadoop": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro"
+            ]
+        },
+        "org.apache.parquet:parquet-jackson": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.spark:spark-hive_2.11": {
+            "project": true
+        },
+        "org.apache.yetus:audience-annotations": {
+            "locked": "0.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-common"
+            ]
+        },
+        "org.checkerframework:checker-qual": {
+            "locked": "2.6.0",
+            "transitive": [
+                "com.github.ben-manes.caffeine:caffeine"
+            ]
+        },
+        "org.jetbrains:annotations": {
+            "locked": "17.0.0",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         },
         "org.slf4j:slf4j-api": {
-            "locked": "1.7.25"
+            "project": true
+        },
+        "org.threeten:threeten-extra": {
+            "locked": "1.5.0",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         }
     },
     "compileClasspath": {
+        "com.carrotsearch:hppc": {
+            "locked": "0.7.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
+        "com.fasterxml.jackson.core:jackson-annotations": {
+            "locked": "2.10.2",
+            "transitive": [
+                "com.fasterxml.jackson.core:jackson-databind",
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
         "com.fasterxml.jackson.core:jackson-core": {
-            "firstLevelTransitive": [
+            "locked": "2.10.2",
+            "transitive": [
+                "com.fasterxml.jackson.core:jackson-databind",
+                "org.apache.arrow:arrow-vector",
+                "org.apache.avro:avro",
                 "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "2.10.2"
+            ]
         },
         "com.fasterxml.jackson.core:jackson-databind": {
-            "firstLevelTransitive": [
+            "locked": "2.10.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector",
+                "org.apache.avro:avro",
                 "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "2.10.2"
+            ]
         },
         "com.github.ben-manes.caffeine:caffeine": {
-            "firstLevelTransitive": [
+            "locked": "2.7.0",
+            "transitive": [
                 "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "2.7.0"
+            ]
         },
         "com.github.stephenc.findbugs:findbugs-annotations": {
-            "firstLevelTransitive": [
+            "locked": "1.3.9-1",
+            "transitive": [
                 "org.apache.iceberg:iceberg-api",
                 "org.apache.iceberg:iceberg-arrow",
                 "org.apache.iceberg:iceberg-common",
@@ -57,331 +307,1033 @@
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "locked": "1.3.9-1"
+            ]
         },
-        "com.google.guava:guava": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-api",
-                "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-common",
-                "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-data",
-                "org.apache.iceberg:iceberg-hive",
-                "org.apache.iceberg:iceberg-orc",
-                "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
-            ],
-            "locked": "28.0-jre"
+        "com.google.errorprone:error_prone_annotations": {
+            "locked": "2.3.3",
+            "transitive": [
+                "com.github.ben-manes.caffeine:caffeine"
+            ]
+        },
+        "com.google.flatbuffers:flatbuffers-java": {
+            "locked": "1.9.0",
+            "transitive": [
+                "org.apache.arrow:arrow-format",
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
+        "io.airlift:aircompressor": {
+            "locked": "0.15",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
+        },
+        "io.netty:netty-buffer": {
+            "locked": "4.1.27.Final",
+            "transitive": [
+                "org.apache.arrow:arrow-memory"
+            ]
+        },
+        "org.apache.arrow:arrow-format": {
+            "locked": "0.14.1",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
         },
         "org.apache.arrow:arrow-memory": {
-            "firstLevelTransitive": [
+            "locked": "0.14.1",
+            "transitive": [
+                "org.apache.arrow:arrow-vector",
                 "org.apache.iceberg:iceberg-arrow"
-            ],
-            "locked": "0.14.1"
+            ]
         },
         "org.apache.arrow:arrow-vector": {
-            "firstLevelTransitive": [
+            "locked": "0.14.1",
+            "transitive": [
                 "org.apache.iceberg:iceberg-arrow"
-            ],
-            "locked": "0.14.1"
+            ]
         },
         "org.apache.avro:avro": {
-            "firstLevelTransitive": [
+            "locked": "1.9.2",
+            "transitive": [
                 "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "1.9.2"
+            ]
         },
         "org.apache.iceberg:iceberg-api": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
                 "org.apache.iceberg:iceberg-core",
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-arrow": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
+        },
+        "org.apache.iceberg:iceberg-bundled-guava": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common"
+            ]
         },
         "org.apache.iceberg:iceberg-common": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-core",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-core": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-data": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-hive": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-orc": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-parquet": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-spark": {
             "project": true
         },
         "org.apache.orc:orc-core": {
-            "firstLevelTransitive": [
+            "locked": "1.6.3",
+            "transitive": [
                 "org.apache.iceberg:iceberg-orc"
-            ],
-            "locked": "1.6.3"
+            ]
+        },
+        "org.apache.orc:orc-shims": {
+            "locked": "1.6.3",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         },
         "org.apache.parquet:parquet-avro": {
-            "firstLevelTransitive": [
+            "locked": "1.11.0",
+            "transitive": [
                 "org.apache.iceberg:iceberg-parquet"
-            ],
-            "locked": "1.11.0"
+            ]
+        },
+        "org.apache.parquet:parquet-column": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro",
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.parquet:parquet-common": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-column",
+                "org.apache.parquet:parquet-encoding"
+            ]
+        },
+        "org.apache.parquet:parquet-encoding": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-column"
+            ]
+        },
+        "org.apache.parquet:parquet-format-structures": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro",
+                "org.apache.parquet:parquet-common",
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.parquet:parquet-hadoop": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro"
+            ]
+        },
+        "org.apache.parquet:parquet-jackson": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.spark:spark-hive_2.11": {
+            "project": true
+        },
+        "org.apache.yetus:audience-annotations": {
+            "locked": "0.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-common"
+            ]
+        },
+        "org.checkerframework:checker-qual": {
+            "locked": "2.6.0",
+            "transitive": [
+                "com.github.ben-manes.caffeine:caffeine"
+            ]
+        },
+        "org.jetbrains:annotations": {
+            "locked": "17.0.0",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         },
         "org.slf4j:slf4j-api": {
             "project": true
-        }
-    },
-    "compileOnly": {
-        "com.fasterxml.jackson.core:jackson-core": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "2.10.2"
         },
-        "com.fasterxml.jackson.core:jackson-databind": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "2.10.2"
-        },
-        "com.github.ben-manes.caffeine:caffeine": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "2.7.0"
-        },
-        "com.github.stephenc.findbugs:findbugs-annotations": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-api",
-                "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-common",
-                "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-data",
-                "org.apache.iceberg:iceberg-hive",
-                "org.apache.iceberg:iceberg-orc",
-                "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
-            ],
-            "locked": "1.3.9-1"
-        },
-        "com.google.guava:guava": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-api",
-                "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-common",
-                "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-data",
-                "org.apache.iceberg:iceberg-hive",
-                "org.apache.iceberg:iceberg-orc",
-                "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
-            ],
-            "locked": "28.0-jre"
-        },
-        "org.apache.arrow:arrow-memory": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-arrow"
-            ],
-            "locked": "0.14.1"
-        },
-        "org.apache.arrow:arrow-vector": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-arrow"
-            ],
-            "locked": "0.14.1"
-        },
-        "org.apache.avro:avro": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "1.9.2"
-        },
-        "org.apache.iceberg:iceberg-api": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-data",
-                "org.apache.iceberg:iceberg-orc",
-                "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
-        },
-        "org.apache.iceberg:iceberg-arrow": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
-        },
-        "org.apache.iceberg:iceberg-common": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
-        },
-        "org.apache.iceberg:iceberg-core": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-data",
-                "org.apache.iceberg:iceberg-hive",
-                "org.apache.iceberg:iceberg-orc",
-                "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
-        },
-        "org.apache.iceberg:iceberg-data": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
-        },
-        "org.apache.iceberg:iceberg-hive": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
-        },
-        "org.apache.iceberg:iceberg-orc": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
-        },
-        "org.apache.iceberg:iceberg-parquet": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
-        },
-        "org.apache.iceberg:iceberg-spark": {
-            "project": true
-        },
-        "org.apache.orc:orc-core": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-orc"
-            ],
-            "locked": "1.6.3"
-        },
-        "org.apache.parquet:parquet-avro": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-parquet"
-            ],
-            "locked": "1.11.0"
+        "org.threeten:threeten-extra": {
+            "locked": "1.5.0",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         }
     },
     "default": {
-        "com.github.stephenc.findbugs:findbugs-annotations": {
-            "locked": "1.3.9-1"
+        "com.carrotsearch:hppc": {
+            "locked": "0.7.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
         },
-        "com.google.guava:guava": {
-            "locked": "28.0-jre"
+        "com.fasterxml.jackson.core:jackson-annotations": {
+            "locked": "2.10.2",
+            "transitive": [
+                "com.fasterxml.jackson.core:jackson-databind",
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
+        "com.fasterxml.jackson.core:jackson-core": {
+            "locked": "2.10.2",
+            "transitive": [
+                "com.fasterxml.jackson.core:jackson-databind",
+                "org.apache.arrow:arrow-vector",
+                "org.apache.avro:avro",
+                "org.apache.iceberg:iceberg-core"
+            ]
+        },
+        "com.fasterxml.jackson.core:jackson-databind": {
+            "locked": "2.10.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector",
+                "org.apache.avro:avro",
+                "org.apache.iceberg:iceberg-core"
+            ]
+        },
+        "com.github.ben-manes.caffeine:caffeine": {
+            "locked": "2.7.0",
+            "transitive": [
+                "org.apache.iceberg:iceberg-core"
+            ]
+        },
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1",
+            "transitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-arrow",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-data",
+                "org.apache.iceberg:iceberg-hive",
+                "org.apache.iceberg:iceberg-orc",
+                "org.apache.iceberg:iceberg-parquet",
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "com.google.errorprone:error_prone_annotations": {
+            "locked": "2.3.3",
+            "transitive": [
+                "com.github.ben-manes.caffeine:caffeine"
+            ]
+        },
+        "com.google.flatbuffers:flatbuffers-java": {
+            "locked": "1.9.0",
+            "transitive": [
+                "org.apache.arrow:arrow-format",
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
+        "io.airlift:aircompressor": {
+            "locked": "0.15",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
+        },
+        "io.netty:netty-buffer": {
+            "locked": "4.1.27.Final",
+            "transitive": [
+                "org.apache.arrow:arrow-memory"
+            ]
+        },
+        "org.apache.arrow:arrow-format": {
+            "locked": "0.14.1",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
+        "org.apache.arrow:arrow-memory": {
+            "locked": "0.14.1",
+            "transitive": [
+                "org.apache.arrow:arrow-vector",
+                "org.apache.iceberg:iceberg-arrow"
+            ]
+        },
+        "org.apache.arrow:arrow-vector": {
+            "locked": "0.14.1",
+            "transitive": [
+                "org.apache.iceberg:iceberg-arrow"
+            ]
+        },
+        "org.apache.avro:avro": {
+            "locked": "1.9.2",
+            "transitive": [
+                "org.apache.iceberg:iceberg-core"
+            ]
+        },
+        "org.apache.iceberg:iceberg-api": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-arrow",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-data",
+                "org.apache.iceberg:iceberg-orc",
+                "org.apache.iceberg:iceberg-parquet",
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-arrow": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-bundled-guava": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common"
+            ]
+        },
+        "org.apache.iceberg:iceberg-common": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-core": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-data",
+                "org.apache.iceberg:iceberg-hive",
+                "org.apache.iceberg:iceberg-orc",
+                "org.apache.iceberg:iceberg-parquet",
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-data": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-hive": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-orc": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-parquet": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-arrow",
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-spark": {
+            "project": true
+        },
+        "org.apache.orc:orc-core": {
+            "locked": "1.6.3",
+            "transitive": [
+                "org.apache.iceberg:iceberg-orc"
+            ]
+        },
+        "org.apache.orc:orc-shims": {
+            "locked": "1.6.3",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
+        },
+        "org.apache.parquet:parquet-avro": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.iceberg:iceberg-parquet"
+            ]
+        },
+        "org.apache.parquet:parquet-column": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro",
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.parquet:parquet-common": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-column",
+                "org.apache.parquet:parquet-encoding"
+            ]
+        },
+        "org.apache.parquet:parquet-encoding": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-column"
+            ]
+        },
+        "org.apache.parquet:parquet-format-structures": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro",
+                "org.apache.parquet:parquet-common",
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.parquet:parquet-hadoop": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro"
+            ]
+        },
+        "org.apache.parquet:parquet-jackson": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.spark:spark-hive_2.11": {
+            "project": true
+        },
+        "org.apache.yetus:audience-annotations": {
+            "locked": "0.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-common"
+            ]
+        },
+        "org.checkerframework:checker-qual": {
+            "locked": "2.6.0",
+            "transitive": [
+                "com.github.ben-manes.caffeine:caffeine"
+            ]
+        },
+        "org.jetbrains:annotations": {
+            "locked": "17.0.0",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         },
         "org.slf4j:slf4j-api": {
-            "locked": "1.7.25"
-        }
-    },
-    "errorprone": {
-        "com.palantir.baseline:baseline-error-prone": {
-            "locked": "0.55.0",
-            "requested": "0.55.0"
-        }
-    },
-    "errorproneJavac": {
-        "com.google.errorprone:javac": {
-            "locked": "9+181-r4173-1",
-            "requested": "9+181-r4173-1"
+            "project": true
+        },
+        "org.threeten:threeten-extra": {
+            "locked": "1.5.0",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         }
     },
     "runtime": {
-        "com.github.stephenc.findbugs:findbugs-annotations": {
-            "locked": "1.3.9-1"
+        "com.carrotsearch:hppc": {
+            "locked": "0.7.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
         },
-        "com.google.guava:guava": {
-            "locked": "28.0-jre"
+        "com.fasterxml.jackson.core:jackson-annotations": {
+            "locked": "2.10.2",
+            "transitive": [
+                "com.fasterxml.jackson.core:jackson-databind",
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
+        "com.fasterxml.jackson.core:jackson-core": {
+            "locked": "2.10.2",
+            "transitive": [
+                "com.fasterxml.jackson.core:jackson-databind",
+                "org.apache.arrow:arrow-vector",
+                "org.apache.avro:avro",
+                "org.apache.iceberg:iceberg-core"
+            ]
+        },
+        "com.fasterxml.jackson.core:jackson-databind": {
+            "locked": "2.10.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector",
+                "org.apache.avro:avro",
+                "org.apache.iceberg:iceberg-core"
+            ]
+        },
+        "com.github.ben-manes.caffeine:caffeine": {
+            "locked": "2.7.0",
+            "transitive": [
+                "org.apache.iceberg:iceberg-core"
+            ]
+        },
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1",
+            "transitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-arrow",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-data",
+                "org.apache.iceberg:iceberg-hive",
+                "org.apache.iceberg:iceberg-orc",
+                "org.apache.iceberg:iceberg-parquet",
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "com.google.errorprone:error_prone_annotations": {
+            "locked": "2.3.3",
+            "transitive": [
+                "com.github.ben-manes.caffeine:caffeine"
+            ]
+        },
+        "com.google.flatbuffers:flatbuffers-java": {
+            "locked": "1.9.0",
+            "transitive": [
+                "org.apache.arrow:arrow-format",
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
+        "io.airlift:aircompressor": {
+            "locked": "0.15",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
+        },
+        "io.netty:netty-buffer": {
+            "locked": "4.1.27.Final",
+            "transitive": [
+                "org.apache.arrow:arrow-memory"
+            ]
+        },
+        "org.apache.arrow:arrow-format": {
+            "locked": "0.14.1",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
+        "org.apache.arrow:arrow-memory": {
+            "locked": "0.14.1",
+            "transitive": [
+                "org.apache.arrow:arrow-vector",
+                "org.apache.iceberg:iceberg-arrow"
+            ]
+        },
+        "org.apache.arrow:arrow-vector": {
+            "locked": "0.14.1",
+            "transitive": [
+                "org.apache.iceberg:iceberg-arrow"
+            ]
+        },
+        "org.apache.avro:avro": {
+            "locked": "1.9.2",
+            "transitive": [
+                "org.apache.iceberg:iceberg-core"
+            ]
+        },
+        "org.apache.iceberg:iceberg-api": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-arrow",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-data",
+                "org.apache.iceberg:iceberg-orc",
+                "org.apache.iceberg:iceberg-parquet",
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-arrow": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-bundled-guava": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common"
+            ]
+        },
+        "org.apache.iceberg:iceberg-common": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-core": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-data",
+                "org.apache.iceberg:iceberg-hive",
+                "org.apache.iceberg:iceberg-orc",
+                "org.apache.iceberg:iceberg-parquet",
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-data": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-hive": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-orc": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-parquet": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-arrow",
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-spark": {
+            "project": true
+        },
+        "org.apache.orc:orc-core": {
+            "locked": "1.6.3",
+            "transitive": [
+                "org.apache.iceberg:iceberg-orc"
+            ]
+        },
+        "org.apache.orc:orc-shims": {
+            "locked": "1.6.3",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
+        },
+        "org.apache.parquet:parquet-avro": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.iceberg:iceberg-parquet"
+            ]
+        },
+        "org.apache.parquet:parquet-column": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro",
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.parquet:parquet-common": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-column",
+                "org.apache.parquet:parquet-encoding"
+            ]
+        },
+        "org.apache.parquet:parquet-encoding": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-column"
+            ]
+        },
+        "org.apache.parquet:parquet-format-structures": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro",
+                "org.apache.parquet:parquet-common",
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.parquet:parquet-hadoop": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro"
+            ]
+        },
+        "org.apache.parquet:parquet-jackson": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.spark:spark-hive_2.11": {
+            "project": true
+        },
+        "org.apache.yetus:audience-annotations": {
+            "locked": "0.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-common"
+            ]
+        },
+        "org.checkerframework:checker-qual": {
+            "locked": "2.6.0",
+            "transitive": [
+                "com.github.ben-manes.caffeine:caffeine"
+            ]
+        },
+        "org.jetbrains:annotations": {
+            "locked": "17.0.0",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         },
         "org.slf4j:slf4j-api": {
-            "locked": "1.7.25"
+            "project": true
+        },
+        "org.threeten:threeten-extra": {
+            "locked": "1.5.0",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         }
     },
     "runtimeClasspath": {
-        "com.github.stephenc.findbugs:findbugs-annotations": {
-            "locked": "1.3.9-1"
+        "com.carrotsearch:hppc": {
+            "locked": "0.7.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
         },
-        "com.google.guava:guava": {
-            "locked": "28.0-jre"
+        "com.fasterxml.jackson.core:jackson-annotations": {
+            "locked": "2.10.2",
+            "transitive": [
+                "com.fasterxml.jackson.core:jackson-databind",
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
+        "com.fasterxml.jackson.core:jackson-core": {
+            "locked": "2.10.2",
+            "transitive": [
+                "com.fasterxml.jackson.core:jackson-databind",
+                "org.apache.arrow:arrow-vector",
+                "org.apache.avro:avro",
+                "org.apache.iceberg:iceberg-core"
+            ]
+        },
+        "com.fasterxml.jackson.core:jackson-databind": {
+            "locked": "2.10.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector",
+                "org.apache.avro:avro",
+                "org.apache.iceberg:iceberg-core"
+            ]
+        },
+        "com.github.ben-manes.caffeine:caffeine": {
+            "locked": "2.7.0",
+            "transitive": [
+                "org.apache.iceberg:iceberg-core"
+            ]
+        },
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1",
+            "transitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-arrow",
+                "org.apache.iceberg:iceberg-common",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-data",
+                "org.apache.iceberg:iceberg-hive",
+                "org.apache.iceberg:iceberg-orc",
+                "org.apache.iceberg:iceberg-parquet",
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "com.google.errorprone:error_prone_annotations": {
+            "locked": "2.3.3",
+            "transitive": [
+                "com.github.ben-manes.caffeine:caffeine"
+            ]
+        },
+        "com.google.flatbuffers:flatbuffers-java": {
+            "locked": "1.9.0",
+            "transitive": [
+                "org.apache.arrow:arrow-format",
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
+        "io.airlift:aircompressor": {
+            "locked": "0.15",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
+        },
+        "io.netty:netty-buffer": {
+            "locked": "4.1.27.Final",
+            "transitive": [
+                "org.apache.arrow:arrow-memory"
+            ]
+        },
+        "org.apache.arrow:arrow-format": {
+            "locked": "0.14.1",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
+        "org.apache.arrow:arrow-memory": {
+            "locked": "0.14.1",
+            "transitive": [
+                "org.apache.arrow:arrow-vector",
+                "org.apache.iceberg:iceberg-arrow"
+            ]
+        },
+        "org.apache.arrow:arrow-vector": {
+            "locked": "0.14.1",
+            "transitive": [
+                "org.apache.iceberg:iceberg-arrow"
+            ]
+        },
+        "org.apache.avro:avro": {
+            "locked": "1.9.2",
+            "transitive": [
+                "org.apache.iceberg:iceberg-core"
+            ]
+        },
+        "org.apache.iceberg:iceberg-api": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-arrow",
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-data",
+                "org.apache.iceberg:iceberg-orc",
+                "org.apache.iceberg:iceberg-parquet",
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-arrow": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-bundled-guava": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common"
+            ]
+        },
+        "org.apache.iceberg:iceberg-common": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-core",
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-core": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-data",
+                "org.apache.iceberg:iceberg-hive",
+                "org.apache.iceberg:iceberg-orc",
+                "org.apache.iceberg:iceberg-parquet",
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-data": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-hive": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-orc": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-parquet": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-arrow",
+                "org.apache.iceberg:iceberg-spark"
+            ]
+        },
+        "org.apache.iceberg:iceberg-spark": {
+            "project": true
+        },
+        "org.apache.orc:orc-core": {
+            "locked": "1.6.3",
+            "transitive": [
+                "org.apache.iceberg:iceberg-orc"
+            ]
+        },
+        "org.apache.orc:orc-shims": {
+            "locked": "1.6.3",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
+        },
+        "org.apache.parquet:parquet-avro": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.iceberg:iceberg-parquet"
+            ]
+        },
+        "org.apache.parquet:parquet-column": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro",
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.parquet:parquet-common": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-column",
+                "org.apache.parquet:parquet-encoding"
+            ]
+        },
+        "org.apache.parquet:parquet-encoding": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-column"
+            ]
+        },
+        "org.apache.parquet:parquet-format-structures": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro",
+                "org.apache.parquet:parquet-common",
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.parquet:parquet-hadoop": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro"
+            ]
+        },
+        "org.apache.parquet:parquet-jackson": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.spark:spark-hive_2.11": {
+            "project": true
+        },
+        "org.apache.yetus:audience-annotations": {
+            "locked": "0.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-common"
+            ]
+        },
+        "org.checkerframework:checker-qual": {
+            "locked": "2.6.0",
+            "transitive": [
+                "com.github.ben-manes.caffeine:caffeine"
+            ]
+        },
+        "org.jetbrains:annotations": {
+            "locked": "17.0.0",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         },
         "org.slf4j:slf4j-api": {
-            "locked": "1.7.25"
-        }
-    },
-    "testAnnotationProcessor": {
-        "com.palantir.baseline:baseline-error-prone": {
-            "locked": "0.55.0",
-            "requested": "0.55.0"
+            "project": true
+        },
+        "org.threeten:threeten-extra": {
+            "locked": "1.5.0",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         }
     },
     "testCompile": {
+        "com.carrotsearch:hppc": {
+            "locked": "0.7.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
+        "com.fasterxml.jackson.core:jackson-annotations": {
+            "locked": "2.10.2",
+            "transitive": [
+                "com.fasterxml.jackson.core:jackson-databind",
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
         "com.fasterxml.jackson.core:jackson-core": {
-            "firstLevelTransitive": [
+            "locked": "2.10.2",
+            "transitive": [
+                "com.fasterxml.jackson.core:jackson-databind",
+                "org.apache.arrow:arrow-vector",
+                "org.apache.avro:avro",
                 "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "2.10.2"
+            ]
         },
         "com.fasterxml.jackson.core:jackson-databind": {
-            "firstLevelTransitive": [
+            "locked": "2.10.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector",
+                "org.apache.avro:avro",
                 "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "2.10.2"
+            ]
         },
         "com.github.ben-manes.caffeine:caffeine": {
-            "firstLevelTransitive": [
+            "locked": "2.7.0",
+            "transitive": [
                 "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "2.7.0"
+            ]
         },
         "com.github.stephenc.findbugs:findbugs-annotations": {
-            "firstLevelTransitive": [
+            "locked": "1.3.9-1",
+            "transitive": [
                 "org.apache.iceberg:iceberg-api",
                 "org.apache.iceberg:iceberg-arrow",
                 "org.apache.iceberg:iceberg-common",
@@ -391,149 +1343,278 @@
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "locked": "1.3.9-1"
+            ]
         },
-        "com.google.guava:guava": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-api",
-                "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-common",
-                "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-data",
-                "org.apache.iceberg:iceberg-hive",
-                "org.apache.iceberg:iceberg-orc",
-                "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
-            ],
-            "locked": "28.0-jre"
+        "com.google.errorprone:error_prone_annotations": {
+            "locked": "2.3.3",
+            "transitive": [
+                "com.github.ben-manes.caffeine:caffeine"
+            ]
+        },
+        "com.google.flatbuffers:flatbuffers-java": {
+            "locked": "1.9.0",
+            "transitive": [
+                "org.apache.arrow:arrow-format",
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
+        "io.airlift:aircompressor": {
+            "locked": "0.15",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
+        },
+        "io.netty:netty-buffer": {
+            "locked": "4.1.27.Final",
+            "transitive": [
+                "org.apache.arrow:arrow-memory"
+            ]
         },
         "junit:junit": {
             "locked": "4.12"
         },
+        "org.apache.arrow:arrow-format": {
+            "locked": "0.14.1",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
         "org.apache.arrow:arrow-memory": {
-            "firstLevelTransitive": [
+            "locked": "0.14.1",
+            "transitive": [
+                "org.apache.arrow:arrow-vector",
                 "org.apache.iceberg:iceberg-arrow"
-            ],
-            "locked": "0.14.1"
+            ]
         },
         "org.apache.arrow:arrow-vector": {
-            "firstLevelTransitive": [
+            "locked": "0.14.1",
+            "transitive": [
                 "org.apache.iceberg:iceberg-arrow"
-            ],
-            "locked": "0.14.1"
+            ]
         },
         "org.apache.avro:avro": {
-            "firstLevelTransitive": [
+            "locked": "1.9.2",
+            "transitive": [
                 "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "1.9.2"
+            ]
         },
         "org.apache.iceberg:iceberg-api": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
                 "org.apache.iceberg:iceberg-core",
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-arrow": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
+        },
+        "org.apache.iceberg:iceberg-bundled-guava": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common"
+            ]
         },
         "org.apache.iceberg:iceberg-common": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-core",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-core": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-data": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-hive": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-orc": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-parquet": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-spark": {
             "project": true
         },
         "org.apache.orc:orc-core": {
-            "firstLevelTransitive": [
+            "locked": "1.6.3",
+            "transitive": [
                 "org.apache.iceberg:iceberg-orc"
-            ],
-            "locked": "1.6.3"
+            ]
+        },
+        "org.apache.orc:orc-shims": {
+            "locked": "1.6.3",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         },
         "org.apache.parquet:parquet-avro": {
-            "firstLevelTransitive": [
+            "locked": "1.11.0",
+            "transitive": [
                 "org.apache.iceberg:iceberg-parquet"
-            ],
-            "locked": "1.11.0"
+            ]
+        },
+        "org.apache.parquet:parquet-column": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro",
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.parquet:parquet-common": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-column",
+                "org.apache.parquet:parquet-encoding"
+            ]
+        },
+        "org.apache.parquet:parquet-encoding": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-column"
+            ]
+        },
+        "org.apache.parquet:parquet-format-structures": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro",
+                "org.apache.parquet:parquet-common",
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.parquet:parquet-hadoop": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro"
+            ]
+        },
+        "org.apache.parquet:parquet-jackson": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.spark:spark-hive_2.11": {
+            "project": true
+        },
+        "org.apache.yetus:audience-annotations": {
+            "locked": "0.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-common"
+            ]
+        },
+        "org.checkerframework:checker-qual": {
+            "locked": "2.6.0",
+            "transitive": [
+                "com.github.ben-manes.caffeine:caffeine"
+            ]
+        },
+        "org.hamcrest:hamcrest-core": {
+            "locked": "1.3",
+            "transitive": [
+                "junit:junit",
+                "org.mockito:mockito-core"
+            ]
+        },
+        "org.jetbrains:annotations": {
+            "locked": "17.0.0",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         },
         "org.mockito:mockito-core": {
             "locked": "1.10.19"
+        },
+        "org.objenesis:objenesis": {
+            "locked": "2.1",
+            "transitive": [
+                "org.mockito:mockito-core"
+            ]
         },
         "org.slf4j:slf4j-api": {
             "project": true
         },
         "org.slf4j:slf4j-simple": {
             "project": true
+        },
+        "org.threeten:threeten-extra": {
+            "locked": "1.5.0",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         }
     },
     "testCompileClasspath": {
+        "com.carrotsearch:hppc": {
+            "locked": "0.7.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
+        "com.fasterxml.jackson.core:jackson-annotations": {
+            "locked": "2.10.2",
+            "transitive": [
+                "com.fasterxml.jackson.core:jackson-databind",
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
         "com.fasterxml.jackson.core:jackson-core": {
-            "firstLevelTransitive": [
+            "locked": "2.10.2",
+            "transitive": [
+                "com.fasterxml.jackson.core:jackson-databind",
+                "org.apache.arrow:arrow-vector",
+                "org.apache.avro:avro",
                 "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "2.10.2"
+            ]
         },
         "com.fasterxml.jackson.core:jackson-databind": {
-            "firstLevelTransitive": [
+            "locked": "2.10.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector",
+                "org.apache.avro:avro",
                 "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "2.10.2"
+            ]
         },
         "com.github.ben-manes.caffeine:caffeine": {
-            "firstLevelTransitive": [
+            "locked": "2.7.0",
+            "transitive": [
                 "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "2.7.0"
+            ]
         },
         "com.github.stephenc.findbugs:findbugs-annotations": {
-            "firstLevelTransitive": [
+            "locked": "1.3.9-1",
+            "transitive": [
                 "org.apache.iceberg:iceberg-api",
                 "org.apache.iceberg:iceberg-arrow",
                 "org.apache.iceberg:iceberg-common",
@@ -543,117 +1624,214 @@
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "locked": "1.3.9-1"
+            ]
         },
-        "com.google.guava:guava": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-api",
-                "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-common",
-                "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-data",
-                "org.apache.iceberg:iceberg-hive",
-                "org.apache.iceberg:iceberg-orc",
-                "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
-            ],
-            "locked": "28.0-jre"
+        "com.google.errorprone:error_prone_annotations": {
+            "locked": "2.3.3",
+            "transitive": [
+                "com.github.ben-manes.caffeine:caffeine"
+            ]
+        },
+        "com.google.flatbuffers:flatbuffers-java": {
+            "locked": "1.9.0",
+            "transitive": [
+                "org.apache.arrow:arrow-format",
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
+        "io.airlift:aircompressor": {
+            "locked": "0.15",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
+        },
+        "io.netty:netty-buffer": {
+            "locked": "4.1.27.Final",
+            "transitive": [
+                "org.apache.arrow:arrow-memory"
+            ]
         },
         "junit:junit": {
             "locked": "4.12"
         },
+        "org.apache.arrow:arrow-format": {
+            "locked": "0.14.1",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
         "org.apache.arrow:arrow-memory": {
-            "firstLevelTransitive": [
+            "locked": "0.14.1",
+            "transitive": [
+                "org.apache.arrow:arrow-vector",
                 "org.apache.iceberg:iceberg-arrow"
-            ],
-            "locked": "0.14.1"
+            ]
         },
         "org.apache.arrow:arrow-vector": {
-            "firstLevelTransitive": [
+            "locked": "0.14.1",
+            "transitive": [
                 "org.apache.iceberg:iceberg-arrow"
-            ],
-            "locked": "0.14.1"
+            ]
         },
         "org.apache.avro:avro": {
-            "firstLevelTransitive": [
+            "locked": "1.9.2",
+            "transitive": [
                 "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "1.9.2"
+            ]
         },
         "org.apache.iceberg:iceberg-api": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
                 "org.apache.iceberg:iceberg-core",
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-arrow": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
+        },
+        "org.apache.iceberg:iceberg-bundled-guava": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common"
+            ]
         },
         "org.apache.iceberg:iceberg-common": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-core",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-core": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-data": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-hive": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-orc": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-parquet": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-spark": {
             "project": true
         },
         "org.apache.orc:orc-core": {
-            "firstLevelTransitive": [
+            "locked": "1.6.3",
+            "transitive": [
                 "org.apache.iceberg:iceberg-orc"
-            ],
-            "locked": "1.6.3"
+            ]
+        },
+        "org.apache.orc:orc-shims": {
+            "locked": "1.6.3",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         },
         "org.apache.parquet:parquet-avro": {
-            "firstLevelTransitive": [
+            "locked": "1.11.0",
+            "transitive": [
                 "org.apache.iceberg:iceberg-parquet"
-            ],
-            "locked": "1.11.0"
+            ]
+        },
+        "org.apache.parquet:parquet-column": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro",
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.parquet:parquet-common": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-column",
+                "org.apache.parquet:parquet-encoding"
+            ]
+        },
+        "org.apache.parquet:parquet-encoding": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-column"
+            ]
+        },
+        "org.apache.parquet:parquet-format-structures": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro",
+                "org.apache.parquet:parquet-common",
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.parquet:parquet-hadoop": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro"
+            ]
+        },
+        "org.apache.parquet:parquet-jackson": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.spark:spark-hive_2.11": {
+            "project": true
+        },
+        "org.apache.yetus:audience-annotations": {
+            "locked": "0.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-common"
+            ]
+        },
+        "org.checkerframework:checker-qual": {
+            "locked": "2.6.0",
+            "transitive": [
+                "com.github.ben-manes.caffeine:caffeine"
+            ]
+        },
+        "org.hamcrest:hamcrest-core": {
+            "locked": "1.3",
+            "transitive": [
+                "junit:junit"
+            ]
+        },
+        "org.jetbrains:annotations": {
+            "locked": "17.0.0",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         },
         "org.mockito:mockito-core": {
             "locked": "1.10.19"
@@ -663,29 +1841,54 @@
         },
         "org.slf4j:slf4j-simple": {
             "project": true
+        },
+        "org.threeten:threeten-extra": {
+            "locked": "1.5.0",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         }
     },
     "testRuntime": {
+        "com.carrotsearch:hppc": {
+            "locked": "0.7.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
+        "com.fasterxml.jackson.core:jackson-annotations": {
+            "locked": "2.10.2",
+            "transitive": [
+                "com.fasterxml.jackson.core:jackson-databind",
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
         "com.fasterxml.jackson.core:jackson-core": {
-            "firstLevelTransitive": [
+            "locked": "2.10.2",
+            "transitive": [
+                "com.fasterxml.jackson.core:jackson-databind",
+                "org.apache.arrow:arrow-vector",
+                "org.apache.avro:avro",
                 "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "2.10.2"
+            ]
         },
         "com.fasterxml.jackson.core:jackson-databind": {
-            "firstLevelTransitive": [
+            "locked": "2.10.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector",
+                "org.apache.avro:avro",
                 "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "2.10.2"
+            ]
         },
         "com.github.ben-manes.caffeine:caffeine": {
-            "firstLevelTransitive": [
+            "locked": "2.7.0",
+            "transitive": [
                 "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "2.7.0"
+            ]
         },
         "com.github.stephenc.findbugs:findbugs-annotations": {
-            "firstLevelTransitive": [
+            "locked": "1.3.9-1",
+            "transitive": [
                 "org.apache.iceberg:iceberg-api",
                 "org.apache.iceberg:iceberg-arrow",
                 "org.apache.iceberg:iceberg-common",
@@ -695,149 +1898,278 @@
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "locked": "1.3.9-1"
+            ]
         },
-        "com.google.guava:guava": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-api",
-                "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-common",
-                "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-data",
-                "org.apache.iceberg:iceberg-hive",
-                "org.apache.iceberg:iceberg-orc",
-                "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
-            ],
-            "locked": "28.0-jre"
+        "com.google.errorprone:error_prone_annotations": {
+            "locked": "2.3.3",
+            "transitive": [
+                "com.github.ben-manes.caffeine:caffeine"
+            ]
+        },
+        "com.google.flatbuffers:flatbuffers-java": {
+            "locked": "1.9.0",
+            "transitive": [
+                "org.apache.arrow:arrow-format",
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
+        "io.airlift:aircompressor": {
+            "locked": "0.15",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
+        },
+        "io.netty:netty-buffer": {
+            "locked": "4.1.27.Final",
+            "transitive": [
+                "org.apache.arrow:arrow-memory"
+            ]
         },
         "junit:junit": {
             "locked": "4.12"
         },
+        "org.apache.arrow:arrow-format": {
+            "locked": "0.14.1",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
         "org.apache.arrow:arrow-memory": {
-            "firstLevelTransitive": [
+            "locked": "0.14.1",
+            "transitive": [
+                "org.apache.arrow:arrow-vector",
                 "org.apache.iceberg:iceberg-arrow"
-            ],
-            "locked": "0.14.1"
+            ]
         },
         "org.apache.arrow:arrow-vector": {
-            "firstLevelTransitive": [
+            "locked": "0.14.1",
+            "transitive": [
                 "org.apache.iceberg:iceberg-arrow"
-            ],
-            "locked": "0.14.1"
+            ]
         },
         "org.apache.avro:avro": {
-            "firstLevelTransitive": [
+            "locked": "1.9.2",
+            "transitive": [
                 "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "1.9.2"
+            ]
         },
         "org.apache.iceberg:iceberg-api": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
                 "org.apache.iceberg:iceberg-core",
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-arrow": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
+        },
+        "org.apache.iceberg:iceberg-bundled-guava": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common"
+            ]
         },
         "org.apache.iceberg:iceberg-common": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-core",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-core": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-data": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-hive": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-orc": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-parquet": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-spark": {
             "project": true
         },
         "org.apache.orc:orc-core": {
-            "firstLevelTransitive": [
+            "locked": "1.6.3",
+            "transitive": [
                 "org.apache.iceberg:iceberg-orc"
-            ],
-            "locked": "1.6.3"
+            ]
+        },
+        "org.apache.orc:orc-shims": {
+            "locked": "1.6.3",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         },
         "org.apache.parquet:parquet-avro": {
-            "firstLevelTransitive": [
+            "locked": "1.11.0",
+            "transitive": [
                 "org.apache.iceberg:iceberg-parquet"
-            ],
-            "locked": "1.11.0"
+            ]
+        },
+        "org.apache.parquet:parquet-column": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro",
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.parquet:parquet-common": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-column",
+                "org.apache.parquet:parquet-encoding"
+            ]
+        },
+        "org.apache.parquet:parquet-encoding": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-column"
+            ]
+        },
+        "org.apache.parquet:parquet-format-structures": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro",
+                "org.apache.parquet:parquet-common",
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.parquet:parquet-hadoop": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro"
+            ]
+        },
+        "org.apache.parquet:parquet-jackson": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.spark:spark-hive_2.11": {
+            "project": true
+        },
+        "org.apache.yetus:audience-annotations": {
+            "locked": "0.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-common"
+            ]
+        },
+        "org.checkerframework:checker-qual": {
+            "locked": "2.6.0",
+            "transitive": [
+                "com.github.ben-manes.caffeine:caffeine"
+            ]
+        },
+        "org.hamcrest:hamcrest-core": {
+            "locked": "1.3",
+            "transitive": [
+                "junit:junit",
+                "org.mockito:mockito-core"
+            ]
+        },
+        "org.jetbrains:annotations": {
+            "locked": "17.0.0",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         },
         "org.mockito:mockito-core": {
             "locked": "1.10.19"
+        },
+        "org.objenesis:objenesis": {
+            "locked": "2.1",
+            "transitive": [
+                "org.mockito:mockito-core"
+            ]
         },
         "org.slf4j:slf4j-api": {
             "project": true
         },
         "org.slf4j:slf4j-simple": {
             "project": true
+        },
+        "org.threeten:threeten-extra": {
+            "locked": "1.5.0",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         }
     },
     "testRuntimeClasspath": {
+        "com.carrotsearch:hppc": {
+            "locked": "0.7.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
+        "com.fasterxml.jackson.core:jackson-annotations": {
+            "locked": "2.10.2",
+            "transitive": [
+                "com.fasterxml.jackson.core:jackson-databind",
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
         "com.fasterxml.jackson.core:jackson-core": {
-            "firstLevelTransitive": [
+            "locked": "2.10.2",
+            "transitive": [
+                "com.fasterxml.jackson.core:jackson-databind",
+                "org.apache.arrow:arrow-vector",
+                "org.apache.avro:avro",
                 "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "2.10.2"
+            ]
         },
         "com.fasterxml.jackson.core:jackson-databind": {
-            "firstLevelTransitive": [
+            "locked": "2.10.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector",
+                "org.apache.avro:avro",
                 "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "2.10.2"
+            ]
         },
         "com.github.ben-manes.caffeine:caffeine": {
-            "firstLevelTransitive": [
+            "locked": "2.7.0",
+            "transitive": [
                 "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "2.7.0"
+            ]
         },
         "com.github.stephenc.findbugs:findbugs-annotations": {
-            "firstLevelTransitive": [
+            "locked": "1.3.9-1",
+            "transitive": [
                 "org.apache.iceberg:iceberg-api",
                 "org.apache.iceberg:iceberg-arrow",
                 "org.apache.iceberg:iceberg-common",
@@ -847,126 +2179,236 @@
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "locked": "1.3.9-1"
+            ]
         },
-        "com.google.guava:guava": {
-            "firstLevelTransitive": [
-                "org.apache.iceberg:iceberg-api",
-                "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-common",
-                "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-data",
-                "org.apache.iceberg:iceberg-hive",
-                "org.apache.iceberg:iceberg-orc",
-                "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
-            ],
-            "locked": "28.0-jre"
+        "com.google.errorprone:error_prone_annotations": {
+            "locked": "2.3.3",
+            "transitive": [
+                "com.github.ben-manes.caffeine:caffeine"
+            ]
+        },
+        "com.google.flatbuffers:flatbuffers-java": {
+            "locked": "1.9.0",
+            "transitive": [
+                "org.apache.arrow:arrow-format",
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
+        "io.airlift:aircompressor": {
+            "locked": "0.15",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
+        },
+        "io.netty:netty-buffer": {
+            "locked": "4.1.27.Final",
+            "transitive": [
+                "org.apache.arrow:arrow-memory"
+            ]
         },
         "junit:junit": {
             "locked": "4.12"
         },
+        "org.apache.arrow:arrow-format": {
+            "locked": "0.14.1",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
         "org.apache.arrow:arrow-memory": {
-            "firstLevelTransitive": [
+            "locked": "0.14.1",
+            "transitive": [
+                "org.apache.arrow:arrow-vector",
                 "org.apache.iceberg:iceberg-arrow"
-            ],
-            "locked": "0.14.1"
+            ]
         },
         "org.apache.arrow:arrow-vector": {
-            "firstLevelTransitive": [
+            "locked": "0.14.1",
+            "transitive": [
                 "org.apache.iceberg:iceberg-arrow"
-            ],
-            "locked": "0.14.1"
+            ]
         },
         "org.apache.avro:avro": {
-            "firstLevelTransitive": [
+            "locked": "1.9.2",
+            "transitive": [
                 "org.apache.iceberg:iceberg-core"
-            ],
-            "locked": "1.9.2"
+            ]
         },
         "org.apache.iceberg:iceberg-api": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
                 "org.apache.iceberg:iceberg-core",
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-arrow": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
+        },
+        "org.apache.iceberg:iceberg-bundled-guava": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-api",
+                "org.apache.iceberg:iceberg-common"
+            ]
         },
         "org.apache.iceberg:iceberg-common": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-core",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-core": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-data": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-hive": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-orc": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-parquet": {
-            "firstLevelTransitive": [
+            "project": true,
+            "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
                 "org.apache.iceberg:iceberg-spark"
-            ],
-            "project": true
+            ]
         },
         "org.apache.iceberg:iceberg-spark": {
             "project": true
         },
         "org.apache.orc:orc-core": {
-            "firstLevelTransitive": [
+            "locked": "1.6.3",
+            "transitive": [
                 "org.apache.iceberg:iceberg-orc"
-            ],
-            "locked": "1.6.3"
+            ]
+        },
+        "org.apache.orc:orc-shims": {
+            "locked": "1.6.3",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         },
         "org.apache.parquet:parquet-avro": {
-            "firstLevelTransitive": [
+            "locked": "1.11.0",
+            "transitive": [
                 "org.apache.iceberg:iceberg-parquet"
-            ],
-            "locked": "1.11.0"
+            ]
+        },
+        "org.apache.parquet:parquet-column": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro",
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.parquet:parquet-common": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-column",
+                "org.apache.parquet:parquet-encoding"
+            ]
+        },
+        "org.apache.parquet:parquet-encoding": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-column"
+            ]
+        },
+        "org.apache.parquet:parquet-format-structures": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro",
+                "org.apache.parquet:parquet-common",
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.parquet:parquet-hadoop": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-avro"
+            ]
+        },
+        "org.apache.parquet:parquet-jackson": {
+            "locked": "1.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-hadoop"
+            ]
+        },
+        "org.apache.spark:spark-hive_2.11": {
+            "project": true
+        },
+        "org.apache.yetus:audience-annotations": {
+            "locked": "0.11.0",
+            "transitive": [
+                "org.apache.parquet:parquet-common"
+            ]
+        },
+        "org.checkerframework:checker-qual": {
+            "locked": "2.6.0",
+            "transitive": [
+                "com.github.ben-manes.caffeine:caffeine"
+            ]
+        },
+        "org.hamcrest:hamcrest-core": {
+            "locked": "1.3",
+            "transitive": [
+                "junit:junit",
+                "org.mockito:mockito-core"
+            ]
+        },
+        "org.jetbrains:annotations": {
+            "locked": "17.0.0",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         },
         "org.mockito:mockito-core": {
             "locked": "1.10.19"
+        },
+        "org.objenesis:objenesis": {
+            "locked": "2.1",
+            "transitive": [
+                "org.mockito:mockito-core"
+            ]
         },
         "org.slf4j:slf4j-api": {
             "project": true
         },
         "org.slf4j:slf4j-simple": {
             "project": true
+        },
+        "org.threeten:threeten-extra": {
+            "locked": "1.5.0",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
         }
     }
 }
