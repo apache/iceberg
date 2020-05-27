@@ -65,24 +65,6 @@ public final class ORCSchemaUtil {
     public TypeDescription type() {
       return type;
     }
-
-    @Override
-    public boolean equals(Object o) {
-      if (this == o) {
-        return true;
-      }
-      if (o == null || getClass() != o.getClass()) {
-        return false;
-      }
-
-      OrcField orcField = (OrcField) o;
-      return Objects.equals(name, orcField.name) && Objects.equals(type, orcField.type);
-    }
-
-    @Override
-    public int hashCode() {
-      return Objects.hash(name, type);
-    }
   }
 
   private static final String ICEBERG_ID_ATTRIBUTE = "iceberg.id";
@@ -330,7 +312,7 @@ public final class ORCSchemaUtil {
     return orcType;
   }
 
-  static Map<Integer, OrcField> icebergToOrcMapping(String name, TypeDescription orcType) {
+  private static Map<Integer, OrcField> icebergToOrcMapping(String name, TypeDescription orcType) {
     Map<Integer, OrcField> icebergToOrc = Maps.newHashMap();
     switch (orcType.getCategory()) {
       case STRUCT:

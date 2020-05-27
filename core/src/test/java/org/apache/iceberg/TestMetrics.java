@@ -67,17 +67,17 @@ public abstract class TestMetrics {
       optional(6, "leafBinaryCol", BinaryType.get())
   );
 
-  protected static final StructType NESTED_STRUCT_TYPE = StructType.of(
+  private static final StructType NESTED_STRUCT_TYPE = StructType.of(
       required(3, "longCol", LongType.get()),
       required(4, "leafStructCol", LEAF_STRUCT_TYPE)
   );
 
-  protected static final Schema NESTED_SCHEMA = new Schema(
+  private static final Schema NESTED_SCHEMA = new Schema(
       required(1, "intCol", IntegerType.get()),
       required(2, "nestedStructCol", NESTED_STRUCT_TYPE)
   );
 
-  protected static final Schema SIMPLE_SCHEMA = new Schema(
+  private static final Schema SIMPLE_SCHEMA = new Schema(
       optional(1, "booleanCol", BooleanType.get()),
       required(2, "intCol", IntegerType.get()),
       optional(3, "longCol", LongType.get()),
@@ -93,8 +93,6 @@ public abstract class TestMetrics {
   );
 
   private final byte[] fixed = "abcd".getBytes(StandardCharsets.UTF_8);
-
-  protected abstract FileFormat fileFormat();
 
   public abstract Metrics getMetrics(InputFile file);
 

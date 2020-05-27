@@ -339,7 +339,6 @@ project(':iceberg-orc') {
     }
 
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 }
 
