@@ -112,12 +112,9 @@ public class TestMetricsRowGroupFilter {
       optional(6, "no_nulls", StringType.get()),
       optional(7, "struct_not_null", structFieldType),
       optional(9, "not_in_file", FloatType.get()),
-      optional(10, "str", StringType.get())
-      // TODO: Uncomment this after #961 is fixed
-      // ORCSchemaUtil.buildOrcProjection has a bug which does not allow addition of container types with nested
-      // required children. Enable this field after #961 is fixed along with commented tests for the same column below
-      //  optional(11, "map_not_null",
-      //      Types.MapType.ofRequired(12, 13, StringType.get(), IntegerType.get()))
+      optional(10, "str", StringType.get()),
+      optional(11, "map_not_null",
+          Types.MapType.ofRequired(12, 13, StringType.get(), IntegerType.get()))
   );
 
   private static final Types.StructType _structFieldType =
@@ -265,9 +262,8 @@ public class TestMetricsRowGroupFilter {
     shouldRead = shouldRead(notNull("no_nulls"));
     Assert.assertTrue("Should read: non-null column contains a non-null value", shouldRead);
 
-    // TODO: Enable this test after #961 is fixed
-    // shouldRead = shouldRead(notNull("map_not_null"));
-    // Assert.assertTrue("Should read: map type is not skipped", shouldRead);
+    shouldRead = shouldRead(notNull("map_not_null"));
+    Assert.assertTrue("Should read: map type is not skipped", shouldRead);
 
     shouldRead = shouldRead(notNull("struct_not_null"));
     Assert.assertTrue("Should read: struct type is not skipped", shouldRead);
@@ -284,9 +280,8 @@ public class TestMetricsRowGroupFilter {
     shouldRead = shouldRead(isNull("no_nulls"));
     Assert.assertFalse("Should skip: non-null column contains no null values", shouldRead);
 
-    // TODO: Enable this test after #961 is fixed
-    // shouldRead = shouldRead(isNull("map_not_null"));
-    // Assert.assertTrue("Should read: map type is not skipped", shouldRead);
+    shouldRead = shouldRead(isNull("map_not_null"));
+    Assert.assertTrue("Should read: map type is not skipped", shouldRead);
 
     shouldRead = shouldRead(isNull("struct_not_null"));
     Assert.assertTrue("Should read: struct type is not skipped", shouldRead);

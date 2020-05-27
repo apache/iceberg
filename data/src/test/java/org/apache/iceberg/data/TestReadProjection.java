@@ -577,4 +577,33 @@ public abstract class TestReadProjection {
     Assert.assertNull("Should not project y", projectedP2.getField("y"));
     Assert.assertEquals("Should project null z", null, projectedP2.getField("z"));
   }
+
+  @Test
+  public void testAddedFieldsWithRequiredChildren() throws Exception {
+    Schema schema = new Schema(
+        Types.NestedField.required(1, "a", Types.LongType.get())
+    );
+
+    Record record = GenericRecord.create(schema.asStruct());
+    record.setField("a", 100L);
+
+    Schema addedFields = new Schema(
+        Types.NestedField.optional(1, "a", Types.LongType.get()),
+        Types.NestedField.optional(2, "b", Types.StructType.of(
+            Types.NestedField.required(3, "c", Types.LongType.get())
+        )),
+        Types.NestedField.optional(4, "d", Types.ListType.ofRequired(5, Types.LongType.get())),
+        Types.NestedField.optional(6, "e", Types.MapType.ofRequired(7, 8, Types.LongType.get(), Types.LongType.get()))
+    );
+
+    Record projected = writeAndRead("add_fields_with_required_children_projection", schema, addedFields, record);
+    Assert.assertEquals("Should contain the correct value in column 1", projected.get(0), 100L);
+    Assert.assertEquals("Should contain the correct value in column a", projected.getField("a"), 100L);
+    Assert.assertNull("Should contain empty value in new column 2", projected.get(1));
+    Assert.assertNull("Should contain empty value in column b", projected.getField("b"));
+    Assert.assertNull("Should contain empty value in new column 4", projected.get(2));
+    Assert.assertNull("Should contain empty value in column d", projected.getField("d"));
+    Assert.assertNull("Should contain empty value in new column 6", projected.get(3));
+    Assert.assertNull("Should contain empty value in column e", projected.getField("e"));
+  }
 }
