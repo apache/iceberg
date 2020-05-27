@@ -56,13 +56,13 @@ public class TestParquetMetrics extends TestMetrics {
   }
 
   @Override
-  public InputFile writeRecords(Schema schema, Record... records) throws IOException {
-    return writeRecords(schema, ImmutableMap.of(), records);
+  public InputFile writeRecordsWithSmallRowGroups(Schema schema, Record... records) throws IOException {
+    return writeRecords(schema, SMALL_ROW_GROUP_CONFIG, records);
   }
 
   @Override
-  public InputFile writeRecordsWithSmallRowGroups(Schema schema, Record... records) throws IOException {
-    return writeRecords(schema, SMALL_ROW_GROUP_CONFIG, records);
+  public InputFile writeRecords(Schema schema, Record... records) throws IOException {
+    return writeRecords(schema, ImmutableMap.of(), records);
   }
 
   private InputFile writeRecords(Schema schema, Map<String, String> properties, Record... records) throws IOException {
