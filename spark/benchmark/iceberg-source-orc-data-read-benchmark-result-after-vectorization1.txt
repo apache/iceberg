@@ -1,0 +1,243 @@
+# JMH version: 1.21
+# VM version: JDK 1.8.0_212, Java HotSpot(TM) 64-Bit Server VM, 25.212-b10
+# VM invoker: /Library/Java/JavaVirtualMachines/jdk1.8.0_212.jdk/Contents/Home/jre/bin/java
+# VM options: <none>
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 10 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.source.orc.IcebergSourceFlatORCDataReadBenchmark.readIceberg
+
+# Run progress: 0.00% complete, ETA 00:00:00
+# Fork: 1 of 1
+# Warmup Iteration   1: 2.258 s/op
+# Warmup Iteration   2: 1.815 s/op
+# Warmup Iteration   3: 1.508 s/op
+Iteration   1: 1.414 s/op
+Iteration   2: 2.097 s/op
+Iteration   3: 1.813 s/op
+Iteration   4: 1.633 s/op
+Iteration   5: 1.615 s/op
+
+
+Result "org.apache.iceberg.spark.source.orc.IcebergSourceFlatORCDataReadBenchmark.readIceberg":
+  N = 5
+  mean =      1.714 ±(99.9%) 0.987 s/op
+
+  Histogram, s/op:
+    [1.400, 1.450) = 1 
+    [1.450, 1.500) = 0 
+    [1.500, 1.550) = 0 
+    [1.550, 1.600) = 0 
+    [1.600, 1.650) = 2 
+    [1.650, 1.700) = 0 
+    [1.700, 1.750) = 0 
+    [1.750, 1.800) = 0 
+    [1.800, 1.850) = 1 
+    [1.850, 1.900) = 0 
+    [1.900, 1.950) = 0 
+    [1.950, 2.000) = 0 
+    [2.000, 2.050) = 0 
+
+  Percentiles, s/op:
+      p(0.0000) =      1.414 s/op
+     p(50.0000) =      1.633 s/op
+     p(90.0000) =      2.097 s/op
+     p(95.0000) =      2.097 s/op
+     p(99.0000) =      2.097 s/op
+     p(99.9000) =      2.097 s/op
+     p(99.9900) =      2.097 s/op
+     p(99.9990) =      2.097 s/op
+     p(99.9999) =      2.097 s/op
+    p(100.0000) =      2.097 s/op
+
+
+# JMH version: 1.21
+# VM version: JDK 1.8.0_212, Java HotSpot(TM) 64-Bit Server VM, 25.212-b10
+# VM invoker: /Library/Java/JavaVirtualMachines/jdk1.8.0_212.jdk/Contents/Home/jre/bin/java
+# VM options: <none>
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 10 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.source.orc.IcebergSourceFlatORCDataReadBenchmark.readWithProjectionIceberg
+
+# Run progress: 25.00% complete, ETA 00:02:19
+# Fork: 1 of 1
+# Warmup Iteration   1: 0.669 s/op
+# Warmup Iteration   2: 0.406 s/op
+# Warmup Iteration   3: 0.337 s/op
+Iteration   1: 0.342 s/op
+Iteration   2: 0.324 s/op
+Iteration   3: 0.319 s/op
+Iteration   4: 0.390 s/op
+Iteration   5: 0.323 s/op
+
+
+Result "org.apache.iceberg.spark.source.orc.IcebergSourceFlatORCDataReadBenchmark.readWithProjectionIceberg":
+  N = 5
+  mean =      0.340 ±(99.9%) 0.113 s/op
+
+  Histogram, s/op:
+    [0.310, 0.315) = 0 
+    [0.315, 0.320) = 1 
+    [0.320, 0.325) = 2 
+    [0.325, 0.330) = 0 
+    [0.330, 0.335) = 0 
+    [0.335, 0.340) = 0 
+    [0.340, 0.345) = 1 
+    [0.345, 0.350) = 0 
+    [0.350, 0.355) = 0 
+    [0.355, 0.360) = 0 
+    [0.360, 0.365) = 0 
+    [0.365, 0.370) = 0 
+    [0.370, 0.375) = 0 
+    [0.375, 0.380) = 0 
+    [0.380, 0.385) = 0 
+    [0.385, 0.390) = 1 
+
+  Percentiles, s/op:
+      p(0.0000) =      0.319 s/op
+     p(50.0000) =      0.324 s/op
+     p(90.0000) =      0.390 s/op
+     p(95.0000) =      0.390 s/op
+     p(99.0000) =      0.390 s/op
+     p(99.9000) =      0.390 s/op
+     p(99.9900) =      0.390 s/op
+     p(99.9990) =      0.390 s/op
+     p(99.9999) =      0.390 s/op
+    p(100.0000) =      0.390 s/op
+
+
+# JMH version: 1.21
+# VM version: JDK 1.8.0_212, Java HotSpot(TM) 64-Bit Server VM, 25.212-b10
+# VM invoker: /Library/Java/JavaVirtualMachines/jdk1.8.0_212.jdk/Contents/Home/jre/bin/java
+# VM options: <none>
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 10 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.source.orc.IcebergSourceNestedORCDataReadBenchmark.readIceberg
+
+# Run progress: 50.00% complete, ETA 00:01:21
+# Fork: 1 of 1
+# Warmup Iteration   1: 1.188 s/op
+# Warmup Iteration   2: 0.767 s/op
+# Warmup Iteration   3: 0.890 s/op
+Iteration   1: 0.750 s/op
+Iteration   2: 0.758 s/op
+Iteration   3: 0.805 s/op
+Iteration   4: 0.815 s/op
+Iteration   5: 0.745 s/op
+
+
+Result "org.apache.iceberg.spark.source.orc.IcebergSourceNestedORCDataReadBenchmark.readIceberg":
+  N = 5
+  mean =      0.775 ±(99.9%) 0.127 s/op
+
+  Histogram, s/op:
+    [0.740, 0.745) = 1 
+    [0.745, 0.750) = 1 
+    [0.750, 0.755) = 0 
+    [0.755, 0.760) = 1 
+    [0.760, 0.765) = 0 
+    [0.765, 0.770) = 0 
+    [0.770, 0.775) = 0 
+    [0.775, 0.780) = 0 
+    [0.780, 0.785) = 0 
+    [0.785, 0.790) = 0 
+    [0.790, 0.795) = 0 
+    [0.795, 0.800) = 0 
+    [0.800, 0.805) = 0 
+    [0.805, 0.810) = 1 
+    [0.810, 0.815) = 0 
+    [0.815, 0.820) = 1 
+
+  Percentiles, s/op:
+      p(0.0000) =      0.745 s/op
+     p(50.0000) =      0.758 s/op
+     p(90.0000) =      0.815 s/op
+     p(95.0000) =      0.815 s/op
+     p(99.0000) =      0.815 s/op
+     p(99.9000) =      0.815 s/op
+     p(99.9900) =      0.815 s/op
+     p(99.9990) =      0.815 s/op
+     p(99.9999) =      0.815 s/op
+    p(100.0000) =      0.815 s/op
+
+
+# JMH version: 1.21
+# VM version: JDK 1.8.0_212, Java HotSpot(TM) 64-Bit Server VM, 25.212-b10
+# VM invoker: /Library/Java/JavaVirtualMachines/jdk1.8.0_212.jdk/Contents/Home/jre/bin/java
+# VM options: <none>
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 10 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.source.orc.IcebergSourceNestedORCDataReadBenchmark.readWithProjectionIceberg
+
+# Run progress: 75.00% complete, ETA 00:00:37
+# Fork: 1 of 1
+# Warmup Iteration   1: 1.469 s/op
+# Warmup Iteration   2: 0.803 s/op
+# Warmup Iteration   3: 0.828 s/op
+Iteration   1: 0.804 s/op
+Iteration   2: 0.777 s/op
+Iteration   3: 0.769 s/op
+Iteration   4: 1.025 s/op
+Iteration   5: 0.749 s/op
+
+
+Result "org.apache.iceberg.spark.source.orc.IcebergSourceNestedORCDataReadBenchmark.readWithProjectionIceberg":
+  N = 5
+  mean =      0.825 ±(99.9%) 0.438 s/op
+
+  Histogram, s/op:
+    [0.700, 0.725) = 0 
+    [0.725, 0.750) = 1 
+    [0.750, 0.775) = 1 
+    [0.775, 0.800) = 1 
+    [0.800, 0.825) = 1 
+    [0.825, 0.850) = 0 
+    [0.850, 0.875) = 0 
+    [0.875, 0.900) = 0 
+    [0.900, 0.925) = 0 
+    [0.925, 0.950) = 0 
+    [0.950, 0.975) = 0 
+    [0.975, 1.000) = 0 
+    [1.000, 1.025) = 0 
+    [1.025, 1.050) = 1 
+    [1.050, 1.075) = 0 
+
+  Percentiles, s/op:
+      p(0.0000) =      0.749 s/op
+     p(50.0000) =      0.777 s/op
+     p(90.0000) =      1.025 s/op
+     p(95.0000) =      1.025 s/op
+     p(99.0000) =      1.025 s/op
+     p(99.9000) =      1.025 s/op
+     p(99.9900) =      1.025 s/op
+     p(99.9990) =      1.025 s/op
+     p(99.9999) =      1.025 s/op
+    p(100.0000) =      1.025 s/op
+
+
+# Run complete. Total time: 00:02:23
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+Benchmark                                                          Mode  Cnt  Score   Error  Units
+IcebergSourceFlatORCDataReadBenchmark.readIceberg                    ss    5  1.714 ± 0.987   s/op
+IcebergSourceFlatORCDataReadBenchmark.readWithProjectionIceberg      ss    5  0.340 ± 0.113   s/op
+IcebergSourceNestedORCDataReadBenchmark.readIceberg                  ss    5  0.775 ± 0.127   s/op
+IcebergSourceNestedORCDataReadBenchmark.readWithProjectionIceberg    ss    5  0.825 ± 0.438   s/op
+
+Benchmark result is saved to /Users/smahadik/iceberg/spark/build/reports/jmh/results.txt
