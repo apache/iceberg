@@ -193,6 +193,7 @@ project(':iceberg-data') {
     }
 
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 
   test {

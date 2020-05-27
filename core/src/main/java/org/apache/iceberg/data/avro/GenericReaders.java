@@ -29,10 +29,10 @@ import java.util.Map;
 import org.apache.avro.io.Decoder;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
-import org.apache.iceberg.data.DateTimeUtil;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.DateTimeUtil;
 
 class GenericReaders {
   private GenericReaders() {
