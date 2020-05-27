@@ -81,15 +81,14 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
 
   private CloseableIterable<Record> open(FileScanTask task) {
     InputFile input = ops.io().newInputFile(task.file().path().toString());
-    Map<Integer, ?> partition = PartitionUtil.constantsMap(task, TableScanIterable::convertConstant);
+    Map<Integer, ?> idToConstant = PartitionUtil.constantsMap(task, TableScanIterable::convertConstant);
 
-    // TODO: join to partition data from the manifest file
     switch (task.file().format()) {
       case AVRO:
         Avro.ReadBuilder avro = Avro.read(input)
             .project(projection)
             .createReaderFunc(
-                avroSchema -> DataReader.create(projection, avroSchema, partition))
+                avroSchema -> DataReader.create(projection, avroSchema, idToConstant))
             .split(task.start(), task.length());
 
         if (reuseContainers) {
@@ -101,7 +100,7 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
       case PARQUET:
         Parquet.ReadBuilder parquet = Parquet.read(input)
             .project(projection)
-            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(projection, fileSchema, partition))
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(projection, fileSchema, idToConstant))
             .split(task.start(), task.length());
 
         if (reuseContainers) {
@@ -113,7 +112,7 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
       case ORC:
         ORC.ReadBuilder orc = ORC.read(input)
                 .project(projection)
-                .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(projection, fileSchema))
+                .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(projection, fileSchema, idToConstant))
                 .split(task.start(), task.length())
                 .filter(task.residual());
 
