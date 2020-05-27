@@ -21,8 +21,11 @@ package org.apache.iceberg.util;
 
 import java.util.List;
 import java.util.function.Function;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class SnapshotUtil {
@@ -82,5 +85,25 @@ public class SnapshotUtil {
       }
     }
     return ancestorIds;
+  }
+
+  public static List<DataFile> newFiles(Long baseSnapshotId, long latestSnapshotId, Function<Long, Snapshot> lookup) {
+    List<DataFile> newFiles = Lists.newArrayList();
+
+    Long currentSnapshotId = latestSnapshotId;
+    while (currentSnapshotId != null && !currentSnapshotId.equals(baseSnapshotId)) {
+      Snapshot currentSnapshot = lookup.apply(currentSnapshotId);
+
+      if (currentSnapshot == null) {
+        throw new ValidationException(
+            "Cannot determine history between read snapshot %s and current %s",
+            baseSnapshotId, currentSnapshotId);
+      }
+
+      Iterables.addAll(newFiles, currentSnapshot.addedFiles());
+      currentSnapshotId = currentSnapshot.parentId();
+    }
+
+    return newFiles;
   }
 }
