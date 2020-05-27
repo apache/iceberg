@@ -586,6 +586,65 @@ project(':iceberg-flink') {
   }
 }
 
+// the runtime uber jar for Flink
+project(':iceberg-flink-runtime') {
+  apply plugin: 'com.github.johnrengelman.shadow'
+
+  tasks.jar.dependsOn tasks.shadowJar
+
+  configurations {
+    compile {
+      exclude group: 'org.slf4j'
+      exclude group: 'org.apache.commons'
+      exclude group: 'commons-pool'
+      exclude group: 'org.xerial.snappy'
+      exclude group: 'javax.annotation'
+    }
+  }
+
+  dependencies {
+    compile project(':iceberg-flink')
+  }
+
+  shadowJar {
+    configurations = [project.configurations.compile]
+
+    zip64 true
+
+    // include the LICENSE and NOTICE files for the shaded Jar
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
+    // Relocate dependencies to avoid conflicts
+    relocate 'com.google', 'org.apache.iceberg.relocated.com.google'  // TODO: relocated ? shaded ?
+    relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
+    relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
+    relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
+    relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
+    relocate 'avro.shaded', 'org.apache.iceberg.shaded.org.apache.avro.shaded'  // TODO: not used
+    relocate 'com.thoughtworks.paranamer', 'org.apache.iceberg.shaded.com.thoughtworks.paranamer'  // TODO: not used
+    relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
+    relocate 'shaded.parquet', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'  // TODO: not used
+    // relocate Avro's jackson dependency to share parquet-jackson locations
+    // TODO: not used
+    relocate 'org.codehaus.jackson', 'org.apache.iceberg.shaded.org.apache.parquet.shaded.org.codehaus.jackson'
+    relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'  // of help when ORC is supported
+    relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'  // TODO: not used
+    // relocate Arrow and related deps to shade Iceberg specific version
+    relocate 'io.netty.buffer', 'org.apache.iceberg.shaded.io.netty.buffer'  // TODO: not used
+    relocate 'org.apache.arrow', 'org.apache.iceberg.shaded.org.apache.arrow'  // TODO: not used
+    relocate 'com.carrotsearch', 'org.apache.iceberg.shaded.com.carrotsearch'  // TODO: not used
+
+    classifier null
+  }
+
+  jar {
+    classifier = 'empty'
+  }
+}
+
 @Memoized
 boolean isVersionFileExists() {
   return file('version.txt').exists()
