@@ -20,14 +20,10 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.junit.Assert;
 import org.junit.Test;
 
 public class TestSequenceNumberForV2Table extends TableTestBase {
@@ -39,18 +35,35 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
   @Test
   public void testMergeAppend() throws IOException {
     table.newAppend().appendFile(FILE_A).commit();
+    Snapshot snap1 = table.currentSnapshot();
+    long commitId1 = snap1.snapshotId();
     ManifestFile manifestFile = table.currentSnapshot().manifests().get(0);
-    validateManifestEntries(manifestFile, 1, files(FILE_A), seqs(1));
+
+    validateSnapshot(null, snap1, 1, FILE_A);
+    validateManifest(manifestFile, seqs(1), ids(commitId1), files(FILE_A));
+    V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap1.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
+
     table.newAppend().appendFile(FILE_B).commit();
+    Snapshot snap2 = table.currentSnapshot();
+    long commitId2 = snap2.snapshotId();
     manifestFile = table.currentSnapshot().manifests().get(0);
-    validateManifestEntries(manifestFile, 2, files(FILE_B), seqs(2));
+    validateSnapshot(snap1, snap2, 2, FILE_B);
+    validateManifest(manifestFile, seqs(2), ids(commitId2), files(FILE_B));
+    V2Assert.assertEquals("Snapshot sequence number should be 2", 2, snap2.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
 
     table.newAppend()
         .appendManifest(writeManifest("input-m0.avro",
             manifestEntry(ManifestEntry.Status.ADDED, null, FILE_C)))
         .commit();
-
-    validateDataFiles(files(FILE_A, FILE_B, FILE_C), seqs(1, 2, 3));
+    Snapshot snap3 = table.currentSnapshot();
+    long commitId3 = snap3.snapshotId();
+    manifestFile = table.currentSnapshot().manifests().get(0);
+    validateManifest(manifestFile, seqs(3), ids(commitId3), files(FILE_C));
+    validateSnapshot(snap2, snap3, 3, FILE_C);
+    V2Assert.assertEquals("Snapshot sequence number should be 3", 3, snap3.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 3", 3, readMetadata().lastSequenceNumber());
 
     table.updateProperties()
         .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1")
@@ -61,28 +74,57 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
             manifestEntry(ManifestEntry.Status.ADDED, null, FILE_D)))
         .commit();
 
-    manifestFile = table.currentSnapshot().manifests().stream()
-        .filter(manifest -> manifest.snapshotId() == table.currentSnapshot().snapshotId())
+    Snapshot snap4 = table.currentSnapshot();
+    long commitId4 = snap4.snapshotId();
+    manifestFile = snap4.manifests().stream()
+        .filter(manifest -> manifest.snapshotId() == commitId4)
         .collect(Collectors.toList()).get(0);
-    validateManifestEntries(manifestFile, 4, files(FILE_A, FILE_B, FILE_C, FILE_D), seqs(1, 2, 3, 4));
-    validateDataFiles(files(FILE_A, FILE_B, FILE_C, FILE_D), seqs(1, 2, 3, 4));
+    validateManifest(manifestFile, seqs(4, 3, 2, 1), ids(commitId4, commitId3, commitId2, commitId1),
+        files(FILE_D, FILE_C, FILE_B, FILE_A));
+    V2Assert.assertEquals("Snapshot sequence number should be 4", 4, snap4.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 4", 4, readMetadata().lastSequenceNumber());
   }
 
   @Test
   public void testRewrite() {
     table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot snap1 = table.currentSnapshot();
+    long commitId1 = snap1.snapshotId();
+    ManifestFile manifestFile = table.currentSnapshot().manifests().get(0);
+    validateSnapshot(null, snap1, 1, FILE_A);
+    validateManifest(manifestFile, seqs(1), ids(commitId1), files(FILE_A));
+    V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap1.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
+
     table.newFastAppend().appendFile(FILE_B).commit();
-    Assert.assertEquals(2, table.currentSnapshot().sequenceNumber());
+    Snapshot snap2 = table.currentSnapshot();
+    long commitId2 = snap2.snapshotId();
+    manifestFile = table.currentSnapshot().manifests().get(0);
+    validateSnapshot(snap1, snap2, 2, FILE_B);
+    validateManifest(manifestFile, seqs(2), ids(commitId2), files(FILE_B));
+    V2Assert.assertEquals("Snapshot sequence number should be 2", 2, snap2.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
 
     table.rewriteManifests().clusterBy(file -> "").commit();
-    Assert.assertEquals("Snapshot sequence number should be 3",
-        3, table.currentSnapshot().sequenceNumber());
-
-    ManifestFile newManifest = table.currentSnapshot().manifests().stream()
-        .filter(manifest -> manifest.snapshotId() == table.currentSnapshot().snapshotId())
+    Snapshot snap3 = table.currentSnapshot();
+    ManifestFile newManifest = snap3.manifests().stream()
+        .filter(manifest -> manifest.snapshotId() == snap3.snapshotId())
         .collect(Collectors.toList()).get(0);
 
-    validateManifestEntries(newManifest, 3, files(FILE_A, FILE_B), seqs(1, 2));
+    V2Assert.assertEquals("Snapshot sequence number should be 3", 3, snap3.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 3", 3, readMetadata().lastSequenceNumber());
+
+    // FILE_A and FILE_B in manifest may reorder
+    for (ManifestEntry entry : ManifestFiles.read(newManifest, FILE_IO).entries()) {
+      if (entry.file().path().equals(FILE_A.path())) {
+        V2Assert.assertEquals("FILE_A sequence number should be 1", 1, entry.sequenceNumber().longValue());
+      }
+
+      if (entry.file().path().equals(FILE_B.path())) {
+        V2Assert.assertEquals("FILE_b sequence number should be 2", 2, entry.sequenceNumber().longValue());
+      }
+    }
+
   }
 
   @Test
@@ -105,36 +147,68 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
         .commit();
 
     appendA.commit();
-
-    Assert.assertEquals(1, table.currentSnapshot().sequenceNumber());
+    Snapshot snap1 = table.currentSnapshot();
+    long commitId1 = snap1.snapshotId();
+    ManifestFile manifestFile = table.currentSnapshot().manifests().get(0);
+    validateSnapshot(null, snap1, 1, FILE_A);
+    validateManifest(manifestFile, seqs(1), ids(commitId1), files(FILE_A));
+    V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap1.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
 
     AppendFiles appendFiles = table.newFastAppend().appendFile(FILE_C);
     appendFiles.apply();
     table.newFastAppend().appendFile(FILE_D).commit();
-    appendFiles.commit();
+    Snapshot snap2 = table.currentSnapshot();
+    long commitId2 = snap2.snapshotId();
+    manifestFile = table.currentSnapshot().manifests().get(0);
+    validateSnapshot(snap1, snap2, 2, FILE_D);
+    validateManifest(manifestFile, seqs(2), ids(commitId2), files(FILE_D));
+    V2Assert.assertEquals("Snapshot sequence number should be 2", 2, snap2.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
 
-    validateDataFiles(files(FILE_A, FILE_D, FILE_C), seqs(1, 2, 3));
+    appendFiles.commit();
+    Snapshot snap3 = table.currentSnapshot();
+    long commitId3 = snap3.snapshotId();
+    manifestFile = table.currentSnapshot().manifests().get(0);
+    validateManifest(manifestFile, seqs(3), ids(commitId3), files(FILE_C));
+    validateSnapshot(snap2, snap3, 3, FILE_C);
+    V2Assert.assertEquals("Snapshot sequence number should be 3", 3, snap3.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 3", 3, readMetadata().lastSequenceNumber());
   }
 
   @Test
   public void testRollBack() {
     table.newFastAppend().appendFile(FILE_A).commit();
-    long snapshotId = table.currentSnapshot().snapshotId();
+    Snapshot snap1 = table.currentSnapshot();
+    long commitId1 = snap1.snapshotId();
+    ManifestFile manifestFile = table.currentSnapshot().manifests().get(0);
+    validateSnapshot(null, snap1, 1, FILE_A);
+    validateManifest(manifestFile, seqs(1), ids(commitId1), files(FILE_A));
+    V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap1.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
 
     table.newFastAppend().appendFile(FILE_B).commit();
-    Assert.assertEquals("Snapshot sequence number should match expected",
-        2, table.currentSnapshot().sequenceNumber());
+    Snapshot snap2 = table.currentSnapshot();
+    long commitId2 = snap2.snapshotId();
+    manifestFile = table.currentSnapshot().manifests().get(0);
+    validateSnapshot(snap1, snap2, 2, FILE_B);
+    validateManifest(manifestFile, seqs(2), ids(commitId2), files(FILE_B));
+    V2Assert.assertEquals("Snapshot sequence number should be 2", 2, snap2.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
 
-    table.manageSnapshots().rollbackTo(snapshotId).commit();
-    Assert.assertEquals("Snapshot sequence number should match expected",
-        1, table.currentSnapshot().sequenceNumber());
-
-    Assert.assertEquals("Table last sequence number should be 2",
-        2, table.operations().current().lastSequenceNumber());
+    table.manageSnapshots().rollbackTo(commitId1).commit();
+    Snapshot snap3 = table.currentSnapshot();
+    V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap3.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
 
     table.newFastAppend().appendFile(FILE_C).commit();
-    Assert.assertEquals("Snapshot sequence number should match expected",
-        3, table.currentSnapshot().sequenceNumber());
+    Snapshot snap4 = table.currentSnapshot();
+    long commitId4 = snap4.snapshotId();
+    manifestFile = table.currentSnapshot().manifests().get(0);
+    validateSnapshot(snap3, snap4, 3, FILE_C);
+    validateManifest(manifestFile, seqs(3), ids(commitId4), files(FILE_C));
+    V2Assert.assertEquals("Snapshot sequence number should be 1", 3, snap4.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 3", 3, readMetadata().lastSequenceNumber());
   }
 
   @Test
@@ -142,8 +216,13 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
     Transaction txn = table.newTransaction();
     txn.newAppend().appendFile(FILE_A).commit();
     txn.commitTransaction();
-    Assert.assertEquals("Snapshot sequence number should match expected",
-        1, table.currentSnapshot().sequenceNumber());
+    Snapshot snap = table.currentSnapshot();
+    long commitId = snap.snapshotId();
+    ManifestFile manifestFile = table.currentSnapshot().manifests().get(0);
+    validateSnapshot(null, snap, 1, FILE_A);
+    validateManifest(manifestFile, seqs(1), ids(commitId), files(FILE_A));
+    V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
   }
 
   @Test
@@ -159,19 +238,57 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
     txn2.newAppend().appendFile(FILE_B).commit();
 
     txn1.commitTransaction();
-    txn2.commitTransaction();
-    txn3.commitTransaction();
-    txn4.commitTransaction();
+    Snapshot snap1 = table.currentSnapshot();
+    long commitId1 = snap1.snapshotId();
+    ManifestFile manifestFile1 = table.currentSnapshot().manifests().get(0);
+    validateSnapshot(null, snap1, 1, FILE_A);
+    validateManifest(manifestFile1, seqs(1), ids(commitId1), files(FILE_A));
+    V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap1.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
 
-    Assert.assertEquals("Snapshot sequence number should match expected",
-        4, table.currentSnapshot().sequenceNumber());
-    validateDataFiles(files(FILE_A, FILE_B, FILE_C), seqs(4, 2, 3));
+    txn2.commitTransaction();
+    Snapshot snap2 = table.currentSnapshot();
+    long commitId2 = snap2.snapshotId();
+    ManifestFile manifestFile = table.currentSnapshot().manifests().get(0);
+    validateSnapshot(snap1, snap2, 2, FILE_B);
+    validateManifest(manifestFile, seqs(2), ids(commitId2), files(FILE_B));
+    V2Assert.assertEquals("Snapshot sequence number should be 2", 2, snap2.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
+
+    txn3.commitTransaction();
+    Snapshot snap3 = table.currentSnapshot();
+    long commitId3 = snap3.snapshotId();
+    manifestFile = table.currentSnapshot().manifests().stream()
+        .filter(manifest -> manifest.snapshotId() == commitId3)
+        .collect(Collectors.toList()).get(0);
+    validateManifest(manifestFile, seqs(3), ids(commitId3), files(FILE_C));
+    validateSnapshot(snap2, snap3, 3, FILE_C);
+    V2Assert.assertEquals("Snapshot sequence number should be 3", 3, snap3.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 3", 3, readMetadata().lastSequenceNumber());
+
+    txn4.commitTransaction();
+    Snapshot snap4 = table.currentSnapshot();
+    long commitId4 = snap4.snapshotId();
+    manifestFile = table.currentSnapshot().manifests().stream()
+        .filter(manifest -> manifest.snapshotId() == commitId4)
+        .collect(Collectors.toList()).get(0);
+    validateManifest(manifestFile, seqs(3, 2, 4), ids(commitId3, commitId2, commitId4), files(FILE_C, FILE_B, FILE_A));
+    V2Assert.assertEquals("Snapshot sequence number should be 4", 4, snap4.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 4", 4, readMetadata().lastSequenceNumber());
   }
 
   @Test
   public void testMultipleOperationsTransaction() {
     Transaction txn = table.newTransaction();
-    txn.newAppend().appendFile(FILE_A).commit();
+    txn.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot snap1 = txn.table().currentSnapshot();
+    long commitId1 = snap1.snapshotId();
+    ManifestFile manifestFile = snap1.manifests().get(0);
+    validateSnapshot(null, snap1, 1, FILE_A);
+    validateManifest(manifestFile, seqs(1), ids(commitId1), files(FILE_A));
+    V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap1.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
+
     Set<DataFile> toAddFiles = new HashSet<>();
     Set<DataFile> toDeleteFiles = new HashSet<>();
     toAddFiles.add(FILE_B);
@@ -179,24 +296,41 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
     txn.newRewrite().rewriteFiles(toDeleteFiles, toAddFiles).commit();
     txn.commitTransaction();
 
-    Assert.assertEquals("Snapshot sequence number should match expected",
-        2, table.currentSnapshot().sequenceNumber());
-    validateDataFiles(files(FILE_A, FILE_B), seqs(2, 2));
+    Snapshot snap2 = table.currentSnapshot();
+    long commitId2 = snap2.snapshotId();
+    manifestFile = snap2.manifests().stream()
+        .filter(manifest -> manifest.snapshotId() == commitId2)
+        .collect(Collectors.toList()).get(0);
+
+    validateManifest(manifestFile, seqs(2), ids(commitId2), files(FILE_B));
+    V2Assert.assertEquals("Snapshot sequence number should be 2", 2, snap2.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
   }
 
   @Test
   public void testExpirationInTransaction() {
     table.newFastAppend().appendFile(FILE_A).commit();
-    long snapshotId = table.currentSnapshot().snapshotId();
+    Snapshot snap1 = table.currentSnapshot();
+    long commitId1 = snap1.snapshotId();
+    ManifestFile manifestFile = table.currentSnapshot().manifests().get(0);
+    validateSnapshot(null, snap1, 1, FILE_A);
+    validateManifest(manifestFile, seqs(1), ids(commitId1), files(FILE_A));
+    V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap1.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
+
     table.newAppend().appendFile(FILE_B).commit();
+    Snapshot snap2 = table.currentSnapshot();
+    long commitId2 = snap2.snapshotId();
+    manifestFile = table.currentSnapshot().manifests().get(0);
+    validateSnapshot(snap1, snap2, 2, FILE_B);
+    validateManifest(manifestFile, seqs(2), ids(commitId2), files(FILE_B));
+    V2Assert.assertEquals("Snapshot sequence number should be 2", 2, snap2.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
 
     Transaction txn = table.newTransaction();
-    txn.expireSnapshots().expireSnapshotId(snapshotId).commit();
+    txn.expireSnapshots().expireSnapshotId(commitId1).commit();
     txn.commitTransaction();
-
-    Assert.assertEquals("Snapshot sequence number should match expected",
-        2, table.currentSnapshot().sequenceNumber());
-    validateDataFiles(files(FILE_B), seqs(2));
+    V2Assert.assertEquals("Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
   }
 
   @Test
@@ -205,6 +339,13 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
         .appendFile(FILE_A)
         .appendFile(FILE_B)
         .commit();
+    Snapshot snap1 = table.currentSnapshot();
+    long commitId1 = snap1.snapshotId();
+    ManifestFile manifestFile = table.currentSnapshot().manifests().get(0);
+    validateSnapshot(null, snap1, 1, FILE_A, FILE_B);
+    validateManifest(manifestFile, seqs(1, 1), ids(commitId1, commitId1), files(FILE_A, FILE_B));
+    V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap1.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
 
     table.updateProperties()
         .set(TableProperties.COMMIT_NUM_RETRIES, "0")
@@ -218,8 +359,7 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
     AssertHelpers.assertThrows("Transaction commit should fail",
         CommitFailedException.class, "Injected failure", txn::commitTransaction);
 
-    Assert.assertEquals("Snapshot sequence number should match expected",
-        1, table.currentSnapshot().sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
   }
 
   @Test
@@ -227,37 +367,49 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
     table.newAppend()
         .appendFile(FILE_A)
         .commit();
+    Snapshot snap1 = table.currentSnapshot();
+    long commitId1 = snap1.snapshotId();
+    ManifestFile manifestFile = snap1.manifests().get(0);
+    validateSnapshot(null, snap1, 1, FILE_A);
+    validateManifest(manifestFile, seqs(1), ids(commitId1), files(FILE_A));
+    V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap1.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
 
     table.newAppend()
         .appendFile(FILE_B)
         .stageOnly()
         .commit();
 
-    Assert.assertEquals("Snapshot sequence number should be 1", 1,
-        table.currentSnapshot().sequenceNumber());
+    Snapshot snap2 = table.currentSnapshot();
+    V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap2.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
 
     // pick the snapshot that's staged but not committed
     Snapshot stagedSnapshot = readMetadata().snapshots().get(1);
-
-    Assert.assertEquals("Snapshot sequence number should be 2", 2,
-        stagedSnapshot.sequenceNumber());
+    V2Assert.assertEquals("Snapshot sequence number should be 2", 2, stagedSnapshot.sequenceNumber());
 
     // table has new commit
     table.newAppend()
         .appendFile(FILE_C)
         .commit();
 
-    Assert.assertEquals("Snapshot sequence number should be 3",
-        3, table.currentSnapshot().sequenceNumber());
+    Snapshot snap3 = table.currentSnapshot();
+    long commitId3 = snap3.snapshotId();
+    manifestFile = snap3.manifests().get(0);
+    validateManifest(manifestFile, seqs(3), ids(commitId3), files(FILE_C));
+    validateSnapshot(snap2, snap3, 3, FILE_C);
+    V2Assert.assertEquals("Snapshot sequence number should be 3", 3, snap3.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 3", 3, readMetadata().lastSequenceNumber());
 
     // cherry-pick snapshot
     table.manageSnapshots().cherrypick(stagedSnapshot.snapshotId()).commit();
-
-    Assert.assertEquals("Snapshot sequence number should be 4",
-        4, table.currentSnapshot().sequenceNumber());
-
-
-    validateDataFiles(files(FILE_A, FILE_B, FILE_C), seqs(1, 4, 3));
+    Snapshot snap4 = table.currentSnapshot();
+    long commitId4 = snap4.snapshotId();
+    manifestFile = table.currentSnapshot().manifests().get(0);
+    validateManifest(manifestFile, seqs(4), ids(commitId4), files(FILE_B));
+    validateSnapshot(snap3, snap4, 4, FILE_B);
+    V2Assert.assertEquals("Snapshot sequence number should be 4", 4, snap4.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 4", 4, readMetadata().lastSequenceNumber());
   }
 
   @Test
@@ -265,64 +417,35 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
     table.newAppend()
         .appendFile(FILE_A)
         .commit();
+    Snapshot snap1 = table.currentSnapshot();
+    long commitId1 = snap1.snapshotId();
+    ManifestFile manifestFile = snap1.manifests().get(0);
+    validateSnapshot(null, snap1, 1, FILE_A);
+    validateManifest(manifestFile, seqs(1), ids(commitId1), files(FILE_A));
+    V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap1.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
 
     table.newAppend()
         .appendFile(FILE_B)
         .stageOnly()
         .commit();
-
-    Assert.assertEquals("Snapshot sequence number should be 1", 1,
-        table.currentSnapshot().sequenceNumber());
+    Snapshot snap2 = table.currentSnapshot();
+    V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap2.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
 
     // pick the snapshot that's staged but not committed
     Snapshot stagedSnapshot = readMetadata().snapshots().get(1);
-
-    Assert.assertEquals("Snapshot sequence number should be 2", 2,
-        stagedSnapshot.sequenceNumber());
+    V2Assert.assertEquals("Snapshot sequence number should be 2", 2, stagedSnapshot.sequenceNumber());
 
     // cherry-pick snapshot, this will fast forward
     table.manageSnapshots().cherrypick(stagedSnapshot.snapshotId()).commit();
-    Assert.assertEquals("Snapshot sequence number should be 2",
-        2, table.currentSnapshot().sequenceNumber());
-
-    validateDataFiles(files(FILE_A, FILE_B), seqs(1, 2));
-  }
-
-  void validateDataFiles(Iterator<DataFile> files, Iterator<Long> expectedSeqs) {
-    Map<String, Long> fileToSeqMap = new HashMap<>();
-    while (files.hasNext() && expectedSeqs.hasNext()) {
-      DataFile file = files.next();
-      fileToSeqMap.put(file.path().toString(), expectedSeqs.next());
-    }
-
-    for (ManifestFile manifest : table.currentSnapshot().manifests()) {
-      for (ManifestEntry entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
-        String path = entry.file().path().toString();
-        if (fileToSeqMap.containsKey(path)) {
-          Assert.assertEquals("Sequence number should match expected",
-              fileToSeqMap.get(path), entry.sequenceNumber());
-        }
-      }
-    }
-  }
-
-  void validateManifestEntries(ManifestFile manifestFile, long expectedSequenceNumber,
-      Iterator<DataFile> files, Iterator<Long> expectedSeqs) {
-    Map<String, Long> fileToSeqMap = new HashMap<>();
-    while (files.hasNext() && expectedSeqs.hasNext()) {
-      DataFile file = files.next();
-      fileToSeqMap.put(file.path().toString(), expectedSeqs.next());
-    }
-    Assert.assertEquals("Manifest sequence number should match exptected",
-        expectedSequenceNumber, manifestFile.sequenceNumber());
-
-    for (ManifestEntry entry : ManifestFiles.read(manifestFile, FILE_IO).entries()) {
-      String path = entry.file().path().toString();
-      if (fileToSeqMap.containsKey(path)) {
-        Assert.assertEquals("Sequence number should match expected",
-            fileToSeqMap.get(path), entry.sequenceNumber());
-      }
-    }
+    Snapshot snap3 = table.currentSnapshot();
+    long commitId3 = snap3.snapshotId();
+    manifestFile = snap3.manifests().get(0);
+    validateManifest(manifestFile, seqs(2), ids(commitId3), files(FILE_B));
+    validateSnapshot(snap2, snap3, 2, FILE_B);
+    V2Assert.assertEquals("Snapshot sequence number should be 2", 2, snap3.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
   }
 
 }
