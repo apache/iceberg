@@ -42,7 +42,9 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.flink.connector.IcebergConnectorConstant;
@@ -316,6 +318,14 @@ public class IcebergWriter<IN> extends AbstractStreamOperator<FlinkDataFile>
               .createWriterFunc(GenericParquetWriter::buildWriter)
               .setAll(properties)
               .metricsConfig(metricsConfig)
+              .schema(schema)
+              .overwrite()
+              .build();
+
+        case AVRO:
+          return Avro.write(file)
+              .createWriterFunc(DataWriter::create)
+              .setAll(properties)
               .schema(schema)
               .overwrite()
               .build();
