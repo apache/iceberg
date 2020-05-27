@@ -25,6 +25,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Objects;
 import org.apache.commons.codec.binary.Hex;
+import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
 
 public class GenericFlinkManifestFile implements FlinkManifestFile {
@@ -330,5 +331,10 @@ public class GenericFlinkManifestFile implements FlinkManifestFile {
   @Override
   public long minSequenceNumber() {
     return 0;  // TODO
+  }
+
+  @Override
+  public ManifestContent content() {
+    return ManifestContent.DATA;  // TODO
   }
 }
