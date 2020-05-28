@@ -107,7 +107,7 @@ public class TestPartitionSpecInfo {
         .withSpecId(1)
         .build();
 
-    table.updatePartitionSpec().newSpec()
+    table.updateSpec().clear()
         .bucket("data", 10)
         .commit();
 

@@ -98,7 +98,7 @@ abstract class BaseMetadataTable implements Table {
   }
 
   @Override
-  public UpdatePartitionSpec updatePartitionSpec() {
+  public UpdatePartitionSpec updateSpec() {
     throw new UnsupportedOperationException("Cannot update the partition spec of a metadata table");
   }
 

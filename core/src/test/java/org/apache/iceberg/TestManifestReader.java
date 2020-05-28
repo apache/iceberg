@@ -109,7 +109,7 @@ public class TestManifestReader extends TableTestBase {
 
   @Test
   public void testManifestReaderWithPartitionMetadataEvolution() throws IOException {
-    table.updatePartitionSpec().newSpec()
+    table.updateSpec().clear()
         .bucket("id", 8)
         .bucket("data", 16)
         .commit();

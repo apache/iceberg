@@ -672,7 +672,7 @@ public class TestMergeAppend extends TableTestBase {
   public void testUpdatePartitionSpecFieldIdsWithSpecEvolution() {
     TableMetadata base = readMetadata();
 
-    table.updatePartitionSpec().newSpec()
+    table.updateSpec().clear()
         .bucket("id", 16)
         .identity("data")
         .bucket("data", 4)
@@ -716,7 +716,7 @@ public class TestMergeAppend extends TableTestBase {
         1, base.currentSnapshot().allManifests().size());
     ManifestFile initialManifest = base.currentSnapshot().allManifests().get(0);
 
-    table.updatePartitionSpec().newSpec()
+    table.updateSpec().clear()
         .bucket("id", 8)
         .bucket("data", 8)
         .commit();

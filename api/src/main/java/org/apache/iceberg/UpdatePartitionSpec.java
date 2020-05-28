@@ -30,14 +30,15 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
 
   /**
-   * Create a new partition spec builder for a given schema
+   * Clear all partition fields in the current partition spec.
    * <p>
+   * This will create a new partition spec without any partition field.
    * Partition field IDs is automatically assigned and will be updated during the commit.
    * Table schema should be obtained from the current table metadata
    *
    * @return this for method chaining
    */
-  UpdatePartitionSpec newSpec();
+  UpdatePartitionSpec clear();
 
   /**
    * Add a new partition field with identity transform to the partition spec.
@@ -47,7 +48,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @param targetName the name of this partition field
    * @return this for method chaining
-   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
    */
   UpdatePartitionSpec identity(String sourceName, String targetName);
 
@@ -59,7 +59,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
    *
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @return this for method chaining
-   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
    */
   UpdatePartitionSpec identity(String sourceName);
 
@@ -71,7 +70,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @param targetName the name of this partition field
    * @return this for method chaining
-   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
    */
   UpdatePartitionSpec year(String sourceName, String targetName);
 
@@ -83,7 +81,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
    *
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @return this for method chaining
-   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
    */
   UpdatePartitionSpec year(String sourceName);
 
@@ -95,7 +92,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @param targetName the name of this partition field
    * @return this for method chaining
-   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
    */
   UpdatePartitionSpec month(String sourceName, String targetName);
 
@@ -107,7 +103,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
    *
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @return this for method chaining
-   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
    */
   UpdatePartitionSpec month(String sourceName);
 
@@ -119,7 +114,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @param targetName the name of this partition field
    * @return this for method chaining
-   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
    */
   UpdatePartitionSpec day(String sourceName, String targetName);
 
@@ -131,7 +125,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
    *
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @return this for method chaining
-   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
    */
   UpdatePartitionSpec day(String sourceName);
 
@@ -143,7 +136,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @param targetName the name of this partition field
    * @return this for method chaining
-   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
    */
   UpdatePartitionSpec hour(String sourceName, String targetName);
 
@@ -155,7 +147,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
    *
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @return this for method chaining
-   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
    */
   UpdatePartitionSpec hour(String sourceName);
 
@@ -168,7 +159,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
    * @param numBuckets the number of buckets
    * @param targetName the name of this partition field
    * @return this for method chaining
-   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
    */
   UpdatePartitionSpec bucket(String sourceName, int numBuckets, String targetName);
 
@@ -181,7 +171,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @param numBuckets the number of buckets
    * @return this for method chaining
-   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
    */
   UpdatePartitionSpec bucket(String sourceName, int numBuckets);
 
@@ -194,7 +183,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
    * @param width the width of truncation
    * @param targetName the name of this partition field
    * @return this for method chaining
-   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
    */
   UpdatePartitionSpec truncate(String sourceName, int width, String targetName);
 
@@ -207,8 +195,19 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @param width the width of truncation
    * @return this for method chaining
-   * @throws NullPointerException If the table schema is not set by {@link #newSpec} before calling this method
    */
   UpdatePartitionSpec truncate(String sourceName, int width);
+
+  /**
+   * Add a new partition field to the partition spec.
+   * <p>
+   * The partition field id is automatically assigned and will be updated during the commit.
+   *
+   * @param sourceId the source field id in the {@link PartitionSpec spec's} table schema
+   * @param name the name of this partition field
+   * @param transform the partition transform in string format
+   * @return this for method chaining
+   */
+  UpdatePartitionSpec addField(int sourceId, String name, String transform);
 
 }

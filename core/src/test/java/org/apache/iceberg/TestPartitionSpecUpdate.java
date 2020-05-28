@@ -49,7 +49,7 @@ public class TestPartitionSpecUpdate extends TableTestBase {
         "]", table.spec().toString());
     Assert.assertEquals(1000, table.spec().lastAssignedFieldId());
 
-    table.updatePartitionSpec().newSpec()
+    table.updateSpec().clear()
         .bucket("id", 8)
         .bucket("data", 16)
         .commit();
@@ -60,7 +60,7 @@ public class TestPartitionSpecUpdate extends TableTestBase {
         "]", table.spec().toString());
     Assert.assertEquals(expectedFieldIds[2], table.spec().lastAssignedFieldId());
 
-    table.updatePartitionSpec().newSpec()
+    table.updateSpec().clear()
         .truncate("data", 8)
         .commit();
 
@@ -71,20 +71,68 @@ public class TestPartitionSpecUpdate extends TableTestBase {
   }
 
   @Test
-  public void testCommitException() {
-    AssertHelpers.assertThrows("Should throw IllegalArgumentException if no spec to commit",
-        NullPointerException.class, "new partition spec is not set",
-        () -> table.updatePartitionSpec().commit());
-  }
-
-  @Test
   public void testUpdateException() {
     AssertHelpers.assertThrows(
         "Should throw IllegalArgumentException if there is an invalid partition field",
         IllegalArgumentException.class, "Cannot use partition name more than once: id_bucket",
-        () -> table.updatePartitionSpec().newSpec()
+        () -> table.updateSpec().clear()
             .bucket("id", 8)
             .bucket("id", 16)
             .commit());
+  }
+
+  @Test
+  public void testAddDuplicateFieldException() {
+    AssertHelpers.assertThrows(
+        "Should throw IllegalArgumentException if adding a duplicate partition field",
+        IllegalArgumentException.class, "Cannot use partition name more than once: data_bucket",
+        () -> table.updateSpec()
+            .bucket("data", 16)
+            .commit());
+  }
+
+  @Test
+  public void testAddTheSamePartitionField() {
+    Assert.assertEquals("[\n" +
+        "  1000: data_bucket: bucket[16](2)\n" +
+        "]", table.spec().toString());
+
+    if (formatVersion == 1) {
+      table.updateSpec()
+          .addField(2, "data_partition", "bucket[16]")
+          .commit();
+      Assert.assertEquals("[\n" +
+          "  1000: data_bucket: bucket[16](2)\n" +
+          "  1001: data_partition: bucket[16](2)\n" +
+          "]", table.spec().toString());
+    } else {
+      AssertHelpers.assertThrows(
+          "Should throw IllegalArgumentException if adding a duplicate partition field",
+          IllegalArgumentException.class,
+          "Field Id 1000 has already been used in the existing partition fields",
+          () -> table.updateSpec()
+              .addField(2, "data_partition", "bucket[16]")
+              .commit());
+    }
+  }
+
+  @Test
+  public void testAddField() {
+    Assert.assertEquals("[\n" +
+        "  1000: data_bucket: bucket[16](2)\n" +
+        "]", table.spec().toString());
+    Assert.assertEquals(1000, table.spec().lastAssignedFieldId());
+
+    table.updateSpec()
+        .addField(2, "data_partition", "bucket[8]")
+        .bucket("id", 8)
+        .commit();
+
+    Assert.assertEquals("[\n" +
+        "  1000: data_bucket: bucket[16](2)\n" +
+        "  1001: data_partition: bucket[8](2)\n" +
+        "  1002: id_bucket: bucket[8](1)\n" +
+        "]", table.spec().toString());
+    Assert.assertEquals(1002, table.spec().lastAssignedFieldId());
   }
 }
