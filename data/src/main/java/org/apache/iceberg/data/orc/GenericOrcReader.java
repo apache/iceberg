@@ -121,7 +121,7 @@ public class GenericOrcReader implements OrcRowReader<Record> {
         case BINARY:
           switch (iPrimitive.typeId()) {
             case UUID:
-              return GenericOrcReaders.uuid();
+              return GenericOrcReaders.uuids();
             case FIXED:
               return OrcValueReaders.bytes();
             case BINARY:

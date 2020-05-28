@@ -80,7 +80,7 @@ public class GenericOrcReaders {
     return StringReader.INSTANCE;
   }
 
-  public static OrcValueReader<UUID> uuid() {
+  public static OrcValueReader<UUID> uuids() {
     return UUIDReader.INSTANCE;
   }
 
