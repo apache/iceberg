@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcRowReader;
 import org.apache.iceberg.orc.OrcSchemaWithTypeVisitor;
 import org.apache.iceberg.orc.OrcValueReader;
@@ -93,16 +92,14 @@ public class GenericOrcReader implements OrcRowReader<Record> {
         case INT:
           return OrcValueReaders.ints();
         case LONG:
-          String longAttributeValue = primitive.getAttributeValue(ORCSchemaUtil.ICEBERG_LONG_TYPE_ATTRIBUTE);
-          ORCSchemaUtil.LongType longType = longAttributeValue == null ? ORCSchemaUtil.LongType.LONG :
-              ORCSchemaUtil.LongType.valueOf(longAttributeValue);
-          switch (longType) {
+          switch (iPrimitive.typeId()) {
             case TIME:
               return GenericOrcReaders.times();
             case LONG:
               return OrcValueReaders.longs();
             default:
-              throw new IllegalStateException("Unhandled Long type found in ORC type attribute: " + longType);
+              throw new IllegalStateException(
+                  String.format("Invalid iceberg type %s corresponding to ORC type %s", iPrimitive, primitive));
           }
 
         case FLOAT:
@@ -122,10 +119,7 @@ public class GenericOrcReader implements OrcRowReader<Record> {
         case STRING:
           return GenericOrcReaders.strings();
         case BINARY:
-          String binaryAttributeValue = primitive.getAttributeValue(ORCSchemaUtil.ICEBERG_BINARY_TYPE_ATTRIBUTE);
-          ORCSchemaUtil.BinaryType binaryType = binaryAttributeValue == null ? ORCSchemaUtil.BinaryType.BINARY :
-              ORCSchemaUtil.BinaryType.valueOf(binaryAttributeValue);
-          switch (binaryType) {
+          switch (iPrimitive.typeId()) {
             case UUID:
               return GenericOrcReaders.uuid();
             case FIXED:
@@ -133,7 +127,8 @@ public class GenericOrcReader implements OrcRowReader<Record> {
             case BINARY:
               return GenericOrcReaders.bytes();
             default:
-              throw new IllegalStateException("Unhandled Binary type found in ORC type attribute: " + binaryType);
+              throw new IllegalStateException(
+                  String.format("Invalid iceberg type %s corresponding to ORC type %s", iPrimitive, primitive));
           }
         default:
           throw new IllegalArgumentException("Unhandled type " + primitive);

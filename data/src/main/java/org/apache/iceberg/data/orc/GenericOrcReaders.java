@@ -33,6 +33,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.iceberg.data.DateTimeUtil;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.orc.OrcValueReader;
@@ -87,7 +88,7 @@ public class GenericOrcReaders {
     return BytesReader.INSTANCE;
   }
 
-  public static OrcValueReader<?> times() {
+  public static OrcValueReader<LocalTime> times() {
     return TimeReader.INSTANCE;
   }
 
@@ -120,7 +121,7 @@ public class GenericOrcReaders {
 
     @Override
     public LocalTime nonNullRead(ColumnVector vector, int row) {
-      return LocalTime.ofNanoOfDay(((LongColumnVector) vector).vector[row] * 1_000);
+      return DateTimeUtil.timeFromMicros(((LongColumnVector) vector).vector[row]);
     }
   }
 
@@ -132,7 +133,7 @@ public class GenericOrcReaders {
 
     @Override
     public LocalDate nonNullRead(ColumnVector vector, int row) {
-      return EPOCH_DAY.plusDays((int) ((LongColumnVector) vector).vector[row]);
+      return DateTimeUtil.dateFromDays((int) ((LongColumnVector) vector).vector[row]);
     }
   }
 
