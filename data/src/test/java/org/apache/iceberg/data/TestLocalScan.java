@@ -63,14 +63,14 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static com.google.common.collect.Iterables.concat;
-import static com.google.common.collect.Iterables.filter;
-import static com.google.common.collect.Iterables.transform;
 import static org.apache.iceberg.DataFiles.fromInputFile;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.hadoop.HadoopOutputFile.fromPath;
+import static org.apache.iceberg.relocated.com.google.common.collect.Iterables.concat;
+import static org.apache.iceberg.relocated.com.google.common.collect.Iterables.filter;
+import static org.apache.iceberg.relocated.com.google.common.collect.Iterables.transform;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
