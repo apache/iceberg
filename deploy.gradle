@@ -94,7 +94,7 @@ subprojects {
           }
           issueManagement {
             system = 'GitHub'
-            url = 'https://github.com/apache/incubator-iceberg/issues'
+            url = 'https://github.com/apache/iceberg/issues'
           }
         }
       }

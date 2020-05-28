@@ -31,7 +31,7 @@ You'll also need `spark-sql`:
 To add a dependency on Iceberg in Gradle, add the following to `build.gradle`:
 ```
 dependencies {
-  compile 'org.apache.iceberg:iceberg-core:0.7.0-incubating'
+  compile 'org.apache.iceberg:iceberg-core:0.8.0-incubating'
 }
 ```
 
@@ -39,7 +39,7 @@ dependencies {
 The following section will break down the different areas of Iceberg explored in the examples, with links to the code and extra information that could be useful for new users. 
 
 ### Writing data to tables
-There are multiple ways of creating tables with Iceberg, including using the Hive Metastore to keep track of tables ([HiveCatalog](https://iceberg.apache.org/api-quickstart/#using-a-hive-catalog)), or using HDFS / your local file system ([HadoopTables](https://iceberg.incubator.apache.org/api-quickstart/#using-hadoop-tables)) to store the tables. However, it should be noted that directory tables (such as those using `HadoopTables`)  don’t support all catalog operations, like rename and therefore use the `Tables` interface instead of the `Catalog` interface.
+There are multiple ways of creating tables with Iceberg, including using the Hive Metastore to keep track of tables ([HiveCatalog](https://iceberg.apache.org/api-quickstart/#using-a-hive-catalog)), or using HDFS / your local file system ([HadoopTables](https://iceberg.apache.org/api-quickstart/#using-hadoop-tables)) to store the tables. However, it should be noted that directory tables (such as those using `HadoopTables`)  don’t support all catalog operations, like rename and therefore use the `Tables` interface instead of the `Catalog` interface.
 It should be noted that `HadoopTables` _shouldn’t_ be used with file systems that do not support atomic rename as Iceberg depends on this to synchronize concurrent commits. 
 To limit complexity, these examples create tables on your local file system using the `HadoopTables` class.
 
@@ -86,7 +86,7 @@ This section looks a little bit closer at the metadata produced by Iceberg table
     └── version-hint.text
 ```
 
-The metadata for your table is kept in json files and each commit to a table will produce a new metadata file. For tables using a metastore for the metadata, the file used is whichever file the metastore points at. For `HadoopTables`, the file used will be the latest version available. Look [here](https://iceberg.incubator.apache.org/spec/#table-metadata) for more information on metadata.
+The metadata for your table is kept in json files and each commit to a table will produce a new metadata file. For tables using a metastore for the metadata, the file used is whichever file the metastore points at. For `HadoopTables`, the file used will be the latest version available. Look [here](https://iceberg.apache.org/spec/#table-metadata) for more information on metadata.
 
 The metadata file will contain things like the table location, the schema and the partition spec:
 
@@ -183,7 +183,7 @@ However, this means you need to occasionally deal with concurrent writer conflic
 
 Iceberg deals with this by attempting retries of the write based on the new metadata. This can happen if the files the first write changed aren't touched by the second write, then it's deemed safe to commit the second update. 
 
-[This test](ConcurrencyTest.java) looks to experiment with how optimistic concurrency works. For more information on conflict resolution, look [here](https://iceberg.incubator.apache.org/spec/#table-metadata) and for information on write concurrency, look [here](https://iceberg.incubator.apache.org/reliability/#concurrent-write-operations).
+[This test](ConcurrencyTest.java) looks to experiment with how optimistic concurrency works. For more information on conflict resolution, look [here](https://iceberg.apache.org/spec/#table-metadata) and for information on write concurrency, look [here](https://iceberg.apache.org/reliability/#concurrent-write-operations).
 
 By default, Iceberg has set the `commit.retry.num-retries` property to **4**. You can edit this default by creating an `UpdateProperties` object and assigning a new number to that property:
 
@@ -191,4 +191,4 @@ By default, Iceberg has set the `commit.retry.num-retries` property to **4**. Yo
   table.updateProperties().set("commit.retry.num-retries", "1").commit();
 ```
 
-You can find more information on other table properties you can configure [here](https://iceberg.incubator.apache.org/configuration/#table-properties).
+You can find more information on other table properties you can configure [here](https://iceberg.apache.org/configuration/#table-properties).
