@@ -30,6 +30,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Schema;
@@ -130,10 +131,6 @@ public class OrcMetrics {
     }
   }
 
-  private static long toMicros(Timestamp ts) {
-    return ts.getTime() * 1000;
-  }
-
   private static Optional<ByteBuffer> fromOrcMin(Types.NestedField column,
                                                  ColumnStatistics columnStats) {
     Object min = null;
@@ -165,7 +162,8 @@ public class OrcMetrics {
       TimestampColumnStatistics tColStats = (TimestampColumnStatistics) columnStats;
       Timestamp minValue = tColStats.getMinimumUTC();
       min = Optional.ofNullable(minValue)
-          .map(OrcMetrics::toMicros)
+          .map(v -> TimeUnit.MILLISECONDS.toMicros(v.getTime()))
+          .map(v -> v - 1_000) // Subtract 1 millisecond to handle precision issue due to ORC-611
           .orElse(null);
     } else if (columnStats instanceof BooleanColumnStatistics) {
       BooleanColumnStatistics booleanStats = (BooleanColumnStatistics) columnStats;
@@ -205,7 +203,8 @@ public class OrcMetrics {
       TimestampColumnStatistics tColStats = (TimestampColumnStatistics) columnStats;
       Timestamp maxValue = tColStats.getMaximumUTC();
       max = Optional.ofNullable(maxValue)
-          .map(OrcMetrics::toMicros)
+          .map(v -> TimeUnit.MILLISECONDS.toMicros(v.getTime()))
+          .map(v -> v + 1_000) // Add 1 millisecond to handle precision issue due to ORC-611
           .orElse(null);
     } else if (columnStats instanceof BooleanColumnStatistics) {
       BooleanColumnStatistics booleanStats = (BooleanColumnStatistics) columnStats;

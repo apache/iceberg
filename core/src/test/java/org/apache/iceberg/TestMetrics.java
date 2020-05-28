@@ -87,12 +87,15 @@ public abstract class TestMetrics {
       required(7, "stringCol", StringType.get()),
       optional(8, "dateCol", DateType.get()),
       required(9, "timeCol", TimeType.get()),
-      required(10, "timestampCol", TimestampType.withoutZone()),
+      required(10, "timestampColAboveEpoch", TimestampType.withoutZone()),
       required(11, "fixedCol", FixedType.ofLength(4)),
-      required(12, "binaryCol", BinaryType.get())
+      required(12, "binaryCol", BinaryType.get()),
+      required(13, "timestampColBelowEpoch", TimestampType.withoutZone())
   );
 
   private final byte[] fixed = "abcd".getBytes(StandardCharsets.UTF_8);
+
+  public abstract FileFormat fileFormat();
 
   public abstract Metrics getMetrics(InputFile file);
 
@@ -119,9 +122,10 @@ public abstract class TestMetrics {
     firstRecord.setField("stringCol", "AAA");
     firstRecord.setField("dateCol", DateTimeUtil.dateFromDays(1500));
     firstRecord.setField("timeCol", DateTimeUtil.timeFromMicros(2000L));
-    firstRecord.setField("timestampCol", DateTimeUtil.timestampFromMicros(0L));
+    firstRecord.setField("timestampColAboveEpoch", DateTimeUtil.timestampFromMicros(0L));
     firstRecord.setField("fixedCol", fixed);
     firstRecord.setField("binaryCol", ByteBuffer.wrap("S".getBytes()));
+    firstRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(0L));
     Record secondRecord = GenericRecord.create(SIMPLE_SCHEMA);
     secondRecord.setField("booleanCol", true);
     secondRecord.setField("intCol", 3);
@@ -132,9 +136,10 @@ public abstract class TestMetrics {
     secondRecord.setField("stringCol", "AAA");
     secondRecord.setField("dateCol", DateTimeUtil.dateFromDays(1500));
     secondRecord.setField("timeCol", DateTimeUtil.timeFromMicros(2000L));
-    secondRecord.setField("timestampCol", DateTimeUtil.timestampFromMicros(0L));
+    secondRecord.setField("timestampColAboveEpoch", DateTimeUtil.timestampFromMicros(0L));
     secondRecord.setField("fixedCol", fixed);
     secondRecord.setField("binaryCol", ByteBuffer.wrap("S".getBytes()));
+    secondRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(0L));
 
     InputFile recordsFile = writeRecords(SIMPLE_SCHEMA, firstRecord, secondRecord);
 
@@ -152,6 +157,7 @@ public abstract class TestMetrics {
     assertCounts(10, 2L, 0L, metrics);
     assertCounts(11, 2L, 0L, metrics);
     assertCounts(12, 2L, 0L, metrics);
+    assertCounts(13, 2L, 0L, metrics);
   }
 
   @Test
@@ -166,9 +172,10 @@ public abstract class TestMetrics {
     firstRecord.setField("stringCol", "AAA");
     firstRecord.setField("dateCol", DateTimeUtil.dateFromDays(1500));
     firstRecord.setField("timeCol", DateTimeUtil.timeFromMicros(2000L));
-    firstRecord.setField("timestampCol", DateTimeUtil.timestampFromMicros(0L));
+    firstRecord.setField("timestampColAboveEpoch", DateTimeUtil.timestampFromMicros(0L));
     firstRecord.setField("fixedCol", fixed);
     firstRecord.setField("binaryCol", ByteBuffer.wrap("S".getBytes()));
+    firstRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(-900L));
     Record secondRecord = GenericRecord.create(SIMPLE_SCHEMA);
     secondRecord.setField("booleanCol", false);
     secondRecord.setField("intCol", Integer.MIN_VALUE);
@@ -179,9 +186,10 @@ public abstract class TestMetrics {
     secondRecord.setField("stringCol", "ZZZ");
     secondRecord.setField("dateCol", null);
     secondRecord.setField("timeCol", DateTimeUtil.timeFromMicros(3000L));
-    secondRecord.setField("timestampCol", DateTimeUtil.timestampFromMicros(1000L));
+    secondRecord.setField("timestampColAboveEpoch", DateTimeUtil.timestampFromMicros(900L));
     secondRecord.setField("fixedCol", fixed);
     secondRecord.setField("binaryCol", ByteBuffer.wrap("W".getBytes()));
+    secondRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(0L));
 
     InputFile recordsFile = writeRecords(SIMPLE_SCHEMA, firstRecord, secondRecord);
 
@@ -206,13 +214,25 @@ public abstract class TestMetrics {
     assertCounts(9, 2L, 0L, metrics);
     assertBounds(9, TimeType.get(), 2000L, 3000L, metrics);
     assertCounts(10, 2L, 0L, metrics);
-    assertBounds(10, TimestampType.withoutZone(), 0L, 1000L, metrics);
+    if (fileFormat() == FileFormat.ORC) {
+      // ORC-611: ORC only supports millisecond precision, so we adjust by 1 millisecond
+      assertBounds(10, TimestampType.withoutZone(), -1000L, 1000L, metrics);
+    } else {
+      assertBounds(10, TimestampType.withoutZone(), 0L, 900L, metrics);
+    }
     assertCounts(11, 2L, 0L, metrics);
     assertBounds(11, FixedType.ofLength(4),
         ByteBuffer.wrap(fixed), ByteBuffer.wrap(fixed), metrics);
     assertCounts(12, 2L, 0L, metrics);
     assertBounds(12, BinaryType.get(),
         ByteBuffer.wrap("S".getBytes()), ByteBuffer.wrap("W".getBytes()), metrics);
+    if (fileFormat() == FileFormat.ORC) {
+      // TODO: enable when ORC-342 is fixed - ORC-342: creates inacurate timestamp/stats below epoch
+      // ORC-611: ORC only supports millisecond precision, so we adjust by 1 millisecond
+      // assertBounds(13, TimestampType.withoutZone(), -1000L, 1000L, metrics);
+    } else {
+      assertBounds(13, TimestampType.withoutZone(), -900L, 0L, metrics);
+    }
   }
 
   @Test
@@ -338,9 +358,10 @@ public abstract class TestMetrics {
       newRecord.setField("stringCol", "AAA");
       newRecord.setField("dateCol", DateTimeUtil.dateFromDays(i + 1));
       newRecord.setField("timeCol", DateTimeUtil.timeFromMicros(i + 1L));
-      newRecord.setField("timestampCol", DateTimeUtil.timestampFromMicros(i + 1L));
+      newRecord.setField("timestampColAboveEpoch", DateTimeUtil.timestampFromMicros(i + 1L));
       newRecord.setField("fixedCol", fixed);
       newRecord.setField("binaryCol", ByteBuffer.wrap("S".getBytes()));
+      newRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros((i + 1L) * -1L));
       records.add(newRecord);
     }
 

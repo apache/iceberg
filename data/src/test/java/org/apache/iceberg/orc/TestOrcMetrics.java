@@ -72,6 +72,11 @@ public class TestOrcMetrics extends TestMetrics {
   public TemporaryFolder temp = new TemporaryFolder();
 
   @Override
+  public FileFormat fileFormat() {
+    return FileFormat.ORC;
+  }
+
+  @Override
   public Metrics getMetrics(InputFile file) {
     return OrcMetrics.fromInputFile(file);
   }
