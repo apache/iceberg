@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.flink.connector.sink;
 
-import com.google.common.base.MoreObjects;
 import java.io.Serializable;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 public class FlinkDataFile implements Serializable {
   private final long lowWatermark;

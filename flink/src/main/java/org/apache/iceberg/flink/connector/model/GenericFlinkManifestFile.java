@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.flink.connector.model;
 
-import com.google.common.base.MoreObjects;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
@@ -27,6 +26,7 @@ import java.util.Objects;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 public class GenericFlinkManifestFile implements FlinkManifestFile {
 

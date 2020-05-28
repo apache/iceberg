@@ -19,12 +19,12 @@
 
 package org.apache.iceberg.flink.connector.model;
 
-import com.google.common.base.Joiner;
-import com.google.common.base.Strings;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 
 public class FlinkManifestFileUtil {
   private FlinkManifestFileUtil() {}

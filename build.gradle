@@ -599,6 +599,7 @@ project(':iceberg-flink-runtime') {
       exclude group: 'commons-pool'
       exclude group: 'org.xerial.snappy'
       exclude group: 'javax.annotation'
+      exclude group: 'com.google.errorprone'
     }
   }
 
@@ -618,7 +619,6 @@ project(':iceberg-flink-runtime') {
     }
 
     // Relocate dependencies to avoid conflicts
-    relocate 'com.google', 'org.apache.iceberg.relocated.com.google'  // TODO: relocated ? shaded ?
     relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
     relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
     relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'

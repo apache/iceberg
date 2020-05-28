@@ -19,14 +19,14 @@
 
 package org.apache.iceberg.flink.connector.sink;
 
-import com.google.common.base.Splitter;
-import com.google.common.base.Strings;
 import java.time.LocalTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.types.Type;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

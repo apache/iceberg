@@ -19,10 +19,10 @@
 
 package org.apache.iceberg.flink.connector.sink;
 
-import com.google.common.base.Joiner;
 import java.util.Arrays;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.transforms.Transform;
 
 @SuppressWarnings("checkstyle:VisibilityModifier")
