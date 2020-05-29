@@ -19,43 +19,26 @@
 
 package org.apache.iceberg;
 
+
 import com.google.common.collect.ImmutableMap;
 import java.nio.ByteBuffer;
-import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.types.Types;
 
-class GenericDataFile extends BaseFile<DataFile> implements DataFile {
+class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
   /**
    * Used by Avro reflection to instantiate this class when reading manifest files.
    */
-  GenericDataFile(org.apache.avro.Schema avroSchema) {
+  GenericDeleteFile(Schema avroSchema) {
     super(avroSchema);
   }
 
-  GenericDataFile(String filePath, FileFormat format, long recordCount,
-                  long fileSizeInBytes) {
-    this(filePath, format, null, recordCount, fileSizeInBytes);
-  }
-
-  GenericDataFile(String filePath, FileFormat format, PartitionData partition,
-                  long recordCount, long fileSizeInBytes) {
-    super(FileContent.DATA, filePath, format, partition, fileSizeInBytes, recordCount,
-        null, null, null, null, null, null, null);
-  }
-
-  GenericDataFile(String filePath, FileFormat format, PartitionData partition,
-                  long fileSizeInBytes, Metrics metrics, List<Long> splitOffsets) {
-    this(filePath, format, partition, fileSizeInBytes, metrics, null, splitOffsets);
-  }
-
-  GenericDataFile(String filePath, FileFormat format, PartitionData partition,
-                  long fileSizeInBytes, Metrics metrics,
-                  ByteBuffer keyMetadata, List<Long> splitOffsets) {
-    super(FileContent.DATA, filePath, format, partition, fileSizeInBytes, metrics.recordCount(),
+  GenericDeleteFile(FileContent content, String filePath, FileFormat format, PartitionData partition,
+                    long fileSizeInBytes, Metrics metrics, ByteBuffer keyMetadata) {
+    super(content, filePath, format, partition, fileSizeInBytes, metrics.recordCount(),
         metrics.columnSizes(), metrics.valueCounts(), metrics.nullValueCounts(),
-        metrics.lowerBounds(), metrics.upperBounds(), splitOffsets, keyMetadata);
+        metrics.lowerBounds(), metrics.upperBounds(), null, keyMetadata);
   }
 
   /**
@@ -64,30 +47,30 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
    * @param toCopy a generic data file to copy.
    * @param fullCopy whether to copy all fields or to drop column-level stats
    */
-  private GenericDataFile(GenericDataFile toCopy, boolean fullCopy) {
+  private GenericDeleteFile(GenericDeleteFile toCopy, boolean fullCopy) {
     super(toCopy, fullCopy);
   }
 
   /**
    * Constructor for Java serialization.
    */
-  GenericDataFile() {
+  GenericDeleteFile() {
   }
 
   @Override
-  public DataFile copyWithoutStats() {
-    return new GenericDataFile(this, false /* drop stats */);
+  public DeleteFile copyWithoutStats() {
+    return new GenericDeleteFile(this, false /* drop stats */);
   }
 
   @Override
-  public DataFile copy() {
-    return new GenericDataFile(this, true /* full copy */);
+  public DeleteFile copy() {
+    return new GenericDeleteFile(this, true /* full copy */);
   }
 
   protected Schema getAvroSchema(Types.StructType partitionStruct) {
     Types.StructType type = DataFile.getType(partitionStruct);
     return AvroSchemaUtil.convert(type, ImmutableMap.of(
-        type, GenericDataFile.class.getName(),
+        type, GenericDeleteFile.class.getName(),
         partitionStruct, PartitionData.class.getName()));
   }
 }

@@ -526,7 +526,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     Evaluator inclusive = extractInclusiveDeleteExpression(reader);
     Evaluator strict = extractStrictDeleteExpression(reader);
     boolean hasDeletedFiles = false;
-    for (ManifestEntry entry : reader.entries()) {
+    for (ManifestEntry<DataFile> entry : reader.entries()) {
       DataFile file = entry.file();
       boolean fileDelete = deletePaths.contains(pathWrapper.set(file.path())) ||
           dropPartitions.contains(partitionWrapper.set(file.partition()));
@@ -555,7 +555,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     // manifest. produce a copy of the manifest with all deleted files removed.
     List<DataFile> deletedFiles = Lists.newArrayList();
     Set<CharSequenceWrapper> deletedPaths = Sets.newHashSet();
-    ManifestWriter writer = newManifestWriter(reader.spec());
+    ManifestWriter<DataFile> writer = newManifestWriter(reader.spec());
     try {
       reader.entries().forEach(entry -> {
         DataFile file = entry.file();
@@ -667,11 +667,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       return mergeManifests.get(bin);
     }
 
-    ManifestWriter writer = newManifestWriter(ops.current().spec());
+    ManifestWriter<DataFile> writer = newManifestWriter(ops.current().spec());
     try {
       for (ManifestFile manifest : bin) {
         try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
-          for (ManifestEntry entry : reader.entries()) {
+          for (ManifestEntry<DataFile> entry : reader.entries()) {
             if (entry.status() == Status.DELETED) {
               // suppress deletes from previous snapshots. only files deleted by this snapshot
               // should be added to the new manifest

@@ -47,7 +47,7 @@ class ManifestGroup {
   private final FileIO io;
   private final Set<ManifestFile> manifests;
   private Predicate<ManifestFile> manifestPredicate;
-  private Predicate<ManifestEntry> manifestEntryPredicate;
+  private Predicate<ManifestEntry<DataFile>> manifestEntryPredicate;
   private Map<Integer, PartitionSpec> specsById;
   private Expression dataFilter;
   private Expression fileFilter;
@@ -97,7 +97,7 @@ class ManifestGroup {
     return this;
   }
 
-  ManifestGroup filterManifestEntries(Predicate<ManifestEntry> newManifestEntryPredicate) {
+  ManifestGroup filterManifestEntries(Predicate<ManifestEntry<DataFile>> newManifestEntryPredicate) {
     this.manifestEntryPredicate = manifestEntryPredicate.and(newManifestEntryPredicate);
     return this;
   }
@@ -169,12 +169,12 @@ class ManifestGroup {
    *
    * @return a CloseableIterable of manifest entries.
    */
-  public CloseableIterable<ManifestEntry> entries() {
+  public CloseableIterable<ManifestEntry<DataFile>> entries() {
     return CloseableIterable.concat(entries((manifest, entries) -> entries));
   }
 
   private <T> Iterable<CloseableIterable<T>> entries(
-      BiFunction<ManifestFile, CloseableIterable<ManifestEntry>, CloseableIterable<T>> entryFn) {
+      BiFunction<ManifestFile, CloseableIterable<ManifestEntry<DataFile>>, CloseableIterable<T>> entryFn) {
     LoadingCache<Integer, ManifestEvaluator> evalCache = specsById == null ?
         null : Caffeine.newBuilder().build(specId -> {
           PartitionSpec spec = specsById.get(specId);
@@ -215,7 +215,7 @@ class ManifestGroup {
               .caseSensitive(caseSensitive)
               .select(columns);
 
-          CloseableIterable<ManifestEntry> entries = reader.entries();
+          CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
           if (ignoreDeleted) {
             entries = reader.liveEntries();
           }

@@ -19,8 +19,19 @@
 
 package org.apache.iceberg;
 
-import java.io.Serializable;
+import java.util.List;
 
-interface InheritableMetadata extends Serializable {
-  <F extends ContentFile<F>> ManifestEntry<F> apply(ManifestEntry<F> manifestEntry);
+/**
+ * Interface for delete files listed in a table delete manifest.
+ */
+public interface DeleteFile extends ContentFile<DeleteFile> {
+  /**
+   * @return List of recommended split locations, if applicable, null otherwise.
+   * When available, this information is used for planning scan tasks whose boundaries
+   * are determined by these offsets. The returned list must be sorted in ascending order.
+   */
+  @Override
+  default List<Long> splitOffsets() {
+    return null;
+  }
 }

@@ -25,6 +25,7 @@ import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
@@ -40,7 +41,7 @@ import static org.apache.iceberg.expressions.Expressions.rewriteNot;
  * <p>
  * This evaluation is inclusive: it returns true if a file may match and false if it cannot match.
  * <p>
- * Files are passed to {@link #eval(DataFile)}, which returns true if the file may contain matching
+ * Files are passed to {@link #eval(ContentFile)}, which returns true if the file may contain matching
  * rows and false if the file cannot contain matching rows. Files may be skipped if and only if the
  * return value of {@code eval} is false.
  */
@@ -70,7 +71,7 @@ public class InclusiveMetricsEvaluator {
    * @param file a data file
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
-  public boolean eval(DataFile file) {
+  public boolean eval(ContentFile<?> file) {
     // TODO: detect the case where a column is missing from the file using file's max field id.
     return visitor().eval(file);
   }
@@ -84,7 +85,7 @@ public class InclusiveMetricsEvaluator {
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
 
-    private boolean eval(DataFile file) {
+    private boolean eval(ContentFile<?> file) {
       if (file.recordCount() == 0) {
         return ROWS_CANNOT_MATCH;
       }

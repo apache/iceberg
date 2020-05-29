@@ -80,7 +80,7 @@ public class FileHistory {
     }
 
     @SuppressWarnings("unchecked")
-    public Iterable<ManifestEntry> build() {
+    public Iterable<ManifestEntry<?>> build() {
       Iterable<Snapshot> snapshots = table.snapshots();
 
       if (startTime != null) {
@@ -100,11 +100,11 @@ public class FileHistory {
       // a manifest group will only read each manifest once
       ManifestGroup group = new ManifestGroup(((HasTableOperations) table).operations().io(), manifests);
 
-      List<ManifestEntry> results = Lists.newArrayList();
-      try (CloseableIterable<ManifestEntry> entries = group.select(HISTORY_COLUMNS).entries()) {
+      List<ManifestEntry<?>> results = Lists.newArrayList();
+      try (CloseableIterable<ManifestEntry<DataFile>> entries = group.select(HISTORY_COLUMNS).entries()) {
         // TODO: replace this with an IN predicate
         CharSequenceWrapper locationWrapper = CharSequenceWrapper.wrap(null);
-        for (ManifestEntry entry : entries) {
+        for (ManifestEntry<?> entry : entries) {
           if (entry != null && locations.contains(locationWrapper.set(entry.file().path()))) {
             results.add(entry.copy());
           }

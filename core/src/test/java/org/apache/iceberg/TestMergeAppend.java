@@ -745,7 +745,7 @@ public class TestMergeAppend extends TableTestBase {
         initialManifest, pending.manifests().get(1));
 
     // field ids of manifest entries in two manifests with different specs of the same source field should be different
-    ManifestEntry entry = ManifestFiles.read(pending.manifests().get(0), FILE_IO).entries().iterator().next();
+    ManifestEntry<DataFile> entry = ManifestFiles.read(pending.manifests().get(0), FILE_IO).entries().iterator().next();
     Types.NestedField field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(0);
     Assert.assertEquals(1000, field.fieldId());
     Assert.assertEquals("id_bucket", field.name());

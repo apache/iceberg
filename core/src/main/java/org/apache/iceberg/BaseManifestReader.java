@@ -47,17 +47,18 @@ import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 /**
  * Base reader for data and delete manifest files.
  *
- * @param <T> The Java class of files returned by this reader.
+ * @param <F> The Java class of files returned by this reader.
  * @param <ThisT> The Java class of this reader, returned by configuration methods.
  */
-abstract class BaseManifestReader<T, ThisT> extends CloseableGroup implements CloseableIterable<T> {
+abstract class BaseManifestReader<F extends ContentFile<F>, ThisT>
+    extends CloseableGroup implements CloseableIterable<F> {
   static final ImmutableList<String> ALL_COLUMNS = ImmutableList.of("*");
   private static final Set<String> STATS_COLUMNS = Sets.newHashSet(
       "value_counts", "null_value_counts", "lower_bounds", "upper_bounds");
 
   protected enum FileType {
     DATA_FILES(GenericDataFile.class.getName()),
-    DELETE_FILES("...");
+    DELETE_FILES(GenericDeleteFile.class.getName());
 
     private final String fileClass;
 
@@ -95,7 +96,7 @@ abstract class BaseManifestReader<T, ThisT> extends CloseableGroup implements Cl
     this.content = content;
 
     try {
-      try (AvroIterable<ManifestEntry> headerReader = Avro.read(file)
+      try (AvroIterable<ManifestEntry<F>> headerReader = Avro.read(file)
           .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
           .build()) {
         this.metadata = headerReader.getMetadata();
@@ -163,7 +164,7 @@ abstract class BaseManifestReader<T, ThisT> extends CloseableGroup implements Cl
     return self();
   }
 
-  CloseableIterable<ManifestEntry> entries() {
+  CloseableIterable<ManifestEntry<F>> entries() {
     if ((rowFilter != null && rowFilter != Expressions.alwaysTrue()) ||
         (partFilter != null && partFilter != Expressions.alwaysTrue())) {
       Evaluator evaluator = evaluator();
@@ -183,13 +184,13 @@ abstract class BaseManifestReader<T, ThisT> extends CloseableGroup implements Cl
     }
   }
 
-  private CloseableIterable<ManifestEntry> open(Schema projection) {
+  private CloseableIterable<ManifestEntry<F>> open(Schema projection) {
     FileFormat format = FileFormat.fromFileName(file.location());
     Preconditions.checkArgument(format != null, "Unable to determine format of manifest: %s", file);
 
     switch (format) {
       case AVRO:
-        AvroIterable<ManifestEntry> reader = Avro.read(file)
+        AvroIterable<ManifestEntry<F>> reader = Avro.read(file)
             .project(ManifestEntry.wrapFileSchema(projection.asStruct()))
             .rename("manifest_entry", GenericManifestEntry.class.getName())
             .rename("partition", PartitionData.class.getName())
@@ -209,7 +210,7 @@ abstract class BaseManifestReader<T, ThisT> extends CloseableGroup implements Cl
     }
   }
 
-  CloseableIterable<ManifestEntry> liveEntries() {
+  CloseableIterable<ManifestEntry<F>> liveEntries() {
     return CloseableIterable.filter(entries(),
         entry -> entry != null && entry.status() != ManifestEntry.Status.DELETED);
   }
@@ -218,13 +219,11 @@ abstract class BaseManifestReader<T, ThisT> extends CloseableGroup implements Cl
    * @return an Iterator of DataFile. Makes defensive copies of files before returning
    */
   @Override
-  @SuppressWarnings("unchecked")
-  public CloseableIterator<T> iterator() {
+  public CloseableIterator<F> iterator() {
     if (dropStats(rowFilter, columns)) {
-      return (CloseableIterator<T>) CloseableIterable.transform(liveEntries(), e -> e.file().copyWithoutStats())
-          .iterator();
+      return CloseableIterable.transform(liveEntries(), e -> e.file().copyWithoutStats()).iterator();
     } else {
-      return (CloseableIterator<T>) CloseableIterable.transform(liveEntries(), e -> e.file().copy()).iterator();
+      return CloseableIterable.transform(liveEntries(), e -> e.file().copy()).iterator();
     }
   }
 

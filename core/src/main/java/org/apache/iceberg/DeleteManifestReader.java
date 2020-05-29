@@ -19,8 +19,22 @@
 
 package org.apache.iceberg;
 
-import java.io.Serializable;
+import java.util.Map;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
 
-interface InheritableMetadata extends Serializable {
-  <F extends ContentFile<F>> ManifestEntry<F> apply(ManifestEntry<F> manifestEntry);
+/**
+ * Reader for manifest files.
+ * <p>
+ * Create readers using {@link ManifestFiles#readDeleteManifest(ManifestFile, FileIO, Map)}.
+ */
+public class DeleteManifestReader extends BaseManifestReader<DeleteFile, DeleteManifestReader> {
+  protected DeleteManifestReader(InputFile file, Map<Integer, PartitionSpec> specsById, InheritableMetadata metadata) {
+    super(file, specsById, metadata, FileType.DELETE_FILES);
+  }
+
+  @Override
+  protected DeleteManifestReader self() {
+    return this;
+  }
 }

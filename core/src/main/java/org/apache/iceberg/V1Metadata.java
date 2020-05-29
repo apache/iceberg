@@ -220,17 +220,17 @@ class V1Metadata {
   /**
    * Wrapper used to write a ManifestEntry to v1 metadata.
    */
-  static class IndexedManifestEntry implements ManifestEntry, IndexedRecord {
+  static class IndexedManifestEntry implements ManifestEntry<DataFile>, IndexedRecord {
     private final org.apache.avro.Schema avroSchema;
     private final IndexedDataFile fileWrapper;
-    private ManifestEntry wrapped = null;
+    private ManifestEntry<DataFile> wrapped = null;
 
     IndexedManifestEntry(Types.StructType partitionType) {
       this.avroSchema = AvroSchemaUtil.convert(entrySchema(partitionType), "manifest_entry");
       this.fileWrapper = new IndexedDataFile(avroSchema.getField("data_file").schema());
     }
 
-    public IndexedManifestEntry wrap(ManifestEntry entry) {
+    public IndexedManifestEntry wrap(ManifestEntry<DataFile> entry) {
       this.wrapped = entry;
       return this;
     }
@@ -294,12 +294,12 @@ class V1Metadata {
     }
 
     @Override
-    public ManifestEntry copy() {
+    public ManifestEntry<DataFile> copy() {
       return wrapped.copy();
     }
 
     @Override
-    public ManifestEntry copyWithoutStats() {
+    public ManifestEntry<DataFile> copyWithoutStats() {
       return wrapped.copyWithoutStats();
     }
   }
@@ -362,6 +362,11 @@ class V1Metadata {
     @Override
     public org.apache.avro.Schema getSchema() {
       return avroSchema;
+    }
+
+    @Override
+    public FileContent content() {
+      return wrapped.content();
     }
 
     @Override

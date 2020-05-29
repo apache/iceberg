@@ -955,7 +955,7 @@ public class TestRewriteManifests extends TableTestBase {
 
     Assert.assertEquals(3, Iterables.size(table.snapshots()));
 
-    ManifestEntry entry = manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_A);
+    ManifestEntry<DataFile> entry = manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_A);
     // update the entry's sequence number or else it will be rejected by the writer
     entry.setSequenceNumber(firstSnapshot.sequenceNumber());
     ManifestFile newManifest = writeManifest("manifest-file-1.avro", entry);
@@ -1005,7 +1005,7 @@ public class TestRewriteManifests extends TableTestBase {
     Assert.assertEquals(1, manifests.size());
     ManifestFile manifest = manifests.get(0);
 
-    ManifestEntry appendEntry = manifestEntry(ManifestEntry.Status.ADDED, snapshot.snapshotId(), FILE_A);
+    ManifestEntry<DataFile> appendEntry = manifestEntry(ManifestEntry.Status.ADDED, snapshot.snapshotId(), FILE_A);
     // update the entry's sequence number or else it will be rejected by the writer
     appendEntry.setSequenceNumber(snapshot.sequenceNumber());
 
@@ -1018,7 +1018,7 @@ public class TestRewriteManifests extends TableTestBase {
             .addManifest(invalidAddedFileManifest)
             .commit());
 
-    ManifestEntry deleteEntry = manifestEntry(ManifestEntry.Status.DELETED, snapshot.snapshotId(), FILE_A);
+    ManifestEntry<DataFile> deleteEntry = manifestEntry(ManifestEntry.Status.DELETED, snapshot.snapshotId(), FILE_A);
     // update the entry's sequence number or else it will be rejected by the writer
     deleteEntry.setSequenceNumber(snapshot.sequenceNumber());
 
