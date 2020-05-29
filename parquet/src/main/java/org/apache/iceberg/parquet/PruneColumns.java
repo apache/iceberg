@@ -21,7 +21,6 @@ package org.apache.iceberg.parquet;
 
 import java.util.List;
 import java.util.Set;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
@@ -45,13 +44,16 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
     for (int i = 0; i < fields.size(); i += 1) {
       Type originalField = message.getType(i);
       Type field = fields.get(i);
-      if (selectedIds.contains(getId(originalField))) {
-        builder.addField(originalField);
-        fieldCount += 1;
-      } else if (field != null) {
-        builder.addField(field);
-        fieldCount += 1;
-        hasChange = true;
+      Integer fieldId = getId(originalField);
+      if (fieldId != null) {
+        if (selectedIds.contains(fieldId)) {
+          builder.addField(originalField);
+          fieldCount += 1;
+        } else if (field != null) {
+          builder.addField(field);
+          fieldCount += 1;
+          hasChange = true;
+        }
       }
     }
 
@@ -71,11 +73,14 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
     for (int i = 0; i < fields.size(); i += 1) {
       Type originalField = struct.getType(i);
       Type field = fields.get(i);
-      if (selectedIds.contains(getId(originalField))) {
-        filteredFields.add(originalField);
-      } else if (field != null) {
-        filteredFields.add(originalField);
-        hasChange = true;
+      Integer fieldId = getId(originalField);
+      if (fieldId != null) {
+        if (selectedIds.contains(fieldId)) {
+          filteredFields.add(originalField);
+        } else if (field != null) {
+          filteredFields.add(originalField);
+          hasChange = true;
+        }
       }
     }
 
@@ -94,19 +99,22 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
   public Type list(GroupType list, Type element) {
     GroupType repeated = list.getType(0).asGroupType();
     Type originalElement = repeated.getType(0);
-    int elementId = getId(originalElement);
+    Integer elementId = getId(originalElement);
 
-    if (selectedIds.contains(elementId)) {
-      return list;
-    } else if (element != null) {
-      if (element != originalElement) {
-        // the element type was projected
-        return Types.list(list.getRepetition())
-            .element(element)
-            .id(getId(list))
-            .named(list.getName());
+    if (elementId != null) {
+      if (selectedIds.contains(elementId)) {
+        return list;
+      } else if (element != null) {
+        if (element != originalElement) {
+          Integer listId = getId(list);
+          // the element type was projected
+          Type listType = Types.list(list.getRepetition())
+              .element(element)
+              .named(list.getName());
+          return listId == null ? listType : listType.withId(listId);
+        }
+        return list;
       }
-      return list;
     }
 
     return null;
@@ -118,18 +126,20 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
     Type originalKey = repeated.getType(0);
     Type originalValue = repeated.getType(1);
 
-    int keyId = getId(originalKey);
-    int valueId = getId(originalValue);
+    Integer keyId = getId(originalKey);
+    Integer valueId = getId(originalValue);
 
-    if (selectedIds.contains(keyId) || selectedIds.contains(valueId)) {
+    if ((keyId != null && selectedIds.contains(keyId)) || (valueId != null && selectedIds.contains(valueId))) {
       return map;
     } else if (value != null) {
+      Integer mapId = getId(map);
       if (value != originalValue) {
-        return Types.map(map.getRepetition())
+        Type mapType =  Types.map(map.getRepetition())
             .key(originalKey)
             .value(value)
-            .id(getId(map))
             .named(map.getName());
+
+        return mapId == null ? mapType : mapType.withId(mapId);
       }
       return map;
     }
@@ -142,8 +152,7 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
     return null;
   }
 
-  private int getId(Type type) {
-    Preconditions.checkNotNull(type.getId(), "Missing id for type: %s", type);
-    return type.getId().intValue();
+  private Integer getId(Type type) {
+    return type.getId() == null ? null : type.getId().intValue();
   }
 }

@@ -100,16 +100,12 @@ public class ParquetMetricsRowGroupFilter {
       this.valueCounts = Maps.newHashMap();
       this.conversions = Maps.newHashMap();
       for (ColumnChunkMetaData col : rowGroup.getColumns()) {
-        try {
-          PrimitiveType colType = fileSchema.getType(col.getPath().toArray()).asPrimitiveType();
-          if (colType.getId() != null) {
-            int id = colType.getId().intValue();
-            stats.put(id, col.getStatistics());
-            valueCounts.put(id, col.getValueCount());
-            conversions.put(id, ParquetConversions.converterFromParquet(colType));
-          }
-        } catch (org.apache.parquet.io.InvalidRecordException e) {
-          LOG.warn("Column {} not found in given schema.", col.getPath().toDotString(), e);
+        PrimitiveType colType = fileSchema.getType(col.getPath().toArray()).asPrimitiveType();
+        if (colType.getId() != null) {
+          int id = colType.getId().intValue();
+          stats.put(id, col.getStatistics());
+          valueCounts.put(id, col.getValueCount());
+          conversions.put(id, ParquetConversions.converterFromParquet(colType));
         }
       }
 

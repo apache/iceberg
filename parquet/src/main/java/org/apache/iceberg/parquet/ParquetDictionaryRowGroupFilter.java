@@ -112,15 +112,11 @@ public class ParquetDictionaryRowGroupFilter {
       }
 
       for (ColumnChunkMetaData meta : rowGroup.getColumns()) {
-        try {
-          PrimitiveType colType = fileSchema.getType(meta.getPath().toArray()).asPrimitiveType();
-          if (colType.getId() != null) {
-            int id = colType.getId().intValue();
-            isFallback.put(id, ParquetUtil.hasNonDictionaryPages(meta));
-            mayContainNulls.put(id, mayContainNull(meta));
-          }
-        } catch (org.apache.parquet.io.InvalidRecordException e) {
-          LOG.warn("Column {} not found in given schema.", meta.getPath().toDotString(), e);
+        PrimitiveType colType = fileSchema.getType(meta.getPath().toArray()).asPrimitiveType();
+        if (colType.getId() != null) {
+          int id = colType.getId().intValue();
+          isFallback.put(id, ParquetUtil.hasNonDictionaryPages(meta));
+          mayContainNulls.put(id, mayContainNull(meta));
         }
       }
 
