@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.orc;
 
-import com.google.common.collect.Maps;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
@@ -28,8 +27,11 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
@@ -37,6 +39,11 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Queues;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -75,9 +82,19 @@ public class OrcMetrics {
     }
   }
 
+  static Metrics fromWriter(Writer writer) {
+    try {
+      return buildOrcMetrics(writer.getNumberOfRows(),
+          writer.getSchema(), writer.getStatistics());
+    } catch (IOException ioe) {
+      throw new RuntimeIOException(ioe, "Failed to get statistics from writer");
+    }
+  }
+
   private static Metrics buildOrcMetrics(final long numOfRows, final TypeDescription orcSchema,
                                          final ColumnStatistics[] colStats) {
     final Schema schema = ORCSchemaUtil.convert(orcSchema);
+    final Set<TypeDescription> columnsInContainers = findColumnsInContainers(schema, orcSchema);
     Map<Integer, Long> columnSizes = Maps.newHashMapWithExpectedSize(colStats.length);
     Map<Integer, Long> valueCounts = Maps.newHashMapWithExpectedSize(colStats.length);
     Map<Integer, Long> nullCounts = Maps.newHashMapWithExpectedSize(colStats.length);
@@ -105,12 +122,14 @@ public class OrcMetrics {
           valueCounts.put(fieldId, colStat.getNumberOfValues() + nullCounts.get(fieldId));
         }
 
-        Optional<ByteBuffer> orcMin = (colStat.getNumberOfValues() > 0) ?
-            fromOrcMin(icebergCol, colStat) : Optional.empty();
-        orcMin.ifPresent(byteBuffer -> lowerBounds.put(icebergCol.fieldId(), byteBuffer));
-        Optional<ByteBuffer> orcMax = (colStat.getNumberOfValues() > 0) ?
-            fromOrcMax(icebergCol, colStat) : Optional.empty();
-        orcMax.ifPresent(byteBuffer -> upperBounds.put(icebergCol.fieldId(), byteBuffer));
+        if (!columnsInContainers.contains(orcCol)) {
+          Optional<ByteBuffer> orcMin = (colStat.getNumberOfValues() > 0) ?
+              fromOrcMin(icebergCol, colStat) : Optional.empty();
+          orcMin.ifPresent(byteBuffer -> lowerBounds.put(icebergCol.fieldId(), byteBuffer));
+          Optional<ByteBuffer> orcMax = (colStat.getNumberOfValues() > 0) ?
+              fromOrcMax(icebergCol, colStat) : Optional.empty();
+          orcMax.ifPresent(byteBuffer -> upperBounds.put(icebergCol.fieldId(), byteBuffer));
+        }
       }
     }
 
@@ -122,14 +141,6 @@ public class OrcMetrics {
         upperBounds);
   }
 
-  static Metrics fromWriter(Writer writer) {
-    try {
-      return buildOrcMetrics(writer.getNumberOfRows(),
-          writer.getSchema(), writer.getStatistics());
-    } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Failed to get statistics from writer");
-    }
-  }
 
   private static Optional<ByteBuffer> fromOrcMin(Types.NestedField column,
                                                  ColumnStatistics columnStats) {
@@ -213,4 +224,64 @@ public class OrcMetrics {
     return Optional.ofNullable(Conversions.toByteBuffer(column.type(), max));
   }
 
+  private static Set<TypeDescription> findColumnsInContainers(Schema schema,
+                                                              TypeDescription orcSchema) {
+    ColumnsInContainersVisitor visitor = new ColumnsInContainersVisitor();
+    OrcSchemaWithTypeVisitor.visit(schema, orcSchema, visitor);
+    return visitor.getColumnsInContainers();
+  }
+
+  private static class ColumnsInContainersVisitor extends OrcSchemaWithTypeVisitor<TypeDescription> {
+
+    private final Set<TypeDescription> columnsInContainers;
+
+    private ColumnsInContainersVisitor() {
+      columnsInContainers = Sets.newHashSet();
+    }
+
+    public Set<TypeDescription> getColumnsInContainers() {
+      return columnsInContainers;
+    }
+
+    private Set<TypeDescription> flatten(TypeDescription rootType) {
+      if (rootType == null) {
+        return ImmutableSet.of();
+      }
+
+      final Set<TypeDescription> flatTypes = Sets.newHashSetWithExpectedSize(rootType.getMaximumId());
+      final Queue<TypeDescription> queue = Queues.newLinkedBlockingQueue();
+      queue.add(rootType);
+      while (!queue.isEmpty()) {
+        TypeDescription type = queue.remove();
+        flatTypes.add(type);
+        queue.addAll(Optional.ofNullable(type.getChildren()).orElse(ImmutableList.of()));
+      }
+      return flatTypes;
+    }
+
+    @Override
+    public TypeDescription record(Types.StructType iStruct, TypeDescription record,
+                                  List<String> names, List<TypeDescription> fields) {
+      return record;
+    }
+
+    @Override
+    public TypeDescription list(Types.ListType iList, TypeDescription array, TypeDescription element) {
+      columnsInContainers.addAll(flatten(element));
+      return null;
+    }
+
+    @Override
+    public TypeDescription map(Types.MapType iMap, TypeDescription map,
+                    TypeDescription key, TypeDescription value) {
+      columnsInContainers.addAll(flatten(key));
+      columnsInContainers.addAll(flatten(value));
+      return null;
+    }
+
+    @Override
+    public TypeDescription primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
+      return primitive;
+    }
+  }
 }

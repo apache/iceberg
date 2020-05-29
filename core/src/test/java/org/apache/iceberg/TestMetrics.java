@@ -320,6 +320,7 @@ public abstract class TestMetrics {
     assertBounds(4, IntegerType.get(), null, null, metrics);
     assertCounts(6, 1, 0, metrics);
     assertBounds(6, StringType.get(), null, null, metrics);
+    assertBounds(7, structType, null, null, metrics);
   }
 
   @Test
