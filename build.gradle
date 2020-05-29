@@ -59,6 +59,15 @@ subprojects {
 
   configurations {
     testCompile.extendsFrom compileOnly
+
+    compileClasspath {
+      // do not exclude Guava so the bundle project can reference classes.
+      // the Spark module is also excluded because this breaks the Scala compiler
+      if (project.name != 'iceberg-bundled-guava' && project.name != 'iceberg-spark') {
+        exclude group: 'com.google.guava', module: 'guava'
+      }
+    }
+
     all {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.mortbay.jetty'
