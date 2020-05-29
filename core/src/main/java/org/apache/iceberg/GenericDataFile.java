@@ -19,8 +19,12 @@
 
 package org.apache.iceberg;
 
+import com.google.common.collect.ImmutableMap;
 import java.nio.ByteBuffer;
 import java.util.List;
+import org.apache.avro.Schema;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.types.Types;
 
 class GenericDataFile extends BaseFile<DataFile> implements DataFile {
   /**
@@ -78,5 +82,12 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
   @Override
   public DataFile copy() {
     return new GenericDataFile(this, true /* full copy */);
+  }
+
+  protected Schema getAvroSchema(Types.StructType partitionStruct) {
+    Types.StructType type = DataFile.getType(partitionStruct);
+    return AvroSchemaUtil.convert(type, ImmutableMap.of(
+        type, GenericDataFile.class.getName(),
+        partitionStruct, PartitionData.class.getName()));
   }
 }

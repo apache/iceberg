@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import com.google.common.base.MoreObjects;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.io.Serializable;
@@ -28,7 +27,9 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -69,12 +70,12 @@ abstract class BaseFile<F>
   private byte[] keyMetadata = null;
 
   // cached schema
-  private transient org.apache.avro.Schema avroSchema = null;
+  private transient Schema avroSchema = null;
 
   /**
    * Used by Avro reflection to instantiate this class when reading manifest files.
    */
-  BaseFile(org.apache.avro.Schema avroSchema) {
+  BaseFile(Schema avroSchema) {
     this.avroSchema = avroSchema;
 
     Types.StructType schema = AvroSchemaUtil.convert(avroSchema).asNestedType().asStructType();
@@ -176,8 +177,10 @@ abstract class BaseFile<F>
   BaseFile() {
   }
 
+  protected abstract Schema getAvroSchema(Types.StructType partitionStruct);
+
   @Override
-  public org.apache.avro.Schema getSchema() {
+  public Schema getSchema() {
     if (avroSchema == null) {
       this.avroSchema = getAvroSchema(partitionType);
     }
@@ -252,7 +255,7 @@ abstract class BaseFile<F>
     }
     switch (pos) {
       case 0:
-        return FileContent.DATA.id();
+        return content.id();
       case 1:
         return filePath;
       case 2:
@@ -365,6 +368,7 @@ abstract class BaseFile<F>
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
+        .add("content", content.toString().toLowerCase(Locale.ROOT))
         .add("file_path", filePath)
         .add("file_format", format)
         .add("partition", partitionData)
@@ -378,12 +382,5 @@ abstract class BaseFile<F>
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .add("split_offsets", splitOffsets == null ? "null" : splitOffsets)
         .toString();
-  }
-
-  private static org.apache.avro.Schema getAvroSchema(Types.StructType partitionType) {
-    Types.StructType type = DataFile.getType(partitionType);
-    return AvroSchemaUtil.convert(type, ImmutableMap.of(
-        type, GenericDataFile.class.getName(),
-        partitionType, PartitionData.class.getName()));
   }
 }

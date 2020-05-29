@@ -20,13 +20,17 @@
 package org.apache.iceberg;
 
 
+import com.google.common.collect.ImmutableMap;
 import java.nio.ByteBuffer;
+import org.apache.avro.Schema;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.types.Types;
 
 class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
   /**
    * Used by Avro reflection to instantiate this class when reading manifest files.
    */
-  GenericDeleteFile(org.apache.avro.Schema avroSchema) {
+  GenericDeleteFile(Schema avroSchema) {
     super(avroSchema);
   }
 
@@ -61,5 +65,12 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
   @Override
   public DeleteFile copy() {
     return new GenericDeleteFile(this, true /* full copy */);
+  }
+
+  protected Schema getAvroSchema(Types.StructType partitionStruct) {
+    Types.StructType type = DataFile.getType(partitionStruct);
+    return AvroSchemaUtil.convert(type, ImmutableMap.of(
+        type, GenericDeleteFile.class.getName(),
+        partitionStruct, PartitionData.class.getName()));
   }
 }

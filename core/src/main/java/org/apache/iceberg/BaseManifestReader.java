@@ -221,8 +221,7 @@ abstract class BaseManifestReader<F extends ContentFile<F>, ThisT>
   @Override
   public CloseableIterator<F> iterator() {
     if (dropStats(rowFilter, columns)) {
-      return CloseableIterable.transform(liveEntries(), e -> e.file().copyWithoutStats())
-          .iterator();
+      return CloseableIterable.transform(liveEntries(), e -> e.file().copyWithoutStats()).iterator();
     } else {
       return CloseableIterable.transform(liveEntries(), e -> e.file().copy()).iterator();
     }
