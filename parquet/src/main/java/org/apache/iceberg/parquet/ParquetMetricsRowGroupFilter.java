@@ -45,11 +45,8 @@ import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class ParquetMetricsRowGroupFilter {
-  private static final Logger LOG = LoggerFactory.getLogger(ParquetMetricsRowGroupFilter.class);
 
   private final Schema schema;
   private final Expression expr;

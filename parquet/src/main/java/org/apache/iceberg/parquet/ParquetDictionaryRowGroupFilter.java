@@ -45,11 +45,8 @@ import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class ParquetDictionaryRowGroupFilter {
-  private static final Logger LOG = LoggerFactory.getLogger(ParquetDictionaryRowGroupFilter.class);
 
   private final Expression expr;
   private transient ThreadLocal<EvalVisitor> visitors = null;
