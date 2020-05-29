@@ -59,6 +59,13 @@ subprojects {
 
   configurations {
     testCompile.extendsFrom compileOnly
+
+    compileClasspath {
+      if (project.name != 'iceberg-bundled-guava') {
+        exclude group: 'com.google.guava', module: 'guava'
+      }
+    }
+
     all {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.mortbay.jetty'

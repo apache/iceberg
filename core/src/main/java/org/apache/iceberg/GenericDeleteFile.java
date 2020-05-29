@@ -20,10 +20,10 @@
 package org.apache.iceberg;
 
 
-import com.google.common.collect.ImmutableMap;
 import java.nio.ByteBuffer;
 import org.apache.avro.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 
 class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
