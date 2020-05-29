@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark
 
-import com.google.common.collect.Maps
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{Path, PathFilter}
 import org.apache.iceberg.{DataFile, DataFiles, FileFormat, ManifestFile, ManifestFiles}
@@ -28,6 +27,7 @@ import org.apache.iceberg.exceptions.NoSuchTableException
 import org.apache.iceberg.hadoop.{HadoopFileIO, HadoopInputFile, SerializableConfiguration}
 import org.apache.iceberg.orc.OrcMetrics
 import org.apache.iceberg.parquet.ParquetUtil
+import org.apache.iceberg.relocated.com.google.common.collect.Maps
 import org.apache.iceberg.util.PropertyUtil
 import org.apache.parquet.hadoop.ParquetFileReader
 import org.apache.spark.TaskContext

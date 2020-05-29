@@ -50,5 +50,5 @@ Iceberg was designed to solve correctness problems in eventually-consistent clou
 
 Iceberg has been designed and developed to be an open community standard with a [specification](spec) to ensure compatibility across languages and implementations.
 
-[Apache Iceberg is open source](community), and is an incubating project at the [Apache Software Foundation](https://www.apache.org/).
+[Apache Iceberg is open source](community), and is developed at the [Apache Software Foundation](https://www.apache.org/).
 

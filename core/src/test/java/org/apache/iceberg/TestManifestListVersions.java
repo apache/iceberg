@@ -19,9 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
@@ -34,6 +31,9 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -55,12 +55,24 @@ public class TestManifestListVersions {
   private static final List<ManifestFile.PartitionFieldSummary> PARTITION_SUMMARIES = ImmutableList.of();
 
   private static final ManifestFile TEST_MANIFEST = new GenericManifestFile(
-      PATH, LENGTH, SPEC_ID, SEQ_NUM, MIN_SEQ_NUM, SNAPSHOT_ID,
+      PATH, LENGTH, SPEC_ID, ManifestContent.DATA, SEQ_NUM, MIN_SEQ_NUM, SNAPSHOT_ID,
+      ADDED_FILES, ADDED_ROWS, EXISTING_FILES, EXISTING_ROWS, DELETED_FILES, DELETED_ROWS,
+      PARTITION_SUMMARIES);
+
+  private static final ManifestFile TEST_DELETE_MANIFEST = new GenericManifestFile(
+      PATH, LENGTH, SPEC_ID, ManifestContent.DELETES, SEQ_NUM, MIN_SEQ_NUM, SNAPSHOT_ID,
       ADDED_FILES, ADDED_ROWS, EXISTING_FILES, EXISTING_ROWS, DELETED_FILES, DELETED_ROWS,
       PARTITION_SUMMARIES);
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
+
+  @Test
+  public void testV1WriteDeleteManifest() {
+    AssertHelpers.assertThrows("Should fail to write a DELETE manifest to v1",
+        IllegalArgumentException.class, "Cannot store delete manifests in a v1 table",
+        () -> writeManifestList(TEST_DELETE_MANIFEST, 1));
+  }
 
   @Test
   public void testV1Write() throws IOException {
@@ -74,6 +86,7 @@ public class TestManifestListVersions {
     Assert.assertEquals("Path", PATH, manifest.path());
     Assert.assertEquals("Length", LENGTH, manifest.length());
     Assert.assertEquals("Spec id", SPEC_ID, manifest.partitionSpecId());
+    Assert.assertEquals("Content", ManifestContent.DATA, manifest.content());
     Assert.assertEquals("Snapshot id", SNAPSHOT_ID, (long) manifest.snapshotId());
     Assert.assertEquals("Added files count", ADDED_FILES, (int) manifest.addedFilesCount());
     Assert.assertEquals("Existing files count", EXISTING_FILES, (int) manifest.existingFilesCount());
@@ -91,6 +104,7 @@ public class TestManifestListVersions {
     Assert.assertEquals("Path", PATH, manifest.path());
     Assert.assertEquals("Length", LENGTH, manifest.length());
     Assert.assertEquals("Spec id", SPEC_ID, manifest.partitionSpecId());
+    Assert.assertEquals("Content", ManifestContent.DATA, manifest.content());
     Assert.assertEquals("Sequence number", SEQ_NUM, manifest.sequenceNumber());
     Assert.assertEquals("Min sequence number", MIN_SEQ_NUM, manifest.minSequenceNumber());
     Assert.assertEquals("Snapshot id", SNAPSHOT_ID, (long) manifest.snapshotId());
@@ -104,7 +118,7 @@ public class TestManifestListVersions {
 
   @Test
   public void testV1ForwardCompatibility() throws IOException {
-    InputFile manifestList = writeManifestList(1);
+    InputFile manifestList = writeManifestList(TEST_MANIFEST, 1);
     GenericData.Record generic = readGeneric(manifestList, V1Metadata.MANIFEST_LIST_SCHEMA);
 
     // v1 metadata should match even though order changed
@@ -118,12 +132,15 @@ public class TestManifestListVersions {
     Assert.assertEquals("Added rows count", ADDED_ROWS, (long) generic.get("added_rows_count"));
     Assert.assertEquals("Existing rows count", EXISTING_ROWS, (long) generic.get("existing_rows_count"));
     Assert.assertEquals("Deleted rows count", DELETED_ROWS, (long) generic.get("deleted_rows_count"));
+    Assert.assertNull("Content", generic.get(ManifestFile.MANIFEST_CONTENT.name()));
+    Assert.assertNull("Sequence number", generic.get(ManifestFile.SEQUENCE_NUMBER.name()));
+    Assert.assertNull("Min sequence number", generic.get(ManifestFile.MIN_SEQUENCE_NUMBER.name()));
   }
 
   @Test
   public void testV2ForwardCompatibility() throws IOException {
-    // v2 manifest list files can be read by v1 readers, but the sequence numbers will be ignored.
-    InputFile manifestList = writeManifestList(2);
+    // v2 manifest list files can be read by v1 readers, but the sequence numbers and content will be ignored.
+    InputFile manifestList = writeManifestList(TEST_MANIFEST, 2);
     GenericData.Record generic = readGeneric(manifestList, V1Metadata.MANIFEST_LIST_SCHEMA);
 
     // v1 metadata should match even though order changed
@@ -137,6 +154,9 @@ public class TestManifestListVersions {
     Assert.assertEquals("Added rows count", ADDED_ROWS, (long) generic.get("added_rows_count"));
     Assert.assertEquals("Existing rows count", EXISTING_ROWS, (long) generic.get("existing_rows_count"));
     Assert.assertEquals("Deleted rows count", DELETED_ROWS, (long) generic.get("deleted_rows_count"));
+    Assert.assertNull("Content", generic.get(ManifestFile.MANIFEST_CONTENT.name()));
+    Assert.assertNull("Sequence number", generic.get(ManifestFile.SEQUENCE_NUMBER.name()));
+    Assert.assertNull("Min sequence number", generic.get(ManifestFile.MIN_SEQUENCE_NUMBER.name()));
   }
 
   @Test
@@ -187,11 +207,11 @@ public class TestManifestListVersions {
     Assert.assertNull("Deleted rows count should be null", manifest.deletedRowsCount());
   }
 
-  private InputFile writeManifestList(int formatVersion) throws IOException {
+  private InputFile writeManifestList(ManifestFile manifest, int formatVersion) throws IOException {
     OutputFile manifestList = Files.localOutput(temp.newFile());
     try (FileAppender<ManifestFile> writer = ManifestLists.write(
         formatVersion, manifestList, SNAPSHOT_ID, SNAPSHOT_ID - 1, formatVersion > 1 ? SEQ_NUM : 0)) {
-      writer.add(TEST_MANIFEST);
+      writer.add(manifest);
     }
     return manifestList.toInputFile();
   }
@@ -208,7 +228,7 @@ public class TestManifestListVersions {
   }
 
   private ManifestFile writeAndReadManifestList(int formatVersion) throws IOException {
-    List<ManifestFile> manifests = ManifestLists.read(writeManifestList(formatVersion));
+    List<ManifestFile> manifests = ManifestLists.read(writeManifestList(TEST_MANIFEST, formatVersion));
     Assert.assertEquals("Should contain one manifest", 1, manifests.size());
     return manifests.get(0);
   }

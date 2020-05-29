@@ -19,9 +19,9 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Maps;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -178,7 +178,7 @@ public class Accessors {
     if (isOptional) {
       // the wrapped position handles null layers
       return new WrappedPositionAccessor(pos, accessor);
-    } else if (accessor instanceof PositionAccessor) {
+    } else if (accessor.getClass() == PositionAccessor.class) {
       return new Position2Accessor(pos, (PositionAccessor) accessor);
     } else if (accessor instanceof Position2Accessor) {
       return new Position3Accessor(pos, (Position2Accessor) accessor);

@@ -19,12 +19,6 @@
 
 package org.apache.iceberg.mr.mapreduce;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
-import java.io.Closeable;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -69,10 +63,15 @@ import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mr.SerializationUtil;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
@@ -288,8 +287,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private Map<String, Integer> namesToPos;
     private Iterator<FileScanTask> tasks;
     private T currentRow;
-    private Iterator<T> currentIterator;
-    private Closeable currentCloseable;
+    private CloseableIterator<T> currentIterator;
 
     @Override
     public void initialize(InputSplit split, TaskAttemptContext newContext) {
@@ -315,10 +313,10 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           currentRow = currentIterator.next();
           return true;
         } else if (tasks.hasNext()) {
-          currentCloseable.close();
+          currentIterator.close();
           currentIterator = open(tasks.next());
         } else {
-          currentCloseable.close();
+          currentIterator.close();
           return false;
         }
       }
@@ -347,7 +345,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     @Override
     public void close() throws IOException {
-      currentCloseable.close();
+      currentIterator.close();
     }
 
     private static Map<String, Integer> buildNameToPos(Schema expectedSchema) {
@@ -359,25 +357,27 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       return nameToPos;
     }
 
-    private Iterator<T> open(FileScanTask currentTask) {
+    private CloseableIterator<T> open(FileScanTask currentTask) {
       DataFile file = currentTask.file();
       // schema of rows returned by readers
       PartitionSpec spec = currentTask.spec();
       Set<Integer> idColumns =  Sets.intersection(spec.identitySourceIds(), TypeUtil.getProjectedIds(expectedSchema));
       boolean hasJoinedPartitionColumns = !idColumns.isEmpty();
 
+      CloseableIterable<T> iterable;
       if (hasJoinedPartitionColumns) {
         Schema readDataSchema = TypeUtil.selectNot(expectedSchema, idColumns);
         Schema identityPartitionSchema = TypeUtil.select(expectedSchema, idColumns);
-        return Iterators.transform(
-            open(currentTask, readDataSchema),
+        iterable = CloseableIterable.transform(open(currentTask, readDataSchema),
             row -> withIdentityPartitionColumns(row, identityPartitionSchema, spec, file.partition()));
       } else {
-        return open(currentTask, expectedSchema);
+        iterable = open(currentTask, expectedSchema);
       }
+
+      return iterable.iterator();
     }
 
-    private Iterator<T> open(FileScanTask currentTask, Schema readSchema) {
+    private CloseableIterable<T> open(FileScanTask currentTask, Schema readSchema) {
       DataFile file = currentTask.file();
       // TODO we should make use of FileIO to create inputFile
       InputFile inputFile = HadoopInputFile.fromLocation(file.path(), context.getConfiguration());
@@ -396,8 +396,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           throw new UnsupportedOperationException(
               String.format("Cannot read %s file: %s", file.format().name(), file.path()));
       }
-      currentCloseable = iterable;
-      return iterable.iterator();
+
+      return iterable;
     }
 
     @SuppressWarnings("unchecked")
@@ -499,6 +499,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private CloseableIterable<T> newOrcIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
       ORC.ReadBuilder orcReadBuilder = ORC.read(inputFile)
           .project(readSchema)
+          .filter(task.residual())
           .caseSensitive(caseSensitive)
           .split(task.start(), task.length());
       // ORC does not support reuse containers yet

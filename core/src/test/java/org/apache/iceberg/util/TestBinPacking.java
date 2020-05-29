@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.util;
 
-import com.google.common.collect.Lists;
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.BinPacking.ListPacker;
 import org.junit.Assert;
 import org.junit.Test;

@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.transforms;
 
-import com.google.common.collect.Lists;
 import java.util.List;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public interface PartitionSpecVisitor<T> {
   T identity(String sourceName, int sourceId);

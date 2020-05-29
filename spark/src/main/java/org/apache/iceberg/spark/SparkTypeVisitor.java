@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.spark;
 
-import com.google.common.collect.Lists;
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.MapType;

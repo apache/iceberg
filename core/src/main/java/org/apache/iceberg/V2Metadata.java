@@ -19,10 +19,12 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
+import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -31,33 +33,22 @@ class V2Metadata {
   private V2Metadata() {
   }
 
-  // fields for v2 write schema for required metadata
-  static final Types.NestedField REQUIRED_SNAPSHOT_ID =
-      required(503, "added_snapshot_id", Types.LongType.get());
-  static final Types.NestedField REQUIRED_ADDED_FILES_COUNT =
-      required(504, "added_data_files_count", Types.IntegerType.get());
-  static final Types.NestedField REQUIRED_EXISTING_FILES_COUNT =
-      required(505, "existing_data_files_count", Types.IntegerType.get());
-  static final Types.NestedField REQUIRED_DELETED_FILES_COUNT =
-      required(506, "deleted_data_files_count", Types.IntegerType.get());
-  static final Types.NestedField REQUIRED_ADDED_ROWS_COUNT =
-      required(512, "added_rows_count", Types.LongType.get());
-  static final Types.NestedField REQUIRED_EXISTING_ROWS_COUNT =
-      required(513, "existing_rows_count", Types.LongType.get());
-  static final Types.NestedField REQUIRED_DELETED_ROWS_COUNT =
-      required(514, "deleted_rows_count", Types.LongType.get());
-  static final Types.NestedField REQUIRED_SEQUENCE_NUMBER =
-      required(515, "sequence_number", Types.LongType.get());
-  static final Types.NestedField REQUIRED_MIN_SEQUENCE_NUMBER =
-      required(516, "min_sequence_number", Types.LongType.get());
-
   static final Schema MANIFEST_LIST_SCHEMA = new Schema(
-      ManifestFile.PATH, ManifestFile.LENGTH, ManifestFile.SPEC_ID,
-      REQUIRED_SEQUENCE_NUMBER, REQUIRED_MIN_SEQUENCE_NUMBER, REQUIRED_SNAPSHOT_ID,
-      REQUIRED_ADDED_FILES_COUNT, REQUIRED_EXISTING_FILES_COUNT, REQUIRED_DELETED_FILES_COUNT,
-      REQUIRED_ADDED_ROWS_COUNT, REQUIRED_EXISTING_ROWS_COUNT, REQUIRED_DELETED_ROWS_COUNT,
-      ManifestFile.PARTITION_SUMMARIES);
-
+      ManifestFile.PATH,
+      ManifestFile.LENGTH,
+      ManifestFile.SPEC_ID,
+      ManifestFile.MANIFEST_CONTENT.asRequired(),
+      ManifestFile.SEQUENCE_NUMBER.asRequired(),
+      ManifestFile.MIN_SEQUENCE_NUMBER.asRequired(),
+      ManifestFile.SNAPSHOT_ID.asRequired(),
+      ManifestFile.ADDED_FILES_COUNT.asRequired(),
+      ManifestFile.EXISTING_FILES_COUNT.asRequired(),
+      ManifestFile.DELETED_FILES_COUNT.asRequired(),
+      ManifestFile.ADDED_ROWS_COUNT.asRequired(),
+      ManifestFile.EXISTING_ROWS_COUNT.asRequired(),
+      ManifestFile.DELETED_ROWS_COUNT.asRequired(),
+      ManifestFile.PARTITION_SUMMARIES
+  );
 
   /**
    * A wrapper class to write any ManifestFile implementation to Avro using the v2 write schema.
@@ -103,6 +94,8 @@ class V2Metadata {
         case 2:
           return wrapped.partitionSpecId();
         case 3:
+          return wrapped.content().id();
+        case 4:
           if (wrapped.sequenceNumber() == ManifestWriter.UNASSIGNED_SEQ) {
             // if the sequence number is being assigned here, then the manifest must be created by the current
             // operation. to validate this, check that the snapshot id matches the current commit
@@ -112,7 +105,7 @@ class V2Metadata {
           } else {
             return wrapped.sequenceNumber();
           }
-        case 4:
+        case 5:
           if (wrapped.minSequenceNumber() == ManifestWriter.UNASSIGNED_SEQ) {
             // same sanity check as above
             Preconditions.checkState(commitSnapshotId == wrapped.snapshotId(),
@@ -123,21 +116,21 @@ class V2Metadata {
           } else {
             return wrapped.minSequenceNumber();
           }
-        case 5:
-          return wrapped.snapshotId();
         case 6:
-          return wrapped.addedFilesCount();
+          return wrapped.snapshotId();
         case 7:
-          return wrapped.existingFilesCount();
+          return wrapped.addedFilesCount();
         case 8:
-          return wrapped.deletedFilesCount();
+          return wrapped.existingFilesCount();
         case 9:
-          return wrapped.addedRowsCount();
+          return wrapped.deletedFilesCount();
         case 10:
-          return wrapped.existingRowsCount();
+          return wrapped.addedRowsCount();
         case 11:
-          return wrapped.deletedRowsCount();
+          return wrapped.existingRowsCount();
         case 12:
+          return wrapped.deletedRowsCount();
+        case 13:
           return wrapped.partitions();
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
@@ -157,6 +150,11 @@ class V2Metadata {
     @Override
     public int partitionSpecId() {
       return wrapped.partitionSpecId();
+    }
+
+    @Override
+    public ManifestContent content() {
+      return wrapped.content();
     }
 
     @Override
@@ -231,7 +229,7 @@ class V2Metadata {
   }
 
   static Schema entrySchema(Types.StructType partitionType) {
-    return wrapFileSchema(DataFile.getType(partitionType));
+    return wrapFileSchema(fileType(partitionType));
   }
 
   static Schema wrapFileSchema(Types.StructType fileSchema) {
@@ -241,17 +239,34 @@ class V2Metadata {
         required(ManifestEntry.DATA_FILE_ID, "data_file", fileSchema));
   }
 
+  static Types.StructType fileType(Types.StructType partitionType) {
+    return Types.StructType.of(
+        DataFile.CONTENT.asRequired(),
+        DataFile.FILE_PATH,
+        DataFile.FILE_FORMAT,
+        required(DataFile.PARTITION_ID, DataFile.PARTITION_NAME, partitionType, DataFile.PARTITION_DOC),
+        DataFile.RECORD_COUNT,
+        DataFile.FILE_SIZE,
+        DataFile.COLUMN_SIZES,
+        DataFile.VALUE_COUNTS,
+        DataFile.NULL_VALUE_COUNTS,
+        DataFile.LOWER_BOUNDS,
+        DataFile.UPPER_BOUNDS,
+        DataFile.KEY_METADATA,
+        DataFile.SPLIT_OFFSETS
+    );
+  }
+
   static class IndexedManifestEntry implements ManifestEntry, IndexedRecord {
     private final org.apache.avro.Schema avroSchema;
     private final Long commitSnapshotId;
-    private final V1Metadata.IndexedDataFile fileWrapper;
+    private final IndexedDataFile fileWrapper;
     private ManifestEntry wrapped = null;
 
     IndexedManifestEntry(Long commitSnapshotId, Types.StructType partitionType) {
       this.avroSchema = AvroSchemaUtil.convert(entrySchema(partitionType), "manifest_entry");
       this.commitSnapshotId = commitSnapshotId;
-      // TODO: when v2 data files differ from v1, this should use a v2 wrapper
-      this.fileWrapper = new V1Metadata.IndexedDataFile(avroSchema.getField("data_file").schema());
+      this.fileWrapper = new IndexedDataFile(partitionType);
     }
 
     public IndexedManifestEntry wrap(ManifestEntry entry) {
@@ -331,6 +346,138 @@ class V2Metadata {
 
     @Override
     public ManifestEntry copyWithoutStats() {
+      return wrapped.copyWithoutStats();
+    }
+  }
+
+  /**
+   * Wrapper used to write a DataFile to v2 metadata.
+   */
+  static class IndexedDataFile implements DataFile, IndexedRecord {
+    private final org.apache.avro.Schema avroSchema;
+    private final IndexedStructLike partitionWrapper;
+    private DataFile wrapped = null;
+
+    IndexedDataFile(Types.StructType partitionType) {
+      this.avroSchema = AvroSchemaUtil.convert(fileType(partitionType), "data_file");
+      this.partitionWrapper = new IndexedStructLike(avroSchema.getField("partition").schema());
+    }
+
+    IndexedDataFile wrap(DataFile file) {
+      this.wrapped = file;
+      return this;
+    }
+
+    @Override
+    public org.apache.avro.Schema getSchema() {
+      return avroSchema;
+    }
+
+    @Override
+    public Object get(int pos) {
+      switch (pos) {
+        case 0:
+          return FileContent.DATA.id();
+        case 1:
+          return wrapped.path().toString();
+        case 2:
+          return wrapped.format() != null ? wrapped.format().toString() : null;
+        case 3:
+          return partitionWrapper.wrap(wrapped.partition());
+        case 4:
+          return wrapped.recordCount();
+        case 5:
+          return wrapped.fileSizeInBytes();
+        case 6:
+          return wrapped.columnSizes();
+        case 7:
+          return wrapped.valueCounts();
+        case 8:
+          return wrapped.nullValueCounts();
+        case 9:
+          return wrapped.lowerBounds();
+        case 10:
+          return wrapped.upperBounds();
+        case 11:
+          return wrapped.keyMetadata();
+        case 12:
+          return wrapped.splitOffsets();
+      }
+      throw new IllegalArgumentException("Unknown field ordinal: " + pos);
+    }
+
+    @Override
+    public void put(int i, Object v) {
+      throw new UnsupportedOperationException("Cannot read into IndexedDataFile");
+    }
+
+    @Override
+    public CharSequence path() {
+      return wrapped.path();
+    }
+
+    @Override
+    public FileFormat format() {
+      return wrapped.format();
+    }
+
+    @Override
+    public StructLike partition() {
+      return wrapped.partition();
+    }
+
+    @Override
+    public long recordCount() {
+      return wrapped.recordCount();
+    }
+
+    @Override
+    public long fileSizeInBytes() {
+      return wrapped.fileSizeInBytes();
+    }
+
+    @Override
+    public Map<Integer, Long> columnSizes() {
+      return wrapped.columnSizes();
+    }
+
+    @Override
+    public Map<Integer, Long> valueCounts() {
+      return wrapped.valueCounts();
+    }
+
+    @Override
+    public Map<Integer, Long> nullValueCounts() {
+      return wrapped.nullValueCounts();
+    }
+
+    @Override
+    public Map<Integer, ByteBuffer> lowerBounds() {
+      return wrapped.lowerBounds();
+    }
+
+    @Override
+    public Map<Integer, ByteBuffer> upperBounds() {
+      return wrapped.upperBounds();
+    }
+
+    @Override
+    public ByteBuffer keyMetadata() {
+      return wrapped.keyMetadata();
+    }
+
+    @Override
+    public List<Long> splitOffsets() {
+      return wrapped.splitOffsets();
+    }
+
+    @Override
+    public DataFile copy() {
+      return wrapped.copy();
+    }
+
+    @Override
+    public DataFile copyWithoutStats() {
       return wrapped.copyWithoutStats();
     }
   }

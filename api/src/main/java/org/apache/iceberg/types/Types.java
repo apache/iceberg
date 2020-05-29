@@ -19,10 +19,6 @@
 
 package org.apache.iceberg.types;
 
-import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
@@ -31,6 +27,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type.NestedType;
 import org.apache.iceberg.types.Type.PrimitiveType;
 
@@ -457,8 +457,22 @@ public class Types {
       return isOptional;
     }
 
+    public NestedField asOptional() {
+      if (isOptional) {
+        return this;
+      }
+      return new NestedField(true, id, name, type, doc);
+    }
+
     public boolean isRequired() {
       return !isOptional;
+    }
+
+    public NestedField asRequired() {
+      if (!isOptional) {
+        return this;
+      }
+      return new NestedField(false, id, name, type, doc);
     }
 
     public int fieldId() {

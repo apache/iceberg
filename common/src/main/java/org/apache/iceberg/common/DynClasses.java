@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.common;
 
-import com.google.common.base.Joiner;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 
 public class DynClasses {
 

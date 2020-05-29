@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.util;
 
-import com.google.common.base.Preconditions;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class UnicodeUtil {
   // not meant to be instantiated

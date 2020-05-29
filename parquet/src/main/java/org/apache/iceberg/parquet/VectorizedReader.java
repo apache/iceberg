@@ -53,4 +53,3 @@ public interface VectorizedReader<T> {
    */
   void close();
 }
-

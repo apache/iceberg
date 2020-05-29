@@ -28,7 +28,7 @@ if [ -z "$2" ]; then
   exit
 fi
 
-version=$1-incubating
+version=$1
 rc=$2
 
 if [ -d tmp/ ]; then
@@ -64,14 +64,14 @@ tarball=$tag.tar.gz
 
 # be conservative and use the release hash, even though git produces the same
 # archive (identical hashes) using the scm tag
-git archive $release_hash --prefix $tag/ -o $tarball .baseline api arrow common core data dev gradle gradlew hive mr orc parquet pig project spark spark-runtime LICENSE NOTICE DISCLAIMER README.md build.gradle baseline.gradle deploy.gradle tasks.gradle jmh.gradle gradle.properties settings.gradle versions.lock versions.props version.txt
+git archive $release_hash --prefix $tag/ -o $tarball .baseline api arrow common core data dev gradle gradlew hive mr orc parquet pig project spark spark-runtime LICENSE NOTICE README.md build.gradle baseline.gradle deploy.gradle tasks.gradle jmh.gradle gradle.properties settings.gradle versions.lock versions.props version.txt
 
 # sign the archive
 gpg --armor --output ${tarball}.asc --detach-sig $tarball
 sha512sum $tarball > ${tarball}.sha512
 
 # check out the Iceberg RC folder
-svn co --depth=empty https://dist.apache.org/repos/dist/dev/incubator/iceberg tmp
+svn co --depth=empty https://dist.apache.org/repos/dist/dev/iceberg tmp
 
 # add the release candidate for the tag
 mkdir -p tmp/$tagrc
@@ -83,7 +83,7 @@ svn ci -m "Apache Iceberg $version RC${rc}" tmp/$tagrc
 rm -rf tmp
 
 echo "Success! The release candidate is available here:"
-echo "  https://dist.apache.org/repos/dist/dev/incubator/iceberg/$tagrc"
+echo "  https://dist.apache.org/repos/dist/dev/iceberg/$tagrc"
 echo ""
 echo "Commit SHA1: $release_hash"
 

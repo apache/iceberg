@@ -163,6 +163,7 @@ public class TestHelpers {
     private final String path;
     private final long length;
     private final int specId;
+    private final ManifestContent content;
     private final Long snapshotId;
     private final Integer addedFiles;
     private final Long addedRows;
@@ -178,6 +179,7 @@ public class TestHelpers {
       this.path = path;
       this.length = length;
       this.specId = specId;
+      this.content = ManifestContent.DATA;
       this.snapshotId = snapshotId;
       this.addedFiles = addedFiles;
       this.addedRows = null;
@@ -188,13 +190,14 @@ public class TestHelpers {
       this.partitions = partitions;
     }
 
-    public TestManifestFile(String path, long length, int specId, Long snapshotId,
+    public TestManifestFile(String path, long length, int specId, ManifestContent content, Long snapshotId,
                             Integer addedFiles, Long addedRows, Integer existingFiles,
                             Long existingRows, Integer deletedFiles, Long deletedRows,
                             List<PartitionFieldSummary> partitions) {
       this.path = path;
       this.length = length;
       this.specId = specId;
+      this.content = content;
       this.snapshotId = snapshotId;
       this.addedFiles = addedFiles;
       this.addedRows = addedRows;
@@ -218,6 +221,11 @@ public class TestHelpers {
     @Override
     public int partitionSpecId() {
       return specId;
+    }
+
+    @Override
+    public ManifestContent content() {
+      return content;
     }
 
     @Override

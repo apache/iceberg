@@ -19,10 +19,10 @@
 
 package org.apache.iceberg.data;
 
-import com.google.common.collect.ImmutableList;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class IcebergGenerics {
   private IcebergGenerics() {

@@ -18,14 +18,18 @@
  */
 
 .navbar-brand:before {
-  content: '';
+  content: ' ';
   display: block;
   background: url("/img/favicon-96x96.png") no-repeat;
   background-size: cover;
   width: 1.3em;
   height: 1.3em;
-  margin-left: -1.6em;
+  margin-right: 0.5em;
   float: left;
+}
+
+.navbar-brand {
+  margin-right: 1em;
 }
 
 .floating {

@@ -19,13 +19,13 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class ManifestFiles {
   private ManifestFiles() {

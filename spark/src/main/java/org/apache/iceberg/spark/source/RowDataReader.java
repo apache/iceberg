@@ -19,14 +19,8 @@
 
 package org.apache.iceberg.spark.source;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,7 +29,6 @@ import org.apache.avro.util.Utf8;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataTask;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -43,11 +36,15 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkAvroReader;
 import org.apache.iceberg.spark.data.SparkOrcReader;
@@ -61,7 +58,6 @@ import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
-import org.apache.spark.sql.catalyst.expressions.JoinedRow;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.StructType;
@@ -69,7 +65,6 @@ import org.apache.spark.unsafe.types.UTF8String;
 import scala.collection.JavaConverters;
 
 class RowDataReader extends BaseDataReader<InternalRow> {
-  private static final Set<FileFormat> SUPPORTS_CONSTANTS = Sets.newHashSet(FileFormat.AVRO, FileFormat.PARQUET);
   // for some reason, the apply method can't be called from Java without reflection
   private static final DynMethods.UnboundMethod APPLY_PROJECTION = DynMethods.builder("apply")
       .impl(UnsafeProjection.class, InternalRow.class)
@@ -91,7 +86,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
   }
 
   @Override
-  Iterator<InternalRow> open(FileScanTask task) {
+  CloseableIterator<InternalRow> open(FileScanTask task) {
     DataFile file = task.file();
 
     // update the current file for Spark's filename() function
@@ -104,30 +99,14 @@ class RowDataReader extends BaseDataReader<InternalRow> {
     boolean projectsIdentityPartitionColumns = !partitionSchema.columns().isEmpty();
 
     if (projectsIdentityPartitionColumns) {
-      if (SUPPORTS_CONSTANTS.contains(file.format())) {
-        return open(task, expectedSchema, PartitionUtil.constantsMap(task, RowDataReader::convertConstant));
-      }
-
-      // schema used to read data files
-      Schema readSchema = TypeUtil.selectNot(expectedSchema, idColumns);
-      PartitionRowConverter convertToRow = new PartitionRowConverter(partitionSchema, spec);
-      JoinedRow joined = new JoinedRow();
-
-      // create joined rows and project from the joined schema to the final schema
-      Schema joinedSchema = TypeUtil.join(readSchema, partitionSchema);
-      InternalRow partition = convertToRow.apply(file.partition());
-      joined.withRight(partition);
-
-      return Iterators.transform(
-          Iterators.transform(open(task, readSchema, ImmutableMap.of()), joined::withLeft),
-          APPLY_PROJECTION.bind(projection(expectedSchema, joinedSchema))::invoke);
+      return open(task, expectedSchema, PartitionUtil.constantsMap(task, RowDataReader::convertConstant))
+          .iterator();
     }
-
     // return the base iterator
-    return open(task, expectedSchema, ImmutableMap.of());
+    return open(task, expectedSchema, ImmutableMap.of()).iterator();
   }
 
-  private Iterator<InternalRow> open(FileScanTask task, Schema readSchema, Map<Integer, ?> idToConstant) {
+  private CloseableIterable<InternalRow> open(FileScanTask task, Schema readSchema, Map<Integer, ?> idToConstant) {
     CloseableIterable<InternalRow> iter;
     if (task.isDataTask()) {
       iter = newDataIterable(task.asDataTask(), readSchema);
@@ -145,7 +124,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
           break;
 
         case ORC:
-          iter = newOrcIterable(location, task, readSchema);
+          iter = newOrcIterable(location, task, readSchema, idToConstant);
           break;
 
         default:
@@ -154,9 +133,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       }
     }
 
-    this.currentCloseable = iter;
-
-    return iter.iterator();
+    return iter;
   }
 
   private CloseableIterable<InternalRow> newAvroIterable(
@@ -190,11 +167,13 @@ class RowDataReader extends BaseDataReader<InternalRow> {
   private CloseableIterable<InternalRow> newOrcIterable(
       InputFile location,
       FileScanTask task,
-      Schema readSchema) {
+      Schema readSchema,
+      Map<Integer, ?> idToConstant) {
     return ORC.read(location)
         .project(readSchema)
         .split(task.start(), task.length())
-        .createReaderFunc(SparkOrcReader::new)
+        .createReaderFunc(readOrcSchema -> new SparkOrcReader(readSchema, readOrcSchema, idToConstant))
+        .filter(task.residual())
         .caseSensitive(caseSensitive)
         .build();
   }

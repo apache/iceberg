@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.events;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Maps;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
  * Static registration and notification for listeners.

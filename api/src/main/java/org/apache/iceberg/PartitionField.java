@@ -19,8 +19,8 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Objects;
 import java.io.Serializable;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.transforms.Transform;
 
 /**

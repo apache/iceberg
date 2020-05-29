@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.base.Preconditions;
 import java.util.Comparator;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
   private final Literal<T> literal;

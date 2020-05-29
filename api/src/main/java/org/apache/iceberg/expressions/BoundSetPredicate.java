@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class BoundSetPredicate<T> extends BoundPredicate<T> {
   private static final Joiner COMMA = Joiner.on(", ");

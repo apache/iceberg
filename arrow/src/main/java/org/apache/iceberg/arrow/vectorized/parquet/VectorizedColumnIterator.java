@@ -19,12 +19,12 @@
 
 package org.apache.iceberg.arrow.vectorized.parquet;
 
-import com.google.common.base.Preconditions;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.parquet.BaseColumnIterator;
 import org.apache.iceberg.parquet.BasePageIterator;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.page.PageReader;
