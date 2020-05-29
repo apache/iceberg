@@ -124,9 +124,21 @@ public class Schema implements Serializable {
     return struct.fields();
   }
 
+  /**
+   * Returns the {@link Type} of a sub-field identified by the field name.
+   *
+   * @param name a field name
+   * @return a Type for the sub-field or null if it is not found
+   */
   public Type findType(String name) {
     Preconditions.checkArgument(!name.isEmpty(), "Invalid column name: (empty)");
-    return findType(lazyNameToId().get(name));
+    Integer id = lazyNameToId().get(name);
+    if (id != null) {  // name is found
+      return findType(id);
+    }
+
+    // name could not be found
+    return null;
   }
 
   /**
