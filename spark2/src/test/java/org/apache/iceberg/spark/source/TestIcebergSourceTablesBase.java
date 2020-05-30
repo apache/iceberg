@@ -112,10 +112,10 @@ public abstract class TestIcebergSourceTablesBase {
 
     table.refresh();
 
-    Dataset<Row> actual = spark.read()
+    List<Row> actual = spark.read()
         .format("iceberg")
-        .load(loadLocation(tableIdentifier, "entries"));
-    long actualCount = actual.count();
+        .load(loadLocation(tableIdentifier, "entries"))
+        .collectAsList();
 
     Snapshot snapshot = table.currentSnapshot();
 
@@ -134,8 +134,8 @@ public abstract class TestIcebergSourceTablesBase {
     }
 
     Assert.assertEquals("Entries table should have one row", 1, expected.size());
-    Assert.assertEquals("Actual results should have one row", 1, actualCount);
-    TestHelpers.assertEqualsSafe(entriesTable.schema().asStruct(), expected.get(0), actual.collectAsList().get(0));
+    Assert.assertEquals("Actual results should have one row", 1, actual.size());
+    TestHelpers.assertEqualsSafe(entriesTable.schema().asStruct(), expected.get(0), actual.get(0));
   }
 
   @Test

@@ -163,7 +163,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
   private Schema lazySchema() {
     if (schema == null) {
-      if (requestedSchema != null && requestedSchema.size() != 0) {
+      if (requestedSchema != null) {
         // the projection should include all columns that will be returned, including those only used in filters
         this.schema = SparkSchemaUtil.prune(table.schema(), requestedSchema, filterExpression(), caseSensitive);
       } else {
