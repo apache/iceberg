@@ -75,8 +75,7 @@ public class OrcMetrics {
 
   static Metrics fromInputFile(InputFile file, Configuration config) {
     try (Reader orcReader = ORC.newFileReader(file, config)) {
-      return buildOrcMetrics(orcReader.getNumberOfRows(),
-          orcReader.getSchema(), orcReader.getStatistics());
+      return buildOrcMetrics(orcReader.getNumberOfRows(), orcReader.getSchema(), orcReader.getStatistics());
     } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to open file: %s", file.location());
     }
@@ -84,8 +83,7 @@ public class OrcMetrics {
 
   static Metrics fromWriter(Writer writer) {
     try {
-      return buildOrcMetrics(writer.getNumberOfRows(),
-          writer.getSchema(), writer.getStatistics());
+      return buildOrcMetrics(writer.getNumberOfRows(), writer.getSchema(), writer.getStatistics());
     } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to get statistics from writer");
     }
@@ -111,18 +109,20 @@ public class OrcMetrics {
         final Types.NestedField icebergCol = icebergColOpt.get();
         final int fieldId = icebergCol.fieldId();
 
-        if (colStat.hasNull()) {
-          nullCounts.put(fieldId, numOfRows - colStat.getNumberOfValues());
-        } else {
-          nullCounts.put(fieldId, 0L);
-        }
-
         columnSizes.put(fieldId, colStat.getBytesOnDisk());
-        if (nullCounts.containsKey(fieldId)) {
-          valueCounts.put(fieldId, colStat.getNumberOfValues() + nullCounts.get(fieldId));
-        }
 
         if (!columnsInContainers.contains(orcCol)) {
+          // Since ORC does not track null values nor repeated ones, the value count for columns in
+          // containers (maps, list) may be larger than what it actually is, however these are not
+          // used in experssions right now. For such cases, we use the value number of values
+          // directly stored in ORC.
+          if (colStat.hasNull()) {
+            nullCounts.put(fieldId, numOfRows - colStat.getNumberOfValues());
+          } else {
+            nullCounts.put(fieldId, 0L);
+          }
+          valueCounts.put(fieldId, colStat.getNumberOfValues() + nullCounts.get(fieldId));
+
           Optional<ByteBuffer> orcMin = (colStat.getNumberOfValues() > 0) ?
               fromOrcMin(icebergCol, colStat) : Optional.empty();
           orcMin.ifPresent(byteBuffer -> lowerBounds.put(icebergCol.fieldId(), byteBuffer));

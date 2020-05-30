@@ -104,7 +104,7 @@ public abstract class TestMetrics {
   public abstract InputFile writeRecordsWithSmallRowGroups(Schema schema, Record... records)
       throws IOException;
 
-  public abstract int splitCount(InputFile parquetFile) throws IOException;
+  public abstract int splitCount(InputFile inputFile) throws IOException;
 
   public boolean supportsSmallRowGroups() {
     return false;
@@ -227,7 +227,7 @@ public abstract class TestMetrics {
     assertBounds(12, BinaryType.get(),
         ByteBuffer.wrap("S".getBytes()), ByteBuffer.wrap("W".getBytes()), metrics);
     if (fileFormat() == FileFormat.ORC) {
-      // TODO: enable when ORC-342 is fixed - ORC-342: creates inacurate timestamp/stats below epoch
+      // TODO: enable when ORC-342 is fixed - ORC-342: creates inaccurate timestamp/stats below epoch
       // ORC-611: ORC only supports millisecond precision, so we adjust by 1 millisecond
       // assertBounds(13, TimestampType.withoutZone(), -1000L, 1000L, metrics);
     } else {
@@ -310,15 +310,16 @@ public abstract class TestMetrics {
 
     InputFile recordsFile = writeRecords(schema, record);
 
+    Long expectedNullCount = fileFormat() == FileFormat.ORC ? null : 0L;
     Metrics metrics = getMetrics(recordsFile);
     Assert.assertEquals(1L, (long) metrics.recordCount());
-    assertCounts(1, 1, 0, metrics);
+    assertCounts(1, fileFormat() == FileFormat.ORC ? null : 1L, expectedNullCount, metrics);
     assertBounds(1, IntegerType.get(), null, null, metrics);
-    assertCounts(2, 1, 0, metrics);
+    assertCounts(2, fileFormat() == FileFormat.ORC ? null : 1L, expectedNullCount, metrics);
     assertBounds(2, StringType.get(), null, null, metrics);
-    assertCounts(4, 3, 0, metrics);
+    assertCounts(4, fileFormat() == FileFormat.ORC ? null : 3L, expectedNullCount, metrics);
     assertBounds(4, IntegerType.get(), null, null, metrics);
-    assertCounts(6, 1, 0, metrics);
+    assertCounts(6, fileFormat() == FileFormat.ORC ? null : 1L, expectedNullCount, metrics);
     assertBounds(6, StringType.get(), null, null, metrics);
     assertBounds(7, structType, null, null, metrics);
   }
@@ -337,7 +338,7 @@ public abstract class TestMetrics {
 
     Metrics metrics = getMetrics(recordsFile);
     Assert.assertEquals(2L, (long) metrics.recordCount());
-    assertCounts(1, 2, 2, metrics);
+    assertCounts(1, 2L, 2L, metrics);
     assertBounds(1, IntegerType.get(), null, null, metrics);
   }
 
@@ -366,7 +367,7 @@ public abstract class TestMetrics {
       records.add(newRecord);
     }
 
-    // create parquet file with multiple row groups. by using smaller number of bytes
+    // create file with multiple row groups. by using smaller number of bytes
     InputFile recordsFile = writeRecordsWithSmallRowGroups(SIMPLE_SCHEMA, records.toArray(new Record[0]));
 
     Assert.assertNotNull(recordsFile);
@@ -409,7 +410,7 @@ public abstract class TestMetrics {
       records.add(newRecord);
     }
 
-    // create parquet file with multiple row groups. by using smaller number of bytes
+    // create file with multiple row groups. by using smaller number of bytes
     InputFile recordsFile = writeRecordsWithSmallRowGroups(NESTED_SCHEMA, records.toArray(new Record[0]));
 
     Assert.assertNotNull(recordsFile);
@@ -429,11 +430,11 @@ public abstract class TestMetrics {
         ByteBuffer.wrap("A".getBytes()), ByteBuffer.wrap("A".getBytes()), metrics);
   }
 
-  private void assertCounts(int fieldId, long valueCount, long nullValueCount, Metrics metrics) {
+  private void assertCounts(int fieldId, Long valueCount, Long nullValueCount, Metrics metrics) {
     Map<Integer, Long> valueCounts = metrics.valueCounts();
     Map<Integer, Long> nullValueCounts = metrics.nullValueCounts();
-    Assert.assertEquals(valueCount, (long) valueCounts.get(fieldId));
-    Assert.assertEquals(nullValueCount, (long) nullValueCounts.get(fieldId));
+    Assert.assertEquals(valueCount, valueCounts.get(fieldId));
+    Assert.assertEquals(nullValueCount, nullValueCounts.get(fieldId));
   }
 
   protected <T> void assertBounds(int fieldId, Type type, T lowerBound, T upperBound, Metrics metrics) {

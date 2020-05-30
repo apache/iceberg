@@ -383,9 +383,9 @@ public final class ORCSchemaUtil {
   }
 
   static int fieldId(TypeDescription orcType) {
-    return icebergID(orcType)
-        .orElseThrow(() -> new NullPointerException(
-            String.format("Missing expected '%s' property", ICEBERG_ID_ATTRIBUTE)));
+    String idStr = orcType.getAttributeValue(ICEBERG_ID_ATTRIBUTE);
+    Preconditions.checkNotNull(idStr, "Missing expected '%s' property", ICEBERG_ID_ATTRIBUTE);
+    return Integer.parseInt(idStr);
   }
 
   private static boolean isRequired(TypeDescription orcType) {

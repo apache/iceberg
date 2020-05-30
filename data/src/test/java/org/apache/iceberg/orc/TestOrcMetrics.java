@@ -87,7 +87,7 @@ public class TestOrcMetrics extends TestMetrics {
   }
 
   @Override
-  public int splitCount(InputFile parquetFile) throws IOException {
+  public int splitCount(InputFile inputFile) throws IOException {
     return 0;
   }
 
