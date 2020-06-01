@@ -244,7 +244,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         .onFailure((list, exc) -> LOG.warn("Delete failed for manifest list: {}", list, exc))
         .run(io::deleteFile);
 
-    Tasks.foreach(metadata.file().location())
+    Tasks.foreach(metadata.metadataFileLocation())
         .noRetry().suppressFailureWhenFinished()
         .onFailure((list, exc) -> LOG.warn("Delete failed for metadata file: {}", list, exc))
         .run(io::deleteFile);

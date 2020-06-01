@@ -188,6 +188,7 @@ public class TableMetadata implements Serializable {
   private transient final InputFile file;
 
   // stored metadata
+  private final String metadataFileLocation;
   private final int formatVersion;
   private final String uuid;
   private final String location;
@@ -230,6 +231,7 @@ public class TableMetadata implements Serializable {
 
     this.formatVersion = formatVersion;
     this.file = file;
+    this.metadataFileLocation = file != null ? file.location() : null;
     this.uuid = uuid;
     this.location = location;
     this.lastSequenceNumber = lastSequenceNumber;
@@ -276,8 +278,8 @@ public class TableMetadata implements Serializable {
     return formatVersion;
   }
 
-  public InputFile file() {
-    return file;
+  public String metadataFileLocation() {
+    return metadataFileLocation;
   }
 
   public String uuid() {

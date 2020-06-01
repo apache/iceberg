@@ -64,7 +64,8 @@ public class TestTableMetadataSerialization extends TableTestBase {
       result = (TableMetadata) reader.readObject();
     }
 
-    Assert.assertNull("File should not be serializable", result.file());
+    Assert.assertEquals("Metadata file location should match",
+        meta.metadataFileLocation(), result.metadataFileLocation());
     Assert.assertEquals("UUID should match", meta.uuid(), result.uuid());
     Assert.assertEquals("Location should match", meta.location(), result.location());
     Assert.assertEquals("Last updated should match", meta.lastUpdatedMillis(), result.lastUpdatedMillis());
