@@ -19,26 +19,7 @@
 
 package org.apache.iceberg.parquet;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.Map;
-import java.util.UUID;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Files;
-import org.apache.iceberg.Metrics;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestMetrics;
-import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.parquet.GenericParquetWriter;
-import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.parquet.hadoop.ParquetFileReader;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
 
 /**
  * Test Metrics for Parquet.
