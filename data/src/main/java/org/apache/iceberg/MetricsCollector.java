@@ -19,8 +19,12 @@
 
 package org.apache.iceberg;
 
+import java.util.stream.Stream;
+
 public interface MetricsCollector<D> {
   void add(D record);
 
-  Metrics getMetrics();
+  Stream<FieldMetrics> getMetrics();
+
+  Long count();
 }

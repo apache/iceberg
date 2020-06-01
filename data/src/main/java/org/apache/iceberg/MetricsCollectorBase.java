@@ -19,19 +19,15 @@
 
 package org.apache.iceberg;
 
-import java.nio.ByteBuffer;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.stream.Stream;
 
 public abstract class MetricsCollectorBase<D> implements MetricsCollector<D> {
 
   private List<MetricsCollector> collectors = null;
   private Integer id;
 
-  public MetricsCollectorBase() {
-    // Needed
-  }
+  public MetricsCollectorBase() { }
 
   public MetricsCollectorBase(List<MetricsCollector> collectors) {
     this.id = null;
@@ -44,21 +40,12 @@ public abstract class MetricsCollectorBase<D> implements MetricsCollector<D> {
   }
 
   @Override
-  public Metrics getMetrics() {
-    Map<Integer, Long> valueCounts = new HashMap<>();
-    Map<Integer, Long> nullValueCounts = new HashMap<>();
-    Map<Integer, ByteBuffer> lowerBounds = new HashMap<>();
-    Map<Integer, ByteBuffer> upperBounds = new HashMap<>();
+  public Stream<FieldMetrics> getMetrics() {
+    return collectors.stream().flatMap(MetricsCollector::getMetrics);
+  }
 
-    for (MetricsCollector metricsCollector : collectors) {
-      Metrics metrics = metricsCollector.getMetrics();
-
-      valueCounts.putAll(metrics.valueCounts());
-      nullValueCounts.putAll(metrics.nullValueCounts());
-      lowerBounds.putAll(metrics.lowerBounds());
-      upperBounds.putAll(metrics.upperBounds());
-    }
-
-    return new Metrics(/* TODO */0L, null, valueCounts, nullValueCounts, lowerBounds, upperBounds);
+  @Override
+  public Long count() {
+    throw new UnsupportedOperationException("count() only implemented for root metrics collector");
   }
 }

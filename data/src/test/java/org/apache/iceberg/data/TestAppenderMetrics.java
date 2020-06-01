@@ -121,6 +121,11 @@ public class TestAppenderMetrics {
   public final TemporaryFolder temp = new TemporaryFolder();
 
   @Test
+  public void testA() {
+
+  }
+
+  @Test
   public void testMetricsSimple() throws IOException {
     Record record = GenericRecord.create(SIMPLE_SCHEMA);
     Record nested = GenericRecord.create(NESTED_SIMPLE_SCHEMA);
@@ -267,7 +272,12 @@ public class TestAppenderMetrics {
         .overwrite(true)
         .build();
 
-    MetricsAppender metricsAppender = new MetricsAppender(avroAppender, schema);
+    MetricsAppender metricsAppender = new MetricsAppender.Builder<>(avroAppender, schema)
+        .useByteBufferForFixedType()
+        .useDateTimeForTimestampType()
+
+        .useLocalDateForDateType()
+        .build();
 
     try {
       metricsAppender.addAll(records);
