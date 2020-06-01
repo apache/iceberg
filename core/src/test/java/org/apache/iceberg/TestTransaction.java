@@ -518,7 +518,8 @@ public class TestTransaction extends TableTestBase {
     Assert.assertSame("Base metadata should not change when commit is created", base, readMetadata());
     Assert.assertEquals("Table should be on version 2 after txn create", 2, (int) version());
 
-    Assert.assertEquals("Append should have one merged manifest", 1, txn.table().currentSnapshot().allManifests().size());
+    Assert.assertEquals("Append should have one merged manifest",
+        1, txn.table().currentSnapshot().allManifests().size());
     ManifestFile mergedManifest = txn.table().currentSnapshot().allManifests().get(0);
 
     // find the initial copy of the appended manifest
@@ -583,7 +584,8 @@ public class TestTransaction extends TableTestBase {
     Assert.assertSame("Base metadata should not change when commit is created", base, readMetadata());
     Assert.assertEquals("Table should be on version 2 after txn create", 2, (int) version());
 
-    Assert.assertEquals("Append should have one merged manifest", 1, txn.table().currentSnapshot().allManifests().size());
+    Assert.assertEquals("Append should have one merged manifest",
+        1, txn.table().currentSnapshot().allManifests().size());
     ManifestFile mergedManifest = txn.table().currentSnapshot().allManifests().get(0);
 
     // cause the transaction commit to fail and retry
