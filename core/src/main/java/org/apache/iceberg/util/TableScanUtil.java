@@ -19,12 +19,12 @@
 
 package org.apache.iceberg.util;
 
-import com.google.common.collect.FluentIterable;
 import java.util.function.Function;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 
 public class TableScanUtil {
 

@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.actions;
 
-import com.google.common.collect.ImmutableList;
 import java.util.List;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class RewriteDataFilesActionResult {
 
