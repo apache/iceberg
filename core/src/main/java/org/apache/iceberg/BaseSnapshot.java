@@ -135,6 +135,9 @@ class BaseSnapshot implements Snapshot {
 
   @Override
   public List<ManifestFile> allManifests() {
+    if (allManifests == null) {
+      cacheManifests();
+    }
     return allManifests;
   }
 
