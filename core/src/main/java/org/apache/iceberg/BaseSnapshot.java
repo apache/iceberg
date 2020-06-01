@@ -89,7 +89,7 @@ class BaseSnapshot implements Snapshot {
                Map<String, String> summary,
                List<ManifestFile> dataManifests) {
     this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, (InputFile) null);
-    this.dataManifests = dataManifests;
+    this.allManifests = dataManifests;
   }
 
   @Override
@@ -126,6 +126,9 @@ class BaseSnapshot implements Snapshot {
     if (allManifests == null) {
       // if manifests isn't set, then the snapshotFile is set and should be read to get the list
       this.allManifests = ManifestLists.read(manifestList);
+    }
+
+    if (dataManifests == null) {
       this.dataManifests = ImmutableList.copyOf(Iterables.filter(allManifests,
           manifest -> manifest.content() == ManifestContent.DATA));
       this.deleteManifests = ImmutableList.copyOf(Iterables.filter(allManifests,
