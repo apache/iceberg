@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -42,6 +41,7 @@ import org.apache.avro.generic.GenericFixed;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
