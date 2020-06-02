@@ -185,7 +185,7 @@ public class TableMetadata implements Serializable {
     }
   }
 
-  private transient final InputFile file;
+  private final transient InputFile file;
 
   // stored metadata
   private final String metadataFileLocation;
