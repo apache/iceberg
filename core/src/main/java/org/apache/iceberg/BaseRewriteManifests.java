@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -161,7 +160,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
 
   @Override
   public List<ManifestFile> apply(TableMetadata base) {
-    List<ManifestFile> currentManifests = base.currentSnapshot().manifests();
+    List<ManifestFile> currentManifests = base.currentSnapshot().dataManifests();
     Set<ManifestFile> currentManifestSet = ImmutableSet.copyOf(currentManifests);
 
     validateDeletedManifests(currentManifestSet);
@@ -174,15 +173,15 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
 
     validateFilesCounts();
 
-    // TODO: add sequence numbers here
     Iterable<ManifestFile> newManifestsWithMetadata = Iterables.transform(
         Iterables.concat(newManifests, addedManifests, rewrittenAddedManifests),
         manifest -> GenericManifestFile.copyOf(manifest).withSnapshotId(snapshotId()).build());
 
     // put new manifests at the beginning
-    List<ManifestFile> apply = new ArrayList<>();
+    List<ManifestFile> apply = Lists.newArrayList();
     Iterables.addAll(apply, newManifestsWithMetadata);
     apply.addAll(keptManifests);
+    apply.addAll(base.currentSnapshot().deleteManifests());
 
     return apply;
   }

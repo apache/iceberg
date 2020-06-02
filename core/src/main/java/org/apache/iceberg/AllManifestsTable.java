@@ -136,7 +136,7 @@ public class AllManifestsTable extends BaseMetadataTable {
         } else {
           return StaticDataTask.of(
               ops.io().newInputFile(ops.current().file().location()),
-              snap.manifests(),
+              snap.allManifests(),
               manifest -> ManifestsTable.manifestFileToRow(table().spec(), manifest));
         }
       }));

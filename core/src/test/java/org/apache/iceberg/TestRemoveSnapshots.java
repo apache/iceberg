@@ -381,7 +381,7 @@ public class TestRemoveSnapshots extends TableTestBase {
       t4 = System.currentTimeMillis();
     }
 
-    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+    List<ManifestFile> manifests = table.currentSnapshot().dataManifests();
 
     ManifestFile newManifest = writeManifest(
         "manifest-file-1.avro",
@@ -449,7 +449,7 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     // ManifestList should be deleted too
     expectedDeletes.add(snapshotB.manifestListLocation());
-    snapshotB.manifests().forEach(file -> {
+    snapshotB.dataManifests().forEach(file -> {
       //Only the manifest of B should be deleted.
       if (file.snapshotId() == snapshotB.snapshotId()) {
         expectedDeletes.add(file.path());

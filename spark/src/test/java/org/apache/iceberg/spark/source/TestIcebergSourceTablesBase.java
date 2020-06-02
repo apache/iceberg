@@ -119,9 +119,9 @@ public abstract class TestIcebergSourceTablesBase {
 
     Snapshot snapshot = table.currentSnapshot();
 
-    Assert.assertEquals("Should only contain one manifest", 1, snapshot.manifests().size());
+    Assert.assertEquals("Should only contain one manifest", 1, snapshot.allManifests().size());
 
-    InputFile manifest = table.io().newInputFile(snapshot.manifests().get(0).path());
+    InputFile manifest = table.io().newInputFile(snapshot.allManifests().get(0).path());
     List<GenericData.Record> expected = Lists.newArrayList();
     try (CloseableIterable<GenericData.Record> rows = Avro.read(manifest).project(entriesTable.schema()).build()) {
       // each row must inherit snapshot_id and sequence_number
@@ -171,7 +171,7 @@ public abstract class TestIcebergSourceTablesBase {
         .collectAsList();
 
     List<GenericData.Record> expected = Lists.newArrayList();
-    for (ManifestFile manifest : Iterables.concat(Iterables.transform(table.snapshots(), Snapshot::manifests))) {
+    for (ManifestFile manifest : Iterables.concat(Iterables.transform(table.snapshots(), Snapshot::allManifests))) {
       InputFile in = table.io().newInputFile(manifest.path());
       try (CloseableIterable<GenericData.Record> rows = Avro.read(in).project(entriesTable.schema()).build()) {
         // each row must inherit snapshot_id and sequence_number
@@ -223,7 +223,7 @@ public abstract class TestIcebergSourceTablesBase {
         .collectAsList();
 
     List<GenericData.Record> expected = Lists.newArrayList();
-    for (ManifestFile manifest : table.currentSnapshot().manifests()) {
+    for (ManifestFile manifest : table.currentSnapshot().dataManifests()) {
       InputFile in = table.io().newInputFile(manifest.path());
       try (CloseableIterable<GenericData.Record> rows = Avro.read(in).project(entriesTable.schema()).build()) {
         for (GenericData.Record record : rows) {
@@ -275,7 +275,7 @@ public abstract class TestIcebergSourceTablesBase {
           .collectAsList();
 
       List<GenericData.Record> expected = Lists.newArrayList();
-      for (ManifestFile manifest : table.currentSnapshot().manifests()) {
+      for (ManifestFile manifest : table.currentSnapshot().dataManifests()) {
         InputFile in = table.io().newInputFile(manifest.path());
         try (CloseableIterable<GenericData.Record> rows = Avro.read(in).project(entriesTable.schema()).build()) {
           for (GenericData.Record record : rows) {
@@ -376,7 +376,7 @@ public abstract class TestIcebergSourceTablesBase {
         .collectAsList();
 
     List<GenericData.Record> expected = Lists.newArrayList();
-    for (ManifestFile manifest : table.currentSnapshot().manifests()) {
+    for (ManifestFile manifest : table.currentSnapshot().dataManifests()) {
       InputFile in = table.io().newInputFile(manifest.path());
       try (CloseableIterable<GenericData.Record> rows = Avro.read(in).project(entriesTable.schema()).build()) {
         for (GenericData.Record record : rows) {
@@ -473,7 +473,7 @@ public abstract class TestIcebergSourceTablesBase {
     actual.sort(Comparator.comparing(o -> o.getString(1)));
 
     List<GenericData.Record> expected = Lists.newArrayList();
-    for (ManifestFile manifest : Iterables.concat(Iterables.transform(table.snapshots(), Snapshot::manifests))) {
+    for (ManifestFile manifest : Iterables.concat(Iterables.transform(table.snapshots(), Snapshot::dataManifests))) {
       InputFile in = table.io().newInputFile(manifest.path());
       try (CloseableIterable<GenericData.Record> rows = Avro.read(in).project(entriesTable.schema()).build()) {
         for (GenericData.Record record : rows) {
@@ -661,7 +661,7 @@ public abstract class TestIcebergSourceTablesBase {
         manifestTable.schema(), "manifests"));
     GenericRecordBuilder summaryBuilder = new GenericRecordBuilder(AvroSchemaUtil.convert(
         manifestTable.schema().findType("partition_summaries.element").asStructType(), "partition_summary"));
-    List<GenericData.Record> expected = Lists.transform(table.currentSnapshot().manifests(), manifest ->
+    List<GenericData.Record> expected = Lists.transform(table.currentSnapshot().allManifests(), manifest ->
         builder.set("path", manifest.path())
             .set("length", manifest.length())
             .set("partition_spec_id", manifest.partitionSpecId())
@@ -697,11 +697,11 @@ public abstract class TestIcebergSourceTablesBase {
         .mode("append")
         .save(loadLocation(tableIdentifier));
 
-    manifests.addAll(table.currentSnapshot().manifests());
+    manifests.addAll(table.currentSnapshot().allManifests());
 
     table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
 
-    manifests.addAll(table.currentSnapshot().manifests());
+    manifests.addAll(table.currentSnapshot().allManifests());
 
     List<Row> actual = spark.read()
         .format("iceberg")

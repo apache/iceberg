@@ -129,12 +129,12 @@ public class TestTableMetadata {
     Assert.assertEquals("Parent snapshot ID should match",
         (Long) previousSnapshotId, metadata.currentSnapshot().parentId());
     Assert.assertEquals("Current snapshot files should match",
-        currentSnapshot.manifests(), metadata.currentSnapshot().manifests());
+        currentSnapshot.allManifests(), metadata.currentSnapshot().allManifests());
     Assert.assertEquals("Previous snapshot ID should match",
         previousSnapshotId, metadata.snapshot(previousSnapshotId).snapshotId());
     Assert.assertEquals("Previous snapshot files should match",
-        previousSnapshot.manifests(),
-        metadata.snapshot(previousSnapshotId).manifests());
+        previousSnapshot.allManifests(),
+        metadata.snapshot(previousSnapshotId).allManifests());
   }
 
   @Test
@@ -226,12 +226,12 @@ public class TestTableMetadata {
     Assert.assertEquals("Parent snapshot ID should match",
         (Long) previousSnapshotId, metadata.currentSnapshot().parentId());
     Assert.assertEquals("Current snapshot files should match",
-        currentSnapshot.manifests(), metadata.currentSnapshot().manifests());
+        currentSnapshot.allManifests(), metadata.currentSnapshot().allManifests());
     Assert.assertEquals("Previous snapshot ID should match",
         previousSnapshotId, metadata.snapshot(previousSnapshotId).snapshotId());
     Assert.assertEquals("Previous snapshot files should match",
-        previousSnapshot.manifests(),
-        metadata.snapshot(previousSnapshotId).manifests());
+        previousSnapshot.allManifests(),
+        metadata.snapshot(previousSnapshotId).allManifests());
     Assert.assertEquals("Snapshot logs should match",
             expected.previousFiles(), metadata.previousFiles());
   }

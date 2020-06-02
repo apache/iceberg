@@ -101,7 +101,7 @@ public class DataFilesTable extends BaseMetadataTable {
     @Override
     protected CloseableIterable<FileScanTask> planFiles(
         TableOperations ops, Snapshot snapshot, Expression rowFilter, boolean caseSensitive, boolean colStats) {
-      CloseableIterable<ManifestFile> manifests = CloseableIterable.withNoopClose(snapshot.manifests());
+      CloseableIterable<ManifestFile> manifests = CloseableIterable.withNoopClose(snapshot.dataManifests());
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
       ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(rowFilter);
