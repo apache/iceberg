@@ -175,7 +175,7 @@ public abstract class TestMetrics {
     firstRecord.setField("timestampColAboveEpoch", DateTimeUtil.timestampFromMicros(0L));
     firstRecord.setField("fixedCol", fixed);
     firstRecord.setField("binaryCol", ByteBuffer.wrap("S".getBytes()));
-    firstRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(-900L));
+    firstRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(-1_900_300L));
     Record secondRecord = GenericRecord.create(SIMPLE_SCHEMA);
     secondRecord.setField("booleanCol", false);
     secondRecord.setField("intCol", Integer.MIN_VALUE);
@@ -216,7 +216,7 @@ public abstract class TestMetrics {
     assertCounts(10, 2L, 0L, metrics);
     if (fileFormat() == FileFormat.ORC) {
       // ORC-611: ORC only supports millisecond precision, so we adjust by 1 millisecond
-      assertBounds(10, TimestampType.withoutZone(), -1000L, 1000L, metrics);
+      assertBounds(10, TimestampType.withoutZone(), 0L, 1000L, metrics);
     } else {
       assertBounds(10, TimestampType.withoutZone(), 0L, 900L, metrics);
     }
@@ -228,10 +228,12 @@ public abstract class TestMetrics {
         ByteBuffer.wrap("S".getBytes()), ByteBuffer.wrap("W".getBytes()), metrics);
     if (fileFormat() == FileFormat.ORC) {
       // TODO: enable when ORC-342 is fixed - ORC-342: creates inaccurate timestamp/stats below epoch
-      // ORC-611: ORC only supports millisecond precision, so we adjust by 1 millisecond
-      // assertBounds(13, TimestampType.withoutZone(), -1000L, 1000L, metrics);
+      // ORC-611: ORC only supports millisecond precision, so we adjust by 1 millisecond, e.g.
+      // assertBounds(13, TimestampType.withoutZone(), -1000L, 1000L, metrics); would fail for a value
+      // in the range `[1970-01-01 00:00:00.000,1970-01-01 00:00:00.999]`
+      assertBounds(13, TimestampType.withoutZone(), -1_901_000L, 1000L, metrics);
     } else {
-      assertBounds(13, TimestampType.withoutZone(), -900L, 0L, metrics);
+      assertBounds(13, TimestampType.withoutZone(), -1_900_300L, 0L, metrics);
     }
   }
 

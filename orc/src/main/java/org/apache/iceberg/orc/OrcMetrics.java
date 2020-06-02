@@ -141,7 +141,6 @@ public class OrcMetrics {
         upperBounds);
   }
 
-
   private static Optional<ByteBuffer> fromOrcMin(Types.NestedField column,
                                                  ColumnStatistics columnStats) {
     Object min = null;
@@ -174,7 +173,6 @@ public class OrcMetrics {
       Timestamp minValue = tColStats.getMinimumUTC();
       min = Optional.ofNullable(minValue)
           .map(v -> TimeUnit.MILLISECONDS.toMicros(v.getTime()))
-          .map(v -> v - 1_000) // Subtract 1 millisecond to handle precision issue due to ORC-611
           .orElse(null);
     } else if (columnStats instanceof BooleanColumnStatistics) {
       BooleanColumnStatistics booleanStats = (BooleanColumnStatistics) columnStats;
