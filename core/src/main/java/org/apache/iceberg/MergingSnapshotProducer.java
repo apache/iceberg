@@ -275,7 +275,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         newManifests = Iterables.concat(appendManifests, rewrittenAppendManifests);
       }
 
-      // TODO: add sequence numbers here
       Iterable<ManifestFile> newManifestsWithMetadata = Iterables.transform(
           newManifests,
           manifest -> GenericManifestFile.copyOf(manifest).withSnapshotId(snapshotId()).build());
@@ -680,11 +679,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
               // suppress deletes from previous snapshots. only files deleted by this snapshot
               // should be added to the new manifest
               if (entry.snapshotId() == snapshotId()) {
-                writer.addEntry(entry);
+                writer.delete(entry);
               }
             } else if (entry.status() == Status.ADDED && entry.snapshotId() == snapshotId()) {
               // adds from this snapshot are still adds, otherwise they should be existing
-              writer.addEntry(entry);
+              writer.add(entry);
             } else {
               // add all files from the old manifest as existing files
               writer.existing(entry);

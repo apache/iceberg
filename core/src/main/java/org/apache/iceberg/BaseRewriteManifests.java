@@ -138,6 +138,8 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
     Preconditions.checkArgument(
         manifest.snapshotId() == null || manifest.snapshotId() == -1,
         "Snapshot id must be assigned during commit");
+    Preconditions.checkArgument(manifest.sequenceNumber() == -1,
+        "Sequence must be assigned during commit");
 
     if (snapshotIdInheritanceEnabled && manifest.snapshotId() == null) {
       addedManifests.add(manifest);
