@@ -266,7 +266,7 @@ public class OrcMetrics {
     @Override
     public TypeDescription list(Types.ListType iList, TypeDescription array, TypeDescription element) {
       columnsInContainers.addAll(flatten(element));
-      return null;
+      return array;
     }
 
     @Override
@@ -274,7 +274,7 @@ public class OrcMetrics {
                     TypeDescription key, TypeDescription value) {
       columnsInContainers.addAll(flatten(key));
       columnsInContainers.addAll(flatten(value));
-      return null;
+      return map;
     }
 
     @Override
