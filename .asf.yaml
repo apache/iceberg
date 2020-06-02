@@ -1,0 +1,12 @@
+github:
+  description: "Apache Iceberg"
+  homepage: https://iceberg.apache.org/
+  labels:
+    - iceberg
+    - apache
+
+notifications:
+    commits:      commits@iceberg.apache.org
+    issues:       issues@iceberg.apache.org
+    pullrequests: issues@iceberg.apache.org
+    jira_options: link label link label
