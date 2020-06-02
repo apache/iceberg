@@ -1,0 +1,194 @@
+{
+    "compile": {
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1"
+        },
+        "org.apache.iceberg:iceberg-bundled-guava": {
+            "project": true
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.25"
+        }
+    },
+    "compileClasspath": {
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1"
+        },
+        "org.apache.iceberg:iceberg-bundled-guava": {
+            "project": true
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.25"
+        }
+    },
+    "default": {
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1"
+        },
+        "org.apache.iceberg:iceberg-bundled-guava": {
+            "project": true
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.25"
+        }
+    },
+    "runtime": {
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1"
+        },
+        "org.apache.iceberg:iceberg-bundled-guava": {
+            "project": true
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.25"
+        }
+    },
+    "runtimeClasspath": {
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1"
+        },
+        "org.apache.iceberg:iceberg-bundled-guava": {
+            "project": true
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.25"
+        }
+    },
+    "testCompile": {
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1"
+        },
+        "junit:junit": {
+            "locked": "4.12"
+        },
+        "org.apache.iceberg:iceberg-bundled-guava": {
+            "project": true
+        },
+        "org.hamcrest:hamcrest-core": {
+            "locked": "1.3",
+            "transitive": [
+                "junit:junit",
+                "org.mockito:mockito-core"
+            ]
+        },
+        "org.mockito:mockito-core": {
+            "locked": "1.10.19"
+        },
+        "org.objenesis:objenesis": {
+            "locked": "2.1",
+            "transitive": [
+                "org.mockito:mockito-core"
+            ]
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.25",
+            "transitive": [
+                "org.slf4j:slf4j-simple"
+            ]
+        },
+        "org.slf4j:slf4j-simple": {
+            "locked": "1.7.25"
+        }
+    },
+    "testCompileClasspath": {
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1"
+        },
+        "junit:junit": {
+            "locked": "4.12"
+        },
+        "org.apache.iceberg:iceberg-bundled-guava": {
+            "project": true
+        },
+        "org.hamcrest:hamcrest-core": {
+            "locked": "1.3",
+            "transitive": [
+                "junit:junit"
+            ]
+        },
+        "org.mockito:mockito-core": {
+            "locked": "1.10.19"
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.25",
+            "transitive": [
+                "org.slf4j:slf4j-simple"
+            ]
+        },
+        "org.slf4j:slf4j-simple": {
+            "locked": "1.7.25"
+        }
+    },
+    "testRuntime": {
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1"
+        },
+        "junit:junit": {
+            "locked": "4.12"
+        },
+        "org.apache.iceberg:iceberg-bundled-guava": {
+            "project": true
+        },
+        "org.hamcrest:hamcrest-core": {
+            "locked": "1.3",
+            "transitive": [
+                "junit:junit",
+                "org.mockito:mockito-core"
+            ]
+        },
+        "org.mockito:mockito-core": {
+            "locked": "1.10.19"
+        },
+        "org.objenesis:objenesis": {
+            "locked": "2.1",
+            "transitive": [
+                "org.mockito:mockito-core"
+            ]
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.25",
+            "transitive": [
+                "org.slf4j:slf4j-simple"
+            ]
+        },
+        "org.slf4j:slf4j-simple": {
+            "locked": "1.7.25"
+        }
+    },
+    "testRuntimeClasspath": {
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1"
+        },
+        "junit:junit": {
+            "locked": "4.12"
+        },
+        "org.apache.iceberg:iceberg-bundled-guava": {
+            "project": true
+        },
+        "org.hamcrest:hamcrest-core": {
+            "locked": "1.3",
+            "transitive": [
+                "junit:junit",
+                "org.mockito:mockito-core"
+            ]
+        },
+        "org.mockito:mockito-core": {
+            "locked": "1.10.19"
+        },
+        "org.objenesis:objenesis": {
+            "locked": "2.1",
+            "transitive": [
+                "org.mockito:mockito-core"
+            ]
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.25",
+            "transitive": [
+                "org.slf4j:slf4j-simple"
+            ]
+        },
+        "org.slf4j:slf4j-simple": {
+            "locked": "1.7.25"
+        }
+    }
+}
