@@ -179,9 +179,9 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
 
     // put new manifests at the beginning
     List<ManifestFile> apply = Lists.newArrayList();
-    apply.addAll(base.currentSnapshot().deleteManifests());
     Iterables.addAll(apply, newManifestsWithMetadata);
     apply.addAll(keptManifests);
+    apply.addAll(base.currentSnapshot().deleteManifests());
 
     return apply;
   }

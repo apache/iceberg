@@ -297,9 +297,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       Set<CharSequenceWrapper> deletedFiles = deletedFiles(unmergedManifests);
 
       List<ManifestFile> manifests = Lists.newArrayList();
-      if (current != null) {
-        manifests.addAll(current.deleteManifests());
-      }
       if (mergeEnabled) {
         groupManifestsByPartitionSpec(groups, unmergedManifests);
         for (Map.Entry<Integer, List<ManifestFile>> entry : groups.entrySet()) {
@@ -307,6 +304,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         }
       } else {
         Iterables.addAll(manifests, unmergedManifests);
+      }
+
+      if (current != null) {
+        manifests.addAll(current.deleteManifests());
       }
 
       ValidationException.check(!failMissingDeletePaths || deletedFiles.containsAll(deletePaths),

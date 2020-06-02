@@ -28,6 +28,7 @@ import java.util.stream.LongStream;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -224,6 +225,9 @@ public class TableTestBase {
   }
 
   void validateSnapshot(Snapshot old, Snapshot snap, Long sequenceNumber, DataFile... newFiles) {
+    Assert.assertEquals("Should not change delete manifests",
+        old != null ? Sets.newHashSet(old.deleteManifests()) : ImmutableSet.of(),
+        Sets.newHashSet(snap.deleteManifests()));
     List<ManifestFile> oldManifests = old != null ? old.dataManifests() : ImmutableList.of();
 
     // copy the manifests to a modifiable list and remove the existing manifests

@@ -136,7 +136,7 @@ public class AllManifestsTable extends BaseMetadataTable {
         } else {
           return StaticDataTask.of(
               ops.io().newInputFile(ops.current().file().location()),
-              snap.dataManifests(), // if the manifest list is missing, the table must be v1 and has no delete manifests
+              snap.allManifests(),
               manifest -> ManifestsTable.manifestFileToRow(table().spec(), manifest));
         }
       }));

@@ -122,10 +122,6 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   public List<ManifestFile> apply(TableMetadata base) {
     List<ManifestFile> newManifests = Lists.newArrayList();
 
-    if (base.currentSnapshot() != null) {
-      newManifests.addAll(base.currentSnapshot().deleteManifests());
-    }
-
     try {
       ManifestFile manifest = writeManifest();
       if (manifest != null) {
@@ -135,14 +131,13 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
       throw new RuntimeIOException(e, "Failed to write manifest");
     }
 
-    // TODO: add sequence numbers here
     Iterable<ManifestFile> appendManifestsWithMetadata = Iterables.transform(
         Iterables.concat(appendManifests, rewrittenAppendManifests),
         manifest -> GenericManifestFile.copyOf(manifest).withSnapshotId(snapshotId()).build());
     Iterables.addAll(newManifests, appendManifestsWithMetadata);
 
     if (base.currentSnapshot() != null) {
-      newManifests.addAll(base.currentSnapshot().dataManifests());
+      newManifests.addAll(base.currentSnapshot().allManifests());
     }
 
     return newManifests;
