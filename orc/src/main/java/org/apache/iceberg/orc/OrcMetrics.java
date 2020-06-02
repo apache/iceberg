@@ -22,10 +22,6 @@ package org.apache.iceberg.orc;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.orc.BooleanColumnStatistics;
 import org.apache.orc.ColumnStatistics;
 import org.apache.orc.DateColumnStatistics;
@@ -63,9 +60,6 @@ public class OrcMetrics {
 
   private OrcMetrics() {
   }
-
-  private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
-  private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
   public static Metrics fromInputFile(InputFile file) {
     final Configuration config = (file instanceof HadoopInputFile) ?
@@ -164,9 +158,8 @@ public class OrcMetrics {
           .orElse(null);
     } else if (columnStats instanceof DateColumnStatistics) {
       min = Optional.ofNullable(((DateColumnStatistics) columnStats).getMinimum())
-          .map(minStats ->
-              Math.toIntExact(ChronoUnit.DAYS.between(EPOCH_DAY,
-                  EPOCH.plus(minStats.getTime(), ChronoUnit.MILLIS).toLocalDate())))
+          .map(minStats -> DateTimeUtil.daysFromDate(
+              DateTimeUtil.EPOCH.plus(minStats.getTime(), ChronoUnit.MILLIS).toLocalDate()))
           .orElse(null);
     } else if (columnStats instanceof TimestampColumnStatistics) {
       TimestampColumnStatistics tColStats = (TimestampColumnStatistics) columnStats;
@@ -204,9 +197,8 @@ public class OrcMetrics {
           .orElse(null);
     } else if (columnStats instanceof DateColumnStatistics) {
       max = Optional.ofNullable(((DateColumnStatistics) columnStats).getMaximum())
-          .map(maxStats ->
-              (int) ChronoUnit.DAYS.between(EPOCH_DAY,
-                  EPOCH.plus(maxStats.getTime(), ChronoUnit.MILLIS).toLocalDate()))
+          .map(maxStats -> DateTimeUtil.daysFromDate(
+              DateTimeUtil.EPOCH.plus(maxStats.getTime(), ChronoUnit.MILLIS).toLocalDate()))
           .orElse(null);
     } else if (columnStats instanceof TimestampColumnStatistics) {
       TimestampColumnStatistics tColStats = (TimestampColumnStatistics) columnStats;
