@@ -23,7 +23,6 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
@@ -33,16 +32,12 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.TaskContext;
 import org.apache.spark.api.java.JavaRDD;
-import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.execution.streaming.MicroBatchExecution;
 import org.apache.spark.sql.sources.v2.writer.DataWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,17 +46,15 @@ public class RowDataRewriter implements Serializable {
 
   private static final Logger LOG = LoggerFactory.getLogger(RowDataRewriter.class);
 
-  private final transient JavaSparkContext sparkContext;
   private final Broadcast<FileIO> fileIO;
   private final Broadcast<EncryptionManager> encryptionManager;
   private final String tableSchema;
   private final Writer.WriterFactory writerFactory;
   private final boolean caseSensitive;
 
-  public RowDataRewriter(Table table, JavaSparkContext sparkContext, PartitionSpec spec, boolean caseSensitive,
+  public RowDataRewriter(Table table, PartitionSpec spec, boolean caseSensitive,
                          Broadcast<FileIO> fileIO, Broadcast<EncryptionManager> encryptionManager,
                          long targetDataFileSizeInBytes) {
-    this.sparkContext = sparkContext;
     this.fileIO = fileIO;
     this.encryptionManager = encryptionManager;
 
@@ -75,19 +68,15 @@ public class RowDataRewriter implements Serializable {
         fileIO, encryptionManager, targetDataFileSizeInBytes, table.schema(), SparkSchemaUtil.convert(table.schema()));
   }
 
-  public List<DataFile> rewriteDataForTasks(CloseableIterable<CombinedScanTask> tasks) {
-    List<CombinedScanTask> taskList = Lists.newArrayList(tasks);
-    int parallelism = taskList.size();
-
-    JavaRDD<CombinedScanTask> taskRDD = sparkContext.parallelize(taskList, parallelism);
-    JavaRDD<Writer.TaskCommit> taskCommitRDD = taskRDD.map(task -> rewriteDataForTask(task));
+  public List<DataFile> rewriteDataForTasks(JavaRDD<CombinedScanTask> taskRDD) {
+    JavaRDD<Writer.TaskCommit> taskCommitRDD = taskRDD.map(this::rewriteDataForTask);
 
     return taskCommitRDD.collect().stream()
         .flatMap(taskCommit -> Arrays.stream(taskCommit.files()))
         .collect(Collectors.toList());
   }
 
-  private Writer.TaskCommit rewriteDataForTask(CombinedScanTask task) throws Exception {
+  private Writer.TaskCommit rewriteDataForTask(CombinedScanTask task) {
     TaskContext context = TaskContext.get();
 
     RowDataReader dataReader = new RowDataReader(task, SchemaParser.fromJson(tableSchema),
@@ -95,9 +84,7 @@ public class RowDataRewriter implements Serializable {
 
     int partitionId = context.partitionId();
     long taskId = context.taskAttemptId();
-    long epochId = Long.parseLong(
-        Optional.ofNullable(context.getLocalProperty(MicroBatchExecution.BATCH_ID_KEY())).orElse("0"));
-    DataWriter<InternalRow> dataWriter = writerFactory.createDataWriter(partitionId, taskId, epochId);
+    DataWriter<InternalRow> dataWriter = writerFactory.createDataWriter(partitionId, taskId, 0);
 
     Throwable originalThrowable = null;
     try {
@@ -107,6 +94,7 @@ public class RowDataRewriter implements Serializable {
       }
 
       dataReader.close();
+      dataReader = null;
       return (Writer.TaskCommit) dataWriter.commit();
 
     } catch (Throwable t) {
@@ -117,7 +105,9 @@ public class RowDataRewriter implements Serializable {
 
         LOG.error("Aborting commit for partition {} (task {}, attempt {}, stage {}.{})",
             partitionId, taskId, context.attemptNumber(), context.stageId(), context.stageAttemptNumber());
-        dataReader.close();
+        if (dataReader != null) {
+          dataReader.close();
+        }
         dataWriter.abort();
         LOG.error("Aborted commit for partition {} (task {}, attempt {}, stage {}.{})",
             partitionId, taskId, context.taskAttemptId(), context.stageId(), context.stageAttemptNumber());
@@ -127,12 +117,9 @@ public class RowDataRewriter implements Serializable {
           originalThrowable.addSuppressed(inner);
           LOG.warn("Suppressing exception in catch: {}", inner.getMessage(), inner);
         }
-
-        // Wrap throwable in an Exception
-        throw new Exception(originalThrowable);
       }
-    }
 
-    return new Writer.TaskCommit();
+      throw new RuntimeException(originalThrowable);
+    }
   }
 }

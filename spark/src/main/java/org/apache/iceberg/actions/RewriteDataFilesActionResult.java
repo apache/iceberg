@@ -40,7 +40,7 @@ public class RewriteDataFilesActionResult {
     return EMPTY;
   }
 
-  public List<DataFile> deleteDataFiles() {
+  public List<DataFile> deletedDataFiles() {
     return deletedDataFiles;
   }
 

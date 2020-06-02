@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.actions;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -27,7 +28,6 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RewriteFiles;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -35,16 +35,20 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.source.RowDataRewriter;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.StructLikeWrapper;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
@@ -62,7 +66,8 @@ public class RewriteDataFilesAction
   private final Table table;
   private final FileIO fileIO;
   private final EncryptionManager encryptionManager;
-  private final long targetDataFileSizeBytes;
+  private long rewriteDataFileSizeInBytes;
+  private int splitLookback;
 
   private PartitionSpec spec = null;
   private Expression filter;
@@ -73,10 +78,25 @@ public class RewriteDataFilesAction
     this.table = table;
     this.spec = table.spec();
     this.filter = Expressions.alwaysTrue();
-    this.targetDataFileSizeBytes = PropertyUtil.propertyAsLong(
+
+    long splitSize = PropertyUtil.propertyAsLong(
+        table.properties(),
+        TableProperties.SPLIT_SIZE,
+        TableProperties.SPLIT_SIZE_DEFAULT);
+    long targetFileSize = PropertyUtil.propertyAsLong(
         table.properties(),
         TableProperties.WRITE_TARGET_FILE_SIZE_BYTES,
         TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
+    this.rewriteDataFileSizeInBytes = Math.min(splitSize, targetFileSize);
+
+    this.rewriteDataFileSizeInBytes = PropertyUtil.propertyAsLong(
+        table.properties(),
+        TableProperties.SPLIT_SIZE,
+        TableProperties.SPLIT_SIZE_DEFAULT);
+    this.splitLookback = PropertyUtil.propertyAsInt(
+        table.properties(),
+        TableProperties.SPLIT_LOOKBACK,
+        TableProperties.SPLIT_LOOKBACK_DEFAULT);
 
     if (table.io() instanceof HadoopFileIO) {
       // we need to use Spark's SerializableConfiguration to avoid issues with Kryo serialization
@@ -98,12 +118,50 @@ public class RewriteDataFilesAction
     return table;
   }
 
-  public RewriteDataFilesAction specId(int specId) {
+  /**
+   * Pass a PartitionSepc id to specify which PartitionSpec should be used in DataFile rewrite
+   *
+   * @param specId PartitionSpec id to rewrite
+   * @return this for method chaining
+   */
+  public RewriteDataFilesAction outputSpecId(int specId) {
     Preconditions.checkArgument(table.specs().containsKey(specId), "Invalid spec id %d", specId);
     this.spec = table.specs().get(specId);
     return this;
   }
 
+  /**
+   * Specify the rewrite data file size in bytes
+   *
+   * @param rewriteDataFileSize size of rewrite data file
+   * @return this for method chaining
+   */
+  public RewriteDataFilesAction rewriteDataFileSizeInBytes(long rewriteDataFileSize) {
+    Preconditions.checkArgument(rewriteDataFileSize > 0L, "Invalid rewrite data file size in bytes %d",
+        rewriteDataFileSize);
+    this.rewriteDataFileSizeInBytes = rewriteDataFileSize;
+    return this;
+  }
+
+  /**
+   * Specify the split lookback
+   *
+   * @param lookback lookback number to split
+   * @return this for method chaining
+   */
+  public RewriteDataFilesAction splitLookback(int lookback) {
+    Preconditions.checkArgument(lookback > 0L, "Invalid split lookback %d", lookback);
+    this.splitLookback = lookback;
+    return this;
+  }
+
+  /**
+   * Pass a row Expression to filter DataFiles to be rewritten. This is typically used when only rewriting DatFiles
+   * under some partitions.
+   *
+   * @param expr Expression to filter out DataFiles
+   * @return this for method chaining
+   */
   public RewriteDataFilesAction filter(Expression expr) {
     this.filter = Expressions.and(filter, expr);
     return this;
@@ -114,73 +172,97 @@ public class RewriteDataFilesAction
     CloseableIterable<FileScanTask> fileScanTasks = table.newScan()
         .filter(filter)
         .planFiles();
-    List<DataFile> currentDataFiles =
-        Lists.newArrayList(CloseableIterable.transform(fileScanTasks, FileScanTask::file));
-    if (currentDataFiles.isEmpty()) {
+
+    Map<StructLikeWrapper, List<FileScanTask>> groupedTasks = groupTasksByPartition(fileScanTasks.iterator());
+    // Nothing to rewrite if the table is empty.
+    if (groupedTasks.isEmpty()) {
       return RewriteDataFilesActionResult.empty();
     }
 
-    List<CloseableIterable<FileScanTask>> groupedTasks = groupTasksByPartition(fileScanTasks);
+    Map<StructLikeWrapper, List<FileScanTask>> filteredGroupedTasks = groupedTasks.entrySet().stream()
+        .filter(kv -> kv.getValue().size() > 1)
+        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    // Nothing to rewrite if there's only one DataFile in each partition.
+    if (filteredGroupedTasks.isEmpty()) {
+      return RewriteDataFilesActionResult.empty();
+    }
 
-    long splitSize = PropertyUtil.propertyAsLong(
-        table.properties(),
-        TableProperties.SPLIT_SIZE,
-        TableProperties.SPLIT_SIZE_DEFAULT);
-    int lookbak = PropertyUtil.propertyAsInt(
-        table.properties(),
-        TableProperties.SPLIT_LOOKBACK,
-        TableProperties.SPLIT_LOOKBACK_DEFAULT);
     long openFileCost = PropertyUtil.propertyAsLong(
         table.properties(),
         TableProperties.SPLIT_OPEN_FILE_COST,
-        TableProperties.SPLIT_LOOKBACK_DEFAULT);
+        TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
 
-    List<CloseableIterable<CombinedScanTask>> groupedCombinedTasks = groupedTasks.stream()
-        .map(tasks -> {
-          CloseableIterable<FileScanTask> splitTasks = TableScanUtil.splitFiles(tasks, splitSize);
-          return TableScanUtil.planTasks(splitTasks, splitSize, lookbak, openFileCost);
+    // Split and combine tasks under each partition
+    List<CloseableIterable<CombinedScanTask>> groupedCombinedTasks = filteredGroupedTasks.values().stream()
+        .map(scanTasks -> {
+          CloseableIterable<FileScanTask> splitTasks = TableScanUtil.splitFiles(
+              CloseableIterable.withNoopClose(scanTasks), rewriteDataFileSizeInBytes);
+          return TableScanUtil.planTasks(splitTasks, rewriteDataFileSizeInBytes, splitLookback, openFileCost);
         })
         .collect(Collectors.toList());
-    CloseableIterable<CombinedScanTask> combinedScanTasks = CloseableIterable.concat(groupedCombinedTasks);
+    List<CombinedScanTask> combinedScanTasks = groupedCombinedTasks.stream()
+        .flatMap(Streams::stream)
+        .collect(Collectors.toList());
+
+    JavaRDD<CombinedScanTask> taskRDD = sparkContext.parallelize(combinedScanTasks, combinedScanTasks.size());
 
     Broadcast<FileIO> io = sparkContext.broadcast(fileIO);
     Broadcast<EncryptionManager> encryption = sparkContext.broadcast(encryptionManager);
     boolean caseSensitive = Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive", "false"));
 
-    RowDataRewriter rowDataRewriter = new RowDataRewriter(table, sparkContext, spec,
-        caseSensitive, io, encryption, targetDataFileSizeBytes);
-    List<DataFile> addedDataFiles = rowDataRewriter.rewriteDataForTasks(combinedScanTasks);
+    RowDataRewriter rowDataRewriter = new RowDataRewriter(table, spec, caseSensitive, io, encryption,
+        rewriteDataFileSizeInBytes);
 
+    List<DataFile> addedDataFiles = rowDataRewriter.rewriteDataForTasks(taskRDD);
+    List<DataFile> currentDataFiles = filteredGroupedTasks.values().stream()
+        .flatMap(tasks -> tasks.stream().map(FileScanTask::file))
+        .collect(Collectors.toList());
     replaceDataFiles(currentDataFiles, addedDataFiles);
 
     return new RewriteDataFilesActionResult(currentDataFiles, addedDataFiles);
   }
 
-  private List<CloseableIterable<FileScanTask>> groupTasksByPartition(CloseableIterable<FileScanTask> tasks) {
-    Map<StructLike, List<FileScanTask>> tasksGroupedByPartition = Maps.newHashMap();
+  private Map<StructLikeWrapper, List<FileScanTask>> groupTasksByPartition(CloseableIterator<FileScanTask> tasksIter) {
+    Map<StructLikeWrapper, List<FileScanTask>> tasksGroupedByPartition = Maps.newHashMap();
 
-    tasks.forEach(task -> {
-      List<FileScanTask> taskList = tasksGroupedByPartition.getOrDefault(task.file().partition(), Lists.newArrayList());
-      taskList.add(task);
-      tasksGroupedByPartition.put(task.file().partition(), taskList);
-    });
+    try {
+      tasksIter.forEachRemaining(task -> {
+        StructLikeWrapper structLike = StructLikeWrapper.wrap(task.file().partition());
+        List<FileScanTask> taskList = tasksGroupedByPartition.getOrDefault(structLike, Lists.newArrayList());
+        taskList.add(task);
+        tasksGroupedByPartition.put(structLike, taskList);
+      });
+    } finally {
+      try {
+        tasksIter.close();
+      } catch (IOException ioe) {
+        LOG.warn("Faile to close task iterator", ioe);
+      }
+    }
 
-    return tasksGroupedByPartition.values().stream()
-        .map(list -> CloseableIterable.combine(list, tasks))
-        .collect(Collectors.toList());
+    return tasksGroupedByPartition;
   }
 
   private void replaceDataFiles(Iterable<DataFile> deletedDataFiles, Iterable<DataFile> addedDataFiles) {
+    boolean threw = true;
+
     try {
       RewriteFiles rewriteFiles = table.newRewrite();
       rewriteFiles.rewriteFiles(Sets.newHashSet(deletedDataFiles), Sets.newHashSet(addedDataFiles));
       commit(rewriteFiles);
-    } catch (Exception e) {
-      Tasks.foreach(Iterables.transform(addedDataFiles, f -> f.path().toString()))
-          .noRetry()
-          .suppressFailureWhenFinished()
-          .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))
-          .run(fileIO::deleteFile);
+      threw = false;
+
+    } catch (Throwable t) {
+      LOG.error("Failed to rewrite DataFiles", t);
+
+    } finally {
+      if (threw) {
+        Tasks.foreach(Iterables.transform(addedDataFiles, f -> f.path().toString()))
+            .noRetry()
+            .suppressFailureWhenFinished()
+            .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))
+            .run(fileIO::deleteFile);
+      }
     }
   }
 }

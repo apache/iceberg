@@ -79,9 +79,6 @@ public class TestRewriteDataFilesAction {
 
   private String tableLocation = null;
 
-  public TestRewriteDataFilesAction() {
-  }
-
   @Before
   public void setupTableLocation() throws Exception {
     File tableDir = temp.newFolder();
@@ -130,7 +127,7 @@ public class TestRewriteDataFilesAction {
     Actions actions = Actions.forTable(table);
 
     RewriteDataFilesActionResult result = actions.rewriteDataFiles().execute();
-    Assert.assertEquals("Action should rewrite 4 data files", 4, result.deleteDataFiles().size());
+    Assert.assertEquals("Action should rewrite 4 data files", 4, result.deletedDataFiles().size());
     Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
 
     table.refresh();
@@ -193,7 +190,7 @@ public class TestRewriteDataFilesAction {
     Actions actions = Actions.forTable(table);
 
     RewriteDataFilesActionResult result = actions.rewriteDataFiles().execute();
-    Assert.assertEquals("Action should rewrite 8 data files", 8, result.deleteDataFiles().size());
+    Assert.assertEquals("Action should rewrite 8 data files", 8, result.deletedDataFiles().size());
     Assert.assertEquals("Action should add 4 data file", 4, result.addedDataFiles().size());
 
     table.refresh();
@@ -262,7 +259,7 @@ public class TestRewriteDataFilesAction {
         .filter(Expressions.equal("c1", 1))
         .filter(Expressions.startsWith("c2", "AA"))
         .execute();
-    Assert.assertEquals("Action should rewrite 2 data files", 2, result.deleteDataFiles().size());
+    Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
     Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
 
     table.refresh();
