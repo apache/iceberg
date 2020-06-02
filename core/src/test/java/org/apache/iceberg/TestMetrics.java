@@ -312,16 +312,22 @@ public abstract class TestMetrics {
 
     InputFile recordsFile = writeRecords(schema, record);
 
-    Long expectedNullCount = fileFormat() == FileFormat.ORC ? null : 0L;
     Metrics metrics = getMetrics(recordsFile);
     Assert.assertEquals(1L, (long) metrics.recordCount());
-    assertCounts(1, fileFormat() == FileFormat.ORC ? null : 1L, expectedNullCount, metrics);
+    if (fileFormat() != FileFormat.ORC) {
+      assertCounts(1, 1L, 0L, metrics);
+      assertCounts(2, 1L, 0L, metrics);
+      assertCounts(4, 3L, 0L, metrics);
+      assertCounts(6, 1L, 0L, metrics);
+    } else {
+      assertCounts(1, null, null, metrics);
+      assertCounts(2, null, null, metrics);
+      assertCounts(4, null, null, metrics);
+      assertCounts(6, null, null, metrics);
+    }
     assertBounds(1, IntegerType.get(), null, null, metrics);
-    assertCounts(2, fileFormat() == FileFormat.ORC ? null : 1L, expectedNullCount, metrics);
     assertBounds(2, StringType.get(), null, null, metrics);
-    assertCounts(4, fileFormat() == FileFormat.ORC ? null : 3L, expectedNullCount, metrics);
     assertBounds(4, IntegerType.get(), null, null, metrics);
-    assertCounts(6, fileFormat() == FileFormat.ORC ? null : 1L, expectedNullCount, metrics);
     assertBounds(6, StringType.get(), null, null, metrics);
     assertBounds(7, structType, null, null, metrics);
   }
