@@ -87,12 +87,15 @@ public abstract class TestMetrics {
       required(7, "stringCol", StringType.get()),
       optional(8, "dateCol", DateType.get()),
       required(9, "timeCol", TimeType.get()),
-      required(10, "timestampCol", TimestampType.withoutZone()),
+      required(10, "timestampColAboveEpoch", TimestampType.withoutZone()),
       required(11, "fixedCol", FixedType.ofLength(4)),
-      required(12, "binaryCol", BinaryType.get())
+      required(12, "binaryCol", BinaryType.get()),
+      required(13, "timestampColBelowEpoch", TimestampType.withoutZone())
   );
 
   private final byte[] fixed = "abcd".getBytes(StandardCharsets.UTF_8);
+
+  public abstract FileFormat fileFormat();
 
   public abstract Metrics getMetrics(InputFile file);
 
@@ -101,7 +104,7 @@ public abstract class TestMetrics {
   public abstract InputFile writeRecordsWithSmallRowGroups(Schema schema, Record... records)
       throws IOException;
 
-  public abstract int splitCount(InputFile parquetFile) throws IOException;
+  public abstract int splitCount(InputFile inputFile) throws IOException;
 
   public boolean supportsSmallRowGroups() {
     return false;
@@ -119,9 +122,10 @@ public abstract class TestMetrics {
     firstRecord.setField("stringCol", "AAA");
     firstRecord.setField("dateCol", DateTimeUtil.dateFromDays(1500));
     firstRecord.setField("timeCol", DateTimeUtil.timeFromMicros(2000L));
-    firstRecord.setField("timestampCol", DateTimeUtil.timestampFromMicros(0L));
+    firstRecord.setField("timestampColAboveEpoch", DateTimeUtil.timestampFromMicros(0L));
     firstRecord.setField("fixedCol", fixed);
     firstRecord.setField("binaryCol", ByteBuffer.wrap("S".getBytes()));
+    firstRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(0L));
     Record secondRecord = GenericRecord.create(SIMPLE_SCHEMA);
     secondRecord.setField("booleanCol", true);
     secondRecord.setField("intCol", 3);
@@ -132,9 +136,10 @@ public abstract class TestMetrics {
     secondRecord.setField("stringCol", "AAA");
     secondRecord.setField("dateCol", DateTimeUtil.dateFromDays(1500));
     secondRecord.setField("timeCol", DateTimeUtil.timeFromMicros(2000L));
-    secondRecord.setField("timestampCol", DateTimeUtil.timestampFromMicros(0L));
+    secondRecord.setField("timestampColAboveEpoch", DateTimeUtil.timestampFromMicros(0L));
     secondRecord.setField("fixedCol", fixed);
     secondRecord.setField("binaryCol", ByteBuffer.wrap("S".getBytes()));
+    secondRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(0L));
 
     InputFile recordsFile = writeRecords(SIMPLE_SCHEMA, firstRecord, secondRecord);
 
@@ -152,6 +157,7 @@ public abstract class TestMetrics {
     assertCounts(10, 2L, 0L, metrics);
     assertCounts(11, 2L, 0L, metrics);
     assertCounts(12, 2L, 0L, metrics);
+    assertCounts(13, 2L, 0L, metrics);
   }
 
   @Test
@@ -166,9 +172,10 @@ public abstract class TestMetrics {
     firstRecord.setField("stringCol", "AAA");
     firstRecord.setField("dateCol", DateTimeUtil.dateFromDays(1500));
     firstRecord.setField("timeCol", DateTimeUtil.timeFromMicros(2000L));
-    firstRecord.setField("timestampCol", DateTimeUtil.timestampFromMicros(0L));
+    firstRecord.setField("timestampColAboveEpoch", DateTimeUtil.timestampFromMicros(0L));
     firstRecord.setField("fixedCol", fixed);
     firstRecord.setField("binaryCol", ByteBuffer.wrap("S".getBytes()));
+    firstRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(-1_900_300L));
     Record secondRecord = GenericRecord.create(SIMPLE_SCHEMA);
     secondRecord.setField("booleanCol", false);
     secondRecord.setField("intCol", Integer.MIN_VALUE);
@@ -179,9 +186,10 @@ public abstract class TestMetrics {
     secondRecord.setField("stringCol", "ZZZ");
     secondRecord.setField("dateCol", null);
     secondRecord.setField("timeCol", DateTimeUtil.timeFromMicros(3000L));
-    secondRecord.setField("timestampCol", DateTimeUtil.timestampFromMicros(1000L));
+    secondRecord.setField("timestampColAboveEpoch", DateTimeUtil.timestampFromMicros(900L));
     secondRecord.setField("fixedCol", fixed);
     secondRecord.setField("binaryCol", ByteBuffer.wrap("W".getBytes()));
+    secondRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(0L));
 
     InputFile recordsFile = writeRecords(SIMPLE_SCHEMA, firstRecord, secondRecord);
 
@@ -206,13 +214,27 @@ public abstract class TestMetrics {
     assertCounts(9, 2L, 0L, metrics);
     assertBounds(9, TimeType.get(), 2000L, 3000L, metrics);
     assertCounts(10, 2L, 0L, metrics);
-    assertBounds(10, TimestampType.withoutZone(), 0L, 1000L, metrics);
+    if (fileFormat() == FileFormat.ORC) {
+      // ORC-611: ORC only supports millisecond precision, so we adjust by 1 millisecond
+      assertBounds(10, TimestampType.withoutZone(), 0L, 1000L, metrics);
+    } else {
+      assertBounds(10, TimestampType.withoutZone(), 0L, 900L, metrics);
+    }
     assertCounts(11, 2L, 0L, metrics);
     assertBounds(11, FixedType.ofLength(4),
         ByteBuffer.wrap(fixed), ByteBuffer.wrap(fixed), metrics);
     assertCounts(12, 2L, 0L, metrics);
     assertBounds(12, BinaryType.get(),
         ByteBuffer.wrap("S".getBytes()), ByteBuffer.wrap("W".getBytes()), metrics);
+    if (fileFormat() == FileFormat.ORC) {
+      // TODO: enable when ORC-342 is fixed - ORC-342: creates inaccurate timestamp/stats below epoch
+      // ORC-611: ORC only supports millisecond precision, so we adjust by 1 millisecond, e.g.
+      // assertBounds(13, TimestampType.withoutZone(), -1000L, 1000L, metrics); would fail for a value
+      // in the range `[1970-01-01 00:00:00.000,1970-01-01 00:00:00.999]`
+      assertBounds(13, TimestampType.withoutZone(), -1_901_000L, 1000L, metrics);
+    } else {
+      assertBounds(13, TimestampType.withoutZone(), -1_900_300L, 0L, metrics);
+    }
   }
 
   @Test
@@ -292,14 +314,22 @@ public abstract class TestMetrics {
 
     Metrics metrics = getMetrics(recordsFile);
     Assert.assertEquals(1L, (long) metrics.recordCount());
-    assertCounts(1, 1, 0, metrics);
+    if (fileFormat() != FileFormat.ORC) {
+      assertCounts(1, 1L, 0L, metrics);
+      assertCounts(2, 1L, 0L, metrics);
+      assertCounts(4, 3L, 0L, metrics);
+      assertCounts(6, 1L, 0L, metrics);
+    } else {
+      assertCounts(1, null, null, metrics);
+      assertCounts(2, null, null, metrics);
+      assertCounts(4, null, null, metrics);
+      assertCounts(6, null, null, metrics);
+    }
     assertBounds(1, IntegerType.get(), null, null, metrics);
-    assertCounts(2, 1, 0, metrics);
     assertBounds(2, StringType.get(), null, null, metrics);
-    assertCounts(4, 3, 0, metrics);
     assertBounds(4, IntegerType.get(), null, null, metrics);
-    assertCounts(6, 1, 0, metrics);
     assertBounds(6, StringType.get(), null, null, metrics);
+    assertBounds(7, structType, null, null, metrics);
   }
 
   @Test
@@ -316,7 +346,7 @@ public abstract class TestMetrics {
 
     Metrics metrics = getMetrics(recordsFile);
     Assert.assertEquals(2L, (long) metrics.recordCount());
-    assertCounts(1, 2, 2, metrics);
+    assertCounts(1, 2L, 2L, metrics);
     assertBounds(1, IntegerType.get(), null, null, metrics);
   }
 
@@ -338,13 +368,14 @@ public abstract class TestMetrics {
       newRecord.setField("stringCol", "AAA");
       newRecord.setField("dateCol", DateTimeUtil.dateFromDays(i + 1));
       newRecord.setField("timeCol", DateTimeUtil.timeFromMicros(i + 1L));
-      newRecord.setField("timestampCol", DateTimeUtil.timestampFromMicros(i + 1L));
+      newRecord.setField("timestampColAboveEpoch", DateTimeUtil.timestampFromMicros(i + 1L));
       newRecord.setField("fixedCol", fixed);
       newRecord.setField("binaryCol", ByteBuffer.wrap("S".getBytes()));
+      newRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros((i + 1L) * -1L));
       records.add(newRecord);
     }
 
-    // create parquet file with multiple row groups. by using smaller number of bytes
+    // create file with multiple row groups. by using smaller number of bytes
     InputFile recordsFile = writeRecordsWithSmallRowGroups(SIMPLE_SCHEMA, records.toArray(new Record[0]));
 
     Assert.assertNotNull(recordsFile);
@@ -387,7 +418,7 @@ public abstract class TestMetrics {
       records.add(newRecord);
     }
 
-    // create parquet file with multiple row groups. by using smaller number of bytes
+    // create file with multiple row groups. by using smaller number of bytes
     InputFile recordsFile = writeRecordsWithSmallRowGroups(NESTED_SCHEMA, records.toArray(new Record[0]));
 
     Assert.assertNotNull(recordsFile);
@@ -407,14 +438,14 @@ public abstract class TestMetrics {
         ByteBuffer.wrap("A".getBytes()), ByteBuffer.wrap("A".getBytes()), metrics);
   }
 
-  private void assertCounts(int fieldId, long valueCount, long nullValueCount, Metrics metrics) {
+  private void assertCounts(int fieldId, Long valueCount, Long nullValueCount, Metrics metrics) {
     Map<Integer, Long> valueCounts = metrics.valueCounts();
     Map<Integer, Long> nullValueCounts = metrics.nullValueCounts();
-    Assert.assertEquals(valueCount, (long) valueCounts.get(fieldId));
-    Assert.assertEquals(nullValueCount, (long) nullValueCounts.get(fieldId));
+    Assert.assertEquals(valueCount, valueCounts.get(fieldId));
+    Assert.assertEquals(nullValueCount, nullValueCounts.get(fieldId));
   }
 
-  private <T> void assertBounds(int fieldId, Type type, T lowerBound, T upperBound, Metrics metrics) {
+  protected <T> void assertBounds(int fieldId, Type type, T lowerBound, T upperBound, Metrics metrics) {
     Map<Integer, ByteBuffer> lowerBounds = metrics.lowerBounds();
     Map<Integer, ByteBuffer> upperBounds = metrics.upperBounds();
 
