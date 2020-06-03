@@ -218,7 +218,7 @@ class BaseSnapshot implements Snapshot {
         .add("timestamp_ms", timestampMillis)
         .add("operation", operation)
         .add("summary", summary)
-        .add("manifest-list", manifestList.location())
+        .add("manifest-list", manifestListLocation)
         .toString();
   }
 }
