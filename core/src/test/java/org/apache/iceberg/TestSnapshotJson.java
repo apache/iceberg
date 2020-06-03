@@ -19,11 +19,11 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -47,7 +47,7 @@ public class TestSnapshotJson {
     Assert.assertEquals("Snapshot ID should match",
         expected.snapshotId(), snapshot.snapshotId());
     Assert.assertEquals("Files should match",
-        expected.manifests(), snapshot.manifests());
+        expected.allManifests(), snapshot.allManifests());
     Assert.assertNull("Operation should be null", snapshot.operation());
     Assert.assertNull("Summary should be null", snapshot.summary());
   }
@@ -78,7 +78,7 @@ public class TestSnapshotJson {
     Assert.assertEquals("Manifest list should match",
         expected.manifestListLocation(), snapshot.manifestListLocation());
     Assert.assertEquals("Files should match",
-        expected.manifests(), snapshot.manifests());
+        expected.allManifests(), snapshot.allManifests());
     Assert.assertEquals("Operation should match",
         expected.operation(), snapshot.operation());
     Assert.assertEquals("Summary should match",
@@ -107,7 +107,7 @@ public class TestSnapshotJson {
         ops.io(), id, parentId, expected.timestampMillis(), null, null, manifests);
 
     Assert.assertEquals("Files should match in memory list",
-        inMemory.manifests(), expected.manifests());
+        inMemory.allManifests(), expected.allManifests());
 
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json);
@@ -123,7 +123,7 @@ public class TestSnapshotJson {
     Assert.assertEquals("Manifest list should match",
         expected.manifestListLocation(), snapshot.manifestListLocation());
     Assert.assertEquals("Files should match",
-        expected.manifests(), snapshot.manifests());
+        expected.allManifests(), snapshot.allManifests());
     Assert.assertNull("Operation should be null", snapshot.operation());
     Assert.assertNull("Summary should be null", snapshot.summary());
   }

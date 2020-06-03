@@ -19,7 +19,7 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -75,7 +75,7 @@ public class TestEntriesMetadataTable extends TableTestBase {
 
     FileScanTask file = Iterables.getOnlyElement(scan.planFiles());
     Assert.assertEquals("Data file should be the table's manifest",
-        Iterables.getOnlyElement(table.currentSnapshot().manifests()).path(), file.file().path());
+        Iterables.getOnlyElement(table.currentSnapshot().allManifests()).path(), file.file().path());
     Assert.assertEquals("Should contain 2 data file records", 2, file.file().recordCount());
   }
 
@@ -124,10 +124,10 @@ public class TestEntriesMetadataTable extends TableTestBase {
     int splitSize = (int) TableProperties.METADATA_SPLIT_SIZE_DEFAULT; // default split size is 32 MB
 
     Table entriesTable = new ManifestEntriesTable(table.ops(), table);
-    Assert.assertEquals(1, entriesTable.currentSnapshot().manifests().size());
+    Assert.assertEquals(1, entriesTable.currentSnapshot().allManifests().size());
 
     int expectedSplits =
-        ((int) entriesTable.currentSnapshot().manifests().get(0).length() + splitSize - 1) / splitSize;
+        ((int) entriesTable.currentSnapshot().allManifests().get(0).length() + splitSize - 1) / splitSize;
 
     TableScan scan = entriesTable.newScan();
 

@@ -19,11 +19,6 @@
 
 package org.apache.iceberg.mr.mapreduce;
 
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
-import java.io.Closeable;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -56,8 +51,12 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.SerializationUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
@@ -65,6 +64,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Generic Mrv2 InputFormat API for Iceberg.
+ *
  * @param <T> T is the in memory data model which can either be Pig tuples, Hive rows. Default is Iceberg records
  */
 public class IcebergInputFormat<T> extends InputFormat<Void, T> {
@@ -123,9 +123,9 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       Expression residual = fileScanTask.residual();
       if (residual != null && !residual.equals(Expressions.alwaysTrue())) {
         throw new UnsupportedOperationException(
-            String.format(
-                "Filter expression %s is not completely satisfied. Additional rows " +
-                    "can be returned not satisfied by the filter expression", residual));
+                String.format(
+                        "Filter expression %s is not completely satisfied. Additional rows " +
+                                "can be returned not satisfied by the filter expression", residual));
       }
     });
   }
@@ -139,12 +139,13 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private TaskAttemptContext context;
     private Schema tableSchema;
     private Schema expectedSchema;
+    private boolean reuseContainers;
+    private boolean caseSensitive;
     private InMemoryDataModel inMemoryDataModel;
     private Map<String, Integer> namesToPos;
     private Iterator<FileScanTask> tasks;
     private T currentRow;
-    private Iterator<T> currentIterator;
-    private Closeable currentCloseable;
+    private CloseableIterator<T> currentIterator;
 
     @Override
     public void initialize(InputSplit split, TaskAttemptContext newContext) {
@@ -157,6 +158,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       String readSchemaStr = conf.get(InputFormatConfig.READ_SCHEMA);
       this.expectedSchema = readSchemaStr != null ? SchemaParser.fromJson(readSchemaStr) : tableSchema;
       this.namesToPos = buildNameToPos(expectedSchema);
+      this.reuseContainers = conf.getBoolean(InputFormatConfig.REUSE_CONTAINERS, false);
+      this.caseSensitive = conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, true);
       this.inMemoryDataModel = conf.getEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL, InMemoryDataModel.GENERIC);
       this.currentIterator = open(tasks.next());
     }
@@ -168,10 +171,10 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           currentRow = currentIterator.next();
           return true;
         } else if (tasks.hasNext()) {
-          currentCloseable.close();
+          currentIterator.close();
           currentIterator = open(tasks.next());
         } else {
-          currentCloseable.close();
+          currentIterator.close();
           return false;
         }
       }
@@ -200,7 +203,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     @Override
     public void close() throws IOException {
-      currentCloseable.close();
+      currentIterator.close();
     }
 
     private static Map<String, Integer> buildNameToPos(Schema expectedSchema) {
@@ -212,39 +215,40 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       return nameToPos;
     }
 
-    private Iterator<T> open(FileScanTask currentTask) {
+    private CloseableIterator<T> open(FileScanTask currentTask) {
       DataFile file = currentTask.file();
       // schema of rows returned by readers
       PartitionSpec spec = currentTask.spec();
-      Set<Integer> idColumns =  Sets.intersection(spec.identitySourceIds(), TypeUtil.getProjectedIds(expectedSchema));
+      Set<Integer> idColumns = Sets.intersection(spec.identitySourceIds(), TypeUtil.getProjectedIds(expectedSchema));
       boolean hasJoinedPartitionColumns = !idColumns.isEmpty();
 
+      CloseableIterable<T> iterable;
       if (hasJoinedPartitionColumns) {
         Schema readDataSchema = TypeUtil.selectNot(expectedSchema, idColumns);
         Schema identityPartitionSchema = TypeUtil.select(expectedSchema, idColumns);
-        return Iterators.transform(
-            open(currentTask, readDataSchema),
+        iterable = CloseableIterable.transform(open(currentTask, readDataSchema),
             row -> withIdentityPartitionColumns(row, identityPartitionSchema, spec, file.partition()));
       } else {
-        return open(currentTask, expectedSchema);
+        iterable = open(currentTask, expectedSchema);
       }
+
+      return iterable.iterator();
     }
 
-    private Iterator<T> open(FileScanTask currentTask, Schema readSchema) {
+    private CloseableIterable<T> open(FileScanTask currentTask, Schema readSchema) {
       org.apache.iceberg.mr.IcebergRecordReader<T> wrappedReader = new org.apache.iceberg.mr.IcebergRecordReader<T>();
       CloseableIterable<T> iterable = wrappedReader.createReader(context.getConfiguration(), currentTask, readSchema);
-      currentCloseable = iterable;
-      return iterable.iterator();
+      return iterable;
     }
 
     @SuppressWarnings("unchecked")
     private T withIdentityPartitionColumns(
-        T row, Schema identityPartitionSchema, PartitionSpec spec, StructLike partition) {
+            T row, Schema identityPartitionSchema, PartitionSpec spec, StructLike partition) {
       switch (inMemoryDataModel) {
         case PIG:
         case HIVE:
           throw new UnsupportedOperationException(
-              "Adding partition columns to Pig and Hive data model are not supported yet");
+                  "Adding partition columns to Pig and Hive data model are not supported yet");
         case GENERIC:
           return (T) withIdentityPartitionColumns((Record) row, identityPartitionSchema, spec, partition);
       }
@@ -252,7 +256,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     private Record withIdentityPartitionColumns(
-        Record record, Schema identityPartitionSchema, PartitionSpec spec, StructLike partitionTuple) {
+            Record record, Schema identityPartitionSchema, PartitionSpec spec, StructLike partitionTuple) {
       List<PartitionField> partitionFields = spec.fields();
       List<Types.NestedField> identityColumns = identityPartitionSchema.columns();
       GenericRecord row = GenericRecord.create(expectedSchema.asStruct());
@@ -269,8 +273,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           for (int j = 0; j < partitionFields.size(); j++) {
             PartitionField partitionField = partitionFields.get(j);
             if (name.equals(identityColumn.name()) &&
-                identityColumn.fieldId() == partitionField.sourceId() &&
-                "identity".equals(partitionField.transform().toString())) {
+                    identityColumn.fieldId() == partitionField.sourceId() &&
+                    "identity".equals(partitionField.transform().toString())) {
               row.set(pos, partitionTuple.get(j, spec.javaClasses()[j]));
             }
           }
@@ -279,7 +283,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
       return row;
     }
-
   }
 
   static class IcebergSplit extends InputSplit implements Writable {
@@ -326,3 +329,4 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
   }
 }
+

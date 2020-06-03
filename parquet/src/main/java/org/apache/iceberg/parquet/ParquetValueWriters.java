@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.parquet;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -29,6 +27,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnWriteStore;
@@ -49,7 +49,31 @@ public class ParquetValueWriters {
     return writer;
   }
 
-  public static <T> UnboxedWriter<T> unboxed(ColumnDescriptor desc) {
+  public static UnboxedWriter<Boolean> booleans(ColumnDescriptor desc) {
+    return new UnboxedWriter<>(desc);
+  }
+
+  public static UnboxedWriter<Byte> tinyints(ColumnDescriptor desc) {
+    return new ByteWriter(desc);
+  }
+
+  public static UnboxedWriter<Short> shorts(ColumnDescriptor desc) {
+    return new ShortWriter(desc);
+  }
+
+  public static UnboxedWriter<Integer> ints(ColumnDescriptor desc) {
+    return new UnboxedWriter<>(desc);
+  }
+
+  public static UnboxedWriter<Long> longs(ColumnDescriptor desc) {
+    return new UnboxedWriter<>(desc);
+  }
+
+  public static UnboxedWriter<Float> floats(ColumnDescriptor desc) {
+    return new UnboxedWriter<>(desc);
+  }
+
+  public static UnboxedWriter<Double> doubles(ColumnDescriptor desc) {
     return new UnboxedWriter<>(desc);
   }
 
@@ -135,6 +159,28 @@ public class ParquetValueWriters {
 
     public void writeDouble(int repetitionLevel, double value) {
       column.writeDouble(repetitionLevel, value);
+    }
+  }
+
+  private static class ByteWriter extends UnboxedWriter<Byte> {
+    private ByteWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, Byte value) {
+      writeInteger(repetitionLevel, value.intValue());
+    }
+  }
+
+  private static class ShortWriter extends UnboxedWriter<Short> {
+    private ShortWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, Short value) {
+      writeInteger(repetitionLevel, value.intValue());
     }
   }
 

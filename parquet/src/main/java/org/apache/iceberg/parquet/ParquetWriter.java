@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.parquet;
 
-import com.google.common.collect.ImmutableMap;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
@@ -34,6 +33,7 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.parquet.bytes.ByteBufferAllocator;
 import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.column.ParquetProperties;
@@ -45,24 +45,13 @@ import org.apache.parquet.schema.MessageType;
 
 class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
-  // We have one for Parquet 1.10 and one for 1.11. The signature changed, but we still want
-  // to be compatible with both of them
   private static DynConstructors.Ctor<PageWriteStore> pageStoreCtorParquet = DynConstructors
           .builder(PageWriteStore.class)
-
-          // Parquet 1.11
           .hiddenImpl("org.apache.parquet.hadoop.ColumnChunkPageWriteStore",
               CodecFactory.BytesCompressor.class,
               MessageType.class,
               ByteBufferAllocator.class,
               int.class)
-
-          // Parquet 1.10
-          .hiddenImpl("org.apache.parquet.hadoop.ColumnChunkPageWriteStore",
-              CodecFactory.BytesCompressor.class,
-              MessageType.class,
-              ByteBufferAllocator.class)
-
           .build();
 
   private static final DynMethods.UnboundMethod flushToWriter = DynMethods
@@ -86,7 +75,6 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private long recordCount = 0;
   private long nextCheckRecordCount = 10;
 
-  // Copied from Parquet 1.11.0 to keep support for 1.10.0
   private static final String COLUMN_INDEX_TRUNCATE_LENGTH = "parquet.columnindex.truncate.length";
   private static final int DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH = 64;
 

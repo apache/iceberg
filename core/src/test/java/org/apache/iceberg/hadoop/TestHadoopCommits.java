@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.hadoop;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -37,6 +35,8 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
@@ -283,7 +283,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     TableMetadata metadata = readMetadataVersion(3);
     Assert.assertEquals("Current snapshot should contain 2 manifests",
-        2, metadata.currentSnapshot().manifests().size());
+        2, metadata.currentSnapshot().allManifests().size());
   }
 
   @Test
@@ -306,7 +306,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     TableMetadata metadata = readMetadataVersion(5);
     Assert.assertEquals("Current snapshot should contain 1 merged manifest",
-        1, metadata.currentSnapshot().manifests().size());
+        1, metadata.currentSnapshot().allManifests().size());
   }
 
   @Test

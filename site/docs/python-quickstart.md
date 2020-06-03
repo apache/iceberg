@@ -22,8 +22,8 @@
 
 Iceberg python is currently in development, for development and testing purposes the best way to install the library is to perform the following steps:
 ```
-git clone https://github.com/apache/incubator-iceberg.git
-cd incubator-iceberg/python
+git clone https://github.com/apache/iceberg.git
+cd iceberg/python
 pip install -e .
 ```
 

@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
@@ -34,6 +33,7 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.Encoder;
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.TypeUtil;
 
 public class ValueWriters {
@@ -46,6 +46,14 @@ public class ValueWriters {
 
   public static ValueWriter<Boolean> booleans() {
     return BooleanWriter.INSTANCE;
+  }
+
+  public static ValueWriter<Byte> tinyints() {
+    return ByteToIntegerWriter.INSTANCE;
+  }
+
+  public static ValueWriter<Short> shorts() {
+    return ShortToIntegerWriter.INSTANCE;
   }
 
   public static ValueWriter<Integer> ints() {
@@ -139,6 +147,30 @@ public class ValueWriters {
     @Override
     public void write(Boolean bool, Encoder encoder) throws IOException {
       encoder.writeBoolean(bool);
+    }
+  }
+
+  private static class ByteToIntegerWriter implements ValueWriter<Byte> {
+    private static final ByteToIntegerWriter INSTANCE = new ByteToIntegerWriter();
+
+    private ByteToIntegerWriter() {
+    }
+
+    @Override
+    public void write(Byte b, Encoder encoder) throws IOException {
+      encoder.writeInt(b.intValue());
+    }
+  }
+
+  private static class ShortToIntegerWriter implements ValueWriter<Short> {
+    private static final ShortToIntegerWriter INSTANCE = new ShortToIntegerWriter();
+
+    private ShortToIntegerWriter() {
+    }
+
+    @Override
+    public void write(Short s, Encoder encoder) throws IOException {
+      encoder.writeInt(s.intValue());
     }
   }
 

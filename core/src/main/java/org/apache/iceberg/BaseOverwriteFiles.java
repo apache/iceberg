@@ -19,8 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterables;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -29,14 +27,16 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> implements OverwriteFiles {
   private boolean validateAddedFilesMatchOverwriteFilter = false;
   private Long readSnapshotId = null;
   private Expression conflictDetectionFilter = null;
 
-  protected BaseOverwriteFiles(TableOperations ops) {
-    super(ops);
+  protected BaseOverwriteFiles(String tableName, TableOperations ops) {
+    super(tableName, ops);
   }
 
   @Override

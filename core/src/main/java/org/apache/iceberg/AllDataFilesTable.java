@@ -19,9 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
@@ -29,6 +26,9 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.ThreadPools;
@@ -119,7 +119,7 @@ public class AllDataFilesTable extends BaseMetadataTable {
     @Override
     protected CloseableIterable<FileScanTask> planFiles(
         TableOperations ops, Snapshot snapshot, Expression rowFilter, boolean caseSensitive, boolean colStats) {
-      CloseableIterable<ManifestFile> manifests = allManifestFiles(ops.current().snapshots());
+      CloseableIterable<ManifestFile> manifests = allDataManifestFiles(ops.current().snapshots());
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
       ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(rowFilter);
@@ -133,9 +133,9 @@ public class AllDataFilesTable extends BaseMetadataTable {
     }
   }
 
-  static CloseableIterable<ManifestFile> allManifestFiles(List<Snapshot> snapshots) {
+  private static CloseableIterable<ManifestFile> allDataManifestFiles(List<Snapshot> snapshots) {
     try (CloseableIterable<ManifestFile> iterable = new ParallelIterable<>(
-        Iterables.transform(snapshots, Snapshot::manifests), ThreadPools.getWorkerPool())) {
+        Iterables.transform(snapshots, Snapshot::dataManifests), ThreadPools.getWorkerPool())) {
       return CloseableIterable.withNoopClose(Sets.newHashSet(iterable));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close parallel iterable");

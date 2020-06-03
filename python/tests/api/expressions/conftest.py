@@ -90,7 +90,7 @@ class TestHelpers(object):
 
         def predicate(self, pred):
             if isinstance(pred, UnboundPredicate):
-                assert False
+                raise AssertionError("Predicate should be a BoundPredicate")
 
 
 class TestDataFile(DataFile):

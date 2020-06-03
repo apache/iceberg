@@ -21,10 +21,6 @@ package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Arrays;
@@ -39,6 +35,10 @@ import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 import org.junit.Assert;
@@ -129,12 +129,12 @@ public class TestTableMetadata {
     Assert.assertEquals("Parent snapshot ID should match",
         (Long) previousSnapshotId, metadata.currentSnapshot().parentId());
     Assert.assertEquals("Current snapshot files should match",
-        currentSnapshot.manifests(), metadata.currentSnapshot().manifests());
+        currentSnapshot.allManifests(), metadata.currentSnapshot().allManifests());
     Assert.assertEquals("Previous snapshot ID should match",
         previousSnapshotId, metadata.snapshot(previousSnapshotId).snapshotId());
     Assert.assertEquals("Previous snapshot files should match",
-        previousSnapshot.manifests(),
-        metadata.snapshot(previousSnapshotId).manifests());
+        previousSnapshot.allManifests(),
+        metadata.snapshot(previousSnapshotId).allManifests());
   }
 
   @Test
@@ -226,12 +226,12 @@ public class TestTableMetadata {
     Assert.assertEquals("Parent snapshot ID should match",
         (Long) previousSnapshotId, metadata.currentSnapshot().parentId());
     Assert.assertEquals("Current snapshot files should match",
-        currentSnapshot.manifests(), metadata.currentSnapshot().manifests());
+        currentSnapshot.allManifests(), metadata.currentSnapshot().allManifests());
     Assert.assertEquals("Previous snapshot ID should match",
         previousSnapshotId, metadata.snapshot(previousSnapshotId).snapshotId());
     Assert.assertEquals("Previous snapshot files should match",
-        previousSnapshot.manifests(),
-        metadata.snapshot(previousSnapshotId).manifests());
+        previousSnapshot.allManifests(),
+        metadata.snapshot(previousSnapshotId).allManifests());
     Assert.assertEquals("Snapshot logs should match",
             expected.previousFiles(), metadata.previousFiles());
   }

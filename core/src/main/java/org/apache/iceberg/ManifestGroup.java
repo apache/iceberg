@@ -21,9 +21,6 @@ package org.apache.iceberg;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -38,6 +35,9 @@ import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ParallelIterable;
 
@@ -47,7 +47,7 @@ class ManifestGroup {
   private final FileIO io;
   private final Set<ManifestFile> manifests;
   private Predicate<ManifestFile> manifestPredicate;
-  private Predicate<ManifestEntry> manifestEntryPredicate;
+  private Predicate<ManifestEntry<DataFile>> manifestEntryPredicate;
   private Map<Integer, PartitionSpec> specsById;
   private Expression dataFilter;
   private Expression fileFilter;
@@ -66,7 +66,7 @@ class ManifestGroup {
     this.partitionFilter = Expressions.alwaysTrue();
     this.ignoreDeleted = false;
     this.ignoreExisting = false;
-    this.columns = ManifestReader.ALL_COLUMNS;
+    this.columns = BaseManifestReader.ALL_COLUMNS;
     this.caseSensitive = true;
     this.manifestPredicate = m -> true;
     this.manifestEntryPredicate = e -> true;
@@ -97,7 +97,7 @@ class ManifestGroup {
     return this;
   }
 
-  ManifestGroup filterManifestEntries(Predicate<ManifestEntry> newManifestEntryPredicate) {
+  ManifestGroup filterManifestEntries(Predicate<ManifestEntry<DataFile>> newManifestEntryPredicate) {
     this.manifestEntryPredicate = manifestEntryPredicate.and(newManifestEntryPredicate);
     return this;
   }
@@ -138,7 +138,7 @@ class ManifestGroup {
       PartitionSpec spec = specsById.get(specId);
       return ResidualEvaluator.of(spec, dataFilter, caseSensitive);
     });
-    boolean dropStats = FilteredManifest.dropStats(dataFilter, columns);
+    boolean dropStats = BaseManifestReader.dropStats(dataFilter, columns);
     Iterable<CloseableIterable<FileScanTask>> tasks = entries((manifest, entries) -> {
       int partitionSpecId = manifest.partitionSpecId();
       PartitionSpec spec = specsById.get(partitionSpecId);
@@ -169,12 +169,12 @@ class ManifestGroup {
    *
    * @return a CloseableIterable of manifest entries.
    */
-  public CloseableIterable<ManifestEntry> entries() {
+  public CloseableIterable<ManifestEntry<DataFile>> entries() {
     return CloseableIterable.concat(entries((manifest, entries) -> entries));
   }
 
   private <T> Iterable<CloseableIterable<T>> entries(
-      BiFunction<ManifestFile, CloseableIterable<ManifestEntry>, CloseableIterable<T>> entryFn) {
+      BiFunction<ManifestFile, CloseableIterable<ManifestEntry<DataFile>>, CloseableIterable<T>> entryFn) {
     LoadingCache<Integer, ManifestEvaluator> evalCache = specsById == null ?
         null : Caffeine.newBuilder().build(specId -> {
           PartitionSpec spec = specsById.get(specId);
@@ -209,17 +209,15 @@ class ManifestGroup {
     Iterable<CloseableIterable<T>> readers = Iterables.transform(
         matchingManifests,
         manifest -> {
-          ManifestReader reader = ManifestFiles.read(manifest, io, specsById);
-
-          FilteredManifest filtered = reader
+          ManifestReader reader = ManifestFiles.read(manifest, io, specsById)
               .filterRows(dataFilter)
               .filterPartitions(partitionFilter)
               .caseSensitive(caseSensitive)
               .select(columns);
 
-          CloseableIterable<ManifestEntry> entries = filtered.allEntries();
+          CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
           if (ignoreDeleted) {
-            entries = filtered.liveEntries();
+            entries = reader.liveEntries();
           }
 
           if (ignoreExisting) {

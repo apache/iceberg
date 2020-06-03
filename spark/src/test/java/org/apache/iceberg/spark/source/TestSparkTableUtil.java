@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.spark.source;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -30,6 +28,8 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveTableBaseTest;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
@@ -71,6 +71,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
             .config("spark.hadoop.hive.metastore.uris", metastoreURI)
             .config("hive.exec.dynamic.partition", "true")
             .config("hive.exec.dynamic.partition.mode", "nonstrict")
+            .config("spark.sql.legacy.allowCreatingManagedTableUsingNonemptyLocation", "true")
             .getOrCreate();
   }
 

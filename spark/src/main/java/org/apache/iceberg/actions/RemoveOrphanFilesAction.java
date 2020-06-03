@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.actions;
 
-import com.google.common.collect.Lists;
+import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
@@ -38,6 +38,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -48,6 +49,9 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.expressions.UserDefinedFunction;
+import org.apache.spark.sql.functions;
+import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.util.SerializableConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -69,6 +73,14 @@ import org.slf4j.LoggerFactory;
 public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
 
   private static final Logger LOG = LoggerFactory.getLogger(RemoveOrphanFilesAction.class);
+  private static final UserDefinedFunction filename = functions.udf((String path) -> {
+    int lastIndex = path.lastIndexOf(File.separator);
+    if (lastIndex == -1) {
+      return path;
+    } else {
+      return path.substring(lastIndex + 1);
+    }
+  }, DataTypes.StringType);
 
   private final SparkSession spark;
   private final JavaSparkContext sparkContext;
@@ -141,7 +153,10 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
     Dataset<Row> validFileDF = validDataFileDF.union(validMetadataFileDF);
     Dataset<Row> actualFileDF = buildActualFileDF();
 
-    Column joinCond = validFileDF.col("file_path").equalTo(actualFileDF.col("file_path"));
+    Column nameEqual = filename.apply(actualFileDF.col("file_path"))
+        .equalTo(filename.apply(validFileDF.col("file_path")));
+    Column actualContains = actualFileDF.col("file_path").contains(validFileDF.col("file_path"));
+    Column joinCond = nameEqual.and(actualContains);
     List<String> orphanFiles = actualFileDF.join(validFileDF, joinCond, "leftanti")
         .as(Encoders.STRING())
         .collectAsList();

@@ -33,8 +33,8 @@ _logger = logging.getLogger(__name__)
 
 
 class ManifestReader(CloseableGroup, Filterable):
-    ALL_COLUMNS = ["*"]
-    CHANGE_COLUMNS = ["file_path", "file_format", "partition", "record_count", "file_size_in_bytes"]
+    ALL_COLUMNS = ("*",)
+    CHANGE_COLUMNS = ("file_path", "file_format", "partition", "record_count", "file_size_in_bytes")
 
     @staticmethod
     def read(file, spec_lookup=None):

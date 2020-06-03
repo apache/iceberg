@@ -24,12 +24,13 @@ Iceberg is a python library for programatic access to iceberg table metadata as 
 Iceberg python is currently in development, for development and testing purposes the best way to install the library is to perform the following steps:
 
 ```
-git clone https://github.com/apache/incubator-iceberg.git
-cd incubator-iceberg/python
+git clone https://github.com/apache/iceberg.git
+cd iceberg/python
 pip install -e .
 ```
 
 ## Testing
+
 Testing is done using tox. The config can be found in `tox.ini` within the python directory of the iceberg project.
 
 ```
@@ -43,5 +44,5 @@ tox
     * [dev@iceberg.apache.org](mailto:dev@iceberg.apache.org)
 
 - Issues
-    * [File a github incident](https://github.com/apache/incubator-iceberg/issues)
+    * [File a github incident](https://github.com/apache/iceberg/issues)
 

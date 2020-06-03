@@ -117,11 +117,29 @@ def test_ternary_condition():
 
 
 def test_precedence():
-    expected_expr = Expressions.and_(Expressions.or_(Expressions.equal("col_a", 1),
-                                                     Expressions.equal("col_b", 2)),
-                                     Expressions.equal("col_c", 3))
+    expected_expr = Expressions.or_(Expressions.equal("col_a", 1),
+                                    Expressions.and_(Expressions.equal("col_b", 2),
+                                                     Expressions.equal("col_c", 3)))
 
     conv_expr = Expressions.convert_string_to_expr("col_a=1 or col_b=2 and col_c=3")
+    assert expected_expr == conv_expr
+
+
+def test_precedence_opposite_order():
+    expected_expr = Expressions.or_(Expressions.and_(Expressions.equal("col_a", 1),
+                                                     Expressions.equal("col_b", 2)),
+                                    Expressions.equal("col_c", 3))
+
+    conv_expr = Expressions.convert_string_to_expr("col_a=1 and col_b=2 or col_c=3")
+    assert expected_expr == conv_expr
+
+
+def test_precedence_explicit():
+    expected_expr = Expressions.and_(Expressions.equal("col_a", 1),
+                                     Expressions.or_(Expressions.equal("col_b", 2),
+                                                     Expressions.equal("col_c", 3)))
+
+    conv_expr = Expressions.convert_string_to_expr("col_a=1 and (col_b=2 or col_c=3)")
     assert expected_expr == conv_expr
 
 

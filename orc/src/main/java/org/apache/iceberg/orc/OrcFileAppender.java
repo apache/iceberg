@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.orc;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -35,6 +33,8 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.orc.OrcFile;
 import org.apache.orc.Reader;
 import org.apache.orc.StripeInformation;
@@ -91,6 +91,8 @@ class OrcFileAppender<D> implements FileAppender<D> {
 
   @Override
   public Metrics metrics() {
+    Preconditions.checkState(isClosed,
+        "Cannot return metrics while appending to an open file.");
     return OrcMetrics.fromWriter(writer);
   }
 

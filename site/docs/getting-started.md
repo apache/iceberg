@@ -17,63 +17,82 @@
 
 # Getting Started
 
-## Including Iceberg 
+## Using Iceberg in Spark
 
-### Downloads
+The latest version of Iceberg is [0.8.0-incubating](../releases).
 
-The latest version of Iceberg is [0.7.0-incubating](https://github.com/apache/incubator-iceberg/releases/tag/apache-iceberg-0.7.0-incubating).
+To use Iceberg in a Spark shell, use the `--packages` option:
 
-* [0.7.0-incubating source tar.gz](https://www.apache.org/dyn/closer.cgi/incubator/iceberg/apache-iceberg-0.7.0-incubating/apache-iceberg-0.7.0-incubating.tar.gz) -- [signature](https://dist.apache.org/repos/dist/release/incubator/iceberg/apache-iceberg-0.7.0-incubating/apache-iceberg-0.7.0-incubating.tar.gz.asc) -- [sha512](https://dist.apache.org/repos/dist/release/incubator/iceberg/apache-iceberg-0.7.0-incubating/apache-iceberg-0.7.0-incubating.tar.gz.sha512)
-* [0.7.0-incubating Spark 2.4 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime/0.7.0-incubating/iceberg-spark-runtime-0.7.0-incubating.jar)
-
-One way to use Iceberg in Spark 2.4 is to download the runtime Jar and add it to the jars folder of your Spark install.
-
-Spark 2.4 is limited to reading and writing existing Iceberg tables. Use the [Iceberg API](../api) to create Iceberg tables.
-
-The recommended way is to include Iceberg's latest release using the `--packages` option:
 ```sh
-spark-shell --packages org.apache.iceberg:iceberg-spark-runtime:0.7.0-incubating
+spark-shell --packages org.apache.iceberg:iceberg-spark-runtime:0.8.0-incubating
 ```
 
-You can also build Iceberg locally, and add the jar to Spark's classpath. This can be helpful to test unreleased features or while developing something new:
+You can also build Iceberg locally, and add the jar using `--jars`. This can be helpful to test unreleased features or while developing something new:
 
 ```sh
 ./gradlew assemble
-
-spark-shell --jars spark-runtime/build/libs/iceberg-spark-runtime-93990904.jar
+spark-shell --jars spark-runtime/build/libs/iceberg-spark-runtime-8c05a2f.jar
 ```
 
-Where you have to replace `93990904` with the git hash that you're using.
+## Installing with Spark
 
-### Gradle
-To add a dependency on Iceberg in Gradle, add the following to `build.gradle`:
-```
-dependencies {
-  compile 'org.apache.iceberg:iceberg-core:0.7.0-incubating'
-}
-```
+If you want to include Iceberg in your Spark installation, add the [`iceberg-spark-runtime` Jar][spark-runtime-jar] to Spark's `jars` folder.
 
-### Maven 
-If you'd like to try out Iceberg in a Maven project using the Spark Iceberg API, you can add the `iceberg-spark-runtime` dependency to your `pom.xml` file:
-```xml
-   <dependency>
-     <groupId>org.apache.iceberg</groupId>
-     <artifactId>iceberg-spark-runtime</artifactId>
-     <version>${iceberg.version}</version>
-   </dependency>
-```
+Where you have to replace `8c05a2f` with the git hash that you're using.
 
-You'll also need `spark-sql` to read tables:
-```xml
-  <dependency> 
-    <groupId>org.apache.spark</groupId>
-    <artifactId>spark-sql_2.11</artifactId>
-    <version>2.4.4</version>
-  </dependency>
+[spark-runtime-jar]: https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime/0.8.0-incubating/iceberg-spark-runtime-0.8.0-incubating.jar
+
+## Creating a table
+
+Spark 2.4 is limited to reading and writing existing Iceberg tables. Use the [Iceberg API](../api) to create Iceberg tables.
+
+Here's how to create your first Iceberg table in Spark, using a source Dataset
+
+First, import Iceberg classes and create a catalog client:
+
+```scala
+import org.apache.iceberg.hive.HiveCatalog
+import org.apache.iceberg.catalog.TableIdentifier
+import org.apache.iceberg.spark.SparkSchemaUtil
+
+val catalog = new HiveCatalog(spark.sparkContext.hadoopConfiguration)
 ```
 
-### Using the API 
-For examples on how to use the Iceberg API see:
+Next, create a dataset to write into your table and get an Iceberg schema for it:
 
-- [Spark](api-quickstart.md)
-- [Java](java-api-quickstart.md)
+```scala
+val data = Seq((1, "a"), (2, "b"), (3, "c")).toDF("id", "data")
+val schema = SparkSchemaUtil.convert(data.schema)
+```
+
+Finally, create a table using the schema:
+
+```scala
+val name = TableIdentifier.of("default", "test_table")
+val table = catalog.createTable(name, schema)
+```
+
+### Reading and writing
+
+Once your table is created, you can use it in `load` and `save` in Spark 2.4:
+
+```scala
+// write the dataset to the table
+data.write.format("iceberg").mode("append").save("default.test_table")
+
+// read the table
+spark.read.format("iceberg").load("default.test_table")
+```
+
+### Reading with SQL
+
+You can also create a temporary view to use the table in SQL:
+
+```scala
+spark.read.format("iceberg").load("default.test_table").createOrReplaceTempView("test_table")
+spark.sql("""SELECT count(1) FROM test_table""")
+```
+
+### Next steps
+
+Next, you can learn more about the [Iceberg Table API](../api), or about [Iceberg tables in Spark](../spark)

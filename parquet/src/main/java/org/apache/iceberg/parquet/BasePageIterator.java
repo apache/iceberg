@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.parquet;
 
-import com.google.common.base.Preconditions;
 import java.io.IOException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.bytes.BytesUtils;

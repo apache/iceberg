@@ -19,13 +19,13 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.collect.Iterables;
 import java.io.File;
 import java.io.IOException;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 public class TestAvroReadProjection extends TestReadProjection {
   @Override

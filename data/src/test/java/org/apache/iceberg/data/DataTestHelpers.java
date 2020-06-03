@@ -84,7 +84,7 @@ public class DataTestHelpers {
       case UUID:
       case BINARY:
       case DECIMAL:
-        Assert.assertEquals("Primitive value should be equal to expected", expected, actual);
+        Assert.assertEquals("Primitive value should be equal to expected for type " + type, expected, actual);
         break;
       case FIXED:
         Assert.assertTrue("Expected should be a byte[]", expected instanceof byte[]);

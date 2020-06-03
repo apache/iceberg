@@ -19,10 +19,10 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Maps;
 import java.io.Serializable;
 import java.util.Map;
 import org.apache.iceberg.MetricsModes.MetricsMode;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

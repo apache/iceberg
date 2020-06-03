@@ -21,8 +21,8 @@ package org.apache.iceberg;
 
 class RollbackToSnapshot extends SnapshotManager implements Rollback {
 
-  RollbackToSnapshot(TableOperations ops) {
-    super(ops);
+  RollbackToSnapshot(String tableName, TableOperations ops) {
+    super(tableName, ops);
   }
 
   @Override

@@ -19,12 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.MapMaker;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
@@ -35,6 +29,12 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
@@ -67,13 +67,13 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     TableMetadata metadata = TableMetadata.newTableMetadata(
         schema, spec, baseLocation, properties == null ? Maps.newHashMap() : properties);
 
-    ops.commit(null, metadata);
-
     try {
-      return new BaseTable(ops, fullTableName(name(), identifier));
+      ops.commit(null, metadata);
     } catch (CommitFailedException ignored) {
       throw new AlreadyExistsException("Table was created concurrently: " + identifier);
     }
+
+    return new BaseTable(ops, fullTableName(name(), identifier));
   }
 
   @Override
@@ -93,7 +93,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
     Map<String, String> tableProperties = properties != null ? properties : Maps.newHashMap();
     TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, baseLocation, tableProperties);
-    return Transactions.createTableTransaction(ops, metadata);
+    return Transactions.createTableTransaction(identifier.toString(), ops, metadata);
   }
 
   @Override
@@ -114,9 +114,9 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     Map<String, String> tableProperties = properties != null ? properties : Maps.newHashMap();
     TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, baseLocation, tableProperties);
     if (orCreate) {
-      return Transactions.createOrReplaceTableTransaction(ops, metadata);
+      return Transactions.createOrReplaceTableTransaction(identifier.toString(), ops, metadata);
     } else {
-      return Transactions.replaceTableTransaction(ops, metadata);
+      return Transactions.replaceTableTransaction(identifier.toString(), ops, metadata);
     }
   }
 
@@ -220,7 +220,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     Set<String> manifestListsToDelete = Sets.newHashSet();
     Set<ManifestFile> manifestsToDelete = Sets.newHashSet();
     for (Snapshot snapshot : metadata.snapshots()) {
-      manifestsToDelete.addAll(snapshot.manifests());
+      // add all manifests to the delete set because both data and delete files should be removed
+      Iterables.addAll(manifestsToDelete, snapshot.allManifests());
       // add the manifest list to the delete set, if present
       if (snapshot.manifestListLocation() != null) {
         manifestListsToDelete.add(snapshot.manifestListLocation());
@@ -262,7 +263,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         .onFailure((item, exc) -> LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
         .run(manifest -> {
           try (ManifestReader reader = ManifestFiles.read(manifest, io)) {
-            for (ManifestEntry entry : reader.entries()) {
+            for (ManifestEntry<?> entry : reader.entries()) {
               // intern the file path because the weak key map uses identity (==) instead of equals
               String path = entry.file().path().toString().intern();
               Boolean alreadyDeleted = deletedFiles.putIfAbsent(path, true);

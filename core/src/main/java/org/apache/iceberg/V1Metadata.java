@@ -111,6 +111,11 @@ class V1Metadata {
     }
 
     @Override
+    public ManifestContent content() {
+      return wrapped.content();
+    }
+
+    @Override
     public long sequenceNumber() {
       return wrapped.sequenceNumber();
     }
@@ -182,7 +187,7 @@ class V1Metadata {
   }
 
   static Schema entrySchema(Types.StructType partitionType) {
-    return wrapFileSchema(DataFile.getType(partitionType));
+    return wrapFileSchema(dataFileSchema(partitionType));
   }
 
   static Schema wrapFileSchema(Types.StructType fileSchema) {
@@ -192,17 +197,40 @@ class V1Metadata {
         required(ManifestEntry.DATA_FILE_ID, "data_file", fileSchema));
   }
 
-  static class IndexedManifestEntry implements ManifestEntry, IndexedRecord {
+  private static final Types.NestedField BLOCK_SIZE = required(105, "block_size_in_bytes", Types.LongType.get());
+
+  static Types.StructType dataFileSchema(Types.StructType partitionType) {
+    return Types.StructType.of(
+        DataFile.FILE_PATH,
+        DataFile.FILE_FORMAT,
+        required(DataFile.PARTITION_ID, DataFile.PARTITION_NAME, partitionType),
+        DataFile.RECORD_COUNT,
+        DataFile.FILE_SIZE,
+        BLOCK_SIZE,
+        DataFile.COLUMN_SIZES,
+        DataFile.VALUE_COUNTS,
+        DataFile.NULL_VALUE_COUNTS,
+        DataFile.LOWER_BOUNDS,
+        DataFile.UPPER_BOUNDS,
+        DataFile.KEY_METADATA,
+        DataFile.SPLIT_OFFSETS
+    );
+  }
+
+  /**
+   * Wrapper used to write a ManifestEntry to v1 metadata.
+   */
+  static class IndexedManifestEntry implements ManifestEntry<DataFile>, IndexedRecord {
     private final org.apache.avro.Schema avroSchema;
     private final IndexedDataFile fileWrapper;
-    private ManifestEntry wrapped = null;
+    private ManifestEntry<DataFile> wrapped = null;
 
     IndexedManifestEntry(Types.StructType partitionType) {
       this.avroSchema = AvroSchemaUtil.convert(entrySchema(partitionType), "manifest_entry");
       this.fileWrapper = new IndexedDataFile(avroSchema.getField("data_file").schema());
     }
 
-    public IndexedManifestEntry wrap(ManifestEntry entry) {
+    public IndexedManifestEntry wrap(ManifestEntry<DataFile> entry) {
       this.wrapped = entry;
       return this;
     }
@@ -226,11 +254,10 @@ class V1Metadata {
           return wrapped.snapshotId();
         case 2:
           DataFile file = wrapped.file();
-          if (file == null || file instanceof GenericDataFile) {
-            return file;
-          } else {
+          if (file != null) {
             return fileWrapper.wrap(file);
           }
+          return null;
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + i);
       }
@@ -267,12 +294,12 @@ class V1Metadata {
     }
 
     @Override
-    public ManifestEntry copy() {
+    public ManifestEntry<DataFile> copy() {
       return wrapped.copy();
     }
 
     @Override
-    public ManifestEntry copyWithoutStats() {
+    public ManifestEntry<DataFile> copyWithoutStats() {
       return wrapped.copyWithoutStats();
     }
   }
@@ -335,6 +362,11 @@ class V1Metadata {
     @Override
     public org.apache.avro.Schema getSchema() {
       return avroSchema;
+    }
+
+    @Override
+    public FileContent content() {
+      return wrapped.content();
     }
 
     @Override

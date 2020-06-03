@@ -19,9 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.io.CloseableIterable;
@@ -29,6 +26,9 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -70,6 +70,9 @@ public class TestManifestWriterVersions {
   private static final DataFile DATA_FILE = new GenericDataFile(
       PATH, FORMAT, PARTITION, 150972L, METRICS, null, OFFSETS);
 
+  private static final DeleteFile DELETE_FILE = new GenericDeleteFile(
+      FileContent.EQUALITY_DELETES, PATH, FORMAT, PARTITION, 22905L, METRICS, null);
+
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
@@ -77,7 +80,14 @@ public class TestManifestWriterVersions {
   public void testV1Write() throws IOException {
     ManifestFile manifest = writeManifest(1);
     checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
-    checkEntry(readManifest(manifest), ManifestWriter.UNASSIGNED_SEQ);
+    checkEntry(readManifest(manifest), ManifestWriter.UNASSIGNED_SEQ, FileContent.DATA);
+  }
+
+  @Test
+  public void testV1WriteDelete() {
+    AssertHelpers.assertThrows("Should fail to write a delete manifest for v1",
+        IllegalArgumentException.class, "Cannot write delete files in a v1 table",
+        () -> writeDeleteManifest(1));
   }
 
   @Test
@@ -86,23 +96,43 @@ public class TestManifestWriterVersions {
     checkManifest(manifest, 0L);
 
     // v1 should be read using sequence number 0 because it was missing from the manifest list file
-    checkEntry(readManifest(manifest), 0L);
+    checkEntry(readManifest(manifest), 0L, FileContent.DATA);
   }
 
   @Test
   public void testV2Write() throws IOException {
     ManifestFile manifest = writeManifest(1);
     checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
-    checkEntry(readManifest(manifest), ManifestWriter.UNASSIGNED_SEQ);
+    Assert.assertEquals("Content", ManifestContent.DATA, manifest.content());
+    checkEntry(readManifest(manifest), ManifestWriter.UNASSIGNED_SEQ, FileContent.DATA);
   }
 
   @Test
   public void testV2WriteWithInheritance() throws IOException {
     ManifestFile manifest = writeAndReadManifestList(writeManifest(2), 2);
     checkManifest(manifest, SEQUENCE_NUMBER);
+    Assert.assertEquals("Content", ManifestContent.DATA, manifest.content());
 
     // v2 should use the correct sequence number by inheriting it
-    checkEntry(readManifest(manifest), SEQUENCE_NUMBER);
+    checkEntry(readManifest(manifest), SEQUENCE_NUMBER, FileContent.DATA);
+  }
+
+  @Test
+  public void testV2WriteDelete() throws IOException {
+    ManifestFile manifest = writeDeleteManifest(2);
+    checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
+    Assert.assertEquals("Content", ManifestContent.DELETES, manifest.content());
+    checkEntry(readDeleteManifest(manifest), ManifestWriter.UNASSIGNED_SEQ, FileContent.EQUALITY_DELETES);
+  }
+
+  @Test
+  public void testV2WriteDeleteWithInheritance() throws IOException {
+    ManifestFile manifest = writeAndReadManifestList(writeDeleteManifest(2), 2);
+    checkManifest(manifest, SEQUENCE_NUMBER);
+    Assert.assertEquals("Content", ManifestContent.DELETES, manifest.content());
+
+    // v2 should use the correct sequence number by inheriting it
+    checkEntry(readDeleteManifest(manifest), SEQUENCE_NUMBER, FileContent.EQUALITY_DELETES);
   }
 
   @Test
@@ -117,7 +147,7 @@ public class TestManifestWriterVersions {
     checkManifest(manifest2, 0L);
 
     // should not inherit the v2 sequence number because it was a rewrite
-    checkEntry(readManifest(manifest2), 0L);
+    checkEntry(readManifest(manifest2), 0L, FileContent.DATA);
   }
 
   @Test
@@ -136,24 +166,26 @@ public class TestManifestWriterVersions {
     checkRewrittenManifest(manifest2, SEQUENCE_NUMBER, 0L);
 
     // should not inherit the v2 sequence number because it was written into the v2 manifest
-    checkRewrittenEntry(readManifest(manifest2), 0L);
+    checkRewrittenEntry(readManifest(manifest2), 0L, FileContent.DATA);
   }
 
-  void checkEntry(ManifestEntry entry, Long expectedSequenceNumber) {
+  void checkEntry(ManifestEntry<?> entry, Long expectedSequenceNumber, FileContent content) {
     Assert.assertEquals("Status", ManifestEntry.Status.ADDED, entry.status());
     Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, entry.snapshotId());
     Assert.assertEquals("Sequence number", expectedSequenceNumber, entry.sequenceNumber());
-    checkDataFile(entry.file());
+    checkDataFile(entry.file(), content);
   }
 
-  void checkRewrittenEntry(ManifestEntry entry, Long expectedSequenceNumber) {
+  void checkRewrittenEntry(ManifestEntry<DataFile> entry, Long expectedSequenceNumber, FileContent content) {
     Assert.assertEquals("Status", ManifestEntry.Status.EXISTING, entry.status());
     Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, entry.snapshotId());
     Assert.assertEquals("Sequence number", expectedSequenceNumber, entry.sequenceNumber());
-    checkDataFile(entry.file());
+    checkDataFile(entry.file(), content);
   }
 
-  void checkDataFile(DataFile dataFile) {
+  void checkDataFile(ContentFile<?> dataFile, FileContent content) {
+    // DataFile is the superclass of DeleteFile, so this method can check both
+    Assert.assertEquals("Content", content, dataFile.content());
     Assert.assertEquals("Path", PATH, dataFile.path());
     Assert.assertEquals("Format", FORMAT, dataFile.format());
     Assert.assertEquals("Partition", PARTITION, dataFile.partition());
@@ -206,7 +238,7 @@ public class TestManifestWriterVersions {
 
   private ManifestFile rewriteManifest(ManifestFile manifest, int formatVersion) throws IOException {
     OutputFile manifestFile = Files.localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
-    ManifestWriter writer = ManifestFiles.write(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
+    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
     try {
       writer.existing(readManifest(manifest));
     } finally {
@@ -216,21 +248,46 @@ public class TestManifestWriterVersions {
   }
 
   private ManifestFile writeManifest(int formatVersion) throws IOException {
+    return writeManifest(DATA_FILE, formatVersion);
+  }
+
+  private ManifestFile writeManifest(DataFile file, int formatVersion) throws IOException {
     OutputFile manifestFile = Files.localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
-    ManifestWriter writer = ManifestFiles.write(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
+    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
     try {
-      writer.add(DATA_FILE);
+      writer.add(file);
     } finally {
       writer.close();
     }
     return writer.toManifestFile();
   }
 
-  private ManifestEntry readManifest(ManifestFile manifest) throws IOException {
-    try (CloseableIterable<ManifestEntry> reader = ManifestFiles.read(manifest, FILE_IO).entries()) {
-      List<ManifestEntry> files = Lists.newArrayList(reader);
+  private ManifestEntry<DataFile> readManifest(ManifestFile manifest) throws IOException {
+    try (CloseableIterable<ManifestEntry<DataFile>> reader = ManifestFiles.read(manifest, FILE_IO).entries()) {
+      List<ManifestEntry<DataFile>> files = Lists.newArrayList(reader);
       Assert.assertEquals("Should contain only one data file", 1, files.size());
       return files.get(0);
+    }
+  }
+
+  private ManifestFile writeDeleteManifest(int formatVersion) throws IOException {
+    OutputFile manifestFile = Files.localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
+    ManifestWriter<DeleteFile> writer = ManifestFiles.writeDeleteManifest(
+        formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
+    try {
+      writer.add(DELETE_FILE);
+    } finally {
+      writer.close();
+    }
+    return writer.toManifestFile();
+  }
+
+  private ManifestEntry<DeleteFile> readDeleteManifest(ManifestFile manifest) throws IOException {
+    try (CloseableIterable<ManifestEntry<DeleteFile>> reader =
+             ManifestFiles.readDeleteManifest(manifest, FILE_IO, null).entries()) {
+      List<ManifestEntry<DeleteFile>> entries = Lists.newArrayList(reader);
+      Assert.assertEquals("Should contain only one data file", 1, entries.size());
+      return entries.get(0);
     }
   }
 }

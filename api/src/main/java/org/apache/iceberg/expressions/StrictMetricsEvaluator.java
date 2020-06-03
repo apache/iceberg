@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.expressions;
 
-import com.google.common.base.Preconditions;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Map;
@@ -28,6 +27,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;

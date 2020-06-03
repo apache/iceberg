@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Maps;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -32,6 +31,7 @@ import java.util.zip.ZipException;
 import org.apache.iceberg.TableMetadataParser.Codec;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types.BooleanType;
 import org.junit.After;
 import org.junit.Assert;

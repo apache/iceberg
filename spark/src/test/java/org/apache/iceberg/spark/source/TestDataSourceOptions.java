@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.spark.source;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +33,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.Dataset;
@@ -311,7 +311,7 @@ public class TestDataSourceOptions {
         .mode("append")
         .save(tableLocation);
 
-    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
 
     Assert.assertEquals("Must be 2 manifests", 2, manifests.size());
 
@@ -355,7 +355,7 @@ public class TestDataSourceOptions {
     int splitSize = (int) TableProperties.METADATA_SPLIT_SIZE_DEFAULT; // 32MB split size
 
     int expectedSplits = ((int) tables.load(tableLocation + "#entries")
-        .currentSnapshot().manifests().get(0).length() + splitSize - 1) / splitSize;
+        .currentSnapshot().allManifests().get(0).length() + splitSize - 1) / splitSize;
 
     Dataset<Row> metadataDf = spark.read()
         .format("iceberg")

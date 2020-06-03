@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.actions;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
@@ -38,6 +36,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -85,11 +85,12 @@ public class TestRemoveOrphanFilesAction {
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
+  private File tableDir = null;
   private String tableLocation = null;
 
   @Before
   public void setupTableLocation() throws Exception {
-    File tableDir = temp.newFolder();
+    this.tableDir = temp.newFolder();
     this.tableLocation = tableDir.toURI().toString();
   }
 
@@ -490,5 +491,55 @@ public class TestRemoveOrphanFilesAction {
         .select("file_path")
         .as(Encoders.STRING())
         .collectAsList();
+  }
+
+  @Test
+  public void testRemoveOrphanFilesWithRelativeFilePath() throws IOException, InterruptedException {
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableDir.getAbsolutePath());
+
+    List<ThreeColumnRecord> records = Lists.newArrayList(
+        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
+    );
+
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+
+    df.select("c1", "c2", "c3")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableDir.getAbsolutePath());
+
+    List<String> validFiles = spark.read().format("iceberg")
+        .load(tableLocation + "#files")
+        .select("file_path")
+        .as(Encoders.STRING())
+        .collectAsList();
+    Assert.assertEquals("Should be 1 valid files", 1, validFiles.size());
+    String validFile = validFiles.get(0);
+
+    df.write().mode("append").parquet(tableLocation + "/data");
+
+    Path dataPath = new Path(tableLocation + "/data");
+    FileSystem fs = dataPath.getFileSystem(spark.sessionState().newHadoopConf());
+    List<String> allFiles = Arrays.stream(fs.listStatus(dataPath, HiddenPathFilter.get()))
+        .filter(FileStatus::isFile)
+        .map(file -> file.getPath().toString())
+        .collect(Collectors.toList());
+    Assert.assertEquals("Should be 2 files", 2, allFiles.size());
+
+    List<String> invalidFiles = Lists.newArrayList(allFiles);
+    invalidFiles.removeIf(file -> file.contains(validFile));
+    Assert.assertEquals("Should be 1 invalid file", 1, invalidFiles.size());
+
+    // sleep for 1 second to unsure files will be old enough
+    Thread.sleep(1000);
+
+    Actions actions = Actions.forTable(table);
+    List<String> result = actions.removeOrphanFiles()
+        .olderThan(System.currentTimeMillis())
+        .deleteWith(s -> { })
+        .execute();
+    Assert.assertEquals("Action should find 1 file", invalidFiles, result);
+    Assert.assertTrue("Invalid file should be present", fs.exists(new Path(invalidFiles.get(0))));
   }
 }

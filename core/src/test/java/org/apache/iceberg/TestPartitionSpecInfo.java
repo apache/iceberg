@@ -19,9 +19,9 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.ImmutableMap;
 import java.io.File;
 import java.io.IOException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
 import org.junit.Assert;

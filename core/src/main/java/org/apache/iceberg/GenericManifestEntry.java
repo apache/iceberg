@@ -19,33 +19,30 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.MoreObjects;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.types.Types;
 
-class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData.SchemaConstructable, StructLike {
+class GenericManifestEntry<F extends ContentFile<F>>
+    implements ManifestEntry<F>, IndexedRecord, SpecificData.SchemaConstructable, StructLike {
   private final org.apache.avro.Schema schema;
-  private final V1Metadata.IndexedDataFile fileWrapper;
   private Status status = Status.EXISTING;
   private Long snapshotId = null;
   private Long sequenceNumber = null;
-  private DataFile file = null;
+  private F file = null;
 
   GenericManifestEntry(org.apache.avro.Schema schema) {
     this.schema = schema;
-    this.fileWrapper = null; // do not use the file wrapper to read
   }
 
   GenericManifestEntry(Types.StructType partitionType) {
     this.schema = AvroSchemaUtil.convert(V1Metadata.entrySchema(partitionType), "manifest_entry");
-    this.fileWrapper = new V1Metadata.IndexedDataFile(schema.getField("data_file").schema());
   }
 
-  private GenericManifestEntry(GenericManifestEntry toCopy, boolean fullCopy) {
+  private GenericManifestEntry(GenericManifestEntry<F> toCopy, boolean fullCopy) {
     this.schema = toCopy.schema;
-    this.fileWrapper = new V1Metadata.IndexedDataFile(schema.getField("data_file").schema());
     this.status = toCopy.status;
     this.snapshotId = toCopy.snapshotId;
     if (fullCopy) {
@@ -55,7 +52,7 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
     }
   }
 
-  ManifestEntry wrapExisting(Long newSnapshotId, Long newSequenceNumber, DataFile newFile) {
+  ManifestEntry<F> wrapExisting(Long newSnapshotId, Long newSequenceNumber, F newFile) {
     this.status = Status.EXISTING;
     this.snapshotId = newSnapshotId;
     this.sequenceNumber = newSequenceNumber;
@@ -63,7 +60,7 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
     return this;
   }
 
-  ManifestEntry wrapAppend(Long newSnapshotId, DataFile newFile) {
+  ManifestEntry<F> wrapAppend(Long newSnapshotId, F newFile) {
     this.status = Status.ADDED;
     this.snapshotId = newSnapshotId;
     this.sequenceNumber = null;
@@ -71,7 +68,7 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
     return this;
   }
 
-  ManifestEntry wrapDelete(Long newSnapshotId, DataFile newFile) {
+  ManifestEntry<F> wrapDelete(Long newSnapshotId, F newFile) {
     this.status = Status.DELETED;
     this.snapshotId = newSnapshotId;
     this.sequenceNumber = null;
@@ -104,18 +101,18 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
    * @return a file
    */
   @Override
-  public DataFile file() {
+  public F file() {
     return file;
   }
 
   @Override
-  public ManifestEntry copy() {
-    return new GenericManifestEntry(this, true /* full copy */);
+  public ManifestEntry<F> copy() {
+    return new GenericManifestEntry<>(this, true /* full copy */);
   }
 
   @Override
-  public ManifestEntry copyWithoutStats() {
-    return new GenericManifestEntry(this, false /* drop stats */);
+  public ManifestEntry<F> copyWithoutStats() {
+    return new GenericManifestEntry<>(this, false /* drop stats */);
   }
 
   @Override
@@ -129,6 +126,7 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
   }
 
   @Override
+  @SuppressWarnings("unchecked")
   public void put(int i, Object v) {
     switch (i) {
       case 0:
@@ -141,7 +139,7 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
         this.sequenceNumber = (Long) v;
         return;
       case 3:
-        this.file = (DataFile) v;
+        this.file = (F) v;
         return;
       default:
         // ignore the object, it must be from a newer version of the format
@@ -163,11 +161,7 @@ class GenericManifestEntry implements ManifestEntry, IndexedRecord, SpecificData
       case 2:
         return sequenceNumber;
       case 3:
-        if (fileWrapper == null || file instanceof GenericDataFile) {
-          return file;
-        } else {
-          return fileWrapper.wrap(file);
-        }
+        return file;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + i);
     }

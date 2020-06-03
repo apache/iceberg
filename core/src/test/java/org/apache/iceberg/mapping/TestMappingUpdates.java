@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.mapping;
 
-import com.google.common.collect.ImmutableList;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;

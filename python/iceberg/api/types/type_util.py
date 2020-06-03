@@ -16,6 +16,7 @@
 # under the License.
 
 import math
+from typing import List
 
 from .type import (Type,
                    TypeID)
@@ -238,7 +239,6 @@ class VisitFieldFuture(object):
         return self.visitor.field(self.field, VisitFuture(self.field.type, self.visitor).get)
 
 
-@staticmethod
 def decimal_required_bytes(precision):
     if precision < 0 or precision > 40:
         raise RuntimeError("Unsupported decimal precision: %s" % precision)
@@ -403,7 +403,7 @@ class AssignFreshIds(CustomOrderSchemaVisitor):
         length = len(struct.fields)
         new_ids = list()
 
-        for i in range(length):
+        for _ in range(length):
             new_ids.append(self.next_id())
 
         new_fields = list()
@@ -451,11 +451,11 @@ class CheckCompatibility(CustomOrderSchemaVisitor):
     def read_compatibility_errors(read_schema, write_schema):
         visit(write_schema, CheckCompatibility(read_schema, False))
 
-    NO_ERRORS = []
+    NO_ERRORS: List[str] = []
 
     def __init__(self, schema, check_ordering):
         self.schema = schema
-        self.check_ordering
+        self.check_ordering = check_ordering
         self.current_type = None
 
     def schema(self, schema, struct_result):
@@ -498,10 +498,10 @@ class CheckCompatibility(CustomOrderSchemaVisitor):
 
         return errors
 
-    def field(self, field, field_result):
+    def field(self, field, field_result) -> List[str]:
         struct = self.current_type.as_struct_type()
         curr_field = struct.field(field.field_id)
-        errors = list()
+        errors = []
 
         if curr_field is None:
             if not field.is_optional:

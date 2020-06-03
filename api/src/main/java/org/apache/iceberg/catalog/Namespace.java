@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.catalog;
 
-import com.google.common.base.Joiner;
 import java.util.Arrays;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 
 /**
  * A namespace in a {@link Catalog}.

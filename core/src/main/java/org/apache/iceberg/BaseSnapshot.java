@@ -19,11 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.MoreObjects;
-import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
@@ -32,6 +27,11 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class BaseSnapshot implements Snapshot {
   private static final long INITIAL_SEQUENCE_NUMBER = 0;
@@ -46,7 +46,9 @@ class BaseSnapshot implements Snapshot {
   private final Map<String, String> summary;
 
   // lazily initialized
-  private List<ManifestFile> manifests = null;
+  private List<ManifestFile> allManifests = null;
+  private List<ManifestFile> dataManifests = null;
+  private List<ManifestFile> deleteManifests = null;
   private List<DataFile> cachedAdds = null;
   private List<DataFile> cachedDeletes = null;
 
@@ -85,9 +87,9 @@ class BaseSnapshot implements Snapshot {
                long timestampMillis,
                String operation,
                Map<String, String> summary,
-               List<ManifestFile> manifests) {
+               List<ManifestFile> dataManifests) {
     this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, (InputFile) null);
-    this.manifests = manifests;
+    this.allManifests = dataManifests;
   }
 
   @Override
@@ -120,14 +122,42 @@ class BaseSnapshot implements Snapshot {
     return summary;
   }
 
-  @Override
-  public List<ManifestFile> manifests() {
-    if (manifests == null) {
+  private void cacheManifests() {
+    if (allManifests == null) {
       // if manifests isn't set, then the snapshotFile is set and should be read to get the list
-      this.manifests = ManifestLists.read(manifestList);
+      this.allManifests = ManifestLists.read(manifestList);
     }
 
-    return manifests;
+    if (dataManifests == null) {
+      this.dataManifests = ImmutableList.copyOf(Iterables.filter(allManifests,
+          manifest -> manifest.content() == ManifestContent.DATA));
+      this.deleteManifests = ImmutableList.copyOf(Iterables.filter(allManifests,
+          manifest -> manifest.content() == ManifestContent.DELETES));
+    }
+  }
+
+  @Override
+  public List<ManifestFile> allManifests() {
+    if (allManifests == null) {
+      cacheManifests();
+    }
+    return allManifests;
+  }
+
+  @Override
+  public List<ManifestFile> dataManifests() {
+    if (dataManifests == null) {
+      cacheManifests();
+    }
+    return dataManifests;
+  }
+
+  @Override
+  public List<ManifestFile> deleteManifests() {
+    if (deleteManifests == null) {
+      cacheManifests();
+    }
+    return deleteManifests;
   }
 
   @Override
@@ -156,13 +186,12 @@ class BaseSnapshot implements Snapshot {
     ImmutableList.Builder<DataFile> deletes = ImmutableList.builder();
 
     // read only manifests that were created by this snapshot
-    Iterable<ManifestFile> changedManifests = Iterables.filter(manifests(),
+    Iterable<ManifestFile> changedManifests = Iterables.filter(dataManifests(),
         manifest -> Objects.equal(manifest.snapshotId(), snapshotId));
-    try (CloseableIterable<ManifestEntry> entries = new ManifestGroup(io, changedManifests)
+    try (CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(io, changedManifests)
         .ignoreExisting()
-        .select(ManifestReader.ALL_COLUMNS)
         .entries()) {
-      for (ManifestEntry entry : entries) {
+      for (ManifestEntry<DataFile> entry : entries) {
         switch (entry.status()) {
           case ADDED:
             adds.add(entry.file().copy());
@@ -190,7 +219,7 @@ class BaseSnapshot implements Snapshot {
         .add("timestamp_ms", timestampMillis)
         .add("operation", operation)
         .add("summary", summary)
-        .add("manifests", manifests())
+        .add("manifest-list", manifestList.location())
         .toString();
   }
 }

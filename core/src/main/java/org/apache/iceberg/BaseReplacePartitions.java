@@ -25,8 +25,8 @@ import org.apache.iceberg.expressions.Expressions;
 
 public class BaseReplacePartitions
     extends MergingSnapshotProducer<ReplacePartitions> implements ReplacePartitions {
-  BaseReplacePartitions(TableOperations ops) {
-    super(ops);
+  BaseReplacePartitions(String tableName, TableOperations ops) {
+    super(tableName, ops);
   }
 
   @Override

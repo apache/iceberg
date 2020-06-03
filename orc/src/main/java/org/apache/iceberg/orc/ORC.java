@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.orc;
 
-import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -29,12 +28,14 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.orc.OrcConf;
 import org.apache.orc.OrcFile;
 import org.apache.orc.OrcFile.ReaderOptions;
@@ -122,8 +123,10 @@ public class ORC {
     private org.apache.iceberg.Schema schema = null;
     private Long start = null;
     private Long length = null;
+    private Expression filter = null;
+    private boolean caseSensitive = true;
 
-    private Function<TypeDescription, OrcValueReader<?>> readerFunc;
+    private Function<TypeDescription, OrcRowReader<?>> readerFunc;
 
     private ReadBuilder(InputFile file) {
       Preconditions.checkNotNull(file, "Input file cannot be null");
@@ -153,8 +156,9 @@ public class ORC {
       return this;
     }
 
-    public ReadBuilder caseSensitive(boolean caseSensitive) {
-      OrcConf.IS_SCHEMA_EVOLUTION_CASE_SENSITIVE.setBoolean(this.conf, caseSensitive);
+    public ReadBuilder caseSensitive(boolean newCaseSensitive) {
+      OrcConf.IS_SCHEMA_EVOLUTION_CASE_SENSITIVE.setBoolean(this.conf, newCaseSensitive);
+      this.caseSensitive = newCaseSensitive;
       return this;
     }
 
@@ -163,14 +167,19 @@ public class ORC {
       return this;
     }
 
-    public ReadBuilder createReaderFunc(Function<TypeDescription, OrcValueReader<?>> readerFunction) {
+    public ReadBuilder createReaderFunc(Function<TypeDescription, OrcRowReader<?>> readerFunction) {
       this.readerFunc = readerFunction;
+      return this;
+    }
+
+    public ReadBuilder filter(Expression newFilter) {
+      this.filter = newFilter;
       return this;
     }
 
     public <D> CloseableIterable<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
-      return new OrcIterable<>(file, conf, schema, start, length, readerFunc);
+      return new OrcIterable<>(file, conf, schema, start, length, readerFunc, caseSensitive, filter);
     }
   }
 

@@ -19,13 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.Date;
@@ -43,6 +36,13 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
@@ -159,7 +159,7 @@ public class ScanSummary {
       removeTimeFilters(filters, Expressions.rewriteNot(scan.filter()));
       Expression rowFilter = joinFilters(filters);
 
-      Iterable<ManifestFile> manifests = table.currentSnapshot().manifests();
+      Iterable<ManifestFile> manifests = table.currentSnapshot().dataManifests();
 
       boolean filterByTimestamp = !timeFilters.isEmpty();
       Set<Long> snapshotsInTimeRange = Sets.newHashSet();
@@ -218,7 +218,7 @@ public class ScanSummary {
       TopN<String, PartitionMetrics> topN = new TopN<>(
           limit, throwIfLimited, Comparators.charSequences());
 
-      try (CloseableIterable<ManifestEntry> entries = new ManifestGroup(ops.io(), manifests)
+      try (CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(ops.io(), manifests)
           .specsById(ops.current().specsById())
           .filterData(rowFilter)
           .ignoreDeleted()
@@ -226,7 +226,7 @@ public class ScanSummary {
           .entries()) {
 
         PartitionSpec spec = table.spec();
-        for (ManifestEntry entry : entries) {
+        for (ManifestEntry<?> entry : entries) {
           Long timestamp = snapshotTimestamps.get(entry.snapshotId());
 
           // if filtering, skip timestamps that are outside the range
@@ -280,7 +280,7 @@ public class ScanSummary {
       return this;
     }
 
-    private PartitionMetrics updateFromFile(DataFile file, Long timestampMillis) {
+    private PartitionMetrics updateFromFile(ContentFile<?> file, Long timestampMillis) {
       this.fileCount += 1;
       this.recordCount += file.recordCount();
       this.totalSize += file.fileSizeInBytes();

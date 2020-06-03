@@ -19,10 +19,10 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Iterables;
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
@@ -44,11 +44,10 @@ public class TestManifestReader extends TableTestBase {
   }
 
   @Test
-  @SuppressWarnings("deprecation")
   public void testManifestReaderWithEmptyInheritableMetadata() throws IOException {
-    ManifestFile manifest = writeManifest("manifest.avro", manifestEntry(Status.EXISTING, 1000L, FILE_A));
-    try (ManifestReader reader = ManifestReader.read(FILE_IO.newInputFile(manifest.path()))) {
-      ManifestEntry entry = Iterables.getOnlyElement(reader.entries());
+    ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 1000L, FILE_A));
+    try (ManifestReader reader = ManifestFiles.read(manifest, FILE_IO)) {
+      ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader.entries());
       Assert.assertEquals(Status.EXISTING, entry.status());
       Assert.assertEquals(FILE_A.path(), entry.file().path());
       Assert.assertEquals(1000L, (long) entry.snapshotId());
@@ -56,23 +55,19 @@ public class TestManifestReader extends TableTestBase {
   }
 
   @Test
-  @SuppressWarnings("deprecation")
   public void testInvalidUsage() throws IOException {
     ManifestFile manifest = writeManifest(FILE_A, FILE_B);
-    try (ManifestReader reader = ManifestReader.read(FILE_IO.newInputFile(manifest.path()))) {
-      AssertHelpers.assertThrows(
-          "Should not be possible to read manifest without explicit snapshot ids and inheritable metadata",
-          IllegalArgumentException.class, "must have explicit snapshot ids",
-          () -> Iterables.getOnlyElement(reader.entries()));
-    }
+    AssertHelpers.assertThrows(
+        "Should not be possible to read manifest without explicit snapshot ids and inheritable metadata",
+        IllegalArgumentException.class, "Cannot read from ManifestFile with null (unassigned) snapshot ID",
+        () -> ManifestFiles.read(manifest, FILE_IO));
   }
 
   @Test
-  @SuppressWarnings("deprecation")
   public void testManifestReaderWithPartitionMetadata() throws IOException {
-    ManifestFile manifest = writeManifest("manifest.avro", manifestEntry(Status.EXISTING, 123L, FILE_A));
-    try (ManifestReader reader = ManifestReader.read(FILE_IO.newInputFile(manifest.path()))) {
-      ManifestEntry entry = Iterables.getOnlyElement(reader.entries());
+    ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 123L, FILE_A));
+    try (ManifestReader reader = ManifestFiles.read(manifest, FILE_IO)) {
+      ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader.entries());
       Assert.assertEquals(123L, (long) entry.snapshotId());
 
       List<Types.NestedField> fields = ((PartitionData) entry.file().partition()).getPartitionType().fields();
@@ -84,7 +79,6 @@ public class TestManifestReader extends TableTestBase {
   }
 
   @Test
-  @SuppressWarnings("deprecation")
   public void testManifestReaderWithUpdatedPartitionMetadataForV1Table() throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(table.schema())
         .bucket("id", 8)
@@ -92,9 +86,9 @@ public class TestManifestReader extends TableTestBase {
         .build();
     table.ops().commit(table.ops().current(), table.ops().current().updatePartitionSpec(spec));
 
-    ManifestFile manifest = writeManifest("manifest.avro", manifestEntry(Status.EXISTING, 123L, FILE_A));
-    try (ManifestReader reader = ManifestReader.read(FILE_IO.newInputFile(manifest.path()))) {
-      ManifestEntry entry = Iterables.getOnlyElement(reader.entries());
+    ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 123L, FILE_A));
+    try (ManifestReader reader = ManifestFiles.read(manifest, FILE_IO)) {
+      ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader.entries());
       Assert.assertEquals(123L, (long) entry.snapshotId());
 
       List<Types.NestedField> fields = ((PartitionData) entry.file().partition()).getPartitionType().fields();

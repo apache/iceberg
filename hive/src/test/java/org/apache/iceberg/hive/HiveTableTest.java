@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.hive;
 
-import com.google.common.collect.Lists;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -39,6 +38,7 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.Assert;
@@ -197,7 +197,7 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     String manifestListLocation = table.currentSnapshot().manifestListLocation().replace("file:", "");
 
-    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
 
     Assert.assertTrue("Drop (table and data) should return true and drop the table",
         catalog.dropTable(TABLE_IDENTIFIER));

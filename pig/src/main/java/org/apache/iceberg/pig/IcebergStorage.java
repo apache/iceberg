@@ -19,9 +19,6 @@
 
 package org.apache.iceberg.pig;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collections;
@@ -41,6 +38,9 @@ import org.apache.iceberg.Tables;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.pig.IcebergPigInputFormat.IcebergRecordReader;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.pig.Expression;
 import org.apache.pig.Expression.BetweenExpression;

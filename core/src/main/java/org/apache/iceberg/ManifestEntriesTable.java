@@ -19,18 +19,18 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
 import java.util.Collection;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 
 /**
- * A {@link Table} implementation that exposes a table's manifest entries as rows.
+ * A {@link Table} implementation that exposes a table's manifest entries as rows, for both delete and data files.
  * <p>
  * WARNING: this table exposes internal details, like files that have been deleted. For a table of the live data files,
  * use {@link DataFilesTable}.
@@ -101,7 +101,8 @@ public class ManifestEntriesTable extends BaseMetadataTable {
     @Override
     protected CloseableIterable<FileScanTask> planFiles(
         TableOperations ops, Snapshot snapshot, Expression rowFilter, boolean caseSensitive, boolean colStats) {
-      CloseableIterable<ManifestFile> manifests = CloseableIterable.withNoopClose(snapshot.manifests());
+      // return entries from both data and delete manifests
+      CloseableIterable<ManifestFile> manifests = CloseableIterable.withNoopClose(snapshot.allManifests());
       Schema fileSchema = new Schema(schema().findType("data_file").asStructType().fields());
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
@@ -128,8 +129,8 @@ public class ManifestEntriesTable extends BaseMetadataTable {
     @Override
     public CloseableIterable<StructLike> rows() {
       return CloseableIterable.transform(
-          ManifestFiles.read(manifest, io).project(fileSchema).allEntries(),
-          file -> (GenericManifestEntry) file);
+          ManifestFiles.read(manifest, io).project(fileSchema).entries(),
+          file -> (GenericManifestEntry<?>) file);
     }
 
     @Override

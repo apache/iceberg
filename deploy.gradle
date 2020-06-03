@@ -57,7 +57,11 @@ subprojects {
   publishing {
     publications {
       apache(MavenPublication) {
-        from components.java
+        if (tasks.matching({task -> task.name == 'shadowJar'}).isEmpty()) {
+          from components.java
+        } else {
+          project.shadow.component(it)
+        }
 
         artifact sourceJar
         artifact javadocJar
@@ -71,7 +75,7 @@ subprojects {
 
         groupId = 'org.apache.iceberg'
         pom {
-          name = 'Apache Iceberg (incubating)'
+          name = 'Apache Iceberg'
           description = 'A table format for huge analytic datasets'
           url = 'https://iceberg.apache.org'
           licenses {
@@ -90,7 +94,7 @@ subprojects {
           }
           issueManagement {
             system = 'GitHub'
-            url = 'https://github.com/apache/incubator-iceberg/issues'
+            url = 'https://github.com/apache/iceberg/issues'
           }
         }
       }

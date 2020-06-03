@@ -19,9 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 import java.io.File;
 import java.util.Map;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -31,6 +28,9 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 import static org.apache.iceberg.TableMetadata.newTableMetadata;
 
@@ -64,7 +64,7 @@ public class TestTables {
     TableMetadata metadata = TableMetadata.newTableMetadata(
         schema, spec, temp.toString(), ImmutableMap.of(), 1);
 
-    return Transactions.createTableTransaction(ops, metadata);
+    return Transactions.createTableTransaction(name, ops, metadata);
   }
 
   public static Transaction beginReplace(File temp, String name, Schema schema, PartitionSpec spec) {
@@ -79,10 +79,10 @@ public class TestTables {
     TableMetadata metadata;
     if (current != null) {
       metadata = current.buildReplacement(schema, spec, properties);
-      return Transactions.replaceTableTransaction(ops, metadata);
+      return Transactions.replaceTableTransaction(name, ops, metadata);
     } else {
       metadata = newTableMetadata(schema, spec, temp.toString(), properties);
-      return Transactions.createTableTransaction(ops, metadata);
+      return Transactions.createTableTransaction(name, ops, metadata);
     }
   }
 

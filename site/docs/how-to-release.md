@@ -4,7 +4,7 @@
 To create a release candidate, you will need:
 
 * Apache LDAP credentals for Nexus and SVN
-* A [GPG key for signing](https://www.apache.org/dev/release-signing#generate), published in [KEYS](https://dist.apache.org/repos/dist/dev/incubator/iceberg/KEYS)
+* A [GPG key for signing](https://www.apache.org/dev/release-signing#generate), published in [KEYS](https://dist.apache.org/repos/dist/dev/iceberg/KEYS)
 
 ### Nexus access
 
@@ -36,13 +36,13 @@ For more information, see the Gradle [signing documentation](https://docs.gradle
 To create the source release artifacts, run the `source-release.sh` script with the release version and release candidate number:
 
 ```bash
-dev/source-release.sh 0.7.0 0
+dev/source-release.sh 0.8.1 0
 ```
 ```
-Preparing source for apache-iceberg-0.7.0-incubating-rc0
+Preparing source for apache-iceberg-0.8.1-rc0
 ...
 Success! The release candidate is available here:
-  https://dist.apache.org/repos/dist/dev/incubator/iceberg/apache-iceberg-0.7.0-incubating-rc0/
+  https://dist.apache.org/repos/dist/dev/iceberg/apache-iceberg-0.8.1-rc0/
 
 Commit SHA1: 4b4716c76559b3cdf3487e6b60ab52950241989b
 ```
@@ -60,8 +60,8 @@ Convenience binaries are created using the source release tarball from in the la
 Untar the source release and go into the release directory:
 
 ```bash
-tar xzf apache-iceberg-0.7.0-incubating.tar.gz
-cd apache-iceberg-0.7.0-incubating
+tar xzf apache-iceberg-0.8.1.tar.gz
+cd apache-iceberg-0.8.1
 ```
 
 To build and publish the convenience binaries, run the `dev/stage-binaries.sh` script. This will push to a release staging repository.
@@ -76,7 +76,7 @@ Next, you need to close the staging repository:
 2. In the menu on the left, choose "Staging Repositories"
 3. Select the Iceberg repository
 4. At the top, select "Close" and follow the instructions
-    * In the comment field use "Apache Iceberg (incubating) &lt;version&gt; RC&lt;num&gt;"
+    * In the comment field use "Apache Iceberg &lt;version&gt; RC&lt;num&gt;"
 
 ### Start a VOTE thread
 
@@ -92,14 +92,14 @@ I propose the following RC to be released as official Apache Iceberg <VERSION> r
 
 The commit id is <SHA1>
 * This corresponds to the tag: apache-iceberg-<VERSION>-rc<NUM>
-* https://github.com/apache/incubator-iceberg/commits/apache-iceberg-<VERSION>-rc<NUM>
-* https://github.com/apache/incubator-iceberg/tree/<SHA1>
+* https://github.com/apache/iceberg/commits/apache-iceberg-<VERSION>-rc<NUM>
+* https://github.com/apache/iceberg/tree/<SHA1>
 
 The release tarball, signature, and checksums are here:
-* https://dist.apache.org/repos/dist/dev/incubator/iceberg/apache-iceberg-<VERSION>-rc<NUM>/
+* https://dist.apache.org/repos/dist/dev/iceberg/apache-iceberg-<VERSION>-rc<NUM>/
 
 You can find the KEYS file here:
-* https://dist.apache.org/repos/dist/dev/incubator/iceberg/KEYS
+* https://dist.apache.org/repos/dist/dev/iceberg/KEYS
 
 Convenience binary artifacts are staged in Nexus. The Maven repository URL is:
 * https://repository.apache.org/content/repositories/orgapacheiceberg-<ID>/
@@ -124,8 +124,8 @@ First, copy the source release directory to releases:
 ```bash
 mkdir iceberg
 cd iceberg
-svn co https://dist.apache.org/repos/dist/dev/incubator/iceberg candidates
-svn co https://dist.apache.org/repos/dist/release/incubator/iceberg releases
+svn co https://dist.apache.org/repos/dist/dev/iceberg candidates
+svn co https://dist.apache.org/repos/dist/release/iceberg releases
 cp -r candidates/apache-iceberg-<VERSION>-rcN/ releases/apache-iceberg-<VERSION>
 cd releases
 svn add apache-iceberg-<VERSION>
@@ -153,7 +153,7 @@ delivers high query performance for tables with tens of petabytes of data,
 along with atomic commits, concurrent writes, and SQL-compatible table
 evolution.
 
-This release can be downloaded from: https://www.apache.org/dyn/closer.cgi/incubator/iceberg/<TARBALL NAME WITHOUT .tar.gz>/<TARBALL NAME>
+This release can be downloaded from: https://www.apache.org/dyn/closer.cgi/iceberg/<TARBALL NAME WITHOUT .tar.gz>/<TARBALL NAME>
 
 Java artifacts are available from Maven Central.
 

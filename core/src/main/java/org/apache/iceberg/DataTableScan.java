@@ -19,12 +19,12 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import java.util.Collection;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.ThreadPools;
 
 public class DataTableScan extends BaseTableScan {
@@ -79,14 +79,14 @@ public class DataTableScan extends BaseTableScan {
   @Override
   public CloseableIterable<FileScanTask> planFiles(TableOperations ops, Snapshot snapshot,
                                                    Expression rowFilter, boolean caseSensitive, boolean colStats) {
-    ManifestGroup manifestGroup = new ManifestGroup(ops.io(), snapshot.manifests())
+    ManifestGroup manifestGroup = new ManifestGroup(ops.io(), snapshot.dataManifests())
         .caseSensitive(caseSensitive)
         .select(colStats ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
         .filterData(rowFilter)
         .specsById(ops.current().specsById())
         .ignoreDeleted();
 
-    if (PLAN_SCANS_WITH_WORKER_POOL && snapshot.manifests().size() > 1) {
+    if (PLAN_SCANS_WITH_WORKER_POOL && snapshot.dataManifests().size() > 1) {
       manifestGroup = manifestGroup.planWith(ThreadPools.getWorkerPool());
     }
 

@@ -184,7 +184,7 @@ class ScanSummaryBuilder(object):
                     or str_as_bool(snap.summary.get(SnapshotSummary.PARTITION_SUMMARY_PROP, "false")):
                 return None
 
-            for key, val in snap.summary.items():
+            for key, _ in snap.summary.items():
                 if key.startswith(SnapshotSummary.CHANGED_PARTITION_PREFIX):
                     part_key = key[len(SnapshotSummary.CHANGED_PARTITION_PREFIX):]
                     # part = dict(entry.split("=") for entry in val.split(","))

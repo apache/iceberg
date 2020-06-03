@@ -19,10 +19,6 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,6 +28,10 @@ import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -119,7 +119,7 @@ public class AvroSchemaUtil {
     return false;
   }
 
-  static boolean isOptionSchema(Schema schema) {
+  public static boolean isOptionSchema(Schema schema) {
     if (schema.getType() == UNION && schema.getTypes().size() == 2) {
       if (schema.getTypes().get(0).getType() == Schema.Type.NULL) {
         return true;
@@ -162,7 +162,7 @@ public class AvroSchemaUtil {
     }
   }
 
-  static boolean isKeyValueSchema(Schema schema) {
+  public static boolean isKeyValueSchema(Schema schema) {
     return schema.getType() == RECORD && schema.getFields().size() == 2;
   }
 

@@ -19,13 +19,12 @@
 
 package org.apache.iceberg.parquet;
 
-import java.io.Closeable;
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.NoSuchElementException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.parquet.hadoop.ParquetReader;
 
 public class ParquetIterable<T> extends CloseableGroup implements CloseableIterable<T> {
@@ -36,7 +35,7 @@ public class ParquetIterable<T> extends CloseableGroup implements CloseableItera
   }
 
   @Override
-  public Iterator<T> iterator() {
+  public CloseableIterator<T> iterator() {
     try {
       ParquetReader<T> reader = builder.build();
       addCloseable(reader);
@@ -46,7 +45,7 @@ public class ParquetIterable<T> extends CloseableGroup implements CloseableItera
     }
   }
 
-  private static class ParquetIterator<T> implements Iterator<T>, Closeable {
+  private static class ParquetIterator<T> implements CloseableIterator<T> {
     private final ParquetReader<T> parquet;
     private boolean needsAdvance = false;
     private boolean hasNext = false;

@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.mr;
 
-import com.google.common.base.Preconditions;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.function.Function;
@@ -34,6 +33,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class InputFormatConfig {
 

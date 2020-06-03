@@ -19,8 +19,8 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Lists;
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 
@@ -77,7 +77,7 @@ public class ManifestsTable extends BaseMetadataTable {
     String manifestListLocation = scan.snapshot().manifestListLocation();
     return StaticDataTask.of(
         ops.io().newInputFile(manifestListLocation != null ? manifestListLocation : ops.current().file().location()),
-        scan.snapshot().manifests(),
+        scan.snapshot().allManifests(),
         manifest -> ManifestsTable.manifestFileToRow(spec, manifest));
   }
 

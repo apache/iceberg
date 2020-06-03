@@ -21,9 +21,6 @@ package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Iterator;
@@ -31,6 +28,9 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.JsonUtil;
 
 public class SnapshotParser {
@@ -79,9 +79,9 @@ public class SnapshotParser {
       // write just the location. manifests should not be embedded in JSON along with a list
       generator.writeStringField(MANIFEST_LIST, manifestList);
     } else {
-      // embed the manifest list in the JSON
+      // embed the manifest list in the JSON, v1 only
       generator.writeArrayFieldStart(MANIFESTS);
-      for (ManifestFile file : snapshot.manifests()) {
+      for (ManifestFile file : snapshot.allManifests()) {
         generator.writeString(file.path());
       }
       generator.writeEndArray();

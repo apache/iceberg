@@ -19,13 +19,13 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Maps;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ByteBuffers;
 
 class SerializableByteBufferMap implements Map<Integer, ByteBuffer>, Serializable {

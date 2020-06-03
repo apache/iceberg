@@ -115,4 +115,3 @@ public class ValuesAsBytesReader extends ValuesReader {
     }
   }
 }
-

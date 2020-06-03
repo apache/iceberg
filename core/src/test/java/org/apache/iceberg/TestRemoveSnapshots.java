@@ -19,15 +19,15 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -381,7 +381,7 @@ public class TestRemoveSnapshots extends TableTestBase {
       t4 = System.currentTimeMillis();
     }
 
-    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+    List<ManifestFile> manifests = table.currentSnapshot().dataManifests();
 
     ManifestFile newManifest = writeManifest(
         "manifest-file-1.avro",
@@ -449,7 +449,7 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     // ManifestList should be deleted too
     expectedDeletes.add(snapshotB.manifestListLocation());
-    snapshotB.manifests().forEach(file -> {
+    snapshotB.dataManifests().forEach(file -> {
       //Only the manifest of B should be deleted.
       if (file.snapshotId() == snapshotB.snapshotId()) {
         expectedDeletes.add(file.path());

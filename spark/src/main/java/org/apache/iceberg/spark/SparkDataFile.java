@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark;
 
-import com.google.common.collect.Maps;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Locale;
@@ -27,6 +26,7 @@ import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Row;

@@ -19,14 +19,7 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -41,6 +34,12 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -139,6 +138,8 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
     Preconditions.checkArgument(
         manifest.snapshotId() == null || manifest.snapshotId() == -1,
         "Snapshot id must be assigned during commit");
+    Preconditions.checkArgument(manifest.sequenceNumber() == -1,
+        "Sequence must be assigned during commit");
 
     if (snapshotIdInheritanceEnabled && manifest.snapshotId() == null) {
       addedManifests.add(manifest);
@@ -161,7 +162,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
 
   @Override
   public List<ManifestFile> apply(TableMetadata base) {
-    List<ManifestFile> currentManifests = base.currentSnapshot().manifests();
+    List<ManifestFile> currentManifests = base.currentSnapshot().dataManifests();
     Set<ManifestFile> currentManifestSet = ImmutableSet.copyOf(currentManifests);
 
     validateDeletedManifests(currentManifestSet);
@@ -174,15 +175,15 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
 
     validateFilesCounts();
 
-    // TODO: add sequence numbers here
     Iterable<ManifestFile> newManifestsWithMetadata = Iterables.transform(
         Iterables.concat(newManifests, addedManifests, rewrittenAddedManifests),
         manifest -> GenericManifestFile.copyOf(manifest).withSnapshotId(snapshotId()).build());
 
     // put new manifests at the beginning
-    List<ManifestFile> apply = new ArrayList<>();
+    List<ManifestFile> apply = Lists.newArrayList();
     Iterables.addAll(apply, newManifestsWithMetadata);
     apply.addAll(keptManifests);
+    apply.addAll(base.currentSnapshot().deleteManifests());
 
     return apply;
   }
@@ -234,9 +235,9 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
               keptManifests.add(manifest);
             } else {
               rewrittenManifests.add(manifest);
-              try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
-                FilteredManifest filteredManifest = reader.select(Arrays.asList("*"));
-                filteredManifest.liveEntries().forEach(
+              try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())
+                  .select(Arrays.asList("*"))) {
+                reader.liveEntries().forEach(
                     entry -> appendEntry(entry, clusterByFunc.apply(entry.file()), manifest.partitionSpecId())
                 );
 
@@ -287,7 +288,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
     return activeFilesCount;
   }
 
-  private void appendEntry(ManifestEntry entry, Object key, int partitionSpecId) {
+  private void appendEntry(ManifestEntry<DataFile> entry, Object key, int partitionSpecId) {
     Preconditions.checkNotNull(entry, "Manifest entry cannot be null");
     Preconditions.checkNotNull(key, "Key cannot be null");
 
@@ -323,13 +324,13 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
 
   class WriterWrapper {
     private final PartitionSpec spec;
-    private ManifestWriter writer;
+    private ManifestWriter<DataFile> writer;
 
     WriterWrapper(PartitionSpec spec) {
       this.spec = spec;
     }
 
-    synchronized void addEntry(ManifestEntry entry) {
+    synchronized void addEntry(ManifestEntry<DataFile> entry) {
       if (writer == null) {
         writer = newManifestWriter(spec);
       } else if (writer.length() >= getManifestTargetSizeBytes()) {

@@ -19,14 +19,12 @@
 
 package org.apache.iceberg.spark.source;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import java.util.Comparator;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -40,6 +38,9 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
@@ -118,15 +119,16 @@ public abstract class TestIcebergSourceTablesBase {
 
     Snapshot snapshot = table.currentSnapshot();
 
-    Assert.assertEquals("Should only contain one manifest", 1, snapshot.manifests().size());
+    Assert.assertEquals("Should only contain one manifest", 1, snapshot.allManifests().size());
 
-    InputFile manifest = table.io().newInputFile(snapshot.manifests().get(0).path());
+    InputFile manifest = table.io().newInputFile(snapshot.allManifests().get(0).path());
     List<GenericData.Record> expected = Lists.newArrayList();
     try (CloseableIterable<GenericData.Record> rows = Avro.read(manifest).project(entriesTable.schema()).build()) {
       // each row must inherit snapshot_id and sequence_number
       rows.forEach(row -> {
-        row.put(1, snapshot.snapshotId());
         row.put(2, 0L);
+        GenericData.Record file = (GenericData.Record) row.get("data_file");
+        file.put(0, FileContent.DATA.id());
         expected.add(row);
       });
     }
@@ -169,12 +171,16 @@ public abstract class TestIcebergSourceTablesBase {
         .collectAsList();
 
     List<GenericData.Record> expected = Lists.newArrayList();
-    for (ManifestFile manifest : Iterables.concat(Iterables.transform(table.snapshots(), Snapshot::manifests))) {
+    for (ManifestFile manifest : Iterables.concat(Iterables.transform(table.snapshots(), Snapshot::allManifests))) {
       InputFile in = table.io().newInputFile(manifest.path());
       try (CloseableIterable<GenericData.Record> rows = Avro.read(in).project(entriesTable.schema()).build()) {
-        for (GenericData.Record record : rows) {
-          expected.add(record);
-        }
+        // each row must inherit snapshot_id and sequence_number
+        rows.forEach(row -> {
+          row.put(2, 0L);
+          GenericData.Record file = (GenericData.Record) row.get("data_file");
+          file.put(0, FileContent.DATA.id());
+          expected.add(row);
+        });
       }
     }
 
@@ -217,12 +223,14 @@ public abstract class TestIcebergSourceTablesBase {
         .collectAsList();
 
     List<GenericData.Record> expected = Lists.newArrayList();
-    for (ManifestFile manifest : table.currentSnapshot().manifests()) {
+    for (ManifestFile manifest : table.currentSnapshot().dataManifests()) {
       InputFile in = table.io().newInputFile(manifest.path());
       try (CloseableIterable<GenericData.Record> rows = Avro.read(in).project(entriesTable.schema()).build()) {
         for (GenericData.Record record : rows) {
           if ((Integer) record.get("status") < 2 /* added or existing */) {
-            expected.add((GenericData.Record) record.get("data_file"));
+            GenericData.Record file = (GenericData.Record) record.get("data_file");
+            file.put(0, FileContent.DATA.id());
+            expected.add(file);
           }
         }
       }
@@ -248,14 +256,14 @@ public abstract class TestIcebergSourceTablesBase {
         new SimpleRecord(2, "b")
      );
 
-    try {
-      Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
-      inputDF.select("id", "data").write()
-          .format("parquet")
-          .mode("append")
-          .partitionBy("id")
-          .saveAsTable("parquet_table");
+    Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
+    inputDF.select("id", "data").write()
+        .format("parquet")
+        .mode("overwrite")
+        .partitionBy("id")
+        .saveAsTable("parquet_table");
 
+    try {
       String stagingLocation = table.location() + "/metadata";
       SparkTableUtil.importSparkTable(spark,
           new org.apache.spark.sql.catalyst.TableIdentifier("parquet_table"),
@@ -267,11 +275,13 @@ public abstract class TestIcebergSourceTablesBase {
           .collectAsList();
 
       List<GenericData.Record> expected = Lists.newArrayList();
-      for (ManifestFile manifest : table.currentSnapshot().manifests()) {
+      for (ManifestFile manifest : table.currentSnapshot().dataManifests()) {
         InputFile in = table.io().newInputFile(manifest.path());
         try (CloseableIterable<GenericData.Record> rows = Avro.read(in).project(entriesTable.schema()).build()) {
           for (GenericData.Record record : rows) {
-            expected.add((GenericData.Record) record.get("data_file"));
+            GenericData.Record file = (GenericData.Record) record.get("data_file");
+            file.put(0, FileContent.DATA.id());
+            expected.add(file);
           }
         }
       }
@@ -301,14 +311,14 @@ public abstract class TestIcebergSourceTablesBase {
         new SimpleRecord(2, "b")
     );
 
-    try {
-      Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
-      inputDF.select("id", "data").write()
-          .format("parquet")
-          .mode("append")
-          .partitionBy("id")
-          .saveAsTable("parquet_table");
+    Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
+    inputDF.select("id", "data").write()
+        .format("parquet")
+        .mode("overwrite")
+        .partitionBy("id")
+        .saveAsTable("parquet_table");
 
+    try {
       String stagingLocation = table.location() + "/metadata";
       SparkTableUtil.importSparkTable(
           spark, new org.apache.spark.sql.catalyst.TableIdentifier("parquet_table"), table, stagingLocation);
@@ -366,12 +376,14 @@ public abstract class TestIcebergSourceTablesBase {
         .collectAsList();
 
     List<GenericData.Record> expected = Lists.newArrayList();
-    for (ManifestFile manifest : table.currentSnapshot().manifests()) {
+    for (ManifestFile manifest : table.currentSnapshot().dataManifests()) {
       InputFile in = table.io().newInputFile(manifest.path());
       try (CloseableIterable<GenericData.Record> rows = Avro.read(in).project(entriesTable.schema()).build()) {
         for (GenericData.Record record : rows) {
           if ((Integer) record.get("status") < 2 /* added or existing */) {
-            expected.add((GenericData.Record) record.get("data_file"));
+            GenericData.Record file = (GenericData.Record) record.get("data_file");
+            file.put(0, FileContent.DATA.id());
+            expected.add(file);
           }
         }
       }
@@ -458,15 +470,17 @@ public abstract class TestIcebergSourceTablesBase {
         .load(loadLocation(tableIdentifier, "all_data_files"))
         .orderBy("file_path")
         .collectAsList();
-    actual.sort(Comparator.comparing(o -> o.getString(0)));
+    actual.sort(Comparator.comparing(o -> o.getString(1)));
 
     List<GenericData.Record> expected = Lists.newArrayList();
-    for (ManifestFile manifest : Iterables.concat(Iterables.transform(table.snapshots(), Snapshot::manifests))) {
+    for (ManifestFile manifest : Iterables.concat(Iterables.transform(table.snapshots(), Snapshot::dataManifests))) {
       InputFile in = table.io().newInputFile(manifest.path());
       try (CloseableIterable<GenericData.Record> rows = Avro.read(in).project(entriesTable.schema()).build()) {
         for (GenericData.Record record : rows) {
           if ((Integer) record.get("status") < 2 /* added or existing */) {
-            expected.add((GenericData.Record) record.get("data_file"));
+            GenericData.Record file = (GenericData.Record) record.get("data_file");
+            file.put(0, FileContent.DATA.id());
+            expected.add(file);
           }
         }
       }
@@ -647,7 +661,7 @@ public abstract class TestIcebergSourceTablesBase {
         manifestTable.schema(), "manifests"));
     GenericRecordBuilder summaryBuilder = new GenericRecordBuilder(AvroSchemaUtil.convert(
         manifestTable.schema().findType("partition_summaries.element").asStructType(), "partition_summary"));
-    List<GenericData.Record> expected = Lists.transform(table.currentSnapshot().manifests(), manifest ->
+    List<GenericData.Record> expected = Lists.transform(table.currentSnapshot().allManifests(), manifest ->
         builder.set("path", manifest.path())
             .set("length", manifest.length())
             .set("partition_spec_id", manifest.partitionSpecId())
@@ -683,11 +697,11 @@ public abstract class TestIcebergSourceTablesBase {
         .mode("append")
         .save(loadLocation(tableIdentifier));
 
-    manifests.addAll(table.currentSnapshot().manifests());
+    manifests.addAll(table.currentSnapshot().allManifests());
 
     table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
 
-    manifests.addAll(table.currentSnapshot().manifests());
+    manifests.addAll(table.currentSnapshot().allManifests());
 
     List<Row> actual = spark.read()
         .format("iceberg")
