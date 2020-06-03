@@ -89,7 +89,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
       set(SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP, String.valueOf(targetSnapshotId));
 
     } else if (cherryPickSnapshot.operation().equals(DataOperations.OVERWRITE) &&
-        PropertyUtil.propertyAsBoolean(cherryPickSnapshot.summary(), "replace-partitions", false)) {
+        PropertyUtil.propertyAsBoolean(cherryPickSnapshot.summary(), SnapshotSummary.REPLACE_PARTITIONS_PROP, false)) {
       // the operation was ReplacePartitions. this can be cherry-picked iff the partitions have not been modified.
       // detecting modification requires finding the new files since the parent was committed, so the parent must be an
       // ancestor of the current state, or null if the overwrite was based on an empty table.
