@@ -670,7 +670,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       return mergeManifests.get(bin);
     }
 
-    ManifestWriter<DataFile> writer = newManifestWriter(ops.current().spec());
+    ManifestWriter<DataFile> writer = newManifestWriter(ops.current().spec(specId));
     try {
       for (ManifestFile manifest : bin) {
         try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
