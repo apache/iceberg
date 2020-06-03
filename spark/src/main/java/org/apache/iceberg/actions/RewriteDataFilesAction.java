@@ -66,7 +66,7 @@ public class RewriteDataFilesAction
   private final Table table;
   private final FileIO fileIO;
   private final EncryptionManager encryptionManager;
-  private long rewriteDataFileSizeInBytes;
+  private long targetSizeInBytes;
   private int splitLookback;
 
   private PartitionSpec spec = null;
@@ -87,12 +87,8 @@ public class RewriteDataFilesAction
         table.properties(),
         TableProperties.WRITE_TARGET_FILE_SIZE_BYTES,
         TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
-    this.rewriteDataFileSizeInBytes = Math.min(splitSize, targetFileSize);
+    this.targetSizeInBytes = Math.min(splitSize, targetFileSize);
 
-    this.rewriteDataFileSizeInBytes = PropertyUtil.propertyAsLong(
-        table.properties(),
-        TableProperties.SPLIT_SIZE,
-        TableProperties.SPLIT_SIZE_DEFAULT);
     this.splitLookback = PropertyUtil.propertyAsInt(
         table.properties(),
         TableProperties.SPLIT_LOOKBACK,
@@ -131,22 +127,27 @@ public class RewriteDataFilesAction
   }
 
   /**
-   * Specify the rewrite data file size in bytes
+   * Specify the target rewrite data file size in bytes
    *
-   * @param rewriteDataFileSize size of rewrite data file
+   * @param targetSize size in bytes of rewrite data file
    * @return this for method chaining
    */
-  public RewriteDataFilesAction rewriteDataFileSizeInBytes(long rewriteDataFileSize) {
-    Preconditions.checkArgument(rewriteDataFileSize > 0L, "Invalid rewrite data file size in bytes %d",
-        rewriteDataFileSize);
-    this.rewriteDataFileSizeInBytes = rewriteDataFileSize;
+  public RewriteDataFilesAction targetSizeInBytes(long targetSize) {
+    Preconditions.checkArgument(targetSize > 0L, "Invalid target rewrite data file size in bytes %d",
+        targetSize);
+    this.targetSizeInBytes = targetSize;
     return this;
   }
 
   /**
-   * Specify the split lookback
+   * Specify the number of "bins" considered when trying to pack the next file split into a task.
+   * Increasing this usually makes tasks a bit more even by considering more ways to pack file regions into a single
+   * task with extra planning cost.
    *
-   * @param lookback lookback number to split
+   * This configuration can reorder the incoming file regions, to preserve order for lower/upper bounds in file
+   * metadata, user can use a lookback of 1.
+   *
+   * @param lookback number of "bins" considered when trying to pack the next file split into a task.
    * @return this for method chaining
    */
   public RewriteDataFilesAction splitLookback(int lookback) {
@@ -156,8 +157,8 @@ public class RewriteDataFilesAction
   }
 
   /**
-   * Pass a row Expression to filter DataFiles to be rewritten. This is typically used when only rewriting DatFiles
-   * under some partitions.
+   * Pass a row Expression to filter DataFiles to be rewritten. Note that all files that may contain data matching the
+   * filter may be rewritten.
    *
    * @param expr Expression to filter out DataFiles
    * @return this for method chaining
@@ -174,14 +175,10 @@ public class RewriteDataFilesAction
         .planFiles();
 
     Map<StructLikeWrapper, List<FileScanTask>> groupedTasks = groupTasksByPartition(fileScanTasks.iterator());
-    // Nothing to rewrite if the table is empty.
-    if (groupedTasks.isEmpty()) {
-      return RewriteDataFilesActionResult.empty();
-    }
-
     Map<StructLikeWrapper, List<FileScanTask>> filteredGroupedTasks = groupedTasks.entrySet().stream()
         .filter(kv -> kv.getValue().size() > 1)
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
     // Nothing to rewrite if there's only one DataFile in each partition.
     if (filteredGroupedTasks.isEmpty()) {
       return RewriteDataFilesActionResult.empty();
@@ -193,14 +190,12 @@ public class RewriteDataFilesAction
         TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
 
     // Split and combine tasks under each partition
-    List<CloseableIterable<CombinedScanTask>> groupedCombinedTasks = filteredGroupedTasks.values().stream()
+    List<CombinedScanTask> combinedScanTasks = filteredGroupedTasks.values().stream()
         .map(scanTasks -> {
           CloseableIterable<FileScanTask> splitTasks = TableScanUtil.splitFiles(
-              CloseableIterable.withNoopClose(scanTasks), rewriteDataFileSizeInBytes);
-          return TableScanUtil.planTasks(splitTasks, rewriteDataFileSizeInBytes, splitLookback, openFileCost);
+              CloseableIterable.withNoopClose(scanTasks), targetSizeInBytes);
+          return TableScanUtil.planTasks(splitTasks, targetSizeInBytes, splitLookback, openFileCost);
         })
-        .collect(Collectors.toList());
-    List<CombinedScanTask> combinedScanTasks = groupedCombinedTasks.stream()
         .flatMap(Streams::stream)
         .collect(Collectors.toList());
 
@@ -210,8 +205,8 @@ public class RewriteDataFilesAction
     Broadcast<EncryptionManager> encryption = sparkContext.broadcast(encryptionManager);
     boolean caseSensitive = Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive", "false"));
 
-    RowDataRewriter rowDataRewriter = new RowDataRewriter(table, spec, caseSensitive, io, encryption,
-        rewriteDataFileSizeInBytes);
+    RowDataRewriter rowDataRewriter =
+        new RowDataRewriter(table, spec, caseSensitive, io, encryption, targetSizeInBytes);
 
     List<DataFile> addedDataFiles = rowDataRewriter.rewriteDataForTasks(taskRDD);
     List<DataFile> currentDataFiles = filteredGroupedTasks.values().stream()
@@ -251,9 +246,6 @@ public class RewriteDataFilesAction
       rewriteFiles.rewriteFiles(Sets.newHashSet(deletedDataFiles), Sets.newHashSet(addedDataFiles));
       commit(rewriteFiles);
       threw = false;
-
-    } catch (Throwable t) {
-      LOG.error("Failed to rewrite DataFiles", t);
 
     } finally {
       if (threw) {

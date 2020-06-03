@@ -76,7 +76,7 @@ public class RowDataRewriter implements Serializable {
         .collect(Collectors.toList());
   }
 
-  private Writer.TaskCommit rewriteDataForTask(CombinedScanTask task) {
+  private Writer.TaskCommit rewriteDataForTask(CombinedScanTask task) throws Exception {
     TaskContext context = TaskContext.get();
 
     RowDataReader dataReader = new RowDataReader(task, SchemaParser.fromJson(tableSchema),
@@ -86,7 +86,6 @@ public class RowDataRewriter implements Serializable {
     long taskId = context.taskAttemptId();
     DataWriter<InternalRow> dataWriter = writerFactory.createDataWriter(partitionId, taskId, 0);
 
-    Throwable originalThrowable = null;
     try {
       while (dataReader.next()) {
         InternalRow row = dataReader.get();
@@ -97,8 +96,7 @@ public class RowDataRewriter implements Serializable {
       dataReader = null;
       return (Writer.TaskCommit) dataWriter.commit();
 
-    } catch (Throwable t) {
-      originalThrowable = t;
+    } catch (Throwable originalThrowable) {
       try {
         LOG.error("Aborting task", originalThrowable);
         context.markTaskFailed(originalThrowable);
@@ -119,7 +117,11 @@ public class RowDataRewriter implements Serializable {
         }
       }
 
-      throw new RuntimeException(originalThrowable);
+      if (originalThrowable instanceof Exception) {
+        throw originalThrowable;
+      } else {
+        throw new RuntimeException(originalThrowable);
+      }
     }
   }
 }
