@@ -25,7 +25,6 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -38,7 +37,6 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
@@ -51,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -93,13 +92,14 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   private List<Expression> filterExpressions = null;
   private Filter[] pushedFilters = NO_FILTERS;
   private final boolean localityPreferred;
+  private final boolean batchReadsEnabled;
   private final int batchSize;
 
   // lazy variables
   private Schema schema = null;
   private StructType type = null; // cached because Spark accesses it multiple times
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
-  private Boolean enableBatchRead = null; // cache variable for enabling batched reads
+  private Boolean readUsingBatch = null;
 
   Reader(
       Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
@@ -155,13 +155,12 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     this.encryptionManager = encryptionManager;
     this.caseSensitive = caseSensitive;
 
-    boolean enableBatchReadsConfig =
-        options.get("iceberg.read.parquet-vectorization.enabled").map(Boolean::parseBoolean).orElse(true);
-    if (!enableBatchReadsConfig) {
-      enableBatchRead = Boolean.FALSE;
-    }
-    Optional<String> numRecordsPerBatchOpt = options.get("iceberg.read.parquet-vectorization.batch-size");
-    this.batchSize = numRecordsPerBatchOpt.map(Integer::parseInt).orElse(VectorizedArrowReader.DEFAULT_BATCH_SIZE);
+    this.batchReadsEnabled = options.get("vectorization-enabled").map(Boolean::parseBoolean).orElse(
+        PropertyUtil.propertyAsBoolean(table.properties(),
+            TableProperties.PARQUET_VECTORIZATION_ENABLED, TableProperties.PARQUET_VECTORIZATION_ENABLED_DEFAULT));
+    this.batchSize = options.get("batch-size").map(Integer::parseInt).orElse(
+        PropertyUtil.propertyAsInt(table.properties(),
+          TableProperties.PARQUET_BATCH_SIZE, TableProperties.PARQUET_BATCH_SIZE_DEFAULT));
   }
 
   private Schema lazySchema() {
@@ -292,11 +291,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
   @Override
   public boolean enableBatchRead() {
-    return lazyCheckEnableBatchRead();
-  }
-
-  private boolean lazyCheckEnableBatchRead() {
-    if (enableBatchRead == null) {
+    if (readUsingBatch == null) {
       boolean allParquetFileScanTasks =
           tasks().stream()
               .allMatch(combinedScanTask -> !combinedScanTask.isDataTask() && combinedScanTask.files()
@@ -313,9 +308,10 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
       boolean onlyPrimitives = lazySchema().columns().stream().allMatch(c -> c.type().isPrimitiveType());
 
-      this.enableBatchRead = allParquetFileScanTasks && atLeastOneColumn && hasNoIdentityProjections && onlyPrimitives;
+      this.readUsingBatch = batchReadsEnabled && allParquetFileScanTasks && atLeastOneColumn &&
+          hasNoIdentityProjections && onlyPrimitives;
     }
-    return enableBatchRead;
+    return readUsingBatch;
   }
 
   private static void mergeIcebergHadoopConfs(
@@ -446,7 +442,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     }
   }
 
-  private interface ReaderFactory<T> {
+  private interface ReaderFactory<T> extends Serializable {
     InputPartitionReader<T> create(CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO io,
                                    EncryptionManager encryptionManager, boolean caseSensitive);
   }

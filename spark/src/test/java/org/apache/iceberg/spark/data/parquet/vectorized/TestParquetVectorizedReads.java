@@ -41,7 +41,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestParquetVectorizedReads extends AvroDataTest {
-  private static final int NUM_ROWS = 100_000_000;
+  private static final int NUM_ROWS = 200_000;
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {

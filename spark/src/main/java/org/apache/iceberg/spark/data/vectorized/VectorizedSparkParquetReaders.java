@@ -126,9 +126,5 @@ public class VectorizedSparkParquetReaders {
       return new VectorizedArrowReader(desc, icebergField, rootAllocator,
           batchSize, /* setArrowValidityVector */ NullCheckingForGet.NULL_CHECKING_ENABLED);
     }
-
-    protected MessageType type() {
-      return parquetSchema;
-    }
   }
 }
