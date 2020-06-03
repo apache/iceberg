@@ -19,14 +19,13 @@
 
 package org.apache.iceberg.spark.data.parquet.vectorized;
 
-import java.util.List;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.spark.data.RandomData;
 
 public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVectorizedReads {
   @Override
-  List<GenericData.Record> generateData(Schema schema) {
-    return RandomData.generateDictionaryEncodableData(schema, 100000, 0L);
+  Iterable<GenericData.Record> generateData(int numRows, Schema schema) {
+    return RandomData.generateDictionaryEncodableData(schema, numRows, 0L);
   }
 }

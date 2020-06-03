@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.data;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -83,9 +84,22 @@ public class RandomData {
   }
 
   public static Iterable<Record> generate(Schema schema, int numRecords, long seed) {
+    return newIterable(() -> new RandomDataGenerator(schema, seed), schema, numRecords);
+  }
+
+  public static Iterable<Record> generateFallbackData(Schema schema, int numRecords, long seed, long numDictRecords) {
+    return newIterable(() -> new FallbackDataGenerator(schema, seed, numDictRecords), schema, numRecords);
+  }
+
+  public static Iterable<GenericData.Record> generateDictionaryEncodableData(Schema schema, int numRecords, long seed) {
+    return newIterable(() -> new DictionaryEncodedDataGenerator(schema, seed), schema, numRecords);
+  }
+
+  private static Iterable<Record> newIterable(Supplier<RandomDataGenerator> newGenerator,
+                                              Schema schema, int numRecords) {
     return () -> new Iterator<Record>() {
-      private RandomDataGenerator generator = new RandomDataGenerator(schema, seed);
       private int count = 0;
+      private RandomDataGenerator generator = newGenerator.get();
 
       @Override
       public boolean hasNext() {
@@ -103,37 +117,9 @@ public class RandomData {
     };
   }
 
-  public static List<Record> generateListWithDictionaryFallbackToPlainEncoding(
-      Schema schema,
-      int numRecords,
-      long seed,
-      float fraction) {
-    DictionaryFallbackToPlainEncodingDataGenerator generator =
-        new DictionaryFallbackToPlainEncodingDataGenerator(schema, seed, numRecords, fraction);
-    List<Record> records = Lists.newArrayListWithExpectedSize(numRecords);
-    for (int i = 0; i < numRecords; i += 1) {
-      Record rec = (Record) TypeUtil.visit(schema, generator);
-      records.add(rec);
-    }
-
-    return records;
-  }
-
-  public static List<GenericData.Record> generateDictionaryEncodableData(Schema schema, int numRecords, long seed) {
-    List<GenericData.Record> records = Lists.newArrayListWithExpectedSize(numRecords);
-    DictionaryEncodedDataGenerator
-        dictionaryDataGenerator = new DictionaryEncodedDataGenerator(schema, seed);
-    for (int i = 0; i < numRecords; i += 1) {
-      GenericData.Record rec = (GenericData.Record) TypeUtil.visit(schema, dictionaryDataGenerator);
-      records.add(rec);
-    }
-    return records;
-  }
-
-  @SuppressWarnings("checkstyle:VisibilityModifier")
   private static class RandomDataGenerator extends TypeUtil.CustomOrderSchemaVisitor<Object> {
     private final Map<Type, org.apache.avro.Schema> typeToSchema;
-    final Random random;
+    private final Random random;
 
     private RandomDataGenerator(Schema schema, long seed) {
       this.typeToSchema = AvroSchemaUtil.convertTypes(schema.asStruct(), "test");
@@ -214,10 +200,6 @@ public class RandomData {
       Object result = RandomUtil.generatePrimitive(primitive, random);
       // For the primitives that Avro needs a different type than Spark, fix
       // them here.
-      return getPrimitive(primitive, result);
-    }
-
-    Object getPrimitive(Type.PrimitiveType primitive, Object result) {
       switch (primitive.typeId()) {
         case FIXED:
           return new GenericData.Fixed(typeToSchema.get(primitive),
@@ -325,6 +307,42 @@ public class RandomData {
         default:
           return obj;
       }
+    }
+  }
+
+  private static Object generateDictionaryEncodablePrimitive(Type.PrimitiveType primitive, Random random) {
+    int value = random.nextInt(3);
+    switch (primitive.typeId()) {
+      case BOOLEAN:
+        return true; // doesn't really matter for booleans since they are not dictionary encoded
+      case INTEGER:
+      case DATE:
+        return value;
+      case FLOAT:
+        return (float) value;
+      case DOUBLE:
+        return (double) value;
+      case LONG:
+      case TIME:
+      case TIMESTAMP:
+        return (long) value;
+      case STRING:
+        return UTF8String.fromString(String.valueOf(value));
+      case FIXED:
+        byte[] fixed = new byte[((Types.FixedType) primitive).length()];
+        Arrays.fill(fixed, (byte) value);
+        return fixed;
+      case BINARY:
+        byte[] binary = new byte[value + 1];
+        Arrays.fill(binary, (byte) value);
+        return binary;
+      case DECIMAL:
+        Types.DecimalType type = (Types.DecimalType) primitive;
+        BigInteger unscaled = new BigInteger(String.valueOf(value + 1));
+        return Decimal.apply(new BigDecimal(unscaled, type.scale()));
+      default:
+        throw new IllegalArgumentException(
+            "Cannot generate random value for unknown type: " + primitive);
     }
   }
 
@@ -478,224 +496,33 @@ public class RandomData {
   }
 
   private static class DictionaryEncodedDataGenerator extends RandomDataGenerator {
-
     private DictionaryEncodedDataGenerator(Schema schema, long seed) {
       super(schema, seed);
     }
 
     @Override
-    public Object primitive(Type.PrimitiveType primitive) {
-      Object result = generateDictionaryEncodablePrimitive(primitive, random);
-      return super.getPrimitive(primitive, result);
-    }
-
-    @SuppressWarnings("checkstyle:CyclomaticComplexity")
-    private static Object generateDictionaryEncodablePrimitive(Type.PrimitiveType primitive, Random random) {
-      // 3 choices
-      int choice = random.nextInt(3);
-      switch (primitive.typeId()) {
-        case BOOLEAN:
-          return true; // doesn't really matter for booleans since they are not dictionary encoded
-
-        case INTEGER:
-          switch (choice) {
-            case 0:
-              return 0;
-            case 1:
-              return 1;
-            case 2:
-              return 2;
-          }
-
-        case LONG:
-          switch (choice) {
-            case 0:
-              return 0L;
-            case 1:
-              return 1L;
-            case 2:
-              return 2L;
-          }
-
-        case FLOAT:
-          switch (choice) {
-            case 0:
-              return 0.0f;
-            case 1:
-              return 1.0f;
-            case 2:
-              return 2.0f;
-          }
-
-        case DOUBLE:
-          switch (choice) {
-            case 0:
-              return 0.0d;
-            case 1:
-              return 1.0d;
-            case 2:
-              return 2.0d;
-          }
-
-        case DATE:
-          switch (choice) {
-            case 0:
-              return 0;
-            case 1:
-              return 1;
-            case 2:
-              return 2;
-          }
-
-        case TIME:
-          switch (choice) {
-            case 0:
-              return 0L;
-            case 1:
-              return 1L;
-            case 2:
-              return 2L;
-          }
-
-        case TIMESTAMP:
-          switch (choice) {
-            case 0:
-              return 0L;
-            case 1:
-              return 1L;
-            case 2:
-              return 2L;
-          }
-
-        case STRING:
-          switch (choice) {
-            case 0:
-              return UTF8String.fromString("0");
-            case 1:
-              return UTF8String.fromString("1");
-            case 2:
-              return UTF8String.fromString("2");
-          }
-
-        case FIXED:
-          byte[] fixed = new byte[((Types.FixedType) primitive).length()];
-          switch (choice) {
-            case 0:
-              fixed[0] = 0;
-              return fixed;
-            case 1:
-              fixed[0] = 1;
-              return fixed;
-            case 2:
-              fixed[0] = 2;
-              return fixed;
-          }
-
-        case BINARY:
-          byte[] binary = new byte[4];
-          switch (choice) {
-            case 0:
-              binary[0] = 0;
-              return binary;
-            case 1:
-              binary[0] = 1;
-              return binary;
-            case 2:
-              binary[0] = 2;
-              return binary;
-          }
-
-        case DECIMAL:
-          Types.DecimalType type = (Types.DecimalType) primitive;
-          switch (choice) {
-            case 0:
-              BigInteger unscaled = new BigInteger("1");
-              return Decimal.apply(new BigDecimal(unscaled, type.scale()));
-            case 1:
-              unscaled = new BigInteger("2");
-              return Decimal.apply(new BigDecimal(unscaled, type.scale()));
-            case 2:
-              unscaled = new BigInteger("3");
-              return Decimal.apply(new BigDecimal(unscaled, type.scale()));
-          }
-
-        default:
-          throw new IllegalArgumentException(
-              "Cannot generate random value for unknown type: " + primitive);
-      }
+    protected Object randomValue(Type.PrimitiveType primitive, Random random) {
+      return generateDictionaryEncodablePrimitive(primitive, random);
     }
   }
 
-  private static class DictionaryFallbackToPlainEncodingDataGenerator extends RandomDataGenerator {
-    private final long numValues;
-    private final float fraction;
-    private int current;
+  private static class FallbackDataGenerator extends RandomDataGenerator {
+    private final long dictionaryEncodedRows;
+    private long rowCount = 0;
 
-    private DictionaryFallbackToPlainEncodingDataGenerator(Schema schema, long seed, int numRecords, float fraction) {
+    private FallbackDataGenerator(Schema schema, long seed, long numDictionaryEncoded) {
       super(schema, seed);
-      // for now, vectorized reads are only supported for primitive types
-      this.numValues =
-          numRecords * schema.columns().stream().filter(nestedField -> nestedField.type().isPrimitiveType()).count();
-      this.fraction = fraction;
+      this.dictionaryEncodedRows = numDictionaryEncoded;
     }
 
     @Override
-    public Object primitive(Type.PrimitiveType primitive) {
-      current++;
-      boolean dictionaryEncodable = current < fraction * numValues;
-      Object result;
-      switch (primitive.typeId()) {
-        case STRING:
-          result = dictionaryEncodable ? UTF8String.fromString("ABC") : randomString(random);
-          break;
-        case BOOLEAN:
-          result = true; // doesn't really matter for booleans since they are not dictionary encoded
-          break;
-        case INTEGER:
-        case DATE:
-          result = dictionaryEncodable ? 1 : random.nextInt();
-          break;
-        case LONG:
-        case TIME:
-        case TIMESTAMP:
-          result = dictionaryEncodable ? 1L : random.nextLong();
-          break;
-        case FLOAT:
-          result = dictionaryEncodable ? 1.0f : random.nextFloat();
-          break;
-        case DOUBLE:
-          result = dictionaryEncodable ? 1.0d : random.nextDouble();
-          break;
-        case FIXED:
-          byte[] fixed = new byte[((Types.FixedType) primitive).length()];
-          if (dictionaryEncodable) {
-            fixed[0] = 1;
-          } else {
-            random.nextBytes(fixed);
-          }
-          result = fixed;
-          break;
-        case BINARY:
-          byte[] binary;
-          if (dictionaryEncodable) {
-            binary = new byte[1];
-            binary[0] = 1;
-          } else {
-            binary = new byte[random.nextInt(50)];
-            random.nextBytes(binary);
-          }
-          result = binary;
-          break;
-        case DECIMAL:
-          Types.DecimalType type = (Types.DecimalType) primitive;
-          BigInteger unscaled = dictionaryEncodable ? new BigInteger("1") : randomUnscaled(type.precision(), random);
-          result = Decimal.apply(new BigDecimal(unscaled, type.scale()));
-          break;
-        default:
-          throw new IllegalArgumentException(
-              "Cannot generate value for unknown type: " + primitive);
+    protected Object randomValue(Type.PrimitiveType primitive, Random rand) {
+      this.rowCount += 1;
+      if (rowCount > dictionaryEncodedRows) {
+        return generatePrimitive(primitive, rand);
+      } else {
+        return generateDictionaryEncodablePrimitive(primitive, rand);
       }
-      return super.getPrimitive(primitive, result);
     }
   }
 }

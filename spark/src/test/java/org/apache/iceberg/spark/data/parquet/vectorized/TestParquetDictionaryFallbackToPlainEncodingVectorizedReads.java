@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.data.parquet.vectorized;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
@@ -32,8 +31,8 @@ import org.apache.iceberg.spark.data.RandomData;
 
 public class TestParquetDictionaryFallbackToPlainEncodingVectorizedReads extends TestParquetVectorizedReads {
   @Override
-  public List<GenericData.Record> generateData(Schema schema) {
-    return RandomData.generateListWithDictionaryFallbackToPlainEncoding(schema, 200000, 0L, 0.05f);
+  public Iterable<GenericData.Record> generateData(int numRows, Schema schema) {
+    return RandomData.generateFallbackData(schema, numRows, 0L, numRows / 20);
   }
 
   @Override

@@ -21,9 +21,7 @@ package org.apache.iceberg.spark.data.parquet.vectorized;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
@@ -43,6 +41,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestParquetVectorizedReads extends AvroDataTest {
+  private static final int NUM_ROWS = 100_000_000;
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
@@ -51,7 +50,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
         schema,
         type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()));
 
-    List<GenericData.Record> expected = generateData(schema);
+    Iterable<GenericData.Record> expected = generateData(NUM_ROWS, schema);
 
     // write a test parquet file using iceberg writer
     File testFile = temp.newFile();
@@ -60,7 +59,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     try (FileAppender<GenericData.Record> writer = getParquetWriter(schema, testFile)) {
       writer.addAll(expected);
     }
-    assertRecordsMatch(schema, expected, testFile);
+    assertRecordsMatch(schema, NUM_ROWS, expected, testFile);
   }
 
   FileAppender<GenericData.Record> getParquetWriter(Schema schema, File testFile) throws IOException {
@@ -70,31 +69,27 @@ public class TestParquetVectorizedReads extends AvroDataTest {
         .build();
   }
 
-  List<GenericData.Record> generateData(Schema schema) {
-    return RandomData.generateList(schema, 100000, 0L);
+  Iterable<GenericData.Record> generateData(int numRows, Schema schema) {
+    return RandomData.generate(schema, numRows, 0L);
   }
 
-  void assertRecordsMatch(Schema schema, List<GenericData.Record> expected, File testFile) throws IOException {
+  void assertRecordsMatch(Schema schema, int expectedSize, Iterable<GenericData.Record> expected, File testFile) throws IOException {
     try (CloseableIterable<ColumnarBatch> batchReader = Parquet.read(Files.localInput(testFile))
         .project(schema)
         .reuseContainers()
+        .recordsPerBatch(10000)
         .createBatchedReaderFunc(type -> VectorizedSparkParquetReaders.buildReader(schema, type, 10000))
         .build()) {
 
+      Iterator<GenericData.Record> expectedIter = expected.iterator();
       Iterator<ColumnarBatch> batches = batchReader.iterator();
       int numRowsRead = 0;
-      int numExpectedRead = 0;
       while (batches.hasNext()) {
         ColumnarBatch batch = batches.next();
         numRowsRead += batch.numRows();
-        List<GenericData.Record> expectedBatch = new ArrayList<>(batch.numRows());
-        for (int i = numExpectedRead; i < numExpectedRead + batch.numRows(); i++) {
-          expectedBatch.add(expected.get(i));
-        }
-        TestHelpers.assertArrowVectors(schema.asStruct(), expectedBatch, batch);
-        numExpectedRead += batch.numRows();
+        TestHelpers.assertEqualsBatch(schema.asStruct(), expectedIter, batch);
       }
-      Assert.assertEquals(expected.size(), numRowsRead);
+      Assert.assertEquals(expectedSize, numRowsRead);
     }
   }
 
