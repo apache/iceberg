@@ -328,7 +328,6 @@ project(':iceberg-mr') {
       exclude group: 'org.apache.hive', module: 'hive-exec'
       exclude group: 'org.codehaus.jettison', module: 'jettison'
       exclude group: 'org.apache.calcite.avatica'
-      //exclude group: 'com.fasterxml.jackson.core'
     }
 
     testCompile("org.apache.hive:hive-exec::core") {
@@ -340,14 +339,11 @@ project(':iceberg-mr') {
       exclude group: 'com.google.protobuf', module: 'protobuf-java'
       exclude group: 'org.apache.calcite.avatica'
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
-      //exclude group: 'com.fasterxml.jackson.core'
     }
 
     testCompile("org.apache.calcite:calcite-core")
     testCompile("com.esotericsoftware.kryo:kryo:2.24.0")
     testCompile("com.fasterxml.jackson.core:jackson-annotations:2.6.5")
-    //testCompile("com.fasterxml.jackson.core:jackson-databind:2.6.0")
-
 
     testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
