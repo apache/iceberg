@@ -20,6 +20,7 @@
 package org.apache.iceberg.actions;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -39,8 +40,10 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.ListMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.source.RowDataRewriter;
@@ -61,11 +64,11 @@ public class RewriteDataFilesAction
 
   private static final Logger LOG = LoggerFactory.getLogger(RewriteDataFilesAction.class);
 
-  private final SparkSession spark;
   private final JavaSparkContext sparkContext;
   private final Table table;
   private final FileIO fileIO;
   private final EncryptionManager encryptionManager;
+  private final boolean caseSensitive;
   private long targetSizeInBytes;
   private int splitLookback;
 
@@ -73,11 +76,11 @@ public class RewriteDataFilesAction
   private Expression filter;
 
   RewriteDataFilesAction(SparkSession spark, Table table) {
-    this.spark = spark;
     this.sparkContext = new JavaSparkContext(spark.sparkContext());
     this.table = table;
     this.spec = table.spec();
     this.filter = Expressions.alwaysTrue();
+    this.caseSensitive = Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive", "false"));
 
     long splitSize = PropertyUtil.propertyAsLong(
         table.properties(),
@@ -143,7 +146,7 @@ public class RewriteDataFilesAction
    * Specify the number of "bins" considered when trying to pack the next file split into a task.
    * Increasing this usually makes tasks a bit more even by considering more ways to pack file regions into a single
    * task with extra planning cost.
-   *
+   * <p>
    * This configuration can reorder the incoming file regions, to preserve order for lower/upper bounds in file
    * metadata, user can use a lookback of 1.
    *
@@ -170,12 +173,24 @@ public class RewriteDataFilesAction
 
   @Override
   public RewriteDataFilesActionResult execute() {
-    CloseableIterable<FileScanTask> fileScanTasks = table.newScan()
-        .filter(filter)
-        .planFiles();
+    CloseableIterable<FileScanTask> fileScanTasks = null;
+    try {
+      fileScanTasks = table.newScan()
+          .caseSensitive(caseSensitive)
+          .filter(filter)
+          .planFiles();
+    } finally {
+      try {
+        if (fileScanTasks != null) {
+          fileScanTasks.close();
+        }
+      } catch (IOException ioe) {
+        LOG.warn("Failed to close task iterable", ioe);
+      }
+    }
 
-    Map<StructLikeWrapper, List<FileScanTask>> groupedTasks = groupTasksByPartition(fileScanTasks.iterator());
-    Map<StructLikeWrapper, List<FileScanTask>> filteredGroupedTasks = groupedTasks.entrySet().stream()
+    Map<StructLikeWrapper, Collection<FileScanTask>> groupedTasks = groupTasksByPartition(fileScanTasks.iterator());
+    Map<StructLikeWrapper, Collection<FileScanTask>> filteredGroupedTasks = groupedTasks.entrySet().stream()
         .filter(kv -> kv.getValue().size() > 1)
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
@@ -203,7 +218,6 @@ public class RewriteDataFilesAction
 
     Broadcast<FileIO> io = sparkContext.broadcast(fileIO);
     Broadcast<EncryptionManager> encryption = sparkContext.broadcast(encryptionManager);
-    boolean caseSensitive = Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive", "false"));
 
     RowDataRewriter rowDataRewriter =
         new RowDataRewriter(table, spec, caseSensitive, io, encryption, targetSizeInBytes);
@@ -217,25 +231,26 @@ public class RewriteDataFilesAction
     return new RewriteDataFilesActionResult(currentDataFiles, addedDataFiles);
   }
 
-  private Map<StructLikeWrapper, List<FileScanTask>> groupTasksByPartition(CloseableIterator<FileScanTask> tasksIter) {
-    Map<StructLikeWrapper, List<FileScanTask>> tasksGroupedByPartition = Maps.newHashMap();
+  private Map<StructLikeWrapper, Collection<FileScanTask>> groupTasksByPartition(
+      CloseableIterator<FileScanTask> tasksIter) {
+    ListMultimap<StructLikeWrapper, FileScanTask> tasksGroupedByPartition = Multimaps.newListMultimap(
+        Maps.newHashMap(), Lists::newArrayList);
 
     try {
       tasksIter.forEachRemaining(task -> {
         StructLikeWrapper structLike = StructLikeWrapper.wrap(task.file().partition());
-        List<FileScanTask> taskList = tasksGroupedByPartition.getOrDefault(structLike, Lists.newArrayList());
-        taskList.add(task);
-        tasksGroupedByPartition.put(structLike, taskList);
+        tasksGroupedByPartition.put(structLike, task);
       });
+
     } finally {
       try {
         tasksIter.close();
       } catch (IOException ioe) {
-        LOG.warn("Faile to close task iterator", ioe);
+        LOG.warn("Failed to close task iterator", ioe);
       }
     }
 
-    return tasksGroupedByPartition;
+    return tasksGroupedByPartition.asMap();
   }
 
   private void replaceDataFiles(Iterable<DataFile> deletedDataFiles, Iterable<DataFile> addedDataFiles) {
