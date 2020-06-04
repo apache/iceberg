@@ -108,7 +108,7 @@ public class TestPartitionSpecInfo {
         .build();
 
     table.updateSpec().clear()
-        .bucket("data", 10)
+        .addBucketField("data", 10)
         .commit();
 
     Assert.assertEquals(expectedNewSpec, table.spec());

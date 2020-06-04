@@ -19,6 +19,8 @@
 
 package org.apache.iceberg;
 
+import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -29,17 +31,21 @@ public class TestPartitionSpecUpdate extends TableTestBase {
 
   private int[] expectedFieldIds;
 
+  private String[] expectedSpecs;
+
   @Parameterized.Parameters
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] { 1, new int[]{ 1000, 1001, 1001, 1000, 1000 } },
-        new Object[] { 2, new int[]{ 1001, 1000, 1001, 1002, 1002 } },
+        new Object[] { 1, new int[]{ 1000, 1001, 1001, 1000, 1000 },
+            new String[]{"  1000: data_bucket_removed: void(2)\n", "  1002: id_bucket_removed: void(1)\n"} },
+        new Object[] { 2, new int[]{ 1001, 1000, 1001, 1002, 1002 }, new String[]{"", ""} },
     };
   }
 
-  public TestPartitionSpecUpdate(int formatVersion, int[] expectedFieldIds) {
+  public TestPartitionSpecUpdate(int formatVersion, int[] expectedFieldIds, String[] expectedSpecs) {
     super(formatVersion);
     this.expectedFieldIds = expectedFieldIds;
+    this.expectedSpecs = expectedSpecs;
   }
 
   @Test
@@ -50,8 +56,8 @@ public class TestPartitionSpecUpdate extends TableTestBase {
     Assert.assertEquals(1000, table.spec().lastAssignedFieldId());
 
     table.updateSpec().clear()
-        .bucket("id", 8)
-        .bucket("data", 16)
+        .addBucketField("id", 8)
+        .addBucketField("data", 16)
         .commit();
 
     Assert.assertEquals("[\n  " +
@@ -61,7 +67,7 @@ public class TestPartitionSpecUpdate extends TableTestBase {
     Assert.assertEquals(expectedFieldIds[2], table.spec().lastAssignedFieldId());
 
     table.updateSpec().clear()
-        .truncate("data", 8)
+        .addTruncateField("data", 8)
         .commit();
 
     Assert.assertEquals("[\n  " +
@@ -76,8 +82,8 @@ public class TestPartitionSpecUpdate extends TableTestBase {
         "Should throw IllegalArgumentException if there is an invalid partition field",
         IllegalArgumentException.class, "Cannot use partition name more than once: id_bucket",
         () -> table.updateSpec().clear()
-            .bucket("id", 8)
-            .bucket("id", 16)
+            .addBucketField("id", 8)
+            .addBucketField("id", 16)
             .commit());
   }
 
@@ -87,12 +93,12 @@ public class TestPartitionSpecUpdate extends TableTestBase {
         "Should throw IllegalArgumentException if adding a duplicate partition field",
         IllegalArgumentException.class, "Cannot use partition name more than once: data_bucket",
         () -> table.updateSpec()
-            .bucket("data", 16)
+            .addBucketField("data", 16)
             .commit());
   }
 
   @Test
-  public void testAddTheSamePartitionField() {
+  public void testAddSamePartitionField() {
     Assert.assertEquals("[\n" +
         "  1000: data_bucket: bucket[16](2)\n" +
         "]", table.spec().toString());
@@ -125,14 +131,144 @@ public class TestPartitionSpecUpdate extends TableTestBase {
 
     table.updateSpec()
         .addField(2, "data_partition", "bucket[8]")
-        .bucket("id", 8)
+        .addBucketField("id", 8)
+        .addField(2, "data_field", Transforms.bucket(Types.StringType.get(), 6))
         .commit();
 
     Assert.assertEquals("[\n" +
         "  1000: data_bucket: bucket[16](2)\n" +
         "  1001: data_partition: bucket[8](2)\n" +
         "  1002: id_bucket: bucket[8](1)\n" +
+        "  1003: data_field: bucket[6](2)\n" +
+        "]", table.spec().toString());
+    Assert.assertEquals(1003, table.spec().lastAssignedFieldId());
+  }
+
+  @Test
+  public void testRenameField() {
+    Assert.assertEquals("[\n" +
+        "  1000: data_bucket: bucket[16](2)\n" +
+        "]", table.spec().toString());
+    Assert.assertEquals(1000, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(0, table.spec().specId());
+
+    table.updateSpec()
+        .renameField("data_bucket", "data_partition")
+        .addBucketField("id", 8)
+        .commit();
+
+    Assert.assertEquals("[\n" +
+        "  1000: data_partition: bucket[16](2)\n" +
+        "  1001: id_bucket: bucket[8](1)\n" +
+        "]", table.spec().toString());
+    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(1, table.spec().specId());
+  }
+
+  @Test
+  public void testRenameFieldExceptions() {
+    Assert.assertEquals("[\n" +
+        "  1000: data_bucket: bucket[16](2)\n" +
+        "]", table.spec().toString());
+    Assert.assertEquals(1000, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(0, table.spec().specId());
+
+    AssertHelpers.assertThrows(
+        "Should throw IllegalArgumentException if only renaming a partition field",
+        IllegalArgumentException.class,
+        "Cannot set default partition spec to the current default",
+        () -> table.updateSpec()
+            .renameField("data_bucket", "data_partition")
+            .commit());
+
+    AssertHelpers.assertThrows(
+        "Should throw IllegalArgumentException if renaming a non-existing partition field",
+        IllegalArgumentException.class,
+        "Cannot find an existing partition field with the name: not_existing",
+        () -> table.updateSpec()
+            .renameField("not_existing", "data_partition")
+            .commit());
+
+    AssertHelpers.assertThrows(
+        "Should throw IllegalArgumentException if renaming a partition field to null",
+        IllegalArgumentException.class,
+        "Cannot use empty or null partition name: null",
+        () -> table.updateSpec()
+            .renameField("data_bucket", null)
+            .commit());
+  }
+
+  @Test
+  public void testRemoveField() {
+    Assert.assertEquals("[\n" +
+        "  1000: data_bucket: bucket[16](2)\n" +
+        "]", table.spec().toString());
+    Assert.assertEquals(1000, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(0, table.spec().specId());
+
+    table.updateSpec()
+        .removeField("data_bucket")
+        .addBucketField("id", 8)
+        .commit();
+
+    Assert.assertEquals("[\n" +
+        this.expectedSpecs[0] +
+        "  1001: id_bucket: bucket[8](1)\n" +
+        "]", table.spec().toString());
+    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(1, table.spec().specId());
+  }
+
+  @Test
+  public void testRemoveFieldException() {
+    Assert.assertEquals("[\n" +
+        "  1000: data_bucket: bucket[16](2)\n" +
+        "]", table.spec().toString());
+    Assert.assertEquals(1000, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(0, table.spec().specId());
+
+    AssertHelpers.assertThrows(
+        "Should throw IllegalStateException if removing a non-existing partition field",
+        IllegalStateException.class,
+        "Cannot find an existing partition field with the name: not_existing",
+        () -> table.updateSpec()
+            .removeField("not_existing")
+            .commit());
+  }
+
+  @Test
+  public void testReplaceField() {
+    Assert.assertEquals("[\n" +
+        "  1000: data_bucket: bucket[16](2)\n" +
+        "]", table.spec().toString());
+    Assert.assertEquals(1000, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(0, table.spec().specId());
+
+    table.updateSpec()
+        .replaceField("data_bucket", "bucket[8]")
+        .addBucketField("id", 8)
+        .commit();
+
+    Assert.assertEquals("[\n" +
+        this.expectedSpecs[0] +
+        "  1001: data_bucket: bucket[8](2)\n" +
+        "  1002: id_bucket: bucket[8](1)\n" +
         "]", table.spec().toString());
     Assert.assertEquals(1002, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(1, table.spec().specId());
+
+    table.updateSpec()
+        .replaceField("id_bucket", Transforms.bucket(Types.StringType.get(), 16))
+        .commit();
+
+    Assert.assertEquals("[\n" +
+        this.expectedSpecs[0] +
+        "  1001: data_bucket: bucket[8](2)\n" +
+        this.expectedSpecs[1] +
+        "  1003: id_bucket: bucket[16](1)\n" +
+        "]", table.spec().toString());
+    Assert.assertEquals(1003, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(2, table.spec().specId());
   }
+
 }

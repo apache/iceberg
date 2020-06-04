@@ -56,8 +56,8 @@ public class TestPartitionSpecParser extends TableTestBase {
     Assert.assertEquals(expected, PartitionSpecParser.toJson(table.spec(), true));
 
     table.updateSpec().clear()
-        .bucket("id", 8)
-        .bucket("data", 16)
+        .addBucketField("id", 8)
+        .addBucketField("data", 16)
         .commit();
 
     expected = "{\n" +

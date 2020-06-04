@@ -110,8 +110,8 @@ public class TestManifestReader extends TableTestBase {
   @Test
   public void testManifestReaderWithPartitionMetadataEvolution() throws IOException {
     table.updateSpec().clear()
-        .bucket("id", 8)
-        .bucket("data", 16)
+        .addBucketField("id", 8)
+        .addBucketField("data", 16)
         .commit();
 
     ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 123L, FILE_A));

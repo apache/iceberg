@@ -673,10 +673,10 @@ public class TestMergeAppend extends TableTestBase {
     TableMetadata base = readMetadata();
 
     table.updateSpec().clear()
-        .bucket("id", 16)
-        .identity("data")
-        .bucket("data", 4)
-        .bucket("data", 16, "data_partition") // reuse field id although different target name
+        .addBucketField("id", 16)
+        .addIdentityField("data")
+        .addBucketField("data", 4)
+        .addBucketField("data", 16, "data_partition") // reuse field id although different target name
         .commit();
 
     List<PartitionSpec> partitionSpecs = table.ops().current().specs();
@@ -717,8 +717,8 @@ public class TestMergeAppend extends TableTestBase {
     ManifestFile initialManifest = base.currentSnapshot().allManifests().get(0);
 
     table.updateSpec().clear()
-        .bucket("id", 8)
-        .bucket("data", 8)
+        .addBucketField("id", 8)
+        .addBucketField("data", 8)
         .commit();
 
     DataFile newFile = DataFiles.builder(table.spec())
