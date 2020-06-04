@@ -37,11 +37,11 @@ class IncrementalDataTableScan extends DataTableScan {
   private long fromSnapshotId;
   private long toSnapshotId;
 
-  IncrementalDataTableScan(TableOperations ops, Table table, Schema schema,
-                           Expression rowFilter, boolean caseSensitive, boolean colStats,
+  IncrementalDataTableScan(TableOperations ops, Table table, Schema schema, Expression rowFilter,
+                           boolean ignoreResiduals, boolean caseSensitive, boolean colStats,
                            Collection<String> selectedColumns, ImmutableMap<String, String> options,
                            long fromSnapshotId, long toSnapshotId) {
-    super(ops, table, null, schema, rowFilter, caseSensitive, colStats, selectedColumns, options);
+    super(ops, table, null, schema, rowFilter, ignoreResiduals, caseSensitive, colStats, selectedColumns, options);
     validateSnapshotIds(table, fromSnapshotId, toSnapshotId);
     this.fromSnapshotId = fromSnapshotId;
     this.toSnapshotId = toSnapshotId;
@@ -65,7 +65,8 @@ class IncrementalDataTableScan extends DataTableScan {
   public TableScan appendsBetween(long newFromSnapshotId, long newToSnapshotId) {
     validateSnapshotIdsRefinement(newFromSnapshotId, newToSnapshotId);
     return new IncrementalDataTableScan(
-        tableOps(), table(), schema(), filter(), isCaseSensitive(), colStats(), selectedColumns(), options(),
+        tableOps(), table(), schema(), filter(), shouldIgnoreResiduals(),
+        isCaseSensitive(), colStats(), selectedColumns(), options(),
         newFromSnapshotId, newToSnapshotId);
   }
 
@@ -99,6 +100,10 @@ class IncrementalDataTableScan extends DataTableScan {
         .specsById(tableOps().current().specsById())
         .ignoreDeleted();
 
+    if (shouldIgnoreResiduals()) {
+      manifestGroup = manifestGroup.ignoreResiduals();
+    }
+
     if (PLAN_SCANS_WITH_WORKER_POOL && manifests.size() > 1) {
       manifestGroup = manifestGroup.planWith(ThreadPools.getWorkerPool());
     }
@@ -110,10 +115,10 @@ class IncrementalDataTableScan extends DataTableScan {
   @SuppressWarnings("checkstyle:HiddenField")
   protected TableScan newRefinedScan(
           TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-          boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
+          boolean ignoreResiduals, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
           ImmutableMap<String, String> options) {
     return new IncrementalDataTableScan(
-            ops, table, schema, rowFilter, caseSensitive, colStats, selectedColumns, options,
+            ops, table, schema, rowFilter, ignoreResiduals, caseSensitive, colStats, selectedColumns, options,
             fromSnapshotId, toSnapshotId);
   }
 

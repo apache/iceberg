@@ -37,9 +37,11 @@ abstract class BaseAllMetadataTableScan extends BaseTableScan {
 
   BaseAllMetadataTableScan(
       TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-      boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
+      boolean ignoreResiduals, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
       ImmutableMap<String, String> options) {
-    super(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, options);
+    super(
+        ops, table, snapshotId, schema, rowFilter, ignoreResiduals,
+        caseSensitive, colStats, selectedColumns, options);
   }
 
   @Override
@@ -47,6 +49,6 @@ abstract class BaseAllMetadataTableScan extends BaseTableScan {
     LOG.info("Scanning metadata table {} with filter {}.", table(), filter());
     Listeners.notifyAll(new ScanEvent(table().toString(), 0L, filter(), schema()));
 
-    return planFiles(tableOps(), snapshot(), filter(), isCaseSensitive(), colStats());
+    return planFiles(tableOps(), snapshot(), filter(), shouldIgnoreResiduals(), isCaseSensitive(), colStats());
   }
 }

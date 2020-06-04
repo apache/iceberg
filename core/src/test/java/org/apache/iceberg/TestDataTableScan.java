@@ -19,7 +19,12 @@
 
 package org.apache.iceberg;
 
+import java.io.IOException;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.types.Types;
+import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -69,4 +74,36 @@ public class TestDataTableScan extends TableTestBase {
         scan2.schema().asStruct());
   }
 
+  @Test
+  public void testTableScanHonorsIgnoreResiduals() throws IOException {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    TableScan scan1 = table.newScan()
+        .filter(Expressions.equal("id", 5));
+
+    try (CloseableIterable<CombinedScanTask> tasks = scan1.planTasks()) {
+      Assert.assertTrue("Tasks should not be empty", Iterables.size(tasks) > 0);
+      for (CombinedScanTask combinedScanTask : tasks) {
+        for (FileScanTask fileScanTask : combinedScanTask.files()) {
+          Assert.assertNotEquals("Residuals must be preserved", Expressions.alwaysTrue(), fileScanTask.residual());
+        }
+      }
+    }
+
+    TableScan scan2 = table.newScan()
+        .filter(Expressions.equal("id", 5))
+        .ignoreResiduals();
+
+    try (CloseableIterable<CombinedScanTask> tasks = scan2.planTasks()) {
+      Assert.assertTrue("Tasks should not be empty", Iterables.size(tasks) > 0);
+      for (CombinedScanTask combinedScanTask : tasks) {
+        for (FileScanTask fileScanTask : combinedScanTask.files()) {
+          Assert.assertEquals("Residuals must be ignored", Expressions.alwaysTrue(), fileScanTask.residual());
+        }
+      }
+    }
+  }
 }
