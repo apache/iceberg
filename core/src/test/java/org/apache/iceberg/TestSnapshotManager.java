@@ -19,8 +19,8 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Iterables;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
