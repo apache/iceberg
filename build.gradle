@@ -323,6 +323,32 @@ project(':iceberg-mr') {
       exclude group: 'com.google.guava'
     }
 
+    testCompile("com.klarna:hiverunner:5.2.1") {
+      exclude group: 'javax.jms', module: 'jms'
+      exclude group: 'org.apache.hive', module: 'hive-exec'
+      exclude group: 'org.codehaus.jettison', module: 'jettison'
+      exclude group: 'org.apache.calcite.avatica'
+      //exclude group: 'com.fasterxml.jackson.core'
+    }
+
+    testCompile("org.apache.hive:hive-exec::core") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hive', module: 'hive-llap-tez'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'com.google.protobuf', module: 'protobuf-java'
+      exclude group: 'org.apache.calcite.avatica'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      //exclude group: 'com.fasterxml.jackson.core'
+    }
+
+    testCompile("org.apache.calcite:calcite-core")
+    testCompile("com.esotericsoftware.kryo:kryo:2.24.0")
+    testCompile("com.fasterxml.jackson.core:jackson-annotations:2.6.5")
+    //testCompile("com.fasterxml.jackson.core:jackson-databind:2.6.0")
+
+
     testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
