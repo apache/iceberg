@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import java.util.Map;
+import org.apache.iceberg.transforms.Transform;
 
 /**
  * PartitionSpec evolution API implementation.
@@ -54,85 +55,85 @@ class PartitionSpecUpdate implements UpdatePartitionSpec {
   }
 
   @Override
-  public UpdatePartitionSpec identity(String sourceName, String targetName) {
+  public UpdatePartitionSpec addIdentityField(String sourceName, String targetName) {
     newSpecBuilder.identity(sourceName, targetName);
     return this;
   }
 
   @Override
-  public UpdatePartitionSpec identity(String sourceName) {
+  public UpdatePartitionSpec addIdentityField(String sourceName) {
     newSpecBuilder.identity(sourceName);
     return this;
   }
 
   @Override
-  public UpdatePartitionSpec year(String sourceName, String targetName) {
+  public UpdatePartitionSpec addYearField(String sourceName, String targetName) {
     newSpecBuilder.year(sourceName, targetName);
     return this;
   }
 
   @Override
-  public UpdatePartitionSpec year(String sourceName) {
+  public UpdatePartitionSpec addYearField(String sourceName) {
     newSpecBuilder.year(sourceName);
     return this;
   }
 
   @Override
-  public UpdatePartitionSpec month(String sourceName, String targetName) {
+  public UpdatePartitionSpec addMonthField(String sourceName, String targetName) {
     newSpecBuilder.month(sourceName, targetName);
     return this;
   }
 
   @Override
-  public UpdatePartitionSpec month(String sourceName) {
+  public UpdatePartitionSpec addMonthField(String sourceName) {
     newSpecBuilder.month(sourceName);
     return this;
   }
 
   @Override
-  public UpdatePartitionSpec day(String sourceName, String targetName) {
+  public UpdatePartitionSpec addDayField(String sourceName, String targetName) {
     newSpecBuilder.day(sourceName, targetName);
     return this;
   }
 
   @Override
-  public UpdatePartitionSpec day(String sourceName) {
+  public UpdatePartitionSpec addDayField(String sourceName) {
     newSpecBuilder.day(sourceName);
     return this;
   }
 
   @Override
-  public UpdatePartitionSpec hour(String sourceName, String targetName) {
+  public UpdatePartitionSpec addHourField(String sourceName, String targetName) {
     newSpecBuilder.hour(sourceName, targetName);
     return this;
   }
 
   @Override
-  public UpdatePartitionSpec hour(String sourceName) {
+  public UpdatePartitionSpec addHourField(String sourceName) {
     newSpecBuilder.hour(sourceName);
     return this;
   }
 
   @Override
-  public UpdatePartitionSpec bucket(String sourceName, int numBuckets, String targetName) {
+  public UpdatePartitionSpec addBucketField(String sourceName, int numBuckets, String targetName) {
     newSpecBuilder.bucket(sourceName, numBuckets, targetName);
     return this;
   }
 
   @Override
-  public UpdatePartitionSpec bucket(String sourceName, int numBuckets) {
+  public UpdatePartitionSpec addBucketField(String sourceName, int numBuckets) {
     newSpecBuilder.bucket(sourceName, numBuckets);
     return this;
   }
 
   @Override
-  public UpdatePartitionSpec truncate(String sourceName, int width, String targetName) {
+  public UpdatePartitionSpec addTruncateField(String sourceName, int width, String targetName) {
     newSpecBuilder.truncate(sourceName, width, targetName);
     return this;
   }
 
   @Override
-  public UpdatePartitionSpec truncate(String sourceName, int width) {
+  public UpdatePartitionSpec addTruncateField(String sourceName, int width) {
     newSpecBuilder.truncate(sourceName, width);
     return this;
   }
@@ -143,6 +144,33 @@ class PartitionSpecUpdate implements UpdatePartitionSpec {
     return this;
   }
 
+  @Override
+  public UpdatePartitionSpec addField(int sourceId, String name, Transform<?, ?> transform) {
+    return addField(sourceId, name, transform.toString());
+  }
+
+  @Override
+  public UpdatePartitionSpec renameField(String name, String newName) {
+    newSpecBuilder.rename(name, newName);
+    return this;
+  }
+
+  @Override
+  public UpdatePartitionSpec removeField(String name) {
+    newSpecBuilder.remove(name, base.formatVersion() == 1);
+    return this;
+  }
+
+  @Override
+  public UpdatePartitionSpec replaceField(String name, String transform) {
+    int sourceId = newSpecBuilder.remove(name, base.formatVersion() == 1);
+    return addField(sourceId, name, transform);
+  }
+
+  @Override
+  public UpdatePartitionSpec replaceField(String name, Transform<?, ?> transform) {
+    return replaceField(name, transform.toString());
+  }
 
   @Override
   public void commit() {

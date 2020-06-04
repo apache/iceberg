@@ -488,6 +488,46 @@ public class PartitionSpec implements Serializable {
       return this;
     }
 
+    Builder rename(String name, String newName) {
+      Preconditions.checkArgument(partitionNames.contains(name),
+          "Cannot find an existing partition field with the name: %s", name);
+      Preconditions.checkArgument(newName != null && !newName.isEmpty(),
+          "Cannot use empty or null partition name: %s", newName);
+      Preconditions.checkArgument(!partitionNames.contains(newName),
+          "Cannot use partition name more than once: %s", newName);
+
+      for (int i = 0; i < fields.size(); ++i) {
+        PartitionField field = fields.get(i);
+        if (field.name().equals(name)) {
+          fields.set(i, new PartitionField(field.sourceId(), field.fieldId(), newName, field.transform()));
+          partitionNames.remove(name);
+          partitionNames.add(newName);
+          break;
+        }
+      }
+      return this;
+    }
+
+    int remove(String name, boolean softDelete) {
+      for (int i = 0; i < fields.size(); ++i) {
+        PartitionField field = fields.get(i);
+        if (field.name().equals(name)) {
+          if (softDelete) {
+            String newName = field.name() + "_removed"; // rename it for soft delete
+            Preconditions.checkArgument(!partitionNames.contains(newName),
+                "Cannot soft delete the partition %s as its soft delete name %s has already been used", name, newName);
+            fields.set(i, new PartitionField(field.sourceId(), field.fieldId(), newName, Transforms.alwaysNull()));
+            partitionNames.add(newName);
+          } else {
+            fields.remove(i);
+          }
+          partitionNames.remove(name);
+          return field.sourceId();
+        }
+      }
+      throw new IllegalStateException("Cannot find an existing partition field with the name: " + name);
+    }
+
     public PartitionSpec build() {
       PartitionSpec spec = new PartitionSpec(schema, specId, fields, lastAssignedFieldId.get());
       checkCompatibility(spec, schema);
