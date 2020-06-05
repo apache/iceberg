@@ -68,6 +68,18 @@ public class SnapshotSummary {
       this.deletedDuplicateFiles += 1;
     }
 
+    public void incrementDuplicateDeletes(int increment) {
+      this.deletedDuplicateFiles += increment;
+    }
+
+    public void deletedFile(PartitionSpec spec, ContentFile<?> file) {
+      if (file instanceof DataFile) {
+        deletedFile(spec, (DataFile) file);
+      } else {
+        throw new IllegalArgumentException("Unsupported file type: " + file.getClass().getSimpleName());
+      }
+    }
+
     public void deletedFile(PartitionSpec spec, DataFile file) {
       changedPartitions.add(spec.partitionToPath(file.partition()));
       this.deletedFiles += 1;

@@ -160,23 +160,32 @@ public class TableTestBase {
     return writer.toManifestFile();
   }
 
-  ManifestFile writeManifest(String fileName, ManifestEntry<DataFile>... entries) throws IOException {
+  ManifestFile writeManifest(String fileName, ManifestEntry<?>... entries) throws IOException {
     return writeManifest(null, fileName, entries);
   }
 
-  ManifestFile writeManifest(Long snapshotId, ManifestEntry<DataFile>... entries) throws IOException {
+  ManifestFile writeManifest(Long snapshotId, ManifestEntry<?>... entries) throws IOException {
     return writeManifest(snapshotId, "input.m0.avro", entries);
   }
 
-  ManifestFile writeManifest(Long snapshotId, String fileName, ManifestEntry<DataFile>... entries) throws IOException {
+  @SuppressWarnings("unchecked")
+  <F extends ContentFile<F>> ManifestFile writeManifest(Long snapshotId, String fileName, ManifestEntry<?>... entries)
+      throws IOException {
     File manifestFile = temp.newFile(fileName);
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId);
+    ManifestWriter<F> writer;
+    if (entries[0].file() instanceof DataFile) {
+      writer = (ManifestWriter<F>) ManifestFiles.write(
+          formatVersion, table.spec(), outputFile, snapshotId);
+    } else {
+      writer = (ManifestWriter<F>) ManifestFiles.writeDeleteManifest(
+          formatVersion, table.spec(), outputFile, snapshotId);
+    }
     try {
-      for (ManifestEntry<DataFile> entry : entries) {
-        writer.addEntry(entry);
+      for (ManifestEntry<?> entry : entries) {
+        writer.addEntry((ManifestEntry<F>) entry);
       }
     } finally {
       writer.close();
@@ -280,13 +289,21 @@ public class TableTestBase {
   void validateManifest(ManifestFile manifest,
                         Iterator<Long> ids,
                         Iterator<DataFile> expectedFiles) {
-    validateManifest(manifest, null, ids, expectedFiles);
+    validateManifest(manifest, null, ids, expectedFiles, null);
   }
 
   void validateManifest(ManifestFile manifest,
                         Iterator<Long> seqs,
                         Iterator<Long> ids,
                         Iterator<DataFile> expectedFiles) {
+    validateManifest(manifest, seqs, ids, expectedFiles, null);
+  }
+
+  void validateManifest(ManifestFile manifest,
+                        Iterator<Long> seqs,
+                        Iterator<Long> ids,
+                        Iterator<DataFile> expectedFiles,
+                        Iterator<ManifestEntry.Status> statuses) {
     for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
@@ -298,6 +315,10 @@ public class TableTestBase {
           expected.path().toString(), file.path().toString());
       Assert.assertEquals("Snapshot ID should match expected ID",
           ids.next(), entry.snapshotId());
+      if (statuses != null) {
+        Assert.assertEquals("Status should match expected",
+            statuses.next(), entry.status());
+      }
     }
 
     Assert.assertFalse("Should find all files in the manifest", expectedFiles.hasNext());

@@ -61,7 +61,7 @@ public class BaseReplacePartitions
 
     try {
       return super.apply(base);
-    } catch (DeleteException e) {
+    } catch (ManifestFilterManager.DeleteException e) {
       throw new ValidationException(
           "Cannot commit file that conflicts with existing partition: %s", e.partition());
     }
