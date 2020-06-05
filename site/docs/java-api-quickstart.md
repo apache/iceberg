@@ -46,6 +46,34 @@ Table table = catalog.createTable(name, schema, spec);
 The logs [schema](#create-a-schema) and [partition spec](#create-a-partition-spec) are created below.
 
 
+### Using a Hadoop catalog
+
+The Hadoop catalog doesn't need to connects to a Hive MetaStore. To get a Hadoop catalog see:
+
+```java
+import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.hadoop.HadoopCatalog;
+
+Configuration conf = new Configuration();
+String warehousePath = "hdfs://warehouse_path";
+HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+```
+
+Like Hive catalog, Hadoop catalog implements the interface `Catalog`. So it also contains methods for working with tables, like createTable, loadTable, renameTable, and dropTable.
+                                                                                       
+This example create a table with Hadoop catalog:
+
+```java
+import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
+
+TableIdentifier name = TableIdentifier.of("logging", "logs");
+Table table = catalog.createTable(name, schema, spec);
+```
+
+The logs [schema](#create-a-schema) and [partition spec](#create-a-partition-spec) are created below.
+
+
 ### Using Hadoop tables
 
 Iceberg also supports tables that are stored in a directory in HDFS or the local file system. Directory tables don't support all catalog operations, like rename, so they use the `Tables` interface instead of `Catalog`.
