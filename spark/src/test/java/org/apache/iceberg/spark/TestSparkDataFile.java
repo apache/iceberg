@@ -157,7 +157,7 @@ public class TestSparkDataFile {
     Assert.assertEquals("Should have 1 manifest", 1, manifests.size());
 
     List<DataFile> dataFiles = Lists.newArrayList();
-    try (ManifestReader reader = ManifestFiles.read(manifests.get(0), table.io())) {
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifests.get(0), table.io())) {
       reader.forEach(dataFile -> dataFiles.add(dataFile.copy()));
     }
 

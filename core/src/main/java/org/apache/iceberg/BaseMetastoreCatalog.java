@@ -262,7 +262,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         .executeWith(ThreadPools.getWorkerPool())
         .onFailure((item, exc) -> LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
         .run(manifest -> {
-          try (ManifestReader reader = ManifestFiles.read(manifest, io)) {
+          try (ManifestReader<?> reader = ManifestFiles.open(manifest, io)) {
             for (ManifestEntry<?> entry : reader.entries()) {
               // intern the file path because the weak key map uses identity (==) instead of equals
               String path = entry.file().path().toString().intern();

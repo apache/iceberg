@@ -68,7 +68,7 @@ class ManifestGroup {
     this.ignoreDeleted = false;
     this.ignoreExisting = false;
     this.ignoreResiduals = false;
-    this.columns = BaseManifestReader.ALL_COLUMNS;
+    this.columns = ManifestReader.ALL_COLUMNS;
     this.caseSensitive = true;
     this.manifestPredicate = m -> true;
     this.manifestEntryPredicate = e -> true;
@@ -146,7 +146,7 @@ class ManifestGroup {
       Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : dataFilter;
       return ResidualEvaluator.of(spec, filter, caseSensitive);
     });
-    boolean dropStats = BaseManifestReader.dropStats(dataFilter, columns);
+    boolean dropStats = ManifestReader.dropStats(dataFilter, columns);
     Iterable<CloseableIterable<FileScanTask>> tasks = entries((manifest, entries) -> {
       int partitionSpecId = manifest.partitionSpecId();
       PartitionSpec spec = specsById.get(partitionSpecId);

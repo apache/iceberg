@@ -524,7 +524,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   private boolean manifestHasDeletedFiles(
-      StrictMetricsEvaluator metricsEvaluator, ManifestReader reader,
+      StrictMetricsEvaluator metricsEvaluator, ManifestReader<DataFile> reader,
       CharSequenceWrapper pathWrapper, StructLikeWrapper partitionWrapper) {
     Evaluator inclusive = extractInclusiveDeleteExpression(reader);
     Evaluator strict = extractStrictDeleteExpression(reader);
@@ -550,7 +550,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   private ManifestFile filterManifestWithDeletedFiles(
-      StrictMetricsEvaluator metricsEvaluator, ManifestFile manifest, ManifestReader reader,
+      StrictMetricsEvaluator metricsEvaluator, ManifestFile manifest, ManifestReader<DataFile> reader,
       CharSequenceWrapper pathWrapper, StructLikeWrapper partitionWrapper) throws IOException {
     Evaluator inclusive = extractInclusiveDeleteExpression(reader);
     Evaluator strict = extractStrictDeleteExpression(reader);
@@ -673,7 +673,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     ManifestWriter<DataFile> writer = newManifestWriter(ops.current().spec(specId));
     try {
       for (ManifestFile manifest : bin) {
-        try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
+        try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
           for (ManifestEntry<DataFile> entry : reader.entries()) {
             if (entry.status() == Status.DELETED) {
               // suppress deletes from previous snapshots. only files deleted by this snapshot
