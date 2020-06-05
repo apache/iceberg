@@ -24,6 +24,7 @@ import java.util.Collection;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
@@ -91,18 +92,21 @@ public class AllManifestsTable extends BaseMetadataTable {
 
     private AllManifestsTableScan(
         TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
+        boolean ignoreResiduals, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
         ImmutableMap<String, String> options) {
-      super(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, options);
+      super(
+          ops, table, snapshotId, schema, rowFilter, ignoreResiduals,
+          caseSensitive, colStats, selectedColumns, options);
     }
 
     @Override
     protected TableScan newRefinedScan(
         TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
+        boolean ignoreResiduals, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
         ImmutableMap<String, String> options) {
       return new AllManifestsTableScan(
-          ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, options);
+          ops, table, snapshotId, schema, rowFilter, ignoreResiduals,
+          caseSensitive, colStats, selectedColumns, options);
     }
 
     @Override
@@ -123,16 +127,19 @@ public class AllManifestsTable extends BaseMetadataTable {
 
     @Override
     protected CloseableIterable<FileScanTask> planFiles(
-        TableOperations ops, Snapshot snapshot, Expression rowFilter, boolean caseSensitive, boolean colStats) {
+        TableOperations ops, Snapshot snapshot, Expression rowFilter,
+        boolean ignoreResiduals, boolean caseSensitive, boolean colStats) {
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
 
       // Data tasks produce the table schema, not the projection schema and projection is done by processing engines.
       return CloseableIterable.withNoopClose(Iterables.transform(ops.current().snapshots(), snap -> {
         if (snap.manifestListLocation() != null) {
+          Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
+          ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
           return new ManifestListReadTask(ops.io(), table().spec(), new BaseFileScanTask(
               DataFiles.fromManifestList(ops.io().newInputFile(snap.manifestListLocation())),
-              schemaString, specString, ResidualEvaluator.unpartitioned(rowFilter)));
+              schemaString, specString, residuals));
         } else {
           return StaticDataTask.of(
               ops.io().newInputFile(ops.current().file().location()),
