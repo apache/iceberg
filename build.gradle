@@ -88,6 +88,7 @@ subprojects {
     all {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.mortbay.jetty'
+      exclude group: 'org.pentaho', module: 'pentaho-aggdesigner-algorithm'
 
       resolutionStrategy {
         force 'com.fasterxml.jackson.module:jackson-module-scala_2.11:2.10.2'
