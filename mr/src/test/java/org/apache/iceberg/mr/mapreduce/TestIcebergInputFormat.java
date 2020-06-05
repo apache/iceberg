@@ -58,6 +58,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.mr.IcebergMRConfig;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
@@ -128,7 +129,7 @@ public class TestIcebergInputFormat {
          .appendFile(dataFile)
          .commit();
     Job job = Job.getInstance(conf);
-    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
+    IcebergMRConfig.Builder configBuilder = IcebergInputFormat.configure(job);
     configBuilder.readFrom(location.toString());
     validate(job, expectedRecords);
   }
@@ -148,7 +149,7 @@ public class TestIcebergInputFormat {
          .commit();
 
     Job job = Job.getInstance(conf);
-    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
+    IcebergMRConfig.Builder configBuilder = IcebergInputFormat.configure(job);
     configBuilder.readFrom(location.toString());
     validate(job, expectedRecords);
   }
@@ -171,7 +172,7 @@ public class TestIcebergInputFormat {
          .appendFile(dataFile2)
          .commit();
     Job job = Job.getInstance(conf);
-    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
+    IcebergMRConfig.Builder configBuilder = IcebergInputFormat.configure(job);
     configBuilder.readFrom(location.toString())
                  .filter(Expressions.equal("date", "2020-03-20"));
     validate(job, expectedRecords);
@@ -201,7 +202,7 @@ public class TestIcebergInputFormat {
          .appendFile(dataFile2)
          .commit();
     Job job = Job.getInstance(conf);
-    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
+    IcebergMRConfig.Builder configBuilder = IcebergInputFormat.configure(job);
     configBuilder.readFrom(location.toString())
         .filter(Expressions.and(
             Expressions.equal("date", "2020-03-20"),
@@ -235,7 +236,7 @@ public class TestIcebergInputFormat {
         .commit();
 
     Job jobShouldFail1 = Job.getInstance(conf);
-    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(jobShouldFail1);
+    IcebergMRConfig.Builder configBuilder = IcebergInputFormat.configure(jobShouldFail1);
     configBuilder.useHiveRows().readFrom(location.toString())
         .filter(Expressions.and(
             Expressions.equal("date", "2020-03-20"),
@@ -272,7 +273,7 @@ public class TestIcebergInputFormat {
          .commit();
 
     Job job = Job.getInstance(conf);
-    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
+    IcebergMRConfig.Builder configBuilder = IcebergInputFormat.configure(job);
     configBuilder
         .readFrom(location.toString())
         .project(projectedSchema);
@@ -346,7 +347,7 @@ public class TestIcebergInputFormat {
   private void validateIdentityPartitionProjections(
       String tablePath, Schema projectedSchema, List<Record> inputRecords) throws Exception {
     Job job = Job.getInstance(conf);
-    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
+    IcebergMRConfig.Builder configBuilder = IcebergInputFormat.configure(job);
     configBuilder
         .readFrom(tablePath)
         .project(projectedSchema);
@@ -381,7 +382,7 @@ public class TestIcebergInputFormat {
          .commit();
 
     Job job = Job.getInstance(conf);
-    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
+    IcebergMRConfig.Builder configBuilder = IcebergInputFormat.configure(job);
     configBuilder
         .readFrom(location.toString())
         .snapshotId(snapshotId);
@@ -401,7 +402,7 @@ public class TestIcebergInputFormat {
          .appendFile(writeFile(table, null, format, expectedRecords))
          .commit();
     Job job = Job.getInstance(conf);
-    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
+    IcebergMRConfig.Builder configBuilder = IcebergInputFormat.configure(job);
     configBuilder.readFrom(location.toString());
 
     for (InputSplit split : splits(job.getConfiguration())) {
@@ -414,7 +415,7 @@ public class TestIcebergInputFormat {
     }
   }
 
-  public static class HadoopCatalogFunc implements Function<Configuration, Catalog> {
+  public static class HadoopCatalogLoader implements Function<Configuration, Catalog> {
     @Override
     public Catalog apply(Configuration conf) {
       return new HadoopCatalog(conf, conf.get("warehouse.location"));
@@ -426,7 +427,7 @@ public class TestIcebergInputFormat {
     conf = new Configuration();
     conf.set("warehouse.location", temp.newFolder("hadoop_catalog").getAbsolutePath());
 
-    Catalog catalog = new HadoopCatalogFunc().apply(conf);
+    Catalog catalog = new HadoopCatalogLoader().apply(conf);
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "t");
     Table table = catalog.createTable(tableIdentifier, SCHEMA, SPEC,
                                       ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()));
@@ -438,9 +439,9 @@ public class TestIcebergInputFormat {
          .commit();
 
     Job job = Job.getInstance(conf);
-    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
+    IcebergMRConfig.Builder configBuilder = IcebergInputFormat.configure(job);
     configBuilder
-        .catalogFunc(HadoopCatalogFunc.class)
+        .catalogLoader(HadoopCatalogLoader.class)
         .readFrom(tableIdentifier.toString());
     validate(job, expectedRecords);
   }
