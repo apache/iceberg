@@ -406,7 +406,7 @@ public class TestIcebergInputFormat {
     configBuilder.readFrom(location.toString());
 
     for (InputSplit split : splits(job.getConfiguration())) {
-      Assert.assertArrayEquals(IcebergInputFormat.IcebergSplit.ANYWHERE, split.getLocations());
+      Assert.assertArrayEquals(IcebergSplit.ANYWHERE, split.getLocations());
     }
 
     configBuilder.preferLocality();
