@@ -235,6 +235,38 @@ project(':iceberg-data') {
   }
 }
 
+project(':iceberg-flink') {
+  apply plugin: 'scala'
+
+  dependencies {
+    compile project(':iceberg-api')
+    compile project(':iceberg-common')
+    compile project(':iceberg-core')
+    compile project(':iceberg-data')
+    compile project(':iceberg-orc')
+    compile project(':iceberg-parquet')
+    compile project(':iceberg-arrow')
+    compile "org.apache.flink:flink-streaming-java_2.11::tests"
+
+    compileOnly "org.apache.flink:flink-streaming-java_2.11"
+    compileOnly "org.apache.flink:flink-table-api-java-bridge_2.11"
+    compileOnly "org.apache.flink:flink-table-planner-blink_2.11"
+    compileOnly "org.apache.flink:flink-table-planner_2.11"
+    compileOnly "org.apache.hadoop:hadoop-hdfs"
+    compileOnly "org.apache.hadoop:hadoop-common"
+    compileOnly("org.apache.hadoop:hadoop-minicluster") {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
+
+    testCompile "org.apache.flink:flink-core"
+    testCompile "org.apache.flink:flink-test-utils-junit"
+    testCompile("org.apache.flink:flink-test-utils_2.11") {
+      exclude group: "org.apache.curator", module: 'curator-test'
+    }
+    testCompile "org.apache.flink:flink-runtime_2.11"
+  }
+}
+
 project(':iceberg-hive') {
   dependencies {
     compile project(':iceberg-core')

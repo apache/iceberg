@@ -1,5 +1,6 @@
 org.slf4j:* = 1.7.25
 org.apache.avro:avro = 1.9.2
+org.apache.flink:* = 1.10.0
 org.apache.hadoop:* = 2.7.3
 org.apache.hive:hive-metastore = 2.3.7
 org.apache.orc:* = 1.6.3
