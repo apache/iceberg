@@ -28,11 +28,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.mapred.TaskAttemptID;
 import org.apache.hadoop.mapreduce.InputSplit;
-import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
-import org.apache.hadoop.mapreduce.TaskAttemptID;
 import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.AssertHelpers;
@@ -44,11 +45,13 @@ import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.mr.IcebergMRConfig;
-import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
+import org.apache.iceberg.mr.mapred.Container;
+import org.apache.iceberg.mr.mapred.MapredIcebergInputFormat;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -66,6 +69,13 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
 public class TestIcebergInputFormats {
+
+  static final List<TestInputFormat.Factory<Record>> TESTED_INPUT_FORMATS = ImmutableList.of(
+          TestInputFormat.newFactory("MapRedIcebergInputFormat", TestMapRedIcebergInputFormat::create),
+          TestInputFormat.newFactory("IcebergInputFormat", TestIcebergInputFormat::create));
+
+  static final List<String> TESTED_FILE_FORMATS = ImmutableList.of("avro", "orc", "parquet");
+
   static final Schema SCHEMA = new Schema(
       required(1, "data", Types.StringType.get()),
       required(2, "id", Types.LongType.get()),
@@ -84,32 +94,42 @@ public class TestIcebergInputFormats {
   private Configuration conf;
   private File location;
   private TestIcebergInputFormatHelper helper;
+  private IcebergMRConfig.Builder builder;
 
   // parametrized variables
-  private final FileFormat format;
+  private final TestInputFormat.Factory<Record> testInputFormat;
+  private final FileFormat fileFormat;
 
   @Before
   public void before() throws IOException {
     conf = new Configuration();
     tables = new HadoopTables(conf);
 
-    location = temp.newFolder(format.name());
+    location = temp.newFolder(testInputFormat.name(), fileFormat.name());
     Assert.assertTrue(location.delete());
 
-    helper = new TestIcebergInputFormatHelper(tables, SCHEMA, SPEC, format, temp, location);
+    helper = new TestIcebergInputFormatHelper(tables, SCHEMA, SPEC, fileFormat, temp, location);
+    builder = IcebergMRConfig.Builder.newInstance(conf).readFrom(location);
   }
 
   @Parameterized.Parameters
   public static Object[][] parameters() {
-    return new Object[][]{
-        new Object[]{"parquet"},
-        new Object[]{"avro"},
-        new Object[]{"orc"}
-    };
+    Object[][] parameters = new Object[TESTED_INPUT_FORMATS.size() * TESTED_FILE_FORMATS.size()][2];
+
+    int idx = 0;
+
+    for (TestInputFormat.Factory<Record> inputFormat : TESTED_INPUT_FORMATS) {
+      for (String fileFormat : TESTED_FILE_FORMATS) {
+        parameters[idx++] = new Object[] {inputFormat, fileFormat};
+      }
+    }
+
+    return parameters;
   }
 
-  public TestIcebergInputFormats(String format) {
-    this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
+  public TestIcebergInputFormats(TestInputFormat.Factory<Record> testInputFormat, String fileFormat) {
+    this.testInputFormat = testInputFormat;
+    this.fileFormat = FileFormat.valueOf(fileFormat.toUpperCase(Locale.ENGLISH));
   }
 
   @Test
@@ -118,9 +138,7 @@ public class TestIcebergInputFormats {
     List<Record> expectedRecords = helper.generateRandomRecords(1, 0L);
     helper.appendToTable(null, expectedRecords);
 
-    Job job = Job.getInstance(conf);
-    IcebergInputFormat.configure(job).readFrom(location);
-    validate(job, expectedRecords);
+    testInputFormat.create(builder.build()).validate(expectedRecords);
   }
 
   @Test
@@ -130,9 +148,7 @@ public class TestIcebergInputFormats {
     expectedRecords.get(0).set(2, "2020-03-20");
     helper.appendToTable(Row.of("2020-03-20", 0), expectedRecords);
 
-    Job job = Job.getInstance(conf);
-    IcebergInputFormat.configure(job).readFrom(location);
-    validate(job, expectedRecords);
+    testInputFormat.create(builder.build()).validate(expectedRecords);
   }
 
   @Test
@@ -147,13 +163,8 @@ public class TestIcebergInputFormats {
     DataFile dataFile2 = helper.writeFile(Row.of("2020-03-21", 0), helper.generateRandomRecords(2, 0L));
     helper.appendToTable(dataFile1, dataFile2);
 
-    Job job = Job.getInstance(conf);
-
-    IcebergInputFormat.configure(job)
-            .readFrom(location)
-            .filter(Expressions.equal("date", "2020-03-20"));
-
-    validate(job, expectedRecords);
+    builder.filter(Expressions.equal("date", "2020-03-20"));
+    testInputFormat.create(builder.build()).validate(expectedRecords);
   }
 
   @Test
@@ -173,27 +184,14 @@ public class TestIcebergInputFormats {
     DataFile dataFile2 = helper.writeFile(Row.of("2020-03-21", 0), helper.generateRandomRecords(2, 0L));
     helper.appendToTable(dataFile1, dataFile2);
 
-    Job job = Job.getInstance(conf);
-
-    IcebergInputFormat.configure(job)
-            .readFrom(location)
-            .filter(Expressions.and(
-                    Expressions.equal("date", "2020-03-20"),
-                    Expressions.equal("id", 123)));
-
-    validate(job, expectedRecords);
+    builder.filter(Expressions.and(
+            Expressions.equal("date", "2020-03-20"),
+            Expressions.equal("id", 123)));
+    testInputFormat.create(builder.build()).validate(expectedRecords);
 
     // skip residual filtering
-    job = Job.getInstance(conf);
-
-    IcebergInputFormat.configure(job)
-            .readFrom(location)
-            .filter(Expressions.and(
-                    Expressions.equal("date", "2020-03-20"),
-                    Expressions.equal("id", 123)))
-            .skipResidualFiltering();
-
-    validate(job, writeRecords);
+    builder.skipResidualFiltering();
+    testInputFormat.create(builder.build()).validate(writeRecords);
   }
 
   @Test
@@ -206,31 +204,22 @@ public class TestIcebergInputFormats {
 
     helper.appendToTable(Row.of("2020-03-20", 0), expectedRecords);
 
-    Job jobShouldFail1 = Job.getInstance(conf);
-    IcebergInputFormat.configure(jobShouldFail1)
-            .readFrom(location)
-            .useHiveRows()
-            .filter(Expressions.and(
-                    Expressions.equal("date", "2020-03-20"),
-                    Expressions.equal("id", 0)));
+    builder.useHiveRows()
+           .filter(Expressions.and(
+                   Expressions.equal("date", "2020-03-20"),
+                   Expressions.equal("id", 0)));
 
     AssertHelpers.assertThrows(
         "Residuals are not evaluated today for Iceberg Generics In memory model of HIVE",
         UnsupportedOperationException.class, "Filter expression ref(name=\"id\") == 0 is not completely satisfied.",
-        () -> validate(jobShouldFail1, expectedRecords));
+        () -> testInputFormat.create(builder.build()));
 
-    Job jobShouldFail2 = Job.getInstance(conf);
-    IcebergInputFormat.configure(jobShouldFail2)
-            .readFrom(location)
-            .usePigTuples()
-            .filter(Expressions.and(
-                    Expressions.equal("date", "2020-03-20"),
-                    Expressions.equal("id", 0)));
+    builder.usePigTuples();
 
     AssertHelpers.assertThrows(
         "Residuals are not evaluated today for Iceberg Generics In memory model of PIG",
         UnsupportedOperationException.class, "Filter expression ref(name=\"id\") == 0 is not completely satisfied.",
-        () -> validate(jobShouldFail2, expectedRecords));
+        () -> testInputFormat.create(builder.build()));
   }
 
   @Test
@@ -240,13 +229,9 @@ public class TestIcebergInputFormats {
     helper.appendToTable(Row.of("2020-03-20", 0), inputRecords);
 
     Schema projection = TypeUtil.select(SCHEMA, ImmutableSet.of(1));
+    builder.project(projection);
 
-    Job job = Job.getInstance(conf);
-    IcebergInputFormat.configure(job)
-            .readFrom(location)
-            .project(projection);
-
-    List<Record> outputRecords = readRecords(job.getConfiguration());
+    List<Record> outputRecords = testInputFormat.create(builder.build()).getRecords();
 
     Assert.assertEquals(inputRecords.size(), outputRecords.size());
     Assert.assertEquals(projection.asStruct(), outputRecords.get(0).struct());
@@ -310,14 +295,10 @@ public class TestIcebergInputFormats {
     return TypeUtil.select(LOG_SCHEMA, projectedIds);
   }
 
-  private void validateIdentityPartitionProjections(Schema projectedSchema, List<Record> inputRecords) throws Exception {
-    Job job = Job.getInstance(conf);
-
-    IcebergInputFormat.configure(job)
-            .readFrom(location)
-            .project(projectedSchema);
-
-    List<Record> actualRecords = readRecords(job.getConfiguration());
+  private void validateIdentityPartitionProjections(
+          Schema projectedSchema, List<Record> inputRecords) throws Exception {
+    builder.project(projectedSchema);
+    List<Record> actualRecords = testInputFormat.create(builder.build()).getRecords();
 
     Set<String> fieldNames = TypeUtil.indexByName(projectedSchema.asStruct()).keySet();
     for (int pos = 0; pos < inputRecords.size(); pos++) {
@@ -341,13 +322,8 @@ public class TestIcebergInputFormats {
 
     helper.appendToTable(null, helper.generateRandomRecords(1, 0L));
 
-    Job job = Job.getInstance(conf);
-
-    IcebergInputFormat.configure(job)
-            .readFrom(location)
-            .snapshotId(snapshotId);
-
-    validate(job, expectedRecords);
+    builder.snapshotId(snapshotId);
+    testInputFormat.create(builder.build()).validate(expectedRecords);
   }
 
   @Test
@@ -356,16 +332,13 @@ public class TestIcebergInputFormats {
     List<Record> expectedRecords = helper.generateRandomRecords(1, 0L);
     helper.appendToTable(null, expectedRecords);
 
-    Job job = Job.getInstance(conf);
-    IcebergMRConfig.Builder builder = IcebergInputFormat.configure(job).readFrom(location);
-
-    for (InputSplit split : splits(job.getConfiguration())) {
+    for (InputSplit split : testInputFormat.create(builder.build()).getSplits()) {
       Assert.assertArrayEquals(IcebergSplit.ANYWHERE, split.getLocations());
     }
 
     builder.preferLocality();
 
-    for (InputSplit split : splits(job.getConfiguration())) {
+    for (InputSplit split : testInputFormat.create(builder.build()).getSplits()) {
       Assert.assertArrayEquals(new String[]{"localhost"}, split.getLocations());
     }
   }
@@ -389,50 +362,125 @@ public class TestIcebergInputFormats {
     expectedRecords.get(0).set(2, "2020-03-20");
     helper.appendToTable(Row.of("2020-03-20", 0), expectedRecords);
 
-    Job job = Job.getInstance(conf);
+    builder.catalogLoader(HadoopCatalogLoader.class)
+           .readFrom(identifier);
 
-    IcebergInputFormat.configure(job)
-            .catalogLoader(HadoopCatalogLoader.class)
-            .readFrom(identifier);
-
-    validate(job, expectedRecords);
+    testInputFormat.create(builder.build()).validate(expectedRecords);
   }
 
-  private static void validate(Job job, List<Record> expectedRecords) {
-    List<Record> actualRecords = readRecords(job.getConfiguration());
-    Assert.assertEquals(expectedRecords, actualRecords);
-  }
+  private abstract static class TestInputFormat<T> {
 
-  private static <T> List<InputSplit> splits(Configuration conf) {
-    TaskAttemptContext context = new TaskAttemptContextImpl(conf, new TaskAttemptID());
-    IcebergInputFormat<T> icebergInputFormat = new IcebergInputFormat<>();
-    return icebergInputFormat.getSplits(context);
-  }
+    private final List<IcebergSplit> splits;
+    private final List<T> records;
 
-  private static <T> List<T> readRecords(Configuration conf) {
-    TaskAttemptContext context = new TaskAttemptContextImpl(conf, new TaskAttemptID());
-    IcebergInputFormat<T> icebergInputFormat = new IcebergInputFormat<>();
-    List<InputSplit> splits = icebergInputFormat.getSplits(context);
-    return
-        FluentIterable
-            .from(splits)
-            .transformAndConcat(split -> readRecords(icebergInputFormat, split, context))
-            .toList();
-  }
-
-  private static <T> Iterable<T> readRecords(
-      IcebergInputFormat<T> inputFormat, InputSplit split, TaskAttemptContext context) {
-    RecordReader<Void, T> recordReader = inputFormat.createRecordReader(split, context);
-    List<T> records = new ArrayList<>();
-    try {
-      recordReader.initialize(split, context);
-      while (recordReader.nextKeyValue()) {
-        records.add(recordReader.getCurrentValue());
-      }
-    } catch (Exception e) {
-      throw new RuntimeException(e);
+    private TestInputFormat(List<IcebergSplit> splits, List<T> records) {
+      this.splits = splits;
+      this.records = records;
     }
-    return records;
+
+    public List<T> getRecords() {
+      return records;
+    }
+
+    public List<IcebergSplit> getSplits() {
+      return splits;
+    }
+
+    public void validate(List<T> expected) {
+      Assert.assertEquals(expected, records);
+    }
+
+    public interface Factory<T> {
+      String name();
+      TestInputFormat<T> create(Configuration conf);
+    }
+
+    public static <T> Factory<T> newFactory(String name, Function<Configuration, TestInputFormat<T>> function) {
+      return new Factory<T>() {
+        @Override
+        public String name() {
+          return name;
+        }
+
+        @Override
+        public TestInputFormat<T> create(Configuration conf) {
+          return function.apply(conf);
+        }
+      };
+    }
+  }
+
+  private static class TestMapRedIcebergInputFormat<T> extends TestInputFormat<T> {
+
+    private TestMapRedIcebergInputFormat(List<IcebergSplit> splits, List<T> records) {
+      super(splits, records);
+    }
+
+    private static <T> TestMapRedIcebergInputFormat<T> create(Configuration conf) {
+      JobConf job = new JobConf(conf);
+      MapredIcebergInputFormat<T> inputFormat = new MapredIcebergInputFormat<>();
+
+      try {
+        org.apache.hadoop.mapred.InputSplit[] splits = inputFormat.getSplits(job, 1);
+
+        List<IcebergSplit> iceSplits = new ArrayList<>(splits.length);
+        List<T> records = new ArrayList<>();
+
+        for (org.apache.hadoop.mapred.InputSplit split : splits) {
+          iceSplits.add((IcebergSplit) split);
+          org.apache.hadoop.mapred.RecordReader<Void, Container<T>>
+                  reader = inputFormat.getRecordReader(split, job, Reporter.NULL);
+
+          try {
+            Container<T> container = reader.createValue();
+
+            while (reader.next(null, container)) {
+              records.add(container.get());
+            }
+          } finally {
+            reader.close();
+          }
+        }
+
+        return new TestMapRedIcebergInputFormat<>(iceSplits, records);
+      } catch (IOException ioe) {
+        throw new RuntimeIOException(ioe);
+      }
+    }
+  }
+
+  private static class TestIcebergInputFormat<T> extends TestInputFormat<T> {
+
+    private TestIcebergInputFormat(List<IcebergSplit> splits, List<T> records) {
+      super(splits, records);
+    }
+
+    private static <T> TestIcebergInputFormat<T> create(Configuration conf) {
+      TaskAttemptContext context = new TaskAttemptContextImpl(conf, new TaskAttemptID());
+      IcebergInputFormat<T> inputFormat = new IcebergInputFormat<>();
+      List<InputSplit> splits = inputFormat.getSplits(context);
+
+      List<IcebergSplit> iceSplits = new ArrayList<>(splits.size());
+      List<T> records = new ArrayList<>();
+
+      for (InputSplit split : splits) {
+        iceSplits.add((IcebergSplit) split);
+
+        try (RecordReader<Void, T> reader = inputFormat.createRecordReader(split, context)) {
+          reader.initialize(split, context);
+
+          while (reader.nextKeyValue()) {
+            records.add(reader.getCurrentValue());
+          }
+        } catch (InterruptedException ie) {
+          throw new RuntimeException(ie);
+        } catch (IOException ioe) {
+          throw new RuntimeIOException(ioe);
+        }
+      }
+
+      return new TestIcebergInputFormat<>(iceSplits, records);
+    }
   }
 
 }
