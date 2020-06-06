@@ -65,7 +65,7 @@ import org.junit.runners.Parameterized;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
-public class TestIcebergInputFormat {
+public class TestIcebergInputFormats {
   static final Schema SCHEMA = new Schema(
       required(1, "data", Types.StringType.get()),
       required(2, "id", Types.LongType.get()),
@@ -108,7 +108,7 @@ public class TestIcebergInputFormat {
     };
   }
 
-  public TestIcebergInputFormat(String format) {
+  public TestIcebergInputFormats(String format) {
     this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
   }
 
