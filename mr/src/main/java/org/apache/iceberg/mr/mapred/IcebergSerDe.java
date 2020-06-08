@@ -37,9 +37,6 @@ import org.apache.iceberg.SnapshotsTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.types.Types;
 
-import static org.apache.iceberg.mr.mapred.SystemTableUtil.getVirtualColumnName;
-import static org.apache.iceberg.mr.mapred.TableResolverUtil.resolveTableFromConfiguration;
-
 public class IcebergSerDe extends AbstractSerDe {
 
   private Schema schema;
@@ -49,7 +46,7 @@ public class IcebergSerDe extends AbstractSerDe {
   public void initialize(@Nullable Configuration configuration, Properties serDeProperties) throws SerDeException {
     Table table = null;
     try {
-      table = resolveTableFromConfiguration(configuration, serDeProperties);
+      table = TableResolver.resolveTableFromConfiguration(configuration, serDeProperties);
     } catch (IOException e) {
       throw new UncheckedIOException("Unable to resolve table from configuration: ", e);
     }
@@ -62,7 +59,8 @@ public class IcebergSerDe extends AbstractSerDe {
       }
     } else {
       List<Types.NestedField> columns = new ArrayList<>(schema.columns());
-      columns.add(Types.NestedField.optional(Integer.MAX_VALUE, getVirtualColumnName(serDeProperties), Types.LongType.get()));
+      columns.add(Types.NestedField.optional(Integer.MAX_VALUE, SystemTableUtil.getVirtualColumnName(serDeProperties),
+              Types.LongType.get()));
       Schema withVirtualColumn = new Schema(columns);
 
       try {
@@ -91,8 +89,7 @@ public class IcebergSerDe extends AbstractSerDe {
   @Override
   public Object deserialize(Writable writable) {
     IcebergWritable icebergWritable = (IcebergWritable) writable;
-    Schema schema = icebergWritable.getSchema();
-    List<Types.NestedField> fields = schema.columns();
+    List<Types.NestedField> fields = icebergWritable.getSchema().columns();
     List<Object> row = new ArrayList<>();
 
     for (Types.NestedField field : fields) {
