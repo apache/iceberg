@@ -21,7 +21,6 @@ package org.apache.iceberg.flink;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.types.AtomicDataType;
 import org.apache.flink.table.types.CollectionDataType;
 import org.apache.flink.table.types.DataType;
@@ -43,9 +42,11 @@ import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.flink.table.types.logical.TinyIntType;
 import org.apache.flink.table.types.logical.VarBinaryType;
 import org.apache.flink.table.types.logical.VarCharType;
+import org.apache.flink.table.types.logical.ZonedTimestampType;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 
 public class FlinkTypeToType extends FlinkTypeVisitor<Type> {
   private final FieldsDataType root;
@@ -64,22 +65,23 @@ public class FlinkTypeToType extends FlinkTypeVisitor<Type> {
   }
 
   @Override
-  public Type fields(FieldsDataType dataType, Map<String, Tuple2<String, Type>> types) {
+  public Type fields(FieldsDataType dataType, Map<String, Pair<String, Type>> types) {
     List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(types.size());
     boolean isRoot = root == dataType;
 
     Map<String, DataType> fieldsMap = dataType.getFieldDataTypes();
     int index = 0;
     for (String name : types.keySet()) {
-      assert fieldsMap.containsKey(name);
+      assert fieldsMap.containsKey(name) : "The FieldsDataType should contains the field with name: " + name;
+
       DataType field = fieldsMap.get(name);
-      Tuple2<String, Type> tuple2 = types.get(name);
+      Pair<String, Type> commentAndType = types.get(name);
 
       int id = isRoot ? index : getNextId();
       if (field.getLogicalType().isNullable()) {
-        newFields.add(Types.NestedField.optional(id, name, tuple2.f1, tuple2.f0));
+        newFields.add(Types.NestedField.optional(id, name, commentAndType.second(), commentAndType.first()));
       } else {
-        newFields.add(Types.NestedField.required(id, name, tuple2.f1, tuple2.f0));
+        newFields.add(Types.NestedField.required(id, name, commentAndType.second(), commentAndType.first()));
       }
       index++;
     }
@@ -119,9 +121,11 @@ public class FlinkTypeToType extends FlinkTypeVisitor<Type> {
       return Types.IntegerType.get();
     } else if (inner instanceof BigIntType) {
       return Types.LongType.get();
-    } else if (inner instanceof VarBinaryType ||
-        inner instanceof BinaryType) {
+    } else if (inner instanceof VarBinaryType) {
       return Types.BinaryType.get();
+    } else if (inner instanceof BinaryType) {
+      BinaryType binaryType = (BinaryType) inner;
+      return Types.FixedType.ofLength(binaryType.getLength());
     } else if (inner instanceof FloatType) {
       return Types.FloatType.get();
     } else if (inner instanceof DoubleType) {
@@ -131,6 +135,8 @@ public class FlinkTypeToType extends FlinkTypeVisitor<Type> {
     } else if (inner instanceof TimeType) {
       return Types.TimeType.get();
     } else if (inner instanceof TimestampType) {
+      return Types.TimestampType.withoutZone();
+    } else if (inner instanceof ZonedTimestampType) {
       return Types.TimestampType.withZone();
     } else if (inner instanceof DecimalType) {
       DecimalType decimalType = (DecimalType) inner;

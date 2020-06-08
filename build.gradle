@@ -236,8 +236,6 @@ project(':iceberg-data') {
 }
 
 project(':iceberg-flink') {
-  apply plugin: 'scala'
-
   dependencies {
     compile project(':iceberg-api')
     compile project(':iceberg-common')
@@ -245,7 +243,6 @@ project(':iceberg-flink') {
     compile project(':iceberg-data')
     compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
-    compile project(':iceberg-arrow')
     compile "org.apache.flink:flink-streaming-java_2.11::tests"
 
     compileOnly "org.apache.flink:flink-streaming-java_2.11"

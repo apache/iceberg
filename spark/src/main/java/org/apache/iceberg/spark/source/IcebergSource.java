@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.source;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -39,7 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.UnknownTransform;
-import org.apache.iceberg.types.CheckCompatibility;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SaveMode;
@@ -101,7 +100,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
     Schema writeSchema = SparkSchemaUtil.convert(table.schema(), dsStruct);
-    validateWriteSchema(table.schema(), writeSchema, checkNullability(options), checkOrdering(options));
+    TypeUtil.validateWriteSchema(table.schema(), writeSchema, checkNullability(options), checkOrdering(options));
     validatePartitionTransforms(table.spec());
     String appId = lazySparkSession().sparkContext().applicationId();
     String wapId = lazySparkSession().conf().get("spark.wap.id", null);
@@ -123,7 +122,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
     Schema writeSchema = SparkSchemaUtil.convert(table.schema(), dsStruct);
-    validateWriteSchema(table.schema(), writeSchema, checkNullability(options), checkOrdering(options));
+    TypeUtil.validateWriteSchema(table.schema(), writeSchema, checkNullability(options), checkOrdering(options));
     validatePartitionTransforms(table.spec());
     // Spark 2.4.x passes runId to createStreamWriter instead of real queryId,
     // so we fetch it directly from sparkContext to make writes idempotent
@@ -188,26 +187,6 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     options.keySet().stream()
         .filter(key -> key.startsWith("hadoop."))
         .forEach(key -> baseConf.set(key.replaceFirst("hadoop.", ""), options.get(key)));
-  }
-
-  private void validateWriteSchema(
-          Schema tableSchema, Schema dsSchema, Boolean checkNullability, Boolean checkOrdering) {
-    List<String> errors;
-    if (checkNullability) {
-      errors = CheckCompatibility.writeCompatibilityErrors(tableSchema, dsSchema, checkOrdering);
-    } else {
-      errors = CheckCompatibility.typeCompatibilityErrors(tableSchema, dsSchema, checkOrdering);
-    }
-    if (!errors.isEmpty()) {
-      StringBuilder sb = new StringBuilder();
-      sb.append("Cannot write incompatible dataset to table with schema:\n")
-          .append(tableSchema)
-          .append("\nProblems:");
-      for (String error : errors) {
-        sb.append("\n* ").append(error);
-      }
-      throw new IllegalArgumentException(sb.toString());
-    }
   }
 
   private void validatePartitionTransforms(PartitionSpec spec) {

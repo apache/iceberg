@@ -19,15 +19,17 @@
 
 package org.apache.iceberg.flink;
 
-import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.types.AtomicDataType;
 import org.apache.flink.table.types.CollectionDataType;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.FieldsDataType;
 import org.apache.flink.table.types.KeyValueDataType;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.Pair;
 
 public class FlinkTypeVisitor<T> {
 
@@ -35,14 +37,20 @@ public class FlinkTypeVisitor<T> {
     if (dataType instanceof FieldsDataType) {
       FieldsDataType fieldsType = (FieldsDataType) dataType;
       Map<String, DataType> fields = fieldsType.getFieldDataTypes();
-      Map<String, Tuple2<String, T>> fieldResults = new LinkedHashMap<>();
-      // Make sure that we're traversing the fields in the same order as constructing the schema's fields.
-      RowType rowType = (RowType) dataType.getLogicalType();
-      for (int i = 0; i < fields.size(); i++) {
-        String name = rowType.getFieldNames().get(i);
-        String comment = rowType.getFields().get(i).getDescription().orElse(null);
-        fieldResults.put(name, Tuple2.of(comment, visit(fields.get(name), visitor)));
+      Map<String, Pair<String, T>> fieldResults = Maps.newLinkedHashMap();
+
+      Preconditions.checkArgument(dataType.getLogicalType() instanceof RowType, "The logical type must be RowType");
+
+      // Make sure that we're traversing the fields in the same order as constructing the schema's fields, so that we
+      // could get the field's comment correctly. NOTICE: the flink type don't attach the comment inside it so we
+      // iceberg need to read the comment firstly and then maintain the pair (comment, type) for each field.
+      List<RowType.RowField> rowFields = ((RowType) dataType.getLogicalType()).getFields();
+      for (RowType.RowField rowField : rowFields) {
+        String name = rowField.getName();
+        String comment = rowField.getDescription().orElse(null);
+        fieldResults.put(name, Pair.of(comment, visit(fields.get(name), visitor)));
       }
+
       return visitor.fields(fieldsType, fieldResults);
     } else if (dataType instanceof CollectionDataType) {
       CollectionDataType collectionType = (CollectionDataType) dataType;
@@ -61,7 +69,11 @@ public class FlinkTypeVisitor<T> {
     }
   }
 
-  public T fields(FieldsDataType dataType, Map<String, Tuple2<String, T>> fieldResults) {
+  /**
+   * The Flink Type did not include the 'comment' inside it, so here we need to maintain a map to mapping the field name
+   * to the (comment, type) pair.
+   */
+  public T fields(FieldsDataType dataType, Map<String, Pair<String, T>> fieldResults) {
     return null;
   }
 
