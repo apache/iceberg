@@ -26,9 +26,11 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
@@ -36,10 +38,11 @@ import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.types.Types;
 
-/**
- *
- */
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
+
 public class TestHelpers {
 
   private TestHelpers() {}
@@ -123,6 +126,28 @@ public class TestHelpers {
       builder.withPartition(partitionData);
     }
     return builder.build();
+  }
+
+  /**
+   * Based on: https://github.com/apache/incubator-iceberg/blob/master/
+   * spark/src/test/java/org/apache/iceberg/spark/source/SimpleRecord.java
+   */
+  public static Record createSimpleRecord(long id, String data) {
+    Schema schema = new Schema(required(1, "id", Types.StringType.get()),
+            optional(2, "data", Types.LongType.get()));
+    GenericRecord record = GenericRecord.create(schema);
+    record.setField("id", id);
+    record.setField("data", data);
+    return record;
+  }
+
+  public static Record createCustomRecord(Schema schema, List<?> dataValues) {
+    GenericRecord record = GenericRecord.create(schema);
+    List<Types.NestedField> fields = schema.columns();
+    for (int i = 0; i < fields.size(); i++) {
+      record.setField(fields.get(i).name(), dataValues.get(i));
+    }
+    return record;
   }
 
 }

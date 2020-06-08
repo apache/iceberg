@@ -19,21 +19,12 @@
 
 package org.apache.iceberg.mr;
 
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.TableScan;
 import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class InputFormatConfig {
 
@@ -54,8 +45,15 @@ public class InputFormatConfig {
   public static final String LOCALITY = "iceberg.mr.locality";
   public static final String CATALOG = "iceberg.mr.catalog";
 
-  // configuration value set by Hive to contain Table location
+  public static final String CATALOG_NAME = "iceberg.catalog";
+  public static final String HADOOP_CATALOG = "hadoop.catalog";
+  public static final String HADOOP_TABLES = "hadoop.tables";
+  public static final String HIVE_CATALOG = "hive.catalog";
+  public static final String ICEBERG_SNAPSHOTS_TABLE_SUFFIX = ".snapshots";
+  public static final String SNAPSHOT_TABLE = "iceberg.snapshots.table";
+  public static final String SNAPSHOT_TABLE_SUFFIX = "__snapshots";
   public static final String TABLE_LOCATION = "location";
+  public static final String TABLE_NAME = "name";
 
   public static class ConfigBuilder {
     private final Configuration conf;
@@ -67,13 +65,6 @@ public class InputFormatConfig {
       conf.setBoolean(CASE_SENSITIVE, true);
       conf.setBoolean(REUSE_CONTAINERS, false);
       conf.setBoolean(LOCALITY, false);
-    }
-
-    public ConfigBuilder readFrom(String path) {
-      conf.set(TABLE_PATH, path);
-      Table table = findTable(conf);
-      conf.set(TABLE_SCHEMA, SchemaParser.toJson(table.schema()));
-      return this;
     }
 
     public ConfigBuilder filter(Expression expression) {
@@ -134,70 +125,6 @@ public class InputFormatConfig {
       conf.setBoolean(InputFormatConfig.SKIP_RESIDUAL_FILTERING, true);
       return this;
     }
-  }
-
-  public static Table findTable(Configuration conf) {
-    // TODO: below is naive for Hive, we need to replace it with something more like
-    // https://github.com/ExpediaGroup/hiveberg/blob/master/src/main/java/com/expediagroup/hiveberg/
-    // TableResolverUtil.java
-    String tableLocation = conf.get(TABLE_LOCATION);
-    if (tableLocation != null) {
-      HadoopTables tables = new HadoopTables(conf);
-      try {
-        URI location = new URI(tableLocation);
-        return tables.load(location.getPath());
-      } catch (URISyntaxException e) {
-        throw new IllegalArgumentException("Unable to create URI for table location: '" + tableLocation + "'", e);
-      }
-    }
-
-    String path = conf.get(TABLE_PATH);
-    Preconditions.checkArgument(path != null, TABLE_PATH + " or " + TABLE_LOCATION + " should not be null");
-    if (path.contains("/")) {
-      HadoopTables tables = new HadoopTables(conf);
-      return tables.load(path);
-    }
-
-    String catalogFuncClass = conf.get(InputFormatConfig.CATALOG);
-    if (catalogFuncClass != null) {
-      Function<Configuration, Catalog> catalogFunc = (Function<Configuration, Catalog>) DynConstructors
-          .builder(Function.class)
-          .impl(catalogFuncClass)
-          .build()
-          .newInstance();
-      Catalog catalog = catalogFunc.apply(conf);
-      TableIdentifier tableIdentifier = TableIdentifier.parse(path);
-      return catalog.loadTable(tableIdentifier);
-    } else {
-      throw new IllegalArgumentException("No custom catalog specified to load table " + path);
-    }
-  }
-
-  public static TableScan createTableScan(Configuration conf, Table table) {
-    TableScan scan = table.newScan().caseSensitive(conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, true));
-    long snapshotId = conf.getLong(InputFormatConfig.SNAPSHOT_ID, -1);
-    if (snapshotId != -1) {
-      scan = scan.useSnapshot(snapshotId);
-    }
-    long asOfTime = conf.getLong(InputFormatConfig.AS_OF_TIMESTAMP, -1);
-    if (asOfTime != -1) {
-      scan = scan.asOfTime(asOfTime);
-    }
-    long splitSize = conf.getLong(InputFormatConfig.SPLIT_SIZE, 0);
-    if (splitSize > 0) {
-      scan = scan.option(TableProperties.SPLIT_SIZE, String.valueOf(splitSize));
-    }
-    String schemaStr = conf.get(InputFormatConfig.READ_SCHEMA);
-    if (schemaStr != null) {
-      scan.project(SchemaParser.fromJson(schemaStr));
-    }
-
-    // TODO add a filter parser to get rid of Serialization
-    Expression filter = SerializationUtil.deserializeFromBase64(conf.get(InputFormatConfig.FILTER_EXPRESSION));
-    if (filter != null) {
-      scan = scan.filter(filter);
-    }
-    return scan;
   }
 
 }

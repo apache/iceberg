@@ -324,6 +324,14 @@ project(':iceberg-mr') {
       exclude group: 'com.google.guava'
     }
 
+    compileOnly("org.apache.hive:hive-metastore") {
+      //exclude group: 'org.apache.avro', module: 'avro'
+    }
+
+    compileOnly("org.apache.hive:hive-serde") {
+      //exclude group: 'org.apache.avro', module: 'avro'
+    }
+
     testCompile("com.klarna:hiverunner:5.2.1") {
       exclude group: 'javax.jms', module: 'jms'
       exclude group: 'org.apache.hive', module: 'hive-exec'

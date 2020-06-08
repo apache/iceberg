@@ -39,6 +39,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
@@ -47,7 +48,7 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopCatalog;
-import org.apache.iceberg.mr.BaseInputFormatTest;
+import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestHelpers.Row;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
@@ -57,30 +58,96 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.*;
+import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.mr.TestHelpers.writeFile;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
+@Ignore("")
 @RunWith(Parameterized.class)
-public class TestIcebergInputFormat extends BaseInputFormatTest {
+public class TestIcebergInputFormat {
+
+  static final Schema SCHEMA = new Schema(
+          required(1, "data", Types.StringType.get()),
+          required(2, "id", Types.LongType.get()),
+          required(3, "date", Types.StringType.get()));
+
+  static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
+          .identity("date")
+          .bucket("id", 1)
+          .build();
+
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
+  private HadoopTables tables;
+  private Configuration conf;
+  private final FileFormat fileFormat;
+
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][]{
+        new Object[]{"parquet"},
+        new Object[]{"avro"},
+        new Object[]{"orc"}
+    };
+  }
 
   public TestIcebergInputFormat(String format) {
     this.fileFormat = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
   }
 
-  @Override
+  @Before
+  public void before() {
+    conf = new Configuration();
+    tables = new HadoopTables(conf);
+  }
+
+  private void readFrom(String path) {
+    conf.set(InputFormatConfig.TABLE_PATH, path);
+    System.out.println("XXX PATH " + InputFormatConfig.TABLE_PATH + " : " + path);
+    Table table = TableResolver.findTable(conf);
+    conf.set(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(table.schema()));
+  }
+
   protected void runAndValidate(File tableLocation, List<Record> expectedRecords) throws IOException {
     Job job = Job.getInstance(conf);
+    readFrom(tableLocation.toString());
     InputFormatConfig.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
-    configBuilder.readFrom(tableLocation.toString());
     validate(job, expectedRecords);
   }
 
-  //TODO: try move as many methods below into base class (once functionality is implemented in
-  //      mapred InputFormat)
+  @Test
+  public void testUnpartitionedTable() throws Exception {
+    File tableLocation = temp.newFolder(fileFormat.name());
+    Table table = tables
+            .create(SCHEMA, PartitionSpec.unpartitioned(),
+                    ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name()), tableLocation.toString());
+    List<Record> expectedRecords = RandomGenericData.generate(table.schema(), 1, 0L);
+    DataFile dataFile = writeFile(temp.newFile(), table, null, fileFormat, expectedRecords);
+    table.newAppend().appendFile(dataFile).commit();
+    runAndValidate(tableLocation, expectedRecords);
+  }
+
+  @Test
+  public void testPartitionedTable() throws Exception {
+    File tableLocation = temp.newFolder(fileFormat.name());
+    Assert.assertTrue(tableLocation.delete());
+    Table table = tables.create(SCHEMA, SPEC,
+            ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name()),
+            tableLocation.toString());
+    List<Record> expectedRecords = RandomGenericData.generate(table.schema(), 1, 0L);
+    expectedRecords.get(0).set(2, "2020-03-20");
+    DataFile dataFile = writeFile(temp.newFile(), table, Row.of("2020-03-20", 0), fileFormat, expectedRecords);
+    table.newAppend()
+            .appendFile(dataFile)
+            .commit();
+
+    runAndValidate(tableLocation, expectedRecords);
+  }
+
   @Test
   public void testFilterExp() throws Exception {
     File location = temp.newFolder(fileFormat.name());
@@ -100,8 +167,8 @@ public class TestIcebergInputFormat extends BaseInputFormatTest {
          .commit();
     Job job = Job.getInstance(conf);
     InputFormatConfig.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
-    configBuilder.readFrom(location.toString())
-                 .filter(Expressions.equal("date", "2020-03-20"));
+    readFrom(location.toString());
+    configBuilder.filter(Expressions.equal("date", "2020-03-20"));
     validate(job, expectedRecords);
   }
 
@@ -130,8 +197,8 @@ public class TestIcebergInputFormat extends BaseInputFormatTest {
          .commit();
     Job job = Job.getInstance(conf);
     InputFormatConfig.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
-    configBuilder.readFrom(location.toString())
-        .filter(Expressions.and(
+    readFrom(location.toString());
+    configBuilder.filter(Expressions.and(
             Expressions.equal("date", "2020-03-20"),
             Expressions.equal("id", 123)));
     validate(job, expectedRecords);
@@ -139,7 +206,8 @@ public class TestIcebergInputFormat extends BaseInputFormatTest {
     // skip residual filtering
     job = Job.getInstance(conf);
     configBuilder = IcebergInputFormat.configure(job);
-    configBuilder.skipResidualFiltering().readFrom(location.toString())
+    readFrom(location.toString());
+    configBuilder.skipResidualFiltering()
         .filter(Expressions.and(
             Expressions.equal("date", "2020-03-20"),
             Expressions.equal("id", 123)));
@@ -162,9 +230,8 @@ public class TestIcebergInputFormat extends BaseInputFormatTest {
 
     Job job = Job.getInstance(conf);
     InputFormatConfig.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
-    configBuilder
-        .readFrom(location.toString())
-        .project(projectedSchema);
+    readFrom(location.toString());
+    configBuilder.project(projectedSchema);
     List<Record> outputRecords = readRecords(job.getConfiguration());
     Assert.assertEquals(inputRecords.size(), outputRecords.size());
     Assert.assertEquals(projectedSchema.asStruct(), outputRecords.get(0).struct());
@@ -237,9 +304,8 @@ public class TestIcebergInputFormat extends BaseInputFormatTest {
       String tablePath, Schema projectedSchema, List<Record> inputRecords) throws Exception {
     Job job = Job.getInstance(conf);
     InputFormatConfig.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
-    configBuilder
-        .readFrom(tablePath)
-        .project(projectedSchema);
+    readFrom(tablePath);
+    configBuilder.project(projectedSchema);
     List<Record> actualRecords = readRecords(job.getConfiguration());
 
     Set<String> fieldNames = TypeUtil.indexByName(projectedSchema.asStruct()).keySet();
@@ -273,9 +339,8 @@ public class TestIcebergInputFormat extends BaseInputFormatTest {
 
     Job job = Job.getInstance(conf);
     InputFormatConfig.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
-    configBuilder
-        .readFrom(location.toString())
-        .snapshotId(snapshotId);
+    readFrom(location.toString());
+    configBuilder.snapshotId(snapshotId);
 
     validate(job, expectedRecords);
   }
@@ -293,8 +358,7 @@ public class TestIcebergInputFormat extends BaseInputFormatTest {
          .commit();
     Job job = Job.getInstance(conf);
     InputFormatConfig.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
-    configBuilder.readFrom(location.toString());
-
+    readFrom(location.toString());
     for (InputSplit split : splits(job.getConfiguration())) {
       Assert.assertArrayEquals(IcebergInputFormat.IcebergSplit.ANYWHERE, split.getLocations());
     }
@@ -330,9 +394,8 @@ public class TestIcebergInputFormat extends BaseInputFormatTest {
 
     Job job = Job.getInstance(conf);
     InputFormatConfig.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
-    configBuilder
-        .catalogFunc(HadoopCatalogFunc.class)
-        .readFrom(tableIdentifier.toString());
+    readFrom(tableIdentifier.toString());
+    configBuilder.catalogFunc(HadoopCatalogFunc.class);
     validate(job, expectedRecords);
   }
 

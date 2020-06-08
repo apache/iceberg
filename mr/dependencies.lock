@@ -586,6 +586,12 @@
         }
     },
     "compileClasspath": {
+        "ant:ant": {
+            "locked": "1.6.5",
+            "transitive": [
+                "tomcat:jasper-compiler"
+            ]
+        },
         "aopalliance:aopalliance": {
             "locked": "1.0",
             "transitive": [
@@ -595,8 +601,59 @@
         "asm:asm": {
             "locked": "3.1",
             "transitive": [
+                "asm:asm-tree",
                 "com.sun.jersey:jersey-server",
                 "org.sonatype.sisu.inject:cglib"
+            ]
+        },
+        "asm:asm-commons": {
+            "locked": "3.1",
+            "transitive": [
+                "org.eclipse.jetty.aggregate:jetty-all"
+            ]
+        },
+        "asm:asm-tree": {
+            "locked": "3.1",
+            "transitive": [
+                "asm:asm-commons"
+            ]
+        },
+        "ch.qos.logback:logback-classic": {
+            "locked": "1.0.9",
+            "transitive": [
+                "co.cask.tephra:tephra-core",
+                "org.apache.twill:twill-core",
+                "org.apache.twill:twill-zookeeper"
+            ]
+        },
+        "ch.qos.logback:logback-core": {
+            "locked": "1.0.9",
+            "transitive": [
+                "ch.qos.logback:logback-classic",
+                "co.cask.tephra:tephra-core",
+                "org.apache.twill:twill-core",
+                "org.apache.twill:twill-zookeeper"
+            ]
+        },
+        "co.cask.tephra:tephra-api": {
+            "locked": "0.6.0",
+            "transitive": [
+                "co.cask.tephra:tephra-core",
+                "co.cask.tephra:tephra-hbase-compat-1.0",
+                "org.apache.hive:hive-metastore"
+            ]
+        },
+        "co.cask.tephra:tephra-core": {
+            "locked": "0.6.0",
+            "transitive": [
+                "co.cask.tephra:tephra-hbase-compat-1.0",
+                "org.apache.hive:hive-metastore"
+            ]
+        },
+        "co.cask.tephra:tephra-hbase-compat-1.0": {
+            "locked": "0.6.0",
+            "transitive": [
+                "org.apache.hive:hive-metastore"
             ]
         },
         "com.fasterxml.jackson.core:jackson-annotations": {
@@ -616,7 +673,9 @@
         "com.fasterxml.jackson.core:jackson-databind": {
             "locked": "2.10.2",
             "transitive": [
+                "io.dropwizard.metrics:metrics-json",
                 "org.apache.avro:avro",
+                "org.apache.hive:hive-common",
                 "org.apache.iceberg:iceberg-core"
             ]
         },
@@ -626,9 +685,19 @@
                 "org.apache.iceberg:iceberg-core"
             ]
         },
+        "com.github.joshelser:dropwizard-metrics-hadoop-metrics2-reporter": {
+            "locked": "0.1.2",
+            "transitive": [
+                "org.apache.hive:hive-common"
+            ]
+        },
         "com.github.stephenc.findbugs:findbugs-annotations": {
             "locked": "1.3.9-1",
             "transitive": [
+                "org.apache.hbase:hbase-annotations",
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common",
+                "org.apache.hbase:hbase-protocol",
                 "org.apache.iceberg:iceberg-api",
                 "org.apache.iceberg:iceberg-common",
                 "org.apache.iceberg:iceberg-core",
@@ -640,14 +709,21 @@
         "com.google.code.findbugs:jsr305": {
             "locked": "3.0.0",
             "transitive": [
-                "org.apache.hadoop:hadoop-common"
+                "org.apache.hadoop:hadoop-common",
+                "org.apache.hive:hive-serde",
+                "org.apache.twill:twill-api",
+                "org.apache.twill:twill-common",
+                "org.apache.twill:twill-zookeeper"
             ]
         },
         "com.google.code.gson:gson": {
             "locked": "2.2.4",
             "transitive": [
+                "co.cask.tephra:tephra-core",
                 "org.apache.hadoop:hadoop-common",
-                "org.apache.hive:hive-exec"
+                "org.apache.hive:hive-exec",
+                "org.apache.twill:twill-core",
+                "org.apache.twill:twill-discovery-core"
             ]
         },
         "com.google.errorprone:error_prone_annotations": {
@@ -656,9 +732,26 @@
                 "com.github.ben-manes.caffeine:caffeine"
             ]
         },
+        "com.google.inject.extensions:guice-assistedinject": {
+            "locked": "3.0",
+            "transitive": [
+                "co.cask.tephra:tephra-core"
+            ]
+        },
+        "com.google.inject.extensions:guice-servlet": {
+            "locked": "3.0",
+            "transitive": [
+                "com.sun.jersey.contribs:jersey-guice",
+                "org.apache.hadoop:hadoop-mapreduce-client-core",
+                "org.apache.hadoop:hadoop-yarn-common"
+            ]
+        },
         "com.google.inject:guice": {
             "locked": "3.0",
             "transitive": [
+                "co.cask.tephra:tephra-core",
+                "com.google.inject.extensions:guice-assistedinject",
+                "com.google.inject.extensions:guice-servlet",
                 "com.sun.jersey.contribs:jersey-guice",
                 "org.apache.hadoop:hadoop-yarn-common",
                 "org.apache.hadoop:hadoop-yarn-server-nodemanager"
@@ -677,7 +770,30 @@
                 "org.apache.hadoop:hadoop-yarn-api",
                 "org.apache.hadoop:hadoop-yarn-common",
                 "org.apache.hadoop:hadoop-yarn-server-common",
-                "org.apache.hadoop:hadoop-yarn-server-nodemanager"
+                "org.apache.hadoop:hadoop-yarn-server-nodemanager",
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common",
+                "org.apache.hbase:hbase-protocol",
+                "org.apache.hive:hive-metastore",
+                "org.apache.orc:orc-core"
+            ]
+        },
+        "com.jamesmurty.utils:java-xmlbuilder": {
+            "locked": "0.4",
+            "transitive": [
+                "net.java.dev.jets3t:jets3t"
+            ]
+        },
+        "com.jcraft:jsch": {
+            "locked": "0.1.42",
+            "transitive": [
+                "org.apache.hadoop:hadoop-common"
+            ]
+        },
+        "com.jolbox:bonecp": {
+            "locked": "0.8.0.RELEASE",
+            "transitive": [
+                "org.apache.hive:hive-metastore"
             ]
         },
         "com.sun.jersey.contribs:jersey-guice": {
@@ -700,6 +816,7 @@
                 "com.sun.jersey:jersey-client",
                 "com.sun.jersey:jersey-json",
                 "com.sun.jersey:jersey-server",
+                "org.apache.hadoop:hadoop-common",
                 "org.apache.hadoop:hadoop-yarn-common",
                 "org.apache.hadoop:hadoop-yarn-server-nodemanager"
             ]
@@ -707,6 +824,7 @@
         "com.sun.jersey:jersey-json": {
             "locked": "1.9",
             "transitive": [
+                "org.apache.hadoop:hadoop-common",
                 "org.apache.hadoop:hadoop-yarn-common",
                 "org.apache.hadoop:hadoop-yarn-server-nodemanager"
             ]
@@ -715,6 +833,7 @@
             "locked": "1.9",
             "transitive": [
                 "com.sun.jersey.contribs:jersey-guice",
+                "org.apache.hadoop:hadoop-common",
                 "org.apache.hadoop:hadoop-yarn-common"
             ]
         },
@@ -722,6 +841,18 @@
             "locked": "2.2.3-1",
             "transitive": [
                 "com.sun.jersey:jersey-json"
+            ]
+        },
+        "com.tdunning:json": {
+            "locked": "1.8",
+            "transitive": [
+                "org.apache.hive:hive-common"
+            ]
+        },
+        "com.zaxxer:HikariCP": {
+            "locked": "2.5.1",
+            "transitive": [
+                "org.apache.hive:hive-metastore"
             ]
         },
         "commons-beanutils:commons-beanutils": {
@@ -742,19 +873,27 @@
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.hadoop:hadoop-hdfs",
                 "org.apache.hadoop:hadoop-yarn-client",
-                "org.apache.hadoop:hadoop-yarn-common"
+                "org.apache.hadoop:hadoop-yarn-common",
+                "org.apache.hive:hive-common",
+                "org.apache.hive:hive-metastore",
+                "org.apache.hive:hive-service-rpc"
             ]
         },
         "commons-codec:commons-codec": {
             "locked": "1.9",
             "transitive": [
                 "commons-httpclient:commons-httpclient",
+                "net.java.dev.jets3t:jets3t",
                 "org.apache.hadoop:hadoop-auth",
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.hadoop:hadoop-hdfs",
                 "org.apache.hadoop:hadoop-yarn-common",
                 "org.apache.hadoop:hadoop-yarn-server-nodemanager",
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common",
                 "org.apache.hive:hive-exec",
+                "org.apache.hive:hive-serde",
+                "org.apache.hive:hive-service-rpc",
                 "org.apache.httpcomponents:httpclient"
             ]
         },
@@ -762,7 +901,8 @@
             "locked": "3.2.2",
             "transitive": [
                 "commons-configuration:commons-configuration",
-                "org.apache.hadoop:hadoop-common"
+                "org.apache.hadoop:hadoop-common",
+                "org.apache.hbase:hbase-common"
             ]
         },
         "commons-configuration:commons-configuration": {
@@ -771,10 +911,22 @@
                 "org.apache.hadoop:hadoop-common"
             ]
         },
+        "commons-dbcp:commons-dbcp": {
+            "locked": "1.4",
+            "transitive": [
+                "org.apache.hive:hive-metastore"
+            ]
+        },
         "commons-digester:commons-digester": {
             "locked": "1.8",
             "transitive": [
                 "commons-configuration:commons-configuration"
+            ]
+        },
+        "commons-el:commons-el": {
+            "locked": "1.0",
+            "transitive": [
+                "tomcat:jasper-runtime"
             ]
         },
         "commons-httpclient:commons-httpclient": {
@@ -790,6 +942,8 @@
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.hadoop:hadoop-hdfs",
                 "org.apache.hadoop:hadoop-yarn-common",
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common",
                 "org.apache.hive:hive-exec"
             ]
         },
@@ -803,8 +957,15 @@
                 "org.apache.hadoop:hadoop-yarn-client",
                 "org.apache.hadoop:hadoop-yarn-common",
                 "org.apache.hadoop:hadoop-yarn-server-nodemanager",
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common",
                 "org.apache.hive.shims:hive-shims-common",
+                "org.apache.hive:hive-common",
+                "org.apache.hive:hive-metastore",
+                "org.apache.hive:hive-serde",
+                "org.apache.hive:hive-storage-api",
                 "org.apache.hive:hive-vector-code-gen",
+                "org.apache.orc:orc-core",
                 "org.apache.velocity:velocity"
             ]
         },
@@ -815,7 +976,9 @@
                 "commons-beanutils:commons-beanutils-core",
                 "commons-configuration:commons-configuration",
                 "commons-digester:commons-digester",
+                "commons-el:commons-el",
                 "commons-httpclient:commons-httpclient",
+                "net.java.dev.jets3t:jets3t",
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.hadoop:hadoop-hdfs",
                 "org.apache.hadoop:hadoop-yarn-api",
@@ -823,6 +986,9 @@
                 "org.apache.hadoop:hadoop-yarn-common",
                 "org.apache.hadoop:hadoop-yarn-server-common",
                 "org.apache.hadoop:hadoop-yarn-server-nodemanager",
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common",
+                "org.apache.hbase:hbase-protocol",
                 "org.apache.httpcomponents:httpclient"
             ]
         },
@@ -835,6 +1001,8 @@
         "commons-pool:commons-pool": {
             "locked": "1.6",
             "transitive": [
+                "commons-dbcp:commons-dbcp",
+                "org.apache.hive:hive-metastore",
                 "org.apache.parquet:parquet-hadoop"
             ]
         },
@@ -844,17 +1012,54 @@
                 "org.apache.orc:orc-core"
             ]
         },
+        "io.dropwizard.metrics:metrics-core": {
+            "locked": "3.1.2",
+            "transitive": [
+                "co.cask.tephra:tephra-core",
+                "com.github.joshelser:dropwizard-metrics-hadoop-metrics2-reporter",
+                "io.dropwizard.metrics:metrics-json",
+                "io.dropwizard.metrics:metrics-jvm",
+                "org.apache.hive:hive-common"
+            ]
+        },
+        "io.dropwizard.metrics:metrics-json": {
+            "locked": "3.1.0",
+            "transitive": [
+                "org.apache.hive:hive-common"
+            ]
+        },
+        "io.dropwizard.metrics:metrics-jvm": {
+            "locked": "3.1.0",
+            "transitive": [
+                "org.apache.hive:hive-common"
+            ]
+        },
         "io.netty:netty": {
             "locked": "3.7.0.Final",
             "transitive": [
                 "org.apache.hadoop:hadoop-hdfs",
+                "org.apache.hadoop:hadoop-mapreduce-client-core",
                 "org.apache.zookeeper:zookeeper"
             ]
         },
         "io.netty:netty-all": {
             "locked": "4.0.23.Final",
             "transitive": [
-                "org.apache.hadoop:hadoop-hdfs"
+                "org.apache.hadoop:hadoop-hdfs",
+                "org.apache.hbase:hbase-client"
+            ]
+        },
+        "it.unimi.dsi:fastutil": {
+            "locked": "6.5.6",
+            "transitive": [
+                "co.cask.tephra:tephra-core"
+            ]
+        },
+        "javax.activation:activation": {
+            "locked": "1.1",
+            "transitive": [
+                "javax.mail:mail",
+                "org.eclipse.jetty.aggregate:jetty-all"
             ]
         },
         "javax.annotation:javax.annotation-api": {
@@ -870,11 +1075,44 @@
                 "com.sun.jersey.contribs:jersey-guice"
             ]
         },
+        "javax.jdo:jdo-api": {
+            "locked": "3.0.1",
+            "transitive": [
+                "org.apache.hive:hive-metastore"
+            ]
+        },
+        "javax.mail:mail": {
+            "locked": "1.4.1",
+            "transitive": [
+                "org.eclipse.jetty.aggregate:jetty-all"
+            ]
+        },
+        "javax.servlet:jsp-api": {
+            "locked": "2.0",
+            "transitive": [
+                "tomcat:jasper-compiler"
+            ]
+        },
         "javax.servlet:servlet-api": {
             "locked": "2.5",
             "transitive": [
+                "javax.servlet:jsp-api",
+                "org.apache.hadoop:hadoop-common",
                 "org.apache.hadoop:hadoop-yarn-common",
-                "org.apache.hadoop:hadoop-yarn-server-nodemanager"
+                "org.apache.hadoop:hadoop-yarn-server-nodemanager",
+                "tomcat:jasper-runtime"
+            ]
+        },
+        "javax.transaction:jta": {
+            "locked": "1.1",
+            "transitive": [
+                "javax.jdo:jdo-api"
+            ]
+        },
+        "javax.transaction:transaction-api": {
+            "locked": "1.1",
+            "transitive": [
+                "org.datanucleus:javax.jdo"
             ]
         },
         "javax.xml.bind:jaxb-api": {
@@ -886,16 +1124,32 @@
                 "org.apache.orc:orc-core"
             ]
         },
-        "jline:jline": {
-            "locked": "0.9.94",
+        "javolution:javolution": {
+            "locked": "5.5.1",
             "transitive": [
+                "org.apache.hive:hive-metastore"
+            ]
+        },
+        "jline:jline": {
+            "locked": "2.12",
+            "transitive": [
+                "org.apache.hive:hive-common",
                 "org.apache.zookeeper:zookeeper"
             ]
         },
-        "junit:junit": {
-            "locked": "3.8.1",
+        "joda-time:joda-time": {
+            "locked": "2.8.1",
             "transitive": [
-                "jline:jline"
+                "org.apache.hive:hive-common"
+            ]
+        },
+        "junit:junit": {
+            "locked": "4.11",
+            "transitive": [
+                "org.apache.hbase:hbase-annotations",
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common",
+                "org.apache.hbase:hbase-protocol"
             ]
         },
         "log4j:log4j": {
@@ -905,7 +1159,22 @@
                 "org.apache.hadoop:hadoop-hdfs",
                 "org.apache.hadoop:hadoop-yarn-client",
                 "org.apache.hadoop:hadoop-yarn-common",
+                "org.apache.hbase:hbase-annotations",
+                "org.apache.hbase:hbase-common",
+                "org.apache.hbase:hbase-protocol",
                 "org.apache.zookeeper:zookeeper"
+            ]
+        },
+        "net.java.dev.jets3t:jets3t": {
+            "locked": "0.9.0",
+            "transitive": [
+                "org.apache.hadoop:hadoop-common"
+            ]
+        },
+        "net.sf.opencsv:opencsv": {
+            "locked": "2.3",
+            "transitive": [
+                "org.apache.hive:hive-serde"
             ]
         },
         "org.antlr:ST4": {
@@ -918,12 +1187,14 @@
             "locked": "3.5.2",
             "transitive": [
                 "org.antlr:ST4",
-                "org.apache.hive:hive-exec"
+                "org.apache.hive:hive-exec",
+                "org.apache.hive:hive-metastore"
             ]
         },
         "org.apache.ant:ant": {
             "locked": "1.9.1",
             "transitive": [
+                "org.apache.hive:hive-common",
                 "org.apache.hive:hive-exec",
                 "org.apache.hive:hive-vector-code-gen"
             ]
@@ -937,6 +1208,9 @@
         "org.apache.avro:avro": {
             "locked": "1.9.2",
             "transitive": [
+                "org.apache.hadoop:hadoop-common",
+                "org.apache.hadoop:hadoop-mapreduce-client-core",
+                "org.apache.hive:hive-serde",
                 "org.apache.iceberg:iceberg-core"
             ]
         },
@@ -946,7 +1220,14 @@
                 "org.apache.avro:avro",
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.hadoop:hadoop-yarn-common",
+                "org.apache.hive:hive-common",
                 "org.apache.hive:hive-exec"
+            ]
+        },
+        "org.apache.commons:commons-lang3": {
+            "locked": "3.1",
+            "transitive": [
+                "org.apache.hive:hive-common"
             ]
         },
         "org.apache.commons:commons-math3": {
@@ -983,6 +1264,12 @@
                 "org.apache.hadoop:hadoop-common"
             ]
         },
+        "org.apache.derby:derby": {
+            "locked": "10.10.2.0",
+            "transitive": [
+                "org.apache.hive:hive-metastore"
+            ]
+        },
         "org.apache.directory.api:api-asn1-api": {
             "locked": "1.0.0-M20",
             "transitive": [
@@ -1007,17 +1294,39 @@
                 "org.apache.hadoop:hadoop-auth"
             ]
         },
+        "org.apache.geronimo.specs:geronimo-annotation_1.0_spec": {
+            "locked": "1.1.1",
+            "transitive": [
+                "org.eclipse.jetty.aggregate:jetty-all"
+            ]
+        },
+        "org.apache.geronimo.specs:geronimo-jaspic_1.0_spec": {
+            "locked": "1.0",
+            "transitive": [
+                "org.eclipse.jetty.aggregate:jetty-all"
+            ]
+        },
+        "org.apache.geronimo.specs:geronimo-jta_1.1_spec": {
+            "locked": "1.1.1",
+            "transitive": [
+                "org.eclipse.jetty.aggregate:jetty-all"
+            ]
+        },
         "org.apache.hadoop:hadoop-annotations": {
             "locked": "2.7.3",
             "transitive": [
                 "org.apache.hadoop:hadoop-client",
-                "org.apache.hadoop:hadoop-common"
+                "org.apache.hadoop:hadoop-common",
+                "org.apache.hadoop:hadoop-mapreduce-client-core",
+                "org.apache.hadoop:hadoop-yarn-api",
+                "org.apache.hadoop:hadoop-yarn-common"
             ]
         },
         "org.apache.hadoop:hadoop-auth": {
             "locked": "2.7.3",
             "transitive": [
-                "org.apache.hadoop:hadoop-common"
+                "org.apache.hadoop:hadoop-common",
+                "org.apache.hbase:hbase-client"
             ]
         },
         "org.apache.hadoop:hadoop-client": {
@@ -1026,7 +1335,10 @@
         "org.apache.hadoop:hadoop-common": {
             "locked": "2.7.3",
             "transitive": [
-                "org.apache.hadoop:hadoop-client"
+                "com.github.joshelser:dropwizard-metrics-hadoop-metrics2-reporter",
+                "org.apache.hadoop:hadoop-client",
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common"
             ]
         },
         "org.apache.hadoop:hadoop-hdfs": {
@@ -1053,7 +1365,9 @@
             "locked": "2.7.3",
             "transitive": [
                 "org.apache.hadoop:hadoop-client",
-                "org.apache.hadoop:hadoop-mapreduce-client-common"
+                "org.apache.hadoop:hadoop-mapreduce-client-common",
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common"
             ]
         },
         "org.apache.hadoop:hadoop-mapreduce-client-jobclient": {
@@ -1109,19 +1423,76 @@
                 "org.apache.hadoop:hadoop-mapreduce-client-shuffle"
             ]
         },
+        "org.apache.hbase:hbase-annotations": {
+            "locked": "1.1.1",
+            "transitive": [
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common",
+                "org.apache.hbase:hbase-protocol"
+            ]
+        },
+        "org.apache.hbase:hbase-client": {
+            "locked": "1.1.1",
+            "transitive": [
+                "org.apache.hive:hive-metastore"
+            ]
+        },
+        "org.apache.hbase:hbase-common": {
+            "locked": "1.1.1",
+            "transitive": [
+                "org.apache.hbase:hbase-client"
+            ]
+        },
+        "org.apache.hbase:hbase-protocol": {
+            "locked": "1.1.1",
+            "transitive": [
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common"
+            ]
+        },
         "org.apache.hive.shims:hive-shims-common": {
             "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-shims"
             ]
         },
+        "org.apache.hive:hive-common": {
+            "locked": "2.3.7",
+            "transitive": [
+                "org.apache.hive:hive-serde"
+            ]
+        },
         "org.apache.hive:hive-exec": {
             "locked": "2.3.7"
+        },
+        "org.apache.hive:hive-metastore": {
+            "locked": "2.3.7"
+        },
+        "org.apache.hive:hive-serde": {
+            "locked": "2.3.7",
+            "transitive": [
+                "org.apache.hive:hive-metastore"
+            ]
+        },
+        "org.apache.hive:hive-service-rpc": {
+            "locked": "2.3.7",
+            "transitive": [
+                "org.apache.hive:hive-serde"
+            ]
         },
         "org.apache.hive:hive-shims": {
             "locked": "2.3.7",
             "transitive": [
-                "org.apache.hive:hive-exec"
+                "org.apache.hive:hive-common",
+                "org.apache.hive:hive-exec",
+                "org.apache.hive:hive-metastore",
+                "org.apache.hive:hive-serde"
+            ]
+        },
+        "org.apache.hive:hive-storage-api": {
+            "locked": "2.4.0",
+            "transitive": [
+                "org.apache.hive:hive-common"
             ]
         },
         "org.apache.hive:hive-vector-code-gen": {
@@ -1134,12 +1505,15 @@
             "locked": "3.1.0-incubating",
             "transitive": [
                 "org.apache.hadoop:hadoop-common",
-                "org.apache.hadoop:hadoop-hdfs"
+                "org.apache.hadoop:hadoop-hdfs",
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common"
             ]
         },
         "org.apache.httpcomponents:httpclient": {
             "locked": "4.4.1",
             "transitive": [
+                "net.java.dev.jets3t:jets3t",
                 "org.apache.hadoop:hadoop-auth",
                 "org.apache.thrift:libthrift"
             ]
@@ -1147,6 +1521,7 @@
         "org.apache.httpcomponents:httpcore": {
             "locked": "4.4.1",
             "transitive": [
+                "net.java.dev.jets3t:jets3t",
                 "org.apache.httpcomponents:httpclient",
                 "org.apache.thrift:libthrift"
             ]
@@ -1196,9 +1571,45 @@
                 "org.apache.hive:hive-exec"
             ]
         },
+        "org.apache.logging.log4j:log4j-1.2-api": {
+            "locked": "2.6.2",
+            "transitive": [
+                "org.apache.hive:hive-common"
+            ]
+        },
+        "org.apache.logging.log4j:log4j-api": {
+            "locked": "2.6.2",
+            "transitive": [
+                "org.apache.logging.log4j:log4j-1.2-api",
+                "org.apache.logging.log4j:log4j-core",
+                "org.apache.logging.log4j:log4j-slf4j-impl",
+                "org.apache.logging.log4j:log4j-web"
+            ]
+        },
+        "org.apache.logging.log4j:log4j-core": {
+            "locked": "2.6.2",
+            "transitive": [
+                "org.apache.logging.log4j:log4j-1.2-api",
+                "org.apache.logging.log4j:log4j-web"
+            ]
+        },
+        "org.apache.logging.log4j:log4j-slf4j-impl": {
+            "locked": "2.6.2",
+            "transitive": [
+                "org.apache.hive.shims:hive-shims-common",
+                "org.apache.hive:hive-common"
+            ]
+        },
+        "org.apache.logging.log4j:log4j-web": {
+            "locked": "2.6.2",
+            "transitive": [
+                "org.apache.hive:hive-common"
+            ]
+        },
         "org.apache.orc:orc-core": {
             "locked": "1.6.3",
             "transitive": [
+                "org.apache.hive:hive-common",
                 "org.apache.iceberg:iceberg-orc"
             ]
         },
@@ -1248,16 +1659,79 @@
                 "org.apache.parquet:parquet-avro"
             ]
         },
+        "org.apache.parquet:parquet-hadoop-bundle": {
+            "locked": "1.8.1",
+            "transitive": [
+                "org.apache.hive:hive-serde"
+            ]
+        },
         "org.apache.parquet:parquet-jackson": {
             "locked": "1.11.0",
             "transitive": [
                 "org.apache.parquet:parquet-hadoop"
             ]
         },
+        "org.apache.thrift:libfb303": {
+            "locked": "0.9.3",
+            "transitive": [
+                "org.apache.hive:hive-metastore",
+                "org.apache.hive:hive-service-rpc"
+            ]
+        },
         "org.apache.thrift:libthrift": {
             "locked": "0.9.3",
             "transitive": [
-                "org.apache.hive.shims:hive-shims-common"
+                "co.cask.tephra:tephra-core",
+                "org.apache.hive.shims:hive-shims-common",
+                "org.apache.hive:hive-metastore",
+                "org.apache.hive:hive-serde",
+                "org.apache.hive:hive-service-rpc",
+                "org.apache.thrift:libfb303"
+            ]
+        },
+        "org.apache.twill:twill-api": {
+            "locked": "0.6.0-incubating",
+            "transitive": [
+                "org.apache.twill:twill-core",
+                "org.apache.twill:twill-zookeeper"
+            ]
+        },
+        "org.apache.twill:twill-common": {
+            "locked": "0.6.0-incubating",
+            "transitive": [
+                "co.cask.tephra:tephra-core",
+                "org.apache.twill:twill-api",
+                "org.apache.twill:twill-discovery-api",
+                "org.apache.twill:twill-zookeeper"
+            ]
+        },
+        "org.apache.twill:twill-core": {
+            "locked": "0.6.0-incubating",
+            "transitive": [
+                "co.cask.tephra:tephra-core"
+            ]
+        },
+        "org.apache.twill:twill-discovery-api": {
+            "locked": "0.6.0-incubating",
+            "transitive": [
+                "co.cask.tephra:tephra-core",
+                "org.apache.twill:twill-api",
+                "org.apache.twill:twill-discovery-core"
+            ]
+        },
+        "org.apache.twill:twill-discovery-core": {
+            "locked": "0.6.0-incubating",
+            "transitive": [
+                "co.cask.tephra:tephra-core",
+                "org.apache.twill:twill-core"
+            ]
+        },
+        "org.apache.twill:twill-zookeeper": {
+            "locked": "0.6.0-incubating",
+            "transitive": [
+                "co.cask.tephra:tephra-core",
+                "org.apache.twill:twill-core",
+                "org.apache.twill:twill-discovery-core"
             ]
         },
         "org.apache.velocity:velocity": {
@@ -1282,8 +1756,10 @@
                 "org.apache.hadoop:hadoop-auth",
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.hadoop:hadoop-yarn-server-common",
+                "org.apache.hbase:hbase-client",
                 "org.apache.hive.shims:hive-shims-common",
-                "org.apache.hive:hive-exec"
+                "org.apache.hive:hive-exec",
+                "org.apache.twill:twill-zookeeper"
             ]
         },
         "org.checkerframework:checker-qual": {
@@ -1324,6 +1800,7 @@
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.hadoop:hadoop-hdfs",
                 "org.apache.hadoop:hadoop-yarn-common",
+                "org.apache.hbase:hbase-client",
                 "org.codehaus.jackson:jackson-jaxrs",
                 "org.codehaus.jackson:jackson-xc"
             ]
@@ -1342,10 +1819,41 @@
                 "org.apache.hadoop:hadoop-yarn-server-nodemanager"
             ]
         },
+        "org.datanucleus:datanucleus-api-jdo": {
+            "locked": "4.2.4",
+            "transitive": [
+                "org.apache.hive:hive-metastore"
+            ]
+        },
         "org.datanucleus:datanucleus-core": {
             "locked": "4.1.17",
             "transitive": [
-                "org.apache.hive:hive-exec"
+                "org.apache.hive:hive-exec",
+                "org.apache.hive:hive-metastore"
+            ]
+        },
+        "org.datanucleus:datanucleus-rdbms": {
+            "locked": "4.1.19",
+            "transitive": [
+                "org.apache.hive:hive-metastore"
+            ]
+        },
+        "org.datanucleus:javax.jdo": {
+            "locked": "3.2.0-m3",
+            "transitive": [
+                "org.apache.hive:hive-metastore"
+            ]
+        },
+        "org.eclipse.jetty.aggregate:jetty-all": {
+            "locked": "7.6.0.v20120127",
+            "transitive": [
+                "org.apache.hive:hive-common"
+            ]
+        },
+        "org.eclipse.jetty.orbit:javax.servlet": {
+            "locked": "3.0.0.v201112011016",
+            "transitive": [
+                "org.apache.hive:hive-common"
             ]
         },
         "org.fusesource.leveldbjni:leveldbjni-all": {
@@ -1357,15 +1865,48 @@
                 "org.apache.hadoop:hadoop-yarn-server-nodemanager"
             ]
         },
+        "org.hamcrest:hamcrest-core": {
+            "locked": "1.3",
+            "transitive": [
+                "junit:junit"
+            ]
+        },
         "org.jetbrains:annotations": {
             "locked": "17.0.0",
             "transitive": [
                 "org.apache.orc:orc-core"
             ]
         },
+        "org.jruby.jcodings:jcodings": {
+            "locked": "1.0.8",
+            "transitive": [
+                "org.apache.hbase:hbase-client",
+                "org.jruby.joni:joni"
+            ]
+        },
+        "org.jruby.joni:joni": {
+            "locked": "2.1.2",
+            "transitive": [
+                "org.apache.hbase:hbase-client"
+            ]
+        },
+        "org.ow2.asm:asm-all": {
+            "locked": "5.0.2",
+            "transitive": [
+                "org.apache.twill:twill-core"
+            ]
+        },
         "org.slf4j:slf4j-api": {
             "locked": "1.7.25",
             "transitive": [
+                "ch.qos.logback:logback-classic",
+                "co.cask.tephra:tephra-core",
+                "com.github.joshelser:dropwizard-metrics-hadoop-metrics2-reporter",
+                "com.jolbox:bonecp",
+                "com.zaxxer:HikariCP",
+                "io.dropwizard.metrics:metrics-core",
+                "io.dropwizard.metrics:metrics-json",
+                "io.dropwizard.metrics:metrics-jvm",
                 "org.apache.avro:avro",
                 "org.apache.curator:curator-client",
                 "org.apache.directory.api:api-asn1-api",
@@ -1382,8 +1923,13 @@
                 "org.apache.hadoop:hadoop-yarn-common",
                 "org.apache.hadoop:hadoop-yarn-server-nodemanager",
                 "org.apache.hive.shims:hive-shims-common",
+                "org.apache.hive:hive-common",
                 "org.apache.hive:hive-exec",
+                "org.apache.hive:hive-metastore",
+                "org.apache.hive:hive-serde",
+                "org.apache.hive:hive-service-rpc",
                 "org.apache.hive:hive-shims",
+                "org.apache.hive:hive-storage-api",
                 "org.apache.hive:hive-vector-code-gen",
                 "org.apache.iceberg:iceberg-api",
                 "org.apache.iceberg:iceberg-common",
@@ -1391,11 +1937,15 @@
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
+                "org.apache.logging.log4j:log4j-slf4j-impl",
                 "org.apache.orc:orc-core",
                 "org.apache.orc:orc-shims",
                 "org.apache.parquet:parquet-common",
                 "org.apache.parquet:parquet-format-structures",
                 "org.apache.thrift:libthrift",
+                "org.apache.twill:twill-common",
+                "org.apache.twill:twill-core",
+                "org.apache.twill:twill-zookeeper",
                 "org.apache.zookeeper:zookeeper"
             ]
         },
@@ -1429,6 +1979,18 @@
                 "org.apache.hive:hive-exec"
             ]
         },
+        "tomcat:jasper-compiler": {
+            "locked": "5.5.23",
+            "transitive": [
+                "org.apache.hive:hive-service-rpc"
+            ]
+        },
+        "tomcat:jasper-runtime": {
+            "locked": "5.5.23",
+            "transitive": [
+                "org.apache.hive:hive-service-rpc"
+            ]
+        },
         "xerces:xercesImpl": {
             "locked": "2.9.1",
             "transitive": [
@@ -1450,6 +2012,12 @@
         }
     },
     "compileOnly": {
+        "ant:ant": {
+            "locked": "1.6.5",
+            "transitive": [
+                "tomcat:jasper-compiler"
+            ]
+        },
         "aopalliance:aopalliance": {
             "locked": "1.0",
             "transitive": [
@@ -1459,26 +2027,120 @@
         "asm:asm": {
             "locked": "3.1",
             "transitive": [
+                "asm:asm-tree",
                 "com.sun.jersey:jersey-server",
                 "org.sonatype.sisu.inject:cglib"
+            ]
+        },
+        "asm:asm-commons": {
+            "locked": "3.1",
+            "transitive": [
+                "org.eclipse.jetty.aggregate:jetty-all"
+            ]
+        },
+        "asm:asm-tree": {
+            "locked": "3.1",
+            "transitive": [
+                "asm:asm-commons"
+            ]
+        },
+        "ch.qos.logback:logback-classic": {
+            "locked": "1.0.9",
+            "transitive": [
+                "co.cask.tephra:tephra-core",
+                "org.apache.twill:twill-core",
+                "org.apache.twill:twill-zookeeper"
+            ]
+        },
+        "ch.qos.logback:logback-core": {
+            "locked": "1.0.9",
+            "transitive": [
+                "ch.qos.logback:logback-classic",
+                "co.cask.tephra:tephra-core",
+                "org.apache.twill:twill-core",
+                "org.apache.twill:twill-zookeeper"
+            ]
+        },
+        "co.cask.tephra:tephra-api": {
+            "locked": "0.6.0",
+            "transitive": [
+                "co.cask.tephra:tephra-core",
+                "co.cask.tephra:tephra-hbase-compat-1.0",
+                "org.apache.hive:hive-metastore"
+            ]
+        },
+        "co.cask.tephra:tephra-core": {
+            "locked": "0.6.0",
+            "transitive": [
+                "co.cask.tephra:tephra-hbase-compat-1.0",
+                "org.apache.hive:hive-metastore"
+            ]
+        },
+        "co.cask.tephra:tephra-hbase-compat-1.0": {
+            "locked": "0.6.0",
+            "transitive": [
+                "org.apache.hive:hive-metastore"
+            ]
+        },
+        "com.fasterxml.jackson.core:jackson-annotations": {
+            "locked": "2.6.0",
+            "transitive": [
+                "com.fasterxml.jackson.core:jackson-databind"
+            ]
+        },
+        "com.fasterxml.jackson.core:jackson-core": {
+            "locked": "2.6.5",
+            "transitive": [
+                "com.fasterxml.jackson.core:jackson-databind"
+            ]
+        },
+        "com.fasterxml.jackson.core:jackson-databind": {
+            "locked": "2.6.5",
+            "transitive": [
+                "io.dropwizard.metrics:metrics-json",
+                "org.apache.hive:hive-common"
+            ]
+        },
+        "com.github.joshelser:dropwizard-metrics-hadoop-metrics2-reporter": {
+            "locked": "0.1.2",
+            "transitive": [
+                "org.apache.hive:hive-common"
+            ]
+        },
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1",
+            "transitive": [
+                "org.apache.hbase:hbase-annotations",
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common",
+                "org.apache.hbase:hbase-protocol"
             ]
         },
         "com.google.code.findbugs:jsr305": {
             "locked": "3.0.0",
             "transitive": [
-                "org.apache.hadoop:hadoop-common"
+                "org.apache.hadoop:hadoop-common",
+                "org.apache.hive:hive-serde",
+                "org.apache.twill:twill-api",
+                "org.apache.twill:twill-common",
+                "org.apache.twill:twill-zookeeper"
             ]
         },
         "com.google.code.gson:gson": {
             "locked": "2.2.4",
             "transitive": [
+                "co.cask.tephra:tephra-core",
                 "org.apache.hadoop:hadoop-common",
-                "org.apache.hive:hive-exec"
+                "org.apache.hive:hive-exec",
+                "org.apache.twill:twill-core",
+                "org.apache.twill:twill-discovery-core"
             ]
         },
         "com.google.guava:guava": {
             "locked": "16.0.1",
             "transitive": [
+                "co.cask.tephra:tephra-core",
+                "com.jolbox:bonecp",
                 "org.apache.curator:curator-client",
                 "org.apache.curator:curator-framework",
                 "org.apache.curator:curator-recipes",
@@ -1487,14 +2149,30 @@
                 "org.apache.hadoop:hadoop-yarn-api",
                 "org.apache.hadoop:hadoop-yarn-client",
                 "org.apache.hadoop:hadoop-yarn-common",
+                "org.apache.hadoop:hadoop-yarn-server-applicationhistoryservice",
                 "org.apache.hadoop:hadoop-yarn-server-common",
-                "org.apache.hadoop:hadoop-yarn-server-nodemanager"
+                "org.apache.hadoop:hadoop-yarn-server-nodemanager",
+                "org.apache.hadoop:hadoop-yarn-server-resourcemanager",
+                "org.apache.hadoop:hadoop-yarn-server-web-proxy",
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common",
+                "org.apache.hive.shims:hive-shims-common",
+                "org.apache.hive:hive-metastore",
+                "org.apache.twill:twill-core",
+                "org.apache.twill:twill-zookeeper"
+            ]
+        },
+        "com.google.inject.extensions:guice-assistedinject": {
+            "locked": "3.0",
+            "transitive": [
+                "co.cask.tephra:tephra-core"
             ]
         },
         "com.google.inject.extensions:guice-servlet": {
             "locked": "3.0",
             "transitive": [
                 "com.sun.jersey.contribs:jersey-guice",
+                "org.apache.hadoop:hadoop-mapreduce-client-core",
                 "org.apache.hadoop:hadoop-yarn-common",
                 "org.apache.hadoop:hadoop-yarn-server-applicationhistoryservice",
                 "org.apache.hadoop:hadoop-yarn-server-resourcemanager"
@@ -1503,6 +2181,8 @@
         "com.google.inject:guice": {
             "locked": "3.0",
             "transitive": [
+                "co.cask.tephra:tephra-core",
+                "com.google.inject.extensions:guice-assistedinject",
                 "com.google.inject.extensions:guice-servlet",
                 "com.sun.jersey.contribs:jersey-guice",
                 "org.apache.hadoop:hadoop-yarn-common",
@@ -1523,8 +2203,33 @@
                 "org.apache.hadoop:hadoop-mapreduce-client-shuffle",
                 "org.apache.hadoop:hadoop-yarn-api",
                 "org.apache.hadoop:hadoop-yarn-common",
+                "org.apache.hadoop:hadoop-yarn-server-applicationhistoryservice",
                 "org.apache.hadoop:hadoop-yarn-server-common",
-                "org.apache.hadoop:hadoop-yarn-server-nodemanager"
+                "org.apache.hadoop:hadoop-yarn-server-nodemanager",
+                "org.apache.hadoop:hadoop-yarn-server-resourcemanager",
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common",
+                "org.apache.hbase:hbase-protocol",
+                "org.apache.hive:hive-metastore",
+                "org.apache.orc:orc-core"
+            ]
+        },
+        "com.jamesmurty.utils:java-xmlbuilder": {
+            "locked": "0.4",
+            "transitive": [
+                "net.java.dev.jets3t:jets3t"
+            ]
+        },
+        "com.jcraft:jsch": {
+            "locked": "0.1.42",
+            "transitive": [
+                "org.apache.hadoop:hadoop-common"
+            ]
+        },
+        "com.jolbox:bonecp": {
+            "locked": "0.8.0.RELEASE",
+            "transitive": [
+                "org.apache.hive:hive-metastore"
             ]
         },
         "com.sun.jersey.contribs:jersey-guice": {
@@ -1551,6 +2256,7 @@
                 "com.sun.jersey:jersey-client",
                 "com.sun.jersey:jersey-json",
                 "com.sun.jersey:jersey-server",
+                "org.apache.hadoop:hadoop-common",
                 "org.apache.hadoop:hadoop-yarn-common",
                 "org.apache.hadoop:hadoop-yarn-server-applicationhistoryservice",
                 "org.apache.hadoop:hadoop-yarn-server-nodemanager",
@@ -1560,6 +2266,7 @@
         "com.sun.jersey:jersey-json": {
             "locked": "1.9",
             "transitive": [
+                "org.apache.hadoop:hadoop-common",
                 "org.apache.hadoop:hadoop-yarn-common",
                 "org.apache.hadoop:hadoop-yarn-server-applicationhistoryservice",
                 "org.apache.hadoop:hadoop-yarn-server-nodemanager",
@@ -1570,6 +2277,7 @@
             "locked": "1.9",
             "transitive": [
                 "com.sun.jersey.contribs:jersey-guice",
+                "org.apache.hadoop:hadoop-common",
                 "org.apache.hadoop:hadoop-yarn-common"
             ]
         },
@@ -1577,6 +2285,24 @@
             "locked": "2.2.3-1",
             "transitive": [
                 "com.sun.jersey:jersey-json"
+            ]
+        },
+        "com.tdunning:json": {
+            "locked": "1.8",
+            "transitive": [
+                "org.apache.hive:hive-common"
+            ]
+        },
+        "com.thoughtworks.paranamer:paranamer": {
+            "locked": "2.3",
+            "transitive": [
+                "org.apache.avro:avro"
+            ]
+        },
+        "com.zaxxer:HikariCP": {
+            "locked": "2.5.1",
+            "transitive": [
+                "org.apache.hive:hive-metastore"
             ]
         },
         "commons-beanutils:commons-beanutils": {
@@ -1597,19 +2323,27 @@
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.hadoop:hadoop-hdfs",
                 "org.apache.hadoop:hadoop-yarn-client",
-                "org.apache.hadoop:hadoop-yarn-common"
+                "org.apache.hadoop:hadoop-yarn-common",
+                "org.apache.hive:hive-common",
+                "org.apache.hive:hive-metastore",
+                "org.apache.hive:hive-service-rpc"
             ]
         },
         "commons-codec:commons-codec": {
             "locked": "1.9",
             "transitive": [
                 "commons-httpclient:commons-httpclient",
+                "net.java.dev.jets3t:jets3t",
                 "org.apache.hadoop:hadoop-auth",
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.hadoop:hadoop-hdfs",
                 "org.apache.hadoop:hadoop-yarn-common",
                 "org.apache.hadoop:hadoop-yarn-server-nodemanager",
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common",
                 "org.apache.hive:hive-exec",
+                "org.apache.hive:hive-serde",
+                "org.apache.hive:hive-service-rpc",
                 "org.apache.httpcomponents:httpclient"
             ]
         },
@@ -1618,7 +2352,8 @@
             "transitive": [
                 "commons-configuration:commons-configuration",
                 "org.apache.hadoop:hadoop-common",
-                "org.apache.hadoop:hadoop-yarn-server-applicationhistoryservice"
+                "org.apache.hadoop:hadoop-yarn-server-applicationhistoryservice",
+                "org.apache.hbase:hbase-common"
             ]
         },
         "commons-configuration:commons-configuration": {
@@ -1627,10 +2362,22 @@
                 "org.apache.hadoop:hadoop-common"
             ]
         },
+        "commons-dbcp:commons-dbcp": {
+            "locked": "1.4",
+            "transitive": [
+                "org.apache.hive:hive-metastore"
+            ]
+        },
         "commons-digester:commons-digester": {
             "locked": "1.8",
             "transitive": [
                 "commons-configuration:commons-configuration"
+            ]
+        },
+        "commons-el:commons-el": {
+            "locked": "1.0",
+            "transitive": [
+                "tomcat:jasper-runtime"
             ]
         },
         "commons-httpclient:commons-httpclient": {
@@ -1647,6 +2394,8 @@
                 "org.apache.hadoop:hadoop-hdfs",
                 "org.apache.hadoop:hadoop-yarn-common",
                 "org.apache.hadoop:hadoop-yarn-server-resourcemanager",
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common",
                 "org.apache.hive:hive-exec"
             ]
         },
@@ -1661,9 +2410,16 @@
                 "org.apache.hadoop:hadoop-yarn-common",
                 "org.apache.hadoop:hadoop-yarn-server-nodemanager",
                 "org.apache.hadoop:hadoop-yarn-server-resourcemanager",
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common",
                 "org.apache.hive.shims:hive-shims-0.23",
                 "org.apache.hive.shims:hive-shims-common",
+                "org.apache.hive:hive-common",
+                "org.apache.hive:hive-metastore",
+                "org.apache.hive:hive-serde",
+                "org.apache.hive:hive-storage-api",
                 "org.apache.hive:hive-vector-code-gen",
+                "org.apache.orc:orc-core",
                 "org.apache.velocity:velocity"
             ]
         },
@@ -1674,7 +2430,9 @@
                 "commons-beanutils:commons-beanutils-core",
                 "commons-configuration:commons-configuration",
                 "commons-digester:commons-digester",
+                "commons-el:commons-el",
                 "commons-httpclient:commons-httpclient",
+                "net.java.dev.jets3t:jets3t",
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.hadoop:hadoop-hdfs",
                 "org.apache.hadoop:hadoop-yarn-api",
@@ -1685,6 +2443,9 @@
                 "org.apache.hadoop:hadoop-yarn-server-nodemanager",
                 "org.apache.hadoop:hadoop-yarn-server-resourcemanager",
                 "org.apache.hadoop:hadoop-yarn-server-web-proxy",
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common",
+                "org.apache.hbase:hbase-protocol",
                 "org.apache.httpcomponents:httpclient"
             ]
         },
@@ -1694,23 +2455,74 @@
                 "org.apache.hadoop:hadoop-common"
             ]
         },
+        "commons-pool:commons-pool": {
+            "locked": "1.5.4",
+            "transitive": [
+                "commons-dbcp:commons-dbcp",
+                "org.apache.hive:hive-metastore"
+            ]
+        },
+        "io.airlift:aircompressor": {
+            "locked": "0.8",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
+        },
+        "io.airlift:slice": {
+            "locked": "0.29",
+            "transitive": [
+                "io.airlift:aircompressor"
+            ]
+        },
+        "io.dropwizard.metrics:metrics-core": {
+            "locked": "3.1.2",
+            "transitive": [
+                "co.cask.tephra:tephra-core",
+                "com.github.joshelser:dropwizard-metrics-hadoop-metrics2-reporter",
+                "io.dropwizard.metrics:metrics-json",
+                "io.dropwizard.metrics:metrics-jvm",
+                "org.apache.hive:hive-common"
+            ]
+        },
+        "io.dropwizard.metrics:metrics-json": {
+            "locked": "3.1.0",
+            "transitive": [
+                "org.apache.hive:hive-common"
+            ]
+        },
+        "io.dropwizard.metrics:metrics-jvm": {
+            "locked": "3.1.0",
+            "transitive": [
+                "org.apache.hive:hive-common"
+            ]
+        },
         "io.netty:netty": {
             "locked": "3.7.0.Final",
             "transitive": [
                 "org.apache.hadoop:hadoop-hdfs",
+                "org.apache.hadoop:hadoop-mapreduce-client-core",
                 "org.apache.zookeeper:zookeeper"
             ]
         },
         "io.netty:netty-all": {
             "locked": "4.0.23.Final",
             "transitive": [
-                "org.apache.hadoop:hadoop-hdfs"
+                "org.apache.hadoop:hadoop-hdfs",
+                "org.apache.hbase:hbase-client"
+            ]
+        },
+        "it.unimi.dsi:fastutil": {
+            "locked": "6.5.6",
+            "transitive": [
+                "co.cask.tephra:tephra-core"
             ]
         },
         "javax.activation:activation": {
             "locked": "1.1",
             "transitive": [
-                "javax.xml.bind:jaxb-api"
+                "javax.mail:mail",
+                "javax.xml.bind:jaxb-api",
+                "org.eclipse.jetty.aggregate:jetty-all"
             ]
         },
         "javax.inject:javax.inject": {
@@ -1720,17 +2532,50 @@
                 "com.sun.jersey.contribs:jersey-guice"
             ]
         },
+        "javax.jdo:jdo-api": {
+            "locked": "3.0.1",
+            "transitive": [
+                "org.apache.hive:hive-metastore"
+            ]
+        },
+        "javax.mail:mail": {
+            "locked": "1.4.1",
+            "transitive": [
+                "org.eclipse.jetty.aggregate:jetty-all"
+            ]
+        },
         "javax.servlet.jsp:jsp-api": {
             "locked": "2.1",
             "transitive": [
                 "org.apache.hadoop:hadoop-common"
             ]
         },
+        "javax.servlet:jsp-api": {
+            "locked": "2.0",
+            "transitive": [
+                "tomcat:jasper-compiler"
+            ]
+        },
         "javax.servlet:servlet-api": {
             "locked": "2.5",
             "transitive": [
+                "javax.servlet:jsp-api",
+                "org.apache.hadoop:hadoop-common",
                 "org.apache.hadoop:hadoop-yarn-common",
-                "org.apache.hadoop:hadoop-yarn-server-nodemanager"
+                "org.apache.hadoop:hadoop-yarn-server-nodemanager",
+                "tomcat:jasper-runtime"
+            ]
+        },
+        "javax.transaction:jta": {
+            "locked": "1.1",
+            "transitive": [
+                "javax.jdo:jdo-api"
+            ]
+        },
+        "javax.transaction:transaction-api": {
+            "locked": "1.1",
+            "transitive": [
+                "org.datanucleus:javax.jdo"
             ]
         },
         "javax.xml.bind:jaxb-api": {
@@ -1749,16 +2594,32 @@
                 "javax.xml.bind:jaxb-api"
             ]
         },
-        "jline:jline": {
-            "locked": "0.9.94",
+        "javolution:javolution": {
+            "locked": "5.5.1",
             "transitive": [
+                "org.apache.hive:hive-metastore"
+            ]
+        },
+        "jline:jline": {
+            "locked": "2.12",
+            "transitive": [
+                "org.apache.hive:hive-common",
                 "org.apache.zookeeper:zookeeper"
             ]
         },
-        "junit:junit": {
-            "locked": "3.8.1",
+        "joda-time:joda-time": {
+            "locked": "2.8.1",
             "transitive": [
-                "jline:jline"
+                "org.apache.hive:hive-common"
+            ]
+        },
+        "junit:junit": {
+            "locked": "4.11",
+            "transitive": [
+                "org.apache.hbase:hbase-annotations",
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common",
+                "org.apache.hbase:hbase-protocol"
             ]
         },
         "log4j:log4j": {
@@ -1770,7 +2631,22 @@
                 "org.apache.hadoop:hadoop-yarn-client",
                 "org.apache.hadoop:hadoop-yarn-common",
                 "org.apache.hadoop:hadoop-yarn-server-resourcemanager",
+                "org.apache.hbase:hbase-annotations",
+                "org.apache.hbase:hbase-common",
+                "org.apache.hbase:hbase-protocol",
                 "org.apache.zookeeper:zookeeper"
+            ]
+        },
+        "net.java.dev.jets3t:jets3t": {
+            "locked": "0.9.0",
+            "transitive": [
+                "org.apache.hadoop:hadoop-common"
+            ]
+        },
+        "net.sf.opencsv:opencsv": {
+            "locked": "2.3",
+            "transitive": [
+                "org.apache.hive:hive-serde"
             ]
         },
         "org.antlr:ST4": {
@@ -1783,12 +2659,14 @@
             "locked": "3.5.2",
             "transitive": [
                 "org.antlr:ST4",
-                "org.apache.hive:hive-exec"
+                "org.apache.hive:hive-exec",
+                "org.apache.hive:hive-metastore"
             ]
         },
         "org.apache.ant:ant": {
             "locked": "1.9.1",
             "transitive": [
+                "org.apache.hive:hive-common",
                 "org.apache.hive:hive-exec",
                 "org.apache.hive:hive-vector-code-gen"
             ]
@@ -1799,12 +2677,28 @@
                 "org.apache.ant:ant"
             ]
         },
+        "org.apache.avro:avro": {
+            "locked": "1.7.7",
+            "transitive": [
+                "org.apache.hadoop:hadoop-common",
+                "org.apache.hadoop:hadoop-mapreduce-client-core",
+                "org.apache.hive:hive-serde"
+            ]
+        },
         "org.apache.commons:commons-compress": {
             "locked": "1.9",
             "transitive": [
+                "org.apache.avro:avro",
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.hadoop:hadoop-yarn-common",
+                "org.apache.hive:hive-common",
                 "org.apache.hive:hive-exec"
+            ]
+        },
+        "org.apache.commons:commons-lang3": {
+            "locked": "3.1",
+            "transitive": [
+                "org.apache.hive:hive-common"
             ]
         },
         "org.apache.commons:commons-math3": {
@@ -1841,6 +2735,12 @@
                 "org.apache.hadoop:hadoop-common"
             ]
         },
+        "org.apache.derby:derby": {
+            "locked": "10.10.2.0",
+            "transitive": [
+                "org.apache.hive:hive-metastore"
+            ]
+        },
         "org.apache.directory.api:api-asn1-api": {
             "locked": "1.0.0-M20",
             "transitive": [
@@ -1865,11 +2765,30 @@
                 "org.apache.hadoop:hadoop-auth"
             ]
         },
+        "org.apache.geronimo.specs:geronimo-annotation_1.0_spec": {
+            "locked": "1.1.1",
+            "transitive": [
+                "org.eclipse.jetty.aggregate:jetty-all"
+            ]
+        },
+        "org.apache.geronimo.specs:geronimo-jaspic_1.0_spec": {
+            "locked": "1.0",
+            "transitive": [
+                "org.eclipse.jetty.aggregate:jetty-all"
+            ]
+        },
+        "org.apache.geronimo.specs:geronimo-jta_1.1_spec": {
+            "locked": "1.1.1",
+            "transitive": [
+                "org.eclipse.jetty.aggregate:jetty-all"
+            ]
+        },
         "org.apache.hadoop:hadoop-annotations": {
             "locked": "2.7.3",
             "transitive": [
                 "org.apache.hadoop:hadoop-client",
                 "org.apache.hadoop:hadoop-common",
+                "org.apache.hadoop:hadoop-mapreduce-client-core",
                 "org.apache.hadoop:hadoop-yarn-api",
                 "org.apache.hadoop:hadoop-yarn-common",
                 "org.apache.hadoop:hadoop-yarn-server-applicationhistoryservice",
@@ -1880,7 +2799,8 @@
         "org.apache.hadoop:hadoop-auth": {
             "locked": "2.7.3",
             "transitive": [
-                "org.apache.hadoop:hadoop-common"
+                "org.apache.hadoop:hadoop-common",
+                "org.apache.hbase:hbase-client"
             ]
         },
         "org.apache.hadoop:hadoop-client": {
@@ -1889,7 +2809,10 @@
         "org.apache.hadoop:hadoop-common": {
             "locked": "2.7.3",
             "transitive": [
-                "org.apache.hadoop:hadoop-client"
+                "com.github.joshelser:dropwizard-metrics-hadoop-metrics2-reporter",
+                "org.apache.hadoop:hadoop-client",
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common"
             ]
         },
         "org.apache.hadoop:hadoop-hdfs": {
@@ -1916,7 +2839,9 @@
             "locked": "2.7.3",
             "transitive": [
                 "org.apache.hadoop:hadoop-client",
-                "org.apache.hadoop:hadoop-mapreduce-client-common"
+                "org.apache.hadoop:hadoop-mapreduce-client-common",
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common"
             ]
         },
         "org.apache.hadoop:hadoop-mapreduce-client-jobclient": {
@@ -1999,6 +2924,33 @@
                 "org.apache.hadoop:hadoop-yarn-server-resourcemanager"
             ]
         },
+        "org.apache.hbase:hbase-annotations": {
+            "locked": "1.1.1",
+            "transitive": [
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common",
+                "org.apache.hbase:hbase-protocol"
+            ]
+        },
+        "org.apache.hbase:hbase-client": {
+            "locked": "1.1.1",
+            "transitive": [
+                "org.apache.hive:hive-metastore"
+            ]
+        },
+        "org.apache.hbase:hbase-common": {
+            "locked": "1.1.1",
+            "transitive": [
+                "org.apache.hbase:hbase-client"
+            ]
+        },
+        "org.apache.hbase:hbase-protocol": {
+            "locked": "1.1.1",
+            "transitive": [
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common"
+            ]
+        },
         "org.apache.hive.shims:hive-shims-0.23": {
             "locked": "2.3.7",
             "transitive": [
@@ -2019,13 +2971,43 @@
                 "org.apache.hive:hive-shims"
             ]
         },
+        "org.apache.hive:hive-common": {
+            "locked": "2.3.7",
+            "transitive": [
+                "org.apache.hive:hive-serde"
+            ]
+        },
         "org.apache.hive:hive-exec": {
             "locked": "2.3.7"
+        },
+        "org.apache.hive:hive-metastore": {
+            "locked": "2.3.7"
+        },
+        "org.apache.hive:hive-serde": {
+            "locked": "2.3.7",
+            "transitive": [
+                "org.apache.hive:hive-metastore"
+            ]
+        },
+        "org.apache.hive:hive-service-rpc": {
+            "locked": "2.3.7",
+            "transitive": [
+                "org.apache.hive:hive-serde"
+            ]
         },
         "org.apache.hive:hive-shims": {
             "locked": "2.3.7",
             "transitive": [
-                "org.apache.hive:hive-exec"
+                "org.apache.hive:hive-common",
+                "org.apache.hive:hive-exec",
+                "org.apache.hive:hive-metastore",
+                "org.apache.hive:hive-serde"
+            ]
+        },
+        "org.apache.hive:hive-storage-api": {
+            "locked": "2.4.0",
+            "transitive": [
+                "org.apache.hive:hive-common"
             ]
         },
         "org.apache.hive:hive-vector-code-gen": {
@@ -2038,12 +3020,15 @@
             "locked": "3.1.0-incubating",
             "transitive": [
                 "org.apache.hadoop:hadoop-common",
-                "org.apache.hadoop:hadoop-hdfs"
+                "org.apache.hadoop:hadoop-hdfs",
+                "org.apache.hbase:hbase-client",
+                "org.apache.hbase:hbase-common"
             ]
         },
         "org.apache.httpcomponents:httpclient": {
             "locked": "4.4.1",
             "transitive": [
+                "net.java.dev.jets3t:jets3t",
                 "org.apache.hadoop:hadoop-auth",
                 "org.apache.thrift:libthrift"
             ]
@@ -2051,6 +3036,7 @@
         "org.apache.httpcomponents:httpcore": {
             "locked": "4.4.1",
             "transitive": [
+                "net.java.dev.jets3t:jets3t",
                 "org.apache.httpcomponents:httpclient",
                 "org.apache.thrift:libthrift"
             ]
@@ -2061,10 +3047,114 @@
                 "org.apache.hive:hive-exec"
             ]
         },
+        "org.apache.logging.log4j:log4j-1.2-api": {
+            "locked": "2.6.2",
+            "transitive": [
+                "org.apache.hive:hive-common"
+            ]
+        },
+        "org.apache.logging.log4j:log4j-api": {
+            "locked": "2.6.2",
+            "transitive": [
+                "org.apache.logging.log4j:log4j-1.2-api",
+                "org.apache.logging.log4j:log4j-core",
+                "org.apache.logging.log4j:log4j-slf4j-impl",
+                "org.apache.logging.log4j:log4j-web"
+            ]
+        },
+        "org.apache.logging.log4j:log4j-core": {
+            "locked": "2.6.2",
+            "transitive": [
+                "org.apache.logging.log4j:log4j-1.2-api",
+                "org.apache.logging.log4j:log4j-web"
+            ]
+        },
+        "org.apache.logging.log4j:log4j-slf4j-impl": {
+            "locked": "2.6.2",
+            "transitive": [
+                "org.apache.hive.shims:hive-shims-common",
+                "org.apache.hive:hive-common"
+            ]
+        },
+        "org.apache.logging.log4j:log4j-web": {
+            "locked": "2.6.2",
+            "transitive": [
+                "org.apache.hive:hive-common"
+            ]
+        },
+        "org.apache.orc:orc-core": {
+            "locked": "1.3.4",
+            "transitive": [
+                "org.apache.hive:hive-common"
+            ]
+        },
+        "org.apache.parquet:parquet-hadoop-bundle": {
+            "locked": "1.8.1",
+            "transitive": [
+                "org.apache.hive:hive-serde"
+            ]
+        },
+        "org.apache.thrift:libfb303": {
+            "locked": "0.9.3",
+            "transitive": [
+                "org.apache.hive:hive-metastore",
+                "org.apache.hive:hive-service-rpc"
+            ]
+        },
         "org.apache.thrift:libthrift": {
             "locked": "0.9.3",
             "transitive": [
-                "org.apache.hive.shims:hive-shims-common"
+                "co.cask.tephra:tephra-core",
+                "org.apache.hive.shims:hive-shims-common",
+                "org.apache.hive:hive-metastore",
+                "org.apache.hive:hive-serde",
+                "org.apache.hive:hive-service-rpc",
+                "org.apache.thrift:libfb303"
+            ]
+        },
+        "org.apache.twill:twill-api": {
+            "locked": "0.6.0-incubating",
+            "transitive": [
+                "org.apache.twill:twill-core",
+                "org.apache.twill:twill-zookeeper"
+            ]
+        },
+        "org.apache.twill:twill-common": {
+            "locked": "0.6.0-incubating",
+            "transitive": [
+                "co.cask.tephra:tephra-core",
+                "org.apache.twill:twill-api",
+                "org.apache.twill:twill-discovery-api",
+                "org.apache.twill:twill-zookeeper"
+            ]
+        },
+        "org.apache.twill:twill-core": {
+            "locked": "0.6.0-incubating",
+            "transitive": [
+                "co.cask.tephra:tephra-core"
+            ]
+        },
+        "org.apache.twill:twill-discovery-api": {
+            "locked": "0.6.0-incubating",
+            "transitive": [
+                "co.cask.tephra:tephra-core",
+                "org.apache.twill:twill-api",
+                "org.apache.twill:twill-discovery-core"
+            ]
+        },
+        "org.apache.twill:twill-discovery-core": {
+            "locked": "0.6.0-incubating",
+            "transitive": [
+                "co.cask.tephra:tephra-core",
+                "org.apache.twill:twill-core"
+            ]
+        },
+        "org.apache.twill:twill-zookeeper": {
+            "locked": "0.6.0-incubating",
+            "transitive": [
+                "co.cask.tephra:tephra-core",
+                "org.apache.twill:twill-core",
+                "org.apache.twill:twill-discovery-core"
             ]
         },
         "org.apache.velocity:velocity": {
@@ -2084,8 +3174,10 @@
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.hadoop:hadoop-yarn-server-common",
                 "org.apache.hadoop:hadoop-yarn-server-resourcemanager",
+                "org.apache.hbase:hbase-client",
                 "org.apache.hive.shims:hive-shims-common",
-                "org.apache.hive:hive-exec"
+                "org.apache.hive:hive-exec",
+                "org.apache.twill:twill-zookeeper"
             ]
         },
         "org.codehaus.groovy:groovy-all": {
@@ -2098,6 +3190,7 @@
             "locked": "1.9.13",
             "transitive": [
                 "com.sun.jersey:jersey-json",
+                "org.apache.avro:avro",
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.hadoop:hadoop-hdfs",
                 "org.apache.hadoop:hadoop-yarn-common",
@@ -2117,9 +3210,11 @@
             "locked": "1.9.13",
             "transitive": [
                 "com.sun.jersey:jersey-json",
+                "org.apache.avro:avro",
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.hadoop:hadoop-hdfs",
                 "org.apache.hadoop:hadoop-yarn-common",
+                "org.apache.hbase:hbase-client",
                 "org.codehaus.jackson:jackson-jaxrs",
                 "org.codehaus.jackson:jackson-xc"
             ]
@@ -2140,10 +3235,41 @@
                 "org.apache.hadoop:hadoop-yarn-server-resourcemanager"
             ]
         },
+        "org.datanucleus:datanucleus-api-jdo": {
+            "locked": "4.2.4",
+            "transitive": [
+                "org.apache.hive:hive-metastore"
+            ]
+        },
         "org.datanucleus:datanucleus-core": {
             "locked": "4.1.17",
             "transitive": [
-                "org.apache.hive:hive-exec"
+                "org.apache.hive:hive-exec",
+                "org.apache.hive:hive-metastore"
+            ]
+        },
+        "org.datanucleus:datanucleus-rdbms": {
+            "locked": "4.1.19",
+            "transitive": [
+                "org.apache.hive:hive-metastore"
+            ]
+        },
+        "org.datanucleus:javax.jdo": {
+            "locked": "3.2.0-m3",
+            "transitive": [
+                "org.apache.hive:hive-metastore"
+            ]
+        },
+        "org.eclipse.jetty.aggregate:jetty-all": {
+            "locked": "7.6.0.v20120127",
+            "transitive": [
+                "org.apache.hive:hive-common"
+            ]
+        },
+        "org.eclipse.jetty.orbit:javax.servlet": {
+            "locked": "3.0.0.v201112011016",
+            "transitive": [
+                "org.apache.hive:hive-common"
             ]
         },
         "org.fusesource.leveldbjni:leveldbjni-all": {
@@ -2157,9 +3283,49 @@
                 "org.apache.hadoop:hadoop-yarn-server-resourcemanager"
             ]
         },
-        "org.slf4j:slf4j-api": {
-            "locked": "1.7.12",
+        "org.hamcrest:hamcrest-core": {
+            "locked": "1.3",
             "transitive": [
+                "junit:junit"
+            ]
+        },
+        "org.jruby.jcodings:jcodings": {
+            "locked": "1.0.8",
+            "transitive": [
+                "org.apache.hbase:hbase-client",
+                "org.jruby.joni:joni"
+            ]
+        },
+        "org.jruby.joni:joni": {
+            "locked": "2.1.2",
+            "transitive": [
+                "org.apache.hbase:hbase-client"
+            ]
+        },
+        "org.openjdk.jol:jol-core": {
+            "locked": "0.2",
+            "transitive": [
+                "io.airlift:slice"
+            ]
+        },
+        "org.ow2.asm:asm-all": {
+            "locked": "5.0.2",
+            "transitive": [
+                "org.apache.twill:twill-core"
+            ]
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.21",
+            "transitive": [
+                "ch.qos.logback:logback-classic",
+                "co.cask.tephra:tephra-core",
+                "com.github.joshelser:dropwizard-metrics-hadoop-metrics2-reporter",
+                "com.jolbox:bonecp",
+                "com.zaxxer:HikariCP",
+                "io.dropwizard.metrics:metrics-core",
+                "io.dropwizard.metrics:metrics-json",
+                "io.dropwizard.metrics:metrics-jvm",
+                "org.apache.avro:avro",
                 "org.apache.curator:curator-client",
                 "org.apache.directory.api:api-asn1-api",
                 "org.apache.directory.api:api-util",
@@ -2178,10 +3344,20 @@
                 "org.apache.hive.shims:hive-shims-0.23",
                 "org.apache.hive.shims:hive-shims-common",
                 "org.apache.hive.shims:hive-shims-scheduler",
+                "org.apache.hive:hive-common",
                 "org.apache.hive:hive-exec",
+                "org.apache.hive:hive-metastore",
+                "org.apache.hive:hive-serde",
+                "org.apache.hive:hive-service-rpc",
                 "org.apache.hive:hive-shims",
+                "org.apache.hive:hive-storage-api",
                 "org.apache.hive:hive-vector-code-gen",
+                "org.apache.logging.log4j:log4j-slf4j-impl",
+                "org.apache.orc:orc-core",
                 "org.apache.thrift:libthrift",
+                "org.apache.twill:twill-common",
+                "org.apache.twill:twill-core",
+                "org.apache.twill:twill-zookeeper",
                 "org.apache.zookeeper:zookeeper"
             ]
         },
@@ -2189,6 +3365,12 @@
             "locked": "2.2.1-v20090111",
             "transitive": [
                 "com.google.inject:guice"
+            ]
+        },
+        "org.xerial.snappy:snappy-java": {
+            "locked": "1.0.5",
+            "transitive": [
+                "org.apache.avro:avro"
             ]
         },
         "oro:oro": {
@@ -2201,6 +3383,18 @@
             "locked": "1.0.1",
             "transitive": [
                 "org.apache.hive:hive-exec"
+            ]
+        },
+        "tomcat:jasper-compiler": {
+            "locked": "5.5.23",
+            "transitive": [
+                "org.apache.hive:hive-service-rpc"
+            ]
+        },
+        "tomcat:jasper-runtime": {
+            "locked": "5.5.23",
+            "transitive": [
+                "org.apache.hive:hive-service-rpc"
             ]
         },
         "xerces:xercesImpl": {
@@ -3738,8 +4932,7 @@
                 "org.apache.tez:tez-dag",
                 "org.apache.tez:tez-mapreduce",
                 "org.apache.tez:tez-runtime-library",
-                "org.apache.velocity:velocity",
-                "org.pentaho:pentaho-aggdesigner-algorithm"
+                "org.apache.velocity:velocity"
             ]
         },
         "commons-logging:commons-logging": {
@@ -3772,8 +4965,7 @@
                 "org.apache.hbase:hbase-protocol",
                 "org.apache.hbase:hbase-server",
                 "org.apache.httpcomponents:httpclient",
-                "org.apache.slider:slider-core",
-                "org.pentaho:pentaho-aggdesigner-algorithm"
+                "org.apache.slider:slider-core"
             ]
         },
         "commons-net:commons-net": {
@@ -5236,12 +6428,6 @@
                 "org.apache.twill:twill-core"
             ]
         },
-        "org.pentaho:pentaho-aggdesigner-algorithm": {
-            "locked": "5.1.5-jhyde",
-            "transitive": [
-                "org.apache.calcite:calcite-core"
-            ]
-        },
         "org.reflections:reflections": {
             "locked": "0.9.8",
             "transitive": [
@@ -5932,8 +7118,7 @@
                 "org.apache.tez:tez-dag",
                 "org.apache.tez:tez-mapreduce",
                 "org.apache.tez:tez-runtime-library",
-                "org.apache.velocity:velocity",
-                "org.pentaho:pentaho-aggdesigner-algorithm"
+                "org.apache.velocity:velocity"
             ]
         },
         "commons-logging:commons-logging": {
@@ -5963,8 +7148,7 @@
                 "org.apache.hbase:hbase-protocol",
                 "org.apache.hbase:hbase-server",
                 "org.apache.httpcomponents:httpclient",
-                "org.apache.slider:slider-core",
-                "org.pentaho:pentaho-aggdesigner-algorithm"
+                "org.apache.slider:slider-core"
             ]
         },
         "commons-net:commons-net": {
@@ -7342,12 +8526,6 @@
                 "org.apache.twill:twill-core"
             ]
         },
-        "org.pentaho:pentaho-aggdesigner-algorithm": {
-            "locked": "5.1.5-jhyde",
-            "transitive": [
-                "org.apache.calcite:calcite-core"
-            ]
-        },
         "org.reflections:reflections": {
             "locked": "0.9.8",
             "transitive": [
@@ -8056,8 +9234,7 @@
                 "org.apache.tez:tez-dag",
                 "org.apache.tez:tez-mapreduce",
                 "org.apache.tez:tez-runtime-library",
-                "org.apache.velocity:velocity",
-                "org.pentaho:pentaho-aggdesigner-algorithm"
+                "org.apache.velocity:velocity"
             ]
         },
         "commons-logging:commons-logging": {
@@ -8090,8 +9267,7 @@
                 "org.apache.hbase:hbase-protocol",
                 "org.apache.hbase:hbase-server",
                 "org.apache.httpcomponents:httpclient",
-                "org.apache.slider:slider-core",
-                "org.pentaho:pentaho-aggdesigner-algorithm"
+                "org.apache.slider:slider-core"
             ]
         },
         "commons-net:commons-net": {
@@ -9552,12 +10728,6 @@
             "locked": "5.0.2",
             "transitive": [
                 "org.apache.twill:twill-core"
-            ]
-        },
-        "org.pentaho:pentaho-aggdesigner-algorithm": {
-            "locked": "5.1.5-jhyde",
-            "transitive": [
-                "org.apache.calcite:calcite-core"
             ]
         },
         "org.reflections:reflections": {
@@ -10272,8 +11442,7 @@
                 "org.apache.tez:tez-dag",
                 "org.apache.tez:tez-mapreduce",
                 "org.apache.tez:tez-runtime-library",
-                "org.apache.velocity:velocity",
-                "org.pentaho:pentaho-aggdesigner-algorithm"
+                "org.apache.velocity:velocity"
             ]
         },
         "commons-logging:commons-logging": {
@@ -10306,8 +11475,7 @@
                 "org.apache.hbase:hbase-protocol",
                 "org.apache.hbase:hbase-server",
                 "org.apache.httpcomponents:httpclient",
-                "org.apache.slider:slider-core",
-                "org.pentaho:pentaho-aggdesigner-algorithm"
+                "org.apache.slider:slider-core"
             ]
         },
         "commons-net:commons-net": {
@@ -11768,12 +12936,6 @@
             "locked": "5.0.2",
             "transitive": [
                 "org.apache.twill:twill-core"
-            ]
-        },
-        "org.pentaho:pentaho-aggdesigner-algorithm": {
-            "locked": "5.1.5-jhyde",
-            "transitive": [
-                "org.apache.calcite:calcite-core"
             ]
         },
         "org.reflections:reflections": {
