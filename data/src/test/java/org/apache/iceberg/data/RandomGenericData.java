@@ -21,6 +21,8 @@ package org.apache.iceberg.data;
 
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -144,12 +146,16 @@ public class RandomGenericData {
           return ByteBuffer.wrap((byte[]) result);
         case UUID:
           return UUID.nameUUIDFromBytes((byte[]) result);
+        case DATE:
+          return EPOCH_DAY.plusDays((Integer) result);
+        case TIME:
+          return LocalTime.ofNanoOfDay((long) result * 1000);
         case TIMESTAMP:
           Types.TimestampType ts = (Types.TimestampType) primitive;
           if (ts.shouldAdjustToUTC()) {
-            return EPOCH.plus(random.nextLong() % FIFTY_YEARS_IN_MICROS, MICROS);
+            return EPOCH.plus((long) result, MICROS);
           } else {
-            return EPOCH.plus(random.nextLong() % FIFTY_YEARS_IN_MICROS, MICROS).toLocalDateTime();
+            return EPOCH.plus((long) result, MICROS).toLocalDateTime();
           }
         default:
           return result;
@@ -158,6 +164,5 @@ public class RandomGenericData {
   }
 
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
-  private static final long FIFTY_YEARS_IN_MICROS =
-      (50L * (365 * 3 + 366) * 24 * 60 * 60 * 1_000_000) / 4;
+  private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 }
