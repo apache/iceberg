@@ -191,11 +191,6 @@ public class IcebergInputFormat<T> implements InputFormat<Void, T>, CombineHiveI
       }
 
       if (tasks.hasNext()) {
-        /*try {
-          reader.close();
-        } catch (IOException e) {
-          LOG.error("Error closing reader", e);
-        }*/
         nextTask();
         currentRecord = recordIterator.next();
         value.setRecord(resolveAppropriateRecordForTableType());

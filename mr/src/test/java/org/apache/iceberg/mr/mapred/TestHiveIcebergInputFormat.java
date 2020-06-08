@@ -82,4 +82,5 @@ public class TestHiveIcebergInputFormat {
     assertEquals(0, result.size());
   }
 
+  //TODO: when HiveSerde and StorageHandlers merged in, move over additional tests from Hiveberg
 }
