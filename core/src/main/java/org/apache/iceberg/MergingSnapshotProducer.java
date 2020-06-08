@@ -61,8 +61,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
 
     @Override
-    protected ManifestWriter<DataFile> newManifestWriter(PartitionSpec spec) {
-      return MergingSnapshotProducer.this.newManifestWriter(spec);
+    protected ManifestWriter<DataFile> newManifestWriter(PartitionSpec manifestSpec) {
+      return MergingSnapshotProducer.this.newManifestWriter(manifestSpec);
     }
 
     @Override
@@ -92,8 +92,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
 
     @Override
-    protected ManifestWriter<DataFile> newManifestWriter(PartitionSpec spec) {
-      return MergingSnapshotProducer.this.newManifestWriter(spec);
+    protected ManifestWriter<DataFile> newManifestWriter(PartitionSpec manifestSpec) {
+      return MergingSnapshotProducer.this.newManifestWriter(manifestSpec);
     }
 
     @Override

@@ -34,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.util.BinPacking.ListPacker;
+import org.apache.iceberg.util.Exceptions;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 
@@ -150,41 +151,42 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
       return mergedManifests.get(bin);
     }
 
+    ManifestWriter<F> writer = newManifestWriter(spec(specId));
+    boolean threw = true;
     try {
-      ManifestWriter<F> writer = newManifestWriter(spec(specId));
-      try {
-        for (ManifestFile manifest : bin) {
-          try (ManifestReader<F> reader = newManifestReader(manifest)) {
-            for (ManifestEntry<F> entry : reader.entries()) {
-              if (entry.status() == Status.DELETED) {
-                // suppress deletes from previous snapshots. only files deleted by this snapshot
-                // should be added to the new manifest
-                if (entry.snapshotId() == snapshotId()) {
-                  writer.delete(entry);
-                }
-              } else if (entry.status() == Status.ADDED && entry.snapshotId() == snapshotId()) {
-                // adds from this snapshot are still adds, otherwise they should be existing
-                writer.add(entry);
-              } else {
-                // add all files from the old manifest as existing files
-                writer.existing(entry);
+      for (ManifestFile manifest : bin) {
+        try (ManifestReader<F> reader = newManifestReader(manifest)) {
+          for (ManifestEntry<F> entry : reader.entries()) {
+            if (entry.status() == Status.DELETED) {
+              // suppress deletes from previous snapshots. only files deleted by this snapshot
+              // should be added to the new manifest
+              if (entry.snapshotId() == snapshotId()) {
+                writer.delete(entry);
               }
+            } else if (entry.status() == Status.ADDED && entry.snapshotId() == snapshotId()) {
+              // adds from this snapshot are still adds, otherwise they should be existing
+              writer.add(entry);
+            } else {
+              // add all files from the old manifest as existing files
+              writer.existing(entry);
             }
           }
+        } catch (IOException e) {
+          throw new RuntimeIOException("Failed to close manifest reader", e);
         }
-      } finally {
-        writer.close();
       }
+      threw = false;
 
-      ManifestFile manifest = writer.toManifestFile();
-
-      // update the cache
-      mergedManifests.put(bin, manifest);
-
-      return manifest;
-
-    } catch (IOException e) {
-      throw new RuntimeIOException("Failed to close manifest writer", e);
+    } finally {
+      Exceptions.close(writer, threw);
     }
+
+    ManifestFile manifest = writer.toManifestFile();
+
+    // update the cache
+    mergedManifests.put(bin, manifest);
+
+    return manifest;
+
   }
 }
