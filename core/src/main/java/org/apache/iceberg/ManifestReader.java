@@ -120,6 +120,10 @@ public class ManifestReader<F extends ContentFile<F>>
     this.fileSchema = new Schema(DataFile.getType(spec.partitionType()).fields());
   }
 
+  public boolean isDeleteManifestReader() {
+    return content == FileType.DELETE_FILES;
+  }
+
   public InputFile file() {
     return file;
   }

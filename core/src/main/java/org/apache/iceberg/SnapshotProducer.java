@@ -335,6 +335,18 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return ManifestFiles.write(ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
   }
 
+  protected ManifestWriter<DeleteFile> newDeleteManifestWriter(PartitionSpec spec) {
+    return ManifestFiles.writeDeleteManifest(ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
+  }
+
+  protected ManifestReader<DataFile> newManifestReader(ManifestFile manifest) {
+    return ManifestFiles.read(manifest, ops.io(), ops.current().specsById());
+  }
+
+  protected ManifestReader<DeleteFile> newDeleteManifestReader(ManifestFile manifest) {
+    return ManifestFiles.readDeleteManifest(manifest, ops.io(), ops.current().specsById());
+  }
+
   protected long snapshotId() {
     if (snapshotId == null) {
       synchronized (this) {
