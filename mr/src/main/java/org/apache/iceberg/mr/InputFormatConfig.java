@@ -77,6 +77,16 @@ public class InputFormatConfig {
       return this;
     }
 
+    public ConfigBuilder schema(Schema schema) {
+      conf.set(TABLE_SCHEMA, SchemaParser.toJson(schema));
+      return this;
+    }
+
+    public ConfigBuilder readFrom(String path) {
+      conf.set(TABLE_PATH, path);
+      return this;
+    }
+
     public ConfigBuilder reuseContainers(boolean reuse) {
       conf.setBoolean(InputFormatConfig.REUSE_CONTAINERS, reuse);
       return this;

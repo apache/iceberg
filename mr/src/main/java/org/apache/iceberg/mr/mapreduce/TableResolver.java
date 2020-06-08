@@ -36,7 +36,6 @@ final class TableResolver {
 
   public static Table findTable(Configuration conf) {
     String path = conf.get(InputFormatConfig.TABLE_PATH);
-    System.out.println("YYY PATH : " + path);
     Preconditions.checkArgument(path != null, "Table path should not be null");
     if (path.contains("/")) {
       HadoopTables tables = new HadoopTables(conf);
