@@ -22,6 +22,7 @@ package org.apache.iceberg.flink;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.types.FieldsDataType;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 
 public class FlinkSchemaUtil {
@@ -29,9 +30,15 @@ public class FlinkSchemaUtil {
   private FlinkSchemaUtil() {
   }
 
-  public static Schema convert(TableSchema flinkSchema) {
-    FieldsDataType root = (FieldsDataType) flinkSchema.toRowDataType();
+  /**
+   * Convert the flink table schema to apache iceberg schema.
+   */
+  public static Schema convert(TableSchema schema) {
+    Preconditions.checkArgument(schema.toRowDataType() instanceof FieldsDataType, "Should be FieldsDataType");
+
+    FieldsDataType root = (FieldsDataType) schema.toRowDataType();
     Type converted = FlinkTypeVisitor.visit(root, new FlinkTypeToType(root));
+
     return new Schema(converted.asNestedType().asStructType().fields());
   }
 }

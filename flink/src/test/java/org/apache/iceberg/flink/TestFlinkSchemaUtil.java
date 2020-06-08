@@ -88,4 +88,84 @@ public class TestFlinkSchemaUtil {
 
     Assert.assertEquals(expectedSchema, actualSchema);
   }
+
+  @Test
+  public void testMapField() {
+    TableSchema flinkSchema = TableSchema.builder()
+        .field("map_int_long", DataTypes.MAP(DataTypes.INT(), DataTypes.BIGINT()).notNull()) /* Required */
+        .field("map_int_array_string", DataTypes.MAP(DataTypes.ARRAY(DataTypes.INT()), DataTypes.STRING()))
+        .field("map_decimal_string", DataTypes.MAP(DataTypes.DECIMAL(10, 2), DataTypes.STRING()))
+        .field("map_fields_fields",
+            DataTypes.MAP(
+                DataTypes.ROW(
+                    DataTypes.FIELD("field_int", DataTypes.INT(), "doc - int"),
+                    DataTypes.FIELD("field_string", DataTypes.STRING(), "doc - string")
+                ).notNull(), /* Required */
+                DataTypes.ROW(
+                    DataTypes.FIELD("field_array", DataTypes.ARRAY(DataTypes.STRING()), "doc - array")
+                ).notNull() /* Required */
+            ).notNull() /* Required */
+        )
+        .build();
+
+    Schema actualSchema = FlinkSchemaUtil.convert(flinkSchema);
+    Schema expectedSchema = new Schema(
+        Types.NestedField.required(0, "map_int_long",
+            Types.MapType.ofOptional(4, 5, Types.IntegerType.get(), Types.LongType.get()), null),
+        Types.NestedField.optional(1, "map_int_array_string",
+            Types.MapType.ofOptional(7, 8,
+                Types.ListType.ofOptional(6, Types.IntegerType.get()), Types.StringType.get()), null),
+        Types.NestedField.optional(2, "map_decimal_string", Types.MapType.ofOptional(9, 10,
+            Types.DecimalType.of(10, 2), Types.StringType.get())),
+        Types.NestedField.required(3, "map_fields_fields",
+            Types.MapType.ofRequired(
+                15, 16,
+                Types.StructType.of(Types.NestedField.optional(11, "field_int", Types.IntegerType.get(), "doc - int"),
+                    Types.NestedField.optional(12, "field_string", Types.StringType.get(), "doc - string")),
+                Types.StructType.of(Types.NestedField.optional(14, "field_array",
+                    Types.ListType.ofOptional(13, Types.StringType.get()), "doc - array"))
+            )
+        )
+    );
+
+    Assert.assertEquals(expectedSchema, actualSchema);
+  }
+
+  @Test
+  public void testStructField() {
+    TableSchema flinkSchema = TableSchema.builder()
+        .field("struct_int_string_decimal", DataTypes.ROW(
+            DataTypes.FIELD("field_int", DataTypes.INT()),
+            DataTypes.FIELD("field_string", DataTypes.STRING()),
+            DataTypes.FIELD("field_decimal", DataTypes.DECIMAL(19, 2)),
+            DataTypes.FIELD("field_struct", DataTypes.ROW(
+                DataTypes.FIELD("inner_struct_int", DataTypes.INT()),
+                DataTypes.FIELD("inner_struct_float_array", DataTypes.ARRAY(DataTypes.FLOAT()))
+            ))
+        ).notNull())
+        .field("struct_map_int_int", DataTypes.MAP(
+            DataTypes.INT(), DataTypes.INT()
+        ))
+        .build();
+
+    Schema actualSchema = FlinkSchemaUtil.convert(flinkSchema);
+    Schema expectedSchema = new Schema(
+        Types.NestedField.required(0, "struct_int_string_decimal",
+            Types.StructType.of(
+                Types.NestedField.optional(5, "field_int", Types.IntegerType.get()),
+                Types.NestedField.optional(6, "field_string", Types.StringType.get()),
+                Types.NestedField.optional(7, "field_decimal", Types.DecimalType.of(19, 2)),
+                Types.NestedField.optional(8, "field_struct",
+                    Types.StructType.of(
+                        Types.NestedField.optional(3, "inner_struct_int", Types.IntegerType.get()),
+                        Types.NestedField.optional(4, "inner_struct_float_array",
+                            Types.ListType.ofOptional(2, Types.FloatType.get()))
+                    ))
+            )),
+        Types.NestedField.optional(1, "struct_map_int_int",
+            Types.MapType.ofOptional(9, 10,
+                Types.IntegerType.get(), Types.IntegerType.get()))
+    );
+    Assert.assertEquals(actualSchema, expectedSchema);
+  }
 }

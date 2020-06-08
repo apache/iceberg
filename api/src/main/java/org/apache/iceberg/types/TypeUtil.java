@@ -191,11 +191,11 @@ public class TypeUtil {
    *
    * @param tableSchema      the table schema written in iceberg meta data.
    * @param writeSchema      the user-provided write schema.
-   * @param checkNullability true to indicate that we could not write optional values to a required field.
-   * @param checkOrdering    If false, allow input schema to have different ordering than table schema.
+   * @param checkNullability If true, not allow to write optional values to a required field.
+   * @param checkOrdering    If true, not allow input schema to have different ordering than table schema.
    */
-  public static void validateWriteSchema(
-      Schema tableSchema, Schema writeSchema, Boolean checkNullability, Boolean checkOrdering) {
+  public static void validateWriteSchema(Schema tableSchema, Schema writeSchema,
+                                         Boolean checkNullability, Boolean checkOrdering) {
     List<String> errors;
     if (checkNullability) {
       errors = CheckCompatibility.writeCompatibilityErrors(tableSchema, writeSchema, checkOrdering);

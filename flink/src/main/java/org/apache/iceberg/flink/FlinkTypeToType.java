@@ -20,10 +20,8 @@
 package org.apache.iceberg.flink;
 
 import java.util.List;
-import java.util.Map;
 import org.apache.flink.table.types.AtomicDataType;
 import org.apache.flink.table.types.CollectionDataType;
-import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.FieldsDataType;
 import org.apache.flink.table.types.KeyValueDataType;
 import org.apache.flink.table.types.logical.BigIntType;
@@ -36,6 +34,7 @@ import org.apache.flink.table.types.logical.DoubleType;
 import org.apache.flink.table.types.logical.FloatType;
 import org.apache.flink.table.types.logical.IntType;
 import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.SmallIntType;
 import org.apache.flink.table.types.logical.TimeType;
 import org.apache.flink.table.types.logical.TimestampType;
@@ -43,10 +42,10 @@ import org.apache.flink.table.types.logical.TinyIntType;
 import org.apache.flink.table.types.logical.VarBinaryType;
 import org.apache.flink.table.types.logical.VarCharType;
 import org.apache.flink.table.types.logical.ZonedTimestampType;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.Pair;
 
 public class FlinkTypeToType extends FlinkTypeVisitor<Type> {
   private final FieldsDataType root;
@@ -65,26 +64,30 @@ public class FlinkTypeToType extends FlinkTypeVisitor<Type> {
   }
 
   @Override
-  public Type fields(FieldsDataType dataType, Map<String, Pair<String, Type>> types) {
+  public Type fields(FieldsDataType fields, List<Type> types) {
     List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(types.size());
-    boolean isRoot = root == dataType;
+    boolean isRoot = root == fields;
 
-    Map<String, DataType> fieldsMap = dataType.getFieldDataTypes();
+    List<RowType.RowField> rowFields = ((RowType) fields.getLogicalType()).getFields();
+    Preconditions.checkArgument(rowFields.size() == types.size(), "fields list and types list should have same size.");
+
     int index = 0;
-    for (String name : types.keySet()) {
-      assert fieldsMap.containsKey(name) : "The FieldsDataType should contains the field with name: " + name;
-
-      DataType field = fieldsMap.get(name);
-      Pair<String, Type> commentAndType = types.get(name);
-
+    for (int i = 0; i < rowFields.size(); i++) {
       int id = isRoot ? index : getNextId();
-      if (field.getLogicalType().isNullable()) {
-        newFields.add(Types.NestedField.optional(id, name, commentAndType.second(), commentAndType.first()));
+
+      RowType.RowField field = rowFields.get(i);
+      String name = field.getName();
+      String comment = field.getDescription().orElse(null);
+
+      if (field.getType().isNullable()) {
+        newFields.add(Types.NestedField.optional(id, name, types.get(i), comment));
       } else {
-        newFields.add(Types.NestedField.required(id, name, commentAndType.second(), commentAndType.first()));
+        newFields.add(Types.NestedField.required(id, name, types.get(i), comment));
       }
+
       index++;
     }
+
     return Types.StructType.of(newFields);
   }
 
@@ -99,6 +102,7 @@ public class FlinkTypeToType extends FlinkTypeVisitor<Type> {
 
   @Override
   public Type map(KeyValueDataType map, Type keyType, Type valueType) {
+    // keys in map are not allowed to be null.
     if (map.getValueDataType().getLogicalType().isNullable()) {
       return Types.MapType.ofOptional(getNextId(), getNextId(), keyType, valueType);
     } else {

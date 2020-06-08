@@ -28,8 +28,7 @@ import org.apache.flink.table.types.FieldsDataType;
 import org.apache.flink.table.types.KeyValueDataType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class FlinkTypeVisitor<T> {
 
@@ -37,18 +36,15 @@ public class FlinkTypeVisitor<T> {
     if (dataType instanceof FieldsDataType) {
       FieldsDataType fieldsType = (FieldsDataType) dataType;
       Map<String, DataType> fields = fieldsType.getFieldDataTypes();
-      Map<String, Pair<String, T>> fieldResults = Maps.newLinkedHashMap();
+      List<T> fieldResults = Lists.newArrayList();
 
       Preconditions.checkArgument(dataType.getLogicalType() instanceof RowType, "The logical type must be RowType");
-
-      // Make sure that we're traversing the fields in the same order as constructing the schema's fields, so that we
-      // could get the field's comment correctly. NOTICE: the flink type don't attach the comment inside it so we
-      // iceberg need to read the comment firstly and then maintain the pair (comment, type) for each field.
       List<RowType.RowField> rowFields = ((RowType) dataType.getLogicalType()).getFields();
+      // Make sure that we're traveling in the same order as the RowFields because the implementation of
+      // FlinkTypeVisitor#fields may depends on the visit order, please see FlinkTypeToType#fields.
       for (RowType.RowField rowField : rowFields) {
         String name = rowField.getName();
-        String comment = rowField.getDescription().orElse(null);
-        fieldResults.put(name, Pair.of(comment, visit(fields.get(name), visitor)));
+        fieldResults.add(visit(fields.get(name), visitor));
       }
 
       return visitor.fields(fieldsType, fieldResults);
@@ -69,11 +65,7 @@ public class FlinkTypeVisitor<T> {
     }
   }
 
-  /**
-   * The Flink Type did not include the 'comment' inside it, so here we need to maintain a map to mapping the field name
-   * to the (comment, type) pair.
-   */
-  public T fields(FieldsDataType dataType, Map<String, Pair<String, T>> fieldResults) {
+  public T fields(FieldsDataType type, List<T> fieldResults) {
     return null;
   }
 
