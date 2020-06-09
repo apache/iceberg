@@ -214,7 +214,8 @@ public class HiveTableTest extends HiveTableBaseTest {
           new File(manifest.path().replace("file:", "")).exists());
     }
     Assert.assertFalse("Table metadata file should not exist",
-        new File(((HasTableOperations) table).operations().current().file().location().replace("file:", "")).exists());
+        new File(((HasTableOperations) table).operations().current()
+            .metadataFileLocation().replace("file:", "")).exists());
   }
 
   @Test

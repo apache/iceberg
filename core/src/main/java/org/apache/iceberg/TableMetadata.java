@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,7 +43,7 @@ import org.apache.iceberg.util.PropertyUtil;
 /**
  * Metadata for a table.
  */
-public class TableMetadata {
+public class TableMetadata implements Serializable {
   static final long INITIAL_SEQUENCE_NUMBER = 0;
   static final int DEFAULT_TABLE_FORMAT_VERSION = 1;
   static final int SUPPORTED_TABLE_FORMAT_VERSION = 2;
@@ -184,9 +185,10 @@ public class TableMetadata {
     }
   }
 
-  private final InputFile file;
+  private final transient InputFile file;
 
   // stored metadata
+  private final String metadataFileLocation;
   private final int formatVersion;
   private final String uuid;
   private final String location;
@@ -229,6 +231,7 @@ public class TableMetadata {
 
     this.formatVersion = formatVersion;
     this.file = file;
+    this.metadataFileLocation = file != null ? file.location() : null;
     this.uuid = uuid;
     this.location = location;
     this.lastSequenceNumber = lastSequenceNumber;
@@ -275,8 +278,8 @@ public class TableMetadata {
     return formatVersion;
   }
 
-  public InputFile file() {
-    return file;
+  public String metadataFileLocation() {
+    return metadataFileLocation;
   }
 
   public String uuid() {

@@ -142,7 +142,7 @@ public class AllManifestsTable extends BaseMetadataTable {
               schemaString, specString, residuals));
         } else {
           return StaticDataTask.of(
-              ops.io().newInputFile(ops.current().file().location()),
+              ops.io().newInputFile(ops.current().metadataFileLocation()),
               snap.allManifests(),
               manifest -> ManifestsTable.manifestFileToRow(table().spec(), manifest));
         }
