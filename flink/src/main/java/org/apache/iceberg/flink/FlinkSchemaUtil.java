@@ -39,6 +39,6 @@ public class FlinkSchemaUtil {
     FieldsDataType root = (FieldsDataType) schema.toRowDataType();
     Type converted = FlinkTypeVisitor.visit(root, new FlinkTypeToType(root));
 
-    return new Schema(converted.asNestedType().asStructType().fields());
+    return new Schema(converted.asStructType().fields());
   }
 }

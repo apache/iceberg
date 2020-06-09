@@ -49,7 +49,7 @@ public class TestFlinkSchemaUtil {
         .field("binary", DataTypes.BINARY(10))
         .field("time", DataTypes.TIME())
         .field("timestampWithoutZone", DataTypes.TIMESTAMP())
-        .field("timestampWithZone", DataTypes.TIMESTAMP_WITH_TIME_ZONE())
+        .field("timestampWithZone", DataTypes.TIMESTAMP_WITH_LOCAL_TIME_ZONE())
         .field("date", DataTypes.DATE())
         .field("decimal", DataTypes.DECIMAL(2, 2))
         .field("decimal2", DataTypes.DECIMAL(38, 2))
@@ -86,7 +86,7 @@ public class TestFlinkSchemaUtil {
         Types.NestedField.optional(20, "decimal3", Types.DecimalType.of(10, 1))
     );
 
-    Assert.assertEquals(expectedSchema, actualSchema);
+    Assert.assertEquals(expectedSchema.asStruct(), actualSchema.asStruct());
   }
 
   @Test
@@ -128,7 +128,7 @@ public class TestFlinkSchemaUtil {
         )
     );
 
-    Assert.assertEquals(expectedSchema, actualSchema);
+    Assert.assertEquals(expectedSchema.asStruct(), actualSchema.asStruct());
   }
 
   @Test
@@ -141,11 +141,11 @@ public class TestFlinkSchemaUtil {
             DataTypes.FIELD("field_struct", DataTypes.ROW(
                 DataTypes.FIELD("inner_struct_int", DataTypes.INT()),
                 DataTypes.FIELD("inner_struct_float_array", DataTypes.ARRAY(DataTypes.FLOAT()))
-            ))
-        ).notNull())
-        .field("struct_map_int_int", DataTypes.MAP(
-            DataTypes.INT(), DataTypes.INT()
-        ))
+            ).notNull()) /* Row is required */
+        ).notNull()) /* Required */
+        .field("struct_map_int_int", DataTypes.ROW(
+            DataTypes.FIELD("field_map", DataTypes.MAP(DataTypes.INT(), DataTypes.INT()))
+        ).nullable()) /* Optional */
         .build();
 
     Schema actualSchema = FlinkSchemaUtil.convert(flinkSchema);
@@ -155,7 +155,7 @@ public class TestFlinkSchemaUtil {
                 Types.NestedField.optional(5, "field_int", Types.IntegerType.get()),
                 Types.NestedField.optional(6, "field_string", Types.StringType.get()),
                 Types.NestedField.optional(7, "field_decimal", Types.DecimalType.of(19, 2)),
-                Types.NestedField.optional(8, "field_struct",
+                Types.NestedField.required(8, "field_struct",
                     Types.StructType.of(
                         Types.NestedField.optional(3, "inner_struct_int", Types.IntegerType.get()),
                         Types.NestedField.optional(4, "inner_struct_float_array",
@@ -163,9 +163,61 @@ public class TestFlinkSchemaUtil {
                     ))
             )),
         Types.NestedField.optional(1, "struct_map_int_int",
-            Types.MapType.ofOptional(9, 10,
-                Types.IntegerType.get(), Types.IntegerType.get()))
+            Types.StructType.of(
+                Types.NestedField.optional(11, "field_map", Types.MapType.ofOptional(9, 10,
+                    Types.IntegerType.get(), Types.IntegerType.get()))
+            )
+        )
     );
-    Assert.assertEquals(actualSchema, expectedSchema);
+    Assert.assertEquals(actualSchema.asStruct(), expectedSchema.asStruct());
+  }
+
+  @Test
+  public void testListField() {
+    TableSchema flinkSchema = TableSchema.builder()
+        .field("list_struct_fields", DataTypes.ARRAY(
+            DataTypes.ROW(
+                DataTypes.FIELD("field_int", DataTypes.INT())
+            )
+        ).notNull()) /* Required */
+        .field("list_optional_struct_fields", DataTypes.ARRAY(
+            DataTypes.ROW(
+                DataTypes.FIELD(
+                    "field_timestamp_with_local_time_zone", DataTypes.TIMESTAMP_WITH_LOCAL_TIME_ZONE()
+                )
+            )
+        ).nullable()) /* Optional */
+        .field("list_map_fields", DataTypes.ARRAY(
+            DataTypes.MAP(
+                DataTypes.ARRAY(DataTypes.INT()).notNull(), /* Key of map must be required */
+                DataTypes.ROW(
+                    DataTypes.FIELD("field_0", DataTypes.INT(), "doc - int")
+                )
+            )
+        ).notNull()) /* Required */
+        .build();
+
+    Schema actualSchema = FlinkSchemaUtil.convert(flinkSchema);
+    Schema expectedSchema = new Schema(
+        Types.NestedField.required(0, "list_struct_fields",
+            Types.ListType.ofRequired(4, Types.StructType.of(
+                Types.NestedField.optional(3, "field_int", Types.IntegerType.get())
+            ))),
+        Types.NestedField.optional(1, "list_optional_struct_fields",
+            Types.ListType.ofOptional(6, Types.StructType.of(
+                Types.NestedField.optional(5, "field_timestamp_with_local_time_zone", Types.TimestampType.withZone())
+            ))),
+        Types.NestedField.required(2, "list_map_fields",
+            Types.ListType.ofRequired(11,
+                Types.MapType.ofOptional(9, 10,
+                    Types.ListType.ofRequired(7, Types.IntegerType.get()),
+                    Types.StructType.of(
+                        Types.NestedField.optional(8, "field_0", Types.IntegerType.get(), "doc - int")
+                    )
+                )
+            ))
+    );
+
+    Assert.assertEquals(expectedSchema.asStruct(), actualSchema.asStruct());
   }
 }

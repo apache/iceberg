@@ -33,6 +33,7 @@ import org.apache.flink.table.types.logical.DecimalType;
 import org.apache.flink.table.types.logical.DoubleType;
 import org.apache.flink.table.types.logical.FloatType;
 import org.apache.flink.table.types.logical.IntType;
+import org.apache.flink.table.types.logical.LocalZonedTimestampType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.SmallIntType;
@@ -41,7 +42,6 @@ import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.flink.table.types.logical.TinyIntType;
 import org.apache.flink.table.types.logical.VarBinaryType;
 import org.apache.flink.table.types.logical.VarCharType;
-import org.apache.flink.table.types.logical.ZonedTimestampType;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
@@ -71,9 +71,8 @@ public class FlinkTypeToType extends FlinkTypeVisitor<Type> {
     List<RowType.RowField> rowFields = ((RowType) fields.getLogicalType()).getFields();
     Preconditions.checkArgument(rowFields.size() == types.size(), "fields list and types list should have same size.");
 
-    int index = 0;
     for (int i = 0; i < rowFields.size(); i++) {
-      int id = isRoot ? index : getNextId();
+      int id = isRoot ? i : getNextId();
 
       RowType.RowField field = rowFields.get(i);
       String name = field.getName();
@@ -84,8 +83,6 @@ public class FlinkTypeToType extends FlinkTypeVisitor<Type> {
       } else {
         newFields.add(Types.NestedField.required(id, name, types.get(i), comment));
       }
-
-      index++;
     }
 
     return Types.StructType.of(newFields);
@@ -93,7 +90,7 @@ public class FlinkTypeToType extends FlinkTypeVisitor<Type> {
 
   @Override
   public Type collection(CollectionDataType collection, Type elementType) {
-    if (collection.getElementDataType().getLogicalType().isNullable()) {
+    if (collection.getLogicalType().isNullable()) {
       return Types.ListType.ofOptional(getNextId(), elementType);
     } else {
       return Types.ListType.ofRequired(getNextId(), elementType);
@@ -140,7 +137,7 @@ public class FlinkTypeToType extends FlinkTypeVisitor<Type> {
       return Types.TimeType.get();
     } else if (inner instanceof TimestampType) {
       return Types.TimestampType.withoutZone();
-    } else if (inner instanceof ZonedTimestampType) {
+    } else if (inner instanceof LocalZonedTimestampType) {
       return Types.TimestampType.withZone();
     } else if (inner instanceof DecimalType) {
       DecimalType decimalType = (DecimalType) inner;
