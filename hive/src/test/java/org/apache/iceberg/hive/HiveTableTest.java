@@ -261,7 +261,6 @@ public class HiveTableTest extends HiveTableBaseTest {
             .addColumn("int", Types.IntegerType.get())
             .commit();
 
-    icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
     Assert.assertEquals("Schema should match expected", expectedSchema.asStruct(), icebergTable.schema().asStruct());
 
     expectedSchema = new Schema(Types.StructType.of(
@@ -270,7 +269,6 @@ public class HiveTableTest extends HiveTableBaseTest {
             optional(4, "int", Types.IntegerType.get())).fields());
     icebergTable.updateSchema().deleteColumn("string").commit();
 
-    icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
     Assert.assertEquals("Schema should match expected", expectedSchema.asStruct(), icebergTable.schema().asStruct());
   }
 
