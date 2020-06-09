@@ -28,6 +28,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
@@ -280,6 +281,52 @@ public class TestRewriteDataFilesAction {
         .collectAsList();
 
     Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
+  }
+
+  @Test
+  public void testRewriteLargeTableHasResiduals() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).build();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, "100");
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    // all records belong to the same partition
+    List<ThreeColumnRecord> records = Lists.newArrayList();
+    for (int i = 0; i < 100; i++) {
+      records.add(new ThreeColumnRecord(i, String.valueOf(i), String.valueOf(i % 4)));
+    }
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class);
+    writeDF(df);
+
+    table.refresh();
+
+    CloseableIterable<FileScanTask> tasks = table.newScan()
+        .ignoreResiduals()
+        .filter(Expressions.equal("c3", "0"))
+        .planFiles();
+    for (FileScanTask task : tasks) {
+      Assert.assertEquals("Residuals must be ignored", Expressions.alwaysTrue(), task.residual());
+    }
+    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
+    Assert.assertEquals("Should have 2 data files before rewrite", 2, dataFiles.size());
+
+    Actions actions = Actions.forTable(table);
+
+    RewriteDataFilesActionResult result = actions
+        .rewriteDataFiles()
+        .filter(Expressions.equal("c3", "0"))
+        .execute();
+    Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
+    Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
+
+    table.refresh();
+
+    Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
+    List<ThreeColumnRecord> actualRecords = resultDF.sort("c1")
+        .as(Encoders.bean(ThreeColumnRecord.class))
+        .collectAsList();
+
+    Assert.assertEquals("Rows must match", records, actualRecords);
   }
 
   private void writeRecords(List<ThreeColumnRecord> records) {

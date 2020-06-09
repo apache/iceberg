@@ -34,7 +34,6 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
@@ -55,7 +54,6 @@ import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.util.SerializableConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -97,13 +95,7 @@ public class RewriteDataFilesAction
         TableProperties.SPLIT_LOOKBACK,
         TableProperties.SPLIT_LOOKBACK_DEFAULT);
 
-    if (table.io() instanceof HadoopFileIO) {
-      // we need to use Spark's SerializableConfiguration to avoid issues with Kryo serialization
-      SerializableConfiguration conf = new SerializableConfiguration(((HadoopFileIO) table.io()).conf());
-      this.fileIO = new HadoopFileIO(conf::value);
-    } else {
-      this.fileIO = table.io();
-    }
+    this.fileIO = fileIO(table);
     this.encryptionManager = table.encryption();
   }
 
@@ -118,7 +110,7 @@ public class RewriteDataFilesAction
   }
 
   /**
-   * Pass a PartitionSepc id to specify which PartitionSpec should be used in DataFile rewrite
+   * Pass a PartitionSpec id to specify which PartitionSpec should be used in DataFile rewrite
    *
    * @param specId PartitionSpec id to rewrite
    * @return this for method chaining
@@ -177,6 +169,7 @@ public class RewriteDataFilesAction
     try {
       fileScanTasks = table.newScan()
           .caseSensitive(caseSensitive)
+          .ignoreResiduals()
           .filter(filter)
           .planFiles();
     } finally {
@@ -254,22 +247,19 @@ public class RewriteDataFilesAction
   }
 
   private void replaceDataFiles(Iterable<DataFile> deletedDataFiles, Iterable<DataFile> addedDataFiles) {
-    boolean threw = true;
-
     try {
       RewriteFiles rewriteFiles = table.newRewrite();
       rewriteFiles.rewriteFiles(Sets.newHashSet(deletedDataFiles), Sets.newHashSet(addedDataFiles));
       commit(rewriteFiles);
-      threw = false;
 
-    } finally {
-      if (threw) {
-        Tasks.foreach(Iterables.transform(addedDataFiles, f -> f.path().toString()))
-            .noRetry()
-            .suppressFailureWhenFinished()
-            .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))
-            .run(fileIO::deleteFile);
-      }
+    } catch (Exception e) {
+      Tasks.foreach(Iterables.transform(addedDataFiles, f -> f.path().toString()))
+          .noRetry()
+          .suppressFailureWhenFinished()
+          .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))
+          .run(fileIO::deleteFile);
+
+      throw e;
     }
   }
 }
