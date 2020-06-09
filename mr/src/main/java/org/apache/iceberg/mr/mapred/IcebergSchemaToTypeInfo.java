@@ -77,12 +77,7 @@ final class IcebergSchemaToTypeInfo {
         Types.DecimalType dec = (Types.DecimalType) type;
         int scale = dec.scale();
         int precision = dec.precision();
-        try {
-          HiveDecimalUtils.validateParameter(precision, scale);
-        } catch (Exception e) {
-          //TODO Log that precision / scale isn't valid
-          throw e;
-        }
+        HiveDecimalUtils.validateParameter(precision, scale);
         return TypeInfoFactory.getDecimalTypeInfo(precision, scale);
       case STRUCT:
         return generateStructTypeInfo((Types.StructType) type);
