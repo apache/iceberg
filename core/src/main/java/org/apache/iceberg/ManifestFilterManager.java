@@ -385,7 +385,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
           F file = entry.file();
           boolean fileDelete = deletePaths.contains(file.path()) ||
               dropPartitions.contains(partitionWrapper.set(file.partition())) ||
-              (isDelete && entry.sequenceNumber() < minSequenceNumber);
+              (isDelete && entry.sequenceNumber() > 0 && entry.sequenceNumber() < minSequenceNumber);
           if (entry.status() != ManifestEntry.Status.DELETED) {
             if (fileDelete || inclusive.eval(file.partition())) {
               ValidationException.check(

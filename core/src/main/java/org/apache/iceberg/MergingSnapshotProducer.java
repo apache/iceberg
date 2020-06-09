@@ -58,6 +58,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final List<DeleteFile> newDeleteFiles = Lists.newArrayList();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
+  private final SnapshotSummary.Builder addedFilesSummary = SnapshotSummary.builder();
   private final SnapshotSummary.Builder appendedManifestsSummary = SnapshotSummary.builder();
   private Expression deleteExpression = Expressions.alwaysFalse();
 
@@ -164,6 +165,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * Add a data file to the new snapshot.
    */
   protected void add(DataFile file) {
+    addedFilesSummary.addedFile(spec, file);
     hasNewFiles = true;
     newFiles.add(file);
   }
@@ -172,6 +174,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * Add a delete file to the new snapshot.
    */
   protected void add(DeleteFile file) {
+    addedFilesSummary.addedFile(spec, file);
     hasNewDeleteFiles = true;
     newDeleteFiles.add(file);
   }
@@ -230,6 +233,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     // update the snapshot summary
     summaryBuilder.clear();
+    summaryBuilder.merge(addedFilesSummary);
     summaryBuilder.merge(appendedManifestsSummary);
     summaryBuilder.merge(filterManager.buildSummary(filtered));
     summaryBuilder.merge(deleteFilterManager.buildSummary(filteredDeletes));
@@ -295,11 +299,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private Iterable<ManifestFile> prepareNewManifests() {
     Iterable<ManifestFile> newManifests;
     if (newFiles.size() > 0) {
-      // add all of the new files to the summary builder
-      for (DataFile file : newFiles) {
-        summaryBuilder.addedFile(spec, file);
-      }
-
       ManifestFile newManifest = newFilesAsManifest();
       newManifests = Iterables.concat(ImmutableList.of(newManifest), appendManifests, rewrittenAppendManifests);
     } else {

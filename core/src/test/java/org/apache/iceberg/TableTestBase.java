@@ -60,8 +60,28 @@ public class TableTestBase {
       .withPartitionPath("data_bucket=0") // easy way to set partition data for now
       .withRecordCount(1)
       .build();
+  static final DataFile FILE_A2 = DataFiles.builder(SPEC)
+      .withPath("/path/to/data-a-2.parquet")
+      .withFileSizeInBytes(10)
+      .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+      .withRecordCount(1)
+      .build();
+  static final DeleteFile FILE_A_DELETES = FileMetadata.deleteFileBuilder(SPEC)
+      .ofPositionDeletes()
+      .withPath("/path/to/data-a-deletes.parquet")
+      .withFileSizeInBytes(10)
+      .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+      .withRecordCount(1)
+      .build();
   static final DataFile FILE_B = DataFiles.builder(SPEC)
       .withPath("/path/to/data-b.parquet")
+      .withFileSizeInBytes(10)
+      .withPartitionPath("data_bucket=1") // easy way to set partition data for now
+      .withRecordCount(1)
+      .build();
+  static final DeleteFile FILE_B_DELETES = FileMetadata.deleteFileBuilder(SPEC)
+      .ofPositionDeletes()
+      .withPath("/path/to/data-b-deletes.parquet")
       .withFileSizeInBytes(10)
       .withPartitionPath("data_bucket=1") // easy way to set partition data for now
       .withRecordCount(1)
@@ -324,6 +344,29 @@ public class TableTestBase {
     Assert.assertFalse("Should find all files in the manifest", expectedFiles.hasNext());
   }
 
+  void validateDeleteManifest(ManifestFile manifest,
+                              Iterator<Long> seqs,
+                              Iterator<Long> ids,
+                              Iterator<DeleteFile> expectedFiles,
+                              Iterator<ManifestEntry.Status> statuses) {
+    for (ManifestEntry<DeleteFile> entry : ManifestFiles.readDeleteManifest(manifest, FILE_IO, null).entries()) {
+      DeleteFile file = entry.file();
+      DeleteFile expected = expectedFiles.next();
+      if (seqs != null) {
+        V1Assert.assertEquals("Sequence number should default to 0", 0, entry.sequenceNumber().longValue());
+        V2Assert.assertEquals("Sequence number should match expected", seqs.next(), entry.sequenceNumber());
+      }
+      Assert.assertEquals("Path should match expected",
+          expected.path().toString(), file.path().toString());
+      Assert.assertEquals("Snapshot ID should match expected ID",
+          ids.next(), entry.snapshotId());
+      Assert.assertEquals("Status should match expected",
+          statuses.next(), entry.status());
+    }
+
+    Assert.assertFalse("Should find all files in the manifest", expectedFiles.hasNext());
+  }
+
   static void validateManifestEntries(ManifestFile manifest,
                                       Iterator<Long> ids,
                                       Iterator<DataFile> expectedFiles,
@@ -356,6 +399,10 @@ public class TableTestBase {
   }
 
   static Iterator<DataFile> files(DataFile... files) {
+    return Iterators.forArray(files);
+  }
+
+  static Iterator<DeleteFile> files(DeleteFile... files) {
     return Iterators.forArray(files);
   }
 
