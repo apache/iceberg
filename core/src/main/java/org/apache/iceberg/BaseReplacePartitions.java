@@ -27,6 +27,7 @@ public class BaseReplacePartitions
     extends MergingSnapshotProducer<ReplacePartitions> implements ReplacePartitions {
   BaseReplacePartitions(String tableName, TableOperations ops) {
     super(tableName, ops);
+    set(SnapshotSummary.REPLACE_PARTITIONS_PROP, "true");
   }
 
   @Override
