@@ -87,22 +87,6 @@ public class SnapshotSummary {
       this.deletedDuplicateFiles += increment;
     }
 
-    public void deletedFile(PartitionSpec spec, ContentFile<?> file) {
-      if (file instanceof DataFile) {
-        deletedFile(spec, (DataFile) file);
-      } else if (file instanceof DeleteFile) {
-        deletedFile(spec, (DeleteFile) file);
-      } else {
-        throw new IllegalArgumentException("Unsupported file type: " + file.getClass().getSimpleName());
-      }
-    }
-
-    public void deletedFile(PartitionSpec spec, DataFile file) {
-      changedPartitions.add(spec.partitionToPath(file.partition()));
-      this.deletedFiles += 1;
-      this.deletedRecords += file.recordCount();
-    }
-
     public void addedFile(PartitionSpec spec, DataFile file) {
       changedPartitions.add(spec.partitionToPath(file.partition()));
       this.addedFiles += 1;
@@ -117,6 +101,22 @@ public class SnapshotSummary {
       } else {
         this.addedEqDeletes += file.recordCount();
       }
+    }
+
+    public void deletedFile(PartitionSpec spec, ContentFile<?> file) {
+      if (file instanceof DataFile) {
+        deletedFile(spec, (DataFile) file);
+      } else if (file instanceof DeleteFile) {
+        deletedFile(spec, (DeleteFile) file);
+      } else {
+        throw new IllegalArgumentException("Unsupported file type: " + file.getClass().getSimpleName());
+      }
+    }
+
+    public void deletedFile(PartitionSpec spec, DataFile file) {
+      changedPartitions.add(spec.partitionToPath(file.partition()));
+      this.deletedFiles += 1;
+      this.deletedRecords += file.recordCount();
     }
 
     public void deletedFile(PartitionSpec spec, DeleteFile file) {
