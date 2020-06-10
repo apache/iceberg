@@ -52,6 +52,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.SerializationUtil;
+import org.apache.iceberg.mr.mapred.iterables.SnapshotIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -161,7 +162,12 @@ public class IcebergInputFormat<T> implements InputFormat<Void, T>, CombineHiveI
 
     private void initialise() {
       tasks = split.getTask().files().iterator();
-      nextTask();
+      if (table instanceof SnapshotsTable) {
+        reader = new SnapshotIterable(table);
+        recordIterator = reader.iterator();
+      } else {
+        nextTask();
+      }
     }
 
     private void nextTask() {
@@ -181,6 +187,7 @@ public class IcebergInputFormat<T> implements InputFormat<Void, T>, CombineHiveI
                 virtualSnapshotIdColumnName);
       }
     }
+
 
     @Override
     public boolean next(Void key, IcebergWritable value) {
