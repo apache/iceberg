@@ -28,7 +28,6 @@ import org.apache.iceberg.types.Types;
 public class RandomUtil {
 
   private RandomUtil() {
-
   }
 
   @SuppressWarnings("RandomModInteger")
