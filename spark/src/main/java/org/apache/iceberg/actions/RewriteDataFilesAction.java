@@ -69,6 +69,7 @@ public class RewriteDataFilesAction
   private final boolean caseSensitive;
   private long targetSizeInBytes;
   private int splitLookback;
+  private long splitOpenFileCost;
 
   private PartitionSpec spec = null;
   private Expression filter;
@@ -94,6 +95,10 @@ public class RewriteDataFilesAction
         table.properties(),
         TableProperties.SPLIT_LOOKBACK,
         TableProperties.SPLIT_LOOKBACK_DEFAULT);
+    this.splitOpenFileCost = PropertyUtil.propertyAsLong(
+        table.properties(),
+        TableProperties.SPLIT_OPEN_FILE_COST,
+        TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
 
     this.fileIO = fileIO(table);
     this.encryptionManager = table.encryption();
@@ -152,6 +157,22 @@ public class RewriteDataFilesAction
   }
 
   /**
+   * Specify the minimum file size to count to pack into one "bin". If the read file size is smaller than this specified
+   * threshold, Iceberg will use this value to do count.
+   * <p>
+   * this configuration controls the number of files to compact for each task, small value would lead to a
+   * high compaction, the default value is 4MB.
+   *
+   * @param openFileCost minimum file size to count to pack into one "bin".
+   * @return this for method chaining
+   */
+  public RewriteDataFilesAction splitOpenFileCost(long openFileCost) {
+    Preconditions.checkArgument(openFileCost > 0L, "Invalid split openFileCost %d", openFileCost);
+    this.splitOpenFileCost = openFileCost;
+    return this;
+  }
+
+  /**
    * Pass a row Expression to filter DataFiles to be rewritten. Note that all files that may contain data matching the
    * filter may be rewritten.
    *
@@ -192,17 +213,12 @@ public class RewriteDataFilesAction
       return RewriteDataFilesActionResult.empty();
     }
 
-    long openFileCost = PropertyUtil.propertyAsLong(
-        table.properties(),
-        TableProperties.SPLIT_OPEN_FILE_COST,
-        TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
-
     // Split and combine tasks under each partition
     List<CombinedScanTask> combinedScanTasks = filteredGroupedTasks.values().stream()
         .map(scanTasks -> {
           CloseableIterable<FileScanTask> splitTasks = TableScanUtil.splitFiles(
               CloseableIterable.withNoopClose(scanTasks), targetSizeInBytes);
-          return TableScanUtil.planTasks(splitTasks, targetSizeInBytes, splitLookback, openFileCost);
+          return TableScanUtil.planTasks(splitTasks, targetSizeInBytes, splitLookback, splitOpenFileCost);
         })
         .flatMap(Streams::stream)
         .collect(Collectors.toList());
