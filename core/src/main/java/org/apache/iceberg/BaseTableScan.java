@@ -26,7 +26,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
-import java.util.function.Function;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.Binder;
@@ -35,11 +34,10 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.util.BinPacking;
+import org.apache.iceberg.util.TableScanUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -266,14 +264,9 @@ abstract class BaseTableScan implements TableScan {
           TableProperties.SPLIT_OPEN_FILE_COST, TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
     }
 
-    Function<FileScanTask, Long> weightFunc = file -> Math.max(file.length(), openFileCost);
-
-    CloseableIterable<FileScanTask> splitFiles = splitFiles(splitSize);
-    return CloseableIterable.transform(
-        CloseableIterable.combine(
-            new BinPacking.PackingIterable<>(splitFiles, splitSize, lookback, weightFunc, true),
-            splitFiles),
-        BaseCombinedScanTask::new);
+    CloseableIterable<FileScanTask> fileScanTasks = planFiles();
+    CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(fileScanTasks, splitSize);
+    return TableScanUtil.planTasks(splitFiles, splitSize, lookback, openFileCost);
   }
 
   @Override
@@ -302,15 +295,6 @@ abstract class BaseTableScan implements TableScan {
         .add("ignoreResiduals", ignoreResiduals)
         .add("caseSensitive", caseSensitive)
         .toString();
-  }
-
-  private CloseableIterable<FileScanTask> splitFiles(long splitSize) {
-    CloseableIterable<FileScanTask> fileScanTasks = planFiles();
-    Iterable<FileScanTask> splitTasks = FluentIterable
-        .from(fileScanTasks)
-        .transformAndConcat(input -> input.split(splitSize));
-    // Capture manifests which can be closed after scan planning
-    return CloseableIterable.combine(splitTasks, fileScanTasks);
   }
 
   /**

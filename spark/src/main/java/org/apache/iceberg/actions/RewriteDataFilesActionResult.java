@@ -19,36 +19,32 @@
 
 package org.apache.iceberg.actions;
 
-import org.apache.iceberg.Table;
-import org.apache.spark.sql.SparkSession;
+import java.util.List;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
-public class Actions {
+public class RewriteDataFilesActionResult {
 
-  private SparkSession spark;
-  private Table table;
+  private static final RewriteDataFilesActionResult EMPTY =
+      new RewriteDataFilesActionResult(ImmutableList.of(), ImmutableList.of());
 
-  private Actions(SparkSession spark, Table table) {
-    this.spark = spark;
-    this.table = table;
+  private List<DataFile> deletedDataFiles;
+  private List<DataFile> addedDataFiles;
+
+  public RewriteDataFilesActionResult(List<DataFile> deletedDataFiles, List<DataFile> addedDataFiles) {
+    this.deletedDataFiles = deletedDataFiles;
+    this.addedDataFiles = addedDataFiles;
   }
 
-  public static Actions forTable(SparkSession spark, Table table) {
-    return new Actions(spark, table);
+  static RewriteDataFilesActionResult empty() {
+    return EMPTY;
   }
 
-  public static Actions forTable(Table table) {
-    return new Actions(SparkSession.active(), table);
+  public List<DataFile> deletedDataFiles() {
+    return deletedDataFiles;
   }
 
-  public RemoveOrphanFilesAction removeOrphanFiles() {
-    return new RemoveOrphanFilesAction(spark, table);
-  }
-
-  public RewriteManifestsAction rewriteManifests() {
-    return new RewriteManifestsAction(spark, table);
-  }
-
-  public RewriteDataFilesAction rewriteDataFiles() {
-    return new RewriteDataFilesAction(spark, table);
+  public List<DataFile> addedDataFiles() {
+    return addedDataFiles;
   }
 }

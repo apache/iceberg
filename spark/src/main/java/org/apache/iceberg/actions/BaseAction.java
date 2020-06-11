@@ -21,6 +21,9 @@ package org.apache.iceberg.actions;
 
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.io.FileIO;
+import org.apache.spark.util.SerializableConfiguration;
 
 abstract class BaseAction<R> implements Action<R> {
 
@@ -35,6 +38,16 @@ abstract class BaseAction<R> implements Action<R> {
       return tableName.replaceFirst("(hadoop\\.)|(hive\\.)", "") + "." + type;
     } else {
       return tableName + "." + type;
+    }
+  }
+
+  protected FileIO fileIO(Table table) {
+    if (table.io() instanceof HadoopFileIO) {
+      // we need to use Spark's SerializableConfiguration to avoid issues with Kryo serialization
+      SerializableConfiguration conf = new SerializableConfiguration(((HadoopFileIO) table.io()).conf());
+      return new HadoopFileIO(conf::value);
+    } else {
+      return table.io();
     }
   }
 }
