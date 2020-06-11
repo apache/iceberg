@@ -19,13 +19,13 @@
 
 package org.apache.iceberg.mr.mapred;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 
 public class SystemTableUtil {
@@ -36,24 +36,24 @@ public class SystemTableUtil {
 
   private SystemTableUtil() {}
 
-  protected static Schema schemaWithVirtualColumn(Schema schema, String columnName) {
-    List<Types.NestedField> columns = new ArrayList<>(schema.columns());
+  protected static Schema schemaWithSnapshotIdVirtualColumn(Schema schema, String columnName) {
+    List<Types.NestedField> columns = Lists.newArrayList(schema.columns());
     columns.add(Types.NestedField.optional(Integer.MAX_VALUE, columnName, Types.LongType.get()));
     return new Schema(columns);
   }
 
-  protected static Record recordWithVirtualColumn(Record record, long snapshotId, Schema oldSchema,
-                                                   String columnName) {
-    Schema newSchema = schemaWithVirtualColumn(oldSchema, columnName);
+  protected static Record recordWithSnapshotIdVirtualColumn(Record record, long snapshotId, Schema oldSchema,
+                                                            String virtualColumnName) {
+    Schema newSchema = schemaWithSnapshotIdVirtualColumn(oldSchema, virtualColumnName);
     Record newRecord = GenericRecord.create(newSchema);
-    for (Types.NestedField field : oldSchema.columns()) {
-      newRecord.setField(field.name(), record.getField(field.name()));
+    for (int i = 0; i < oldSchema.columns().size(); i++) {
+      newRecord.set(i, record.get(i));
     }
-    newRecord.setField(columnName, snapshotId);
+    newRecord.setField(virtualColumnName, snapshotId);
     return newRecord;
   }
 
-  protected static String getVirtualColumnName(Configuration conf) {
+  protected static String snapshotIdVirtualColumnName(Configuration conf) {
     String virtualColumnName = conf.get(VIRTUAL_COLUMN_NAME);
     if (virtualColumnName == null) {
       return DEFAULT_SNAPSHOT_ID_COLUMN_NAME;
@@ -62,7 +62,7 @@ public class SystemTableUtil {
     }
   }
 
-  protected static String getVirtualColumnName(Properties properties) {
+  protected static String snapshotIdVirtualColumnName(Properties properties) {
     String virtualColumnName = properties.getProperty(VIRTUAL_COLUMN_NAME);
     if (virtualColumnName == null) {
       return DEFAULT_SNAPSHOT_ID_COLUMN_NAME;

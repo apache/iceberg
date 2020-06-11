@@ -98,10 +98,6 @@ public class TestHelpers {
     return builder.build();
   }
 
-  /**
-   * Based on: https://github.com/apache/incubator-iceberg/blob/master/
-   * spark/src/test/java/org/apache/iceberg/spark/source/SimpleRecord.java
-   */
   public static Record createSimpleRecord(long id, String data) {
     Schema schema = new Schema(required(1, "id", Types.StringType.get()),
         optional(2, "data", Types.LongType.get()));
@@ -111,11 +107,11 @@ public class TestHelpers {
     return record;
   }
 
-  public static Record createCustomRecord(Schema schema, List<?> dataValues) {
+  public static Record createCustomRecord(Schema schema, Object... dataValues) {
     GenericRecord record = GenericRecord.create(schema);
     List<Types.NestedField> fields = schema.columns();
     for (int i = 0; i < fields.size(); i++) {
-      record.setField(fields.get(i).name(), dataValues.get(i));
+      record.set(i, dataValues[i]);
     }
     return record;
   }
