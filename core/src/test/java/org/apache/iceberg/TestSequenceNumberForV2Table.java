@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -31,62 +30,6 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
 
   public TestSequenceNumberForV2Table() {
     super(2);
-  }
-
-  @Test
-  public void testMergeAppend() throws IOException {
-    table.newAppend().appendFile(FILE_A).commit();
-    Snapshot snap1 = table.currentSnapshot();
-    long commitId1 = snap1.snapshotId();
-    ManifestFile manifestFile = table.currentSnapshot().allManifests().get(0);
-
-    validateSnapshot(null, snap1, 1, FILE_A);
-    validateManifest(manifestFile, seqs(1), ids(commitId1), files(FILE_A));
-    V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap1.sequenceNumber());
-    V2Assert.assertEquals("Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
-
-    table.newAppend().appendFile(FILE_B).commit();
-    Snapshot snap2 = table.currentSnapshot();
-    long commitId2 = snap2.snapshotId();
-    manifestFile = table.currentSnapshot().allManifests().get(0);
-    validateSnapshot(snap1, snap2, 2, FILE_B);
-    validateManifest(manifestFile, seqs(2), ids(commitId2), files(FILE_B));
-    V2Assert.assertEquals("Snapshot sequence number should be 2", 2, snap2.sequenceNumber());
-    V2Assert.assertEquals("Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
-
-    table.newAppend()
-        .appendManifest(writeManifest("input-m0.avro",
-            manifestEntry(ManifestEntry.Status.ADDED, null, FILE_C)))
-        .commit();
-    Snapshot snap3 = table.currentSnapshot();
-    long commitId3 = snap3.snapshotId();
-    manifestFile = table.currentSnapshot().allManifests().get(0);
-    validateManifest(manifestFile, seqs(3), ids(commitId3), files(FILE_C));
-    validateSnapshot(snap2, snap3, 3, FILE_C);
-    V2Assert.assertEquals("Snapshot sequence number should be 3", 3, snap3.sequenceNumber());
-    V2Assert.assertEquals("Last sequence number should be 3", 3, readMetadata().lastSequenceNumber());
-
-    table.updateProperties()
-        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1")
-        .commit();
-
-    table.newAppend()
-        .appendManifest(writeManifest("input-m1.avro",
-            manifestEntry(ManifestEntry.Status.ADDED, null, FILE_D)))
-        .commit();
-
-    Snapshot snap4 = table.currentSnapshot();
-    long commitId4 = snap4.snapshotId();
-    manifestFile = snap4.allManifests().stream()
-        .filter(manifest -> manifest.snapshotId() == commitId4)
-        .collect(Collectors.toList()).get(0);
-    validateManifest(manifestFile,
-        seqs(4, 3, 2, 1),
-        ids(commitId4, commitId3, commitId2, commitId1),
-        files(FILE_D, FILE_C, FILE_B, FILE_A),
-        statuses(Status.ADDED, Status.EXISTING, Status.EXISTING, Status.EXISTING));
-    V2Assert.assertEquals("Snapshot sequence number should be 4", 4, snap4.sequenceNumber());
-    V2Assert.assertEquals("Last sequence number should be 4", 4, readMetadata().lastSequenceNumber());
   }
 
   @Test
