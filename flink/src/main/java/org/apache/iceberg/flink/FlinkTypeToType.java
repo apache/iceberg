@@ -90,7 +90,7 @@ public class FlinkTypeToType extends FlinkTypeVisitor<Type> {
 
   @Override
   public Type collection(CollectionDataType collection, Type elementType) {
-    if (collection.getLogicalType().isNullable()) {
+    if (collection.getElementDataType().getLogicalType().isNullable()) {
       return Types.ListType.ofOptional(getNextId(), elementType);
     } else {
       return Types.ListType.ofRequired(getNextId(), elementType);

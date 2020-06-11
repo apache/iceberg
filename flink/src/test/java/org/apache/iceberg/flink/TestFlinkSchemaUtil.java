@@ -189,18 +189,18 @@ public class TestFlinkSchemaUtil {
         ).nullable()) /* Optional */
         .field("list_map_fields", DataTypes.ARRAY(
             DataTypes.MAP(
-                DataTypes.ARRAY(DataTypes.INT()).notNull(), /* Key of map must be required */
+                DataTypes.ARRAY(DataTypes.INT().notNull()), /* Key of map must be required */
                 DataTypes.ROW(
                     DataTypes.FIELD("field_0", DataTypes.INT(), "doc - int")
                 )
-            )
+            ).notNull()
         ).notNull()) /* Required */
         .build();
 
     Schema actualSchema = FlinkSchemaUtil.convert(flinkSchema);
     Schema expectedSchema = new Schema(
         Types.NestedField.required(0, "list_struct_fields",
-            Types.ListType.ofRequired(4, Types.StructType.of(
+            Types.ListType.ofOptional(4, Types.StructType.of(
                 Types.NestedField.optional(3, "field_int", Types.IntegerType.get())
             ))),
         Types.NestedField.optional(1, "list_optional_struct_fields",
