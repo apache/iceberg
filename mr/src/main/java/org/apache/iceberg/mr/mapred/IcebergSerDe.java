@@ -85,7 +85,7 @@ public class IcebergSerDe extends AbstractSerDe {
 
   @Override
   public Writable serialize(Object o, ObjectInspector objectInspector) {
-    return null;
+    throw new UnsupportedOperationException("Serialization is not supported.");
   }
 
   @Override

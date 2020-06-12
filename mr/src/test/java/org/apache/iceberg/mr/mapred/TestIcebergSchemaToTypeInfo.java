@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.mr.mapred;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
@@ -48,11 +46,27 @@ public class TestIcebergSchemaToTypeInfo {
         required(18, "binary", Types.BinaryType.get()));
     List<TypeInfo> types = IcebergSchemaToTypeInfo.getColumnTypes(schema);
 
-    assertEquals(8, types.size());
+    assertEquals("Converted TypeInfo should have the same number of columns.", 8, types.size());
+    assertEquals("IntegerType converted incorrectly.",
+        TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.INT_TYPE_NAME), types.get(0));
+    assertEquals("StringType converted incorrectly.",
+        TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.STRING_TYPE_NAME), types.get(1));
+    assertEquals("BooleanType converted incorrectly.",
+        TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.BOOLEAN_TYPE_NAME), types.get(2));
+    assertEquals("FloatType converted incorrectly.",
+        TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.FLOAT_TYPE_NAME), types.get(3));
+    assertEquals("LongType converted incorrectly.",
+        TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.BIGINT_TYPE_NAME), types.get(4));
+    assertEquals("DateType converted incorrectly.",
+        TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.DATE_TYPE_NAME), types.get(5));
+    assertEquals("DoubleType converted incorrectly.",
+        TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.DOUBLE_TYPE_NAME), types.get(6));
+    assertEquals("BinaryType converted incorrectly.",
+        TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.BINARY_TYPE_NAME), types.get(7));
   }
 
   @Test
-  public void testGenerateMapTypeInfo() throws Exception {
+  public void testGenerateMapWithStringKeyTypeInfo() throws Exception {
     TypeInfo expected = TypeInfoFactory.getMapTypeInfo(
         TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.STRING_TYPE_NAME),
         TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.STRING_TYPE_NAME));
@@ -65,8 +79,26 @@ public class TestIcebergSchemaToTypeInfo {
 
     List<TypeInfo> types = IcebergSchemaToTypeInfo.getColumnTypes(schema);
 
-    assertEquals(1, types.size());
-    assertEquals(expected, types.get(0));
+    assertEquals("Converted TypeInfo should have the same number of columns.", 1, types.size());
+    assertEquals("MapType converted incorrectly.", expected, types.get(0));
+  }
+
+  @Test
+  public void testGenerateMapWithIntKeyTypeInfo() throws Exception {
+    TypeInfo expected = TypeInfoFactory.getMapTypeInfo(
+        TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.INT_TYPE_NAME),
+        TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.STRING_TYPE_NAME));
+
+    Schema schema = new Schema(
+        optional(7, "properties", Types.MapType.ofOptional(18, 19,
+            Types.IntegerType.get(),
+            Types.StringType.get()
+        ), "string map of properties"));
+
+    List<TypeInfo> types = IcebergSchemaToTypeInfo.getColumnTypes(schema);
+
+    assertEquals("Converted TypeInfo should have the same number of columns.", 1, types.size());
+    assertEquals("MapType converted incorrectly.", expected, types.get(0));
   }
 
   @Test
@@ -79,84 +111,7 @@ public class TestIcebergSchemaToTypeInfo {
         )));
     List<TypeInfo> types = IcebergSchemaToTypeInfo.getColumnTypes(schema);
 
-    assertEquals(1, types.size());
-    assertEquals(expected, types.get(0));
-  }
-
-  @Test
-  public void testGenerateMapAndStructTypeInfo() throws Exception {
-    List<String> names1 = new ArrayList<>(Arrays.asList("address", "city", "state", "zip"));
-    List<TypeInfo> typeInfo1 = new ArrayList<>(Arrays.asList(
-        TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.STRING_TYPE_NAME),
-        TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.STRING_TYPE_NAME),
-        TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.STRING_TYPE_NAME),
-        TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.INT_TYPE_NAME)
-    ));
-    TypeInfo mapKeyStructExpected = TypeInfoFactory.getStructTypeInfo(names1, typeInfo1);
-
-    List<String> names2 = new ArrayList<>(Arrays.asList("lat", "long"));
-    List<TypeInfo> typeInfo2 = new ArrayList<>(Arrays.asList(
-        TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.FLOAT_TYPE_NAME),
-        TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.FLOAT_TYPE_NAME)
-    ));
-    TypeInfo mapValueStructExpected = TypeInfoFactory.getStructTypeInfo(names2, typeInfo2);
-
-    TypeInfo expected = TypeInfoFactory.getMapTypeInfo(mapKeyStructExpected, mapValueStructExpected);
-
-    Schema schema = new Schema(
-        required(4, "locations", Types.MapType.ofRequired(10, 11,
-            Types.StructType.of(
-                required(20, "address", Types.StringType.get()),
-                required(21, "city", Types.StringType.get()),
-                required(22, "state", Types.StringType.get()),
-                required(23, "zip", Types.IntegerType.get())
-            ),
-            Types.StructType.of(
-                required(12, "lat", Types.FloatType.get()),
-                required(13, "long", Types.FloatType.get())
-            )), "map of address to coordinate"));
-    List<TypeInfo> types = IcebergSchemaToTypeInfo.getColumnTypes(schema);
-
-    assertEquals(1, types.size());
-    assertEquals(expected, types.get(0));
-  }
-
-  @Test
-  public void testComplexSchema() throws Exception {
-    Schema schema = new Schema(
-        required(1, "id", Types.IntegerType.get()),
-        optional(2, "data", Types.StringType.get()),
-        optional(3, "preferences", Types.StructType.of(
-            required(8, "feature1", Types.BooleanType.get()),
-            optional(9, "feature2", Types.BooleanType.get())
-        ), "struct of named boolean options"),
-        required(6, "doubles", Types.ListType.ofRequired(17,
-            Types.DoubleType.get()
-        )),
-        optional(7, "properties", Types.MapType.ofOptional(18, 19,
-            Types.StringType.get(),
-            Types.StringType.get()
-        ), "string map of properties")
-    );
-    List<TypeInfo> types = IcebergSchemaToTypeInfo.getColumnTypes(schema);
-
-    assertEquals(5, types.size());
-    assertEquals(TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.INT_TYPE_NAME), types.get(0));
-    assertEquals(TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.STRING_TYPE_NAME), types.get(1));
-
-    List<String> preferencesNames = new ArrayList<>(Arrays.asList("feature1", "feature2"));
-    List<TypeInfo> preferencesTypeInfo = new ArrayList<>(Arrays.asList(
-        TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.BOOLEAN_TYPE_NAME),
-        TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.BOOLEAN_TYPE_NAME)
-    ));
-    TypeInfo preferencesTypeExpected = TypeInfoFactory.getStructTypeInfo(preferencesNames, preferencesTypeInfo);
-    assertEquals(preferencesTypeExpected, types.get(2));
-    assertEquals(TypeInfoFactory.getListTypeInfo(
-        TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.DOUBLE_TYPE_NAME)), types.get(3));
-
-    TypeInfo propertiesExpected = TypeInfoFactory.getMapTypeInfo(
-        TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.STRING_TYPE_NAME),
-        TypeInfoFactory.getPrimitiveTypeInfo(serdeConstants.STRING_TYPE_NAME));
-    assertEquals(propertiesExpected, types.get(4));
+    assertEquals("Converted TypeInfo should have the same number of columns.", 1, types.size());
+    assertEquals("ListType converted incorrectly.", expected, types.get(0));
   }
 }

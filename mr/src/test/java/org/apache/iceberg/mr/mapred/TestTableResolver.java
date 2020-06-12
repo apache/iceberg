@@ -27,18 +27,6 @@ import static org.junit.Assert.assertEquals;
 public class TestTableResolver {
 
   @Test
-  public void extractWarehouseLocationRegularTable() {
-    // This is the style of input expected from HiveConf
-    String testLocation = "some/folder/database/table_a";
-    String testTableName = "database.table_a";
-
-    String expected = "some/folder/";
-    String result = TableResolver.extractWarehousePath(testLocation, testTableName);
-
-    assertEquals(expected, result);
-  }
-
-  @Test
   public void extractPropertyFromJobConf() {
     JobConf conf = new JobConf();
     String key = "iceberg.catalog";
