@@ -36,15 +36,17 @@ import org.apache.parquet.column.page.PageReader;
 public class VectorizedColumnIterator extends BaseColumnIterator {
 
   private final VectorizedPageIterator vectorizedPageIterator;
-  private final int batchSize;
+  private int batchSize;
 
-  public VectorizedColumnIterator(ColumnDescriptor desc, String writerVersion, int batchSize,
-                                  boolean setArrowValidityVector) {
+  public VectorizedColumnIterator(ColumnDescriptor desc, String writerVersion, boolean setArrowValidityVector) {
     super(desc);
     Preconditions.checkArgument(desc.getMaxRepetitionLevel() == 0,
         "Only non-nested columns are supported for vectorized reads");
-    this.batchSize = batchSize;
     this.vectorizedPageIterator = new VectorizedPageIterator(desc, writerVersion, setArrowValidityVector);
+  }
+
+  public void setBatchSize(int batchSize) {
+    this.batchSize = batchSize;
   }
 
   public Dictionary setRowGroupInfo(PageReader store, boolean allPagesDictEncoded) {

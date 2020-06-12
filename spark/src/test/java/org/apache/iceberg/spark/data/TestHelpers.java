@@ -33,10 +33,12 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.arrow.vector.ValueVector;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.data.vectorized.IcebergArrowColumnVector;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.storage.serde2.io.DateWritable;
@@ -54,6 +56,7 @@ import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.Assert;
@@ -80,11 +83,27 @@ public class TestHelpers {
     }
   }
 
-  public static void assertEqualsBatch(Types.StructType struct, Iterator<Record> expected, ColumnarBatch batch) {
-    for (int r = 0; r < batch.numRows(); r++) {
-      assertEqualsUnsafe(struct, expected.next(), batch.getRow(r));
+  public static void assertEqualsBatch(Types.StructType struct, Iterator<Record> expected, ColumnarBatch batch,
+                                       boolean checkArrowValidityVector) {
+    for (int rowId = 0; rowId < batch.numRows(); rowId++) {
+      List<Types.NestedField> fields = struct.fields();
+      InternalRow row = batch.getRow(rowId);
+      Record rec = expected.next();
+      for (int i = 0; i < fields.size(); i += 1) {
+        Type fieldType = fields.get(i).type();
+        Object expectedValue = rec.get(i);
+        Object actualValue = row.isNullAt(i) ? null : row.get(i, convert(fieldType));
+        assertEqualsUnsafe(fieldType, expectedValue, actualValue);
+
+        if (checkArrowValidityVector) {
+          ColumnVector columnVector = batch.column(i);
+          ValueVector arrowVector = ((IcebergArrowColumnVector) columnVector).vectorAccessor().getVector();
+          Assert.assertEquals("Nullability doesn't match", expectedValue == null, arrowVector.isNull(rowId));
+        }
+      }
     }
   }
+
 
   private static void assertEqualsSafe(Types.ListType list, Collection<?> expected, List actual) {
     Type elementType = list.elementType();

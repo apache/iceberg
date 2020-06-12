@@ -64,10 +64,9 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
           for (int i = 0; i < numValues; i++) {
             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
               vector.getDataBuffer().setInt(idx * IntVector.TYPE_WIDTH, dictionaryEncodedValuesReader.readInteger());
+              nullabilityHolder.setNotNull(idx);
               if (setArrowValidityVector) {
                 BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
-              } else {
-                nullabilityHolder.setNotNull(idx);
               }
             } else {
               setNull(nullabilityHolder, idx, vector.getValidityBuffer());
@@ -106,10 +105,9 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
           for (int i = 0; i < numValues; ++i) {
             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
               vector.getDataBuffer().setLong(bufferIdx * typeWidth, valuesReader.readLong());
+              nullabilityHolder.setNotNull(bufferIdx);
               if (setArrowValidityVector) {
                 BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), bufferIdx);
-              } else {
-                nullabilityHolder.setNotNull(bufferIdx);
               }
             } else {
               setNull(nullabilityHolder, bufferIdx, vector.getValidityBuffer());
@@ -140,12 +138,11 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
             for (int i = 0; i < numValues; i++) {
               vector.getDataBuffer().setLong(bufferIdx * typeWidth, valuesReader.readLong() * 1000);
             }
+            nullabilityHolder.setNotNulls(bufferIdx, numValues);
             if (setArrowValidityVector) {
               for (int i = 0; i < numValues; i++) {
                 BitVectorHelper.setValidityBitToOne(validityBuffer, bufferIdx + i);
               }
-            } else {
-              nullabilityHolder.setNotNulls(bufferIdx, numValues);
             }
           } else {
             setNulls(nullabilityHolder, bufferIdx, numValues, validityBuffer);
@@ -156,10 +153,9 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
           for (int i = 0; i < numValues; i++) {
             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
               vector.getDataBuffer().setLong(bufferIdx * typeWidth, valuesReader.readLong() * 1000);
+              nullabilityHolder.setNotNull(bufferIdx);
               if (setArrowValidityVector) {
                 BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), bufferIdx);
-              } else {
-                nullabilityHolder.setNotNull(bufferIdx);
               }
             } else {
               setNull(nullabilityHolder, bufferIdx, vector.getValidityBuffer());
@@ -204,10 +200,9 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
               vector.getDataBuffer().setLong(idx * typeWidth,
                   dict.decodeToLong(dictionaryEncodedValuesReader.readInteger()));
+              nullabilityHolder.setNotNull(idx);
               if (setArrowValidityVector) {
                 BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
-              } else {
-                nullabilityHolder.setNotNull(idx);
               }
             } else {
               setNull(nullabilityHolder, idx, validityBuffer);
@@ -252,10 +247,9 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
               vector.getDataBuffer().setLong(idx * typeWidth,
                   dict.decodeToLong(dictionaryEncodedValuesReader.readInteger()) * 1000);
+              nullabilityHolder.setNotNull(idx);
               if (setArrowValidityVector) {
                 BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
-              } else {
-                nullabilityHolder.setNotNull(idx);
               }
             } else {
               setNull(nullabilityHolder, idx, validityBuffer);
@@ -294,10 +288,9 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
           for (int i = 0; i < num; ++i) {
             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
               vector.getDataBuffer().setInt(bufferIdx * typeWidth, valuesReader.readInteger());
+              nullabilityHolder.setNotNull(bufferIdx);
               if (setArrowValidityVector) {
                 BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), bufferIdx);
-              } else {
-                nullabilityHolder.setNotNull(bufferIdx);
               }
             } else {
               setNull(nullabilityHolder, bufferIdx, vector.getValidityBuffer());
@@ -341,10 +334,9 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
               vector.getDataBuffer()
                   .setInt(idx * typeWidth, dict.decodeToInt(dictionaryEncodedValuesReader.readInteger()));
+              nullabilityHolder.setNotNull(idx);
               if (setArrowValidityVector) {
                 BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
-              } else {
-                nullabilityHolder.setNotNull(idx);
               }
             } else {
               setNull(nullabilityHolder, idx, vector.getValidityBuffer());
@@ -383,10 +375,9 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
           for (int i = 0; i < num; ++i) {
             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
               vector.getDataBuffer().setFloat(bufferIdx * typeWidth, valuesReader.readFloat());
+              nullabilityHolder.setNotNull(bufferIdx);
               if (setArrowValidityVector) {
                 BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), bufferIdx);
-              } else {
-                nullabilityHolder.setNotNull(bufferIdx);
               }
             } else {
               setNull(nullabilityHolder, bufferIdx, vector.getValidityBuffer());
@@ -431,10 +422,9 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
               vector.getDataBuffer()
                   .setFloat(idx * typeWidth, dict.decodeToFloat(dictionaryEncodedValuesReader.readInteger()));
+              nullabilityHolder.setNotNull(idx);
               if (setArrowValidityVector) {
                 BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
-              } else {
-                nullabilityHolder.setNotNull(idx);
               }
             } else {
               setNull(nullabilityHolder, idx, validityBuffer);
@@ -474,10 +464,9 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
           for (int i = 0; i < num; ++i) {
             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
               vector.getDataBuffer().setDouble(bufferIdx * typeWidth, valuesReader.readDouble());
+              nullabilityHolder.setNotNull(bufferIdx);
               if (setArrowValidityVector) {
                 BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(),  bufferIdx);
-              } else {
-                nullabilityHolder.setNotNull(bufferIdx);
               }
             } else {
               setNull(nullabilityHolder, bufferIdx, vector.getValidityBuffer());
@@ -521,10 +510,9 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
             if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
               vector.getDataBuffer()
                   .setDouble(idx * typeWidth, dict.decodeToDouble(dictionaryEncodedValuesReader.readInteger()));
+              nullabilityHolder.setNotNull(idx);
               if (setArrowValidityVector) {
                 BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
-              } else {
-                nullabilityHolder.setNotNull(idx);
               }
             } else {
               setNull(nullabilityHolder, idx, vector.getValidityBuffer());
@@ -608,10 +596,9 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
               ByteBuffer buffer = dict.decodeToBinary(dictionaryEncodedValuesReader.readInteger()).toByteBuffer();
               vector.getDataBuffer().setBytes(idx * typeWidth, buffer.array(),
                   buffer.position() + buffer.arrayOffset(), buffer.limit() - buffer.position());
+              nullabilityHolder.setNotNull(idx);
               if (setArrowValidityVector) {
                 BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
-              } else {
-                nullabilityHolder.setNotNull(idx);
               }
             } else {
               setNull(nullabilityHolder, idx, vector.getValidityBuffer());
@@ -768,10 +755,9 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
         buffer.limit() - buffer.position());
     // Similarly, we need to get the latest reference to the validity buffer as well
     // since reallocation changes reference of the validity buffers as well.
+    nullabilityHolder.setNotNull(bufferIdx);
     if (setArrowValidityVector) {
       BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), bufferIdx);
-    } else {
-      nullabilityHolder.setNotNull(bufferIdx);
     }
   }
 
@@ -862,10 +848,9 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
                                        ValuesAsBytesReader valuesReader, int bufferIdx, byte[] byteArray) {
     valuesReader.getBuffer(typeWidth).get(byteArray, 0, typeWidth);
     vector.getDataBuffer().setBytes(bufferIdx * DecimalVector.TYPE_WIDTH, byteArray);
+    nullabilityHolder.setNotNull(bufferIdx);
     if (setArrowValidityVector) {
       BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), bufferIdx);
-    } else {
-      nullabilityHolder.setNotNull(bufferIdx);
     }
   }
 
@@ -976,12 +961,11 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
     if (currentValue == maxDefLevel) {
       ByteBuffer buffer = valuesReader.getBuffer(numValues * typeWidth);
       vector.getDataBuffer().setBytes(bufferIdx * typeWidth, buffer);
+      nullabilityHolder.setNotNulls(bufferIdx, numValues);
       if (setArrowValidityVector) {
         for (int i = 0; i < numValues; i++) {
           BitVectorHelper.setValidityBitToOne(validityBuffer, bufferIdx + i);
         }
-      } else {
-        nullabilityHolder.setNotNulls(bufferIdx, numValues);
       }
     } else {
       setNulls(nullabilityHolder, bufferIdx, numValues, validityBuffer);
@@ -989,20 +973,18 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
   }
 
   private void setNull(NullabilityHolder nullabilityHolder, int bufferIdx, ArrowBuf validityBuffer) {
+    nullabilityHolder.setNull(bufferIdx);
     if (setArrowValidityVector) {
       BitVectorHelper.setValidityBit(validityBuffer, bufferIdx, 0);
-    } else {
-      nullabilityHolder.setNull(bufferIdx);
     }
   }
 
   private void setNulls(NullabilityHolder nullabilityHolder, int idx, int numValues, ArrowBuf validityBuffer) {
+    nullabilityHolder.setNulls(idx, numValues);
     if (setArrowValidityVector) {
       for (int i = 0; i < numValues; i++) {
         BitVectorHelper.setValidityBit(validityBuffer, idx + i, 0);
       }
-    } else {
-      nullabilityHolder.setNulls(idx, numValues);
     }
   }
 

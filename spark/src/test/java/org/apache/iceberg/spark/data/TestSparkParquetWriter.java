@@ -71,7 +71,7 @@ public class TestSparkParquetWriter {
 
   @Test
   public void testCorrectness() throws IOException {
-    int numRows = 250_000;
+    int numRows = 50_000;
     Iterable<InternalRow> records = RandomData.generateSpark(COMPLEX_SCHEMA, numRows, 19981);
 
     File testFile = temp.newFile();

@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.data.vectorized;
 
-import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.arrow.vectorized.VectorHolder;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -39,7 +38,6 @@ public class IcebergArrowColumnVector extends ColumnVector {
 
   private final ArrowVectorAccessor accessor;
   private final NullabilityHolder nullabilityHolder;
-  private static final boolean USE_VECTOR_VALIDITY_BUFFER = NullCheckingForGet.NULL_CHECKING_ENABLED;
 
   public IcebergArrowColumnVector(VectorHolder holder) {
     super(SparkSchemaUtil.convert(holder.icebergType()));
@@ -54,17 +52,17 @@ public class IcebergArrowColumnVector extends ColumnVector {
 
   @Override
   public boolean hasNull() {
-    return USE_VECTOR_VALIDITY_BUFFER ? accessor.getVector().getNullCount() > 0 : nullabilityHolder.hasNulls();
+    return nullabilityHolder.hasNulls();
   }
 
   @Override
   public int numNulls() {
-    return USE_VECTOR_VALIDITY_BUFFER ? accessor.getVector().getNullCount() : nullabilityHolder.numNulls();
+    return nullabilityHolder.numNulls();
   }
 
   @Override
   public boolean isNullAt(int rowId) {
-    return USE_VECTOR_VALIDITY_BUFFER ? accessor.getVector().isNull(rowId) : nullabilityHolder.isNullAt(rowId) == 1;
+    return nullabilityHolder.isNullAt(rowId) == 1;
   }
 
   @Override
@@ -147,5 +145,9 @@ public class IcebergArrowColumnVector extends ColumnVector {
   static ColumnVector forHolder(VectorHolder holder, int numRows) {
     return holder.isDummy() ? new NullValuesColumnVector(numRows) :
         new IcebergArrowColumnVector(holder);
+  }
+
+  public ArrowVectorAccessor vectorAccessor() {
+    return accessor;
   }
 }

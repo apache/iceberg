@@ -28,11 +28,21 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.data.RandomData;
+import org.junit.Ignore;
+import org.junit.Test;
 
 public class TestParquetDictionaryFallbackToPlainEncodingVectorizedReads extends TestParquetVectorizedReads {
+  private static final int NUM_ROWS = 1_000_000;
+
   @Override
-  public Iterable<GenericData.Record> generateData(int numRows, Schema schema) {
-    return RandomData.generateFallbackData(schema, numRows, 0L, numRows / 20);
+  protected int getNumRows() {
+    return NUM_ROWS;
+  }
+
+  @Override
+  Iterable<GenericData.Record> generateData(Schema schema, int numRecords, long seed, float nullPercentage) {
+    //TODO: take into account nullPercentage when generating fallback encoding data
+    return RandomData.generateFallbackData(schema, numRecords, seed, numRecords / 20);
   }
 
   @Override
@@ -44,4 +54,17 @@ public class TestParquetDictionaryFallbackToPlainEncodingVectorizedReads extends
         .build();
   }
 
+  @Test
+  @Override
+  @Ignore // Fallback encoding not triggered when data is mostly null
+  public void testMostlyNullsForOptionalFields() {
+
+  }
+
+  @Test
+  @Override
+  @Ignore // Ignored since this code path is already tested in TestParquetVectorizedReads
+  public void testVectorizedReadsWithNewContainers() throws IOException {
+
+  }
 }

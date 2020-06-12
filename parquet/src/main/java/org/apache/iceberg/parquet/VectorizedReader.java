@@ -31,25 +31,23 @@ public interface VectorizedReader<T> {
 
   /**
    * Reads a batch of type @param &lt;T&gt; and of size numRows
+   *
+   * @param reuse   container for the last batch to be reused for next batch
    * @param numRows number of rows to read
    * @return batch of records of type @param &lt;T&gt;
    */
-  T read(int numRows);
+  T read(T reuse, int numRows);
+
+  void setBatchSize(int batchSize);
 
   /**
-   *
-   * @param pages row group information for all the columns
+   * @param pages    row group information for all the columns
    * @param metadata map of {@link ColumnPath} -&gt; {@link ColumnChunkMetaData} for the row group
    */
   void setRowGroupInfo(PageReadStore pages, Map<ColumnPath, ColumnChunkMetaData> metadata);
 
   /**
-   * Set up the reader to reuse the underlying containers used for storing batches
-   */
-  void reuseContainers(boolean reuse);
-
-  /**
-   * Release any resources allocated
+   * Release any resources allocated.
    */
   void close();
 }

@@ -137,8 +137,8 @@ public class ArrowVectorAccessors {
       return new DecimalAccessor((IcebergArrowVectors.DecimalArrowVector) vector);
     } else if (vector instanceof IcebergArrowVectors.VarcharArrowVector) {
       return new StringAccessor((IcebergArrowVectors.VarcharArrowVector) vector);
-    } else if (vector instanceof IcebergArrowVectors.VarBinaryArrowVector) {
-      return new BinaryAccessor((IcebergArrowVectors.VarBinaryArrowVector) vector);
+    } else if (vector instanceof VarBinaryVector) {
+      return new BinaryAccessor((VarBinaryVector) vector);
     } else if (vector instanceof DateDayVector) {
       return new DateAccessor((DateDayVector) vector);
     } else if (vector instanceof TimeStampMicroTZVector) {
@@ -338,7 +338,7 @@ public class ArrowVectorAccessors {
 
     @Override
     final byte[] getBinary(int rowId) {
-      return vector.getObject(rowId);
+      return vector.get(rowId);
     }
   }
 

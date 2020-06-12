@@ -26,7 +26,7 @@ import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.unsafe.types.UTF8String;
 
 @SuppressWarnings("checkstyle:VisibilityModifier")
-abstract class ArrowVectorAccessor {
+public abstract class ArrowVectorAccessor {
 
   private final ValueVector vector;
   private final ArrowColumnVector[] childColumns;
@@ -89,7 +89,7 @@ abstract class ArrowVectorAccessor {
     return childColumns[pos];
   }
 
-  ValueVector getVector() {
+  public ValueVector getVector() {
     return vector;
   }
 }

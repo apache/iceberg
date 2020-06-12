@@ -38,11 +38,13 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
  */
 public class ColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
   private final VectorizedArrowReader[] readers;
+  private final VectorHolder[] vectorHolders;
 
   public ColumnarBatchReader(List<VectorizedReader<?>> readers) {
     this.readers = readers.stream()
         .map(VectorizedArrowReader.class::cast)
         .toArray(VectorizedArrowReader[]::new);
+    this.vectorHolders = new VectorHolder[readers.size()];
   }
 
   @Override
@@ -55,28 +57,39 @@ public class ColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
   }
 
   @Override
-  public void reuseContainers(boolean reuse) {
-    for (VectorizedReader<?> reader : readers) {
-      reader.reuseContainers(reuse);
-    }
-  }
-
-  @Override
-  public final ColumnarBatch read(int numRowsToRead) {
+  public final ColumnarBatch read(ColumnarBatch reuse, int numRowsToRead) {
     Preconditions.checkArgument(numRowsToRead > 0, "Invalid number of rows to read: %s", numRowsToRead);
     ColumnVector[] arrowColumnVectors = new ColumnVector[readers.length];
+
+    if (reuse == null) {
+      closeVectors();
+    }
+
     for (int i = 0; i < readers.length; i += 1) {
-      VectorHolder holder = readers[i].read(numRowsToRead);
-      int numRowsInVector = holder.numValues();
+      vectorHolders[i] = readers[i].read(vectorHolders[i], numRowsToRead);
+      int numRowsInVector = vectorHolders[i].numValues();
       Preconditions.checkState(
           numRowsInVector == numRowsToRead,
           "Number of rows in the vector %s didn't match expected %s ", numRowsInVector,
           numRowsToRead);
-      arrowColumnVectors[i] = IcebergArrowColumnVector.forHolder(holder, numRowsInVector);
+      arrowColumnVectors[i] =
+          IcebergArrowColumnVector.forHolder(vectorHolders[i], numRowsInVector);
     }
     ColumnarBatch batch = new ColumnarBatch(arrowColumnVectors);
     batch.setNumRows(numRowsToRead);
     return batch;
+  }
+
+  private void closeVectors() {
+    for (int i = 0; i < vectorHolders.length; i++) {
+      if (vectorHolders[i] != null) {
+        // Release any resources used by the vector
+        if (vectorHolders[i].vector() != null) {
+          vectorHolders[i].vector().close();
+        }
+        vectorHolders[i] = null;
+      }
+    }
   }
 
   @Override
@@ -86,4 +99,12 @@ public class ColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
     }
   }
 
+  @Override
+  public void setBatchSize(int batchSize) {
+    for (VectorizedArrowReader reader : readers) {
+      if (reader != null) {
+        reader.setBatchSize(batchSize);
+      }
+    }
+  }
 }

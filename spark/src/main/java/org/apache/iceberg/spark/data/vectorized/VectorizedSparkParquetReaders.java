@@ -19,19 +19,18 @@
 
 package org.apache.iceberg.spark.data.vectorized;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.GroupType;
@@ -47,43 +46,36 @@ public class VectorizedSparkParquetReaders {
   public static ColumnarBatchReader buildReader(
       Schema expectedSchema,
       MessageType fileSchema,
-      Integer recordsPerBatch) {
+      boolean setArrowValidityVector) {
     return (ColumnarBatchReader)
         TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-            new VectorizedReaderBuilder(expectedSchema, fileSchema, recordsPerBatch));
+            new VectorizedReaderBuilder(expectedSchema, fileSchema, setArrowValidityVector));
   }
 
   private static class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedReader<?>> {
     private final MessageType parquetSchema;
     private final Schema icebergSchema;
     private final BufferAllocator rootAllocator;
-    private final int batchSize;
+    private final boolean setArrowValidityVector;
 
     VectorizedReaderBuilder(
         Schema expectedSchema,
         MessageType parquetSchema,
-        int bSize) {
+        boolean setArrowValidityVector) {
       this.parquetSchema = parquetSchema;
       this.icebergSchema = expectedSchema;
-      this.batchSize = bSize;
       this.rootAllocator = ArrowAllocation.rootAllocator()
           .newChildAllocator("VectorizedReadBuilder", 0, Long.MAX_VALUE);
+      this.setArrowValidityVector = setArrowValidityVector;
     }
 
     @Override
     public VectorizedReader<?> message(
             Types.StructType expected, MessageType message,
             List<VectorizedReader<?>> fieldReaders) {
-      return struct(expected, message.asGroupType(), fieldReaders);
-    }
-
-    @Override
-    public VectorizedReader<?> struct(
-            Types.StructType expected, GroupType struct,
-            List<VectorizedReader<?>> fieldReaders) {
-
+      GroupType groupType = message.asGroupType();
       Map<Integer, VectorizedReader<?>> readersById = Maps.newHashMap();
-      List<Type> fields = struct.getFields();
+      List<Type> fields = groupType.getFields();
 
       IntStream.range(0, fields.size())
           .forEach(pos -> readersById.put(fields.get(pos).getId().intValue(), fieldReaders.get(pos)));
@@ -107,6 +99,16 @@ public class VectorizedSparkParquetReaders {
     }
 
     @Override
+    public VectorizedReader<?> struct(
+        Types.StructType expected, GroupType groupType,
+        List<VectorizedReader<?>> fieldReaders) {
+      if (expected != null) {
+        throw new UnsupportedOperationException("Vectorized reads are not supported yet for struct fields");
+      }
+      return null;
+    }
+
+    @Override
     public VectorizedReader<?> primitive(
         org.apache.iceberg.types.Type.PrimitiveType expected,
         PrimitiveType primitive) {
@@ -123,8 +125,7 @@ public class VectorizedSparkParquetReaders {
         return null;
       }
       // Set the validity buffer if null checking is enabled in arrow
-      return new VectorizedArrowReader(desc, icebergField, rootAllocator,
-          batchSize, /* setArrowValidityVector */ NullCheckingForGet.NULL_CHECKING_ENABLED);
+      return new VectorizedArrowReader(desc, icebergField, rootAllocator, setArrowValidityVector);
     }
   }
 }

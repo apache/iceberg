@@ -19,13 +19,24 @@
 
 package org.apache.iceberg.spark.data.parquet.vectorized;
 
+import java.io.IOException;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.spark.data.RandomData;
+import org.junit.Ignore;
+import org.junit.Test;
 
 public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVectorizedReads {
+
   @Override
-  Iterable<GenericData.Record> generateData(int numRows, Schema schema) {
-    return RandomData.generateDictionaryEncodableData(schema, numRows, 0L);
+  Iterable<GenericData.Record> generateData(Schema schema, int numRecords, long seed, float nullPercentage) {
+    return RandomData.generateDictionaryEncodableData(schema, numRecords, seed, nullPercentage);
+  }
+
+  @Test
+  @Override
+  @Ignore // Ignored since this code path is already tested in TestParquetVectorizedReads
+  public void testVectorizedReadsWithNewContainers() throws IOException {
+
   }
 }

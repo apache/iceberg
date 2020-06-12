@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.spark.source;
 
-import com.google.common.base.Preconditions;
+import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
@@ -30,6 +30,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
@@ -57,10 +58,10 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
           .project(expectedSchema)
           .split(task.start(), task.length())
           .createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(expectedSchema,
-              fileSchema, batchSize))
+              fileSchema, /* setArrowValidityVector */ NullCheckingForGet.NULL_CHECKING_ENABLED))
+          .recordsPerBatch(batchSize)
           .filter(task.residual())
           .caseSensitive(caseSensitive)
-          .recordsPerBatch(batchSize)
           // Spark eagerly consumes the batches. So the underlying memory allocated could be reused
           // without worrying about subsequent reads clobbering over each other. This improves
           // read performance as every batch read doesn't have to pay the cost of allocating memory.
