@@ -304,8 +304,7 @@ public class TableMetadataParser {
       }
     }
 
-    SortedSet<MetadataLogEntry> metadataEntries =
-            Sets.newTreeSet(Comparator.comparingLong(MetadataLogEntry::timestampMillis));
+    ImmutableList.Builder<MetadataLogEntry> metadataEntries = ImmutableList.builder();
     if (node.has(METADATA_LOG)) {
       Iterator<JsonNode> logIterator = node.get(METADATA_LOG).elements();
       while (logIterator.hasNext()) {
@@ -317,7 +316,6 @@ public class TableMetadataParser {
 
     return new TableMetadata(file, formatVersion, uuid, location,
         lastSequenceNumber, lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs, properties,
-        currentVersionId, snapshots, ImmutableList.copyOf(entries.iterator()),
-        ImmutableList.copyOf(metadataEntries.iterator()));
+        currentVersionId, snapshots, ImmutableList.copyOf(entries.iterator()), metadataEntries.build());
   }
 }
