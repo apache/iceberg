@@ -253,14 +253,21 @@ public class TableMetadata {
     for (HistoryEntry logEntry : snapshotLog) {
       if (last != null) {
         Preconditions.checkArgument(
-            (logEntry.timestampMillis() - last.timestampMillis()) >= 0,
+            (logEntry.timestampMillis() - last.timestampMillis()) >= -ONE_MINUTE,
             "[BUG] Expected sorted snapshot log entries.");
       }
       last = logEntry;
     }
+    if (last != null) {
+      Preconditions.checkArgument(
+          // commits can happen concurrently from different machines.
+          // A tolerance helps us avoid failure for small clock skew
+          lastUpdatedMillis - last.timestampMillis() >= -ONE_MINUTE,
+          "lastUpdatedMillis: %s should not be < than the latest snapshot log entry timestamp %s",
+          lastUpdatedMillis, last.timestampMillis());
+    }
 
     MetadataLogEntry previous = null;
-    // TODO: this check seems redundant if we are checking lastUpdatedMillis below
     for (MetadataLogEntry metadataEntry : previousFiles) {
       if (previous != null) {
         Preconditions.checkArgument(
@@ -277,7 +284,7 @@ public class TableMetadata {
           // commits can happen concurrently from different machines.
           // A tolerance helps us avoid failure for small clock skew
           lastUpdatedMillis - previous.timestampMillis >= -ONE_MINUTE,
-          "lastUpdatedMillis: %s should not be < than the latest log entry timestamp %s",
+          "lastUpdatedMillis: %s should not be < than the latest metadata log entry timestamp %s",
           lastUpdatedMillis, previous.timestampMillis);
     }
 
