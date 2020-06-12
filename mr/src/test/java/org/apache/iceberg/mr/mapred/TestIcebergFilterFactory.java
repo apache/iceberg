@@ -188,4 +188,25 @@ public class TestIcebergFilterFactory {
     assertEquals(actual.right().op(), expected.right().op());
     assertEquals(actual.left().op(), expected.left().op());
   }
+
+  @Test
+  public void testManyOrOperand() {
+    SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
+    SearchArgument arg = builder
+        .startOr()
+        .equals("salary", PredicateLeaf.Type.LONG, 3000L)
+        .equals("job", PredicateLeaf.Type.LONG, 4000L)
+        .equals("name", PredicateLeaf.Type.LONG, 9000L)
+        .end()
+        .build();
+
+    Or expected = (Or) Expressions.or(Expressions.or(Expressions.equal("salary", 3000L),
+        Expressions.equal("job", 4000L)), Expressions.equal("name", 9000L));
+
+    Or actual = (Or) IcebergFilterFactory.generateFilterExpression(arg);
+
+    assertEquals(actual.op(), expected.op());
+    assertEquals(actual.right().op(), expected.right().op());
+    assertEquals(actual.left().op(), expected.left().op());
+  }
 }

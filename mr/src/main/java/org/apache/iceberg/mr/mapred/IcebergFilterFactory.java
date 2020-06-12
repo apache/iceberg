@@ -39,55 +39,13 @@ import static org.apache.iceberg.expressions.Expressions.or;
 
 public class IcebergFilterFactory {
 
-  private IcebergFilterFactory() {
-  }
+  private IcebergFilterFactory() {}
 
   public static Expression generateFilterExpression(SearchArgument sarg) {
     List<PredicateLeaf> leaves = sarg.getLeaves();
     List<ExpressionTree> childNodes = sarg.getExpression().getChildren();
 
-    switch (sarg.getExpression().getOperator()) {
-      case OR:
-        ExpressionTree orLeft = childNodes.get(0);
-        ExpressionTree orRight = childNodes.get(1);
-        return or(translate(orLeft, leaves), translate(orRight, leaves));
-      case AND:
-        ExpressionTree andLeft = childNodes.get(0);
-        ExpressionTree andRight = childNodes.get(1);
-        if (childNodes.size() > 2) {
-          Expression[] evaluatedChildren = getLeftoverLeaves(childNodes, leaves);
-          return and(
-                  translate(andLeft, leaves), translate(andRight, leaves), evaluatedChildren);
-        } else {
-          return and(translate(andLeft, leaves), translate(andRight, leaves));
-        }
-      case NOT:
-        return not(translateLeaf(sarg.getLeaves().get(0)));
-      case LEAF:
-        return translateLeaf(sarg.getLeaves().get(0));
-      case CONSTANT:
-        return null;
-      default:
-        throw new IllegalStateException("Unknown operator: " + sarg.getExpression().getOperator());
-    }
-  }
-
-  /**
-   * Remove first 2 nodes already evaluated and return an array of the evaluated leftover nodes.
-   * @param allChildNodes All child nodes to be evaluated for the AND expression.
-   * @param leaves All instances of the leaf nodes.
-   * @return Array of leftover evaluated nodes.
-   */
-  private static Expression[] getLeftoverLeaves(List<ExpressionTree> allChildNodes, List<PredicateLeaf> leaves) {
-    allChildNodes.remove(0);
-    allChildNodes.remove(0);
-
-    Expression[] evaluatedLeaves = new Expression[allChildNodes.size()];
-    for (int i = 0; i < allChildNodes.size(); i++) {
-      Expression filter = translate(allChildNodes.get(i), leaves);
-      evaluatedLeaves[i] = filter;
-    }
-    return evaluatedLeaves;
+    return translate(sarg.getExpression(), leaves, childNodes);
   }
 
   /**
@@ -96,29 +54,30 @@ public class IcebergFilterFactory {
    * @param leaves List of all leaf nodes within the tree.
    * @return Expression that is translated from the Hive SearchArgument.
    */
-  private static Expression translate(ExpressionTree tree, List<PredicateLeaf> leaves) {
+  private static Expression translate(ExpressionTree tree, List<PredicateLeaf> leaves,
+                                      List<ExpressionTree> childNodes) {
     switch (tree.getOperator()) {
       case OR:
-        return or(translate(tree.getChildren().get(0), leaves),
-                translate(tree.getChildren().get(1), leaves));
-      case AND:
-        if (tree.getChildren().size() > 2) {
-          Expression[] evaluatedChildren = getLeftoverLeaves(tree.getChildren(), leaves);
-          return and(translate(tree.getChildren().get(0), leaves),
-                  translate(tree.getChildren().get(1), leaves), evaluatedChildren);
-        } else {
-          return and(translate(tree.getChildren().get(0), leaves),
-                  translate(tree.getChildren().get(1), leaves));
+        Expression orResult = Expressions.alwaysFalse();
+        for (ExpressionTree child : childNodes) {
+          orResult = or(orResult, translate(child, leaves, childNodes));
         }
+        return orResult;
+      case AND:
+        Expression result = Expressions.alwaysTrue();
+        for (ExpressionTree child : childNodes) {
+          result = and(result, translate(child, leaves, childNodes));
+        }
+        return result;
       case NOT:
-        return not(translate(tree.getChildren().get(0), leaves));
+        return not(translate(tree.getChildren().get(0), leaves, childNodes));
       case LEAF:
         return translateLeaf(leaves.get(tree.getLeaf()));
       case CONSTANT:
         //We are unsure of how the CONSTANT case works, so using the approach of:
         //https://github.com/apache/hive/blob/master/ql/src/java/org/apache/hadoop/hive/ql/io/parquet/read/
         // ParquetFilterPredicateConverter.java#L116
-        return null;
+        throw new UnsupportedOperationException("CONSTANT operator is not supported");
       default:
         throw new IllegalStateException("Unknown operator: " + tree.getOperator());
     }
@@ -131,7 +90,7 @@ public class IcebergFilterFactory {
    */
   private static Expression translateLeaf(PredicateLeaf leaf) {
     String column = leaf.getColumnName();
-    if (column.equals("snapshot__id")) {
+    if (column.equals(SystemTableUtil.DEFAULT_SNAPSHOT_ID_COLUMN_NAME)) {
       return Expressions.alwaysTrue();
     }
     switch (leaf.getOperator()) {
@@ -147,12 +106,12 @@ public class IcebergFilterFactory {
         return in(column, leaf.getLiteralList());
       case BETWEEN:
         return and(greaterThanOrEqual(column, leaf.getLiteralList().get(0)),
-                lessThanOrEqual(column, leaf.getLiteralList().get(1)));
+            lessThanOrEqual(column, leaf.getLiteralList().get(1)));
       case IS_NULL:
         return isNull(column);
       default:
         throw new IllegalStateException("Unknown operator: " + leaf.getOperator());
     }
   }
-
 }
+
