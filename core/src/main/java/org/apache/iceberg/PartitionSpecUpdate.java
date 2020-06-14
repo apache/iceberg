@@ -19,10 +19,17 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Maps;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.transforms.Transform;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.transforms.Transforms;
 
 /**
  * PartitionSpec evolution API implementation.
@@ -31,145 +38,157 @@ class PartitionSpecUpdate implements UpdatePartitionSpec {
 
   private final TableMetadata base;
   private final TableOperations ops;
-  private PartitionSpec.Builder newSpecBuilder;
+  private final List<Consumer<PartitionSpec.Builder>> newSpecFields = new ArrayList<>();
+  private final Map<String, PartitionField> curSpecFields;
 
   PartitionSpecUpdate(TableOperations ops) {
     this.ops = ops;
     this.base = ops.current();
-    this.newSpecBuilder = PartitionSpec.builderFor(base.schema());
-    for (PartitionField field : base.spec().fields()) {
-      this.newSpecBuilder.add(field.sourceId(), field.fieldId(), field.name(), field.transform().toString());
-    }
+    this.curSpecFields = base.spec().fields().stream().collect(
+        Collectors.toMap(
+            PartitionField::name,
+            Function.identity(),
+            (n1, n2) -> {
+              throw new IllegalStateException(String.format("Duplicate partition field found: %s", n1));
+            },
+            LinkedHashMap::new
+        )
+    );
   }
 
   @Override
   public PartitionSpec apply() {
-    Preconditions.checkNotNull(newSpecBuilder, "new partition spec is not set");
-    return newSpecBuilder.build();
+    PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(base.schema());
+    curSpecFields.values().forEach(field ->
+        specBuilder.add(
+            field.sourceId(),
+            field.fieldId(),
+            field.name(),
+            field.transform().toString())
+    );
+    newSpecFields.forEach(c -> c.accept(specBuilder));
+    return specBuilder.build();
   }
 
   @Override
   public UpdatePartitionSpec clear() {
-    this.newSpecBuilder = PartitionSpec.builderFor(base.schema());
+    newSpecFields.clear();
+    curSpecFields.clear();
     return this;
   }
 
   @Override
   public UpdatePartitionSpec addIdentityField(String sourceName, String targetName) {
-    newSpecBuilder.identity(sourceName, targetName);
+    newSpecFields.add(builder -> builder.identity(sourceName, targetName));
     return this;
   }
 
   @Override
   public UpdatePartitionSpec addIdentityField(String sourceName) {
-    newSpecBuilder.identity(sourceName);
+    newSpecFields.add(builder -> builder.identity(sourceName));
     return this;
   }
 
   @Override
   public UpdatePartitionSpec addYearField(String sourceName, String targetName) {
-    newSpecBuilder.year(sourceName, targetName);
+    newSpecFields.add(builder -> builder.year(sourceName, targetName));
     return this;
   }
 
   @Override
   public UpdatePartitionSpec addYearField(String sourceName) {
-    newSpecBuilder.year(sourceName);
+    newSpecFields.add(builder -> builder.year(sourceName));
     return this;
   }
 
   @Override
   public UpdatePartitionSpec addMonthField(String sourceName, String targetName) {
-    newSpecBuilder.month(sourceName, targetName);
+    newSpecFields.add(builder -> builder.month(sourceName, targetName));
     return this;
   }
 
   @Override
   public UpdatePartitionSpec addMonthField(String sourceName) {
-    newSpecBuilder.month(sourceName);
+    newSpecFields.add(builder -> builder.month(sourceName));
     return this;
   }
 
   @Override
   public UpdatePartitionSpec addDayField(String sourceName, String targetName) {
-    newSpecBuilder.day(sourceName, targetName);
+    newSpecFields.add(builder -> builder.day(sourceName, targetName));
     return this;
   }
 
   @Override
   public UpdatePartitionSpec addDayField(String sourceName) {
-    newSpecBuilder.day(sourceName);
+    newSpecFields.add(builder -> builder.day(sourceName));
     return this;
   }
 
   @Override
   public UpdatePartitionSpec addHourField(String sourceName, String targetName) {
-    newSpecBuilder.hour(sourceName, targetName);
+    newSpecFields.add(builder -> builder.hour(sourceName, targetName));
     return this;
   }
 
   @Override
   public UpdatePartitionSpec addHourField(String sourceName) {
-    newSpecBuilder.hour(sourceName);
+    newSpecFields.add(builder -> builder.hour(sourceName));
     return this;
   }
 
   @Override
   public UpdatePartitionSpec addBucketField(String sourceName, int numBuckets, String targetName) {
-    newSpecBuilder.bucket(sourceName, numBuckets, targetName);
+    newSpecFields.add(builder -> builder.bucket(sourceName, numBuckets, targetName));
     return this;
   }
 
   @Override
   public UpdatePartitionSpec addBucketField(String sourceName, int numBuckets) {
-    newSpecBuilder.bucket(sourceName, numBuckets);
+    newSpecFields.add(builder -> builder.bucket(sourceName, numBuckets));
     return this;
   }
 
   @Override
   public UpdatePartitionSpec addTruncateField(String sourceName, int width, String targetName) {
-    newSpecBuilder.truncate(sourceName, width, targetName);
+    newSpecFields.add(builder -> builder.truncate(sourceName, width, targetName));
     return this;
   }
 
   @Override
   public UpdatePartitionSpec addTruncateField(String sourceName, int width) {
-    newSpecBuilder.truncate(sourceName, width);
+    newSpecFields.add(builder -> builder.truncate(sourceName, width));
     return this;
-  }
-
-  @Override
-  public UpdatePartitionSpec addField(int sourceId, String name, String transform) {
-    newSpecBuilder.add(sourceId, name, transform);
-    return this;
-  }
-
-  @Override
-  public UpdatePartitionSpec addField(int sourceId, String name, Transform<?, ?> transform) {
-    return addField(sourceId, name, transform.toString());
   }
 
   @Override
   public UpdatePartitionSpec renameField(String name, String newName) {
-    newSpecBuilder.rename(name, newName);
+    Preconditions.checkArgument(curSpecFields.containsKey(name),
+        "Cannot find an existing partition field with the name: %s", name);
+    Preconditions.checkArgument(newName != null && !newName.isEmpty(),
+        "Cannot use empty or null partition name: %s", newName);
+    Preconditions.checkArgument(!curSpecFields.containsKey(newName),
+        "Cannot use partition name more than once: %s", newName);
+
+    PartitionField field = curSpecFields.remove(name);
+    curSpecFields.put(newName,
+        new PartitionField(field.sourceId(), field.fieldId(), newName, field.transform()));
     return this;
   }
 
   @Override
   public UpdatePartitionSpec removeField(String name) {
-    newSpecBuilder.remove(name, base.formatVersion() == 1);
+    Preconditions.checkArgument(curSpecFields.containsKey(name),
+        "Cannot find an existing partition field with the name: %s", name);
+    if (base.formatVersion() == 1) {
+      PartitionField field = curSpecFields.remove(name);
+      String newName = field.name() + "_removed"; // rename it for soft delete
+      curSpecFields.put(newName,
+          new PartitionField(field.sourceId(), field.fieldId(), newName, Transforms.alwaysNull()));
+    } else {
+      curSpecFields.remove(name);
+    }
     return this;
-  }
-
-  @Override
-  public UpdatePartitionSpec replaceField(String name, String transform) {
-    int sourceId = newSpecBuilder.remove(name, base.formatVersion() == 1);
-    return addField(sourceId, name, transform);
-  }
-
-  @Override
-  public UpdatePartitionSpec replaceField(String name, Transform<?, ?> transform) {
-    return replaceField(name, transform.toString());
   }
 
   @Override
@@ -184,7 +203,7 @@ class PartitionSpecUpdate implements UpdatePartitionSpec {
     }
 
     int lastAssignedFieldId = 0;
-    Map<String, Integer> partitionFieldIdByName = Maps.newHashMap();
+    Map<String, Integer> partitionFieldIdByName = new HashMap<>();
     for (PartitionSpec spec : base.specs()) {
       for (PartitionField field : spec.fields()) {
         partitionFieldIdByName.put(getKey(field), field.fieldId());

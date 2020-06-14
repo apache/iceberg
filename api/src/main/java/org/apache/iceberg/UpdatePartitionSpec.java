@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.transforms.Transform;
 
 /**
  * API for partition spec evolution.
@@ -33,9 +32,7 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
   /**
    * Clear all partition fields in the current partition spec.
    * <p>
-   * This will create a new partition spec without any partition field.
-   * Partition field IDs is automatically assigned and will be updated during the commit.
-   * Table schema should be obtained from the current table metadata
+   * It will remove all existing fields.
    *
    * @return this for method chaining
    */
@@ -44,7 +41,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
   /**
    * Add a new partition field with identity transform to the partition spec.
    * <p>
-   * The partition field id is automatically assigned and will be updated during the commit.
    *
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @param targetName the name of this partition field
@@ -54,9 +50,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
 
   /**
    * Add a new partition field with identity transform to the partition spec.
-   * <p>
-   * The partition field name is automatically assigned set.
-   * The partition field id is automatically assigned and will be updated during the commit.
    *
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @return this for method chaining
@@ -65,8 +58,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
 
   /**
    * Add a new partition field with year transform to the partition spec.
-   * <p>
-   * The partition field id is automatically assigned and will be updated during the commit.
    *
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @param targetName the name of this partition field
@@ -76,9 +67,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
 
   /**
    * Add a new partition field with year transform to the partition spec.
-   * <p>
-   * The partition field name is automatically assigned set.
-   * The partition field id is automatically assigned and will be updated during the commit.
    *
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @return this for method chaining
@@ -87,8 +75,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
 
   /**
    * Add a new partition field with month transform to the partition spec.
-   * <p>
-   * The partition field id is automatically assigned and will be updated during the commit.
    *
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @param targetName the name of this partition field
@@ -98,9 +84,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
 
   /**
    * Add a new partition field with month transform to the partition spec.
-   * <p>
-   * The partition field name is automatically assigned set.
-   * The partition field id is automatically assigned and will be updated during the commit.
    *
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @return this for method chaining
@@ -109,8 +92,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
 
   /**
    * Add a new partition field with day transform to the partition spec.
-   * <p>
-   * The partition field id is automatically assigned and will be updated during the commit.
    *
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @param targetName the name of this partition field
@@ -120,9 +101,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
 
   /**
    * Add a new partition field with day transform to the partition spec.
-   * <p>
-   * The partition field name is automatically assigned set.
-   * The partition field id is automatically assigned and will be updated during the commit.
    *
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @return this for method chaining
@@ -131,8 +109,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
 
   /**
    * Add a new partition field with hour transform to the partition spec.
-   * <p>
-   * The partition field id is automatically assigned and will be updated during the commit.
    *
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @param targetName the name of this partition field
@@ -142,9 +118,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
 
   /**
    * Add a new partition field with hour transform to the partition spec.
-   * <p>
-   * The partition field name is automatically assigned set.
-   * The partition field id is automatically assigned and will be updated during the commit.
    *
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @return this for method chaining
@@ -153,8 +126,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
 
   /**
    * Add a new partition field with bucket transform to the partition spec.
-   * <p>
-   * The partition field id is automatically assigned and will be updated during the commit.
    *
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @param numBuckets the number of buckets
@@ -165,9 +136,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
 
   /**
    * Add a new partition field with bucket transform to the partition spec.
-   * <p>
-   * The partition field name is automatically assigned set.
-   * The partition field id is automatically assigned and will be updated during the commit.
    *
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @param numBuckets the number of buckets
@@ -177,8 +145,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
 
   /**
    * Add a new partition field with truncate transform to the partition spec.
-   * <p>
-   * The partition field id is automatically assigned and will be updated during the commit.
    *
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @param width the width of truncation
@@ -189,9 +155,6 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
 
   /**
    * Add a new partition field with truncate transform to the partition spec.
-   * <p>
-   * The partition field name is automatically assigned set.
-   * The partition field id is automatically assigned and will be updated during the commit.
    *
    * @param sourceName the field name of the source field in the {@link PartitionSpec spec's} table schema
    * @param width the width of truncation
@@ -200,32 +163,7 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
   UpdatePartitionSpec addTruncateField(String sourceName, int width);
 
   /**
-   * Add a new partition field to the partition spec.
-   * <p>
-   * The partition field id is automatically assigned and will be updated during the commit.
-   *
-   * @param sourceId the source field id in the {@link PartitionSpec spec's} table schema
-   * @param name the name of this partition field
-   * @param transform the partition transform in string format
-   * @return this for method chaining
-   */
-  UpdatePartitionSpec addField(int sourceId, String name, String transform);
-
-  /**
-   * Add a new partition field to the partition spec.
-   * <p>
-   * The partition field id is automatically assigned and will be updated during the commit.
-   *
-   * @param sourceId the source field id in the {@link PartitionSpec spec's} table schema
-   * @param name the name of this partition field
-   * @param transform the partition transform
-   * @return this for method chaining
-   */
-  UpdatePartitionSpec addField(int sourceId, String name, Transform<?, ?> transform);
-
-  /**
    * Rename a partition field in the partition spec.
-   * <p>
    *
    * @param name the name of a partition field to be renamed
    * @param newName the new name of the partition field
@@ -242,27 +180,5 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
    * @return this for method chaining
    */
   UpdatePartitionSpec removeField(String name);
-
-  /**
-   * Replace a partition field with a new transform in the partition spec.
-   * <p>
-   * It is equivalent to remove the partition field and then add it back with the new transform
-   *
-   * @param name the name of a partition field to be replaced
-   * @param transform the new partition transform to be used in string format
-   * @return this for method chaining
-   */
-  UpdatePartitionSpec replaceField(String name, String transform);
-
-  /**
-   * Replace a partition field with a new transform in the partition spec.
-   * <p>
-   * It is equivalent to remove the partition field and then add it back with the new transform
-   *
-   * @param name the name of a partition field to be replaced
-   * @param transform the new partition transform to be used
-   * @return this for method chaining
-   */
-  UpdatePartitionSpec replaceField(String name, Transform<?, ?> transform);
 
 }

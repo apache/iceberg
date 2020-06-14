@@ -19,8 +19,6 @@
 
 package org.apache.iceberg;
 
-import org.apache.iceberg.transforms.Transforms;
-import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -105,7 +103,7 @@ public class TestPartitionSpecUpdate extends TableTestBase {
 
     if (formatVersion == 1) {
       table.updateSpec()
-          .addField(2, "data_partition", "bucket[16]")
+          .addBucketField("data", 16, "data_partition")
           .commit();
       Assert.assertEquals("[\n" +
           "  1000: data_bucket: bucket[16](2)\n" +
@@ -117,7 +115,7 @@ public class TestPartitionSpecUpdate extends TableTestBase {
           IllegalArgumentException.class,
           "Field Id 1000 has already been used in the existing partition fields",
           () -> table.updateSpec()
-              .addField(2, "data_partition", "bucket[16]")
+              .addBucketField("data", 16, "data_partition")
               .commit());
     }
   }
@@ -130,9 +128,9 @@ public class TestPartitionSpecUpdate extends TableTestBase {
     Assert.assertEquals(1000, table.spec().lastAssignedFieldId());
 
     table.updateSpec()
-        .addField(2, "data_partition", "bucket[8]")
+        .addBucketField("data", 8, "data_partition")
         .addBucketField("id", 8)
-        .addField(2, "data_field", Transforms.bucket(Types.StringType.get(), 6))
+        .addBucketField("data", 6, "data_field")
         .commit();
 
     Assert.assertEquals("[\n" +
@@ -229,46 +227,11 @@ public class TestPartitionSpecUpdate extends TableTestBase {
 
     AssertHelpers.assertThrows(
         "Should throw IllegalStateException if removing a non-existing partition field",
-        IllegalStateException.class,
+        IllegalArgumentException.class,
         "Cannot find an existing partition field with the name: not_existing",
         () -> table.updateSpec()
             .removeField("not_existing")
             .commit());
-  }
-
-  @Test
-  public void testReplaceField() {
-    Assert.assertEquals("[\n" +
-        "  1000: data_bucket: bucket[16](2)\n" +
-        "]", table.spec().toString());
-    Assert.assertEquals(1000, table.spec().lastAssignedFieldId());
-    Assert.assertEquals(0, table.spec().specId());
-
-    table.updateSpec()
-        .replaceField("data_bucket", "bucket[8]")
-        .addBucketField("id", 8)
-        .commit();
-
-    Assert.assertEquals("[\n" +
-        this.expectedSpecs[0] +
-        "  1001: data_bucket: bucket[8](2)\n" +
-        "  1002: id_bucket: bucket[8](1)\n" +
-        "]", table.spec().toString());
-    Assert.assertEquals(1002, table.spec().lastAssignedFieldId());
-    Assert.assertEquals(1, table.spec().specId());
-
-    table.updateSpec()
-        .replaceField("id_bucket", Transforms.bucket(Types.StringType.get(), 16))
-        .commit();
-
-    Assert.assertEquals("[\n" +
-        this.expectedSpecs[0] +
-        "  1001: data_bucket: bucket[8](2)\n" +
-        this.expectedSpecs[1] +
-        "  1003: id_bucket: bucket[16](1)\n" +
-        "]", table.spec().toString());
-    Assert.assertEquals(1003, table.spec().lastAssignedFieldId());
-    Assert.assertEquals(2, table.spec().specId());
   }
 
 }
