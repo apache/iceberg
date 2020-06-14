@@ -115,8 +115,8 @@ public class TestManifestReader extends TableTestBase {
         .commit();
 
     ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 123L, FILE_A));
-    try (ManifestReader reader = ManifestFiles.read(manifest, FILE_IO)) {
-      ManifestEntry entry = Iterables.getOnlyElement(reader.entries());
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
+      ManifestEntry<DataFile> entry  = Iterables.getOnlyElement(reader.entries());
       Assert.assertEquals(123L, (long) entry.snapshotId());
 
       List<Types.NestedField> fields = ((PartitionData) entry.file().partition()).getPartitionType().fields();

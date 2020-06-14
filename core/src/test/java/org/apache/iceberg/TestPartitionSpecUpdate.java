@@ -194,6 +194,15 @@ public class TestPartitionSpecUpdate extends TableTestBase {
         () -> table.updateSpec()
             .renameField("data_bucket", null)
             .commit());
+
+    AssertHelpers.assertThrows(
+        "Should throw IllegalArgumentException if renaming a not committed new partition field",
+        IllegalArgumentException.class,
+        "Cannot find an existing partition field with the name: not_committed",
+        () -> table.updateSpec()
+            .addBucketField("data", 6, "not_committed")
+            .renameField("not_committed", "data_partition")
+            .commit());
   }
 
   @Test
@@ -231,6 +240,15 @@ public class TestPartitionSpecUpdate extends TableTestBase {
         "Cannot find an existing partition field with the name: not_existing",
         () -> table.updateSpec()
             .removeField("not_existing")
+            .commit());
+
+    AssertHelpers.assertThrows(
+        "Should throw IllegalStateException if removing a not committed new partition field",
+        IllegalArgumentException.class,
+        "Cannot find an existing partition field with the name: not_committed",
+        () -> table.updateSpec()
+            .addBucketField("data", 6, "not_committed")
+            .removeField("not_committed")
             .commit());
   }
 
