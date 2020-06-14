@@ -19,14 +19,11 @@
 
 package org.apache.iceberg;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Set;
-import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -37,11 +34,9 @@ class IncrementalDataTableScan extends DataTableScan {
   private long fromSnapshotId;
   private long toSnapshotId;
 
-  IncrementalDataTableScan(TableOperations ops, Table table, Schema schema, Expression rowFilter,
-                           boolean ignoreResiduals, boolean caseSensitive, boolean colStats,
-                           Collection<String> selectedColumns, ImmutableMap<String, String> options,
-                           long fromSnapshotId, long toSnapshotId) {
-    super(ops, table, null, schema, rowFilter, ignoreResiduals, caseSensitive, colStats, selectedColumns, options);
+  IncrementalDataTableScan(TableOperations ops, Table table, Schema schema,
+                           long fromSnapshotId, long toSnapshotId, TableScanContext context) {
+    super(ops, table, schema, TableScanContext.builder(context).snapshotId(null).build());
     validateSnapshotIds(table, fromSnapshotId, toSnapshotId);
     this.fromSnapshotId = fromSnapshotId;
     this.toSnapshotId = toSnapshotId;
@@ -65,9 +60,7 @@ class IncrementalDataTableScan extends DataTableScan {
   public TableScan appendsBetween(long newFromSnapshotId, long newToSnapshotId) {
     validateSnapshotIdsRefinement(newFromSnapshotId, newToSnapshotId);
     return new IncrementalDataTableScan(
-        tableOps(), table(), schema(), filter(), shouldIgnoreResiduals(),
-        isCaseSensitive(), colStats(), selectedColumns(), options(),
-        newFromSnapshotId, newToSnapshotId);
+        tableOps(), table(), schema(), newFromSnapshotId, newToSnapshotId, context().copy());
   }
 
   @Override
@@ -113,13 +106,8 @@ class IncrementalDataTableScan extends DataTableScan {
 
   @Override
   @SuppressWarnings("checkstyle:HiddenField")
-  protected TableScan newRefinedScan(
-          TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-          boolean ignoreResiduals, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
-          ImmutableMap<String, String> options) {
-    return new IncrementalDataTableScan(
-            ops, table, schema, rowFilter, ignoreResiduals, caseSensitive, colStats, selectedColumns, options,
-            fromSnapshotId, toSnapshotId);
+  protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+    return new IncrementalDataTableScan(ops, table, schema, fromSnapshotId, toSnapshotId, context.copy());
   }
 
   private static List<Snapshot> snapshotsWithin(Table table, long fromSnapshotId, long toSnapshotId) {
