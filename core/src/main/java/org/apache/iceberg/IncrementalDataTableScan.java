@@ -31,36 +31,32 @@ import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.ThreadPools;
 
 class IncrementalDataTableScan extends DataTableScan {
-  private long fromSnapshotId;
-  private long toSnapshotId;
 
-  IncrementalDataTableScan(TableOperations ops, Table table, Schema schema,
-                           long fromSnapshotId, long toSnapshotId, TableScanContext context) {
+  IncrementalDataTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
     super(ops, table, schema, TableScanContext.builder(context).snapshotId(null).build());
-    validateSnapshotIds(table, fromSnapshotId, toSnapshotId);
-    this.fromSnapshotId = fromSnapshotId;
-    this.toSnapshotId = toSnapshotId;
+    validateSnapshotIds(table, context.fromSnapshotId(), context.toSnapshotId());
   }
 
   @Override
   public TableScan asOfTime(long timestampMillis) {
     throw new UnsupportedOperationException(String.format(
         "Cannot scan table as of time %s: configured for incremental data in snapshots (%s, %s]",
-        timestampMillis, fromSnapshotId, toSnapshotId));
+        timestampMillis, context().fromSnapshotId(), context().toSnapshotId()));
   }
 
   @Override
   public TableScan useSnapshot(long scanSnapshotId) {
     throw new UnsupportedOperationException(String.format(
         "Cannot scan table using scan snapshot id %s: configured for incremental data in snapshots (%s, %s]",
-        scanSnapshotId, fromSnapshotId, toSnapshotId));
+        scanSnapshotId, context().fromSnapshotId(), context().toSnapshotId()));
   }
 
   @Override
   public TableScan appendsBetween(long newFromSnapshotId, long newToSnapshotId) {
     validateSnapshotIdsRefinement(newFromSnapshotId, newToSnapshotId);
-    return new IncrementalDataTableScan(
-        tableOps(), table(), schema(), newFromSnapshotId, newToSnapshotId, context().copy());
+    return new IncrementalDataTableScan(tableOps(), table(), schema(),
+        TableScanContext.builder(context())
+            .fromSnapshotId(newFromSnapshotId).toSnapshotId(newToSnapshotId).build());
   }
 
   @Override
@@ -74,7 +70,8 @@ class IncrementalDataTableScan extends DataTableScan {
   @Override
   public CloseableIterable<FileScanTask> planFiles() {
     //TODO publish an incremental appends scan event
-    List<Snapshot> snapshots = snapshotsWithin(table(), fromSnapshotId, toSnapshotId);
+    List<Snapshot> snapshots = snapshotsWithin(table(),
+        context().fromSnapshotId(), context().toSnapshotId());
     Set<Long> snapshotIds = Sets.newHashSet(Iterables.transform(snapshots, Snapshot::snapshotId));
     Set<ManifestFile> manifests = FluentIterable
         .from(snapshots)
@@ -107,7 +104,7 @@ class IncrementalDataTableScan extends DataTableScan {
   @Override
   @SuppressWarnings("checkstyle:HiddenField")
   protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-    return new IncrementalDataTableScan(ops, table, schema, fromSnapshotId, toSnapshotId, context.copy());
+    return new IncrementalDataTableScan(ops, table, schema, context.copy());
   }
 
   private static List<Snapshot> snapshotsWithin(Table table, long fromSnapshotId, long toSnapshotId) {
@@ -129,17 +126,17 @@ class IncrementalDataTableScan extends DataTableScan {
 
   private void validateSnapshotIdsRefinement(long newFromSnapshotId, long newToSnapshotId) {
     Set<Long> snapshotIdsRange = Sets.newHashSet(
-        SnapshotUtil.snapshotIdsBetween(table(), fromSnapshotId, toSnapshotId));
+        SnapshotUtil.snapshotIdsBetween(table(), context().fromSnapshotId(), context().toSnapshotId()));
     // since snapshotIdsBetween return ids in range (fromSnapshotId, toSnapshotId]
-    snapshotIdsRange.add(fromSnapshotId);
+    snapshotIdsRange.add(context().fromSnapshotId());
     Preconditions.checkArgument(
         snapshotIdsRange.contains(newFromSnapshotId),
         "from snapshot id %s not in existing snapshot ids range (%s, %s]",
-        newFromSnapshotId, fromSnapshotId, newToSnapshotId);
+        newFromSnapshotId, context().fromSnapshotId(), newToSnapshotId);
     Preconditions.checkArgument(
         snapshotIdsRange.contains(newToSnapshotId),
         "to snapshot id %s not in existing snapshot ids range (%s, %s]",
-        newToSnapshotId, fromSnapshotId, toSnapshotId);
+        newToSnapshotId, context().fromSnapshotId(), context().toSnapshotId());
   }
 
   private static void validateSnapshotIds(Table table, long fromSnapshotId, long toSnapshotId) {

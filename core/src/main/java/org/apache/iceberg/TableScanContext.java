@@ -26,7 +26,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 /**
- * Context object with arguments required for a TableScan.
+ * Context object with optional arguments for a TableScan.
  */
 final class TableScanContext {
   private final Long snapshotId;
@@ -36,11 +36,12 @@ final class TableScanContext {
   private final boolean colStats;
   private final Collection<String> selectedColumns;
   private final ImmutableMap<String, String> options;
-
+  private final Long fromSnapshotId;
+  private final Long toSnapshotId;
 
   private TableScanContext(Long snapshotId, Expression rowFilter, boolean ignoreResiduals,
                            boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
-                           ImmutableMap<String, String> options) {
+                           ImmutableMap<String, String> options, Long fromSnapshotId, Long toSnapshotId) {
     this.snapshotId = snapshotId;
     this.rowFilter = rowFilter;
     this.ignoreResiduals = ignoreResiduals;
@@ -48,6 +49,8 @@ final class TableScanContext {
     this.colStats = colStats;
     this.selectedColumns = selectedColumns;
     this.options = options;
+    this.fromSnapshotId = fromSnapshotId;
+    this.toSnapshotId = toSnapshotId;
   }
 
   Long snapshotId() {
@@ -78,6 +81,14 @@ final class TableScanContext {
     return options;
   }
 
+  Long fromSnapshotId() {
+    return fromSnapshotId;
+  }
+
+  Long toSnapshotId() {
+    return toSnapshotId;
+  }
+
   TableScanContext copy() {
     return TableScanContext.builder(this).build();
   }
@@ -98,6 +109,8 @@ final class TableScanContext {
     private boolean colStats;
     private Collection<String> selectedColumns;
     private ImmutableMap<String, String> options;
+    private Long fromSnapshotId;
+    private Long toSnapshotId;
 
     private Builder() {
       this.snapshotId = null;
@@ -107,6 +120,8 @@ final class TableScanContext {
       this.colStats = false;
       this.selectedColumns = null;
       this.options = ImmutableMap.of();
+      this.fromSnapshotId = null;
+      this.toSnapshotId = null;
     }
 
     private Builder(TableScanContext other) {
@@ -117,6 +132,8 @@ final class TableScanContext {
       this.colStats = other.colStats;
       this.selectedColumns = other.selectedColumns;
       this.options = ImmutableMap.copyOf(other.options);
+      this.fromSnapshotId = other.fromSnapshotId;
+      this.toSnapshotId = other.toSnapshotId;
     }
 
     Builder snapshotId(Long id) {
@@ -154,9 +171,19 @@ final class TableScanContext {
       return this;
     }
 
+    Builder fromSnapshotId(Long id) {
+      this.fromSnapshotId = id;
+      return this;
+    }
+
+    Builder toSnapshotId(Long id) {
+      this.toSnapshotId = id;
+      return this;
+    }
+
     TableScanContext build() {
       return new TableScanContext(snapshotId, rowFilter, ignoreResiduals, caseSensitive, colStats,
-          selectedColumns, options);
+          selectedColumns, options, fromSnapshotId, toSnapshotId);
     }
   }
 }

@@ -50,8 +50,9 @@ public class DataTableScan extends BaseTableScan {
     Long scanSnapshotId = snapshotId();
     Preconditions.checkState(scanSnapshotId == null,
         "Cannot enable incremental scan, scan-snapshot set to id=%s", scanSnapshotId);
-    return new IncrementalDataTableScan(
-        tableOps(), table(), schema(), fromSnapshotId, toSnapshotId, context().copy());
+    return new IncrementalDataTableScan(tableOps(), table(), schema(),
+        TableScanContext.builder(context())
+            .fromSnapshotId(fromSnapshotId).toSnapshotId(toSnapshotId).build());
   }
 
   @Override

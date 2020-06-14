@@ -55,7 +55,6 @@ abstract class BaseTableScan implements TableScan {
   private final Schema schema;
   private final TableScanContext context;
 
-
   protected BaseTableScan(TableOperations ops, Table table, Schema schema) {
     this(ops, table, schema, TableScanContext.builder().caseSensitive(true).build());
   }
@@ -88,7 +87,7 @@ abstract class BaseTableScan implements TableScan {
   }
 
   protected ImmutableMap<String, String> options() {
-    return ImmutableMap.copyOf(context.options());
+    return context.options();
   }
 
   protected  TableScanContext context() {
@@ -165,7 +164,7 @@ abstract class BaseTableScan implements TableScan {
   @Override
   public TableScan project(Schema projectedSchema) {
     return newRefinedScan(
-        ops, table, projectedSchema, TableScanContext.builder(context).build());
+        ops, table, projectedSchema, context.copy());
   }
 
   @Override
@@ -287,8 +286,8 @@ abstract class BaseTableScan implements TableScan {
    * @return the Schema to project
    */
   private Schema lazyColumnProjection() {
-    Collection<String> selectedCols = context.selectedColumns();
-    if (selectedCols != null) {
+    Collection<String> selectedColumns = context.selectedColumns();
+    if (selectedColumns != null) {
       Set<Integer> requiredFieldIds = Sets.newHashSet();
 
       // all of the filter columns are required
@@ -299,9 +298,9 @@ abstract class BaseTableScan implements TableScan {
       // all of the projection columns are required
       Set<Integer> selectedIds;
       if (context.caseSensitive()) {
-        selectedIds = TypeUtil.getProjectedIds(table.schema().select(selectedCols));
+        selectedIds = TypeUtil.getProjectedIds(table.schema().select(selectedColumns));
       } else {
-        selectedIds = TypeUtil.getProjectedIds(table.schema().caseInsensitiveSelect(selectedCols));
+        selectedIds = TypeUtil.getProjectedIds(table.schema().caseInsensitiveSelect(selectedColumns));
       }
       requiredFieldIds.addAll(selectedIds);
 
