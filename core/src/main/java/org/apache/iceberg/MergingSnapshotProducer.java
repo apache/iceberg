@@ -153,12 +153,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   /**
-   * Add a specific path to be deleted in the new snapshot.
+   * Add a specific data path to be deleted in the new snapshot.
    */
   protected void delete(CharSequence path) {
-    // because this is a location, it may be a data file or a delete file and must be added to both filter managers
+    // this is an old call that never worked for delete files and can only be used to remove data files.
     filterManager.delete(path);
-    deleteFilterManager.delete(path);
   }
 
   /**
