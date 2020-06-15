@@ -87,7 +87,6 @@ public class TestIcebergInputFormat {
   public void testGetSplits() throws IOException {
     IcebergInputFormat format = new IcebergInputFormat();
     conf.set(InputFormatConfig.TABLE_LOCATION, tableLocation.getAbsolutePath());
-    conf.set(InputFormatConfig.CATALOG_NAME, InputFormatConfig.HADOOP_TABLES);
     conf.set(InputFormatConfig.TABLE_NAME, "source_db.table_a");
     InputSplit[] splits = format.getSplits(conf, 1);
     assertEquals(splits.length, 1);
@@ -96,13 +95,6 @@ public class TestIcebergInputFormat {
   @Test(expected = IllegalArgumentException.class)
   public void testGetSplitsNoLocation() throws IOException {
     conf.set(InputFormatConfig.CATALOG_NAME, InputFormatConfig.HADOOP_TABLES);
-    conf.set(InputFormatConfig.TABLE_NAME, "source_db.table_a");
-    inputFormat.getSplits(conf, 1);
-  }
-
-  @Test(expected = IllegalArgumentException.class)
-  public void testGetSplitsNoCatalog() throws IOException {
-    conf.set(InputFormatConfig.TABLE_LOCATION, "file:" + tableLocation.getAbsolutePath());
     conf.set(InputFormatConfig.TABLE_NAME, "source_db.table_a");
     inputFormat.getSplits(conf, 1);
   }

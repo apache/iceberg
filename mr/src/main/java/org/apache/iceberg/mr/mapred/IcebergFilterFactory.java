@@ -23,14 +23,12 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.List;
-import java.util.Set;
 import org.apache.hadoop.hive.ql.io.sarg.ExpressionTree;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
 import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
@@ -46,12 +44,6 @@ import static org.apache.iceberg.expressions.Expressions.or;
 public class IcebergFilterFactory {
 
   private IcebergFilterFactory() {}
-
-  private static final Set<PredicateLeaf.Type> HIVE_TYPES_TO_CONVERT = ImmutableSet.of(
-      PredicateLeaf.Type.DATE,
-      PredicateLeaf.Type.DECIMAL,
-      PredicateLeaf.Type.TIMESTAMP
-  );
 
   public static Expression generateFilterExpression(SearchArgument sarg) {
     return translate(sarg.getExpression(), sarg.getLeaves());
@@ -99,9 +91,6 @@ public class IcebergFilterFactory {
    */
   private static Expression translateLeaf(PredicateLeaf leaf) {
     String column = leaf.getColumnName();
-    if (column.equals(SystemTableUtil.DEFAULT_SNAPSHOT_ID_COLUMN_NAME)) {
-      return Expressions.alwaysTrue();
-    }
     switch (leaf.getOperator()) {
       case EQUALS:
         return equal(column, leafToIcebergType(leaf));
@@ -136,8 +125,7 @@ public class IcebergFilterFactory {
       case DATE:
         return ((Date) leaf.getLiteral()).toLocalDate();
       case DECIMAL:
-        HiveDecimalWritable leafValue = (HiveDecimalWritable) leaf.getLiteral();
-        return BigDecimal.valueOf(leafValue.doubleValue());
+        return BigDecimal.valueOf(((HiveDecimalWritable) leaf.getLiteral()).doubleValue());
       case TIMESTAMP:
         return ((Timestamp) leaf.getLiteral()).toLocalDateTime();
       case BOOLEAN:
