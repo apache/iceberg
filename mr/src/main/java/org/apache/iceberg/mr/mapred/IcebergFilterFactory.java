@@ -123,11 +123,11 @@ public class IcebergFilterFactory {
       case STRING:
         return leaf.getLiteral();
       case DATE:
-        return ((Date) leaf.getLiteral()).toLocalDate();
+        return ((Timestamp) leaf.getLiteral()).getTime();
       case DECIMAL:
         return BigDecimal.valueOf(((HiveDecimalWritable) leaf.getLiteral()).doubleValue());
       case TIMESTAMP:
-        return ((Timestamp) leaf.getLiteral()).toLocalDateTime();
+        return ((Timestamp) leaf.getLiteral()).getTime();
       case BOOLEAN:
         return leaf.getLiteral();
       default:
@@ -141,9 +141,9 @@ public class IcebergFilterFactory {
       if (type instanceof HiveDecimalWritable) {
         hiveLiteralTypes.set(i, BigDecimal.valueOf(((HiveDecimalWritable) type).doubleValue()));
       } else if (type instanceof Date) {
-        hiveLiteralTypes.set(i, ((Date) type).toLocalDate());
+        hiveLiteralTypes.set(i, ((Timestamp) type).getTime());
       } else if (type instanceof Timestamp) {
-        hiveLiteralTypes.set(i, ((Timestamp) type).toLocalDateTime());
+        hiveLiteralTypes.set(i, ((Timestamp) type).getTime());
       }
     }
     return hiveLiteralTypes;

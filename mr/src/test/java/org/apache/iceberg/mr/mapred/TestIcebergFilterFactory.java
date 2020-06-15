@@ -20,6 +20,11 @@
 package org.apache.iceberg.mr.mapred;
 
 import java.math.BigDecimal;
+import java.sql.Date;
+import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgumentFactory;
@@ -246,5 +251,36 @@ public class TestIcebergFilterFactory {
     assertEquals(actual.op(), expected.op());
     assertEquals(actual.right().op(), expected.right().op());
     assertEquals(actual.left().op(), expected.left().op());
+  }
+
+  @Test
+  public void testTypeConversion() {
+    SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
+    SearchArgument arg = builder
+        .startAnd()
+        .equals("date", PredicateLeaf.Type.DATE, Date.valueOf("2020-06-15"))
+        .equals("timestamp", PredicateLeaf.Type.TIMESTAMP, Timestamp.valueOf("2016-11-16 06:43:19.77"))
+        .equals("decimal", PredicateLeaf.Type.DECIMAL, new HiveDecimalWritable("12.12"))
+        .equals("string", PredicateLeaf.Type.STRING, "hello world")
+        .equals("long", PredicateLeaf.Type.LONG, 3020L)
+        .equals("float", PredicateLeaf.Type.FLOAT, 4400D)
+        .equals("boolean", PredicateLeaf.Type.BOOLEAN, true)
+        .end()
+        .build();
+
+    And expected = (And) Expressions.and(
+        Expressions.equal("date", Date.valueOf("2020-06-15").getTime()),
+        Expressions.equal("timestamp", Timestamp.valueOf("2016-11-16 06:43:19.77").getTime()),
+        Expressions.equal("decimal", BigDecimal.valueOf(12.12)),
+        Expressions.equal("string", "hello world"),
+        Expressions.equal("long", 3020L),
+        Expressions.equal("float", 4400D),
+        Expressions.equal("boolean", true));
+
+    And actual = (And) IcebergFilterFactory.generateFilterExpression(arg);
+
+    assertEquals(expected.toString(), actual.toString());
+    assertEquals(expected.op(), actual.op());
+
   }
 }
