@@ -19,12 +19,18 @@
 
 package org.apache.iceberg.mr.mapred;
 
+import java.math.BigDecimal;
+import java.sql.Date;
+import java.sql.Timestamp;
 import java.util.List;
+import java.util.Set;
 import org.apache.hadoop.hive.ql.io.sarg.ExpressionTree;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
+import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
@@ -41,11 +47,14 @@ public class IcebergFilterFactory {
 
   private IcebergFilterFactory() {}
 
-  public static Expression generateFilterExpression(SearchArgument sarg) {
-    List<PredicateLeaf> leaves = sarg.getLeaves();
-    List<ExpressionTree> childNodes = sarg.getExpression().getChildren();
+  private static final Set<PredicateLeaf.Type> HIVE_TYPES_TO_CONVERT = ImmutableSet.of(
+      PredicateLeaf.Type.DATE,
+      PredicateLeaf.Type.DECIMAL,
+      PredicateLeaf.Type.TIMESTAMP
+  );
 
-    return translate(sarg.getExpression(), leaves, childNodes);
+  public static Expression generateFilterExpression(SearchArgument sarg) {
+    return translate(sarg.getExpression(), sarg.getLeaves());
   }
 
   /**
@@ -54,23 +63,23 @@ public class IcebergFilterFactory {
    * @param leaves List of all leaf nodes within the tree.
    * @return Expression that is translated from the Hive SearchArgument.
    */
-  private static Expression translate(ExpressionTree tree, List<PredicateLeaf> leaves,
-                                      List<ExpressionTree> childNodes) {
+  private static Expression translate(ExpressionTree tree, List<PredicateLeaf> leaves) {
+    List<ExpressionTree> childNodes = tree.getChildren();
     switch (tree.getOperator()) {
       case OR:
         Expression orResult = Expressions.alwaysFalse();
         for (ExpressionTree child : childNodes) {
-          orResult = or(orResult, translate(child, leaves, childNodes));
+          orResult = or(orResult, translate(child, leaves));
         }
         return orResult;
       case AND:
         Expression result = Expressions.alwaysTrue();
         for (ExpressionTree child : childNodes) {
-          result = and(result, translate(child, leaves, childNodes));
+          result = and(result, translate(child, leaves));
         }
         return result;
       case NOT:
-        return not(translate(tree.getChildren().get(0), leaves, childNodes));
+        return not(translate(tree.getChildren().get(0), leaves));
       case LEAF:
         return translateLeaf(leaves.get(tree.getLeaf()));
       case CONSTANT:
@@ -95,23 +104,61 @@ public class IcebergFilterFactory {
     }
     switch (leaf.getOperator()) {
       case EQUALS:
-        return equal(column, leaf.getLiteral());
+        return equal(column, leafToIcebergType(leaf));
       case NULL_SAFE_EQUALS:
-        return equal(notNull(column).ref().name(), leaf.getLiteral()); //TODO: Unsure..
+        return equal(notNull(column).ref().name(), leafToIcebergType(leaf)); //TODO: Unsure..
       case LESS_THAN:
-        return lessThan(column, leaf.getLiteral());
+        return lessThan(column, leafToIcebergType(leaf));
       case LESS_THAN_EQUALS:
-        return lessThanOrEqual(column, leaf.getLiteral());
+        return lessThanOrEqual(column, leafToIcebergType(leaf));
       case IN:
-        return in(column, leaf.getLiteralList());
+        //TODO: 'in' doesn't support literals of Date or Timestamp - test for type here?
+        return in(column, hiveLiteralListToIcebergType(leaf.getLiteralList()));
       case BETWEEN:
-        return and(greaterThanOrEqual(column, leaf.getLiteralList().get(0)),
-            lessThanOrEqual(column, leaf.getLiteralList().get(1)));
+        List<Object> icebergLiterals = hiveLiteralListToIcebergType(leaf.getLiteralList());
+        return and(greaterThanOrEqual(column, icebergLiterals.get(0)),
+            lessThanOrEqual(column, icebergLiterals.get(1)));
       case IS_NULL:
         return isNull(column);
       default:
         throw new IllegalStateException("Unknown operator: " + leaf.getOperator());
     }
+  }
+
+  private static Object leafToIcebergType(PredicateLeaf leaf) {
+    switch (leaf.getType()) {
+      case LONG:
+        return leaf.getLiteral();
+      case FLOAT:
+        return leaf.getLiteral();
+      case STRING:
+        return leaf.getLiteral();
+      case DATE:
+        return ((Date) leaf.getLiteral()).toLocalDate();
+      case DECIMAL:
+        HiveDecimalWritable leafValue = (HiveDecimalWritable) leaf.getLiteral();
+        return BigDecimal.valueOf(leafValue.doubleValue());
+      case TIMESTAMP:
+        return ((Timestamp) leaf.getLiteral()).toLocalDateTime();
+      case BOOLEAN:
+        return leaf.getLiteral();
+      default:
+        throw new IllegalStateException("Unknown type: " + leaf.getType());
+    }
+  }
+
+  private static List<Object> hiveLiteralListToIcebergType(List<Object> hiveLiteralTypes) {
+    for (int i = 0; i < hiveLiteralTypes.size(); i++) {
+      Object type = hiveLiteralTypes.get(i);
+      if (type instanceof HiveDecimalWritable) {
+        hiveLiteralTypes.set(i, BigDecimal.valueOf(((HiveDecimalWritable) type).doubleValue()));
+      } else if (type instanceof Date) {
+        hiveLiteralTypes.set(i, ((Date) type).toLocalDate());
+      } else if (type instanceof Timestamp) {
+        hiveLiteralTypes.set(i, ((Timestamp) type).toLocalDateTime());
+      }
+    }
+    return hiveLiteralTypes;
   }
 }
 

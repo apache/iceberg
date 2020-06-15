@@ -19,9 +19,11 @@
 
 package org.apache.iceberg.mr.mapred;
 
+import java.math.BigDecimal;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgumentFactory;
+import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
 import org.apache.iceberg.expressions.And;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Not;
@@ -103,6 +105,21 @@ public class TestIcebergFilterFactory {
   }
 
   @Test
+  public void testInOperandWithDecimal() {
+    SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
+    SearchArgument arg = builder.startAnd().in("date", PredicateLeaf.Type.DECIMAL,
+        new HiveDecimalWritable("12.14"), new HiveDecimalWritable("13.15")).end().build();
+
+    UnboundPredicate expected = Expressions.in("date", BigDecimal.valueOf(12.14), BigDecimal.valueOf(13.15));
+    UnboundPredicate actual = (UnboundPredicate) IcebergFilterFactory.generateFilterExpression(arg);
+
+    assertEquals(actual.op(), expected.op());
+    assertEquals(actual.literals(), expected.literals());
+    assertEquals(actual.ref().name(), expected.ref().name());
+  }
+
+
+  @Test
   public void testBetweenOperand() {
     SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
     SearchArgument arg = builder
@@ -149,7 +166,7 @@ public class TestIcebergFilterFactory {
   }
 
   @Test
-  public void tesOrOperand() {
+  public void testOrOperand() {
     SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
     SearchArgument arg = builder
             .startOr()
@@ -205,6 +222,27 @@ public class TestIcebergFilterFactory {
 
     Or actual = (Or) IcebergFilterFactory.generateFilterExpression(arg);
 
+    assertEquals(actual.op(), expected.op());
+    assertEquals(actual.right().op(), expected.right().op());
+    assertEquals(actual.left().op(), expected.left().op());
+  }
+
+  @Test
+  public void testNestedFilter() {
+    SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
+    SearchArgument arg = builder
+        .startOr()
+        .equals("job", PredicateLeaf.Type.STRING, "dev")
+        .startAnd()
+        .equals("id", PredicateLeaf.Type.LONG, 3L)
+        .equals("dept", PredicateLeaf.Type.STRING, "300")
+        .end()
+        .end()
+        .build();
+
+    And expected = (And) Expressions.and(Expressions.or(Expressions.equal("job", "dev"), Expressions.equal(
+        "id", 3L)), Expressions.or(Expressions.equal("job", "dev"), Expressions.equal("dept", "300")));
+    And actual = (And) IcebergFilterFactory.generateFilterExpression(arg);
     assertEquals(actual.op(), expected.op());
     assertEquals(actual.right().op(), expected.right().op());
     assertEquals(actual.left().op(), expected.left().op());
