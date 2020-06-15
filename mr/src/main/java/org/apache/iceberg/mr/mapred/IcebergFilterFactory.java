@@ -101,7 +101,6 @@ public class IcebergFilterFactory {
       case LESS_THAN_EQUALS:
         return lessThanOrEqual(column, leafToIcebergType(leaf));
       case IN:
-        //TODO: 'in' doesn't support literals of Date or Timestamp - test for type here?
         return in(column, hiveLiteralListToIcebergType(leaf.getLiteralList()));
       case BETWEEN:
         List<Object> icebergLiterals = hiveLiteralListToIcebergType(leaf.getLiteralList());
