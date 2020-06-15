@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -48,6 +49,8 @@ public class TableMetadata implements Serializable {
   static final int DEFAULT_TABLE_FORMAT_VERSION = 1;
   static final int SUPPORTED_TABLE_FORMAT_VERSION = 2;
   static final int INITIAL_SPEC_ID = 0;
+
+  private static final long ONE_MINUTE = TimeUnit.MINUTES.toMillis(1);
 
   /**
    * @deprecated will be removed in 0.9.0; use newTableMetadata(Schema, PartitionSpec, String, Map) instead.
@@ -253,20 +256,39 @@ public class TableMetadata implements Serializable {
     for (HistoryEntry logEntry : snapshotLog) {
       if (last != null) {
         Preconditions.checkArgument(
-            (logEntry.timestampMillis() - last.timestampMillis()) >= 0,
+            (logEntry.timestampMillis() - last.timestampMillis()) >= -ONE_MINUTE,
             "[BUG] Expected sorted snapshot log entries.");
       }
       last = logEntry;
+    }
+    if (last != null) {
+      Preconditions.checkArgument(
+          // commits can happen concurrently from different machines.
+          // A tolerance helps us avoid failure for small clock skew
+          lastUpdatedMillis - last.timestampMillis() >= -ONE_MINUTE,
+          "Invalid update timestamp %s: before last snapshot log entry at %s",
+          lastUpdatedMillis, last.timestampMillis());
     }
 
     MetadataLogEntry previous = null;
     for (MetadataLogEntry metadataEntry : previousFiles) {
       if (previous != null) {
         Preconditions.checkArgument(
-            (metadataEntry.timestampMillis() - previous.timestampMillis()) >= 0,
+            // commits can happen concurrently from different machines.
+            // A tolerance helps us avoid failure for small clock skew
+            (metadataEntry.timestampMillis() - previous.timestampMillis()) >= -ONE_MINUTE,
             "[BUG] Expected sorted previous metadata log entries.");
       }
       previous = metadataEntry;
+    }
+      // Make sure that this update's lastUpdatedMillis is > max(previousFile's timestamp)
+    if (previous != null) {
+      Preconditions.checkArgument(
+          // commits can happen concurrently from different machines.
+          // A tolerance helps us avoid failure for small clock skew
+          lastUpdatedMillis - previous.timestampMillis >= -ONE_MINUTE,
+          "Invalid update timestamp %s: before the latest metadata log entry timestamp %s",
+          lastUpdatedMillis, previous.timestampMillis);
     }
 
     Preconditions.checkArgument(
