@@ -36,20 +36,24 @@ import org.apache.parquet.column.page.PageReader;
 public class VectorizedColumnIterator extends BaseColumnIterator {
 
   private final VectorizedPageIterator vectorizedPageIterator;
-  private final int batchSize;
+  private int batchSize;
 
-  public VectorizedColumnIterator(ColumnDescriptor desc, String writerVersion, int batchSize,
-                                  boolean setArrowValidityVector) {
+  public VectorizedColumnIterator(ColumnDescriptor desc, String writerVersion, boolean setArrowValidityVector) {
     super(desc);
     Preconditions.checkArgument(desc.getMaxRepetitionLevel() == 0,
         "Only non-nested columns are supported for vectorized reads");
-    this.batchSize = batchSize;
     this.vectorizedPageIterator = new VectorizedPageIterator(desc, writerVersion, setArrowValidityVector);
   }
 
+  public void setBatchSize(int batchSize) {
+    this.batchSize = batchSize;
+  }
+
   public Dictionary setRowGroupInfo(PageReader store, boolean allPagesDictEncoded) {
-    super.setPageSource(store);
+    // setPageSource can result in a data page read. If that happens, we need
+    // to know in advance whether all the pages in the row group are dictionary encoded or not
     this.vectorizedPageIterator.setAllPagesDictEncoded(allPagesDictEncoded);
+    super.setPageSource(store);
     return dictionary;
   }
 
@@ -197,6 +201,10 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
   @Override
   protected BasePageIterator pageIterator() {
     return vectorizedPageIterator;
+  }
+
+  public boolean producesDictionaryEncodedVector() {
+    return vectorizedPageIterator.producesDictionaryEncodedVector();
   }
 
 }

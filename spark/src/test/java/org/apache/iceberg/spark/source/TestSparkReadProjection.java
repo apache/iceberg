@@ -31,6 +31,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataWriter;
@@ -66,14 +67,20 @@ public class TestSparkReadProjection extends TestReadProjection {
   @Parameterized.Parameters
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] { "parquet" },
-        new Object[] { "avro" },
-        new Object[] { "orc" }
+        new Object[] { "parquet", false },
+        new Object[] { "parquet", true },
+        new Object[] { "avro", false },
+        new Object[] { "orc", false }
     };
   }
 
-  public TestSparkReadProjection(String format) {
+  private final FileFormat format;
+  private final boolean vectorized;
+
+  public TestSparkReadProjection(String format, boolean vectorized) {
     super(format);
+    this.format = FileFormat.valueOf(format.toUpperCase(Locale.ROOT));
+    this.vectorized = vectorized;
   }
 
   @BeforeClass
@@ -96,9 +103,7 @@ public class TestSparkReadProjection extends TestReadProjection {
     File dataFolder = new File(location, "data");
     Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
 
-    FileFormat fileFormat = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
-
-    File testFile = new File(dataFolder, fileFormat.addExtension(UUID.randomUUID().toString()));
+    File testFile = new File(dataFolder, format.addExtension(UUID.randomUUID().toString()));
 
     Table table = TestTables.create(location, desc, writeSchema, PartitionSpec.unpartitioned());
     try {
@@ -106,7 +111,7 @@ public class TestSparkReadProjection extends TestReadProjection {
       // When tables are created, the column ids are reassigned.
       Schema tableSchema = table.schema();
 
-      switch (fileFormat) {
+      switch (format) {
         case AVRO:
           try (FileAppender<Record> writer = Avro.write(localOutput(testFile))
               .createWriterFunc(DataWriter::create)
@@ -142,6 +147,8 @@ public class TestSparkReadProjection extends TestReadProjection {
           .build();
 
       table.newAppend().appendFile(file).commit();
+
+      table.updateProperties().set(TableProperties.PARQUET_VECTORIZATION_ENABLED, String.valueOf(vectorized)).commit();
 
       // rewrite the read schema for the table's reassigned ids
       Map<Integer, Integer> idMapping = Maps.newHashMap();

@@ -20,7 +20,9 @@
 package org.apache.iceberg.spark.data;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +35,7 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -49,10 +52,13 @@ import org.apache.spark.unsafe.types.UTF8String;
 
 public class RandomData {
 
+  // Default percentage of number of values that are null for optional fields
+  public static final float DEFAULT_NULL_PERCENTAGE = 0.05f;
+
   private RandomData() {}
 
   public static List<Record> generateList(Schema schema, int numRecords, long seed) {
-    RandomDataGenerator generator = new RandomDataGenerator(schema, seed);
+    RandomDataGenerator generator = new RandomDataGenerator(schema, seed, DEFAULT_NULL_PERCENTAGE);
     List<Record> records = Lists.newArrayListWithExpectedSize(numRecords);
     for (int i = 0; i < numRecords; i += 1) {
       records.add((Record) TypeUtil.visit(schema, generator));
@@ -83,9 +89,27 @@ public class RandomData {
   }
 
   public static Iterable<Record> generate(Schema schema, int numRecords, long seed) {
+    return newIterable(() -> new RandomDataGenerator(schema, seed, DEFAULT_NULL_PERCENTAGE), schema, numRecords);
+  }
+
+  public static Iterable<Record> generate(Schema schema, int numRecords, long seed, float nullPercentage) {
+    return newIterable(() -> new RandomDataGenerator(schema, seed, nullPercentage), schema, numRecords);
+  }
+
+  public static Iterable<Record> generateFallbackData(Schema schema, int numRecords, long seed, long numDictRecords) {
+    return newIterable(() -> new FallbackDataGenerator(schema, seed, numDictRecords), schema, numRecords);
+  }
+
+  public static Iterable<GenericData.Record> generateDictionaryEncodableData(
+      Schema schema, int numRecords, long seed, float nullPercentage) {
+    return newIterable(() -> new DictionaryEncodedDataGenerator(schema, seed, nullPercentage), schema, numRecords);
+  }
+
+  private static Iterable<Record> newIterable(Supplier<RandomDataGenerator> newGenerator,
+                                              Schema schema, int numRecords) {
     return () -> new Iterator<Record>() {
-      private RandomDataGenerator generator = new RandomDataGenerator(schema, seed);
       private int count = 0;
+      private RandomDataGenerator generator = newGenerator.get();
 
       @Override
       public boolean hasNext() {
@@ -106,8 +130,14 @@ public class RandomData {
   private static class RandomDataGenerator extends TypeUtil.CustomOrderSchemaVisitor<Object> {
     private final Map<Type, org.apache.avro.Schema> typeToSchema;
     private final Random random;
+    // Percentage of number of values that are null for optional fields
+    private final float nullPercentage;
 
-    private RandomDataGenerator(Schema schema, long seed) {
+    private RandomDataGenerator(Schema schema, long seed, float nullPercentage) {
+      Preconditions.checkArgument(
+          0.0f <= nullPercentage && nullPercentage <= 1.0f,
+          "Percentage needs to be in the range (0.0, 1.0)");
+      this.nullPercentage = nullPercentage;
       this.typeToSchema = AvroSchemaUtil.convertTypes(schema.asStruct(), "test");
       this.random = new Random(seed);
     }
@@ -131,11 +161,14 @@ public class RandomData {
 
     @Override
     public Object field(Types.NestedField field, Supplier<Object> fieldResult) {
-      // return null 5% of the time when the value is optional
-      if (field.isOptional() && random.nextInt(20) == 1) {
+      if (field.isOptional() && isNull()) {
         return null;
       }
       return fieldResult.get();
+    }
+
+    private boolean isNull() {
+      return random.nextFloat() < nullPercentage;
     }
 
     @Override
@@ -144,8 +177,7 @@ public class RandomData {
 
       List<Object> result = Lists.newArrayListWithExpectedSize(numElements);
       for (int i = 0; i < numElements; i += 1) {
-        // return null 5% of the time when the value is optional
-        if (list.isElementOptional() && random.nextInt(20) == 1) {
+        if (list.isElementOptional() && isNull()) {
           result.add(null);
         } else {
           result.add(elementResult.get());
@@ -170,8 +202,7 @@ public class RandomData {
 
         keySet.add(key);
 
-        // return null 5% of the time when the value is optional
-        if (map.isValueOptional() && random.nextInt(20) == 1) {
+        if (map.isValueOptional() && isNull()) {
           result.put(key, null);
         } else {
           result.put(key, valueResult.get());
@@ -183,7 +214,7 @@ public class RandomData {
 
     @Override
     public Object primitive(Type.PrimitiveType primitive) {
-      Object result = RandomUtil.generatePrimitive(primitive, random);
+      Object result = randomValue(primitive, random);
       // For the primitives that Avro needs a different type than Spark, fix
       // them here.
       switch (primitive.typeId()) {
@@ -197,6 +228,10 @@ public class RandomData {
         default:
           return result;
       }
+    }
+
+    protected Object randomValue(Type.PrimitiveType primitive, Random rand) {
+      return RandomUtil.generatePrimitive(primitive, random);
     }
   }
 
@@ -292,6 +327,73 @@ public class RandomData {
           return Decimal.apply((BigDecimal) obj);
         default:
           return obj;
+      }
+    }
+  }
+
+  private static Object generateDictionaryEncodablePrimitive(Type.PrimitiveType primitive, Random random) {
+    int value = random.nextInt(3);
+    switch (primitive.typeId()) {
+      case BOOLEAN:
+        return true; // doesn't really matter for booleans since they are not dictionary encoded
+      case INTEGER:
+      case DATE:
+        return value;
+      case FLOAT:
+        return (float) value;
+      case DOUBLE:
+        return (double) value;
+      case LONG:
+      case TIME:
+      case TIMESTAMP:
+        return (long) value;
+      case STRING:
+        return String.valueOf(value);
+      case FIXED:
+        byte[] fixed = new byte[((Types.FixedType) primitive).length()];
+        Arrays.fill(fixed, (byte) value);
+        return fixed;
+      case BINARY:
+        byte[] binary = new byte[value + 1];
+        Arrays.fill(binary, (byte) value);
+        return binary;
+      case DECIMAL:
+        Types.DecimalType type = (Types.DecimalType) primitive;
+        BigInteger unscaled = new BigInteger(String.valueOf(value + 1));
+        return new BigDecimal(unscaled, type.scale());
+      default:
+        throw new IllegalArgumentException(
+            "Cannot generate random value for unknown type: " + primitive);
+    }
+  }
+
+  private static class DictionaryEncodedDataGenerator extends RandomDataGenerator {
+    private DictionaryEncodedDataGenerator(Schema schema, long seed, float nullPercentage) {
+      super(schema, seed, nullPercentage);
+    }
+
+    @Override
+    protected Object randomValue(Type.PrimitiveType primitive, Random random) {
+      return generateDictionaryEncodablePrimitive(primitive, random);
+    }
+  }
+
+  private static class FallbackDataGenerator extends RandomDataGenerator {
+    private final long dictionaryEncodedRows;
+    private long rowCount = 0;
+
+    private FallbackDataGenerator(Schema schema, long seed, long numDictionaryEncoded) {
+      super(schema, seed, DEFAULT_NULL_PERCENTAGE);
+      this.dictionaryEncodedRows = numDictionaryEncoded;
+    }
+
+    @Override
+    protected Object randomValue(Type.PrimitiveType primitive, Random rand) {
+      this.rowCount += 1;
+      if (rowCount > dictionaryEncodedRows) {
+        return RandomUtil.generatePrimitive(primitive, rand);
+      } else {
+        return generateDictionaryEncodablePrimitive(primitive, rand);
       }
     }
   }

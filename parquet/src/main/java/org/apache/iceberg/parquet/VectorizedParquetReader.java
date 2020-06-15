@@ -90,6 +90,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     private final long totalValues;
     private final int batchSize;
     private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetadata;
+    private final boolean reuseContainers;
     private int nextRowGroup = 0;
     private long nextRowGroupStart = 0;
     private long valuesRead = 0;
@@ -98,12 +99,14 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     FileIterator(ReadConf conf) {
       this.reader = conf.reader();
       this.shouldSkip = conf.shouldSkip();
-      this.model = conf.vectorizedModel();
       this.totalValues = conf.totalValues();
-      this.model.reuseContainers(conf.reuseContainers());
+      this.reuseContainers = conf.reuseContainers();
+      this.model = conf.vectorizedModel();
       this.batchSize = conf.batchSize();
+      this.model.setBatchSize(this.batchSize);
       this.columnChunkMetadata = conf.columnChunkMetadataForRowGroups();
     }
+
 
     @Override
     public boolean hasNext() {
@@ -118,10 +121,16 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       if (valuesRead >= nextRowGroupStart) {
         advance();
       }
-      long numValuesToRead = Math.min(nextRowGroupStart - valuesRead, batchSize);
+
       // batchSize is an integer, so casting to integer is safe
-      this.last = model.read((int) numValuesToRead);
+      int numValuesToRead = (int) Math.min(nextRowGroupStart - valuesRead, batchSize);
+      if (reuseContainers) {
+        this.last = model.read(last, numValuesToRead);
+      } else {
+        this.last = model.read(null, numValuesToRead);
+      }
       valuesRead += numValuesToRead;
+
       return last;
     }
 

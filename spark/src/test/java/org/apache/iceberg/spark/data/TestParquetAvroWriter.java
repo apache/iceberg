@@ -74,7 +74,7 @@ public class TestParquetAvroWriter {
 
   @Test
   public void testCorrectness() throws IOException {
-    Iterable<Record> records = RandomData.generate(COMPLEX_SCHEMA, 250_000, 34139);
+    Iterable<Record> records = RandomData.generate(COMPLEX_SCHEMA, 50_000, 34139);
 
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
