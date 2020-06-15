@@ -263,7 +263,7 @@ public class TableMetadata {
           // commits can happen concurrently from different machines.
           // A tolerance helps us avoid failure for small clock skew
           lastUpdatedMillis - last.timestampMillis() >= -ONE_MINUTE,
-          "lastUpdatedMillis: %s should not be < than the latest snapshot log entry timestamp %s",
+          "Invalid update timestamp %s: before last snapshot log entry at %s",
           lastUpdatedMillis, last.timestampMillis());
     }
 
@@ -284,7 +284,7 @@ public class TableMetadata {
           // commits can happen concurrently from different machines.
           // A tolerance helps us avoid failure for small clock skew
           lastUpdatedMillis - previous.timestampMillis >= -ONE_MINUTE,
-          "lastUpdatedMillis: %s should not be < than the latest metadata log entry timestamp %s",
+          "Invalid update timestamp %s: before the latest metadata log entry timestamp %s",
           lastUpdatedMillis, previous.timestampMillis);
     }
 
@@ -453,10 +453,7 @@ public class TableMetadata {
         .build();
 
     return new TableMetadata(null, formatVersion, uuid, location,
-        snapshot.sequenceNumber(),
-        //TODO: should this be System.currentTimeMillis()
-        snapshot.timestampMillis(),
-        lastColumnId, schema, defaultSpecId, specs, properties,
+        snapshot.sequenceNumber(), snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs, properties,
         currentSnapshotId, newSnapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
