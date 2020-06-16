@@ -39,6 +39,10 @@ final class TableScanContext {
   private final Long fromSnapshotId;
   private final Long toSnapshotId;
 
+  TableScanContext() {
+    this(null, Expressions.alwaysTrue(), false, true, false, null, ImmutableMap.of(), null, null);
+  }
+
   private TableScanContext(Long snapshotId, Expression rowFilter, boolean ignoreResiduals,
                            boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
                            ImmutableMap<String, String> options, Long fromSnapshotId, Long toSnapshotId) {
@@ -57,133 +61,86 @@ final class TableScanContext {
     return snapshotId;
   }
 
+  TableScanContext snapshotId(Long id) {
+    return new TableScanContext(id, rowFilter, ignoreResiduals,
+        caseSensitive, colStats, selectedColumns, options, fromSnapshotId, toSnapshotId);
+  }
+
   Expression rowFilter() {
     return rowFilter;
+  }
+
+  TableScanContext rowFilter(Expression filter) {
+    return new TableScanContext(snapshotId, filter, ignoreResiduals,
+        caseSensitive, colStats, selectedColumns, options, fromSnapshotId, toSnapshotId);
   }
 
   boolean ignoreResiduals() {
     return ignoreResiduals;
   }
 
+  TableScanContext ignoreResiduals(boolean shouldIgnoreResiduals) {
+    return new TableScanContext(snapshotId, rowFilter, shouldIgnoreResiduals,
+        caseSensitive, colStats, selectedColumns, options, fromSnapshotId, toSnapshotId);
+  }
+
   boolean caseSensitive() {
     return caseSensitive;
+  }
+
+  TableScanContext caseSensitive(boolean isCaseSensitive) {
+    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
+        isCaseSensitive, colStats, selectedColumns, options, fromSnapshotId, toSnapshotId);
   }
 
   boolean colStats() {
     return colStats;
   }
 
+  TableScanContext colStats(boolean shouldUseColumnStats) {
+    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
+        caseSensitive, shouldUseColumnStats, selectedColumns, options, fromSnapshotId, toSnapshotId);
+  }
+
   Collection<String> selectedColumns() {
     return selectedColumns;
+  }
+
+  TableScanContext selectedColumns(Collection<String> columns) {
+    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
+        caseSensitive, colStats, columns, options, fromSnapshotId, toSnapshotId);
   }
 
   ImmutableMap<String, String> options() {
     return options;
   }
 
+  TableScanContext options(Map<String, String> extraOptions) {
+    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
+        caseSensitive, colStats, selectedColumns, ImmutableMap.copyOf(extraOptions),
+        fromSnapshotId, toSnapshotId);
+  }
+
   Long fromSnapshotId() {
     return fromSnapshotId;
+  }
+
+  TableScanContext fromSnapshotId(Long id) {
+    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
+        caseSensitive, colStats, selectedColumns, options, id, toSnapshotId);
   }
 
   Long toSnapshotId() {
     return toSnapshotId;
   }
 
+  TableScanContext toSnapshotId(Long id) {
+    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
+        caseSensitive, colStats, selectedColumns, options, fromSnapshotId, id);
+  }
+
   TableScanContext copy() {
-    return TableScanContext.builder(this).build();
-  }
-
-  static Builder builder() {
-    return new Builder();
-  }
-
-  static Builder builder(TableScanContext other) {
-    return new Builder(other);
-  }
-
-  static class Builder {
-    private Long snapshotId;
-    private Expression rowFilter;
-    private boolean ignoreResiduals;
-    private boolean caseSensitive;
-    private boolean colStats;
-    private Collection<String> selectedColumns;
-    private ImmutableMap<String, String> options;
-    private Long fromSnapshotId;
-    private Long toSnapshotId;
-
-    private Builder() {
-      this.snapshotId = null;
-      this.rowFilter = Expressions.alwaysTrue();
-      this.ignoreResiduals = false;
-      this.caseSensitive = false;
-      this.colStats = false;
-      this.selectedColumns = null;
-      this.options = ImmutableMap.of();
-      this.fromSnapshotId = null;
-      this.toSnapshotId = null;
-    }
-
-    private Builder(TableScanContext other) {
-      this.snapshotId = other.snapshotId;
-      this.rowFilter = other.rowFilter;
-      this.ignoreResiduals = other.ignoreResiduals;
-      this.caseSensitive = other.caseSensitive;
-      this.colStats = other.colStats;
-      this.selectedColumns = other.selectedColumns;
-      this.options = ImmutableMap.copyOf(other.options);
-      this.fromSnapshotId = other.fromSnapshotId;
-      this.toSnapshotId = other.toSnapshotId;
-    }
-
-    Builder snapshotId(Long id) {
-      this.snapshotId = id;
-      return this;
-    }
-
-    Builder rowFilter(Expression filter) {
-      this.rowFilter = filter;
-      return this;
-    }
-
-    Builder ignoreResiduals(boolean shouldIgnoreResiduals) {
-      this.ignoreResiduals = shouldIgnoreResiduals;
-      return this;
-    }
-
-    Builder caseSensitive(boolean isCaseSensitive) {
-      this.caseSensitive = isCaseSensitive;
-      return this;
-    }
-
-    Builder colStats(boolean shouldUseColumnStats) {
-      this.colStats = shouldUseColumnStats;
-      return this;
-    }
-
-    Builder selectedColumns(Collection<String> columns) {
-      this.selectedColumns = columns;
-      return this;
-    }
-
-    Builder options(Map<String, String> extraOptions) {
-      this.options = ImmutableMap.copyOf(extraOptions);
-      return this;
-    }
-
-    Builder fromSnapshotId(Long id) {
-      this.fromSnapshotId = id;
-      return this;
-    }
-
-    Builder toSnapshotId(Long id) {
-      this.toSnapshotId = id;
-      return this;
-    }
-
-    TableScanContext build() {
-      return new TableScanContext(snapshotId, rowFilter, ignoreResiduals, caseSensitive, colStats,
-          selectedColumns, options, fromSnapshotId, toSnapshotId);
-    }
+    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
+        caseSensitive, colStats, selectedColumns, options, fromSnapshotId, toSnapshotId);
   }
 }

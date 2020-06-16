@@ -56,7 +56,7 @@ abstract class BaseTableScan implements TableScan {
   private final TableScanContext context;
 
   protected BaseTableScan(TableOperations ops, Table table, Schema schema) {
-    this(ops, table, schema, TableScanContext.builder().caseSensitive(true).build());
+    this(ops, table, schema, new TableScanContext());
   }
 
   protected BaseTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
@@ -128,7 +128,7 @@ abstract class BaseTableScan implements TableScan {
     Preconditions.checkArgument(ops.current().snapshot(scanSnapshotId) != null,
         "Cannot find snapshot with ID %s", scanSnapshotId);
     return newRefinedScan(
-        ops, table, schema, TableScanContext.builder(context).snapshotId(scanSnapshotId).build());
+        ops, table, schema, context.snapshotId(scanSnapshotId));
   }
 
   @Override
@@ -158,7 +158,7 @@ abstract class BaseTableScan implements TableScan {
     builder.put(property, value);
 
     return newRefinedScan(
-        ops, table, schema, TableScanContext.builder(context).options(builder.build()).build());
+        ops, table, schema, context.options(builder.build()));
   }
 
   @Override
@@ -170,25 +170,25 @@ abstract class BaseTableScan implements TableScan {
   @Override
   public TableScan caseSensitive(boolean scanCaseSensitive) {
     return newRefinedScan(
-        ops, table, schema, TableScanContext.builder(context).caseSensitive(scanCaseSensitive).build());
+        ops, table, schema, context.caseSensitive(scanCaseSensitive));
   }
 
   @Override
   public TableScan includeColumnStats() {
     return newRefinedScan(
-        ops, table, schema, TableScanContext.builder(context).colStats(true).build());
+        ops, table, schema, context.colStats(true));
   }
 
   @Override
   public TableScan select(Collection<String> columns) {
     return newRefinedScan(
-        ops, table, schema, TableScanContext.builder(context).selectedColumns(columns).build());
+        ops, table, schema, context.selectedColumns(columns));
   }
 
   @Override
   public TableScan filter(Expression expr) {
     return newRefinedScan(ops, table, schema,
-        TableScanContext.builder(context).rowFilter(Expressions.and(context.rowFilter(), expr)).build());
+        context.rowFilter(Expressions.and(context.rowFilter(), expr)));
   }
 
   @Override
@@ -199,7 +199,7 @@ abstract class BaseTableScan implements TableScan {
   @Override
   public TableScan ignoreResiduals() {
     return newRefinedScan(
-        ops, table, schema, TableScanContext.builder(context).ignoreResiduals(true).build());
+        ops, table, schema, context.ignoreResiduals(true));
   }
 
   @Override

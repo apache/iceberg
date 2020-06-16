@@ -33,7 +33,7 @@ import org.apache.iceberg.util.ThreadPools;
 class IncrementalDataTableScan extends DataTableScan {
 
   IncrementalDataTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-    super(ops, table, schema, TableScanContext.builder(context).snapshotId(null).build());
+    super(ops, table, schema, context.snapshotId(null));
     validateSnapshotIds(table, context.fromSnapshotId(), context.toSnapshotId());
   }
 
@@ -55,8 +55,7 @@ class IncrementalDataTableScan extends DataTableScan {
   public TableScan appendsBetween(long newFromSnapshotId, long newToSnapshotId) {
     validateSnapshotIdsRefinement(newFromSnapshotId, newToSnapshotId);
     return new IncrementalDataTableScan(tableOps(), table(), schema(),
-        TableScanContext.builder(context())
-            .fromSnapshotId(newFromSnapshotId).toSnapshotId(newToSnapshotId).build());
+        context().fromSnapshotId(newFromSnapshotId).toSnapshotId(newToSnapshotId));
   }
 
   @Override
