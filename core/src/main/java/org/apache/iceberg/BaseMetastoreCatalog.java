@@ -220,7 +220,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     Set<String> manifestListsToDelete = Sets.newHashSet();
     Set<ManifestFile> manifestsToDelete = Sets.newHashSet();
     for (Snapshot snapshot : metadata.snapshots()) {
-      manifestsToDelete.addAll(snapshot.manifests());
+      // add all manifests to the delete set because both data and delete files should be removed
+      Iterables.addAll(manifestsToDelete, snapshot.allManifests());
       // add the manifest list to the delete set, if present
       if (snapshot.manifestListLocation() != null) {
         manifestListsToDelete.add(snapshot.manifestListLocation());
@@ -243,7 +244,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         .onFailure((list, exc) -> LOG.warn("Delete failed for manifest list: {}", list, exc))
         .run(io::deleteFile);
 
-    Tasks.foreach(metadata.file().location())
+    Tasks.foreach(metadata.metadataFileLocation())
         .noRetry().suppressFailureWhenFinished()
         .onFailure((list, exc) -> LOG.warn("Delete failed for metadata file: {}", list, exc))
         .run(io::deleteFile);
@@ -261,8 +262,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         .executeWith(ThreadPools.getWorkerPool())
         .onFailure((item, exc) -> LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
         .run(manifest -> {
-          try (ManifestReader reader = ManifestFiles.read(manifest, io)) {
-            for (ManifestEntry entry : reader.entries()) {
+          try (ManifestReader<?> reader = ManifestFiles.open(manifest, io)) {
+            for (ManifestEntry<?> entry : reader.entries()) {
               // intern the file path because the weak key map uses identity (==) instead of equals
               String path = entry.file().path().toString().intern();
               Boolean alreadyDeleted = deletedFiles.putIfAbsent(path, true);

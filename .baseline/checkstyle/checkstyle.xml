@@ -165,6 +165,11 @@
             <property name="illegalClasses" value="com.google.common.base.Optional, com.google.common.base.Supplier"/>
             <message key="import.illegal" value="Use the Java8 version of Guava objects."/>
         </module>
+        <module name="IllegalImport">
+            <property name="id" value="BanUnrelocatedGuavaClasses"/>
+            <property name="illegalPkgs" value="com.google.common"/>
+            <message key="import.illegal" value="Use org.apache.iceberg.relocated.* classes from bundled-guava module instead."/>
+        </module>
         <module name="IllegalInstantiation"> <!-- Java Coding Guidelines: Never instantiate primitive types -->
             <property name="classes" value="java.lang.Boolean"/>
             <property name="classes" value="java.lang.Byte"/>

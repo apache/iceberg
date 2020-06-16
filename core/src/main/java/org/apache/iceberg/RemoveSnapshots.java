@@ -349,8 +349,8 @@ class RemoveSnapshots implements ExpireSnapshots {
         .onFailure((item, exc) -> LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
         .run(manifest -> {
           // the manifest has deletes, scan it to find files to delete
-          try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
-            for (ManifestEntry entry : reader.entries()) {
+          try (ManifestReader<?> reader = ManifestFiles.open(manifest, ops.io(), ops.current().specsById())) {
+            for (ManifestEntry<?> entry : reader.entries()) {
               // if the snapshot ID of the DELETE entry is no longer valid, the data can be deleted
               if (entry.status() == ManifestEntry.Status.DELETED &&
                   !validIds.contains(entry.snapshotId())) {
@@ -369,8 +369,8 @@ class RemoveSnapshots implements ExpireSnapshots {
         .onFailure((item, exc) -> LOG.warn("Failed to get added files: this may cause orphaned data files", exc))
         .run(manifest -> {
           // the manifest has deletes, scan it to find files to delete
-          try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
-            for (ManifestEntry entry : reader.entries()) {
+          try (ManifestReader<?> reader = ManifestFiles.open(manifest, ops.io(), ops.current().specsById())) {
+            for (ManifestEntry<?> entry : reader.entries()) {
               // delete any ADDED file from manifests that were reverted
               if (entry.status() == ManifestEntry.Status.ADDED) {
                 // use toString to ensure the path will not change (Utf8 is reused)
@@ -398,7 +398,7 @@ class RemoveSnapshots implements ExpireSnapshots {
           .build();
 
     } else {
-      return CloseableIterable.withNoopClose(snapshot.manifests());
+      return CloseableIterable.withNoopClose(snapshot.allManifests());
     }
   }
 }

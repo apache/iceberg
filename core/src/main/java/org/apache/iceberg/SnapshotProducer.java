@@ -173,7 +173,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
       return new BaseSnapshot(ops.io(),
           sequenceNumber, snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
-          ops.io().newInputFile(manifestList.location()));
+          manifestList.location());
 
     } else {
       return new BaseSnapshot(ops.io(),
@@ -278,7 +278,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       // id in case another commit was added between this commit and the refresh.
       Snapshot saved = ops.refresh().snapshot(newSnapshotId.get());
       if (saved != null) {
-        cleanUncommitted(Sets.newHashSet(saved.manifests()));
+        cleanUncommitted(Sets.newHashSet(saved.allManifests()));
         // also clean up unused manifest lists created by multiple attempts
         for (String manifestList : manifestLists) {
           if (!saved.manifestListLocation().equals(manifestList)) {
@@ -331,7 +331,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         ops.metadataFileLocation(FileFormat.AVRO.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement())));
   }
 
-  protected ManifestWriter newManifestWriter(PartitionSpec spec) {
+  protected ManifestWriter<DataFile> newManifestWriter(PartitionSpec spec) {
     return ManifestFiles.write(ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
   }
 
@@ -347,7 +347,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   private static ManifestFile addMetadata(TableOperations ops, ManifestFile manifest) {
-    try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
       PartitionSummary stats = new PartitionSummary(ops.current().spec(manifest.partitionSpecId()));
       int addedFiles = 0;
       long addedRows = 0L;
@@ -358,7 +358,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
       Long snapshotId = null;
       long maxSnapshotId = Long.MIN_VALUE;
-      for (ManifestEntry entry : reader.entries()) {
+      for (ManifestEntry<DataFile> entry : reader.entries()) {
         if (entry.snapshotId() > maxSnapshotId) {
           maxSnapshotId = entry.snapshotId();
         }

@@ -27,12 +27,10 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.SortedSet;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
@@ -44,7 +42,6 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.JsonUtil;
 
 public class TableMetadataParser {
@@ -293,8 +290,7 @@ public class TableMetadataParser {
       snapshots.add(SnapshotParser.fromJson(io, iterator.next()));
     }
 
-    SortedSet<SnapshotLogEntry> entries =
-        Sets.newTreeSet(Comparator.comparingLong(SnapshotLogEntry::timestampMillis));
+    ImmutableList.Builder<HistoryEntry> entries = ImmutableList.builder();
     if (node.has(SNAPSHOT_LOG)) {
       Iterator<JsonNode> logIterator = node.get(SNAPSHOT_LOG).elements();
       while (logIterator.hasNext()) {
@@ -304,8 +300,7 @@ public class TableMetadataParser {
       }
     }
 
-    SortedSet<MetadataLogEntry> metadataEntries =
-            Sets.newTreeSet(Comparator.comparingLong(MetadataLogEntry::timestampMillis));
+    ImmutableList.Builder<MetadataLogEntry> metadataEntries = ImmutableList.builder();
     if (node.has(METADATA_LOG)) {
       Iterator<JsonNode> logIterator = node.get(METADATA_LOG).elements();
       while (logIterator.hasNext()) {
@@ -317,7 +312,6 @@ public class TableMetadataParser {
 
     return new TableMetadata(file, formatVersion, uuid, location,
         lastSequenceNumber, lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs, properties,
-        currentVersionId, snapshots, ImmutableList.copyOf(entries.iterator()),
-        ImmutableList.copyOf(metadataEntries.iterator()));
+        currentVersionId, snapshots, entries.build(), metadataEntries.build());
   }
 }

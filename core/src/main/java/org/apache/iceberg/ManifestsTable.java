@@ -74,10 +74,10 @@ public class ManifestsTable extends BaseMetadataTable {
   }
 
   protected DataTask task(TableScan scan) {
-    String manifestListLocation = scan.snapshot().manifestListLocation();
+    String location = scan.snapshot().manifestListLocation();
     return StaticDataTask.of(
-        ops.io().newInputFile(manifestListLocation != null ? manifestListLocation : ops.current().file().location()),
-        scan.snapshot().manifests(),
+        ops.io().newInputFile(location != null ? location : ops.current().metadataFileLocation()),
+        scan.snapshot().allManifests(),
         manifest -> ManifestsTable.manifestFileToRow(spec, manifest));
   }
 

@@ -132,6 +132,13 @@ public interface TableScan {
   Expression filter();
 
   /**
+   * Create a new {@link TableScan} from this that applies data filtering to files but not to rows in those files.
+   *
+   * @return a new scan based on this that does not filter rows in files.
+   */
+  TableScan ignoreResiduals();
+
+  /**
    * Create a new {@link TableScan} to read appended data from {@code fromSnapshotId} exclusive to {@code toSnapshotId}
    * inclusive.
    *

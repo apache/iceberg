@@ -47,11 +47,18 @@ public class VectorizedPageIterator extends BasePageIterator {
     this.setArrowValidityVector = setValidityVector;
   }
 
-  private boolean eagerDecodeDictionary;
   private ValuesAsBytesReader plainValuesReader = null;
   private VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader = null;
   private boolean allPagesDictEncoded;
   private VectorizedParquetDefinitionLevelReader vectorizedDefinitionLevelReader;
+
+  private enum DictionaryDecodeMode {
+    NONE, // plain encoding
+    LAZY,
+    EAGER
+  }
+
+  private DictionaryDecodeMode dictionaryDecodeMode;
 
   public void setAllPagesDictEncoded(boolean allDictEncoded) {
     this.allPagesDictEncoded = allDictEncoded;
@@ -98,7 +105,7 @@ public class VectorizedPageIterator extends BasePageIterator {
     if (actualBatchSize <= 0) {
       return 0;
     }
-    if (eagerDecodeDictionary) {
+    if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
       vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedIntegers(
           vector,
           numValsInVector,
@@ -132,7 +139,7 @@ public class VectorizedPageIterator extends BasePageIterator {
     if (actualBatchSize <= 0) {
       return 0;
     }
-    if (eagerDecodeDictionary) {
+    if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
       vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedLongs(
           vector,
           numValsInVector,
@@ -168,7 +175,7 @@ public class VectorizedPageIterator extends BasePageIterator {
     if (actualBatchSize <= 0) {
       return 0;
     }
-    if (eagerDecodeDictionary) {
+    if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
       vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedTimestampMillis(
           vector,
           numValsInVector,
@@ -202,7 +209,7 @@ public class VectorizedPageIterator extends BasePageIterator {
     if (actualBatchSize <= 0) {
       return 0;
     }
-    if (eagerDecodeDictionary) {
+    if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
       vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedFloats(
           vector,
           numValsInVector,
@@ -236,7 +243,7 @@ public class VectorizedPageIterator extends BasePageIterator {
     if (actualBatchSize <= 0) {
       return 0;
     }
-    if (eagerDecodeDictionary) {
+    if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
       vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedDoubles(
           vector,
           numValsInVector,
@@ -274,7 +281,7 @@ public class VectorizedPageIterator extends BasePageIterator {
     if (actualBatchSize <= 0) {
       return 0;
     }
-    if (eagerDecodeDictionary) {
+    if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
       vectorizedDefinitionLevelReader
           .readBatchOfDictionaryEncodedIntLongBackedDecimals(
               vector,
@@ -312,7 +319,7 @@ public class VectorizedPageIterator extends BasePageIterator {
     if (actualBatchSize <= 0) {
       return 0;
     }
-    if (eagerDecodeDictionary) {
+    if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
       vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedFixedLengthDecimals(
           vector,
           numValsInVector,
@@ -347,7 +354,7 @@ public class VectorizedPageIterator extends BasePageIterator {
     if (actualBatchSize <= 0) {
       return 0;
     }
-    if (eagerDecodeDictionary) {
+    if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
       vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedVarWidth(
           vector,
           numValsInVector,
@@ -380,7 +387,7 @@ public class VectorizedPageIterator extends BasePageIterator {
     if (actualBatchSize <= 0) {
       return 0;
     }
-    if (eagerDecodeDictionary) {
+    if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
       vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedFixedWidthBinary(
           vector,
           numValsInVector,
@@ -401,6 +408,10 @@ public class VectorizedPageIterator extends BasePageIterator {
     triplesRead += actualBatchSize;
     this.hasNext = triplesRead < triplesCount;
     return actualBatchSize;
+  }
+
+  public boolean producesDictionaryEncodedVector() {
+    return dictionaryDecodeMode == DictionaryDecodeMode.LAZY;
   }
 
   /**
@@ -426,8 +437,6 @@ public class VectorizedPageIterator extends BasePageIterator {
   @Override
   protected void initDataReader(Encoding dataEncoding, ByteBufferInputStream in, int valueCount) {
     ValuesReader previousReader = plainValuesReader;
-    this.eagerDecodeDictionary = dataEncoding.usesDictionary() && dictionary != null &&
-        (ParquetUtil.isIntType(desc.getPrimitiveType()) || !allPagesDictEncoded);
     if (dataEncoding.usesDictionary()) {
       if (dictionary == null) {
         throw new ParquetDecodingException(
@@ -437,12 +446,18 @@ public class VectorizedPageIterator extends BasePageIterator {
         dictionaryEncodedValuesReader =
             new VectorizedDictionaryEncodedParquetValuesReader(desc.getMaxDefinitionLevel(), setArrowValidityVector);
         dictionaryEncodedValuesReader.initFromPage(valueCount, in);
+        if (ParquetUtil.isIntType(desc.getPrimitiveType()) || !allPagesDictEncoded) {
+          dictionaryDecodeMode = DictionaryDecodeMode.EAGER;
+        } else {
+          dictionaryDecodeMode = DictionaryDecodeMode.LAZY;
+        }
       } catch (IOException e) {
         throw new ParquetDecodingException("could not read page in col " + desc, e);
       }
     } else {
       plainValuesReader = new ValuesAsBytesReader();
       plainValuesReader.initFromPage(valueCount, in);
+      dictionaryDecodeMode = DictionaryDecodeMode.NONE;
     }
     if (CorruptDeltaByteArrays.requiresSequentialReads(writerVersion, dataEncoding) &&
         previousReader != null && previousReader instanceof RequiresPreviousReader) {

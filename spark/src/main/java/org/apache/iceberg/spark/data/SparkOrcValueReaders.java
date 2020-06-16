@@ -19,12 +19,12 @@
 
 package org.apache.iceberg.spark.data;
 
-import com.google.common.collect.Lists;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.orc.OrcValueReader;
 import org.apache.iceberg.orc.OrcValueReaders;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;

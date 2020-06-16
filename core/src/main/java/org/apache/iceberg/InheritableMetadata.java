@@ -22,5 +22,5 @@ package org.apache.iceberg;
 import java.io.Serializable;
 
 interface InheritableMetadata extends Serializable {
-  ManifestEntry apply(ManifestEntry manifestEntry);
+  <F extends ContentFile<F>> ManifestEntry<F> apply(ManifestEntry<F> manifestEntry);
 }

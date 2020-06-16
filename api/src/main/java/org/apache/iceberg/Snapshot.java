@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 
@@ -30,7 +31,7 @@ import java.util.Map;
  * <p>
  * Snapshots are created by table operations, like {@link AppendFiles} and {@link RewriteFiles}.
  */
-public interface Snapshot {
+public interface Snapshot extends Serializable {
   /**
    * Return this snapshot's sequence number.
    * <p>
@@ -64,13 +65,25 @@ public interface Snapshot {
   long timestampMillis();
 
   /**
-   * Return the location of all manifests in this snapshot.
-   * <p>
-   * The current table is made of the union of the data files in these manifests.
+   * Return all {@link ManifestFile} instances for either data or delete manifests in this snapshot.
    *
-   * @return a list of fully-qualified manifest locations
+   * @return a list of ManifestFile
    */
-  List<ManifestFile> manifests();
+  List<ManifestFile> allManifests();
+
+  /**
+   * Return a {@link ManifestFile} for each data manifest in this snapshot.
+   *
+   * @return a list of ManifestFile
+   */
+  List<ManifestFile> dataManifests();
+
+  /**
+   * Return a {@link ManifestFile} for each delete manifest in this snapshot.
+   *
+   * @return a list of ManifestFile
+   */
+  List<ManifestFile> deleteManifests();
 
   /**
    * Return the name of the {@link DataOperations data operation} that produced this snapshot.

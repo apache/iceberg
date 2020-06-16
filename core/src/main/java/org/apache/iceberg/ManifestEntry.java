@@ -25,7 +25,7 @@ import org.apache.iceberg.types.Types.StructType;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-interface ManifestEntry {
+interface ManifestEntry<F extends ContentFile<F>> {
   enum Status {
     EXISTING(0),
     ADDED(1),
@@ -89,9 +89,9 @@ interface ManifestEntry {
   /**
    * @return a file
    */
-  DataFile file();
+  F file();
 
-  ManifestEntry copy();
+  ManifestEntry<F> copy();
 
-  ManifestEntry copyWithoutStats();
+  ManifestEntry<F> copyWithoutStats();
 }

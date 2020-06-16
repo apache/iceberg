@@ -19,8 +19,23 @@
 
 package org.apache.iceberg.util;
 
+import java.io.Closeable;
+import java.io.IOException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+
 public class Exceptions {
   private Exceptions() {
+  }
+
+  public static void close(Closeable closeable, boolean suppressExceptions) {
+    try {
+      closeable.close();
+    } catch (IOException e) {
+      if (!suppressExceptions) {
+        throw new RuntimeIOException("Failed calling close", e);
+      }
+      // otherwise, ignore the exception
+    }
   }
 
   public static <E extends Exception> E suppressExceptions(E alreadyThrown, Runnable run) {

@@ -46,8 +46,8 @@ public class TestManifestReader extends TableTestBase {
   @Test
   public void testManifestReaderWithEmptyInheritableMetadata() throws IOException {
     ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 1000L, FILE_A));
-    try (ManifestReader reader = ManifestFiles.read(manifest, FILE_IO)) {
-      ManifestEntry entry = Iterables.getOnlyElement(reader.entries());
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
+      ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader.entries());
       Assert.assertEquals(Status.EXISTING, entry.status());
       Assert.assertEquals(FILE_A.path(), entry.file().path());
       Assert.assertEquals(1000L, (long) entry.snapshotId());
@@ -66,8 +66,8 @@ public class TestManifestReader extends TableTestBase {
   @Test
   public void testManifestReaderWithPartitionMetadata() throws IOException {
     ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 123L, FILE_A));
-    try (ManifestReader reader = ManifestFiles.read(manifest, FILE_IO)) {
-      ManifestEntry entry = Iterables.getOnlyElement(reader.entries());
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
+      ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader.entries());
       Assert.assertEquals(123L, (long) entry.snapshotId());
 
       List<Types.NestedField> fields = ((PartitionData) entry.file().partition()).getPartitionType().fields();
@@ -87,8 +87,8 @@ public class TestManifestReader extends TableTestBase {
     table.ops().commit(table.ops().current(), table.ops().current().updatePartitionSpec(spec));
 
     ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 123L, FILE_A));
-    try (ManifestReader reader = ManifestFiles.read(manifest, FILE_IO)) {
-      ManifestEntry entry = Iterables.getOnlyElement(reader.entries());
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
+      ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader.entries());
       Assert.assertEquals(123L, (long) entry.snapshotId());
 
       List<Types.NestedField> fields = ((PartitionData) entry.file().partition()).getPartitionType().fields();

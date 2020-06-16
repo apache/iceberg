@@ -47,7 +47,7 @@ public class TestSnapshotJson {
     Assert.assertEquals("Snapshot ID should match",
         expected.snapshotId(), snapshot.snapshotId());
     Assert.assertEquals("Files should match",
-        expected.manifests(), snapshot.manifests());
+        expected.allManifests(), snapshot.allManifests());
     Assert.assertNull("Operation should be null", snapshot.operation());
     Assert.assertNull("Summary should be null", snapshot.summary());
   }
@@ -78,7 +78,7 @@ public class TestSnapshotJson {
     Assert.assertEquals("Manifest list should match",
         expected.manifestListLocation(), snapshot.manifestListLocation());
     Assert.assertEquals("Files should match",
-        expected.manifests(), snapshot.manifests());
+        expected.allManifests(), snapshot.allManifests());
     Assert.assertEquals("Operation should match",
         expected.operation(), snapshot.operation());
     Assert.assertEquals("Summary should match",
@@ -102,12 +102,12 @@ public class TestSnapshotJson {
     }
 
     Snapshot expected = new BaseSnapshot(
-        ops.io(), id, 34, parentId, System.currentTimeMillis(), null, null, localInput(manifestList));
+        ops.io(), id, 34, parentId, System.currentTimeMillis(), null, null, localInput(manifestList).location());
     Snapshot inMemory = new BaseSnapshot(
         ops.io(), id, parentId, expected.timestampMillis(), null, null, manifests);
 
     Assert.assertEquals("Files should match in memory list",
-        inMemory.manifests(), expected.manifests());
+        inMemory.allManifests(), expected.allManifests());
 
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json);
@@ -123,7 +123,7 @@ public class TestSnapshotJson {
     Assert.assertEquals("Manifest list should match",
         expected.manifestListLocation(), snapshot.manifestListLocation());
     Assert.assertEquals("Files should match",
-        expected.manifests(), snapshot.manifests());
+        expected.allManifests(), snapshot.allManifests());
     Assert.assertNull("Operation should be null", snapshot.operation());
     Assert.assertNull("Summary should be null", snapshot.summary());
   }

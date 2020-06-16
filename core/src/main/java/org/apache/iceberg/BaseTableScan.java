@@ -26,7 +26,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
-import java.util.function.Function;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.Binder;
@@ -35,11 +34,10 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.util.BinPacking;
+import org.apache.iceberg.util.TableScanUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,23 +55,25 @@ abstract class BaseTableScan implements TableScan {
   private final Long snapshotId;
   private final Schema schema;
   private final Expression rowFilter;
+  private final boolean ignoreResiduals;
   private final boolean caseSensitive;
   private final boolean colStats;
   private final Collection<String> selectedColumns;
   private final ImmutableMap<String, String> options;
 
   protected BaseTableScan(TableOperations ops, Table table, Schema schema) {
-    this(ops, table, null, schema, Expressions.alwaysTrue(), true, false, null, ImmutableMap.of());
+    this(ops, table, null, schema, Expressions.alwaysTrue(), false, true, false, null, ImmutableMap.of());
   }
 
   protected BaseTableScan(TableOperations ops, Table table, Long snapshotId, Schema schema,
-                        Expression rowFilter, boolean caseSensitive, boolean colStats,
-                        Collection<String> selectedColumns, ImmutableMap<String, String> options) {
+                          Expression rowFilter, boolean ignoreResiduals, boolean caseSensitive, boolean colStats,
+                          Collection<String> selectedColumns, ImmutableMap<String, String> options) {
     this.ops = ops;
     this.table = table;
     this.snapshotId = snapshotId;
     this.schema = schema;
     this.rowFilter = rowFilter;
+    this.ignoreResiduals = ignoreResiduals;
     this.caseSensitive = caseSensitive;
     this.colStats = colStats;
     this.selectedColumns = selectedColumns;
@@ -92,6 +92,10 @@ abstract class BaseTableScan implements TableScan {
     return colStats;
   }
 
+  protected boolean shouldIgnoreResiduals() {
+    return ignoreResiduals;
+  }
+
   protected Collection<String> selectedColumns() {
     return selectedColumns;
   }
@@ -106,12 +110,13 @@ abstract class BaseTableScan implements TableScan {
   @SuppressWarnings("checkstyle:HiddenField")
   protected abstract TableScan newRefinedScan(
       TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-      boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
+      boolean ignoreResiduals, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
       ImmutableMap<String, String> options);
 
   @SuppressWarnings("checkstyle:HiddenField")
   protected abstract CloseableIterable<FileScanTask> planFiles(
-      TableOperations ops, Snapshot snapshot, Expression rowFilter, boolean caseSensitive, boolean colStats);
+      TableOperations ops, Snapshot snapshot, Expression rowFilter,
+      boolean ignoreResiduals, boolean caseSensitive, boolean colStats);
 
   @Override
   public Table table() {
@@ -135,7 +140,8 @@ abstract class BaseTableScan implements TableScan {
     Preconditions.checkArgument(ops.current().snapshot(scanSnapshotId) != null,
         "Cannot find snapshot with ID %s", scanSnapshotId);
     return newRefinedScan(
-        ops, table, scanSnapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, options);
+        ops, table, scanSnapshotId, schema, rowFilter, ignoreResiduals,
+        caseSensitive, colStats, selectedColumns, options);
   }
 
   @Override
@@ -165,40 +171,55 @@ abstract class BaseTableScan implements TableScan {
     builder.put(property, value);
 
     return newRefinedScan(
-        ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, builder.build());
+        ops, table, snapshotId, schema, rowFilter, ignoreResiduals,
+        caseSensitive, colStats, selectedColumns, builder.build());
   }
 
   @Override
   public TableScan project(Schema projectedSchema) {
     return newRefinedScan(
-        ops, table, snapshotId, projectedSchema, rowFilter, caseSensitive, colStats, selectedColumns, options);
+        ops, table, snapshotId, projectedSchema, rowFilter, ignoreResiduals,
+        caseSensitive, colStats, selectedColumns, options);
   }
 
   @Override
   public TableScan caseSensitive(boolean scanCaseSensitive) {
     return newRefinedScan(
-        ops, table, snapshotId, schema, rowFilter, scanCaseSensitive, colStats, selectedColumns, options);
+        ops, table, snapshotId, schema, rowFilter, ignoreResiduals,
+        scanCaseSensitive, colStats, selectedColumns, options);
   }
 
   @Override
   public TableScan includeColumnStats() {
-    return newRefinedScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, true, selectedColumns, options);
+    return newRefinedScan(
+        ops, table, snapshotId, schema, rowFilter, ignoreResiduals,
+        caseSensitive, true, selectedColumns, options);
   }
 
   @Override
   public TableScan select(Collection<String> columns) {
-    return newRefinedScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, columns, options);
+    return newRefinedScan(
+        ops, table, snapshotId, schema, rowFilter, ignoreResiduals,
+        caseSensitive, colStats, columns, options);
   }
 
   @Override
   public TableScan filter(Expression expr) {
-    return newRefinedScan(ops, table, snapshotId, schema, Expressions.and(rowFilter, expr), caseSensitive, colStats,
-        selectedColumns, options);
+    return newRefinedScan(
+        ops, table, snapshotId, schema, Expressions.and(rowFilter, expr),
+        ignoreResiduals, caseSensitive, colStats, selectedColumns, options);
   }
 
   @Override
   public Expression filter() {
     return rowFilter;
+  }
+
+  @Override
+  public TableScan ignoreResiduals() {
+    return newRefinedScan(
+        ops, table, snapshotId, schema, rowFilter, true,
+        caseSensitive, colStats, selectedColumns, options);
   }
 
   @Override
@@ -212,7 +233,7 @@ abstract class BaseTableScan implements TableScan {
       Listeners.notifyAll(
           new ScanEvent(table.toString(), snapshot.snapshotId(), rowFilter, schema()));
 
-      return planFiles(ops, snapshot, rowFilter, caseSensitive, colStats);
+      return planFiles(ops, snapshot, rowFilter, ignoreResiduals, caseSensitive, colStats);
 
     } else {
       LOG.info("Scanning empty table {}", table);
@@ -243,14 +264,9 @@ abstract class BaseTableScan implements TableScan {
           TableProperties.SPLIT_OPEN_FILE_COST, TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
     }
 
-    Function<FileScanTask, Long> weightFunc = file -> Math.max(file.length(), openFileCost);
-
-    CloseableIterable<FileScanTask> splitFiles = splitFiles(splitSize);
-    return CloseableIterable.transform(
-        CloseableIterable.combine(
-            new BinPacking.PackingIterable<>(splitFiles, splitSize, lookback, weightFunc, true),
-            splitFiles),
-        BaseCombinedScanTask::new);
+    CloseableIterable<FileScanTask> fileScanTasks = planFiles();
+    CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(fileScanTasks, splitSize);
+    return TableScanUtil.planTasks(splitFiles, splitSize, lookback, openFileCost);
   }
 
   @Override
@@ -276,17 +292,9 @@ abstract class BaseTableScan implements TableScan {
         .add("table", table)
         .add("projection", schema().asStruct())
         .add("filter", rowFilter)
+        .add("ignoreResiduals", ignoreResiduals)
         .add("caseSensitive", caseSensitive)
         .toString();
-  }
-
-  private CloseableIterable<FileScanTask> splitFiles(long splitSize) {
-    CloseableIterable<FileScanTask> fileScanTasks = planFiles();
-    Iterable<FileScanTask> splitTasks = FluentIterable
-        .from(fileScanTasks)
-        .transformAndConcat(input -> input.split(splitSize));
-    // Capture manifests which can be closed after scan planning
-    return CloseableIterable.combine(splitTasks, fileScanTasks);
   }
 
   /**

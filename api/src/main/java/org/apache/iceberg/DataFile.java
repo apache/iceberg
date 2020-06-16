@@ -19,9 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.BinaryType;
 import org.apache.iceberg.types.Types.IntegerType;
@@ -35,9 +32,9 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 /**
- * Interface for files listed in a table manifest.
+ * Interface for data files listed in a table manifest.
  */
-public interface DataFile {
+public interface DataFile extends ContentFile<DataFile> {
   // fields for adding delete data files
   Types.NestedField CONTENT = optional(134, "content", IntegerType.get(),
       "Contents of the file: 0=data, 1=position deletes, 2=equality deletes");
@@ -86,86 +83,8 @@ public interface DataFile {
   /**
    * @return the content stored in the file; one of DATA, POSITION_DELETES, or EQUALITY_DELETES
    */
+  @Override
   default FileContent content() {
     return FileContent.DATA;
   }
-
-  /**
-   * @return fully qualified path to the file, suitable for constructing a Hadoop Path
-   */
-  CharSequence path();
-
-  /**
-   * @return format of the data file
-   */
-  FileFormat format();
-
-  /**
-   * @return partition data for this file as a {@link StructLike}
-   */
-  StructLike partition();
-
-  /**
-   * @return the number of top-level records in the data file
-   */
-  long recordCount();
-
-  /**
-   * @return the data file size in bytes
-   */
-  long fileSizeInBytes();
-
-  /**
-   * @return if collected, map from column ID to the size of the column in bytes, null otherwise
-   */
-  Map<Integer, Long> columnSizes();
-
-  /**
-   * @return if collected, map from column ID to the count of its non-null values, null otherwise
-   */
-  Map<Integer, Long> valueCounts();
-
-  /**
-   * @return if collected, map from column ID to its null value count, null otherwise
-   */
-  Map<Integer, Long> nullValueCounts();
-
-  /**
-   * @return if collected, map from column ID to value lower bounds, null otherwise
-   */
-  Map<Integer, ByteBuffer> lowerBounds();
-
-  /**
-   * @return if collected, map from column ID to value upper bounds, null otherwise
-   */
-  Map<Integer, ByteBuffer> upperBounds();
-
-  /**
-   * @return metadata about how this file is encrypted, or null if the file is stored in plain
-   *         text.
-   */
-  ByteBuffer keyMetadata();
-
-  /**
-   * @return List of recommended split locations, if applicable, null otherwise.
-   * When available, this information is used for planning scan tasks whose boundaries
-   * are determined by these offsets. The returned list must be sorted in ascending order.
-   */
-  List<Long> splitOffsets();
-
-  /**
-   * Copies this {@link DataFile data file}. Manifest readers can reuse data file instances; use
-   * this method to copy data when collecting files from tasks.
-   *
-   * @return a copy of this data file
-   */
-  DataFile copy();
-
-  /**
-   * Copies this {@link DataFile data file} without file stats. Manifest readers can reuse data file instances; use
-   * this method to copy data without stats when collecting files.
-   *
-   * @return a copy of this data file, without lower bounds, upper bounds, value counts, or null value counts
-   */
-  DataFile copyWithoutStats();
 }

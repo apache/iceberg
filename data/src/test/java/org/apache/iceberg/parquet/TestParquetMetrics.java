@@ -51,6 +51,11 @@ public class TestParquetMetrics extends TestMetrics {
   public TemporaryFolder temp = new TemporaryFolder();
 
   @Override
+  public FileFormat fileFormat() {
+    return FileFormat.PARQUET;
+  }
+
+  @Override
   public Metrics getMetrics(InputFile file) {
     return ParquetUtil.fileMetrics(file);
   }
@@ -80,8 +85,8 @@ public class TestParquetMetrics extends TestMetrics {
   }
 
   @Override
-  public int splitCount(InputFile parquetFile) throws IOException {
-    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(parquetFile))) {
+  public int splitCount(InputFile inputFile) throws IOException {
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
       return reader.getRowGroups().size();
     }
   }

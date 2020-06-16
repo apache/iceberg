@@ -126,16 +126,16 @@ public class TestTransaction extends TableTestBase {
 
     Assert.assertEquals("Table should be on version 1 after commit", 1, (int) version());
     Assert.assertEquals("Table should have one manifest after commit",
-        1, readMetadata().currentSnapshot().manifests().size());
+        1, readMetadata().currentSnapshot().allManifests().size());
     Assert.assertEquals("Table snapshot should be the delete snapshot",
         deleteSnapshot, readMetadata().currentSnapshot());
-    validateManifestEntries(readMetadata().currentSnapshot().manifests().get(0),
+    validateManifestEntries(readMetadata().currentSnapshot().allManifests().get(0),
         ids(deleteSnapshot.snapshotId(), appendSnapshot.snapshotId()),
         files(FILE_A, FILE_B), statuses(Status.DELETED, Status.EXISTING));
 
     Assert.assertEquals("Table should have a snapshot for each operation",
         2, readMetadata().snapshots().size());
-    validateManifestEntries(readMetadata().snapshots().get(0).manifests().get(0),
+    validateManifestEntries(readMetadata().snapshots().get(0).allManifests().get(0),
         ids(appendSnapshot.snapshotId(), appendSnapshot.snapshotId()),
         files(FILE_A, FILE_B), statuses(Status.ADDED, Status.ADDED));
   }
@@ -177,16 +177,16 @@ public class TestTransaction extends TableTestBase {
 
     Assert.assertEquals("Table should be on version 1 after commit", 1, (int) version());
     Assert.assertEquals("Table should have one manifest after commit",
-        1, readMetadata().currentSnapshot().manifests().size());
+        1, readMetadata().currentSnapshot().allManifests().size());
     Assert.assertEquals("Table snapshot should be the delete snapshot",
         deleteSnapshot, readMetadata().currentSnapshot());
-    validateManifestEntries(readMetadata().currentSnapshot().manifests().get(0),
+    validateManifestEntries(readMetadata().currentSnapshot().allManifests().get(0),
         ids(deleteSnapshot.snapshotId(), appendSnapshot.snapshotId()),
         files(FILE_A, FILE_B), statuses(Status.DELETED, Status.EXISTING));
 
     Assert.assertEquals("Table should have a snapshot for each operation",
         2, readMetadata().snapshots().size());
-    validateManifestEntries(readMetadata().snapshots().get(0).manifests().get(0),
+    validateManifestEntries(readMetadata().snapshots().get(0).allManifests().get(0),
         ids(appendSnapshot.snapshotId(), appendSnapshot.snapshotId()),
         files(FILE_A, FILE_B), statuses(Status.ADDED, Status.ADDED));
   }
@@ -294,7 +294,7 @@ public class TestTransaction extends TableTestBase {
         .appendFile(FILE_B)
         .commit();
 
-    Set<ManifestFile> appendManifests = Sets.newHashSet(txn.table().currentSnapshot().manifests());
+    Set<ManifestFile> appendManifests = Sets.newHashSet(txn.table().currentSnapshot().allManifests());
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
@@ -308,7 +308,7 @@ public class TestTransaction extends TableTestBase {
     Assert.assertEquals("Table should be on version 2 after commit", 2, (int) version());
 
     Assert.assertEquals("Should reuse manifests from initial append commit",
-        appendManifests, Sets.newHashSet(table.currentSnapshot().manifests()));
+        appendManifests, Sets.newHashSet(table.currentSnapshot().allManifests()));
   }
 
   @Test
@@ -333,7 +333,7 @@ public class TestTransaction extends TableTestBase {
         .appendFile(FILE_B)
         .commit();
 
-    Set<ManifestFile> appendManifests = Sets.newHashSet(txn.table().currentSnapshot().manifests());
+    Set<ManifestFile> appendManifests = Sets.newHashSet(txn.table().currentSnapshot().allManifests());
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
@@ -347,7 +347,7 @@ public class TestTransaction extends TableTestBase {
 
     Assert.assertEquals("Table should be on version 2 after real append", 2, (int) version());
 
-    Set<ManifestFile> conflictAppendManifests = Sets.newHashSet(table.currentSnapshot().manifests());
+    Set<ManifestFile> conflictAppendManifests = Sets.newHashSet(table.currentSnapshot().allManifests());
 
     txn.commitTransaction();
 
@@ -358,7 +358,7 @@ public class TestTransaction extends TableTestBase {
     expectedManifests.addAll(conflictAppendManifests);
 
     Assert.assertEquals("Should reuse manifests from initial append commit and conflicting append",
-        expectedManifests, Sets.newHashSet(table.currentSnapshot().manifests()));
+        expectedManifests, Sets.newHashSet(table.currentSnapshot().allManifests()));
   }
 
   @Test
@@ -389,8 +389,8 @@ public class TestTransaction extends TableTestBase {
         .commit();
 
     Assert.assertEquals("Append should create one manifest",
-        1, txn.table().currentSnapshot().manifests().size());
-    ManifestFile appendManifest = txn.table().currentSnapshot().manifests().get(0);
+        1, txn.table().currentSnapshot().allManifests().size());
+    ManifestFile appendManifest = txn.table().currentSnapshot().allManifests().get(0);
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
@@ -404,7 +404,7 @@ public class TestTransaction extends TableTestBase {
 
     Assert.assertEquals("Table should be on version 2 after real append", 2, (int) version());
 
-    Set<ManifestFile> conflictAppendManifests = Sets.newHashSet(table.currentSnapshot().manifests());
+    Set<ManifestFile> conflictAppendManifests = Sets.newHashSet(table.currentSnapshot().allManifests());
 
     txn.commitTransaction();
 
@@ -415,9 +415,9 @@ public class TestTransaction extends TableTestBase {
     previousManifests.addAll(conflictAppendManifests);
 
     Assert.assertEquals("Should merge both commit manifests into a single manifest",
-        1, table.currentSnapshot().manifests().size());
+        1, table.currentSnapshot().allManifests().size());
     Assert.assertFalse("Should merge both commit manifests into a new manifest",
-        previousManifests.contains(table.currentSnapshot().manifests().get(0)));
+        previousManifests.contains(table.currentSnapshot().allManifests().get(0)));
 
     Assert.assertFalse("Append manifest should be deleted", new File(appendManifest.path()).exists());
   }
@@ -446,8 +446,8 @@ public class TestTransaction extends TableTestBase {
         .commit();
 
     Assert.assertEquals("Append should create one manifest",
-        1, txn.table().currentSnapshot().manifests().size());
-    ManifestFile appendManifest = txn.table().currentSnapshot().manifests().get(0);
+        1, txn.table().currentSnapshot().allManifests().size());
+    ManifestFile appendManifest = txn.table().currentSnapshot().allManifests().get(0);
 
     Assert.assertSame("Base metadata should not change when commit is created",
         base, readMetadata());
@@ -461,7 +461,7 @@ public class TestTransaction extends TableTestBase {
 
     Assert.assertEquals("Table should be on version 2 after real append", 2, (int) version());
 
-    Set<ManifestFile> conflictAppendManifests = Sets.newHashSet(table.currentSnapshot().manifests());
+    Set<ManifestFile> conflictAppendManifests = Sets.newHashSet(table.currentSnapshot().allManifests());
 
     txn.commitTransaction();
 
@@ -472,9 +472,9 @@ public class TestTransaction extends TableTestBase {
     previousManifests.addAll(conflictAppendManifests);
 
     Assert.assertEquals("Should merge both commit manifests into a single manifest",
-        1, table.currentSnapshot().manifests().size());
+        1, table.currentSnapshot().allManifests().size());
     Assert.assertFalse("Should merge both commit manifests into a new manifest",
-        previousManifests.contains(table.currentSnapshot().manifests().get(0)));
+        previousManifests.contains(table.currentSnapshot().allManifests().get(0)));
 
     Assert.assertFalse("Append manifest should be deleted", new File(appendManifest.path()).exists());
   }
@@ -495,14 +495,14 @@ public class TestTransaction extends TableTestBase {
         .commit();
 
     Assert.assertEquals("Table should be on version 2 after append", 2, (int) version());
-    Assert.assertEquals("Append should create one manifest", 1, table.currentSnapshot().manifests().size());
-    ManifestFile v1manifest = table.currentSnapshot().manifests().get(0);
+    Assert.assertEquals("Append should create one manifest", 1, table.currentSnapshot().allManifests().size());
+    ManifestFile v1manifest = table.currentSnapshot().allManifests().get(0);
 
     TableMetadata base = readMetadata();
 
     // create a manifest append
     OutputFile manifestLocation = Files.localOutput("/tmp/" + UUID.randomUUID().toString() + ".avro");
-    ManifestWriter writer = ManifestFiles.write(table.spec(), manifestLocation);
+    ManifestWriter<DataFile> writer = ManifestFiles.write(table.spec(), manifestLocation);
     try {
       writer.add(FILE_D);
     } finally {
@@ -518,8 +518,9 @@ public class TestTransaction extends TableTestBase {
     Assert.assertSame("Base metadata should not change when commit is created", base, readMetadata());
     Assert.assertEquals("Table should be on version 2 after txn create", 2, (int) version());
 
-    Assert.assertEquals("Append should have one merged manifest", 1, txn.table().currentSnapshot().manifests().size());
-    ManifestFile mergedManifest = txn.table().currentSnapshot().manifests().get(0);
+    Assert.assertEquals("Append should have one merged manifest",
+        1, txn.table().currentSnapshot().allManifests().size());
+    ManifestFile mergedManifest = txn.table().currentSnapshot().allManifests().get(0);
 
     // find the initial copy of the appended manifest
     String copiedAppendManifest = Iterables.getOnlyElement(Iterables.filter(
@@ -549,7 +550,7 @@ public class TestTransaction extends TableTestBase {
     Assert.assertFalse("Append manifest should be deleted", new File(mergedManifest.path()).exists());
 
     Assert.assertEquals("Should merge all commit manifests into a single manifest",
-        1, table.currentSnapshot().manifests().size());
+        1, table.currentSnapshot().allManifests().size());
   }
 
   @Test
@@ -569,7 +570,7 @@ public class TestTransaction extends TableTestBase {
         .commit();
 
     Assert.assertEquals("Table should be on version 2 after append", 2, (int) version());
-    Assert.assertEquals("Append should create one manifest", 1, table.currentSnapshot().manifests().size());
+    Assert.assertEquals("Append should create one manifest", 1, table.currentSnapshot().allManifests().size());
 
     TableMetadata base = readMetadata();
 
@@ -583,8 +584,9 @@ public class TestTransaction extends TableTestBase {
     Assert.assertSame("Base metadata should not change when commit is created", base, readMetadata());
     Assert.assertEquals("Table should be on version 2 after txn create", 2, (int) version());
 
-    Assert.assertEquals("Append should have one merged manifest", 1, txn.table().currentSnapshot().manifests().size());
-    ManifestFile mergedManifest = txn.table().currentSnapshot().manifests().get(0);
+    Assert.assertEquals("Append should have one merged manifest",
+        1, txn.table().currentSnapshot().allManifests().size());
+    ManifestFile mergedManifest = txn.table().currentSnapshot().allManifests().get(0);
 
     // cause the transaction commit to fail and retry
     table.newAppend()
@@ -606,7 +608,7 @@ public class TestTransaction extends TableTestBase {
     Assert.assertFalse("Merged append manifest should be deleted", new File(mergedManifest.path()).exists());
 
     Assert.assertEquals("Should merge all commit manifests into a single manifest",
-        1, table.currentSnapshot().manifests().size());
+        1, table.currentSnapshot().allManifests().size());
   }
 
   @Test
@@ -638,7 +640,7 @@ public class TestTransaction extends TableTestBase {
 
     txn.commitTransaction();
 
-    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
     Assert.assertEquals("Expected 2 manifests", 2, manifests.size());
   }
 
@@ -661,7 +663,7 @@ public class TestTransaction extends TableTestBase {
         .commit();
     long secondSnapshotId = table.currentSnapshot().snapshotId();
 
-    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
     Assert.assertEquals("Should have 2 manifests after 2 appends", 2, manifests.size());
 
     ManifestFile newManifest = writeManifest(
@@ -685,7 +687,7 @@ public class TestTransaction extends TableTestBase {
 
     Assert.assertTrue("Append manifest should not be deleted", new File(newManifest.path()).exists());
 
-    List<ManifestFile> finalManifests = table.currentSnapshot().manifests();
+    List<ManifestFile> finalManifests = table.currentSnapshot().allManifests();
     Assert.assertEquals("Should have 1 final manifest", 1, finalManifests.size());
 
     validateManifestEntries(finalManifests.get(0),

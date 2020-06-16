@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.orc;
 
-import com.google.common.collect.ImmutableSet;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
@@ -32,6 +31,7 @@ import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.TypeID;
 import org.apache.orc.TypeDescription;

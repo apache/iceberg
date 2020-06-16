@@ -37,6 +37,7 @@ public class SnapshotSummary {
   public static final String STAGED_WAP_ID_PROP = "wap.id";
   public static final String PUBLISHED_WAP_ID_PROP = "published-wap-id";
   public static final String SOURCE_SNAPSHOT_ID_PROP = "source-snapshot-id";
+  public static final String REPLACE_PARTITIONS_PROP = "replace-partitions";
 
   private SnapshotSummary() {
   }
@@ -66,6 +67,18 @@ public class SnapshotSummary {
 
     public void incrementDuplicateDeletes() {
       this.deletedDuplicateFiles += 1;
+    }
+
+    public void incrementDuplicateDeletes(int increment) {
+      this.deletedDuplicateFiles += increment;
+    }
+
+    public void deletedFile(PartitionSpec spec, ContentFile<?> file) {
+      if (file instanceof DataFile) {
+        deletedFile(spec, (DataFile) file);
+      } else {
+        throw new IllegalArgumentException("Unsupported file type: " + file.getClass().getSimpleName());
+      }
     }
 
     public void deletedFile(PartitionSpec spec, DataFile file) {

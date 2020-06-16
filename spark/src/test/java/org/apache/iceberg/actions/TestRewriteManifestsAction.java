@@ -143,7 +143,7 @@ public class TestRewriteManifestsAction {
 
     table.refresh();
 
-    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
     Assert.assertEquals("Should have 2 manifests before rewrite", 2, manifests.size());
 
     Actions actions = Actions.forTable(table);
@@ -157,7 +157,7 @@ public class TestRewriteManifestsAction {
 
     table.refresh();
 
-    List<ManifestFile> newManifests = table.currentSnapshot().manifests();
+    List<ManifestFile> newManifests = table.currentSnapshot().allManifests();
     Assert.assertEquals("Should have 1 manifests after rewrite", 1, newManifests.size());
 
     Assert.assertEquals(4, (long) newManifests.get(0).existingFilesCount());
@@ -212,7 +212,7 @@ public class TestRewriteManifestsAction {
 
     table.refresh();
 
-    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
     Assert.assertEquals("Should have 4 manifests before rewrite", 4, manifests.size());
 
     Actions actions = Actions.forTable(table);
@@ -234,7 +234,7 @@ public class TestRewriteManifestsAction {
 
     table.refresh();
 
-    List<ManifestFile> newManifests = table.currentSnapshot().manifests();
+    List<ManifestFile> newManifests = table.currentSnapshot().allManifests();
     Assert.assertEquals("Should have 2 manifests after rewrite", 2, newManifests.size());
 
     Assert.assertEquals(4, (long) newManifests.get(0).existingFilesCount());
@@ -297,7 +297,7 @@ public class TestRewriteManifestsAction {
           .stagingLocation(temp.newFolder().toString())
           .execute();
 
-      Assert.assertEquals("Action should rewrite all manifests", snapshot.manifests(), result.deletedManifests());
+      Assert.assertEquals("Action should rewrite all manifests", snapshot.allManifests(), result.deletedManifests());
       Assert.assertEquals("Action should add 1 manifest", 1, result.addedManifests().size());
 
     } finally {
@@ -325,7 +325,7 @@ public class TestRewriteManifestsAction {
 
     table.refresh();
 
-    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
     Assert.assertEquals("Should have 1 manifests before rewrite", 1, manifests.size());
 
     // set the target manifest size to a small value to force splitting records into multiple files
@@ -345,7 +345,7 @@ public class TestRewriteManifestsAction {
 
     table.refresh();
 
-    List<ManifestFile> newManifests = table.currentSnapshot().manifests();
+    List<ManifestFile> newManifests = table.currentSnapshot().allManifests();
     Assert.assertEquals("Should have 2 manifests after rewrite", 2, newManifests.size());
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
@@ -380,7 +380,7 @@ public class TestRewriteManifestsAction {
 
     table.refresh();
 
-    List<ManifestFile> manifests = table.currentSnapshot().manifests();
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
     Assert.assertEquals("Should have 2 manifests before rewrite", 2, manifests.size());
 
     Actions actions = Actions.forTable(table);
@@ -397,7 +397,7 @@ public class TestRewriteManifestsAction {
 
     table.refresh();
 
-    List<ManifestFile> newManifests = table.currentSnapshot().manifests();
+    List<ManifestFile> newManifests = table.currentSnapshot().allManifests();
     Assert.assertEquals("Should have 2 manifests after rewrite", 2, newManifests.size());
 
     Assert.assertFalse("First manifest must be rewritten", newManifests.contains(manifests.get(0)));

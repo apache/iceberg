@@ -236,7 +236,7 @@ class Writer implements DataSourceWriter {
   }
 
 
-  private static class TaskCommit implements WriterCommitMessage {
+  static class TaskCommit implements WriterCommitMessage {
     private final DataFile[] files;
 
     TaskCommit() {
@@ -256,7 +256,7 @@ class Writer implements DataSourceWriter {
     }
   }
 
-  private static class WriterFactory implements DataWriterFactory<InternalRow> {
+  static class WriterFactory implements DataWriterFactory<InternalRow> {
     private final PartitionSpec spec;
     private final FileFormat format;
     private final LocationProvider locations;

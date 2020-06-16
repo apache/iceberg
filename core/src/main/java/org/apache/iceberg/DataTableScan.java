@@ -44,9 +44,11 @@ public class DataTableScan extends BaseTableScan {
   }
 
   protected DataTableScan(TableOperations ops, Table table, Long snapshotId, Schema schema,
-                          Expression rowFilter, boolean caseSensitive, boolean colStats,
+                          Expression rowFilter, boolean ignoreResiduals, boolean caseSensitive, boolean colStats,
                           Collection<String> selectedColumns, ImmutableMap<String, String> options) {
-    super(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, options);
+    super(
+        ops, table, snapshotId, schema, rowFilter, ignoreResiduals,
+        caseSensitive, colStats, selectedColumns, options);
   }
 
   @Override
@@ -55,7 +57,8 @@ public class DataTableScan extends BaseTableScan {
     Preconditions.checkState(scanSnapshotId == null,
         "Cannot enable incremental scan, scan-snapshot set to id=%s", scanSnapshotId);
     return new IncrementalDataTableScan(
-        tableOps(), table(), schema(), filter(), isCaseSensitive(), colStats(), selectedColumns(), options(),
+        tableOps(), table(), schema(), filter(), shouldIgnoreResiduals(),
+        isCaseSensitive(), colStats(), selectedColumns(), options(),
         fromSnapshotId, toSnapshotId);
   }
 
@@ -70,23 +73,28 @@ public class DataTableScan extends BaseTableScan {
   @Override
   protected TableScan newRefinedScan(
       TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-      boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
+      boolean ignoreResiduals, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
       ImmutableMap<String, String> options) {
     return new DataTableScan(
-        ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, options);
+        ops, table, snapshotId, schema, rowFilter, ignoreResiduals, caseSensitive, colStats, selectedColumns, options);
   }
 
   @Override
   public CloseableIterable<FileScanTask> planFiles(TableOperations ops, Snapshot snapshot,
-                                                   Expression rowFilter, boolean caseSensitive, boolean colStats) {
-    ManifestGroup manifestGroup = new ManifestGroup(ops.io(), snapshot.manifests())
+                                                   Expression rowFilter, boolean ignoreResiduals,
+                                                   boolean caseSensitive, boolean colStats) {
+    ManifestGroup manifestGroup = new ManifestGroup(ops.io(), snapshot.dataManifests())
         .caseSensitive(caseSensitive)
         .select(colStats ? SCAN_WITH_STATS_COLUMNS : SCAN_COLUMNS)
         .filterData(rowFilter)
         .specsById(ops.current().specsById())
         .ignoreDeleted();
 
-    if (PLAN_SCANS_WITH_WORKER_POOL && snapshot.manifests().size() > 1) {
+    if (ignoreResiduals) {
+      manifestGroup = manifestGroup.ignoreResiduals();
+    }
+
+    if (PLAN_SCANS_WITH_WORKER_POOL && snapshot.dataManifests().size() > 1) {
       manifestGroup = manifestGroup.planWith(ThreadPools.getWorkerPool());
     }
 

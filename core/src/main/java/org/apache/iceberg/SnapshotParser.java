@@ -79,9 +79,9 @@ public class SnapshotParser {
       // write just the location. manifests should not be embedded in JSON along with a list
       generator.writeStringField(MANIFEST_LIST, manifestList);
     } else {
-      // embed the manifest list in the JSON
+      // embed the manifest list in the JSON, v1 only
       generator.writeArrayFieldStart(MANIFESTS);
-      for (ManifestFile file : snapshot.manifests()) {
+      for (ManifestFile file : snapshot.allManifests()) {
         generator.writeString(file.path());
       }
       generator.writeEndArray();
@@ -141,9 +141,7 @@ public class SnapshotParser {
     if (node.has(MANIFEST_LIST)) {
       // the manifest list is stored in a manifest list file
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
-      return new BaseSnapshot(
-          io, sequenceNumber, snapshotId, parentId, timestamp, operation, summary,
-          io.newInputFile(manifestList));
+      return new BaseSnapshot(io, sequenceNumber, snapshotId, parentId, timestamp, operation, summary, manifestList);
 
     } else {
       // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be

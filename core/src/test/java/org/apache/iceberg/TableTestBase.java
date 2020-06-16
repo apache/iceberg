@@ -28,6 +28,7 @@ import java.util.stream.LongStream;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -55,25 +56,25 @@ public class TableTestBase {
 
   static final DataFile FILE_A = DataFiles.builder(SPEC)
       .withPath("/path/to/data-a.parquet")
-      .withFileSizeInBytes(0)
+      .withFileSizeInBytes(10)
       .withPartitionPath("data_bucket=0") // easy way to set partition data for now
       .withRecordCount(1)
       .build();
   static final DataFile FILE_B = DataFiles.builder(SPEC)
       .withPath("/path/to/data-b.parquet")
-      .withFileSizeInBytes(0)
+      .withFileSizeInBytes(10)
       .withPartitionPath("data_bucket=1") // easy way to set partition data for now
       .withRecordCount(1)
       .build();
   static final DataFile FILE_C = DataFiles.builder(SPEC)
       .withPath("/path/to/data-c.parquet")
-      .withFileSizeInBytes(0)
+      .withFileSizeInBytes(10)
       .withPartitionPath("data_bucket=2") // easy way to set partition data for now
       .withRecordCount(1)
       .build();
   static final DataFile FILE_D = DataFiles.builder(SPEC)
       .withPath("/path/to/data-d.parquet")
-      .withFileSizeInBytes(0)
+      .withFileSizeInBytes(10)
       .withPartitionPath("data_bucket=3") // easy way to set partition data for now
       .withRecordCount(1)
       .build();
@@ -147,7 +148,7 @@ public class TableTestBase {
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId);
+    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId);
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -159,23 +160,32 @@ public class TableTestBase {
     return writer.toManifestFile();
   }
 
-  ManifestFile writeManifest(String fileName, ManifestEntry... entries) throws IOException {
+  ManifestFile writeManifest(String fileName, ManifestEntry<?>... entries) throws IOException {
     return writeManifest(null, fileName, entries);
   }
 
-  ManifestFile writeManifest(Long snapshotId, ManifestEntry... entries) throws IOException {
+  ManifestFile writeManifest(Long snapshotId, ManifestEntry<?>... entries) throws IOException {
     return writeManifest(snapshotId, "input.m0.avro", entries);
   }
 
-  ManifestFile writeManifest(Long snapshotId, String fileName, ManifestEntry... entries) throws IOException {
+  @SuppressWarnings("unchecked")
+  <F extends ContentFile<F>> ManifestFile writeManifest(Long snapshotId, String fileName, ManifestEntry<?>... entries)
+      throws IOException {
     File manifestFile = temp.newFile(fileName);
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId);
+    ManifestWriter<F> writer;
+    if (entries[0].file() instanceof DataFile) {
+      writer = (ManifestWriter<F>) ManifestFiles.write(
+          formatVersion, table.spec(), outputFile, snapshotId);
+    } else {
+      writer = (ManifestWriter<F>) ManifestFiles.writeDeleteManifest(
+          formatVersion, table.spec(), outputFile, snapshotId);
+    }
     try {
-      for (ManifestEntry entry : entries) {
-        writer.addEntry(entry);
+      for (ManifestEntry<?> entry : entries) {
+        writer.addEntry((ManifestEntry<F>) entry);
       }
     } finally {
       writer.close();
@@ -189,7 +199,7 @@ public class TableTestBase {
     Assert.assertTrue(manifestFile.delete());
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
-    ManifestWriter writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, null);
+    ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, null);
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -201,8 +211,8 @@ public class TableTestBase {
     return writer.toManifestFile();
   }
 
-  ManifestEntry manifestEntry(ManifestEntry.Status status, Long snapshotId, DataFile file) {
-    GenericManifestEntry entry = new GenericManifestEntry(table.spec().partitionType());
+  ManifestEntry<DataFile> manifestEntry(ManifestEntry.Status status, Long snapshotId, DataFile file) {
+    GenericManifestEntry<DataFile> entry = new GenericManifestEntry<>(table.spec().partitionType());
     switch (status) {
       case ADDED:
         return entry.wrapAppend(snapshotId, file);
@@ -224,10 +234,13 @@ public class TableTestBase {
   }
 
   void validateSnapshot(Snapshot old, Snapshot snap, Long sequenceNumber, DataFile... newFiles) {
-    List<ManifestFile> oldManifests = old != null ? old.manifests() : ImmutableList.of();
+    Assert.assertEquals("Should not change delete manifests",
+        old != null ? Sets.newHashSet(old.deleteManifests()) : ImmutableSet.of(),
+        Sets.newHashSet(snap.deleteManifests()));
+    List<ManifestFile> oldManifests = old != null ? old.dataManifests() : ImmutableList.of();
 
     // copy the manifests to a modifiable list and remove the existing manifests
-    List<ManifestFile> newManifests = Lists.newArrayList(snap.manifests());
+    List<ManifestFile> newManifests = Lists.newArrayList(snap.dataManifests());
     for (ManifestFile oldManifest : oldManifests) {
       Assert.assertTrue("New snapshot should contain old manifests",
           newManifests.remove(oldManifest));
@@ -240,7 +253,7 @@ public class TableTestBase {
     long id = snap.snapshotId();
     Iterator<String> newPaths = paths(newFiles).iterator();
 
-    for (ManifestEntry entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
+    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
       if (sequenceNumber != null) {
         V1Assert.assertEquals("Sequence number should default to 0", 0, entry.sequenceNumber().longValue());
@@ -276,14 +289,22 @@ public class TableTestBase {
   void validateManifest(ManifestFile manifest,
                         Iterator<Long> ids,
                         Iterator<DataFile> expectedFiles) {
-    validateManifest(manifest, null, ids, expectedFiles);
+    validateManifest(manifest, null, ids, expectedFiles, null);
   }
 
   void validateManifest(ManifestFile manifest,
                         Iterator<Long> seqs,
                         Iterator<Long> ids,
                         Iterator<DataFile> expectedFiles) {
-    for (ManifestEntry entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
+    validateManifest(manifest, seqs, ids, expectedFiles, null);
+  }
+
+  void validateManifest(ManifestFile manifest,
+                        Iterator<Long> seqs,
+                        Iterator<Long> ids,
+                        Iterator<DataFile> expectedFiles,
+                        Iterator<ManifestEntry.Status> statuses) {
+    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
       if (seqs != null) {
@@ -294,6 +315,10 @@ public class TableTestBase {
           expected.path().toString(), file.path().toString());
       Assert.assertEquals("Snapshot ID should match expected ID",
           ids.next(), entry.snapshotId());
+      if (statuses != null) {
+        Assert.assertEquals("Status should match expected",
+            statuses.next(), entry.status());
+      }
     }
 
     Assert.assertFalse("Should find all files in the manifest", expectedFiles.hasNext());
@@ -303,7 +328,7 @@ public class TableTestBase {
                                       Iterator<Long> ids,
                                       Iterator<DataFile> expectedFiles,
                                       Iterator<ManifestEntry.Status> expectedStatuses) {
-    for (ManifestEntry entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
+    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
       final ManifestEntry.Status expectedStatus = expectedStatuses.next();
