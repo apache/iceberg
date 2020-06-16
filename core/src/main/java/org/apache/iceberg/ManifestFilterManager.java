@@ -69,6 +69,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private final Set<StructLikeWrapper> deleteFilePartitions = Sets.newHashSet();
   private final Set<StructLikeWrapper> dropPartitions = Sets.newHashSet();
   private Expression deleteExpression = Expressions.alwaysFalse();
+  private long minSequenceNumber = 0;
   private boolean hasPathOnlyDeletes = false;
   private boolean failAnyDelete = false;
   private boolean failMissingDeletePaths = false;
@@ -113,6 +114,21 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     Preconditions.checkNotNull(partition, "Cannot delete files in invalid partition: null");
     invalidateFilteredCache();
     dropPartitions.add(StructLikeWrapper.wrap(partition));
+  }
+
+  /**
+   * Set the sequence number used to remove old delete files.
+   * <p>
+   * Delete files with a sequence number older than the given value will be removed. By setting this to the sequence
+   * number of the oldest data file in the table, this will continuously remove delete files that are no longer needed
+   * because deletes cannot match any existing rows in the table.
+   *
+   * @param sequenceNumber a sequence number used to remove old delete files
+   */
+  protected void dropDeleteFilesOlderThan(long sequenceNumber) {
+    Preconditions.checkArgument(sequenceNumber >= 0,
+        "Invalid minimum data sequence number: %s", sequenceNumber);
+    this.minSequenceNumber = sequenceNumber;
   }
 
   /**
@@ -266,25 +282,19 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     }
 
     try (ManifestReader<F> reader = newManifestReader(manifest)) {
-
-      // this is reused to compare file paths with the delete set
-      CharSequenceWrapper pathWrapper = CharSequenceWrapper.wrap("");
-
       // reused to compare file partitions with the drop set
       StructLikeWrapper partitionWrapper = StructLikeWrapper.wrap(null);
 
       // this assumes that the manifest doesn't have files to remove and streams through the
       // manifest without copying data. if a manifest does have a file to remove, this will break
       // out of the loop and move on to filtering the manifest.
-      boolean hasDeletedFiles =
-          manifestHasDeletedFiles(metricsEvaluator, reader, pathWrapper, partitionWrapper);
-
+      boolean hasDeletedFiles = manifestHasDeletedFiles(metricsEvaluator, reader, partitionWrapper);
       if (!hasDeletedFiles) {
         filteredManifests.put(manifest, manifest);
         return manifest;
       }
 
-      return filterManifestWithDeletedFiles(metricsEvaluator, manifest, reader, pathWrapper, partitionWrapper);
+      return filterManifestWithDeletedFiles(metricsEvaluator, manifest, reader, partitionWrapper);
 
     } catch (IOException e) {
       throw new RuntimeIOException("Failed to close manifest: " + manifest, e);
@@ -324,19 +334,23 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       canContainDroppedFiles = false;
     }
 
-    return canContainExpressionDeletes || canContainDroppedPartitions || canContainDroppedFiles;
+    boolean canContainDropBySeq = manifest.content() == ManifestContent.DELETES &&
+        manifest.minSequenceNumber() < minSequenceNumber;
+
+    return canContainExpressionDeletes || canContainDroppedPartitions || canContainDroppedFiles || canContainDropBySeq;
   }
 
   private boolean manifestHasDeletedFiles(
-      StrictMetricsEvaluator metricsEvaluator, ManifestReader<F> reader,
-      CharSequenceWrapper pathWrapper, StructLikeWrapper partitionWrapper) {
+      StrictMetricsEvaluator metricsEvaluator, ManifestReader<F> reader, StructLikeWrapper partitionWrapper) {
+    boolean isDelete = reader.isDeleteManifestReader();
     Evaluator inclusive = inclusiveDeleteEvaluator(reader.spec());
     Evaluator strict = strictDeleteEvaluator(reader.spec());
     boolean hasDeletedFiles = false;
     for (ManifestEntry<F> entry : reader.entries()) {
       F file = entry.file();
-      boolean fileDelete = deletePaths.contains(pathWrapper.set(file.path())) ||
-          dropPartitions.contains(partitionWrapper.set(file.partition()));
+      boolean fileDelete = deletePaths.contains(file.path()) ||
+          dropPartitions.contains(partitionWrapper.set(file.partition())) ||
+          (isDelete && entry.sequenceNumber() > 0 && entry.sequenceNumber() < minSequenceNumber);
       if (fileDelete || inclusive.eval(file.partition())) {
         ValidationException.check(
             fileDelete || strict.eval(file.partition()) || metricsEvaluator.eval(file),
@@ -355,7 +369,8 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
   private ManifestFile filterManifestWithDeletedFiles(
       StrictMetricsEvaluator metricsEvaluator, ManifestFile manifest, ManifestReader<F> reader,
-      CharSequenceWrapper pathWrapper, StructLikeWrapper partitionWrapper) {
+      StructLikeWrapper partitionWrapper) {
+    boolean isDelete = reader.isDeleteManifestReader();
     Evaluator inclusive = inclusiveDeleteEvaluator(reader.spec());
     Evaluator strict = strictDeleteEvaluator(reader.spec());
     // when this point is reached, there is at least one file that will be deleted in the
@@ -368,8 +383,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       try {
         reader.entries().forEach(entry -> {
           F file = entry.file();
-          boolean fileDelete = deletePaths.contains(pathWrapper.set(file.path())) ||
-              dropPartitions.contains(partitionWrapper.set(file.partition()));
+          boolean fileDelete = deletePaths.contains(file.path()) ||
+              dropPartitions.contains(partitionWrapper.set(file.partition())) ||
+              (isDelete && entry.sequenceNumber() > 0 && entry.sequenceNumber() < minSequenceNumber);
           if (entry.status() != ManifestEntry.Status.DELETED) {
             if (fileDelete || inclusive.eval(file.partition())) {
               ValidationException.check(

@@ -28,10 +28,19 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 public class SnapshotSummary {
   public static final String ADDED_FILES_PROP = "added-data-files";
   public static final String DELETED_FILES_PROP = "deleted-data-files";
-  public static final String TOTAL_FILES_PROP = "total-data-files";
+  public static final String TOTAL_DATA_FILES_PROP = "total-data-files";
+  public static final String ADDED_DELETE_FILES_PROP = "added-delete-files";
+  public static final String REMOVED_DELETE_FILES_PROP = "removed-delete-files";
+  public static final String TOTAL_DELETE_FILES_PROP = "total-delete-files";
   public static final String ADDED_RECORDS_PROP = "added-records";
   public static final String DELETED_RECORDS_PROP = "deleted-records";
   public static final String TOTAL_RECORDS_PROP = "total-records";
+  public static final String ADDED_POS_DELETES_PROP = "added-position-deletes";
+  public static final String REMOVED_POS_DELETES_PROP = "removed-position-deletes";
+  public static final String TOTAL_POS_DELETES_PROP = "total-position-deletes";
+  public static final String ADDED_EQ_DELETES_PROP = "added-equality-deletes";
+  public static final String REMOVED_EQ_DELETES_PROP = "removed-equality-deletes";
+  public static final String TOTAL_EQ_DELETES_PROP = "total-equality-deletes";
   public static final String DELETED_DUPLICATE_FILES = "deleted-duplicate-files";
   public static final String CHANGED_PARTITION_COUNT_PROP = "changed-partition-count";
   public static final String STAGED_WAP_ID_PROP = "wap.id";
@@ -51,9 +60,15 @@ public class SnapshotSummary {
     private Set<String> changedPartitions = Sets.newHashSet();
     private long addedFiles = 0L;
     private long deletedFiles = 0L;
+    private long addedDeleteFiles = 0L;
+    private long removedDeleteFiles = 0L;
     private long deletedDuplicateFiles = 0L;
     private long addedRecords = 0L;
     private long deletedRecords = 0L;
+    private long addedPosDeletes = 0L;
+    private long removedPosDeletes = 0L;
+    private long addedEqDeletes = 0L;
+    private long removedEqDeletes = 0L;
     private Map<String, String> properties = Maps.newHashMap();
 
     public void clear() {
@@ -73,9 +88,27 @@ public class SnapshotSummary {
       this.deletedDuplicateFiles += increment;
     }
 
+    public void addedFile(PartitionSpec spec, DataFile file) {
+      changedPartitions.add(spec.partitionToPath(file.partition()));
+      this.addedFiles += 1;
+      this.addedRecords += file.recordCount();
+    }
+
+    public void addedFile(PartitionSpec spec, DeleteFile file) {
+      changedPartitions.add(spec.partitionToPath(file.partition()));
+      this.addedDeleteFiles += 1;
+      if (file.content() == FileContent.POSITION_DELETES) {
+        this.addedPosDeletes += file.recordCount();
+      } else {
+        this.addedEqDeletes += file.recordCount();
+      }
+    }
+
     public void deletedFile(PartitionSpec spec, ContentFile<?> file) {
       if (file instanceof DataFile) {
         deletedFile(spec, (DataFile) file);
+      } else if (file instanceof DeleteFile) {
+        deletedFile(spec, (DeleteFile) file);
       } else {
         throw new IllegalArgumentException("Unsupported file type: " + file.getClass().getSimpleName());
       }
@@ -87,10 +120,14 @@ public class SnapshotSummary {
       this.deletedRecords += file.recordCount();
     }
 
-    public void addedFile(PartitionSpec spec, DataFile file) {
+    public void deletedFile(PartitionSpec spec, DeleteFile file) {
       changedPartitions.add(spec.partitionToPath(file.partition()));
-      this.addedFiles += 1;
-      this.addedRecords += file.recordCount();
+      this.removedDeleteFiles += 1;
+      if (file.content() == FileContent.POSITION_DELETES) {
+        this.removedPosDeletes += file.recordCount();
+      } else {
+        this.removedEqDeletes += file.recordCount();
+      }
     }
 
     public void addedManifest(ManifestFile manifest) {
@@ -125,9 +162,15 @@ public class SnapshotSummary {
 
       setIf(addedFiles > 0, builder, ADDED_FILES_PROP, addedFiles);
       setIf(deletedFiles > 0, builder, DELETED_FILES_PROP, deletedFiles);
+      setIf(addedDeleteFiles > 0, builder, ADDED_DELETE_FILES_PROP, addedDeleteFiles);
+      setIf(removedDeleteFiles > 0, builder, REMOVED_DELETE_FILES_PROP, removedDeleteFiles);
       setIf(deletedDuplicateFiles > 0, builder, DELETED_DUPLICATE_FILES, deletedDuplicateFiles);
       setIf(addedRecords > 0, builder, ADDED_RECORDS_PROP, addedRecords);
       setIf(deletedRecords > 0, builder, DELETED_RECORDS_PROP, deletedRecords);
+      setIf(addedPosDeletes > 0, builder, ADDED_POS_DELETES_PROP, addedPosDeletes);
+      setIf(removedPosDeletes > 0, builder, REMOVED_POS_DELETES_PROP, removedPosDeletes);
+      setIf(addedEqDeletes > 0, builder, ADDED_EQ_DELETES_PROP, addedEqDeletes);
+      setIf(removedEqDeletes > 0, builder, REMOVED_EQ_DELETES_PROP, removedEqDeletes);
       setIf(true, builder, CHANGED_PARTITION_COUNT_PROP, changedPartitions.size());
 
       return builder.build();
