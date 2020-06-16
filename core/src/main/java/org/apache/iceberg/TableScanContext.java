@@ -40,7 +40,15 @@ final class TableScanContext {
   private final Long toSnapshotId;
 
   TableScanContext() {
-    this(null, Expressions.alwaysTrue(), false, true, false, null, ImmutableMap.of(), null, null);
+    this.snapshotId = null;
+    this.rowFilter = Expressions.alwaysTrue();
+    this.ignoreResiduals = false;
+    this.caseSensitive = true;
+    this.colStats = false;
+    this.selectedColumns = null;
+    this.options = ImmutableMap.of();
+    this.fromSnapshotId = null;
+    this.toSnapshotId = null;
   }
 
   private TableScanContext(Long snapshotId, Expression rowFilter, boolean ignoreResiduals,
@@ -61,8 +69,8 @@ final class TableScanContext {
     return snapshotId;
   }
 
-  TableScanContext snapshotId(Long id) {
-    return new TableScanContext(id, rowFilter, ignoreResiduals,
+  TableScanContext useSnapshotId(Long scanSnapshotId) {
+    return new TableScanContext(scanSnapshotId, rowFilter, ignoreResiduals,
         caseSensitive, colStats, selectedColumns, options, fromSnapshotId, toSnapshotId);
   }
 
@@ -70,7 +78,7 @@ final class TableScanContext {
     return rowFilter;
   }
 
-  TableScanContext rowFilter(Expression filter) {
+  TableScanContext filterRows(Expression filter) {
     return new TableScanContext(snapshotId, filter, ignoreResiduals,
         caseSensitive, colStats, selectedColumns, options, fromSnapshotId, toSnapshotId);
   }
@@ -88,44 +96,46 @@ final class TableScanContext {
     return caseSensitive;
   }
 
-  TableScanContext caseSensitive(boolean isCaseSensitive) {
+  TableScanContext setCaseSensitive(boolean isCaseSensitive) {
     return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
         isCaseSensitive, colStats, selectedColumns, options, fromSnapshotId, toSnapshotId);
   }
 
-  boolean colStats() {
+  boolean returnColumnStats() {
     return colStats;
   }
 
-  TableScanContext colStats(boolean shouldUseColumnStats) {
+  TableScanContext shouldReturnColumnStats(boolean returnColumnStats) {
     return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, shouldUseColumnStats, selectedColumns, options, fromSnapshotId, toSnapshotId);
+        caseSensitive, returnColumnStats, selectedColumns, options, fromSnapshotId, toSnapshotId);
   }
 
   Collection<String> selectedColumns() {
     return selectedColumns;
   }
 
-  TableScanContext selectedColumns(Collection<String> columns) {
+  TableScanContext selectColumns(Collection<String> columns) {
     return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
         caseSensitive, colStats, columns, options, fromSnapshotId, toSnapshotId);
   }
 
-  ImmutableMap<String, String> options() {
+  Map<String, String> options() {
     return options;
   }
 
-  TableScanContext options(Map<String, String> extraOptions) {
+  TableScanContext withOption(String property, String value) {
+    ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+    builder.putAll(options);
+    builder.put(property, value);
     return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, selectedColumns, ImmutableMap.copyOf(extraOptions),
-        fromSnapshotId, toSnapshotId);
+        caseSensitive, colStats, selectedColumns, builder.build(), fromSnapshotId, toSnapshotId);
   }
 
   Long fromSnapshotId() {
     return fromSnapshotId;
   }
 
-  TableScanContext fromSnapshotId(Long id) {
+  TableScanContext fromSnapshotId(long id) {
     return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
         caseSensitive, colStats, selectedColumns, options, id, toSnapshotId);
   }
@@ -134,13 +144,8 @@ final class TableScanContext {
     return toSnapshotId;
   }
 
-  TableScanContext toSnapshotId(Long id) {
+  TableScanContext toSnapshotId(long id) {
     return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
         caseSensitive, colStats, selectedColumns, options, fromSnapshotId, id);
-  }
-
-  TableScanContext copy() {
-    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, selectedColumns, options, fromSnapshotId, toSnapshotId);
   }
 }

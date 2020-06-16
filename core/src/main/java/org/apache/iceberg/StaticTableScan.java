@@ -46,7 +46,7 @@ class StaticTableScan extends BaseTableScan {
   @Override
   protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
     return new StaticTableScan(
-        ops, table, schema, buildTask, context.copy());
+        ops, table, schema, buildTask, context);
   }
 
   @Override

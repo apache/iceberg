@@ -33,7 +33,7 @@ import org.apache.iceberg.util.ThreadPools;
 class IncrementalDataTableScan extends DataTableScan {
 
   IncrementalDataTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-    super(ops, table, schema, context.snapshotId(null));
+    super(ops, table, schema, context.useSnapshotId(null));
     validateSnapshotIds(table, context.fromSnapshotId(), context.toSnapshotId());
   }
 
@@ -103,7 +103,7 @@ class IncrementalDataTableScan extends DataTableScan {
   @Override
   @SuppressWarnings("checkstyle:HiddenField")
   protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-    return new IncrementalDataTableScan(ops, table, schema, context.copy());
+    return new IncrementalDataTableScan(ops, table, schema, context);
   }
 
   private static List<Snapshot> snapshotsWithin(Table table, long fromSnapshotId, long toSnapshotId) {

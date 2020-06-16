@@ -64,7 +64,7 @@ public class DataTableScan extends BaseTableScan {
 
   @Override
   protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-    return new DataTableScan(ops, table, schema, context.copy());
+    return new DataTableScan(ops, table, schema, context);
   }
 
   @Override

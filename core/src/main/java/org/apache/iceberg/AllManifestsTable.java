@@ -96,7 +96,7 @@ public class AllManifestsTable extends BaseMetadataTable {
     @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema,
                                        TableScanContext context) {
-      return new AllManifestsTableScan(ops, table, schema, context.copy());
+      return new AllManifestsTableScan(ops, table, schema, context);
     }
 
     @Override

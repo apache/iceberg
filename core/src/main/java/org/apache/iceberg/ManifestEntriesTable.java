@@ -82,7 +82,7 @@ public class ManifestEntriesTable extends BaseMetadataTable {
     @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema,
                                        TableScanContext context) {
-      return new EntriesTableScan(ops, table, schema, context.copy());
+      return new EntriesTableScan(ops, table, schema, context);
     }
 
     @Override

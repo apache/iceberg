@@ -81,10 +81,8 @@ public class DataFilesTable extends BaseMetadataTable {
     }
 
     @Override
-    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema,
-                                       TableScanContext context) {
-      return new FilesTableScan(
-          ops, table, schema, fileSchema, context.copy());
+    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+      return new FilesTableScan(ops, table, schema, fileSchema, context);
     }
 
     @Override

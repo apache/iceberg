@@ -25,6 +25,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
@@ -34,7 +35,6 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.TableScanUtil;
@@ -75,7 +75,7 @@ abstract class BaseTableScan implements TableScan {
   }
 
   protected boolean colStats() {
-    return context.colStats();
+    return context.returnColumnStats();
   }
 
   protected boolean shouldIgnoreResiduals() {
@@ -86,7 +86,7 @@ abstract class BaseTableScan implements TableScan {
     return context.selectedColumns();
   }
 
-  protected ImmutableMap<String, String> options() {
+  protected Map<String, String> options() {
     return context.options();
   }
 
@@ -123,17 +123,17 @@ abstract class BaseTableScan implements TableScan {
 
   @Override
   public TableScan useSnapshot(long scanSnapshotId) {
-    Preconditions.checkState(context.snapshotId() == null,
+    Preconditions.checkArgument(context.snapshotId() == null,
         "Cannot override snapshot, already set to id=%s", context.snapshotId());
     Preconditions.checkArgument(ops.current().snapshot(scanSnapshotId) != null,
         "Cannot find snapshot with ID %s", scanSnapshotId);
     return newRefinedScan(
-        ops, table, schema, context.snapshotId(scanSnapshotId));
+        ops, table, schema, context.useSnapshotId(scanSnapshotId));
   }
 
   @Override
   public TableScan asOfTime(long timestampMillis) {
-    Preconditions.checkState(context.snapshotId() == null,
+    Preconditions.checkArgument(context.snapshotId() == null,
         "Cannot override snapshot, already set to id=%s", context.snapshotId());
 
     Long lastSnapshotId = null;
@@ -153,42 +153,38 @@ abstract class BaseTableScan implements TableScan {
 
   @Override
   public TableScan option(String property, String value) {
-    ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-    builder.putAll(context.options());
-    builder.put(property, value);
-
     return newRefinedScan(
-        ops, table, schema, context.options(builder.build()));
+        ops, table, schema, context.withOption(property, value));
   }
 
   @Override
   public TableScan project(Schema projectedSchema) {
     return newRefinedScan(
-        ops, table, projectedSchema, context.copy());
+        ops, table, projectedSchema, context);
   }
 
   @Override
   public TableScan caseSensitive(boolean scanCaseSensitive) {
     return newRefinedScan(
-        ops, table, schema, context.caseSensitive(scanCaseSensitive));
+        ops, table, schema, context.setCaseSensitive(scanCaseSensitive));
   }
 
   @Override
   public TableScan includeColumnStats() {
     return newRefinedScan(
-        ops, table, schema, context.colStats(true));
+        ops, table, schema, context.shouldReturnColumnStats(true));
   }
 
   @Override
   public TableScan select(Collection<String> columns) {
     return newRefinedScan(
-        ops, table, schema, context.selectedColumns(columns));
+        ops, table, schema, context.selectColumns(columns));
   }
 
   @Override
   public TableScan filter(Expression expr) {
     return newRefinedScan(ops, table, schema,
-        context.rowFilter(Expressions.and(context.rowFilter(), expr)));
+        context.filterRows(Expressions.and(context.rowFilter(), expr)));
   }
 
   @Override
@@ -214,7 +210,7 @@ abstract class BaseTableScan implements TableScan {
           new ScanEvent(table.toString(), snapshot.snapshotId(), context.rowFilter(), schema()));
 
       return planFiles(ops, snapshot,
-          context.rowFilter(), context.ignoreResiduals(), context.caseSensitive(), context.colStats());
+          context.rowFilter(), context.ignoreResiduals(), context.caseSensitive(), context.returnColumnStats());
 
     } else {
       LOG.info("Scanning empty table {}", table);
@@ -224,7 +220,7 @@ abstract class BaseTableScan implements TableScan {
 
   @Override
   public CloseableIterable<CombinedScanTask> planTasks() {
-    ImmutableMap<String, String> options = context.options();
+    Map<String, String> options = context.options();
     long splitSize;
     if (options.containsKey(TableProperties.SPLIT_SIZE)) {
       splitSize = Long.parseLong(options.get(TableProperties.SPLIT_SIZE));
