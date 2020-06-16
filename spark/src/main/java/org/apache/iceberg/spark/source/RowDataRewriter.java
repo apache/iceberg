@@ -42,6 +42,8 @@ import org.apache.spark.sql.sources.v2.writer.DataWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
+
 public class RowDataRewriter implements Serializable {
 
   private static final Logger LOG = LoggerFactory.getLogger(RowDataRewriter.class);
@@ -49,6 +51,7 @@ public class RowDataRewriter implements Serializable {
   private final Broadcast<FileIO> fileIO;
   private final Broadcast<EncryptionManager> encryptionManager;
   private final String tableSchema;
+  private final String nameMapping;
   private final Writer.WriterFactory writerFactory;
   private final boolean caseSensitive;
 
@@ -60,6 +63,7 @@ public class RowDataRewriter implements Serializable {
 
     this.caseSensitive = caseSensitive;
     this.tableSchema = SchemaParser.toJson(table.schema());
+    this.nameMapping = table.properties().get(DEFAULT_NAME_MAPPING);
 
     String formatString = table.properties().getOrDefault(
         TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
@@ -80,7 +84,8 @@ public class RowDataRewriter implements Serializable {
     TaskContext context = TaskContext.get();
 
     RowDataReader dataReader = new RowDataReader(task, SchemaParser.fromJson(tableSchema),
-        SchemaParser.fromJson(tableSchema), fileIO.value(), encryptionManager.value(), caseSensitive);
+        SchemaParser.fromJson(tableSchema), nameMapping, fileIO.value(),
+        encryptionManager.value(), caseSensitive);
 
     int partitionId = context.partitionId();
     long taskId = context.taskAttemptId();

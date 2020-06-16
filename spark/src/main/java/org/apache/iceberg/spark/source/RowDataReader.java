@@ -39,7 +39,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -72,11 +72,11 @@ class RowDataReader extends BaseDataReader<InternalRow> {
 
   private final Schema tableSchema;
   private final Schema expectedSchema;
-  private final NameMapping nameMapping;
+  private final String nameMapping;
   private final boolean caseSensitive;
 
   RowDataReader(
-      CombinedScanTask task, Schema tableSchema, Schema expectedSchema, NameMapping nameMapping, FileIO fileIo,
+      CombinedScanTask task, Schema tableSchema, Schema expectedSchema, String nameMapping, FileIO fileIo,
       EncryptionManager encryptionManager, boolean caseSensitive) {
     super(task, fileIo, encryptionManager);
     this.tableSchema = tableSchema;
@@ -161,7 +161,8 @@ class RowDataReader extends BaseDataReader<InternalRow> {
         .filter(task.residual())
         .caseSensitive(caseSensitive);
 
-    return nameMapping != null ? builder.withNameMapping(nameMapping).build() : builder.build();
+    return nameMapping != null ?
+        builder.withNameMapping(NameMappingParser.fromJson(nameMapping)).build() : builder.build();
   }
 
   private CloseableIterable<InternalRow> newOrcIterable(
