@@ -101,9 +101,9 @@ public class IcebergFilterFactory {
       case LESS_THAN_EQUALS:
         return lessThanOrEqual(column, leafToIcebergType(leaf));
       case IN:
-        return in(column, hiveLiteralListToIcebergType(leaf.getLiteralList()));
+        return in(column, (List) leafToIcebergType(leaf));
       case BETWEEN:
-        List<Object> icebergLiterals = hiveLiteralListToIcebergType(leaf.getLiteralList());
+        List<Object> icebergLiterals = leaf.getLiteralList();
         return and(greaterThanOrEqual(column, icebergLiterals.get(0)),
             lessThanOrEqual(column, icebergLiterals.get(1)));
       case IS_NULL:
@@ -116,36 +116,43 @@ public class IcebergFilterFactory {
   private static Object leafToIcebergType(PredicateLeaf leaf) {
     switch (leaf.getType()) {
       case LONG:
-        return leaf.getLiteral();
+        return leaf.getLiteral() != null ? leaf.getLiteral() : leaf.getLiteralList();
       case FLOAT:
-        return leaf.getLiteral();
+        return leaf.getLiteral() != null ? leaf.getLiteral() : leaf.getLiteralList();
       case STRING:
-        return leaf.getLiteral();
+        return leaf.getLiteral() != null ? leaf.getLiteral() : leaf.getLiteralList();
       case DATE:
-        return ((Timestamp) leaf.getLiteral()).getTime();
+        //Hive converts a Date type to a Timestamp internally when retrieving literal
+        if (leaf.getLiteral() != null) {
+          return ((Timestamp) leaf.getLiteral()).toLocalDateTime().toLocalDate().toEpochDay();
+        } else {
+          //But not when retrieving the literalList
+          List<Object> icebergValues = leaf.getLiteralList();
+          icebergValues.replaceAll(value -> ((Date) value).toLocalDate().toEpochDay());
+          return icebergValues;
+        }
       case DECIMAL:
-        return BigDecimal.valueOf(((HiveDecimalWritable) leaf.getLiteral()).doubleValue());
+        if (leaf.getLiteral() != null) {
+          return BigDecimal.valueOf(((HiveDecimalWritable) leaf.getLiteral()).doubleValue());
+        } else {
+          List<Object> icebergValues = leaf.getLiteralList();
+          icebergValues.replaceAll(value -> BigDecimal.valueOf(((HiveDecimalWritable) value).doubleValue()));
+          return icebergValues;
+        }
       case TIMESTAMP:
-        return ((Timestamp) leaf.getLiteral()).getTime();
+        if (leaf.getLiteral() != null) {
+          Timestamp timestamp = (Timestamp) leaf.getLiteral();
+          return timestamp.toInstant().getEpochSecond() * 1000000 + timestamp.getNanos() / 1000;
+        } else {
+          List<Object> icebergValues = leaf.getLiteralList();
+          icebergValues.replaceAll(value -> (
+              (Timestamp) value).toInstant().getEpochSecond() * 1000000 + ((Timestamp) value).getNanos() / 1000);
+          return icebergValues;
+        }
       case BOOLEAN:
-        return leaf.getLiteral();
+        return leaf.getLiteral() != null ? leaf.getLiteral() : leaf.getLiteralList();
       default:
         throw new IllegalStateException("Unknown type: " + leaf.getType());
     }
   }
-
-  private static List<Object> hiveLiteralListToIcebergType(List<Object> hiveLiteralTypes) {
-    for (int i = 0; i < hiveLiteralTypes.size(); i++) {
-      Object type = hiveLiteralTypes.get(i);
-      if (type instanceof HiveDecimalWritable) {
-        hiveLiteralTypes.set(i, BigDecimal.valueOf(((HiveDecimalWritable) type).doubleValue()));
-      } else if (type instanceof Date) {
-        hiveLiteralTypes.set(i, ((Timestamp) type).getTime());
-      } else if (type instanceof Timestamp) {
-        hiveLiteralTypes.set(i, ((Timestamp) type).getTime());
-      }
-    }
-    return hiveLiteralTypes;
-  }
 }
-

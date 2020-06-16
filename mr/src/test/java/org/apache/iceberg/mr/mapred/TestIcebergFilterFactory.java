@@ -23,8 +23,6 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgumentFactory;
@@ -97,7 +95,7 @@ public class TestIcebergFilterFactory {
   }
 
   @Test
-  public void testInOperand() {
+  public void testInOperandWithLong() {
     SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
     SearchArgument arg = builder.startAnd().in("salary", PredicateLeaf.Type.LONG, 3000L, 4000L).end().build();
 
@@ -112,15 +110,57 @@ public class TestIcebergFilterFactory {
   @Test
   public void testInOperandWithDecimal() {
     SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
-    SearchArgument arg = builder.startAnd().in("date", PredicateLeaf.Type.DECIMAL,
+    SearchArgument arg = builder.startAnd().in("decimal", PredicateLeaf.Type.DECIMAL,
         new HiveDecimalWritable("12.14"), new HiveDecimalWritable("13.15")).end().build();
 
-    UnboundPredicate expected = Expressions.in("date", BigDecimal.valueOf(12.14), BigDecimal.valueOf(13.15));
+    UnboundPredicate expected = Expressions.in("decimal", BigDecimal.valueOf(12.14), BigDecimal.valueOf(13.15));
     UnboundPredicate actual = (UnboundPredicate) IcebergFilterFactory.generateFilterExpression(arg);
 
     assertEquals(actual.op(), expected.op());
     assertEquals(actual.literals(), expected.literals());
     assertEquals(actual.ref().name(), expected.ref().name());
+  }
+
+  @Test
+  public void testInOperandWithDate() {
+    SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
+    SearchArgument arg = builder
+        .startAnd()
+        .in("date", PredicateLeaf.Type.DATE,
+            Date.valueOf("2020-06-15"), Date.valueOf("2021-06-15"))
+        .end()
+        .build();
+
+    UnboundPredicate expected = Expressions.in("date", LocalDate.of(2020, 6, 15).toEpochDay(),
+        LocalDate.of(2021, 6, 15).toEpochDay());
+    UnboundPredicate actual = (UnboundPredicate) IcebergFilterFactory.generateFilterExpression(arg);
+
+    assertEquals(actual.op(), expected.op());
+    assertEquals(actual.literals(), expected.literals());
+    assertEquals(actual.ref().name(), expected.ref().name());
+    assertEquals(expected.toString(), actual.toString());
+  }
+
+  @Test
+  public void testInOperandWithTimestamp() {
+    Timestamp timestampHiveFilterOne = Timestamp.valueOf("2016-11-16 06:43:19.77");
+    Timestamp timestampHiveFilterTwo = Timestamp.valueOf("2017-11-16 06:43:19.77");
+
+    SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
+    SearchArgument arg = builder
+        .startAnd()
+        .in("timestamp", PredicateLeaf.Type.TIMESTAMP, timestampHiveFilterOne, timestampHiveFilterTwo)
+        .end()
+        .build();
+
+    UnboundPredicate expected = Expressions.in("timestamp",
+        1479278599770000L, 1510814599770000L);
+    UnboundPredicate actual = (UnboundPredicate) IcebergFilterFactory.generateFilterExpression(arg);
+
+    assertEquals(expected.op(), actual.op());
+    assertEquals(expected.literals(), actual.literals());
+    assertEquals(expected.ref().name(), actual.ref().name());
+    assertEquals(expected.toString(), actual.toString());
   }
 
 
@@ -268,9 +308,10 @@ public class TestIcebergFilterFactory {
         .end()
         .build();
 
+    Timestamp timestamp = Timestamp.valueOf("2016-11-16 06:43:19.77");
     And expected = (And) Expressions.and(
-        Expressions.equal("date", Date.valueOf("2020-06-15").getTime()),
-        Expressions.equal("timestamp", Timestamp.valueOf("2016-11-16 06:43:19.77").getTime()),
+        Expressions.equal("date", LocalDate.of(2020, 6, 15).toEpochDay()),
+        Expressions.equal("timestamp", 1479278599770000L),
         Expressions.equal("decimal", BigDecimal.valueOf(12.12)),
         Expressions.equal("string", "hello world"),
         Expressions.equal("long", 3020L),
