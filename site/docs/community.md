@@ -47,6 +47,8 @@ Issues are tracked in GitHub:
 [open-issues]: https://github.com/apache/iceberg/issues
 [new-issue]: https://github.com/apache/iceberg/issues/new
 
+## Slack
+[![Slack](https://img.shields.io/badge/chat-on%20Slack-brightgreen.svg)](https://the-asf.slack.com/archives/CF01LKV9S)
 
 ## Mailing Lists
 
