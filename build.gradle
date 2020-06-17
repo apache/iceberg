@@ -534,7 +534,7 @@ project(':iceberg-spark3') {
     compile project(':iceberg-spark')
 
     compileOnly "org.apache.avro:avro"
-    compileOnly("org.apache.spark:spark-hive_2.12:3.0.0-preview2") {
+    compileOnly("org.apache.spark:spark-hive_2.12") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
