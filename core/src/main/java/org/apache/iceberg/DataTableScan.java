@@ -19,12 +19,10 @@
 
 package org.apache.iceberg;
 
-import java.util.Collection;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.ThreadPools;
 
 public class DataTableScan extends BaseTableScan {
@@ -43,12 +41,8 @@ public class DataTableScan extends BaseTableScan {
     super(ops, table, table.schema());
   }
 
-  protected DataTableScan(TableOperations ops, Table table, Long snapshotId, Schema schema,
-                          Expression rowFilter, boolean ignoreResiduals, boolean caseSensitive, boolean colStats,
-                          Collection<String> selectedColumns, ImmutableMap<String, String> options) {
-    super(
-        ops, table, snapshotId, schema, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, selectedColumns, options);
+  protected DataTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+    super(ops, table, schema, context);
   }
 
   @Override
@@ -56,10 +50,8 @@ public class DataTableScan extends BaseTableScan {
     Long scanSnapshotId = snapshotId();
     Preconditions.checkState(scanSnapshotId == null,
         "Cannot enable incremental scan, scan-snapshot set to id=%s", scanSnapshotId);
-    return new IncrementalDataTableScan(
-        tableOps(), table(), schema(), filter(), shouldIgnoreResiduals(),
-        isCaseSensitive(), colStats(), selectedColumns(), options(),
-        fromSnapshotId, toSnapshotId);
+    return new IncrementalDataTableScan(tableOps(), table(), schema(),
+        context().fromSnapshotId(fromSnapshotId).toSnapshotId(toSnapshotId));
   }
 
   @Override
@@ -71,12 +63,8 @@ public class DataTableScan extends BaseTableScan {
   }
 
   @Override
-  protected TableScan newRefinedScan(
-      TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-      boolean ignoreResiduals, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
-      ImmutableMap<String, String> options) {
-    return new DataTableScan(
-        ops, table, snapshotId, schema, rowFilter, ignoreResiduals, caseSensitive, colStats, selectedColumns, options);
+  protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+    return new DataTableScan(ops, table, schema, context);
   }
 
   @Override

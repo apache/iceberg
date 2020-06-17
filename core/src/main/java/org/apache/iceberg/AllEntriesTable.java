@@ -20,14 +20,12 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
@@ -81,23 +79,14 @@ public class AllEntriesTable extends BaseMetadataTable {
       super(ops, table, schema);
     }
 
-    private Scan(
-        TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-        boolean ignoreResiduals, boolean caseSensitive, boolean colStats,
-        Collection<String> selectedColumns, ImmutableMap<String, String> options) {
-      super(
-          ops, table, snapshotId, schema, rowFilter, ignoreResiduals,
-          caseSensitive, colStats, selectedColumns, options);
+    private Scan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+      super(ops, table, schema, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(
-        TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-        boolean ignoreResiduals, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
-        ImmutableMap<String, String> options) {
-      return new Scan(
-          ops, table, snapshotId, schema, rowFilter, ignoreResiduals,
-          caseSensitive, colStats, selectedColumns, options);
+    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema,
+                                       TableScanContext context) {
+      return new Scan(ops, table, schema, context);
     }
 
     @Override

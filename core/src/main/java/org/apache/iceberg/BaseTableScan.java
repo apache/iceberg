@@ -25,6 +25,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
@@ -34,7 +35,6 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.TableScanUtil;
@@ -52,32 +52,18 @@ abstract class BaseTableScan implements TableScan {
 
   private final TableOperations ops;
   private final Table table;
-  private final Long snapshotId;
   private final Schema schema;
-  private final Expression rowFilter;
-  private final boolean ignoreResiduals;
-  private final boolean caseSensitive;
-  private final boolean colStats;
-  private final Collection<String> selectedColumns;
-  private final ImmutableMap<String, String> options;
+  private final TableScanContext context;
 
   protected BaseTableScan(TableOperations ops, Table table, Schema schema) {
-    this(ops, table, null, schema, Expressions.alwaysTrue(), false, true, false, null, ImmutableMap.of());
+    this(ops, table, schema, new TableScanContext());
   }
 
-  protected BaseTableScan(TableOperations ops, Table table, Long snapshotId, Schema schema,
-                          Expression rowFilter, boolean ignoreResiduals, boolean caseSensitive, boolean colStats,
-                          Collection<String> selectedColumns, ImmutableMap<String, String> options) {
+  protected BaseTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
     this.ops = ops;
     this.table = table;
-    this.snapshotId = snapshotId;
     this.schema = schema;
-    this.rowFilter = rowFilter;
-    this.ignoreResiduals = ignoreResiduals;
-    this.caseSensitive = caseSensitive;
-    this.colStats = colStats;
-    this.selectedColumns = selectedColumns;
-    this.options = options != null ? options : ImmutableMap.of();
+    this.context = context;
   }
 
   protected TableOperations tableOps() {
@@ -85,23 +71,27 @@ abstract class BaseTableScan implements TableScan {
   }
 
   protected Long snapshotId() {
-    return snapshotId;
+    return context.snapshotId();
   }
 
   protected boolean colStats() {
-    return colStats;
+    return context.returnColumnStats();
   }
 
   protected boolean shouldIgnoreResiduals() {
-    return ignoreResiduals;
+    return context.ignoreResiduals();
   }
 
   protected Collection<String> selectedColumns() {
-    return selectedColumns;
+    return context.selectedColumns();
   }
 
-  protected ImmutableMap<String, String> options() {
-    return options;
+  protected Map<String, String> options() {
+    return context.options();
+  }
+
+  protected  TableScanContext context() {
+    return context;
   }
 
   @SuppressWarnings("checkstyle:HiddenField")
@@ -109,9 +99,7 @@ abstract class BaseTableScan implements TableScan {
 
   @SuppressWarnings("checkstyle:HiddenField")
   protected abstract TableScan newRefinedScan(
-      TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-      boolean ignoreResiduals, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
-      ImmutableMap<String, String> options);
+      TableOperations ops, Table table, Schema schema, TableScanContext context);
 
   @SuppressWarnings("checkstyle:HiddenField")
   protected abstract CloseableIterable<FileScanTask> planFiles(
@@ -135,19 +123,18 @@ abstract class BaseTableScan implements TableScan {
 
   @Override
   public TableScan useSnapshot(long scanSnapshotId) {
-    Preconditions.checkArgument(this.snapshotId == null,
-        "Cannot override snapshot, already set to id=%s", snapshotId);
+    Preconditions.checkArgument(context.snapshotId() == null,
+        "Cannot override snapshot, already set to id=%s", context.snapshotId());
     Preconditions.checkArgument(ops.current().snapshot(scanSnapshotId) != null,
         "Cannot find snapshot with ID %s", scanSnapshotId);
     return newRefinedScan(
-        ops, table, scanSnapshotId, schema, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, selectedColumns, options);
+        ops, table, schema, context.useSnapshotId(scanSnapshotId));
   }
 
   @Override
   public TableScan asOfTime(long timestampMillis) {
-    Preconditions.checkArgument(this.snapshotId == null,
-        "Cannot override snapshot, already set to id=%s", snapshotId);
+    Preconditions.checkArgument(context.snapshotId() == null,
+        "Cannot override snapshot, already set to id=%s", context.snapshotId());
 
     Long lastSnapshotId = null;
     for (HistoryEntry logEntry : ops.current().snapshotLog()) {
@@ -166,60 +153,49 @@ abstract class BaseTableScan implements TableScan {
 
   @Override
   public TableScan option(String property, String value) {
-    ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-    builder.putAll(options);
-    builder.put(property, value);
-
     return newRefinedScan(
-        ops, table, snapshotId, schema, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, selectedColumns, builder.build());
+        ops, table, schema, context.withOption(property, value));
   }
 
   @Override
   public TableScan project(Schema projectedSchema) {
     return newRefinedScan(
-        ops, table, snapshotId, projectedSchema, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, selectedColumns, options);
+        ops, table, projectedSchema, context);
   }
 
   @Override
   public TableScan caseSensitive(boolean scanCaseSensitive) {
     return newRefinedScan(
-        ops, table, snapshotId, schema, rowFilter, ignoreResiduals,
-        scanCaseSensitive, colStats, selectedColumns, options);
+        ops, table, schema, context.setCaseSensitive(scanCaseSensitive));
   }
 
   @Override
   public TableScan includeColumnStats() {
     return newRefinedScan(
-        ops, table, snapshotId, schema, rowFilter, ignoreResiduals,
-        caseSensitive, true, selectedColumns, options);
+        ops, table, schema, context.shouldReturnColumnStats(true));
   }
 
   @Override
   public TableScan select(Collection<String> columns) {
     return newRefinedScan(
-        ops, table, snapshotId, schema, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, columns, options);
+        ops, table, schema, context.selectColumns(columns));
   }
 
   @Override
   public TableScan filter(Expression expr) {
-    return newRefinedScan(
-        ops, table, snapshotId, schema, Expressions.and(rowFilter, expr),
-        ignoreResiduals, caseSensitive, colStats, selectedColumns, options);
+    return newRefinedScan(ops, table, schema,
+        context.filterRows(Expressions.and(context.rowFilter(), expr)));
   }
 
   @Override
   public Expression filter() {
-    return rowFilter;
+    return context.rowFilter();
   }
 
   @Override
   public TableScan ignoreResiduals() {
     return newRefinedScan(
-        ops, table, snapshotId, schema, rowFilter, true,
-        caseSensitive, colStats, selectedColumns, options);
+        ops, table, schema, context.ignoreResiduals(true));
   }
 
   @Override
@@ -228,12 +204,13 @@ abstract class BaseTableScan implements TableScan {
     if (snapshot != null) {
       LOG.info("Scanning table {} snapshot {} created at {} with filter {}", table,
           snapshot.snapshotId(), formatTimestampMillis(snapshot.timestampMillis()),
-          rowFilter);
+          context.rowFilter());
 
       Listeners.notifyAll(
-          new ScanEvent(table.toString(), snapshot.snapshotId(), rowFilter, schema()));
+          new ScanEvent(table.toString(), snapshot.snapshotId(), context.rowFilter(), schema()));
 
-      return planFiles(ops, snapshot, rowFilter, ignoreResiduals, caseSensitive, colStats);
+      return planFiles(ops, snapshot,
+          context.rowFilter(), context.ignoreResiduals(), context.caseSensitive(), context.returnColumnStats());
 
     } else {
       LOG.info("Scanning empty table {}", table);
@@ -243,6 +220,7 @@ abstract class BaseTableScan implements TableScan {
 
   @Override
   public CloseableIterable<CombinedScanTask> planTasks() {
+    Map<String, String> options = context.options();
     long splitSize;
     if (options.containsKey(TableProperties.SPLIT_SIZE)) {
       splitSize = Long.parseLong(options.get(TableProperties.SPLIT_SIZE));
@@ -276,14 +254,14 @@ abstract class BaseTableScan implements TableScan {
 
   @Override
   public Snapshot snapshot() {
-    return snapshotId != null ?
-        ops.current().snapshot(snapshotId) :
+    return context.snapshotId() != null ?
+        ops.current().snapshot(context.snapshotId()) :
         ops.current().currentSnapshot();
   }
 
   @Override
   public boolean isCaseSensitive() {
-    return caseSensitive;
+    return context.caseSensitive();
   }
 
   @Override
@@ -291,9 +269,9 @@ abstract class BaseTableScan implements TableScan {
     return MoreObjects.toStringHelper(this)
         .add("table", table)
         .add("projection", schema().asStruct())
-        .add("filter", rowFilter)
-        .add("ignoreResiduals", ignoreResiduals)
-        .add("caseSensitive", caseSensitive)
+        .add("filter", context.rowFilter())
+        .add("ignoreResiduals", context.ignoreResiduals())
+        .add("caseSensitive", context.caseSensitive())
         .toString();
   }
 
@@ -304,16 +282,18 @@ abstract class BaseTableScan implements TableScan {
    * @return the Schema to project
    */
   private Schema lazyColumnProjection() {
+    Collection<String> selectedColumns = context.selectedColumns();
     if (selectedColumns != null) {
       Set<Integer> requiredFieldIds = Sets.newHashSet();
 
       // all of the filter columns are required
       requiredFieldIds.addAll(
-          Binder.boundReferences(table.schema().asStruct(), Collections.singletonList(rowFilter), caseSensitive));
+          Binder.boundReferences(table.schema().asStruct(),
+              Collections.singletonList(context.rowFilter()), context.caseSensitive()));
 
       // all of the projection columns are required
       Set<Integer> selectedIds;
-      if (caseSensitive) {
+      if (context.caseSensitive()) {
         selectedIds = TypeUtil.getProjectedIds(table.schema().select(selectedColumns));
       } else {
         selectedIds = TypeUtil.getProjectedIds(table.schema().caseInsensitiveSelect(selectedColumns));

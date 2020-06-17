@@ -19,11 +19,9 @@
 
 package org.apache.iceberg;
 
-import java.util.Collection;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 class StaticTableScan extends BaseTableScan {
   private final Function<StaticTableScan, DataTask> buildTask;
@@ -33,13 +31,9 @@ class StaticTableScan extends BaseTableScan {
     this.buildTask = buildTask;
   }
 
-  private StaticTableScan(
-      TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-      boolean ignoreResiduals, boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
-      Function<StaticTableScan, DataTask> buildTask, ImmutableMap<String, String> options) {
-    super(
-        ops, table, snapshotId, schema, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, selectedColumns, options);
+  private StaticTableScan(TableOperations ops, Table table, Schema schema,
+                          Function<StaticTableScan, DataTask> buildTask, TableScanContext context) {
+    super(ops, table, schema, context);
     this.buildTask = buildTask;
   }
 
@@ -50,13 +44,9 @@ class StaticTableScan extends BaseTableScan {
   }
 
   @Override
-  protected TableScan newRefinedScan(
-      TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-      boolean ignoreResiduals, boolean caseSensitive, boolean colStats,
-      Collection<String> selectedColumns, ImmutableMap<String, String> options) {
+  protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
     return new StaticTableScan(
-        ops, table, snapshotId, schema, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, selectedColumns, buildTask, options);
+        ops, table, schema, buildTask, context);
   }
 
   @Override
