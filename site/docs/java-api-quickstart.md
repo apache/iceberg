@@ -48,14 +48,14 @@ The logs [schema](#create-a-schema) and [partition spec](#create-a-partition-spe
 
 ### Using a Hadoop catalog
 
-The Hadoop catalog doesn't need to connects to a Hive MetaStore. To get a Hadoop catalog see:
+A Hadoop catalog doesn't need to connect to a Hive MetaStore, but can only be used with HDFS or similar file systems that support atomic rename. To get a Hadoop catalog see:
 
 ```java
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 
 Configuration conf = new Configuration();
-String warehousePath = "hdfs://warehouse_path";
+String warehousePath = "hdfs://host:8020/warehouse_path";
 HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
 ```
 
