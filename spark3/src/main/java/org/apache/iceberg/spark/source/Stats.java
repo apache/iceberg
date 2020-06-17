@@ -17,24 +17,27 @@
  * under the License.
  */
 
-package org.apache.iceberg.actions;
+package org.apache.iceberg.spark.source;
 
-import org.apache.iceberg.MetadataTableType;
-import org.apache.iceberg.Table;
+import java.util.OptionalLong;
+import org.apache.spark.sql.connector.read.Statistics;
 
-abstract class BaseAction<R> implements Action<R> {
+class Stats implements Statistics {
+  private final OptionalLong sizeInBytes;
+  private final OptionalLong numRows;
 
-  protected abstract Table table();
+  Stats(long sizeInBytes, long numRows) {
+    this.sizeInBytes = OptionalLong.of(sizeInBytes);
+    this.numRows = OptionalLong.of(numRows);
+  }
 
-  protected String metadataTableName(MetadataTableType type) {
-    String tableName = table().toString();
-    if (tableName.contains("/")) {
-      return tableName + "#" + type;
-    } else if (tableName.startsWith("hadoop.") || tableName.startsWith("hive.")) {
-      // HiveCatalog and HadoopCatalog prepend a logical name which we need to drop for Spark 2.4
-      return tableName.replaceFirst("(hadoop\\.)|(hive\\.)", "") + "." + type;
-    } else {
-      return tableName + "." + type;
-    }
+  @Override
+  public OptionalLong sizeInBytes() {
+    return sizeInBytes;
+  }
+
+  @Override
+  public OptionalLong numRows() {
+    return numRows;
   }
 }

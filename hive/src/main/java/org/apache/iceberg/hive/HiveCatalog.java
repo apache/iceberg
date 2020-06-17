@@ -66,6 +66,18 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     this.closed = false;
   }
 
+  public HiveCatalog(String uri, int clientPoolSize, Configuration conf) {
+    this.conf = new Configuration(conf);
+    // before building the client pool, overwrite the configuration's URIs if the argument is non-null
+    if (uri != null) {
+      this.conf.set("hive.metastore.uris", uri);
+    }
+
+    this.clients = new HiveClientPool(clientPoolSize, this.conf);
+    this.createStack = Thread.currentThread().getStackTrace();
+    this.closed = false;
+  }
+
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
     Preconditions.checkArgument(isValidateNamespace(namespace),
