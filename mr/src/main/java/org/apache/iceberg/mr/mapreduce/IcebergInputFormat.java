@@ -136,11 +136,11 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     splits = Lists.newArrayList();
     boolean applyResidual = !conf.getBoolean(InputFormatConfig.SKIP_RESIDUAL_FILTERING, false);
     InputFormatConfig.InMemoryDataModel model = conf.getEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL,
-            InputFormatConfig.InMemoryDataModel.GENERIC);
+        InputFormatConfig.InMemoryDataModel.GENERIC);
     try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
       tasksIterable.forEach(task -> {
         if (applyResidual && (model == InputFormatConfig.InMemoryDataModel.HIVE ||
-                model == InputFormatConfig.InMemoryDataModel.PIG)) {
+            model == InputFormatConfig.InMemoryDataModel.PIG)) {
           //TODO: We do not support residual evaluation for HIVE and PIG in memory data model yet
           checkResiduals(task);
         }
@@ -158,9 +158,9 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       Expression residual = fileScanTask.residual();
       if (residual != null && !residual.equals(Expressions.alwaysTrue())) {
         throw new UnsupportedOperationException(
-                String.format(
-                        "Filter expression %s is not completely satisfied. Additional rows " +
-                                "can be returned not satisfied by the filter expression", residual));
+            String.format(
+                "Filter expression %s is not completely satisfied. Additional rows " +
+                    "can be returned not satisfied by the filter expression", residual));
       }
     });
   }
@@ -288,7 +288,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           break;
         default:
           throw new UnsupportedOperationException(
-                  String.format("Cannot read %s file: %s", file.format().name(), file.path()));
+              String.format("Cannot read %s file: %s", file.format().name(), file.path()));
       }
 
       return iterable;
@@ -296,12 +296,12 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     @SuppressWarnings("unchecked")
     private T withIdentityPartitionColumns(
-            T row, Schema identityPartitionSchema, PartitionSpec spec, StructLike partition) {
+        T row, Schema identityPartitionSchema, PartitionSpec spec, StructLike partition) {
       switch (inMemoryDataModel) {
         case PIG:
         case HIVE:
           throw new UnsupportedOperationException(
-                  "Adding partition columns to Pig and Hive data model are not supported yet");
+              "Adding partition columns to Pig and Hive data model are not supported yet");
         case GENERIC:
           return (T) withIdentityPartitionColumns((Record) row, identityPartitionSchema, spec, partition);
       }
@@ -309,7 +309,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     private Record withIdentityPartitionColumns(
-            Record record, Schema identityPartitionSchema, PartitionSpec spec, StructLike partitionTuple) {
+        Record record, Schema identityPartitionSchema, PartitionSpec spec, StructLike partitionTuple) {
       List<PartitionField> partitionFields = spec.fields();
       List<Types.NestedField> identityColumns = identityPartitionSchema.columns();
       GenericRecord row = GenericRecord.create(expectedSchema.asStruct());
@@ -326,8 +326,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           for (int j = 0; j < partitionFields.size(); j++) {
             PartitionField partitionField = partitionFields.get(j);
             if (name.equals(identityColumn.name()) &&
-                    identityColumn.fieldId() == partitionField.sourceId() &&
-                    "identity".equals(partitionField.transform().toString())) {
+                identityColumn.fieldId() == partitionField.sourceId() &&
+                "identity".equals(partitionField.transform().toString())) {
               row.set(pos, partitionTuple.get(j, spec.javaClasses()[j]));
             }
           }
@@ -351,8 +351,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     private CloseableIterable<T> newAvroIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
       Avro.ReadBuilder avroReadBuilder = Avro.read(inputFile)
-              .project(readSchema)
-              .split(task.start(), task.length());
+          .project(readSchema)
+          .split(task.start(), task.length());
       if (reuseContainers) {
         avroReadBuilder.reuseContainers();
       }
@@ -370,10 +370,10 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     private CloseableIterable<T> newParquetIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
       Parquet.ReadBuilder parquetReadBuilder = Parquet.read(inputFile)
-              .project(readSchema)
-              .filter(task.residual())
-              .caseSensitive(caseSensitive)
-              .split(task.start(), task.length());
+          .project(readSchema)
+          .filter(task.residual())
+          .caseSensitive(caseSensitive)
+          .split(task.start(), task.length());
       if (reuseContainers) {
         parquetReadBuilder.reuseContainers();
       }
@@ -392,10 +392,10 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     private CloseableIterable<T> newOrcIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
       ORC.ReadBuilder orcReadBuilder = ORC.read(inputFile)
-              .project(readSchema)
-              .filter(task.residual())
-              .caseSensitive(caseSensitive)
-              .split(task.start(), task.length());
+          .project(readSchema)
+          .filter(task.residual())
+          .caseSensitive(caseSensitive)
+          .split(task.start(), task.length());
       // ORC does not support reuse containers yet
       switch (inMemoryDataModel) {
         case PIG:
@@ -421,10 +421,10 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     String catalogFuncClass = conf.get(InputFormatConfig.CATALOG);
     if (catalogFuncClass != null) {
       Function<Configuration, Catalog> catalogFunc = (Function<Configuration, Catalog>)
-              DynConstructors.builder(Function.class)
-                      .impl(catalogFuncClass)
-                      .build()
-                      .newInstance();
+          DynConstructors.builder(Function.class)
+                         .impl(catalogFuncClass)
+                         .build()
+                         .newInstance();
       Catalog catalog = catalogFunc.apply(conf);
       TableIdentifier tableIdentifier = TableIdentifier.parse(path);
       return catalog.loadTable(tableIdentifier);
