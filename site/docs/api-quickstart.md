@@ -50,7 +50,7 @@ The logs [schema](#create-a-schema) and [partition spec](#create-a-partition-spe
 
 ### Using a Hadoop catalog
 
-A Hadoop catalog doesn't need to connect to a Hive MetaStore, but can only be used with HDFS or similar file systems that support atomic rename. To get a Hadoop catalog see:
+A Hadoop catalog doesn't need to connect to a Hive MetaStore, but can only be used with HDFS or similar file systems that support atomic rename. Concurrent writes with a Hadoop catalog are not safe with a local FS or S3. To create a Hadoop catalog:
 
 ```scala
 import org.apache.hadoop.conf.Configuration;
@@ -61,9 +61,9 @@ val warehousePath = "hdfs://host:8020/warehouse_path";
 val catalog = new HadoopCatalog(conf, warehousePath);
 ```
 
-Like Hive catalog, Hadoop catalog implements the interface `Catalog`. So it also contains methods for working with tables, like createTable, loadTable, and dropTable.
+Like the Hive catalog, `HadoopCatalog` implements `Catalog`, so it also has methods for working with tables, like `createTable`, `loadTable`, and `dropTable`.
                                                                                        
-This example create a table with Hadoop catalog:
+This example creates a table with the Hadoop catalog:
 
 ```scala
 val name = TableIdentifier.of("logging", "logs")
@@ -73,14 +73,14 @@ val table = catalog.createTable(name, schema, spec)
 logsDF.write
     .format("iceberg")
     .mode("append")
-    .save("hdfs://warehouse_path/logging/logs")
+    .save("hdfs://host:8020/warehouse_path/logging.db/logs")
 ```
 
 The logs [schema](#create-a-schema) and [partition spec](#create-a-partition-spec) are created below.
 
 ### Using Hadoop tables
 
-Iceberg also supports tables that are stored in a directory in HDFS or the local file system. Directory tables don't support all catalog operations, like rename, so they use the `Tables` interface instead of `Catalog`.
+Iceberg also supports tables that are stored in a directory in HDFS. Concurrent writes with a Hadoop tables are not safe when stored in the local FS or S3. Directory tables don't support all catalog operations, like rename, so they use the `Tables` interface instead of `Catalog`.
 
 To create a table in HDFS, use `HadoopTables`:
 
