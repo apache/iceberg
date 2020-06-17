@@ -229,7 +229,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     aliasToId.put(DOT.join(path(name)), fieldId);
   }
 
-  private int nextId() {
+  protected int nextId() {
     int current = nextId;
     nextId += 1;
     return current;

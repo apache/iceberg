@@ -78,6 +78,7 @@ public class VectorizedSparkParquetReaders {
       List<Type> fields = groupType.getFields();
 
       IntStream.range(0, fields.size())
+          .filter(pos -> fields.get(pos).getId() != null)
           .forEach(pos -> readersById.put(fields.get(pos).getId().intValue(), fieldReaders.get(pos)));
 
       List<Types.NestedField> icebergFields = expected != null ?
@@ -114,6 +115,9 @@ public class VectorizedSparkParquetReaders {
         PrimitiveType primitive) {
 
       // Create arrow vector for this field
+      if (primitive.getId() == null) {
+        return null;
+      }
       int parquetFieldId = primitive.getId().intValue();
       ColumnDescriptor desc = parquetSchema.getColumnDescription(currentPath());
       // Nested types not yet supported for vectorized reads

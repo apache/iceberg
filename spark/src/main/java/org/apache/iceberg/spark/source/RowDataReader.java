@@ -161,8 +161,11 @@ class RowDataReader extends BaseDataReader<InternalRow> {
         .filter(task.residual())
         .caseSensitive(caseSensitive);
 
-    return nameMapping != null ?
-        builder.withNameMapping(NameMappingParser.fromJson(nameMapping)).build() : builder.build();
+    if (nameMapping != null) {
+      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+    }
+
+    return builder.build();
   }
 
   private CloseableIterable<InternalRow> newOrcIterable(

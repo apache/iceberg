@@ -52,9 +52,9 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
   private final NameMapping nameMapping;
 
   public VectorizedParquetReader(
-      InputFile input, Schema expectedSchema, ParquetReadOptions options, Function<MessageType,
-      VectorizedReader<?>> readerFunc, NameMapping nameMapping, Expression filter, boolean reuseContainers,
-      boolean caseSensitive, int maxRecordsPerBatch) {
+      InputFile input, Schema expectedSchema, ParquetReadOptions options,
+      Function<MessageType, VectorizedReader<?>> readerFunc, NameMapping nameMapping, Expression filter,
+      boolean reuseContainers, boolean caseSensitive, int maxRecordsPerBatch) {
     this.input = input;
     this.expectedSchema = expectedSchema;
     this.options = options;

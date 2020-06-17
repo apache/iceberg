@@ -90,17 +90,21 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
 
   @Override
   public void beforeRepeatedElement(Type element) {
+    // do not add the repeated element's name
   }
 
   @Override
   public void afterRepeatedElement(Type element) {
+    // do not remove the repeated element's name
   }
 
   @Override
   public void beforeRepeatedKeyValue(Type keyValue) {
+    // do not add the repeated element's name
   }
 
   @Override
   public void afterRepeatedKeyValue(Type keyValue) {
+    // do not remove the repeated element's name
   }
 }

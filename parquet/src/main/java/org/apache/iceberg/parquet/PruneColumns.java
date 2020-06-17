@@ -45,15 +45,13 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
       Type originalField = message.getType(i);
       Type field = fields.get(i);
       Integer fieldId = getId(originalField);
-      if (fieldId != null) {
-        if (selectedIds.contains(fieldId)) {
-          builder.addField(originalField);
-          fieldCount += 1;
-        } else if (field != null) {
-          builder.addField(field);
-          fieldCount += 1;
-          hasChange = true;
-        }
+      if (fieldId != null && selectedIds.contains(fieldId)) {
+        builder.addField(originalField);
+        fieldCount += 1;
+      } else if (field != null) {
+        builder.addField(field);
+        fieldCount += 1;
+        hasChange = true;
       }
     }
 
@@ -74,13 +72,11 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
       Type originalField = struct.getType(i);
       Type field = fields.get(i);
       Integer fieldId = getId(originalField);
-      if (fieldId != null) {
-        if (selectedIds.contains(fieldId)) {
-          filteredFields.add(originalField);
-        } else if (field != null) {
-          filteredFields.add(originalField);
-          hasChange = true;
-        }
+      if (fieldId != null && selectedIds.contains(fieldId)) {
+        filteredFields.add(originalField);
+      } else if (field != null) {
+        filteredFields.add(originalField);
+        hasChange = true;
       }
     }
 
@@ -101,20 +97,18 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
     Type originalElement = repeated.getType(0);
     Integer elementId = getId(originalElement);
 
-    if (elementId != null) {
-      if (selectedIds.contains(elementId)) {
-        return list;
-      } else if (element != null) {
-        if (element != originalElement) {
-          Integer listId = getId(list);
-          // the element type was projected
-          Type listType = Types.list(list.getRepetition())
-              .element(element)
-              .named(list.getName());
-          return listId == null ? listType : listType.withId(listId);
-        }
-        return list;
+    if (elementId != null && selectedIds.contains(elementId)) {
+      return list;
+    } else if (element != null) {
+      if (element != originalElement) {
+        Integer listId = getId(list);
+        // the element type was projected
+        Type listType = Types.list(list.getRepetition())
+            .element(element)
+            .named(list.getName());
+        return listId == null ? listType : listType.withId(listId);
       }
+      return list;
     }
 
     return null;

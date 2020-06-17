@@ -47,7 +47,6 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 
 public class ParquetMetricsRowGroupFilter {
-
   private final Schema schema;
   private final Expression expr;
   private transient ThreadLocal<MetricsEvalVisitor> visitors = null;

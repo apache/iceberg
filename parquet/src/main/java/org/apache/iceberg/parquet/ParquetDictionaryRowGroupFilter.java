@@ -47,7 +47,6 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 
 public class ParquetDictionaryRowGroupFilter {
-
   private final Expression expr;
   private transient ThreadLocal<EvalVisitor> visitors = null;
 

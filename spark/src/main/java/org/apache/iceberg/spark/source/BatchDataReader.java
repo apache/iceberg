@@ -70,8 +70,11 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
           // read performance as every batch read doesn't have to pay the cost of allocating memory.
           .reuseContainers();
 
-      iter = nameMapping != null ?
-          builder.withNameMapping(NameMappingParser.fromJson(nameMapping)).build() : builder.build();
+      if (nameMapping != null) {
+        builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+      }
+
+      iter = builder.build();
     } else {
       throw new UnsupportedOperationException(
           "Format: " + task.file().format() + " not supported for batched reads");
