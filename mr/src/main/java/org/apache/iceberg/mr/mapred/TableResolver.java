@@ -38,8 +38,6 @@ final class TableResolver {
     Properties properties = new Properties();
     properties.setProperty(InputFormatConfig.CATALOG_NAME,
         conf.get(InputFormatConfig.CATALOG_NAME, InputFormatConfig.HADOOP_TABLES)); //Default to HadoopTables
-    properties.setProperty(InputFormatConfig.SNAPSHOT_TABLE,
-        conf.get(InputFormatConfig.SNAPSHOT_TABLE, "true"));
     properties.setProperty(InputFormatConfig.TABLE_LOCATION, extractProperty(conf, InputFormatConfig.TABLE_LOCATION));
     properties.setProperty(InputFormatConfig.TABLE_NAME, extractProperty(conf, InputFormatConfig.TABLE_NAME));
     return resolveTableFromConfiguration(conf, properties);
@@ -54,13 +52,6 @@ final class TableResolver {
     switch (catalogName) {
       case InputFormatConfig.HADOOP_TABLES:
         HadoopTables tables = new HadoopTables(conf);
-        if (tableName.endsWith(InputFormatConfig.SNAPSHOT_TABLE_SUFFIX)) {
-          if (!Boolean.parseBoolean(properties.getProperty(
-              InputFormatConfig.SNAPSHOT_TABLE, Boolean.TRUE.toString()))) {
-            return tables.load(tableLocation);
-          }
-          return tables.load(tableLocation + "#snapshots");
-        }
         return tables.load(tableLocation);
       case InputFormatConfig.HIVE_CATALOG:
         //TODO Implement HiveCatalog
