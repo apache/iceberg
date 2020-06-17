@@ -61,7 +61,7 @@ val warehousePath = "hdfs://host:8020/warehouse_path";
 val catalog = new HadoopCatalog(conf, warehousePath);
 ```
 
-Like Hive catalog, Hadoop catalog implements the interface `Catalog`. So it also contains methods for working with tables, like createTable, loadTable, renameTable, and dropTable.
+Like Hive catalog, Hadoop catalog implements the interface `Catalog`. So it also contains methods for working with tables, like createTable, loadTable, and dropTable.
                                                                                        
 This example create a table with Hadoop catalog:
 
