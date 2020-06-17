@@ -234,7 +234,6 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
     File stagingDir = temp.newFolder("staging-dir");
     SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
 
-
     // The filter invoke the metric/dictionary row group filter in which it project schema
     // with name mapping again to match the metric read from footer.
     List<String> actual = spark.read().format("iceberg").load(DB_NAME + ".target_table")
@@ -268,7 +267,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
 
     TableIdentifier source = new TableIdentifier("original_table");
     Table table = catalog.createTable(
-        org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "target_table"),
+        org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "target_table_for_vectorization"),
         filteredSchema,
         SparkSchemaUtil.specForTable(spark, "original_table"));
 
@@ -280,10 +279,10 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
     File stagingDir = temp.newFolder("staging-dir");
     SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
 
-
     // The filter invoke the metric/dictionary row group filter in which it project schema
     // with name mapping again to match the metric read from footer.
-    List<String> actual = spark.read().format("iceberg").load(DB_NAME + ".target_table")
+    List<String> actual = spark.read().format("iceberg")
+        .load(DB_NAME + ".target_table_for_vectorization")
         .select("data")
         .sort("data")
         .filter("data<'c'")
