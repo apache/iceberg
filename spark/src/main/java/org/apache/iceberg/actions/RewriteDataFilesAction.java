@@ -228,8 +228,7 @@ public class RewriteDataFilesAction
     Broadcast<FileIO> io = sparkContext.broadcast(fileIO);
     Broadcast<EncryptionManager> encryption = sparkContext.broadcast(encryptionManager);
 
-    RowDataRewriter rowDataRewriter =
-        new RowDataRewriter(table, spec, caseSensitive, io, encryption, targetSizeInBytes);
+    RowDataRewriter rowDataRewriter = new RowDataRewriter(table, spec, caseSensitive, io, encryption);
 
     List<DataFile> addedDataFiles = rowDataRewriter.rewriteDataForTasks(taskRDD);
     List<DataFile> currentDataFiles = filteredGroupedTasks.values().stream()
