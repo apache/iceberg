@@ -19,12 +19,16 @@
 
 package org.apache.iceberg.parquet;
 
+import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types.MessageTypeBuilder;
 
@@ -83,22 +87,7 @@ public class ParquetSchemaUtil {
   }
 
   public static boolean hasIds(MessageType fileSchema) {
-    try {
-      // Try to convert the type to Iceberg. If an ID assignment is needed, return false.
-      ParquetTypeVisitor.visit(fileSchema, new MessageTypeToType(fileSchema) {
-        @Override
-        protected int nextId() {
-          throw new IllegalStateException("Needed to assign ID");
-        }
-      });
-
-      // no assignment was needed
-      return true;
-
-    } catch (IllegalStateException e) {
-      // at least one field was missing an id.
-      return false;
-    }
+    return ParquetTypeVisitor.visit(fileSchema, new HasIds());
   }
 
   public static MessageType addFallbackIds(MessageType fileSchema) {
@@ -112,4 +101,41 @@ public class ParquetSchemaUtil {
 
     return builder.named(fileSchema.getName());
   }
+
+  public static MessageType applyNameMapping(MessageType fileSchema, NameMapping nameMapping) {
+    return (MessageType) ParquetTypeVisitor.visit(fileSchema, new ApplyNameMapping(nameMapping));
+  }
+
+  public static class HasIds extends ParquetTypeVisitor<Boolean> {
+    @Override
+    public Boolean message(MessageType message, List<Boolean> fields) {
+      return struct(message, fields);
+    }
+
+    @Override
+    public Boolean struct(GroupType struct, List<Boolean> hasIds) {
+      for (Boolean hasId : hasIds) {
+        if (hasId) {
+          return true;
+        }
+      }
+      return struct.getId() != null;
+    }
+
+    @Override
+    public Boolean list(GroupType array, Boolean hasId) {
+      return hasId || array.getId() != null;
+    }
+
+    @Override
+    public Boolean map(GroupType map, Boolean keyHasId, Boolean valueHasId) {
+      return keyHasId || valueHasId || map.getId() != null;
+    }
+
+    @Override
+    public Boolean primitive(PrimitiveType primitive) {
+      return primitive.getId() != null;
+    }
+  }
+
 }

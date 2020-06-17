@@ -32,6 +32,7 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mapping.NameMapping;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -48,11 +49,12 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
   private boolean reuseContainers;
   private final boolean caseSensitive;
   private final int batchSize;
+  private final NameMapping nameMapping;
 
   public VectorizedParquetReader(
       InputFile input, Schema expectedSchema, ParquetReadOptions options,
-      Function<MessageType, VectorizedReader<?>> readerFunc,
-      Expression filter, boolean reuseContainers, boolean caseSensitive, int maxRecordsPerBatch) {
+      Function<MessageType, VectorizedReader<?>> readerFunc, NameMapping nameMapping, Expression filter,
+      boolean reuseContainers, boolean caseSensitive, int maxRecordsPerBatch) {
     this.input = input;
     this.expectedSchema = expectedSchema;
     this.options = options;
@@ -62,6 +64,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     this.reuseContainers = reuseContainers;
     this.caseSensitive = caseSensitive;
     this.batchSize = maxRecordsPerBatch;
+    this.nameMapping = nameMapping;
   }
 
   private ReadConf conf = null;
@@ -69,7 +72,8 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
   private ReadConf init() {
     if (conf == null) {
       ReadConf readConf = new ReadConf(
-          input, options, expectedSchema, filter, null, batchReaderFunc, reuseContainers, caseSensitive, batchSize);
+          input, options, expectedSchema, filter, null, batchReaderFunc, nameMapping, reuseContainers,
+          caseSensitive, batchSize);
       this.conf = readConf.copy();
       return readConf;
     }

@@ -29,6 +29,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
@@ -36,14 +37,16 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 class BatchDataReader extends BaseDataReader<ColumnarBatch> {
   private final Schema expectedSchema;
+  private final String nameMapping;
   private final boolean caseSensitive;
   private final int batchSize;
 
   BatchDataReader(
-      CombinedScanTask task, Schema expectedSchema, FileIO fileIo,
+      CombinedScanTask task, Schema expectedSchema, String nameMapping, FileIO fileIo,
       EncryptionManager encryptionManager, boolean caseSensitive, int size) {
     super(task, fileIo, encryptionManager);
     this.expectedSchema = expectedSchema;
+    this.nameMapping = nameMapping;
     this.caseSensitive = caseSensitive;
     this.batchSize = size;
   }
@@ -54,7 +57,7 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
     InputFile location = getInputFile(task);
     Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
     if (task.file().format() == FileFormat.PARQUET) {
-      iter = Parquet.read(location)
+      Parquet.ReadBuilder builder = Parquet.read(location)
           .project(expectedSchema)
           .split(task.start(), task.length())
           .createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(expectedSchema,
@@ -65,8 +68,13 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
           // Spark eagerly consumes the batches. So the underlying memory allocated could be reused
           // without worrying about subsequent reads clobbering over each other. This improves
           // read performance as every batch read doesn't have to pay the cost of allocating memory.
-          .reuseContainers()
-          .build();
+          .reuseContainers();
+
+      if (nameMapping != null) {
+        builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+      }
+
+      iter = builder.build();
     } else {
       throw new UnsupportedOperationException(
           "Format: " + task.file().format() + " not supported for batched reads");

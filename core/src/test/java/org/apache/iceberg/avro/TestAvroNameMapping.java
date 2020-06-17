@@ -315,7 +315,7 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
 
     Iterable<GenericData.Record> records = Avro.read(Files.localInput(file))
         .project(readSchema)
-        .nameMapping(nameMapping)
+        .withNameMapping(nameMapping)
         .build();
 
     return Iterables.getOnlyElement(records);

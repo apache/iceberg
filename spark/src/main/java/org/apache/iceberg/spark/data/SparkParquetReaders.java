@@ -142,9 +142,11 @@ public class SparkParquetReaders {
       for (int i = 0; i < fields.size(); i += 1) {
         Type fieldType = fields.get(i);
         int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName())) - 1;
-        int id = fieldType.getId().intValue();
-        readersById.put(id, ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
-        typesById.put(id, fieldType);
+        if (fieldType.getId() != null) {
+          int id = fieldType.getId().intValue();
+          readersById.put(id, ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
+          typesById.put(id, fieldType);
+        }
       }
 
       List<Types.NestedField> expectedFields = expected != null ?
