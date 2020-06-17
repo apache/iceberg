@@ -3,9 +3,6 @@
         "com.github.stephenc.findbugs:findbugs-annotations": {
             "locked": "1.3.9-1"
         },
-        "org.apache.iceberg:iceberg-bundled-guava": {
-            "project": true
-        },
         "org.slf4j:slf4j-api": {
             "locked": "1.7.25"
         }
@@ -14,19 +11,69 @@
         "com.github.stephenc.findbugs:findbugs-annotations": {
             "locked": "1.3.9-1"
         },
-        "org.apache.iceberg:iceberg-bundled-guava": {
-            "project": true
+        "com.google.guava:failureaccess": {
+            "locked": "1.0.1",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "com.google.guava:guava": {
+            "locked": "28.0-jre"
+        },
+        "com.google.guava:listenablefuture": {
+            "locked": "9999.0-empty-to-avoid-conflict-with-guava",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "org.checkerframework:checker-qual": {
+            "locked": "2.8.1",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "org.codehaus.mojo:animal-sniffer-annotations": {
+            "locked": "1.17",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
         },
         "org.slf4j:slf4j-api": {
             "locked": "1.7.25"
         }
     },
+    "compileOnly": {
+        "com.google.guava:failureaccess": {
+            "locked": "1.0.1",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "com.google.guava:guava": {
+            "locked": "28.0-jre"
+        },
+        "com.google.guava:listenablefuture": {
+            "locked": "9999.0-empty-to-avoid-conflict-with-guava",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "org.checkerframework:checker-qual": {
+            "locked": "2.8.1",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "org.codehaus.mojo:animal-sniffer-annotations": {
+            "locked": "1.17",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        }
+    },
     "default": {
         "com.github.stephenc.findbugs:findbugs-annotations": {
             "locked": "1.3.9-1"
-        },
-        "org.apache.iceberg:iceberg-bundled-guava": {
-            "project": true
         },
         "org.slf4j:slf4j-api": {
             "locked": "1.7.25"
@@ -36,9 +83,6 @@
         "com.github.stephenc.findbugs:findbugs-annotations": {
             "locked": "1.3.9-1"
         },
-        "org.apache.iceberg:iceberg-bundled-guava": {
-            "project": true
-        },
         "org.slf4j:slf4j-api": {
             "locked": "1.7.25"
         }
@@ -47,53 +91,43 @@
         "com.github.stephenc.findbugs:findbugs-annotations": {
             "locked": "1.3.9-1"
         },
-        "org.apache.iceberg:iceberg-bundled-guava": {
-            "project": true
-        },
         "org.slf4j:slf4j-api": {
             "locked": "1.7.25"
         }
     },
     "testCompile": {
-        "com.fasterxml.jackson.core:jackson-annotations": {
-            "locked": "2.10.2",
-            "transitive": [
-                "com.fasterxml.jackson.core:jackson-databind"
-            ]
-        },
-        "com.fasterxml.jackson.core:jackson-core": {
-            "locked": "2.10.2",
-            "transitive": [
-                "com.fasterxml.jackson.core:jackson-databind",
-                "org.apache.avro:avro"
-            ]
-        },
-        "com.fasterxml.jackson.core:jackson-databind": {
-            "locked": "2.10.2",
-            "transitive": [
-                "org.apache.avro:avro"
-            ]
-        },
         "com.github.stephenc.findbugs:findbugs-annotations": {
             "locked": "1.3.9-1"
         },
-        "joda-time:joda-time": {
-            "locked": "2.9.9"
+        "com.google.guava:failureaccess": {
+            "locked": "1.0.1",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "com.google.guava:guava": {
+            "locked": "28.0-jre"
+        },
+        "com.google.guava:listenablefuture": {
+            "locked": "9999.0-empty-to-avoid-conflict-with-guava",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
         },
         "junit:junit": {
             "locked": "4.12"
         },
-        "org.apache.avro:avro": {
-            "locked": "1.9.2"
-        },
-        "org.apache.commons:commons-compress": {
-            "locked": "1.19",
+        "org.checkerframework:checker-qual": {
+            "locked": "2.8.1",
             "transitive": [
-                "org.apache.avro:avro"
+                "com.google.guava:guava"
             ]
         },
-        "org.apache.iceberg:iceberg-bundled-guava": {
-            "project": true
+        "org.codehaus.mojo:animal-sniffer-annotations": {
+            "locked": "1.17",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
         },
         "org.hamcrest:hamcrest-core": {
             "locked": "1.3",
@@ -114,7 +148,6 @@
         "org.slf4j:slf4j-api": {
             "locked": "1.7.25",
             "transitive": [
-                "org.apache.avro:avro",
                 "org.slf4j:slf4j-simple"
             ]
         },
@@ -123,45 +156,38 @@
         }
     },
     "testCompileClasspath": {
-        "com.fasterxml.jackson.core:jackson-annotations": {
-            "locked": "2.10.2",
-            "transitive": [
-                "com.fasterxml.jackson.core:jackson-databind"
-            ]
-        },
-        "com.fasterxml.jackson.core:jackson-core": {
-            "locked": "2.10.2",
-            "transitive": [
-                "com.fasterxml.jackson.core:jackson-databind",
-                "org.apache.avro:avro"
-            ]
-        },
-        "com.fasterxml.jackson.core:jackson-databind": {
-            "locked": "2.10.2",
-            "transitive": [
-                "org.apache.avro:avro"
-            ]
-        },
         "com.github.stephenc.findbugs:findbugs-annotations": {
             "locked": "1.3.9-1"
         },
-        "joda-time:joda-time": {
-            "locked": "2.9.9"
+        "com.google.guava:failureaccess": {
+            "locked": "1.0.1",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "com.google.guava:guava": {
+            "locked": "28.0-jre"
+        },
+        "com.google.guava:listenablefuture": {
+            "locked": "9999.0-empty-to-avoid-conflict-with-guava",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
         },
         "junit:junit": {
             "locked": "4.12"
         },
-        "org.apache.avro:avro": {
-            "locked": "1.9.2"
-        },
-        "org.apache.commons:commons-compress": {
-            "locked": "1.19",
+        "org.checkerframework:checker-qual": {
+            "locked": "2.8.1",
             "transitive": [
-                "org.apache.avro:avro"
+                "com.google.guava:guava"
             ]
         },
-        "org.apache.iceberg:iceberg-bundled-guava": {
-            "project": true
+        "org.codehaus.mojo:animal-sniffer-annotations": {
+            "locked": "1.17",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
         },
         "org.hamcrest:hamcrest-core": {
             "locked": "1.3",
@@ -175,7 +201,6 @@
         "org.slf4j:slf4j-api": {
             "locked": "1.7.25",
             "transitive": [
-                "org.apache.avro:avro",
                 "org.slf4j:slf4j-simple"
             ]
         },
@@ -184,45 +209,38 @@
         }
     },
     "testRuntime": {
-        "com.fasterxml.jackson.core:jackson-annotations": {
-            "locked": "2.10.2",
-            "transitive": [
-                "com.fasterxml.jackson.core:jackson-databind"
-            ]
-        },
-        "com.fasterxml.jackson.core:jackson-core": {
-            "locked": "2.10.2",
-            "transitive": [
-                "com.fasterxml.jackson.core:jackson-databind",
-                "org.apache.avro:avro"
-            ]
-        },
-        "com.fasterxml.jackson.core:jackson-databind": {
-            "locked": "2.10.2",
-            "transitive": [
-                "org.apache.avro:avro"
-            ]
-        },
         "com.github.stephenc.findbugs:findbugs-annotations": {
             "locked": "1.3.9-1"
         },
-        "joda-time:joda-time": {
-            "locked": "2.9.9"
+        "com.google.guava:failureaccess": {
+            "locked": "1.0.1",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "com.google.guava:guava": {
+            "locked": "28.0-jre"
+        },
+        "com.google.guava:listenablefuture": {
+            "locked": "9999.0-empty-to-avoid-conflict-with-guava",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
         },
         "junit:junit": {
             "locked": "4.12"
         },
-        "org.apache.avro:avro": {
-            "locked": "1.9.2"
-        },
-        "org.apache.commons:commons-compress": {
-            "locked": "1.19",
+        "org.checkerframework:checker-qual": {
+            "locked": "2.8.1",
             "transitive": [
-                "org.apache.avro:avro"
+                "com.google.guava:guava"
             ]
         },
-        "org.apache.iceberg:iceberg-bundled-guava": {
-            "project": true
+        "org.codehaus.mojo:animal-sniffer-annotations": {
+            "locked": "1.17",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
         },
         "org.hamcrest:hamcrest-core": {
             "locked": "1.3",
@@ -243,7 +261,6 @@
         "org.slf4j:slf4j-api": {
             "locked": "1.7.25",
             "transitive": [
-                "org.apache.avro:avro",
                 "org.slf4j:slf4j-simple"
             ]
         },
@@ -252,45 +269,38 @@
         }
     },
     "testRuntimeClasspath": {
-        "com.fasterxml.jackson.core:jackson-annotations": {
-            "locked": "2.10.2",
-            "transitive": [
-                "com.fasterxml.jackson.core:jackson-databind"
-            ]
-        },
-        "com.fasterxml.jackson.core:jackson-core": {
-            "locked": "2.10.2",
-            "transitive": [
-                "com.fasterxml.jackson.core:jackson-databind",
-                "org.apache.avro:avro"
-            ]
-        },
-        "com.fasterxml.jackson.core:jackson-databind": {
-            "locked": "2.10.2",
-            "transitive": [
-                "org.apache.avro:avro"
-            ]
-        },
         "com.github.stephenc.findbugs:findbugs-annotations": {
             "locked": "1.3.9-1"
         },
-        "joda-time:joda-time": {
-            "locked": "2.9.9"
+        "com.google.guava:failureaccess": {
+            "locked": "1.0.1",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "com.google.guava:guava": {
+            "locked": "28.0-jre"
+        },
+        "com.google.guava:listenablefuture": {
+            "locked": "9999.0-empty-to-avoid-conflict-with-guava",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
         },
         "junit:junit": {
             "locked": "4.12"
         },
-        "org.apache.avro:avro": {
-            "locked": "1.9.2"
-        },
-        "org.apache.commons:commons-compress": {
-            "locked": "1.19",
+        "org.checkerframework:checker-qual": {
+            "locked": "2.8.1",
             "transitive": [
-                "org.apache.avro:avro"
+                "com.google.guava:guava"
             ]
         },
-        "org.apache.iceberg:iceberg-bundled-guava": {
-            "project": true
+        "org.codehaus.mojo:animal-sniffer-annotations": {
+            "locked": "1.17",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
         },
         "org.hamcrest:hamcrest-core": {
             "locked": "1.3",
@@ -311,7 +321,6 @@
         "org.slf4j:slf4j-api": {
             "locked": "1.7.25",
             "transitive": [
-                "org.apache.avro:avro",
                 "org.slf4j:slf4j-simple"
             ]
         },

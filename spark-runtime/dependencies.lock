@@ -1,365 +1,4 @@
 {
-    "allProcessors": {
-        "com.github.kevinstern:software-and-algorithms": {
-            "locked": "1.0",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api"
-            ]
-        },
-        "com.github.stephenc.jcip:jcip-annotations": {
-            "locked": "1.0-1",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.auto:auto-common": {
-            "locked": "0.10",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.code.findbugs:jFormatString": {
-            "locked": "3.0.0",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.code.findbugs:jsr305": {
-            "locked": "3.0.2",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api",
-                "com.google.errorprone:error_prone_core",
-                "com.google.guava:guava"
-            ]
-        },
-        "com.google.errorprone:error_prone_annotation": {
-            "locked": "2.3.3",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api",
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.errorprone:error_prone_annotations": {
-            "locked": "2.3.3",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api",
-                "com.google.errorprone:error_prone_core",
-                "com.google.guava:guava"
-            ]
-        },
-        "com.google.errorprone:error_prone_check_api": {
-            "locked": "2.3.3",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.errorprone:error_prone_core": {
-            "locked": "2.3.3",
-            "transitive": [
-                "com.palantir.baseline:baseline-error-prone"
-            ]
-        },
-        "com.google.errorprone:error_prone_type_annotations": {
-            "locked": "2.3.3",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.guava:failureaccess": {
-            "locked": "1.0.1",
-            "transitive": [
-                "com.google.guava:guava"
-            ]
-        },
-        "com.google.guava:guava": {
-            "locked": "27.0.1-jre",
-            "transitive": [
-                "com.google.auto:auto-common",
-                "com.google.errorprone:error_prone_annotation",
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.guava:listenablefuture": {
-            "locked": "9999.0-empty-to-avoid-conflict-with-guava",
-            "transitive": [
-                "com.google.guava:guava"
-            ]
-        },
-        "com.google.j2objc:j2objc-annotations": {
-            "locked": "1.1",
-            "transitive": [
-                "com.google.guava:guava"
-            ]
-        },
-        "com.google.protobuf:protobuf-java": {
-            "locked": "3.4.0",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.googlecode.java-diff-utils:diffutils": {
-            "locked": "1.3.0",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api"
-            ]
-        },
-        "com.palantir.baseline:baseline-error-prone": {
-            "locked": "0.55.0",
-            "requested": "0.55.0"
-        },
-        "org.checkerframework:checker-qual": {
-            "locked": "2.5.3",
-            "transitive": [
-                "com.google.guava:guava",
-                "org.checkerframework:dataflow",
-                "org.checkerframework:javacutil"
-            ]
-        },
-        "org.checkerframework:dataflow": {
-            "locked": "2.5.3",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api",
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "org.checkerframework:javacutil": {
-            "locked": "2.5.3",
-            "transitive": [
-                "org.checkerframework:dataflow"
-            ]
-        },
-        "org.codehaus.mojo:animal-sniffer-annotations": {
-            "locked": "1.17",
-            "transitive": [
-                "com.google.guava:guava"
-            ]
-        },
-        "org.pcollections:pcollections": {
-            "locked": "2.1.2",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        }
-    },
-    "annotationProcessor": {
-        "com.github.kevinstern:software-and-algorithms": {
-            "locked": "1.0",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api"
-            ]
-        },
-        "com.github.stephenc.jcip:jcip-annotations": {
-            "locked": "1.0-1",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.auto:auto-common": {
-            "locked": "0.10",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.code.findbugs:jFormatString": {
-            "locked": "3.0.0",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.code.findbugs:jsr305": {
-            "locked": "3.0.2",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api",
-                "com.google.errorprone:error_prone_core",
-                "com.google.guava:guava"
-            ]
-        },
-        "com.google.errorprone:error_prone_annotation": {
-            "locked": "2.3.3",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api",
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.errorprone:error_prone_annotations": {
-            "locked": "2.3.3",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api",
-                "com.google.errorprone:error_prone_core",
-                "com.google.guava:guava"
-            ]
-        },
-        "com.google.errorprone:error_prone_check_api": {
-            "locked": "2.3.3",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.errorprone:error_prone_core": {
-            "locked": "2.3.3",
-            "transitive": [
-                "com.palantir.baseline:baseline-error-prone"
-            ]
-        },
-        "com.google.errorprone:error_prone_type_annotations": {
-            "locked": "2.3.3",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.guava:failureaccess": {
-            "locked": "1.0.1",
-            "transitive": [
-                "com.google.guava:guava"
-            ]
-        },
-        "com.google.guava:guava": {
-            "locked": "27.0.1-jre",
-            "transitive": [
-                "com.google.auto:auto-common",
-                "com.google.errorprone:error_prone_annotation",
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.guava:listenablefuture": {
-            "locked": "9999.0-empty-to-avoid-conflict-with-guava",
-            "transitive": [
-                "com.google.guava:guava"
-            ]
-        },
-        "com.google.j2objc:j2objc-annotations": {
-            "locked": "1.1",
-            "transitive": [
-                "com.google.guava:guava"
-            ]
-        },
-        "com.google.protobuf:protobuf-java": {
-            "locked": "3.4.0",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.googlecode.java-diff-utils:diffutils": {
-            "locked": "1.3.0",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api"
-            ]
-        },
-        "com.palantir.baseline:baseline-error-prone": {
-            "locked": "0.55.0",
-            "requested": "0.55.0"
-        },
-        "org.checkerframework:checker-qual": {
-            "locked": "2.5.3",
-            "transitive": [
-                "com.google.guava:guava",
-                "org.checkerframework:dataflow",
-                "org.checkerframework:javacutil"
-            ]
-        },
-        "org.checkerframework:dataflow": {
-            "locked": "2.5.3",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api",
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "org.checkerframework:javacutil": {
-            "locked": "2.5.3",
-            "transitive": [
-                "org.checkerframework:dataflow"
-            ]
-        },
-        "org.codehaus.mojo:animal-sniffer-annotations": {
-            "locked": "1.17",
-            "transitive": [
-                "com.google.guava:guava"
-            ]
-        },
-        "org.pcollections:pcollections": {
-            "locked": "2.1.2",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        }
-    },
-    "checkstyle": {
-        "antlr:antlr": {
-            "locked": "2.7.7",
-            "transitive": [
-                "com.puppycrawl.tools:checkstyle"
-            ]
-        },
-        "com.google.code.findbugs:jsr305": {
-            "locked": "3.0.2",
-            "transitive": [
-                "com.google.guava:guava"
-            ]
-        },
-        "com.google.errorprone:error_prone_annotations": {
-            "locked": "2.1.3",
-            "transitive": [
-                "com.google.guava:guava"
-            ]
-        },
-        "com.google.guava:guava": {
-            "locked": "26.0-jre",
-            "transitive": [
-                "com.puppycrawl.tools:checkstyle"
-            ]
-        },
-        "com.google.j2objc:j2objc-annotations": {
-            "locked": "1.1",
-            "transitive": [
-                "com.google.guava:guava"
-            ]
-        },
-        "com.puppycrawl.tools:checkstyle": {
-            "locked": "8.13"
-        },
-        "commons-beanutils:commons-beanutils": {
-            "locked": "1.9.3",
-            "transitive": [
-                "com.puppycrawl.tools:checkstyle"
-            ]
-        },
-        "commons-cli:commons-cli": {
-            "locked": "1.4",
-            "transitive": [
-                "com.puppycrawl.tools:checkstyle"
-            ]
-        },
-        "commons-collections:commons-collections": {
-            "locked": "3.2.2",
-            "transitive": [
-                "commons-beanutils:commons-beanutils"
-            ]
-        },
-        "net.sf.saxon:Saxon-HE": {
-            "locked": "9.8.0-14",
-            "transitive": [
-                "com.puppycrawl.tools:checkstyle"
-            ]
-        },
-        "org.antlr:antlr4-runtime": {
-            "locked": "4.7.1",
-            "transitive": [
-                "com.puppycrawl.tools:checkstyle"
-            ]
-        },
-        "org.checkerframework:checker-qual": {
-            "locked": "2.5.2",
-            "transitive": [
-                "com.google.guava:guava"
-            ]
-        },
-        "org.codehaus.mojo:animal-sniffer-annotations": {
-            "locked": "1.14",
-            "transitive": [
-                "com.google.guava:guava"
-            ]
-        }
-    },
     "compile": {
         "com.carrotsearch:hppc": {
             "locked": "0.7.2",
@@ -408,7 +47,8 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "com.google.errorprone:error_prone_annotations": {
@@ -469,13 +109,15 @@
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-arrow": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-bundled-guava": {
@@ -489,7 +131,8 @@
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-core": {
@@ -499,35 +142,46 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-data": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-hive": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-orc": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-parquet": {
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-spark": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark2"
+            ]
+        },
+        "org.apache.iceberg:iceberg-spark2": {
             "project": true
         },
         "org.apache.orc:orc-core": {
@@ -667,7 +321,8 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "com.google.errorprone:error_prone_annotations": {
@@ -728,13 +383,15 @@
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-arrow": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-bundled-guava": {
@@ -748,7 +405,8 @@
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-core": {
@@ -758,35 +416,46 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-data": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-hive": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-orc": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-parquet": {
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-spark": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark2"
+            ]
+        },
+        "org.apache.iceberg:iceberg-spark2": {
             "project": true
         },
         "org.apache.orc:orc-core": {
@@ -926,7 +595,8 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "com.google.errorprone:error_prone_annotations": {
@@ -987,13 +657,15 @@
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-arrow": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-bundled-guava": {
@@ -1007,7 +679,8 @@
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-core": {
@@ -1017,35 +690,46 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-data": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-hive": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-orc": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-parquet": {
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-spark": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark2"
+            ]
+        },
+        "org.apache.iceberg:iceberg-spark2": {
             "project": true
         },
         "org.apache.orc:orc-core": {
@@ -1137,154 +821,6 @@
             ]
         }
     },
-    "errorprone": {
-        "com.github.kevinstern:software-and-algorithms": {
-            "locked": "1.0",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api"
-            ]
-        },
-        "com.github.stephenc.jcip:jcip-annotations": {
-            "locked": "1.0-1",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.auto:auto-common": {
-            "locked": "0.10",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.code.findbugs:jFormatString": {
-            "locked": "3.0.0",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.code.findbugs:jsr305": {
-            "locked": "3.0.2",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api",
-                "com.google.errorprone:error_prone_core",
-                "com.google.guava:guava"
-            ]
-        },
-        "com.google.errorprone:error_prone_annotation": {
-            "locked": "2.3.3",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api",
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.errorprone:error_prone_annotations": {
-            "locked": "2.3.3",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api",
-                "com.google.errorprone:error_prone_core",
-                "com.google.guava:guava"
-            ]
-        },
-        "com.google.errorprone:error_prone_check_api": {
-            "locked": "2.3.3",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.errorprone:error_prone_core": {
-            "locked": "2.3.3",
-            "transitive": [
-                "com.palantir.baseline:baseline-error-prone"
-            ]
-        },
-        "com.google.errorprone:error_prone_type_annotations": {
-            "locked": "2.3.3",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.guava:failureaccess": {
-            "locked": "1.0.1",
-            "transitive": [
-                "com.google.guava:guava"
-            ]
-        },
-        "com.google.guava:guava": {
-            "locked": "27.0.1-jre",
-            "transitive": [
-                "com.google.auto:auto-common",
-                "com.google.errorprone:error_prone_annotation",
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.guava:listenablefuture": {
-            "locked": "9999.0-empty-to-avoid-conflict-with-guava",
-            "transitive": [
-                "com.google.guava:guava"
-            ]
-        },
-        "com.google.j2objc:j2objc-annotations": {
-            "locked": "1.1",
-            "transitive": [
-                "com.google.guava:guava"
-            ]
-        },
-        "com.google.protobuf:protobuf-java": {
-            "locked": "3.4.0",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.googlecode.java-diff-utils:diffutils": {
-            "locked": "1.3.0",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api"
-            ]
-        },
-        "com.palantir.baseline:baseline-error-prone": {
-            "locked": "0.55.0",
-            "requested": "0.55.0"
-        },
-        "org.checkerframework:checker-qual": {
-            "locked": "2.5.3",
-            "transitive": [
-                "com.google.guava:guava",
-                "org.checkerframework:dataflow",
-                "org.checkerframework:javacutil"
-            ]
-        },
-        "org.checkerframework:dataflow": {
-            "locked": "2.5.3",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api",
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "org.checkerframework:javacutil": {
-            "locked": "2.5.3",
-            "transitive": [
-                "org.checkerframework:dataflow"
-            ]
-        },
-        "org.codehaus.mojo:animal-sniffer-annotations": {
-            "locked": "1.17",
-            "transitive": [
-                "com.google.guava:guava"
-            ]
-        },
-        "org.pcollections:pcollections": {
-            "locked": "2.1.2",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        }
-    },
-    "errorproneJavac": {
-        "com.google.errorprone:javac": {
-            "locked": "9+181-r4173-1",
-            "requested": "9+181-r4173-1"
-        }
-    },
     "runtime": {
         "com.carrotsearch:hppc": {
             "locked": "0.7.2",
@@ -1333,7 +869,8 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "com.google.errorprone:error_prone_annotations": {
@@ -1394,13 +931,15 @@
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-arrow": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-bundled-guava": {
@@ -1414,7 +953,8 @@
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-core": {
@@ -1424,35 +964,46 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-data": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-hive": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-orc": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-parquet": {
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-spark": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark2"
+            ]
+        },
+        "org.apache.iceberg:iceberg-spark2": {
             "project": true
         },
         "org.apache.orc:orc-core": {
@@ -1592,7 +1143,8 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "com.google.errorprone:error_prone_annotations": {
@@ -1653,13 +1205,15 @@
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-arrow": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-bundled-guava": {
@@ -1673,7 +1227,8 @@
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-core": {
@@ -1683,35 +1238,46 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-data": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-hive": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-orc": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-parquet": {
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-spark": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark2"
+            ]
+        },
+        "org.apache.iceberg:iceberg-spark2": {
             "project": true
         },
         "org.apache.orc:orc-core": {
@@ -1803,148 +1369,6 @@
             ]
         }
     },
-    "testAnnotationProcessor": {
-        "com.github.kevinstern:software-and-algorithms": {
-            "locked": "1.0",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api"
-            ]
-        },
-        "com.github.stephenc.jcip:jcip-annotations": {
-            "locked": "1.0-1",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.auto:auto-common": {
-            "locked": "0.10",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.code.findbugs:jFormatString": {
-            "locked": "3.0.0",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.code.findbugs:jsr305": {
-            "locked": "3.0.2",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api",
-                "com.google.errorprone:error_prone_core",
-                "com.google.guava:guava"
-            ]
-        },
-        "com.google.errorprone:error_prone_annotation": {
-            "locked": "2.3.3",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api",
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.errorprone:error_prone_annotations": {
-            "locked": "2.3.3",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api",
-                "com.google.errorprone:error_prone_core",
-                "com.google.guava:guava"
-            ]
-        },
-        "com.google.errorprone:error_prone_check_api": {
-            "locked": "2.3.3",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.errorprone:error_prone_core": {
-            "locked": "2.3.3",
-            "transitive": [
-                "com.palantir.baseline:baseline-error-prone"
-            ]
-        },
-        "com.google.errorprone:error_prone_type_annotations": {
-            "locked": "2.3.3",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.guava:failureaccess": {
-            "locked": "1.0.1",
-            "transitive": [
-                "com.google.guava:guava"
-            ]
-        },
-        "com.google.guava:guava": {
-            "locked": "27.0.1-jre",
-            "transitive": [
-                "com.google.auto:auto-common",
-                "com.google.errorprone:error_prone_annotation",
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.google.guava:listenablefuture": {
-            "locked": "9999.0-empty-to-avoid-conflict-with-guava",
-            "transitive": [
-                "com.google.guava:guava"
-            ]
-        },
-        "com.google.j2objc:j2objc-annotations": {
-            "locked": "1.1",
-            "transitive": [
-                "com.google.guava:guava"
-            ]
-        },
-        "com.google.protobuf:protobuf-java": {
-            "locked": "3.4.0",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "com.googlecode.java-diff-utils:diffutils": {
-            "locked": "1.3.0",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api"
-            ]
-        },
-        "com.palantir.baseline:baseline-error-prone": {
-            "locked": "0.55.0",
-            "requested": "0.55.0"
-        },
-        "org.checkerframework:checker-qual": {
-            "locked": "2.5.3",
-            "transitive": [
-                "com.google.guava:guava",
-                "org.checkerframework:dataflow",
-                "org.checkerframework:javacutil"
-            ]
-        },
-        "org.checkerframework:dataflow": {
-            "locked": "2.5.3",
-            "transitive": [
-                "com.google.errorprone:error_prone_check_api",
-                "com.google.errorprone:error_prone_core"
-            ]
-        },
-        "org.checkerframework:javacutil": {
-            "locked": "2.5.3",
-            "transitive": [
-                "org.checkerframework:dataflow"
-            ]
-        },
-        "org.codehaus.mojo:animal-sniffer-annotations": {
-            "locked": "1.17",
-            "transitive": [
-                "com.google.guava:guava"
-            ]
-        },
-        "org.pcollections:pcollections": {
-            "locked": "2.1.2",
-            "transitive": [
-                "com.google.errorprone:error_prone_core"
-            ]
-        }
-    },
     "testCompile": {
         "com.carrotsearch:hppc": {
             "locked": "0.7.2",
@@ -1993,7 +1417,8 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "com.google.errorprone:error_prone_annotations": {
@@ -2057,13 +1482,15 @@
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-arrow": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-bundled-guava": {
@@ -2077,7 +1504,8 @@
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-core": {
@@ -2087,35 +1515,46 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-data": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-hive": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-orc": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-parquet": {
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-spark": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark2"
+            ]
+        },
+        "org.apache.iceberg:iceberg-spark2": {
             "project": true
         },
         "org.apache.orc:orc-core": {
@@ -2274,7 +1713,8 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "com.google.errorprone:error_prone_annotations": {
@@ -2338,13 +1778,15 @@
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-arrow": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-bundled-guava": {
@@ -2358,7 +1800,8 @@
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-core": {
@@ -2368,35 +1811,46 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-data": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-hive": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-orc": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-parquet": {
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-spark": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark2"
+            ]
+        },
+        "org.apache.iceberg:iceberg-spark2": {
             "project": true
         },
         "org.apache.orc:orc-core": {
@@ -2548,7 +2002,8 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "com.google.errorprone:error_prone_annotations": {
@@ -2612,13 +2067,15 @@
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-arrow": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-bundled-guava": {
@@ -2632,7 +2089,8 @@
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-core": {
@@ -2642,35 +2100,46 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-data": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-hive": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-orc": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-parquet": {
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-spark": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark2"
+            ]
+        },
+        "org.apache.iceberg:iceberg-spark2": {
             "project": true
         },
         "org.apache.orc:orc-core": {
@@ -2829,7 +2298,8 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "com.google.errorprone:error_prone_annotations": {
@@ -2893,13 +2363,15 @@
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-arrow": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-bundled-guava": {
@@ -2913,7 +2385,8 @@
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-core": {
@@ -2923,35 +2396,46 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-data": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-hive": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-orc": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-parquet": {
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-spark": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark2"
+            ]
+        },
+        "org.apache.iceberg:iceberg-spark2": {
             "project": true
         },
         "org.apache.orc:orc-core": {
