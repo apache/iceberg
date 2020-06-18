@@ -20,6 +20,11 @@
 package org.apache.iceberg.flink.data;
 
 import java.nio.ByteBuffer;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -36,8 +41,11 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.RandomUtil;
 
+import static java.time.temporal.ChronoUnit.MICROS;
+
 public class RandomData {
-  private RandomData() {}
+  private RandomData() {
+  }
 
   public static List<Row> generate(Schema schema, int numRecords, long seed) {
     RandomDataGenerator generator = new RandomDataGenerator(seed);
@@ -140,9 +148,23 @@ public class RandomData {
           return ByteBuffer.wrap((byte[]) result);
         case UUID:
           return UUID.nameUUIDFromBytes((byte[]) result);
+        case DATE:
+          return EPOCH_DAY.plusDays((Integer) result);
+        case TIME:
+          return LocalTime.ofNanoOfDay((long) result * 1000);
+        case TIMESTAMP:
+          Types.TimestampType ts = (Types.TimestampType) primitive;
+          if (ts.shouldAdjustToUTC()) {
+            return EPOCH.plus((long) result, MICROS);
+          } else {
+            return EPOCH.plus((long) result, MICROS).toLocalDateTime();
+          }
         default:
           return result;
       }
     }
   }
+
+  private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
+  private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 }
