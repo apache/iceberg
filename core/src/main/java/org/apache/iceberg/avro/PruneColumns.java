@@ -22,6 +22,7 @@ package org.apache.iceberg.avro;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.avro.JsonProperties;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaNormalization;
 import org.apache.iceberg.mapping.NameMapping;
@@ -66,6 +67,13 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       if (!AvroSchemaUtil.hasFieldId(field)) {
         // fieldId was resolved from nameMapping, we updated hasChange
         // flag to make sure a new field is created with the field id
+        hasChange = true;
+      }
+
+      if (hasNonNullDefault(field)) {
+        // if the field has a non-null default we update hasChange flag to make
+        // sure a new field is created so that we remove any non-null defaults
+        // set by non-Iceberg writers
         hasChange = true;
       }
 
@@ -247,8 +255,9 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
   }
 
   private static Schema.Field copyField(Schema.Field field, Schema newSchema, Integer fieldId) {
+    // do not copy over non-null default values as the file is expected to have values for fields in the file schema
     Schema.Field copy = new Schema.Field(field.name(),
-        newSchema, field.doc(), field.defaultVal(), field.order());
+        newSchema, field.doc(), hasNonNullDefault(field) ? null : field.defaultVal(), field.order());
 
     for (Map.Entry<String, Object> prop : field.getObjectProps().entrySet()) {
       copy.addProp(prop.getKey(), prop.getValue());
@@ -264,5 +273,9 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
     }
 
     return copy;
+  }
+
+  private static boolean hasNonNullDefault(Schema.Field field) {
+    return field.hasDefaultValue() && field.defaultVal() != JsonProperties.NULL_VALUE;
   }
 }
