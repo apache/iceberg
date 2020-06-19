@@ -86,7 +86,7 @@ public class TestParquetSchemaUtil {
     Schema schema = new Schema(TypeUtil.assignFreshIds(structType, new AtomicInteger(0)::incrementAndGet)
         .asStructType().fields());
     NameMapping nameMapping = MappingUtil.create(schema);
-    MessageType messageType = ParquetSchemaUtil.convert(schema, "complex_schema");
+    MessageType messageType = new RemoveIds().removeIds(schema, "complex_schema");
     MessageType typeWithIdsFromNameMapping = ParquetSchemaUtil.applyNameMapping(messageType, nameMapping);
     Schema newSchema = ParquetSchemaUtil.convert(typeWithIdsFromNameMapping);
 
