@@ -269,7 +269,7 @@ class Writer implements DataSourceWriter {
   }
 
   private static class Partitioned24Writer extends PartitionedWriter implements DataWriter<InternalRow> {
-    public Partitioned24Writer(PartitionSpec spec, FileFormat format, SparkAppenderFactory appenderFactory,
+    Partitioned24Writer(PartitionSpec spec, FileFormat format, SparkAppenderFactory appenderFactory,
                                OutputFileFactory fileFactory, FileIO fileIo, long targetFileSize, Schema writeSchema) {
       super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize, writeSchema);
     }

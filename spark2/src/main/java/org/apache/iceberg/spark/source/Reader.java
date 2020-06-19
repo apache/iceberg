@@ -487,7 +487,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   }
 
   private static class BatchReader extends BatchDataReader implements InputPartitionReader<ColumnarBatch> {
-    public BatchReader(CombinedScanTask task, Schema expectedSchema, String nameMapping, FileIO io,
+    BatchReader(CombinedScanTask task, Schema expectedSchema, String nameMapping, FileIO io,
                        EncryptionManager encryptionManager, boolean caseSensitive, int size) {
       super(task, expectedSchema, nameMapping, io, encryptionManager, caseSensitive, size);
     }
