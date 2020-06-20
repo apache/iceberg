@@ -32,7 +32,6 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
@@ -44,7 +43,6 @@ import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -64,8 +62,6 @@ import org.apache.spark.sql.sources.v2.reader.SupportsPushDownFilters;
 import org.apache.spark.sql.sources.v2.reader.SupportsPushDownRequiredColumns;
 import org.apache.spark.sql.sources.v2.reader.SupportsReportStatistics;
 import org.apache.spark.sql.sources.v2.reader.SupportsScanColumnarBatch;
-import org.apache.spark.sql.types.DataType;
-import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
@@ -396,8 +392,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
     private transient Schema tableSchema = null;
     private transient Schema expectedSchema = null;
-    private transient NameMapping nameMapping = null;
-    private transient String[] preferredLocations;
+    private transient String[] preferredLocations = null;
 
     private ReadTask(CombinedScanTask task, String tableSchemaString, String expectedSchemaString,
                      String nameMappingString, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
@@ -465,7 +460,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     public InputPartitionReader<InternalRow> create(CombinedScanTask task, Schema tableSchema, Schema expectedSchema,
                                                     String nameMapping, FileIO io,
                                                     EncryptionManager encryptionManager, boolean caseSensitive) {
-      return new RowDataReader(task, tableSchema, expectedSchema, nameMapping, io, encryptionManager, caseSensitive);
+      return new RowReader(task, tableSchema, expectedSchema, nameMapping, io, encryptionManager, caseSensitive);
     }
   }
 
@@ -480,41 +475,21 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     public InputPartitionReader<ColumnarBatch> create(CombinedScanTask task, Schema tableSchema, Schema expectedSchema,
                                                       String nameMapping, FileIO io,
                                                       EncryptionManager encryptionManager, boolean caseSensitive) {
-      return new BatchDataReader(task, expectedSchema, nameMapping, io, encryptionManager, caseSensitive, batchSize);
+      return new BatchReader(task, expectedSchema, nameMapping, io, encryptionManager, caseSensitive, batchSize);
     }
   }
 
-  private static class StructLikeInternalRow implements StructLike {
-    private final DataType[] types;
-    private InternalRow row = null;
-
-    StructLikeInternalRow(StructType struct) {
-      this.types = new DataType[struct.size()];
-      StructField[] fields = struct.fields();
-      for (int i = 0; i < fields.length; i += 1) {
-        types[i] = fields[i].dataType();
-      }
+  private static class RowReader extends RowDataReader implements InputPartitionReader<InternalRow> {
+    RowReader(CombinedScanTask task, Schema tableSchema, Schema expectedSchema, String nameMapping, FileIO io,
+              EncryptionManager encryptionManager, boolean caseSensitive) {
+      super(task, tableSchema, expectedSchema, nameMapping, io, encryptionManager, caseSensitive);
     }
+  }
 
-    public StructLikeInternalRow setRow(InternalRow row) {
-      this.row = row;
-      return this;
-    }
-
-    @Override
-    public int size() {
-      return types.length;
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public <T> T get(int pos, Class<T> javaClass) {
-      return javaClass.cast(row.get(pos, types[pos]));
-    }
-
-    @Override
-    public <T> void set(int pos, T value) {
-      throw new UnsupportedOperationException("Not implemented: set");
+  private static class BatchReader extends BatchDataReader implements InputPartitionReader<ColumnarBatch> {
+    BatchReader(CombinedScanTask task, Schema expectedSchema, String nameMapping, FileIO io,
+                       EncryptionManager encryptionManager, boolean caseSensitive, int size) {
+      super(task, expectedSchema, nameMapping, io, encryptionManager, caseSensitive, size);
     }
   }
 }
