@@ -519,6 +519,18 @@ project(':iceberg-spark2') {
     testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
+
+  test {
+    // For vectorized reads
+    // Allow unsafe memory access to avoid the costly check arrow does to check if index is within bounds
+    systemProperty("arrow.enable_unsafe_memory_access", "true")
+    // Disable expensive null check for every get(index) call.
+    // Iceberg manages nullability checks itself instead of relying on arrow.
+    systemProperty("arrow.enable_null_check_for_get", "false")
+
+    // Vectorized reads need more memory
+    maxHeapSize '2500m'
+  }
 }
 
 project(':iceberg-spark3') {
@@ -548,6 +560,7 @@ project(':iceberg-spark3') {
     testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
+
   test {
     // For vectorized reads
     // Allow unsafe memory access to avoid the costly check arrow does to check if index is within bounds
