@@ -99,7 +99,7 @@ public class ManifestEntriesTable extends BaseMetadataTable {
       // return entries from both data and delete manifests
       CloseableIterable<ManifestFile> manifests = CloseableIterable.withNoopClose(snapshot.allManifests());
       Type fileProjection = schema().findType("data_file");
-      Schema fileSchema = fileProjection != null ? new Schema(fileProjection.asStructType().fields()) : null;
+      Schema fileSchema = fileProjection != null ? new Schema(fileProjection.asStructType().fields()) : new Schema();
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
       Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
