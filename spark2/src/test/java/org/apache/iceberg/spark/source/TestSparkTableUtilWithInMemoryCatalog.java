@@ -34,15 +34,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
-import org.apache.spark.sql.catalyst.analysis.NoSuchDatabaseException;
-import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
@@ -92,7 +88,7 @@ public class TestSparkTableUtilWithInMemoryCatalog {
   }
 
   @Test
-  public void testImportUnpartitionedTable() throws IOException, AnalysisException {
+  public void testImportUnpartitionedTable() throws IOException {
     Map<String, String> props = Maps.newHashMap();
     props.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none");
     props.put(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "data", "full");
@@ -139,7 +135,7 @@ public class TestSparkTableUtilWithInMemoryCatalog {
 
   @Test
   public void testImportPartitionedTable()
-      throws IOException, AnalysisException {
+      throws IOException {
     Map<String, String> props = Maps.newHashMap();
     props.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none");
     props.put(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "data", "full");
@@ -195,7 +191,7 @@ public class TestSparkTableUtilWithInMemoryCatalog {
   }
 
   @Test
-  public void testImportPartitions() throws IOException, ParseException, NoSuchTableException, NoSuchDatabaseException {
+  public void testImportPartitions() throws IOException {
     Table table = TABLES.create(SCHEMA, SPEC, tableLocation);
 
     List<SimpleRecord> records = Lists.newArrayList(
@@ -237,7 +233,7 @@ public class TestSparkTableUtilWithInMemoryCatalog {
 
   @Test
   public void testImportPartitionsWithSnapshotInheritance()
-      throws IOException, ParseException, NoSuchTableException, NoSuchDatabaseException {
+      throws IOException {
     Table table = TABLES.create(SCHEMA, SPEC, tableLocation);
 
     table.updateProperties()

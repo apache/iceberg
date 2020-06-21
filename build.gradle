@@ -77,14 +77,6 @@ subprojects {
   configurations {
     testCompile.extendsFrom compileOnly
 
-    compileClasspath {
-      // do not exclude Guava so the bundle project can reference classes.
-      // the Spark2 module is also excluded because this breaks the Scala compiler
-      if (project.name != 'iceberg-bundled-guava' && project.name != 'iceberg-spark2') {
-        exclude group: 'com.google.guava', module: 'guava'
-      }
-    }
-
     all {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.mortbay.jetty'
@@ -464,16 +456,8 @@ project(':iceberg-spark') {
 }
 
 project(':iceberg-spark2') {
-  apply plugin: 'scala'
 
   configurations.all {
-    // this is needed to avoid a problem with dependency locking. it was
-    // suggested as a work-around here:
-    //  https://github.com/gradle/gradle/issues/6750
-    if (name.startsWith("incrementalScalaAnalysis")) {
-      extendsFrom = []
-    }
-
     resolutionStrategy {
       // Spark 2.4.4 can only use the below datanucleus version, the versions introduced
       // by Hive 2.3.6 will meet lots of unexpected issues, so here force to use the versions

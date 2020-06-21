@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.source;
 
-import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
@@ -45,7 +44,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -299,7 +297,7 @@ public abstract class TestIcebergSourceTablesBase {
   }
 
   @Test
-  public void testEntriesTableWithSnapshotIdInheritance() throws IOException, AnalysisException {
+  public void testEntriesTableWithSnapshotIdInheritance() {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_inheritance_test");
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
     Table table = createTable(tableIdentifier, SCHEMA, spec);

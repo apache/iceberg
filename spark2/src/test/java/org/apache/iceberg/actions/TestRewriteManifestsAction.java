@@ -36,7 +36,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -261,7 +260,7 @@ public class TestRewriteManifestsAction {
   }
 
   @Test
-  public void testRewriteImportedManifests() throws IOException, AnalysisException {
+  public void testRewriteImportedManifests() throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
         .identity("c3")
         .build();

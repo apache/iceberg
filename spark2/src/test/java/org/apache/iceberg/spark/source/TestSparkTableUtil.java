@@ -44,9 +44,6 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
-import org.apache.spark.sql.catalyst.analysis.NoSuchDatabaseException;
-import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -133,7 +130,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
   }
 
   @Test
-  public void testPartitionScan() throws NoSuchDatabaseException, NoSuchTableException, ParseException {
+  public void testPartitionScan() {
     List<SparkPartition> partitions = SparkTableUtil.getPartitions(spark, qualifiedTableName);
     Assert.assertEquals("There should be 3 partitions", 3, partitions.size());
 
@@ -142,7 +139,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
   }
 
   @Test
-  public void testPartitionScanByFilter() throws ParseException, NoSuchTableException, NoSuchDatabaseException {
+  public void testPartitionScanByFilter() {
     List<SparkPartition> partitions = SparkTableUtil.getPartitionsByFilter(spark, qualifiedTableName, "data = 'a'");
     Assert.assertEquals("There should be 1 matching partition", 1, partitions.size());
 

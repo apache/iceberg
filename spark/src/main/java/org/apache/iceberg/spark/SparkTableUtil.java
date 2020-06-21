@@ -94,6 +94,7 @@ import static org.apache.spark.sql.functions.col;
 
 /**
  * Java version of the original SparkTableUtil.scala
+ * https://github.com/apache/iceberg/blob/apache-iceberg-0.8.0-incubating/spark/src/main/scala/org/apache/iceberg/spark/SparkTableUtil.scala
  */
 public class SparkTableUtil {
 
@@ -113,8 +114,7 @@ public class SparkTableUtil {
    * @param table a table name and (optional) database
    * @return a DataFrame of the table's partitions
    */
-  public static Dataset<Row> partitionDF(SparkSession spark, String table)
-      throws NoSuchDatabaseException, NoSuchTableException, ParseException {
+  public static Dataset<Row> partitionDF(SparkSession spark, String table) {
 
     List<SparkPartition> partitions = getPartitions(spark, table);
     return spark.createDataFrame(partitions, SparkPartition.class).toDF("partition", "uri", "format");
@@ -131,7 +131,7 @@ public class SparkTableUtil {
   public static Dataset<Row> partitionDFByFilter(
       SparkSession spark,
       String table,
-      String expression) throws ParseException, NoSuchTableException, NoSuchDatabaseException {
+      String expression) {
 
     List<SparkPartition> partitions = getPartitionsByFilter(spark, table, expression);
     return spark.createDataFrame(partitions, SparkPartition.class).toDF("partition", "uri", "format");
@@ -144,11 +144,14 @@ public class SparkTableUtil {
    * @param table a table name and (optional) database
    * @return all table's partitions
    */
-  public static List<SparkPartition> getPartitions(SparkSession spark, String table)
-      throws NoSuchTableException, NoSuchDatabaseException, ParseException {
+  public static List<SparkPartition> getPartitions(SparkSession spark, String table) {
 
-    TableIdentifier tableIdent = spark.sessionState().sqlParser().parseTableIdentifier(table);
-    return getPartitions(spark, tableIdent);
+    try {
+      TableIdentifier tableIdent = spark.sessionState().sqlParser().parseTableIdentifier(table);
+      return getPartitions(spark, tableIdent);
+    } catch (ParseException e) {
+      throw ExceptionUtil.toUncheckedException(e);
+    }
   }
 
   /**
@@ -158,17 +161,21 @@ public class SparkTableUtil {
    * @param tableIdent a table identifier
    * @return all table's partitions
    */
-  public static List<SparkPartition> getPartitions(SparkSession spark, TableIdentifier tableIdent)
-      throws NoSuchTableException, NoSuchDatabaseException {
-    SessionCatalog catalog = spark.sessionState().catalog();
-    CatalogTable catalogTable = catalog.getTableMetadata(tableIdent);
+  public static List<SparkPartition> getPartitions(SparkSession spark, TableIdentifier tableIdent) {
 
-    return JavaConverters
-        .seqAsJavaListConverter(catalog.listPartitions(tableIdent, Option.empty()))
-        .asJava()
-        .stream()
-        .map(catalogPartition -> toSparkPartition(catalogPartition, catalogTable))
-        .collect(Collectors.toList());
+    try {
+      SessionCatalog catalog = spark.sessionState().catalog();
+      CatalogTable catalogTable = catalog.getTableMetadata(tableIdent);
+
+      return JavaConverters
+          .seqAsJavaListConverter(catalog.listPartitions(tableIdent, Option.empty()))
+          .asJava()
+          .stream()
+          .map(catalogPartition -> toSparkPartition(catalogPartition, catalogTable))
+          .collect(Collectors.toList());
+    } catch (NoSuchDatabaseException | NoSuchTableException e) {
+      throw ExceptionUtil.toUncheckedException(e);
+    }
   }
 
   /**
@@ -179,13 +186,16 @@ public class SparkTableUtil {
    * @param predicate a predicate on partition columns
    * @return matching table's partitions
    */
-  public static List<SparkPartition> getPartitionsByFilter(SparkSession spark, String table, String predicate)
-      throws ParseException, NoSuchTableException, NoSuchDatabaseException {
+  public static List<SparkPartition> getPartitionsByFilter(SparkSession spark, String table, String predicate) {
 
-    TableIdentifier tableIdent = spark.sessionState().sqlParser().parseTableIdentifier(table);
-    Expression unresolvedPredicateExpr = spark.sessionState().sqlParser().parseExpression(predicate);
-    Expression resolvedPredicateExpr = resolveAttrs(spark, table, unresolvedPredicateExpr);
-    return getPartitionsByFilter(spark, tableIdent, resolvedPredicateExpr);
+    try {
+      TableIdentifier tableIdent = spark.sessionState().sqlParser().parseTableIdentifier(table);
+      Expression unresolvedPredicateExpr = spark.sessionState().sqlParser().parseExpression(predicate);
+      Expression resolvedPredicateExpr = resolveAttrs(spark, table, unresolvedPredicateExpr);
+      return getPartitionsByFilter(spark, tableIdent, resolvedPredicateExpr);
+    } catch (ParseException e) {
+      throw ExceptionUtil.toUncheckedException(e);
+    }
   }
 
   /**
@@ -199,29 +209,33 @@ public class SparkTableUtil {
   public static List<SparkPartition> getPartitionsByFilter(
       SparkSession spark,
       TableIdentifier tableIdent,
-      Expression predicateExpr) throws NoSuchTableException, NoSuchDatabaseException {
+      Expression predicateExpr) {
 
-    SessionCatalog catalog = spark.sessionState().catalog();
-    CatalogTable catalogTable = catalog.getTableMetadata(tableIdent);
+    try {
+      SessionCatalog catalog = spark.sessionState().catalog();
+      CatalogTable catalogTable = catalog.getTableMetadata(tableIdent);
 
-    final Expression resolvedPredicateExpr;
-    if (!predicateExpr.resolved()) {
-      resolvedPredicateExpr = resolveAttrs(spark, tableIdent.quotedString(), predicateExpr);
-    } else {
-      resolvedPredicateExpr = predicateExpr;
+      Expression resolvedPredicateExpr;
+      if (!predicateExpr.resolved()) {
+        resolvedPredicateExpr = resolveAttrs(spark, tableIdent.quotedString(), predicateExpr);
+      } else {
+        resolvedPredicateExpr = predicateExpr;
+      }
+
+      return JavaConverters.seqAsJavaListConverter(
+          catalog.listPartitionsByFilter(
+              tableIdent,
+              JavaConverters
+                  .collectionAsScalaIterableConverter(ImmutableList.of(resolvedPredicateExpr))
+                  .asScala()
+                  .toSeq()))
+          .asJava()
+          .stream()
+          .map(catalogPartition -> toSparkPartition(catalogPartition, catalogTable))
+          .collect(Collectors.toList());
+    } catch (NoSuchDatabaseException | NoSuchTableException e) {
+      throw ExceptionUtil.toUncheckedException(e);
     }
-
-    return JavaConverters.seqAsJavaListConverter(
-        catalog.listPartitionsByFilter(
-            tableIdent,
-            JavaConverters
-                .collectionAsScalaIterableConverter(ImmutableList.of(resolvedPredicateExpr))
-                .asScala()
-                .toSeq()))
-        .asJava()
-        .stream()
-        .map(catalogPartition -> toSparkPartition(catalogPartition, catalogTable))
-        .collect(Collectors.toList());
   }
 
   /**
@@ -239,7 +253,7 @@ public class SparkTableUtil {
       SparkPartition partition,
       PartitionSpec spec,
       SerializableConfiguration conf,
-      MetricsConfig metricsConfig) throws IOException {
+      MetricsConfig metricsConfig) {
 
     return listPartition(
         partition.values,
@@ -269,7 +283,7 @@ public class SparkTableUtil {
       String format,
       PartitionSpec spec,
       Configuration conf,
-      MetricsConfig metricsConfig) throws IOException {
+      MetricsConfig metricsConfig) {
 
     if (format.contains("avro")) {
       return listAvroPartition(partition, uri, spec, conf);
@@ -287,28 +301,32 @@ public class SparkTableUtil {
       Map<String, String> partitionPath,
       String partitionUri,
       PartitionSpec spec,
-      Configuration conf) throws IOException {
+      Configuration conf) {
 
-    Path partition = new Path(partitionUri);
-    FileSystem fs = partition.getFileSystem(conf);
-    return Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
-        .filter(FileStatus::isFile)
-        .map(stat -> {
-          Metrics metrics = new Metrics(-1L, null, null, null);
-          String partitionKey = spec.fields().stream()
-              .map(PartitionField::name)
-              .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
-              .collect(Collectors.joining("/"));
+    try {
+      Path partition = new Path(partitionUri);
+      FileSystem fs = partition.getFileSystem(conf);
+      return Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
+          .filter(FileStatus::isFile)
+          .map(stat -> {
+            Metrics metrics = new Metrics(-1L, null, null, null);
+            String partitionKey = spec.fields().stream()
+                .map(PartitionField::name)
+                .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
+                .collect(Collectors.joining("/"));
 
-          return DataFiles.builder(spec)
-              .withPath(stat.getPath().toString())
-              .withFormat("avro")
-              .withFileSizeInBytes(stat.getLen())
-              .withMetrics(metrics)
-              .withPartitionPath(partitionKey)
-              .build();
+            return DataFiles.builder(spec)
+                .withPath(stat.getPath().toString())
+                .withFormat("avro")
+                .withFileSizeInBytes(stat.getLen())
+                .withMetrics(metrics)
+                .withPartitionPath(partitionKey)
+                .build();
 
-        }).collect(Collectors.toList());
+          }).collect(Collectors.toList());
+    } catch (IOException e) {
+      throw ExceptionUtil.toUncheckedException(e);
+    }
   }
 
   private static List<DataFile> listParquetPartition(
@@ -316,64 +334,71 @@ public class SparkTableUtil {
       String partitionUri,
       PartitionSpec spec,
       Configuration conf,
-      MetricsConfig metricsSpec) throws IOException {
+      MetricsConfig metricsSpec) {
 
-    Path partition = new Path(partitionUri);
-    FileSystem fs = partition.getFileSystem(conf);
+    try {
+      Path partition = new Path(partitionUri);
+      FileSystem fs = partition.getFileSystem(conf);
 
-    return Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
-        .filter(FileStatus::isFile)
-        .map(stat -> {
-          final Metrics metrics;
-          try {
-            //noinspection deprecation
-            metrics = ParquetUtil.footerMetrics(ParquetFileReader.readFooter(conf, stat), metricsSpec);
-          } catch (IOException e) {
-            throw new RuntimeException("Unable to read footer metrics for: " + stat.getPath(), e);
-          }
-          String partitionKey = spec.fields().stream()
-              .map(PartitionField::name)
-              .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
-              .collect(Collectors.joining("/"));
+      return Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
+          .filter(FileStatus::isFile)
+          .map(stat -> {
+            Metrics metrics;
+            try {
+              metrics = ParquetUtil.footerMetrics(ParquetFileReader.readFooter(conf, stat), metricsSpec);
+            } catch (IOException e) {
+              throw ExceptionUtil.toUncheckedException(e);
+            }
+            String partitionKey = spec.fields().stream()
+                .map(PartitionField::name)
+                .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
+                .collect(Collectors.joining("/"));
 
-          return DataFiles.builder(spec)
-              .withPath(stat.getPath().toString())
-              .withFormat("parquet")
-              .withFileSizeInBytes(stat.getLen())
-              .withMetrics(metrics)
-              .withPartitionPath(partitionKey)
-              .build();
+            return DataFiles.builder(spec)
+                .withPath(stat.getPath().toString())
+                .withFormat("parquet")
+                .withFileSizeInBytes(stat.getLen())
+                .withMetrics(metrics)
+                .withPartitionPath(partitionKey)
+                .build();
 
-        }).collect(Collectors.toList());
+          }).collect(Collectors.toList());
+    } catch (IOException e) {
+      throw ExceptionUtil.toUncheckedException(e);
+    }
   }
 
   private static List<DataFile> listOrcPartition(
       Map<String, String> partitionPath,
       String partitionUri,
       PartitionSpec spec,
-      Configuration conf) throws IOException {
+      Configuration conf) {
 
-    Path partition = new Path(partitionUri);
-    FileSystem fs = partition.getFileSystem(conf);
+    try {
+      Path partition = new Path(partitionUri);
+      FileSystem fs = partition.getFileSystem(conf);
 
-    return Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
-        .filter(FileStatus::isFile)
-        .map(stat -> {
-          Metrics metrics = OrcMetrics.fromInputFile(HadoopInputFile.fromPath(stat.getPath(), conf));
-          String partitionKey = spec.fields().stream()
-              .map(PartitionField::name)
-              .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
-              .collect(Collectors.joining("/"));
+      return Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
+          .filter(FileStatus::isFile)
+          .map(stat -> {
+            Metrics metrics = OrcMetrics.fromInputFile(HadoopInputFile.fromPath(stat.getPath(), conf));
+            String partitionKey = spec.fields().stream()
+                .map(PartitionField::name)
+                .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
+                .collect(Collectors.joining("/"));
 
-          return DataFiles.builder(spec)
-              .withPath(stat.getPath().toString())
-              .withFormat("orc")
-              .withFileSizeInBytes(stat.getLen())
-              .withMetrics(metrics)
-              .withPartitionPath(partitionKey)
-              .build();
+            return DataFiles.builder(spec)
+                .withPath(stat.getPath().toString())
+                .withFormat("orc")
+                .withFileSizeInBytes(stat.getLen())
+                .withMetrics(metrics)
+                .withPartitionPath(partitionKey)
+                .build();
 
-        }).collect(Collectors.toList());
+          }).collect(Collectors.toList());
+    } catch (IOException e) {
+      throw ExceptionUtil.toUncheckedException(e);
+    }
   }
 
   private static SparkPartition toSparkPartition(CatalogTablePartition partition, CatalogTable table) {
@@ -395,8 +420,8 @@ public class SparkTableUtil {
   }
 
   private static Expression resolveAttrs(SparkSession spark, String table, Expression expr) {
-    final Function2<String, String, Object> resolver = spark.sessionState().analyzer().resolver();
-    final LogicalPlan plan = spark.table(table).queryExecution().analyzed();
+    Function2<String, String, Object> resolver = spark.sessionState().analyzer().resolver();
+    LogicalPlan plan = spark.table(table).queryExecution().analyzed();
     return expr.transform(new AbstractPartialFunction<Expression, Expression>() {
       @Override
       public Expression apply(Expression attr) {
@@ -426,8 +451,8 @@ public class SparkTableUtil {
       if (fileTuples.hasNext()) {
         FileIO io = new HadoopFileIO(conf.get());
         TaskContext ctx = TaskContext.get();
-        Path location =
-            new Path(basePath, String.format("stage-%d-task-%d-manifest", ctx.stageId(), ctx.taskAttemptId()));
+        String suffix = String.format("stage-%d-task-%d-manifest", ctx.stageId(), ctx.taskAttemptId());
+        Path location = new Path(basePath, suffix);
         OutputFile outputFile = io.newOutputFile(FileFormat.AVRO.addExtension(location.toString()));
         ManifestWriter<DataFile> writer = ManifestFiles.write(spec, outputFile);
         try {
@@ -441,7 +466,7 @@ public class SparkTableUtil {
         return Collections.emptyIterator();
       }
     } catch (IOException e) {
-      throw new RuntimeException(e);
+      throw ExceptionUtil.toUncheckedException(e);
     }
   }
 
@@ -461,7 +486,7 @@ public class SparkTableUtil {
       SparkSession spark,
       TableIdentifier sourceTableIdent,
       Table targetTable,
-      String stagingDir) throws AnalysisException, IOException {
+      String stagingDir) {
 
     SessionCatalog catalog = spark.sessionState().catalog();
 
@@ -475,42 +500,50 @@ public class SparkTableUtil {
           String.format("Table %s does not exist", sourceTableIdentWithDB));
     }
 
-    PartitionSpec spec = SparkSchemaUtil.specForTable(spark, sourceTableIdentWithDB.unquotedString());
+    try {
+      PartitionSpec spec = SparkSchemaUtil.specForTable(spark, sourceTableIdentWithDB.unquotedString());
 
-    if (spec == PartitionSpec.unpartitioned()) {
-      importUnpartitionedSparkTable(spark, sourceTableIdentWithDB, targetTable);
-    } else {
-      List<SparkPartition> sourceTablePartitions = getPartitions(spark, sourceTableIdent);
-      importSparkPartitions(spark, sourceTablePartitions, targetTable, spec, stagingDir);
+      if (spec == PartitionSpec.unpartitioned()) {
+        importUnpartitionedSparkTable(spark, sourceTableIdentWithDB, targetTable);
+      } else {
+        List<SparkPartition> sourceTablePartitions = getPartitions(spark, sourceTableIdent);
+        importSparkPartitions(spark, sourceTablePartitions, targetTable, spec, stagingDir);
+      }
+    } catch (AnalysisException e) {
+      throw ExceptionUtil.toUncheckedException(e);
     }
   }
 
   private static void importUnpartitionedSparkTable(
       SparkSession spark,
       TableIdentifier sourceTableIdent,
-      Table targetTable) throws AnalysisException, IOException {
+      Table targetTable) {
 
-    CatalogTable sourceTable = spark.sessionState().catalog().getTableMetadata(sourceTableIdent);
-    Option<String> format =
-        sourceTable.storage().serde().nonEmpty() ? sourceTable.storage().serde() : sourceTable.provider();
-    Preconditions.checkArgument(format.nonEmpty(), "Could not determine table format");
+    try {
+      CatalogTable sourceTable = spark.sessionState().catalog().getTableMetadata(sourceTableIdent);
+      Option<String> format =
+          sourceTable.storage().serde().nonEmpty() ? sourceTable.storage().serde() : sourceTable.provider();
+      Preconditions.checkArgument(format.nonEmpty(), "Could not determine table format");
 
-    Map<String, String> partition = Collections.emptyMap();
-    PartitionSpec spec = PartitionSpec.unpartitioned();
-    Configuration conf = spark.sessionState().newHadoopConf();
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(targetTable.properties());
+      Map<String, String> partition = Collections.emptyMap();
+      PartitionSpec spec = PartitionSpec.unpartitioned();
+      Configuration conf = spark.sessionState().newHadoopConf();
+      MetricsConfig metricsConfig = MetricsConfig.fromProperties(targetTable.properties());
 
-    List<DataFile> files = listPartition(
-        partition,
-        sourceTable.location().toString(),
-        format.get(),
-        spec,
-        conf,
-        metricsConfig);
+      List<DataFile> files = listPartition(
+          partition,
+          sourceTable.location().toString(),
+          format.get(),
+          spec,
+          conf,
+          metricsConfig);
 
-    AppendFiles append = targetTable.newAppend();
-    files.forEach(append::appendFile);
-    append.commit();
+      AppendFiles append = targetTable.newAppend();
+      files.forEach(append::appendFile);
+      append.commit();
+    } catch (NoSuchDatabaseException | NoSuchTableException e) {
+      throw ExceptionUtil.toUncheckedException(e);
+    }
   }
 
   /**
@@ -600,7 +633,7 @@ public class SparkTableUtil {
     private final String uri;
     private final String format;
 
-    public SparkPartition(final Map<String, String> values, final String uri, final String format) {
+    public SparkPartition(Map<String, String> values, String uri, String format) {
       this.values = ImmutableMap.copyOf(values);
       this.uri = uri;
       this.format = format;
