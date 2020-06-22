@@ -19,9 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -29,6 +26,9 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Pair;
 
 public class Snapshots {
@@ -112,8 +112,8 @@ public class Snapshots {
     }
 
     public MicroBatch generate(int startFileIndex, long targetSizeInBytes, boolean isStarting) {
-      List<ManifestFile> manifests = isStarting ? snapshot.manifests() :
-          snapshot.manifests().stream().filter(m -> m.snapshotId().equals(snapshot.snapshotId()))
+      List<ManifestFile> manifests = isStarting ? snapshot.dataManifests() :
+          snapshot.dataManifests().stream().filter(m -> m.snapshotId().equals(snapshot.snapshotId()))
               .collect(Collectors.toList());
 
       List<Pair<ManifestFile, Integer>> manifestIndexes = indexManifests(manifests);

@@ -76,7 +76,6 @@ import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK_DEFAULT;
 import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE_DEFAULT;
 
-
 class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPushDownFilters,
     SupportsPushDownRequiredColumns, SupportsReportStatistics {
   private static final Logger LOG = LoggerFactory.getLogger(Reader.class);

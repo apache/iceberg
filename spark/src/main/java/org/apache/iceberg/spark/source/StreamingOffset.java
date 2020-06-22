@@ -21,11 +21,11 @@ package org.apache.iceberg.spark.source;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.google.common.base.Objects;
-import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.io.StringWriter;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.spark.sql.sources.v2.reader.streaming.Offset;
 
