@@ -27,6 +27,7 @@ public class BaseReplacePartitions
     extends MergingSnapshotProducer<ReplacePartitions> implements ReplacePartitions {
   BaseReplacePartitions(String tableName, TableOperations ops) {
     super(tableName, ops);
+    set(SnapshotSummary.REPLACE_PARTITIONS_PROP, "true");
   }
 
   @Override
@@ -61,7 +62,7 @@ public class BaseReplacePartitions
 
     try {
       return super.apply(base);
-    } catch (DeleteException e) {
+    } catch (ManifestFilterManager.DeleteException e) {
       throw new ValidationException(
           "Cannot commit file that conflicts with existing partition: %s", e.partition());
     }

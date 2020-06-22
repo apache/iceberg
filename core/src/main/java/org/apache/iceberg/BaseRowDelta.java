@@ -19,22 +19,30 @@
 
 package org.apache.iceberg;
 
-import java.util.Map;
-import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InputFile;
-
-/**
- * Reader for manifest files.
- * <p>
- * Create readers using {@link ManifestFiles#readDeleteManifest(ManifestFile, FileIO, Map)}.
- */
-public class DeleteManifestReader extends BaseManifestReader<DeleteFile, DeleteManifestReader> {
-  protected DeleteManifestReader(InputFile file, Map<Integer, PartitionSpec> specsById, InheritableMetadata metadata) {
-    super(file, specsById, metadata, FileType.DELETE_FILES);
+public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta {
+  public BaseRowDelta(String tableName, TableOperations ops) {
+    super(tableName, ops);
   }
 
   @Override
-  protected DeleteManifestReader self() {
+  protected BaseRowDelta self() {
+    return this;
+  }
+
+  @Override
+  protected String operation() {
+    return DataOperations.OVERWRITE;
+  }
+
+  @Override
+  public RowDelta addRows(DataFile inserts) {
+    add(inserts);
+    return this;
+  }
+
+  @Override
+  public RowDelta addDeletes(DeleteFile deletes) {
+    add(deletes);
     return this;
   }
 }

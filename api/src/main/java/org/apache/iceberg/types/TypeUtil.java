@@ -187,6 +187,37 @@ public class TypeUtil {
   }
 
   /**
+   * Check whether we could write the iceberg table with the user-provided write schema.
+   *
+   * @param tableSchema      the table schema written in iceberg meta data.
+   * @param writeSchema      the user-provided write schema.
+   * @param checkNullability If true, not allow to write optional values to a required field.
+   * @param checkOrdering    If true, not allow input schema to have different ordering than table schema.
+   */
+  public static void validateWriteSchema(Schema tableSchema, Schema writeSchema,
+                                         Boolean checkNullability, Boolean checkOrdering) {
+    List<String> errors;
+    if (checkNullability) {
+      errors = CheckCompatibility.writeCompatibilityErrors(tableSchema, writeSchema, checkOrdering);
+    } else {
+      errors = CheckCompatibility.typeCompatibilityErrors(tableSchema, writeSchema, checkOrdering);
+    }
+
+    if (!errors.isEmpty()) {
+      StringBuilder sb = new StringBuilder();
+      sb.append("Cannot write incompatible dataset to table with schema:\n")
+          .append(tableSchema)
+          .append("\nwrite schema:")
+          .append(writeSchema)
+          .append("\nProblems:");
+      for (String error : errors) {
+        sb.append("\n* ").append(error);
+      }
+      throw new IllegalArgumentException(sb.toString());
+    }
+  }
+
+  /**
    * Interface for passing a function that assigns column IDs.
    */
   public interface NextID {

@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark.source;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
@@ -33,15 +34,13 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.spark.rdd.InputFileBlockHolder;
-import org.apache.spark.sql.sources.v2.reader.InputPartitionReader;
 
 /**
- * Base class of readers of type {@link InputPartitionReader} to read data as objects of type @param &lt;T&gt;
+ * Base class of Spark readers.
  *
  * @param <T> is the Java class returned by this reader whose objects contain one or more rows.
  */
-@SuppressWarnings("checkstyle:VisibilityModifier")
-abstract class BaseDataReader<T> implements InputPartitionReader<T> {
+abstract class BaseDataReader<T> implements Closeable {
   private final Iterator<FileScanTask> tasks;
   private final FileIO fileIo;
   private final Map<String, InputFile> inputFiles;
@@ -64,7 +63,6 @@ abstract class BaseDataReader<T> implements InputPartitionReader<T> {
     this.currentIterator = CloseableIterator.empty();
   }
 
-  @Override
   public boolean next() throws IOException {
     while (true) {
       if (currentIterator.hasNext()) {
@@ -79,14 +77,12 @@ abstract class BaseDataReader<T> implements InputPartitionReader<T> {
     }
   }
 
-  @Override
   public T get() {
     return current;
   }
 
   abstract CloseableIterator<T> open(FileScanTask task);
 
-  @Override
   public void close() throws IOException {
     InputFileBlockHolder.unset();
 

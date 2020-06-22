@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.data;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.ListType;
@@ -64,6 +65,23 @@ public abstract class AvroDataTest {
   @Test
   public void testSimpleStruct() throws IOException {
     writeAndValidate(TypeUtil.assignIncreasingFreshIds(new Schema(SUPPORTED_PRIMITIVES.fields())));
+  }
+
+  @Test
+  public void testStructWithRequiredFields() throws IOException {
+    writeAndValidate(TypeUtil.assignIncreasingFreshIds(new Schema(
+        Lists.transform(SUPPORTED_PRIMITIVES.fields(), Types.NestedField::asRequired))));
+  }
+
+  @Test
+  public void testStructWithOptionalFields() throws IOException {
+    writeAndValidate(TypeUtil.assignIncreasingFreshIds(new Schema(
+        Lists.transform(SUPPORTED_PRIMITIVES.fields(), Types.NestedField::asOptional))));
+  }
+
+  @Test
+  public void testNestedStruct() throws IOException {
+    writeAndValidate(TypeUtil.assignIncreasingFreshIds(new Schema(required(1, "struct", SUPPORTED_PRIMITIVES))));
   }
 
   @Test

@@ -153,15 +153,6 @@
                 "com.github.ben-manes.caffeine:caffeine"
             ]
         },
-        "com.google.guava:guava": {
-            "locked": "16.0.1",
-            "transitive": [
-                "org.apache.curator:curator-client",
-                "org.apache.curator:curator-framework",
-                "org.apache.curator:curator-recipes",
-                "org.apache.hadoop:hadoop-common"
-            ]
-        },
         "com.google.protobuf:protobuf-java": {
             "locked": "2.5.0",
             "transitive": [

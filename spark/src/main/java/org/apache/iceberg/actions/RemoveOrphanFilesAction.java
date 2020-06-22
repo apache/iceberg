@@ -195,7 +195,7 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
     otherMetadataFiles.add(ops.metadataFileLocation("version-hint.text"));
 
     TableMetadata metadata = ops.current();
-    otherMetadataFiles.add(metadata.file().location());
+    otherMetadataFiles.add(metadata.metadataFileLocation());
     for (TableMetadata.MetadataLogEntry previousMetadataFile : metadata.previousFiles()) {
       otherMetadataFiles.add(previousMetadataFile.file());
     }

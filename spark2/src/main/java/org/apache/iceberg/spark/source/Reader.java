@@ -28,10 +28,10 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
@@ -43,10 +43,12 @@ import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -59,14 +61,16 @@ import org.apache.spark.sql.sources.v2.reader.Statistics;
 import org.apache.spark.sql.sources.v2.reader.SupportsPushDownFilters;
 import org.apache.spark.sql.sources.v2.reader.SupportsPushDownRequiredColumns;
 import org.apache.spark.sql.sources.v2.reader.SupportsReportStatistics;
-import org.apache.spark.sql.types.DataType;
-import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.sources.v2.reader.SupportsScanColumnarBatch;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushDownRequiredColumns,
-    SupportsReportStatistics {
+import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
+
+class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPushDownFilters,
+    SupportsPushDownRequiredColumns, SupportsReportStatistics {
   private static final Logger LOG = LoggerFactory.getLogger(Reader.class);
 
   private static final Filter[] NO_FILTERS = new Filter[0];
@@ -87,14 +91,17 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
   private List<Expression> filterExpressions = null;
   private Filter[] pushedFilters = NO_FILTERS;
   private final boolean localityPreferred;
+  private final boolean batchReadsEnabled;
+  private final int batchSize;
 
   // lazy variables
   private Schema schema = null;
   private StructType type = null; // cached because Spark accesses it multiple times
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
+  private Boolean readUsingBatch = null;
 
   Reader(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
-         boolean caseSensitive, DataSourceOptions options) {
+      boolean caseSensitive, DataSourceOptions options) {
     this.table = table;
     this.snapshotId = options.get("snapshot-id").map(Long::parseLong).orElse(null);
     this.asOfTimestamp = options.get("as-of-timestamp").map(Long::parseLong).orElse(null);
@@ -145,6 +152,13 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     this.io = io;
     this.encryptionManager = encryptionManager;
     this.caseSensitive = caseSensitive;
+
+    this.batchReadsEnabled = options.get("vectorization-enabled").map(Boolean::parseBoolean).orElse(
+        PropertyUtil.propertyAsBoolean(table.properties(),
+            TableProperties.PARQUET_VECTORIZATION_ENABLED, TableProperties.PARQUET_VECTORIZATION_ENABLED_DEFAULT));
+    this.batchSize = options.get("batch-size").map(Integer::parseInt).orElse(
+        PropertyUtil.propertyAsInt(table.properties(),
+          TableProperties.PARQUET_BATCH_SIZE, TableProperties.PARQUET_BATCH_SIZE_DEFAULT));
   }
 
   private Schema lazySchema() {
@@ -178,16 +192,42 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     return lazyType();
   }
 
+  /**
+   * This is called in the Spark Driver when data is to be materialized into {@link ColumnarBatch}
+   */
+  @Override
+  public List<InputPartition<ColumnarBatch>> planBatchInputPartitions() {
+    Preconditions.checkState(enableBatchRead(), "Batched reads not enabled");
+    Preconditions.checkState(batchSize > 0, "Invalid batch size");
+    String tableSchemaString = SchemaParser.toJson(table.schema());
+    String expectedSchemaString = SchemaParser.toJson(lazySchema());
+    String nameMappingString = table.properties().get(DEFAULT_NAME_MAPPING);
+
+    List<InputPartition<ColumnarBatch>> readTasks = Lists.newArrayList();
+    for (CombinedScanTask task : tasks()) {
+      readTasks.add(new ReadTask<>(
+          task, tableSchemaString, expectedSchemaString, nameMappingString, io, encryptionManager, caseSensitive,
+          localityPreferred, new BatchReaderFactory(batchSize)));
+    }
+    LOG.info("Batching input partitions with {} tasks.", readTasks.size());
+
+    return readTasks;
+  }
+
+  /**
+   * This is called in the Spark Driver when data is to be materialized into {@link InternalRow}
+   */
   @Override
   public List<InputPartition<InternalRow>> planInputPartitions() {
     String tableSchemaString = SchemaParser.toJson(table.schema());
     String expectedSchemaString = SchemaParser.toJson(lazySchema());
+    String nameMappingString = table.properties().get(DEFAULT_NAME_MAPPING);
 
     List<InputPartition<InternalRow>> readTasks = Lists.newArrayList();
     for (CombinedScanTask task : tasks()) {
-      readTasks.add(
-          new ReadTask(task, tableSchemaString, expectedSchemaString, io, encryptionManager,
-              caseSensitive, localityPreferred));
+      readTasks.add(new ReadTask<>(
+          task, tableSchemaString, expectedSchemaString, nameMappingString, io, encryptionManager, caseSensitive,
+          localityPreferred, InternalRowReaderFactory.INSTANCE));
     }
 
     return readTasks;
@@ -249,6 +289,31 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     return new Stats(sizeInBytes, numRows);
   }
 
+  @Override
+  public boolean enableBatchRead() {
+    if (readUsingBatch == null) {
+      boolean allParquetFileScanTasks =
+          tasks().stream()
+              .allMatch(combinedScanTask -> !combinedScanTask.isDataTask() && combinedScanTask.files()
+                  .stream()
+                  .allMatch(fileScanTask -> fileScanTask.file().format().equals(
+                      FileFormat.PARQUET)));
+
+      boolean atLeastOneColumn = lazySchema().columns().size() > 0;
+
+      boolean hasNoIdentityProjections = tasks().stream()
+          .allMatch(combinedScanTask -> combinedScanTask.files()
+              .stream()
+              .allMatch(fileScanTask -> fileScanTask.spec().identitySourceIds().isEmpty()));
+
+      boolean onlyPrimitives = lazySchema().columns().stream().allMatch(c -> c.type().isPrimitiveType());
+
+      this.readUsingBatch = batchReadsEnabled && allParquetFileScanTasks && atLeastOneColumn &&
+          hasNoIdentityProjections && onlyPrimitives;
+    }
+    return readUsingBatch;
+  }
+
   private static void mergeIcebergHadoopConfs(
       Configuration baseConf, Map<String, String> options) {
     options.keySet().stream()
@@ -299,7 +364,7 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
 
       try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
         this.tasks = Lists.newArrayList(tasksIterable);
-      }  catch (IOException e) {
+      } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to close table scan: %s", scan);
       }
     }
@@ -310,26 +375,28 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
   @Override
   public String toString() {
     return String.format(
-        "IcebergScan(table=%s, type=%s, filters=%s, caseSensitive=%s)",
-        table, lazySchema().asStruct(), filterExpressions, caseSensitive);
+        "IcebergScan(table=%s, type=%s, filters=%s, caseSensitive=%s, batchedReads=%s)",
+        table, lazySchema().asStruct(), filterExpressions, caseSensitive, enableBatchRead());
   }
 
-  private static class ReadTask implements InputPartition<InternalRow>, Serializable {
+  private static class ReadTask<T> implements Serializable, InputPartition<T> {
     private final CombinedScanTask task;
     private final String tableSchemaString;
     private final String expectedSchemaString;
+    private final String nameMappingString;
     private final Broadcast<FileIO> io;
     private final Broadcast<EncryptionManager> encryptionManager;
     private final boolean caseSensitive;
     private final boolean localityPreferred;
+    private final ReaderFactory<T> readerFactory;
 
     private transient Schema tableSchema = null;
     private transient Schema expectedSchema = null;
-    private transient String[] preferredLocations;
+    private transient String[] preferredLocations = null;
 
     private ReadTask(CombinedScanTask task, String tableSchemaString, String expectedSchemaString,
-                     Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
-                     boolean caseSensitive, boolean localityPreferred) {
+                     String nameMappingString, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
+                     boolean caseSensitive, boolean localityPreferred, ReaderFactory<T> readerFactory) {
       this.task = task;
       this.tableSchemaString = tableSchemaString;
       this.expectedSchemaString = expectedSchemaString;
@@ -338,12 +405,14 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
       this.caseSensitive = caseSensitive;
       this.localityPreferred = localityPreferred;
       this.preferredLocations = getPreferredLocations();
+      this.readerFactory = readerFactory;
+      this.nameMappingString = nameMappingString;
     }
 
     @Override
-    public InputPartitionReader<InternalRow> createPartitionReader() {
-      return new RowDataReader(task, lazyTableSchema(), lazyExpectedSchema(), io.value(),
-        encryptionManager.value(), caseSensitive);
+    public InputPartitionReader<T> createPartitionReader() {
+      return readerFactory.create(task, lazyTableSchema(), lazyExpectedSchema(), nameMappingString, io.value(),
+          encryptionManager.value(), caseSensitive);
     }
 
     @Override
@@ -375,37 +444,52 @@ class Reader implements DataSourceReader, SupportsPushDownFilters, SupportsPushD
     }
   }
 
-  private static class StructLikeInternalRow implements StructLike {
-    private final DataType[] types;
-    private InternalRow row = null;
+  private interface ReaderFactory<T> extends Serializable {
+    InputPartitionReader<T> create(CombinedScanTask task, Schema tableSchema, Schema expectedSchema,
+                                   String nameMapping, FileIO io,
+                                   EncryptionManager encryptionManager, boolean caseSensitive);
+  }
 
-    StructLikeInternalRow(StructType struct) {
-      this.types = new DataType[struct.size()];
-      StructField[] fields = struct.fields();
-      for (int i = 0; i < fields.length; i += 1) {
-        types[i] = fields[i].dataType();
-      }
-    }
+  private static class InternalRowReaderFactory implements ReaderFactory<InternalRow> {
+    private static final InternalRowReaderFactory INSTANCE = new InternalRowReaderFactory();
 
-    public StructLikeInternalRow setRow(InternalRow row) {
-      this.row = row;
-      return this;
+    private InternalRowReaderFactory() {
     }
 
     @Override
-    public int size() {
-      return types.length;
+    public InputPartitionReader<InternalRow> create(CombinedScanTask task, Schema tableSchema, Schema expectedSchema,
+                                                    String nameMapping, FileIO io,
+                                                    EncryptionManager encryptionManager, boolean caseSensitive) {
+      return new RowReader(task, tableSchema, expectedSchema, nameMapping, io, encryptionManager, caseSensitive);
+    }
+  }
+
+  private static class BatchReaderFactory implements ReaderFactory<ColumnarBatch> {
+    private final int batchSize;
+
+    BatchReaderFactory(int batchSize) {
+      this.batchSize = batchSize;
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public <T> T get(int pos, Class<T> javaClass) {
-      return javaClass.cast(row.get(pos, types[pos]));
+    public InputPartitionReader<ColumnarBatch> create(CombinedScanTask task, Schema tableSchema, Schema expectedSchema,
+                                                      String nameMapping, FileIO io,
+                                                      EncryptionManager encryptionManager, boolean caseSensitive) {
+      return new BatchReader(task, expectedSchema, nameMapping, io, encryptionManager, caseSensitive, batchSize);
     }
+  }
 
-    @Override
-    public <T> void set(int pos, T value) {
-      throw new UnsupportedOperationException("Not implemented: set");
+  private static class RowReader extends RowDataReader implements InputPartitionReader<InternalRow> {
+    RowReader(CombinedScanTask task, Schema tableSchema, Schema expectedSchema, String nameMapping, FileIO io,
+              EncryptionManager encryptionManager, boolean caseSensitive) {
+      super(task, tableSchema, expectedSchema, nameMapping, io, encryptionManager, caseSensitive);
+    }
+  }
+
+  private static class BatchReader extends BatchDataReader implements InputPartitionReader<ColumnarBatch> {
+    BatchReader(CombinedScanTask task, Schema expectedSchema, String nameMapping, FileIO io,
+                       EncryptionManager encryptionManager, boolean caseSensitive, int size) {
+      super(task, expectedSchema, nameMapping, io, encryptionManager, caseSensitive, size);
     }
   }
 }

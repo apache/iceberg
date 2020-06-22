@@ -294,21 +294,6 @@
                 "com.github.ben-manes.caffeine:caffeine"
             ]
         },
-        "com.google.guava:guava": {
-            "locked": "16.0.1",
-            "transitive": [
-                "org.apache.curator:curator-client",
-                "org.apache.curator:curator-framework",
-                "org.apache.curator:curator-recipes",
-                "org.apache.hadoop:hadoop-common",
-                "org.apache.hadoop:hadoop-hdfs",
-                "org.apache.hadoop:hadoop-yarn-api",
-                "org.apache.hadoop:hadoop-yarn-client",
-                "org.apache.hadoop:hadoop-yarn-common",
-                "org.apache.hadoop:hadoop-yarn-server-common",
-                "org.apache.hadoop:hadoop-yarn-server-nodemanager"
-            ]
-        },
         "com.google.inject:guice": {
             "locked": "3.0",
             "transitive": [

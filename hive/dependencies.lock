@@ -172,24 +172,6 @@
                 "com.github.ben-manes.caffeine:caffeine"
             ]
         },
-        "com.google.guava:guava": {
-            "locked": "16.0.1",
-            "transitive": [
-                "com.jolbox:bonecp",
-                "org.apache.curator:curator-client",
-                "org.apache.curator:curator-framework",
-                "org.apache.curator:curator-recipes",
-                "org.apache.hadoop:hadoop-common",
-                "org.apache.hadoop:hadoop-hdfs",
-                "org.apache.hadoop:hadoop-yarn-api",
-                "org.apache.hadoop:hadoop-yarn-client",
-                "org.apache.hadoop:hadoop-yarn-common",
-                "org.apache.hadoop:hadoop-yarn-server-common",
-                "org.apache.hadoop:hadoop-yarn-server-nodemanager",
-                "org.apache.hive.shims:hive-shims-common",
-                "org.apache.hive:hive-metastore"
-            ]
-        },
         "com.google.inject:guice": {
             "locked": "3.0",
             "transitive": [
@@ -758,34 +740,34 @@
             ]
         },
         "org.apache.hive.shims:hive-shims-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-shims"
             ]
         },
         "org.apache.hive:hive-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-serde"
             ]
         },
         "org.apache.hive:hive-metastore": {
-            "locked": "2.3.6"
+            "locked": "2.3.7"
         },
         "org.apache.hive:hive-serde": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-metastore"
             ]
         },
         "org.apache.hive:hive-service-rpc": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-serde"
             ]
         },
         "org.apache.hive:hive-shims": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-common",
                 "org.apache.hive:hive-metastore",
@@ -1759,13 +1741,13 @@
             ]
         },
         "org.apache.hive.shims:hive-shims-0.23": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-shims"
             ]
         },
         "org.apache.hive.shims:hive-shims-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive.shims:hive-shims-0.23",
                 "org.apache.hive.shims:hive-shims-scheduler",
@@ -1773,34 +1755,34 @@
             ]
         },
         "org.apache.hive.shims:hive-shims-scheduler": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-shims"
             ]
         },
         "org.apache.hive:hive-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-serde"
             ]
         },
         "org.apache.hive:hive-metastore": {
-            "locked": "2.3.6"
+            "locked": "2.3.7"
         },
         "org.apache.hive:hive-serde": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-metastore"
             ]
         },
         "org.apache.hive:hive-service-rpc": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-serde"
             ]
         },
         "org.apache.hive:hive-shims": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-common",
                 "org.apache.hive:hive-metastore",
@@ -3081,13 +3063,13 @@
             ]
         },
         "org.apache.hive.shims:hive-shims-0.23": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-shims"
             ]
         },
         "org.apache.hive.shims:hive-shims-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive.shims:hive-shims-0.23",
                 "org.apache.hive.shims:hive-shims-scheduler",
@@ -3095,37 +3077,37 @@
             ]
         },
         "org.apache.hive.shims:hive-shims-scheduler": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-shims"
             ]
         },
         "org.apache.hive:hive-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-serde"
             ]
         },
         "org.apache.hive:hive-exec": {
-            "locked": "2.3.6"
+            "locked": "2.3.7"
         },
         "org.apache.hive:hive-metastore": {
-            "locked": "2.3.6"
+            "locked": "2.3.7"
         },
         "org.apache.hive:hive-serde": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-metastore"
             ]
         },
         "org.apache.hive:hive-service-rpc": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-serde"
             ]
         },
         "org.apache.hive:hive-shims": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-common",
                 "org.apache.hive:hive-exec",
@@ -3140,7 +3122,7 @@
             ]
         },
         "org.apache.hive:hive-vector-code-gen": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-exec"
             ]
@@ -4149,37 +4131,37 @@
             ]
         },
         "org.apache.hive.shims:hive-shims-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-shims"
             ]
         },
         "org.apache.hive:hive-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-serde"
             ]
         },
         "org.apache.hive:hive-exec": {
-            "locked": "2.3.6"
+            "locked": "2.3.7"
         },
         "org.apache.hive:hive-metastore": {
-            "locked": "2.3.6"
+            "locked": "2.3.7"
         },
         "org.apache.hive:hive-serde": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-metastore"
             ]
         },
         "org.apache.hive:hive-service-rpc": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-serde"
             ]
         },
         "org.apache.hive:hive-shims": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-common",
                 "org.apache.hive:hive-exec",
@@ -4194,7 +4176,7 @@
             ]
         },
         "org.apache.hive:hive-vector-code-gen": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-exec"
             ]
@@ -5262,13 +5244,13 @@
             ]
         },
         "org.apache.hive.shims:hive-shims-0.23": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-shims"
             ]
         },
         "org.apache.hive.shims:hive-shims-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive.shims:hive-shims-0.23",
                 "org.apache.hive.shims:hive-shims-scheduler",
@@ -5276,37 +5258,37 @@
             ]
         },
         "org.apache.hive.shims:hive-shims-scheduler": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-shims"
             ]
         },
         "org.apache.hive:hive-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-serde"
             ]
         },
         "org.apache.hive:hive-exec": {
-            "locked": "2.3.6"
+            "locked": "2.3.7"
         },
         "org.apache.hive:hive-metastore": {
-            "locked": "2.3.6"
+            "locked": "2.3.7"
         },
         "org.apache.hive:hive-serde": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-metastore"
             ]
         },
         "org.apache.hive:hive-service-rpc": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-serde"
             ]
         },
         "org.apache.hive:hive-shims": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-common",
                 "org.apache.hive:hive-exec",
@@ -5321,7 +5303,7 @@
             ]
         },
         "org.apache.hive:hive-vector-code-gen": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-exec"
             ]
@@ -6404,13 +6386,13 @@
             ]
         },
         "org.apache.hive.shims:hive-shims-0.23": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-shims"
             ]
         },
         "org.apache.hive.shims:hive-shims-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive.shims:hive-shims-0.23",
                 "org.apache.hive.shims:hive-shims-scheduler",
@@ -6418,37 +6400,37 @@
             ]
         },
         "org.apache.hive.shims:hive-shims-scheduler": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-shims"
             ]
         },
         "org.apache.hive:hive-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-serde"
             ]
         },
         "org.apache.hive:hive-exec": {
-            "locked": "2.3.6"
+            "locked": "2.3.7"
         },
         "org.apache.hive:hive-metastore": {
-            "locked": "2.3.6"
+            "locked": "2.3.7"
         },
         "org.apache.hive:hive-serde": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-metastore"
             ]
         },
         "org.apache.hive:hive-service-rpc": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-serde"
             ]
         },
         "org.apache.hive:hive-shims": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-common",
                 "org.apache.hive:hive-exec",
@@ -6463,7 +6445,7 @@
             ]
         },
         "org.apache.hive:hive-vector-code-gen": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-exec"
             ]
