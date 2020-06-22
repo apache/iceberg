@@ -88,7 +88,7 @@ public class TestParquetSchemaUtil {
     NameMapping nameMapping = MappingUtil.create(schema);
     MessageType messageTypeWithIds = ParquetSchemaUtil.convert(schema, "parquet_type");
     MessageType messageTypeWithIdsFromNameMapping = ParquetSchemaUtil
-        .applyNameMapping(RemoveIds.removeIds(schema, "parquet_type"), nameMapping);
+        .applyNameMapping(RemoveIds.removeIds(messageTypeWithIds, "parquet_type"), nameMapping);
 
     Assert.assertEquals(messageTypeWithIds, messageTypeWithIdsFromNameMapping);
   }

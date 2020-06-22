@@ -27,11 +27,6 @@ import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 
 public class RemoveIds extends ParquetTypeVisitor<Type> {
-  private final String name;
-
-  public RemoveIds(String name) {
-    this.name = name;
-  }
 
   @Override
   public Type message(MessageType message, List<Type> fields) {
@@ -39,7 +34,7 @@ public class RemoveIds extends ParquetTypeVisitor<Type> {
     for (Type field : struct(message.asGroupType(), fields).asGroupType().getFields()) {
       builder.addField(field);
     }
-    return builder.named(name);
+    return builder.named(message.getName());
   }
 
   @Override
@@ -74,8 +69,8 @@ public class RemoveIds extends ParquetTypeVisitor<Type> {
         .named(primitive.getName());
   }
 
-  public static MessageType removeIds(org.apache.iceberg.Schema schema, String name) {
-    return (MessageType) ParquetTypeVisitor.visit(ParquetSchemaUtil.convert(schema, name), new RemoveIds(name));
+  public static MessageType removeIds(MessageType type, String name) {
+    return (MessageType) ParquetTypeVisitor.visit(type, new RemoveIds());
   }
 
 }
