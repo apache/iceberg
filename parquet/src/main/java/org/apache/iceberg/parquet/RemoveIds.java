@@ -69,7 +69,7 @@ public class RemoveIds extends ParquetTypeVisitor<Type> {
         .named(primitive.getName());
   }
 
-  public static MessageType removeIds(MessageType type, String name) {
+  public static MessageType removeIds(MessageType type) {
     return (MessageType) ParquetTypeVisitor.visit(type, new RemoveIds());
   }
 
