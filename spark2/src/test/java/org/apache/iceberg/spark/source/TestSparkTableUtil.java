@@ -23,18 +23,9 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.apache.avro.SchemaBuilder;
-import org.apache.avro.file.DataFileWriter;
-import org.apache.avro.generic.GenericData;
-import org.apache.avro.generic.GenericDatumWriter;
-import org.apache.avro.generic.GenericRecord;
-import org.apache.avro.io.DatumWriter;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
@@ -63,11 +54,9 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import scala.collection.Seq;
 
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
 import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
 import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestSparkTableUtil extends HiveTableBaseTest {
   private static final Configuration CONF = HiveTableBaseTest.hiveConf;
@@ -308,70 +297,5 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
     );
 
     Assert.assertEquals(expected.stream().map(SimpleRecord::getData).collect(Collectors.toList()), actual);
-  }
-
-  @Test
-  public void testAvroReaderWithNameMapping() throws IOException {
-    File avroFile = temp.newFile();
-    org.apache.avro.Schema avroSchema = SchemaBuilder.record("TestRecord")
-        .namespace("org.apache.iceberg.spark.data")
-        .fields()
-        .requiredInt("id")
-        .requiredString("name")
-        .endRecord();
-
-    GenericRecord record1 = new GenericData.Record(avroSchema);
-    record1.put("id", 1);
-    record1.put("name", "Bob");
-
-    GenericRecord record2 = new GenericData.Record(avroSchema);
-    record2.put("id", 2);
-    record2.put("name", "Alice");
-
-    DatumWriter<GenericRecord> datumWriter = new GenericDatumWriter<>(avroSchema);
-    DataFileWriter<GenericRecord> dataFileWriter = new DataFileWriter<>(datumWriter);
-
-    dataFileWriter.create(avroSchema, avroFile);
-    dataFileWriter.append(record1);
-    dataFileWriter.append(record2);
-    dataFileWriter.close();
-
-    DataFile avroDataFile = DataFiles.builder(PartitionSpec.unpartitioned())
-        .withFormat("avro")
-        .withFileSizeInBytes(avroFile.length())
-        .withPath(avroFile.getAbsolutePath())
-        .withRecordCount(2)
-        .build();
-
-    Schema filteredSchema = new Schema(
-        required(1, "name", Types.StringType.get())
-    );
-
-    NameMapping nameMapping = MappingUtil.create(filteredSchema);
-
-    Table table = catalog.createTable(
-        org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "avro_table"),
-        filteredSchema,
-        PartitionSpec.unpartitioned());
-
-    table.updateProperties()
-        .set(DEFAULT_NAME_MAPPING, NameMappingParser.toJson(nameMapping))
-        .set(DEFAULT_FILE_FORMAT, "avro")
-        .commit();
-
-    table.newFastAppend().appendFile(avroDataFile).commit();
-
-    List<String> actual = spark.read().format("iceberg")
-        .load(DB_NAME + ".avro_table")
-        .select("name")
-        .filter("name='Alice'")
-        .collectAsList()
-        .stream()
-        .map(r -> r.getString(0))
-        .collect(Collectors.toList());
-
-    List<GenericRecord> expected = Lists.newArrayList(record2);
-
-    Assert.assertEquals(expected.stream().map(r -> r.get("name")).collect(Collectors.toList()), actual);
   }
 }
