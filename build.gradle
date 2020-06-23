@@ -548,6 +548,7 @@ project(':iceberg-spark3') {
     compileOnly "org.apache.avro:avro"
     compileOnly("org.apache.spark:spark-hive_2.12") {
       exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.apache.arrow'
     }
 
     testCompile project(path: ':iceberg-spark', configuration: 'testArtifacts')
