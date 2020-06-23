@@ -51,6 +51,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestNameMappingProjection extends HiveTableBaseTest {
@@ -122,9 +123,14 @@ public class TestNameMappingProjection extends HiveTableBaseTest {
     );
     NameMapping nameMapping = MappingUtil.create(filteredSchema);
 
+    Schema tableSchema = new Schema(
+        required(1, "name", Types.StringType.get()),
+        optional(2, "id", Types.IntegerType.get())
+    );
+
     Table table = catalog.createTable(
         org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "avro_table"),
-        filteredSchema,
+        tableSchema,
         PartitionSpec.unpartitioned());
 
     table.updateProperties()
@@ -140,5 +146,6 @@ public class TestNameMappingProjection extends HiveTableBaseTest {
 
     Assert.assertEquals("Should project 1 record", 1, actual.size());
     Assert.assertEquals("Should equal to 'Alice'", "Alice", actual.get(0).getString(0));
+    Assert.assertNull("should be null", actual.get(0).get(1));
   }
 }
