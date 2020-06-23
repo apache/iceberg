@@ -60,7 +60,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
-public class TestSparkReadProjection extends TestReadProjection {
+public abstract class TestSparkReadProjection extends TestReadProjection {
 
   private static SparkSession spark = null;
 
