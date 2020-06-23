@@ -141,12 +141,17 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       FileScanTask task,
       Schema projection,
       Map<Integer, ?> idToConstant) {
-    return Avro.read(location)
+    Avro.ReadBuilder builder = Avro.read(location)
         .reuseContainers()
         .project(projection)
         .split(task.start(), task.length())
-        .createReaderFunc(readSchema -> new SparkAvroReader(projection, readSchema, idToConstant))
-        .build();
+        .createReaderFunc(readSchema -> new SparkAvroReader(projection, readSchema, idToConstant));
+
+    if (nameMapping != null) {
+      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+    }
+
+    return builder.build();
   }
 
   private CloseableIterable<InternalRow> newParquetIterable(

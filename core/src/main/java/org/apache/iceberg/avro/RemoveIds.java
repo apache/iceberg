@@ -24,7 +24,7 @@ import java.util.Map;
 import org.apache.avro.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-class RemoveIds extends AvroSchemaVisitor<Schema> {
+public class RemoveIds extends AvroSchemaVisitor<Schema> {
   @Override
   public Schema record(Schema record, List<String> names, List<Schema> types) {
     List<Schema.Field> fields = record.getFields();
@@ -83,5 +83,9 @@ class RemoveIds extends AvroSchemaVisitor<Schema> {
 
   static org.apache.avro.Schema removeIds(org.apache.iceberg.Schema schema) {
     return AvroSchemaVisitor.visit(AvroSchemaUtil.convert(schema.asStruct(), "table"), new RemoveIds());
+  }
+
+  public static org.apache.avro.Schema removeIds(org.apache.avro.Schema schema) {
+    return AvroSchemaVisitor.visit(schema, new RemoveIds());
   }
 }
