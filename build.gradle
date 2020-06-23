@@ -453,10 +453,6 @@ project(':iceberg-spark') {
     }
     testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
-
-    jmh("org.apache.spark:spark-avro_2.11") {
-      exclude group: 'org.apache.avro', module: 'avro'
-    }
   }
 
   test {
