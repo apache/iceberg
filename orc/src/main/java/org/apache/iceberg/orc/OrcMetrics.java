@@ -21,8 +21,8 @@ package org.apache.iceberg.orc;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.sql.Date;
 import java.sql.Timestamp;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -158,8 +158,7 @@ public class OrcMetrics {
           .orElse(null);
     } else if (columnStats instanceof DateColumnStatistics) {
       min = Optional.ofNullable(((DateColumnStatistics) columnStats).getMinimum())
-          .map(minStats -> DateTimeUtil.daysFromDate(
-              DateTimeUtil.EPOCH.plus(minStats.getTime(), ChronoUnit.MILLIS).toLocalDate()))
+          .map(minStats -> DateTimeUtil.daysFromDate(((Date) minStats).toLocalDate()))
           .orElse(null);
     } else if (columnStats instanceof TimestampColumnStatistics) {
       TimestampColumnStatistics tColStats = (TimestampColumnStatistics) columnStats;
@@ -197,8 +196,7 @@ public class OrcMetrics {
           .orElse(null);
     } else if (columnStats instanceof DateColumnStatistics) {
       max = Optional.ofNullable(((DateColumnStatistics) columnStats).getMaximum())
-          .map(maxStats -> DateTimeUtil.daysFromDate(
-              DateTimeUtil.EPOCH.plus(maxStats.getTime(), ChronoUnit.MILLIS).toLocalDate()))
+          .map(maxStats -> DateTimeUtil.daysFromDate(((Date) maxStats).toLocalDate()))
           .orElse(null);
     } else if (columnStats instanceof TimestampColumnStatistics) {
       TimestampColumnStatistics tColStats = (TimestampColumnStatistics) columnStats;
