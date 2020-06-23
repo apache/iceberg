@@ -134,8 +134,7 @@ public class TestSparkTableUtilWithInMemoryCatalog {
   }
 
   @Test
-  public void testImportPartitionedTable()
-      throws IOException {
+  public void testImportPartitionedTable() throws IOException {
     Map<String, String> props = Maps.newHashMap();
     props.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none");
     props.put(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "data", "full");
@@ -232,8 +231,7 @@ public class TestSparkTableUtilWithInMemoryCatalog {
   }
 
   @Test
-  public void testImportPartitionsWithSnapshotInheritance()
-      throws IOException {
+  public void testImportPartitionsWithSnapshotInheritance() throws IOException {
     Table table = TABLES.create(SCHEMA, SPEC, tableLocation);
 
     table.updateProperties()

@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark;
 
 import java.io.IOException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -33,13 +34,16 @@ public class ExceptionUtil {
   /**
    * Converts Checked Exceptions to Unchecked Exceptions.
    *
-   * @param exception the exception object expected to be unchecked.
-   * @return - checked exception.
+   * @param exception - a checked exception object which is to be converted to its unchecked equivalent.
+   * @return - unchecked exception.
    */
   public static RuntimeException toUncheckedException(Throwable exception) {
 
     if (exception instanceof RuntimeException) {
       return (RuntimeException) exception;
+
+    } else if (exception instanceof org.apache.spark.sql.catalyst.analysis.NoSuchDatabaseException) {
+      return new NoSuchNamespaceException(exception, exception.getMessage());
 
     } else if (exception instanceof org.apache.spark.sql.catalyst.analysis.NoSuchTableException) {
       return new NoSuchTableException(exception, exception.getMessage());
