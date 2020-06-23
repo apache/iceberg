@@ -70,10 +70,10 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
         hasChange = true;
       }
 
-      if (hasNonNullDefault(field)) {
-        // if the field has a non-null default we update hasChange flag to make
-        // sure a new field is created so that we remove any non-null defaults
-        // set by non-Iceberg writers
+      if (isOptionSchemaWithNonNullFirstOption(field.schema())) {
+        // if the field has an optional schema where the first option is not NULL,
+        // we update hasChange flag to make sure we reorder the schema and make the
+        // NULL option as the first
         hasChange = true;
       }
 
@@ -255,9 +255,17 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
   }
 
   private static Schema.Field copyField(Schema.Field field, Schema newSchema, Integer fieldId) {
-    // do not copy over non-null default values as the file is expected to have values for fields in the file schema
+    Schema newSchemaReordered;
+    // if the newSchema is an optional schema, make sure the NULL option is always the first
+    if (isOptionSchemaWithNonNullFirstOption(newSchema)) {
+      newSchemaReordered = AvroSchemaUtil.toOption(AvroSchemaUtil.fromOption(newSchema));
+    } else {
+      newSchemaReordered = newSchema;
+    }
+    // do not copy over default values as the file is expected to have values for fields already in the file schema
     Schema.Field copy = new Schema.Field(field.name(),
-        newSchema, field.doc(), hasNonNullDefault(field) ? null : field.defaultVal(), field.order());
+        newSchemaReordered, field.doc(),
+        AvroSchemaUtil.isOptionSchema(newSchemaReordered) ? JsonProperties.NULL_VALUE : null, field.order());
 
     for (Map.Entry<String, Object> prop : field.getObjectProps().entrySet()) {
       copy.addProp(prop.getKey(), prop.getValue());
@@ -275,7 +283,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
     return copy;
   }
 
-  private static boolean hasNonNullDefault(Schema.Field field) {
-    return field.hasDefaultValue() && field.defaultVal() != JsonProperties.NULL_VALUE;
+  private static boolean isOptionSchemaWithNonNullFirstOption(Schema schema) {
+    return AvroSchemaUtil.isOptionSchema(schema) && schema.getTypes().get(0).getType() != Schema.Type.NULL;
   }
 }
