@@ -41,6 +41,3 @@ metastore_db/
 
 # Python stuff
 python/.mypy_cache/
-
-# mac specific
-.DS_Store
