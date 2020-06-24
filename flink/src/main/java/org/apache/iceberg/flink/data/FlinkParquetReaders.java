@@ -73,9 +73,9 @@ public class FlinkParquetReaders {
     }
 
     @Override
-    protected ParquetValueReaders.StructReader<?, ?> createStructReader(List<Type> types,
-                                                                        List<ParquetValueReader<?>> readers,
-                                                                        Types.StructType struct) {
+    protected ParquetValueReaders.StructReader<Row, Row> createStructReader(List<Type> types,
+                                                                            List<ParquetValueReader<?>> readers,
+                                                                            Types.StructType struct) {
       return new RowReader(types, readers, struct);
     }
   }

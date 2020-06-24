@@ -43,7 +43,7 @@ public class FlinkParquetWriters {
     }
 
     @Override
-    protected ParquetValueWriters.StructWriter<?> createStructWriter(List<ParquetValueWriter<?>> writers) {
+    protected ParquetValueWriters.StructWriter<Row> createStructWriter(List<ParquetValueWriter<?>> writers) {
       return new RowWriter(writers);
     }
   }

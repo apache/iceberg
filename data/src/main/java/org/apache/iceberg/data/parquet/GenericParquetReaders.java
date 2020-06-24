@@ -65,21 +65,21 @@ public class GenericParquetReaders {
   private GenericParquetReaders() {
   }
 
-  public static <T> ParquetValueReader<T> buildReader(Schema expectedSchema,
-                                                      MessageType fileSchema) {
+  public static ParquetValueReader<GenericRecord> buildReader(Schema expectedSchema,
+                                                              MessageType fileSchema) {
     return buildReader(expectedSchema, fileSchema, ImmutableMap.of());
   }
 
   @SuppressWarnings("unchecked")
-  public static <T> ParquetValueReader<T> buildReader(Schema expectedSchema,
-                                                      MessageType fileSchema,
-                                                      Map<Integer, ?> idToConstant) {
+  public static ParquetValueReader<GenericRecord> buildReader(Schema expectedSchema,
+                                                              MessageType fileSchema,
+                                                              Map<Integer, ?> idToConstant) {
     if (ParquetSchemaUtil.hasIds(fileSchema)) {
-      return (ParquetValueReader<T>)
+      return (ParquetValueReader<GenericRecord>)
           TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
               new ReadBuilder(fileSchema, idToConstant));
     } else {
-      return (ParquetValueReader<T>)
+      return (ParquetValueReader<GenericRecord>)
           TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
               new FallbackReadBuilder(fileSchema, idToConstant));
     }
