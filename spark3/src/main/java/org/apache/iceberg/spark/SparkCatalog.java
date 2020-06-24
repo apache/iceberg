@@ -42,7 +42,9 @@ import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.StagedTable;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
+import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableChange;
+import org.apache.spark.sql.connector.catalog.TableChange.ColumnChange;
 import org.apache.spark.sql.connector.catalog.TableChange.RemoveProperty;
 import org.apache.spark.sql.connector.catalog.TableChange.SetProperty;
 import org.apache.spark.sql.connector.expressions.Transform;
@@ -160,8 +162,7 @@ public class SparkCatalog implements StagingTableCatalog {
   }
 
   @Override
-  public SparkTable alterTable(Identifier ident, TableChange... changes)
-      throws NoSuchTableException {
+  public SparkTable alterTable(Identifier ident, TableChange... changes) throws NoSuchTableException {
     SetProperty setLocation = null;
     SetProperty setSnapshotId = null;
     SetProperty pickSnapshotId = null;
@@ -171,7 +172,7 @@ public class SparkCatalog implements StagingTableCatalog {
     for (TableChange change : changes) {
       if (change instanceof SetProperty) {
         SetProperty set = (SetProperty) change;
-        if ("location".equalsIgnoreCase(set.property())) {
+        if (TableCatalog.PROP_LOCATION.equalsIgnoreCase(set.property())) {
           setLocation = set;
         } else if ("current-snapshot-id".equalsIgnoreCase(set.property())) {
           setSnapshotId = set;
@@ -182,8 +183,10 @@ public class SparkCatalog implements StagingTableCatalog {
         }
       } else if (change instanceof RemoveProperty) {
         propertyChanges.add(change);
-      } else {
+      } else if (change instanceof ColumnChange) {
         schemaChanges.add(change);
+      } else {
+        throw new UnsupportedOperationException("Cannot apply unknown table change: " + change);
       }
     }
 
@@ -243,7 +246,7 @@ public class SparkCatalog implements StagingTableCatalog {
   private static void commitChanges(Table table, SetProperty setLocation, SetProperty setSnapshotId,
                                     SetProperty pickSnapshotId, List<TableChange> propertyChanges,
                                     List<TableChange> schemaChanges) {
-    // don't allow setting the snapshot adn picking a commit at the same time because order is ambiguous and choosing
+    // don't allow setting the snapshot and picking a commit at the same time because order is ambiguous and choosing
     // one order leads to different results
     Preconditions.checkArgument(setSnapshotId == null || pickSnapshotId == null,
         "Cannot set the current the current snapshot ID and cherry-pick snapshot changes");

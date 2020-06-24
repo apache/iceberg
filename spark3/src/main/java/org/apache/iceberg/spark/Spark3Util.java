@@ -54,11 +54,10 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 public class Spark3Util {
 
   private static final ImmutableSet<String> LOCALITY_WHITELIST_FS = ImmutableSet.of("hdfs");
+  private static final Joiner DOT = Joiner.on(".");
 
   private Spark3Util() {
   }
-
-  private static final Joiner DOT = Joiner.on(".");
 
   /**
    * Applies a list of Spark table changes to an {@link UpdateProperties} operation.
@@ -78,6 +77,9 @@ public class Spark3Util {
       } else if (change instanceof TableChange.RemoveProperty) {
         TableChange.RemoveProperty remove = (TableChange.RemoveProperty) change;
         pendingUpdate.remove(remove.property());
+
+      } else {
+        throw new UnsupportedOperationException("Cannot apply unknown table change: " + change);
       }
     }
 
@@ -129,7 +131,7 @@ public class Spark3Util {
         apply(pendingUpdate, (TableChange.UpdateColumnPosition) change);
 
       } else {
-        throw new IllegalArgumentException("Invalid schema change: " + change);
+        throw new UnsupportedOperationException("Cannot apply unknown table change: " + change);
       }
     }
 

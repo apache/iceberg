@@ -68,14 +68,14 @@ public class Util {
   }
 
   public static String[] blockLocations(FileIO io, CombinedScanTask task) {
-    Set<String> locationSets = Sets.newHashSet();
+    Set<String> locations = Sets.newHashSet();
     for (FileScanTask f : task.files()) {
       InputFile in = io.newInputFile(f.file().path().toString());
       if (in instanceof HadoopInputFile) {
-        Collections.addAll(locationSets, ((HadoopInputFile) in).getBlockLocations(f.start(), f.length()));
+        Collections.addAll(locations, ((HadoopInputFile) in).getBlockLocations(f.start(), f.length()));
       }
     }
 
-    return locationSets.toArray(HadoopInputFile.NO_LOCATION_PREFERENCE);
+    return locations.toArray(HadoopInputFile.NO_LOCATION_PREFERENCE);
   }
 }
