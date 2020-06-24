@@ -214,13 +214,13 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
         !namespace.isEmpty(),
         "Cannot create namespace with invalid name: %s", namespace);
     if (!meta.isEmpty()) {
-      throw new UnsupportedOperationException("Cannot create namespace " + namespace + " : metadata is not supported");
+      throw new UnsupportedOperationException("Cannot create namespace " + namespace + ": metadata is not supported");
     }
 
     Path nsPath = new Path(warehouseLocation, SLASH.join(namespace.levels()));
 
     if (isNamespace(nsPath)) {
-      throw new AlreadyExistsException("Namespace '%s' already exists!", namespace);
+      throw new AlreadyExistsException("Namespace already exists: %s", namespace);
     }
 
     try {

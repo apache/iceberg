@@ -222,8 +222,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
       return ImmutableList.of();
     }
     try {
-      return clients.run(
-          HiveMetaStoreClient::getAllDatabases)
+      return clients.run(HiveMetaStoreClient::getAllDatabases)
           .stream()
           .map(Namespace::of)
           .collect(Collectors.toList());
@@ -373,7 +372,9 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
     meta.putAll(database.getParameters());
     meta.put("location", database.getLocationUri());
-    meta.put("comment", database.getDescription());
+    if (database.getDescription() != null) {
+      meta.put("comment", database.getDescription());
+    }
 
     return meta;
   }

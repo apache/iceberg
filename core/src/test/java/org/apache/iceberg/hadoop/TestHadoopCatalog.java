@@ -177,7 +177,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     AssertHelpers.assertThrows("Should fail to create when namespace already exist: " + tbl1.namespace(),
         org.apache.iceberg.exceptions.AlreadyExistsException.class,
-        "Namespace '" + tbl1.namespace() + "' already exists!", () -> {
+        "Namespace already exists: " + tbl1.namespace(), () -> {
           catalog.createNamespace(tbl1.namespace());
         });
   }
