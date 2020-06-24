@@ -51,27 +51,24 @@ public class GenericParquetWriter {
 
   @SuppressWarnings("unchecked")
   public static <T> ParquetValueWriter<T> buildWriter(MessageType type) {
-    return buildWriter(type, RecordWriter::new);
+    return (ParquetValueWriter<T>) ParquetTypeVisitor.visit(type, new WriteBuilder(type));
   }
 
-  @SuppressWarnings("unchecked")
-  public static <T> ParquetValueWriter<T> buildWriter(MessageType type, StructWriterFactory structWriterFactory) {
-    return (ParquetValueWriter<T>) ParquetTypeVisitor.visit(type, new WriteBuilder(type, structWriterFactory));
-  }
-
-  private static class WriteBuilder extends ParquetTypeVisitor<ParquetValueWriter<?>> {
+  public static class WriteBuilder extends ParquetTypeVisitor<ParquetValueWriter<?>> {
     private final MessageType type;
-    private final StructWriterFactory structWriterFactory;
 
-    WriteBuilder(MessageType type, StructWriterFactory structWriterFactory) {
+    protected WriteBuilder(MessageType type) {
       this.type = type;
-      this.structWriterFactory = structWriterFactory;
     }
 
     @Override
     public ParquetValueWriter<?> message(MessageType message,
                                          List<ParquetValueWriter<?>> fieldWriters) {
       return struct(message.asGroupType(), fieldWriters);
+    }
+
+    protected StructWriter<?> createStructWriter(List<ParquetValueWriter<?>> writers) {
+      return new RecordWriter(writers);
     }
 
     @Override
@@ -85,7 +82,7 @@ public class GenericParquetWriter {
         writers.add(ParquetValueWriters.option(fieldType, fieldD, fieldWriters.get(i)));
       }
 
-      return structWriterFactory.create(writers);
+      return createStructWriter(writers);
     }
 
     @Override
@@ -289,11 +286,6 @@ public class GenericParquetWriter {
     public void write(int repetitionLevel, byte[] value) {
       column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(value));
     }
-  }
-
-  public interface StructWriterFactory {
-
-    StructWriter<?> create(List<ParquetValueWriter<?>> writers);
   }
 
   private static class RecordWriter extends StructWriter<Record> {

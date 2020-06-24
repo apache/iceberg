@@ -46,7 +46,7 @@ public class RandomGenericData {
   private RandomGenericData() {}
 
   public static List<Record> generate(Schema schema, int numRecords, long seed) {
-    RandomDataGenerator generator = new RandomDataGenerator(seed);
+    RandomRecordDataGenerator generator = new RandomRecordDataGenerator(seed);
     List<Record> records = Lists.newArrayListWithExpectedSize(numRecords);
     for (int i = 0; i < numRecords; i += 1) {
       records.add((Record) TypeUtil.visit(schema, generator));
@@ -55,11 +55,9 @@ public class RandomGenericData {
     return records;
   }
 
-  private static class RandomDataGenerator extends TypeUtil.CustomOrderSchemaVisitor<Object> {
-    private final Random random;
-
-    private RandomDataGenerator(long seed) {
-      this.random = new Random(seed);
+  private static class RandomRecordDataGenerator extends RandomDataGenerator<Record> {
+    private RandomRecordDataGenerator(long seed) {
+      super(seed);
     }
 
     @Override
@@ -78,6 +76,20 @@ public class RandomGenericData {
 
       return rec;
     }
+  }
+
+  public abstract static class RandomDataGenerator<T> extends TypeUtil.CustomOrderSchemaVisitor<Object> {
+    private final Random random;
+
+    protected RandomDataGenerator(long seed) {
+      this.random = new Random(seed);
+    }
+
+    @Override
+    public abstract T schema(Schema schema, Supplier<Object> structResult);
+
+    @Override
+    public abstract T struct(Types.StructType struct, Iterable<Object> fieldResults);
 
     @Override
     public Object field(Types.NestedField field, Supplier<Object> fieldResult) {

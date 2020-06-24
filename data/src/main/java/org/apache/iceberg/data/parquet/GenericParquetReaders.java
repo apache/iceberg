@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
@@ -64,36 +65,29 @@ public class GenericParquetReaders {
   private GenericParquetReaders() {
   }
 
-  public static ParquetValueReader<GenericRecord> buildReader(Schema expectedSchema,
-                                                              MessageType fileSchema) {
-    return buildReader(expectedSchema, fileSchema, ImmutableMap.of(), RecordReader::new);
-  }
-
-  public static ParquetValueReader<GenericRecord> buildReader(Schema expectedSchema,
-                                                              MessageType fileSchema,
-                                                              Map<Integer, ?> idToConstant) {
-    return buildReader(expectedSchema, fileSchema, idToConstant, RecordReader::new);
+  public static <T> ParquetValueReader<T> buildReader(Schema expectedSchema,
+                                                      MessageType fileSchema) {
+    return buildReader(expectedSchema, fileSchema, ImmutableMap.of());
   }
 
   @SuppressWarnings("unchecked")
   public static <T> ParquetValueReader<T> buildReader(Schema expectedSchema,
                                                       MessageType fileSchema,
-                                                      Map<Integer, ?> idToConstant,
-                                                      StructReaderFactory<T> structReaderFactory) {
+                                                      Map<Integer, ?> idToConstant) {
     if (ParquetSchemaUtil.hasIds(fileSchema)) {
       return (ParquetValueReader<T>)
           TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-              new ReadBuilder(fileSchema, idToConstant, structReaderFactory));
+              new ReadBuilder(fileSchema, idToConstant));
     } else {
       return (ParquetValueReader<T>)
           TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-              new FallbackReadBuilder(fileSchema, idToConstant, structReaderFactory));
+              new FallbackReadBuilder(fileSchema, idToConstant));
     }
   }
 
-  private static class FallbackReadBuilder extends ReadBuilder {
-    FallbackReadBuilder(MessageType type, Map<Integer, ?> idToConstant, StructReaderFactory structReaderFactory) {
-      super(type, idToConstant, structReaderFactory);
+  public static class FallbackReadBuilder extends ReadBuilder {
+    protected FallbackReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
+      super(type, idToConstant);
     }
 
     @Override
@@ -118,25 +112,29 @@ public class GenericParquetReaders {
         types.add(fieldType);
       }
 
-      return structReaderFactory().create(types, newFields, expected);
+      return createStructReader(types, newFields, expected);
     }
   }
 
-  private static class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
+  public static class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
     private final MessageType type;
     private final Map<Integer, ?> idToConstant;
-    private final StructReaderFactory structReaderFactory;
 
-    ReadBuilder(MessageType type, Map<Integer, ?> idToConstant, StructReaderFactory structReaderFactory) {
+    protected ReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
       this.type = type;
       this.idToConstant = idToConstant;
-      this.structReaderFactory = structReaderFactory;
     }
 
     @Override
     public ParquetValueReader<?> message(StructType expected, MessageType message,
                                          List<ParquetValueReader<?>> fieldReaders) {
       return struct(expected, message.asGroupType(), fieldReaders);
+    }
+
+    protected StructReader<?, ?> createStructReader(List<Type> types,
+                                                    List<ParquetValueReader<?>> readers,
+                                                    StructType struct) {
+      return new RecordReader(types, readers, struct);
     }
 
     @Override
@@ -177,7 +175,7 @@ public class GenericParquetReaders {
         }
       }
 
-      return structReaderFactory.create(types, reorderedFields, expected);
+      return createStructReader(types, reorderedFields, expected);
     }
 
     @Override
@@ -307,10 +305,6 @@ public class GenericParquetReaders {
     MessageType type() {
       return type;
     }
-
-    StructReaderFactory structReaderFactory() {
-      return structReaderFactory;
-    }
   }
 
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
@@ -409,12 +403,7 @@ public class GenericParquetReaders {
     }
   }
 
-  public interface StructReaderFactory<T> {
-
-    StructReader<T, T> create(List<Type> types, List<ParquetValueReader<?>> readers, StructType struct);
-  }
-
-  static class RecordReader extends StructReader<GenericRecord, GenericRecord> {
+  static class RecordReader extends StructReader<Record, Record> {
     private final StructType structType;
 
     RecordReader(List<Type> types,
@@ -425,7 +414,7 @@ public class GenericParquetReaders {
     }
 
     @Override
-    protected GenericRecord newStructData(GenericRecord reuse) {
+    protected Record newStructData(Record reuse) {
       if (reuse != null) {
         return reuse;
       } else {
@@ -434,18 +423,17 @@ public class GenericParquetReaders {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    protected Object getField(GenericRecord intermediate, int pos) {
+    protected Object getField(Record intermediate, int pos) {
       return intermediate.get(pos);
     }
 
     @Override
-    protected GenericRecord buildStruct(GenericRecord struct) {
+    protected Record buildStruct(Record struct) {
       return struct;
     }
 
     @Override
-    protected void set(GenericRecord struct, int pos, Object value) {
+    protected void set(Record struct, int pos, Object value) {
       struct.set(pos, value);
     }
   }

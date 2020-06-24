@@ -19,49 +19,32 @@
 
 package org.apache.iceberg.flink.data;
 
-import java.nio.ByteBuffer;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-import java.util.UUID;
 import java.util.function.Supplier;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.RandomUtil;
 
-import static java.time.temporal.ChronoUnit.MICROS;
-
-public class RandomData {
+class RandomData {
   private RandomData() {
   }
 
-  public static List<Row> generate(Schema schema, int numRecords, long seed) {
-    RandomDataGenerator generator = new RandomDataGenerator(seed);
+  static List<Row> generate(Schema schema, int numRecords, long seed) {
+    RandomRowDataGenerator generator = new RandomRowDataGenerator(seed);
     List<Row> rows = Lists.newArrayListWithExpectedSize(numRecords);
     for (int i = 0; i < numRecords; i += 1) {
       rows.add((Row) TypeUtil.visit(schema, generator));
     }
-
     return rows;
   }
 
-  private static class RandomDataGenerator extends TypeUtil.CustomOrderSchemaVisitor<Object> {
-    private final Random random;
+  private static class RandomRowDataGenerator extends RandomGenericData.RandomDataGenerator<Row> {
 
-    private RandomDataGenerator(long seed) {
-      this.random = new Random(seed);
+    private RandomRowDataGenerator(long seed) {
+      super(seed);
     }
 
     @Override
@@ -80,91 +63,5 @@ public class RandomData {
 
       return row;
     }
-
-    @Override
-    public Object field(Types.NestedField field, Supplier<Object> fieldResult) {
-      // return null 5% of the time when the value is optional
-      if (field.isOptional() && random.nextInt(20) == 1) {
-        return null;
-      }
-      return fieldResult.get();
-    }
-
-    @Override
-    public Object list(Types.ListType list, Supplier<Object> elementResult) {
-      int numElements = random.nextInt(20);
-
-      List<Object> result = Lists.newArrayListWithExpectedSize(numElements);
-      for (int i = 0; i < numElements; i += 1) {
-        // return null 5% of the time when the value is optional
-        if (list.isElementOptional() && random.nextInt(20) == 1) {
-          result.add(null);
-        } else {
-          result.add(elementResult.get());
-        }
-      }
-
-      return result;
-    }
-
-    @Override
-    public Object map(Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
-      int numEntries = random.nextInt(20);
-
-      Map<Object, Object> result = Maps.newLinkedHashMap();
-      Supplier<Object> keyFunc;
-      if (map.keyType() == Types.StringType.get()) {
-        keyFunc = () -> keyResult.get().toString();
-      } else {
-        keyFunc = keyResult;
-      }
-
-      Set<Object> keySet = Sets.newHashSet();
-      for (int i = 0; i < numEntries; i += 1) {
-        Object key = keyFunc.get();
-        // ensure no collisions
-        while (keySet.contains(key)) {
-          key = keyFunc.get();
-        }
-
-        keySet.add(key);
-
-        // return null 5% of the time when the value is optional
-        if (map.isValueOptional() && random.nextInt(20) == 1) {
-          result.put(key, null);
-        } else {
-          result.put(key, valueResult.get());
-        }
-      }
-
-      return result;
-    }
-
-    @Override
-    public Object primitive(Type.PrimitiveType primitive) {
-      Object result = RandomUtil.generatePrimitive(primitive, random);
-      switch (primitive.typeId()) {
-        case BINARY:
-          return ByteBuffer.wrap((byte[]) result);
-        case UUID:
-          return UUID.nameUUIDFromBytes((byte[]) result);
-        case DATE:
-          return EPOCH_DAY.plusDays((Integer) result);
-        case TIME:
-          return LocalTime.ofNanoOfDay((long) result * 1000);
-        case TIMESTAMP:
-          Types.TimestampType ts = (Types.TimestampType) primitive;
-          if (ts.shouldAdjustToUTC()) {
-            return EPOCH.plus((long) result, MICROS);
-          } else {
-            return EPOCH.plus((long) result, MICROS).toLocalDateTime();
-          }
-        default:
-          return result;
-      }
-    }
   }
-
-  private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
-  private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 }

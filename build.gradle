@@ -263,6 +263,7 @@ project(':iceberg-flink') {
     }
 
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
   }
 }
 

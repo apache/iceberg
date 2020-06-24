@@ -20,11 +20,14 @@
 package org.apache.iceberg.flink.data;
 
 import java.util.List;
+import java.util.Map;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
+import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
+import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.schema.MessageType;
@@ -35,9 +38,46 @@ public class FlinkParquetReaders {
 
   }
 
+  @SuppressWarnings("unchecked")
   public static ParquetValueReader<Row> buildReader(Schema expectedSchema,
                                                     MessageType fileSchema) {
-    return GenericParquetReaders.buildReader(expectedSchema, fileSchema, ImmutableMap.of(), RowReader::new);
+    if (ParquetSchemaUtil.hasIds(fileSchema)) {
+      return (ParquetValueReader<Row>)
+          TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
+              new ReadBuilder(fileSchema, ImmutableMap.of()));
+    } else {
+      return (ParquetValueReader<Row>)
+          TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
+              new FallbackReadBuilder(fileSchema, ImmutableMap.of()));
+    }
+  }
+
+  private static class FallbackReadBuilder extends GenericParquetReaders.FallbackReadBuilder {
+
+    private FallbackReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
+      super(type, idToConstant);
+    }
+
+    @Override
+    protected ParquetValueReaders.StructReader<?, ?> createStructReader(List<Type> types,
+                                                                        List<ParquetValueReader<?>> readers,
+                                                                        Types.StructType struct) {
+      return new RowReader(types, readers, struct);
+    }
+  }
+
+  private static class ReadBuilder extends GenericParquetReaders.ReadBuilder {
+
+    private ReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
+      super(type, idToConstant);
+    }
+
+    @Override
+    protected ParquetValueReaders.StructReader<?, ?> createStructReader(List<Type> types,
+                                                                        List<ParquetValueReader<?>> readers,
+                                                                        Types.StructType struct) {
+      return new RowReader(types, readers, struct);
+    }
   }
 
   static class RowReader extends ParquetValueReaders.StructReader<Row, Row> {
