@@ -282,7 +282,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         });
   }
 
-  private static String fullTableName(String catalogName, TableIdentifier identifier) {
+  protected static String fullTableName(String catalogName, TableIdentifier identifier) {
     StringBuilder sb = new StringBuilder();
 
     if (catalogName.contains("/") || catalogName.contains(":")) {
