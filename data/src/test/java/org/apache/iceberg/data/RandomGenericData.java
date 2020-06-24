@@ -80,9 +80,14 @@ public class RandomGenericData {
 
   public abstract static class RandomDataGenerator<T> extends TypeUtil.CustomOrderSchemaVisitor<Object> {
     private final Random random;
+    private static final int MAX_ENTRIES = 20;
 
     protected RandomDataGenerator(long seed) {
       this.random = new Random(seed);
+    }
+
+    protected int getMaxEntries() {
+      return MAX_ENTRIES;
     }
 
     @Override
@@ -102,7 +107,7 @@ public class RandomGenericData {
 
     @Override
     public Object list(Types.ListType list, Supplier<Object> elementResult) {
-      int numElements = random.nextInt(20);
+      int numElements = random.nextInt(getMaxEntries());
 
       List<Object> result = Lists.newArrayListWithExpectedSize(numElements);
       for (int i = 0; i < numElements; i += 1) {
@@ -119,7 +124,7 @@ public class RandomGenericData {
 
     @Override
     public Object map(Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
-      int numEntries = random.nextInt(20);
+      int numEntries = random.nextInt(getMaxEntries());
 
       Map<Object, Object> result = Maps.newLinkedHashMap();
       Supplier<Object> keyFunc;
@@ -152,7 +157,7 @@ public class RandomGenericData {
 
     @Override
     public Object primitive(Type.PrimitiveType primitive) {
-      Object result = RandomUtil.generatePrimitive(primitive, random);
+      Object result = randomValue(primitive, random);
       switch (primitive.typeId()) {
         case BINARY:
           return ByteBuffer.wrap((byte[]) result);
@@ -172,6 +177,10 @@ public class RandomGenericData {
         default:
           return result;
       }
+    }
+
+    protected Object randomValue(Type.PrimitiveType primitive, Random rand) {
+      return RandomUtil.generatePrimitive(primitive, rand);
     }
   }
 

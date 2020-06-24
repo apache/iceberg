@@ -20,9 +20,7 @@
 package org.apache.iceberg.spark.data;
 
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -331,42 +329,6 @@ public class RandomData {
     }
   }
 
-  private static Object generateDictionaryEncodablePrimitive(Type.PrimitiveType primitive, Random random) {
-    int value = random.nextInt(3);
-    switch (primitive.typeId()) {
-      case BOOLEAN:
-        return true; // doesn't really matter for booleans since they are not dictionary encoded
-      case INTEGER:
-      case DATE:
-        return value;
-      case FLOAT:
-        return (float) value;
-      case DOUBLE:
-        return (double) value;
-      case LONG:
-      case TIME:
-      case TIMESTAMP:
-        return (long) value;
-      case STRING:
-        return String.valueOf(value);
-      case FIXED:
-        byte[] fixed = new byte[((Types.FixedType) primitive).length()];
-        Arrays.fill(fixed, (byte) value);
-        return fixed;
-      case BINARY:
-        byte[] binary = new byte[value + 1];
-        Arrays.fill(binary, (byte) value);
-        return binary;
-      case DECIMAL:
-        Types.DecimalType type = (Types.DecimalType) primitive;
-        BigInteger unscaled = new BigInteger(String.valueOf(value + 1));
-        return new BigDecimal(unscaled, type.scale());
-      default:
-        throw new IllegalArgumentException(
-            "Cannot generate random value for unknown type: " + primitive);
-    }
-  }
-
   private static class DictionaryEncodedDataGenerator extends RandomDataGenerator {
     private DictionaryEncodedDataGenerator(Schema schema, long seed, float nullPercentage) {
       super(schema, seed, nullPercentage);
@@ -374,7 +336,7 @@ public class RandomData {
 
     @Override
     protected Object randomValue(Type.PrimitiveType primitive, Random random) {
-      return generateDictionaryEncodablePrimitive(primitive, random);
+      return RandomUtil.generateDictionaryEncodablePrimitive(primitive, random);
     }
   }
 
@@ -393,7 +355,7 @@ public class RandomData {
       if (rowCount > dictionaryEncodedRows) {
         return RandomUtil.generatePrimitive(primitive, rand);
       } else {
-        return generateDictionaryEncodablePrimitive(primitive, rand);
+        return RandomUtil.generateDictionaryEncodablePrimitive(primitive, rand);
       }
     }
   }

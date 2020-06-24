@@ -21,6 +21,7 @@ package org.apache.iceberg.util;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.Arrays;
 import java.util.Random;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -141,6 +142,42 @@ public class RandomUtil {
         BigInteger unscaled = randomUnscaled(type.precision(), random);
         return new BigDecimal(unscaled, type.scale());
 
+      default:
+        throw new IllegalArgumentException(
+            "Cannot generate random value for unknown type: " + primitive);
+    }
+  }
+
+  public static Object generateDictionaryEncodablePrimitive(Type.PrimitiveType primitive, Random random) {
+    int value = random.nextInt(3);
+    switch (primitive.typeId()) {
+      case BOOLEAN:
+        return true; // doesn't really matter for booleans since they are not dictionary encoded
+      case INTEGER:
+      case DATE:
+        return value;
+      case FLOAT:
+        return (float) value;
+      case DOUBLE:
+        return (double) value;
+      case LONG:
+      case TIME:
+      case TIMESTAMP:
+        return (long) value;
+      case STRING:
+        return String.valueOf(value);
+      case FIXED:
+        byte[] fixed = new byte[((Types.FixedType) primitive).length()];
+        Arrays.fill(fixed, (byte) value);
+        return fixed;
+      case BINARY:
+        byte[] binary = new byte[value + 1];
+        Arrays.fill(binary, (byte) value);
+        return binary;
+      case DECIMAL:
+        Types.DecimalType type = (Types.DecimalType) primitive;
+        BigInteger unscaled = new BigInteger(String.valueOf(value + 1));
+        return new BigDecimal(unscaled, type.scale());
       default:
         throw new IllegalArgumentException(
             "Cannot generate random value for unknown type: " + primitive);

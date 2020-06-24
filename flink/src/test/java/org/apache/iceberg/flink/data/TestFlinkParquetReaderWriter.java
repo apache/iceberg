@@ -38,6 +38,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestFlinkParquetReaderWriter {
+  private static final int NUM_RECORDS = 1_000_000;
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -69,32 +70,45 @@ public class TestFlinkParquetReaderWriter {
       optional(2, "slide", Types.StringType.get())
   );
 
-  @Test
-  public void testCorrectness() throws IOException {
-    int numRows = 2500;
-    Iterable<Row> records = RandomData.generate(COMPLEX_SCHEMA, numRows, 19981);
-
+  private void testCorrectness(Schema schema, int numRecords, Iterable<Row> iterable) throws IOException {
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
     try (FileAppender<Row> writer = Parquet.write(Files.localOutput(testFile))
-        .schema(COMPLEX_SCHEMA)
+        .schema(schema)
         .createWriterFunc(FlinkParquetWriters::buildWriter)
         .build()) {
-      writer.addAll(records);
+      writer.addAll(iterable);
     }
 
     try (CloseableIterable<Row> reader = Parquet.read(Files.localInput(testFile))
-        .project(COMPLEX_SCHEMA)
-        .createReaderFunc(type -> FlinkParquetReaders.buildReader(COMPLEX_SCHEMA, type))
+        .project(schema)
+        .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
         .build()) {
-      Iterator<Row> expected = records.iterator();
+      Iterator<Row> expected = iterable.iterator();
       Iterator<Row> rows = reader.iterator();
-      for (int i = 0; i < numRows; i += 1) {
+      for (int i = 0; i < numRecords; i += 1) {
         Assert.assertTrue("Should have expected number of rows", rows.hasNext());
         Assert.assertEquals(expected.next(), rows.next());
       }
       Assert.assertFalse("Should not have extra rows", rows.hasNext());
     }
+  }
+
+  @Test
+  public void testNormalRowData() throws IOException {
+    testCorrectness(COMPLEX_SCHEMA, NUM_RECORDS, RandomData.generate(COMPLEX_SCHEMA, NUM_RECORDS, 19981));
+  }
+
+  @Test
+  public void testDictionaryEncodedData() throws IOException {
+    testCorrectness(COMPLEX_SCHEMA, NUM_RECORDS,
+        RandomData.generateDictionaryEncodableData(COMPLEX_SCHEMA, NUM_RECORDS, 21124));
+  }
+
+  @Test
+  public void testFallbackData() throws IOException {
+    testCorrectness(COMPLEX_SCHEMA, NUM_RECORDS,
+        RandomData.generateFallbackData(COMPLEX_SCHEMA, NUM_RECORDS, 21124, NUM_RECORDS / 20));
   }
 }
