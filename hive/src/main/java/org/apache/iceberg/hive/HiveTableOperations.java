@@ -307,7 +307,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
   static void validateTableIsIceberg(Table table, String fullName) {
     String tableType = table.getParameters().get(TABLE_TYPE_PROP);
-    NoSuchIcebergTableException.check(tableType != null && !tableType.equalsIgnoreCase(ICEBERG_TABLE_TYPE_VALUE),
+    NoSuchIcebergTableException.check(tableType != null && tableType.equalsIgnoreCase(ICEBERG_TABLE_TYPE_VALUE),
         "Not an iceberg table: %s (type=%s)", fullName, tableType);
     NoSuchIcebergTableException.check(table.getParameters().get(METADATA_LOCATION_PROP) != null,
         "Not an iceberg table: %s missing %s", fullName, METADATA_LOCATION_PROP);
