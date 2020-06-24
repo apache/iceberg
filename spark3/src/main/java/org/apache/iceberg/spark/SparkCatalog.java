@@ -21,6 +21,7 @@ package org.apache.iceberg.spark;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.Schema;
@@ -28,18 +29,23 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.StagedSparkTable;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.NamespaceChange;
 import org.apache.spark.sql.connector.catalog.StagedTable;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -50,13 +56,28 @@ import org.apache.spark.sql.connector.catalog.TableChange.SetProperty;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.glassfish.jersey.internal.guava.Sets;
+import org.sparkproject.guava.collect.Maps;
 
 /**
- * A Spark TableCatalog implementation that wraps Iceberg's {@link Catalog} interface.
+ * A Spark TableCatalog implementation that wraps an Iceberg {@link Catalog}.
+ * <p>
+ * This supports the following catalog configuration options:
+ * <ul>
+ *   <li><tt>type</tt> - catalog type, "hive" or "hadoop"</li>
+ *   <li><tt>uri</tt> - the Hive Metastore URI (Hive catalog only)</li>
+ *   <li><tt>warehouse</tt> - the warehouse path (Hadoop catalog only)</li>
+ *   <li><tt>namespace</tt> - a namespace to use as the default</li>
+ * </ul>
+ * <p>
+ * To use a custom catalog that is not a Hive or Hadoop catalog, extend this class and override
+ * {@link #buildIcebergCatalog(String, CaseInsensitiveStringMap)}.
  */
-public class SparkCatalog implements StagingTableCatalog {
+public class SparkCatalog implements StagingTableCatalog, org.apache.spark.sql.connector.catalog.SupportsNamespaces {
   private String catalogName = null;
   private Catalog icebergCatalog = null;
+  private SupportsNamespaces asNamespaceCatalog = null;
+  private String[] defaultNamespace = null;
 
   /**
    * Build an Iceberg {@link Catalog} to be used by this Spark catalog adapter.
@@ -91,12 +112,6 @@ public class SparkCatalog implements StagingTableCatalog {
    */
   protected TableIdentifier buildIdentifier(Identifier identifier) {
     return TableIdentifier.of(Namespace.of(identifier.namespace()), identifier.name());
-  }
-
-  @Override
-  public Identifier[] listTables(String[] namespace) {
-    // TODO: handle namespaces
-    return new Identifier[0];
   }
 
   @Override
@@ -229,12 +244,133 @@ public class SparkCatalog implements StagingTableCatalog {
   }
 
   @Override
+  public Identifier[] listTables(String[] namespace) {
+    return icebergCatalog.listTables(Namespace.of(namespace)).stream()
+        .map(ident -> Identifier.of(ident.namespace().levels(), ident.name()))
+        .toArray(Identifier[]::new);
+  }
+
+  @Override
+  public String[] defaultNamespace() {
+    if (defaultNamespace != null) {
+      return defaultNamespace;
+    }
+    return new String[0];
+  }
+
+  @Override
+  public String[][] listNamespaces() {
+    if (asNamespaceCatalog != null) {
+      return asNamespaceCatalog.listNamespaces().stream()
+          .map(Namespace::levels)
+          .toArray(String[][]::new);
+    } else {
+      return new String[0][];
+    }
+  }
+
+  @Override
+  public String[][] listNamespaces(String[] namespace) throws NoSuchNamespaceException {
+    if (asNamespaceCatalog != null) {
+      try {
+        return asNamespaceCatalog.listNamespaces(Namespace.of(namespace)).stream()
+            .map(Namespace::levels)
+            .toArray(String[][]::new);
+      } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
+        throw new NoSuchNamespaceException(namespace);
+      }
+    }
+
+    throw new NoSuchNamespaceException(namespace);
+  }
+
+  @Override
+  public Map<String, String> loadNamespaceMetadata(String[] namespace) throws NoSuchNamespaceException {
+    if (asNamespaceCatalog != null) {
+      try {
+        return asNamespaceCatalog.loadNamespaceMetadata(Namespace.of(namespace));
+      } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
+        throw new NoSuchNamespaceException(namespace);
+      }
+    }
+
+    throw new NoSuchNamespaceException(namespace);
+  }
+
+  @Override
+  public void createNamespace(String[] namespace, Map<String, String> metadata) throws NamespaceAlreadyExistsException {
+    if (asNamespaceCatalog != null) {
+      try {
+        asNamespaceCatalog.createNamespace(Namespace.of(namespace), metadata);
+      } catch (AlreadyExistsException e) {
+        throw new NamespaceAlreadyExistsException(namespace);
+      }
+    }
+
+    throw new UnsupportedOperationException("Namespaces are not supported by catalog: " + catalogName);
+  }
+
+  @Override
+  public void alterNamespace(String[] namespace, NamespaceChange... changes) throws NoSuchNamespaceException {
+    if (asNamespaceCatalog != null) {
+      Map<String, String> updates = Maps.newHashMap();
+      Set<String> removals = Sets.newHashSet();
+      for (NamespaceChange change : changes) {
+        if (change instanceof NamespaceChange.SetProperty) {
+          NamespaceChange.SetProperty set = (NamespaceChange.SetProperty) change;
+          updates.put(set.property(), set.value());
+        } else if (change instanceof NamespaceChange.RemoveProperty) {
+          removals.add(((NamespaceChange.RemoveProperty) change).property());
+        } else {
+          throw new UnsupportedOperationException("Cannot apply unknown namespace change: " + change);
+        }
+      }
+
+      try {
+        if (!updates.isEmpty()) {
+          asNamespaceCatalog.setProperties(Namespace.of(namespace), updates);
+        }
+
+        if (!removals.isEmpty()) {
+          asNamespaceCatalog.removeProperties(Namespace.of(namespace), removals);
+        }
+
+      } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
+        throw new NoSuchNamespaceException(namespace);
+      }
+    }
+
+    throw new NoSuchNamespaceException(namespace);
+  }
+
+  @Override
+  public boolean dropNamespace(String[] namespace) throws NoSuchNamespaceException {
+    if (asNamespaceCatalog != null) {
+      try {
+        return asNamespaceCatalog.dropNamespace(Namespace.of(namespace));
+      } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
+        throw new NoSuchNamespaceException(namespace);
+      }
+    }
+
+    return false;
+  }
+
+  @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
     boolean cacheEnabled = Boolean.parseBoolean(options.getOrDefault("cache-enabled", "true"));
     Catalog catalog = buildIcebergCatalog(name, options);
 
     this.catalogName = name;
     this.icebergCatalog = cacheEnabled ? CachingCatalog.wrap(catalog) : catalog;
+    if (catalog instanceof SupportsNamespaces) {
+      this.asNamespaceCatalog = (SupportsNamespaces) catalog;
+      if (options.containsKey("namespace")) {
+        this.defaultNamespace = Splitter.on('.')
+            .splitToList(options.get("namespace"))
+            .toArray(new String[0]);
+      }
+    }
   }
 
   @Override
