@@ -42,21 +42,20 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkTableUtil;
+import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
-import org.apache.spark.sql.SparkSession;
 import org.junit.Assert;
 import org.junit.Test;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public abstract class TestIcebergSourceTablesBase {
+public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
-  protected static SparkSession spark;
   private static final Schema SCHEMA = new Schema(
       optional(1, "id", Types.IntegerType.get()),
       optional(2, "data", Types.StringType.get())

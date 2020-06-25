@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
@@ -42,6 +43,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.expressions.Expression;
 import org.apache.spark.sql.connector.expressions.Expressions;
@@ -50,13 +52,36 @@ import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.sparkproject.guava.collect.ImmutableMap;
 
 public class Spark3Util {
 
-  private static final ImmutableSet<String> LOCALITY_WHITELIST_FS = ImmutableSet.of("hdfs");
+  private static final Set<String> LOCALITY_WHITELIST_FS = ImmutableSet.of("hdfs");
+  private static final Set<String> RESERVED_PROPERTIES = ImmutableSet.of(
+      TableCatalog.PROP_LOCATION, TableCatalog.PROP_PROVIDER);
   private static final Joiner DOT = Joiner.on(".");
 
   private Spark3Util() {
+  }
+
+  public static Map<String, String> rebuildCreateProperties(Map<String, String> createProperties) {
+    ImmutableMap.Builder<String, String> tableProperties = ImmutableMap.builder();
+    createProperties.entrySet().stream()
+        .filter(entry -> !RESERVED_PROPERTIES.contains(entry.getKey()))
+        .forEach(tableProperties::put);
+
+    String provider = createProperties.get(TableCatalog.PROP_PROVIDER);
+    if ("parquet".equalsIgnoreCase(provider)) {
+      tableProperties.put(TableProperties.DEFAULT_FILE_FORMAT, "parquet");
+    } else if ("avro".equalsIgnoreCase(provider)) {
+      tableProperties.put(TableProperties.DEFAULT_FILE_FORMAT, "avro");
+    } else if ("orc".equalsIgnoreCase(provider)) {
+      tableProperties.put(TableProperties.DEFAULT_FILE_FORMAT, "orc");
+    } else if (provider != null && !"iceberg".equalsIgnoreCase(provider)) {
+      throw new IllegalArgumentException("Unsupported format in USING: " + provider);
+    }
+
+    return tableProperties.build();
   }
 
   /**

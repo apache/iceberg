@@ -20,71 +20,45 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
-import java.util.HashMap;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.HiveClientPool;
-import org.apache.iceberg.hive.TestHiveMetastore;
-import org.apache.spark.sql.SparkSession;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
-
 public class TestIcebergSourceHiveTables extends TestIcebergSourceTablesBase {
 
-  private static TestHiveMetastore metastore;
   private static HiveClientPool clients;
-  private static HiveConf hiveConf;
-  private static HiveCatalog catalog;
   private static TableIdentifier currentIdentifier;
 
   @BeforeClass
-  public static void startMetastoreAndSpark() throws Exception {
-    TestIcebergSourceHiveTables.metastore = new TestHiveMetastore();
-    metastore.start();
-    TestIcebergSourceHiveTables.hiveConf = metastore.hiveConf();
-    String dbPath = metastore.getDatabasePath("db");
-    Database db = new Database("db", "desc", dbPath, new HashMap<>());
-    TestIcebergSourceHiveTables.clients = new HiveClientPool(1, hiveConf);
+  public static void setupCatalog() throws Exception {
+    Database db = new Database("db", "desc", dbPath("db"), Maps.newHashMap());
+    TestIcebergSourceHiveTables.clients = new HiveClientPool(1, spark.sessionState().newHadoopConf());
     clients.run(client -> {
       client.createDatabase(db);
       return null;
     });
-
-    TestIcebergSourceHiveTables.spark = SparkSession.builder()
-        .master("local[2]")
-        .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
-        .getOrCreate();
-
-    TestIcebergSourceHiveTables.catalog = new HiveCatalog(hiveConf);
   }
 
   @AfterClass
-  public static void stopMetastoreAndSpark() {
-    catalog.close();
-    TestIcebergSourceHiveTables.catalog = null;
+  public static void cleanupCatalog() {
     clients.close();
     TestIcebergSourceHiveTables.clients = null;
-    metastore.stop();
-    TestIcebergSourceHiveTables.metastore = null;
-    spark.stop();
-    TestIcebergSourceHiveTables.spark = null;
   }
 
   @After
   public void dropTable() throws IOException {
     Table table = catalog.loadTable(currentIdentifier);
     Path tablePath = new Path(table.location());
-    FileSystem fs = tablePath.getFileSystem(hiveConf);
+    FileSystem fs = tablePath.getFileSystem(spark.sparkContext().hadoopConfiguration());
     fs.delete(tablePath, true);
     catalog.dropTable(currentIdentifier, false);
   }
