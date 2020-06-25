@@ -19,12 +19,11 @@
 
 package org.apache.iceberg.orc;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -213,10 +212,10 @@ public final class ORCSchemaUtil {
         "Error in ORC file, children fields and names do not match.");
 
     List<Types.NestedField> icebergFields = Lists.newArrayListWithExpectedSize(children.size());
-    for (int i = 0; i < children.size(); i++) {
-      final TypeDescription child = children.get(i);
-      final String childName = childrenNames.get(i);
-      icebergID(children.get(i)).flatMap(id -> convertOrcToIceberg(child, childName, id)).ifPresent(icebergFields::add);
+    OrcToIcebergVisitor schemaConverter = new OrcToIcebergVisitor(icebergToOrcMapping("root", orcSchema));
+
+    for (TypeDescription child : orcSchema.getChildren()) {
+      OrcToIcebergVisitor.visit((Type) null, child, schemaConverter).ifPresent(icebergFields::add);
     }
 
     if (icebergFields.size() == 0) {
@@ -406,130 +405,149 @@ public final class ORCSchemaUtil {
         Types.NestedField.optional(icebergID, name, type);
   }
 
-  private static Optional<Types.NestedField> convertOrcToIceberg(TypeDescription orcType, String name, int icebergID) {
-    final boolean isRequired = isRequired(orcType);
-    Types.NestedField foundField = null;
+  private static class OrcToIcebergVisitor extends OrcSchemaWithTypeVisitor<Optional<Types.NestedField>> {
 
-    switch (orcType.getCategory()) {
-      case BOOLEAN:
-        foundField = getIcebergType(icebergID, name, Types.BooleanType.get(), isRequired);
-        break;
-      case BYTE:
-      case SHORT:
-      case INT:
-        foundField = getIcebergType(icebergID, name, Types.IntegerType.get(), isRequired);
-        break;
-      case LONG:
-        String longAttributeValue = orcType.getAttributeValue(ICEBERG_LONG_TYPE_ATTRIBUTE);
-        LongType longType = longAttributeValue == null ? LongType.LONG : LongType.valueOf(longAttributeValue);
-        switch (longType) {
-          case TIME:
-            foundField = getIcebergType(icebergID, name, Types.TimeType.get(), isRequired);
-            break;
-          case LONG:
-            foundField = getIcebergType(icebergID, name, Types.LongType.get(), isRequired);
-            break;
-          default:
-            throw new IllegalStateException("Invalid Long type found in ORC type attribute");
-        }
-        break;
-      case FLOAT:
-        foundField = getIcebergType(icebergID, name, Types.FloatType.get(), isRequired);
-        break;
-      case DOUBLE:
-        foundField = getIcebergType(icebergID, name, Types.DoubleType.get(), isRequired);
-        break;
-      case STRING:
-      case CHAR:
-      case VARCHAR:
-        foundField = getIcebergType(icebergID, name, Types.StringType.get(), isRequired);
-        break;
-      case BINARY:
-        String binaryAttributeValue = orcType.getAttributeValue(ICEBERG_BINARY_TYPE_ATTRIBUTE);
-        BinaryType binaryType = binaryAttributeValue == null ? BinaryType.BINARY :
-            BinaryType.valueOf(binaryAttributeValue);
-        switch (binaryType) {
-          case UUID:
-            foundField = getIcebergType(icebergID, name, Types.UUIDType.get(), isRequired);
-            break;
-          case FIXED:
-            int fixedLength = Integer.parseInt(orcType.getAttributeValue(ICEBERG_FIELD_LENGTH));
-            foundField = getIcebergType(icebergID, name, Types.FixedType.ofLength(fixedLength), isRequired);
-            break;
-          case BINARY:
-            foundField = getIcebergType(icebergID, name, Types.BinaryType.get(), isRequired);
-            break;
-          default:
-            throw new IllegalStateException("Invalid Binary type found in ORC type attribute");
-        }
-        break;
-      case DATE:
-        foundField = getIcebergType(icebergID, name, Types.DateType.get(), isRequired);
-        break;
-      case TIMESTAMP:
-        foundField = getIcebergType(icebergID, name, Types.TimestampType.withoutZone(), isRequired);
-        break;
-      case TIMESTAMP_INSTANT:
-        foundField = getIcebergType(icebergID, name, Types.TimestampType.withZone(), isRequired);
-        break;
-      case DECIMAL:
-        foundField = getIcebergType(icebergID, name, Types.DecimalType.of(orcType.getPrecision(), orcType.getScale()),
-            isRequired);
-        break;
-      case STRUCT:
-        List<String> fieldNames = orcType.getFieldNames();
-        List<TypeDescription> fieldTypes = orcType.getChildren();
-        List<Types.NestedField> fields = new ArrayList<>(fieldNames.size());
-        for (int c = 0; c < fieldNames.size(); ++c) {
-          String childName = fieldNames.get(c);
-          TypeDescription type = fieldTypes.get(c);
-          Optional<Integer> childId = icebergID(type);
-          childId.flatMap(integer -> convertOrcToIceberg(type, childName, integer)).ifPresent(fields::add);
-        }
+    private final Map<Integer, OrcField> icebergToOrcMapping;
 
-        if (fields.size() > 0) {
-          foundField = getIcebergType(icebergID, name, Types.StructType.of(fields), isRequired);
-        }
-        break;
-      case LIST:
-        TypeDescription elementType = orcType.getChildren().get(0);
-        Optional<Integer> elementId = icebergID(elementType);
-        if (elementId.isPresent()) {
-          Optional<Types.NestedField> element = convertOrcToIceberg(elementType, "element", elementId.get());
-          if (element.isPresent()) {
-            Types.NestedField foundElement = element.get();
-            Types.ListType listTypeWithElem = isRequired(elementType) ?
-                Types.ListType.ofRequired(foundElement.fieldId(), foundElement.type()) :
-                Types.ListType.ofOptional(foundElement.fieldId(), foundElement.type());
-            foundField = getIcebergType(icebergID, name, listTypeWithElem, isRequired);
-          }
-        }
-        break;
-      case MAP: {
-        TypeDescription keyType = orcType.getChildren().get(0);
-        Optional<Integer> keyId = icebergID(keyType);
-        TypeDescription valueType = orcType.getChildren().get(1);
-        Optional<Integer> valueId = icebergID(valueType);
-        if (keyId.isPresent() && valueId.isPresent()) {
-          Optional<Types.NestedField> key = convertOrcToIceberg(keyType, "key", keyId.get());
-          Optional<Types.NestedField> value = convertOrcToIceberg(valueType, "value", valueId.get());
-
-          if (key.isPresent() && value.isPresent()) {
-            Types.NestedField foundKey = key.get();
-            Types.NestedField foundValue = value.get();
-            Types.MapType mapTypeWithKV = isRequired(valueType) ?
-                Types.MapType.ofRequired(foundKey.fieldId(), foundValue.fieldId(), foundKey.type(), foundValue.type()) :
-                Types.MapType.ofOptional(foundKey.fieldId(), foundValue.fieldId(), foundKey.type(), foundValue.type());
-            foundField = getIcebergType(icebergID, name, mapTypeWithKV, isRequired);
-          }
-        }
-        break;
-      }
-      default:
-        // We don't have an answer for union types.
-        throw new IllegalArgumentException("Can't handle " + orcType);
+    OrcToIcebergVisitor(Map<Integer, OrcField> icebergToOrcMapping) {
+      this.icebergToOrcMapping = icebergToOrcMapping;
     }
-    return Optional.ofNullable(foundField);
+
+    @Override
+    public Optional<Types.NestedField> record(Types.StructType iStruct, TypeDescription record, List<String> names,
+                                              List<Optional<Types.NestedField>> fields) {
+      boolean isRequired = isRequired(record);
+      Optional<Integer> icebergIdOpt = icebergID(record);
+      if (!icebergIdOpt.isPresent() || fields.size() == 0) {
+        return Optional.empty();
+      }
+
+      return Optional.of(getIcebergType(icebergIdOpt.get(), icebergToOrcMapping.get(icebergIdOpt.get()).name(),
+          Types.StructType.of(fields.stream().filter(Optional::isPresent).map(Optional::get)
+                  .collect(Collectors.toList())), isRequired));
+    }
+
+    @Override
+    public Optional<Types.NestedField> list(Types.ListType iList, TypeDescription array,
+                                            Optional<Types.NestedField> element) {
+      boolean isRequired = isRequired(array);
+      Optional<Integer> icebergIdOpt = icebergID(array);
+
+      if (!icebergIdOpt.isPresent() || !element.isPresent()) {
+        return Optional.empty();
+      }
+
+      Types.NestedField foundElement = element.get();
+      Types.ListType listTypeWithElem = isRequired(array.getChildren().get(0)) ?
+          Types.ListType.ofRequired(foundElement.fieldId(), foundElement.type()) :
+          Types.ListType.ofOptional(foundElement.fieldId(), foundElement.type());
+      return Optional.of(getIcebergType(icebergIdOpt.get(),
+          icebergToOrcMapping.get(icebergIdOpt.get()).name(), listTypeWithElem, isRequired));
+    }
+
+    @Override
+    public Optional<Types.NestedField> map(Types.MapType iMap, TypeDescription map, Optional<Types.NestedField> key,
+                                           Optional<Types.NestedField> value) {
+      boolean isRequired = isRequired(map);
+      Optional<Integer> icebergIdOpt = icebergID(map);
+
+      if (!icebergIdOpt.isPresent() || !key.isPresent() || !value.isPresent()) {
+        return Optional.empty();
+      }
+
+      Types.NestedField foundKey = key.get();
+      Types.NestedField foundValue = value.get();
+      Types.MapType mapTypeWithKV = isRequired(map.getChildren().get(1)) ?
+          Types.MapType.ofRequired(foundKey.fieldId(), foundValue.fieldId(), foundKey.type(), foundValue.type()) :
+          Types.MapType.ofOptional(foundKey.fieldId(), foundValue.fieldId(), foundKey.type(), foundValue.type());
+
+      return Optional.of(getIcebergType(icebergIdOpt.get(),
+          icebergToOrcMapping.get(icebergIdOpt.get()).name(), mapTypeWithKV, isRequired));
+    }
+
+    @Override
+    public Optional<Types.NestedField> primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
+      boolean isRequired = isRequired(primitive);
+      Optional<Integer> icebergIdOpt = icebergID(primitive);
+
+      if (!icebergIdOpt.isPresent()) {
+        return Optional.empty();
+      }
+
+      final Types.NestedField foundField;
+      int icebergID = icebergIdOpt.get();
+      String name = icebergToOrcMapping.get(icebergID).name();
+      switch (primitive.getCategory()) {
+        case BOOLEAN:
+          foundField = getIcebergType(icebergID, name, Types.BooleanType.get(), isRequired);
+          break;
+        case BYTE:
+        case SHORT:
+        case INT:
+          foundField = getIcebergType(icebergID, name, Types.IntegerType.get(), isRequired);
+          break;
+        case LONG:
+          String longAttributeValue = primitive.getAttributeValue(ICEBERG_LONG_TYPE_ATTRIBUTE);
+          LongType longType = longAttributeValue == null ? LongType.LONG : LongType.valueOf(longAttributeValue);
+          switch (longType) {
+            case TIME:
+              foundField = getIcebergType(icebergID, name, Types.TimeType.get(), isRequired);
+              break;
+            case LONG:
+              foundField = getIcebergType(icebergID, name, Types.LongType.get(), isRequired);
+              break;
+            default:
+              throw new IllegalStateException("Invalid Long type found in ORC type attribute");
+          }
+          break;
+        case FLOAT:
+          foundField = getIcebergType(icebergID, name, Types.FloatType.get(), isRequired);
+          break;
+        case DOUBLE:
+          foundField = getIcebergType(icebergID, name, Types.DoubleType.get(), isRequired);
+          break;
+        case STRING:
+        case CHAR:
+        case VARCHAR:
+          foundField = getIcebergType(icebergID, name, Types.StringType.get(), isRequired);
+          break;
+        case BINARY:
+          String binaryAttributeValue = primitive.getAttributeValue(ICEBERG_BINARY_TYPE_ATTRIBUTE);
+          BinaryType binaryType = binaryAttributeValue == null ? BinaryType.BINARY :
+              BinaryType.valueOf(binaryAttributeValue);
+          switch (binaryType) {
+            case UUID:
+              foundField = getIcebergType(icebergID, name, Types.UUIDType.get(), isRequired);
+              break;
+            case FIXED:
+              int fixedLength = Integer.parseInt(primitive.getAttributeValue(ICEBERG_FIELD_LENGTH));
+              foundField = getIcebergType(icebergID, name, Types.FixedType.ofLength(fixedLength), isRequired);
+              break;
+            case BINARY:
+              foundField = getIcebergType(icebergID, name, Types.BinaryType.get(), isRequired);
+              break;
+            default:
+              throw new IllegalStateException("Invalid Binary type found in ORC type attribute");
+          }
+          break;
+        case DATE:
+          foundField = getIcebergType(icebergID, name, Types.DateType.get(), isRequired);
+          break;
+        case TIMESTAMP:
+          foundField = getIcebergType(icebergID, name, Types.TimestampType.withoutZone(), isRequired);
+          break;
+        case TIMESTAMP_INSTANT:
+          foundField = getIcebergType(icebergID, name, Types.TimestampType.withZone(), isRequired);
+          break;
+        case DECIMAL:
+          foundField = getIcebergType(icebergID, name,
+              Types.DecimalType.of(primitive.getPrecision(), primitive.getScale()), isRequired);
+          break;
+        default:
+          throw new IllegalArgumentException("Can't handle " + primitive);
+      }
+      return Optional.of(foundField);
+    }
   }
 
   /**
