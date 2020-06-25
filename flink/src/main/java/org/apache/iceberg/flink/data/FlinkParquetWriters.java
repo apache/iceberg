@@ -22,7 +22,6 @@ package org.apache.iceberg.flink.data;
 import java.util.List;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
-import org.apache.iceberg.parquet.ParquetTypeVisitor;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
 import org.apache.parquet.schema.MessageType;
@@ -31,21 +30,8 @@ public class FlinkParquetWriters {
   private FlinkParquetWriters() {
   }
 
-  @SuppressWarnings("unchecked")
   public static <T> ParquetValueWriter<T> buildWriter(MessageType type) {
-    return (ParquetValueWriter<T>) ParquetTypeVisitor.visit(type, new WriteBuilder(type));
-  }
-
-  private static class WriteBuilder extends GenericParquetWriter.WriteBuilder {
-
-    private WriteBuilder(MessageType type) {
-      super(type);
-    }
-
-    @Override
-    protected ParquetValueWriters.StructWriter<Row> createStructWriter(List<ParquetValueWriter<?>> writers) {
-      return new RowWriter(writers);
-    }
+    return GenericParquetWriter.buildWriter(type, RowWriter::new);
   }
 
   private static class RowWriter extends ParquetValueWriters.StructWriter<Row> {
