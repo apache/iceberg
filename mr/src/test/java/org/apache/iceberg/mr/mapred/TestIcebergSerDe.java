@@ -19,63 +19,62 @@
 
 package org.apache.iceberg.mr.mapred;
 
-import java.sql.Date;
-import java.sql.Timestamp;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.util.Arrays;
-import java.util.List;
+import java.io.File;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Properties;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.serde2.SerDeException;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.mr.InputFormatConfig;
+import org.apache.iceberg.mr.mapred.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.types.Types;
+import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.junit.Assert.assertArrayEquals;
 
 public class TestIcebergSerDe {
 
+  private static final Schema schema = new Schema(required(1, "string_field", Types.StringType.get()));
+
+  @Rule
+  public TemporaryFolder tmp = new TemporaryFolder();
+
   @Test
-  public void testDeserializeWritable() {
-    Schema schema = new Schema(required(1, "string_type", Types.StringType.get()),
-        required(2, "int_type", Types.IntegerType.get()),
-        required(3, "long_type", Types.LongType.get()),
-        required(4, "boolean_type", Types.BooleanType.get()),
-        required(5, "float_type", Types.FloatType.get()),
-        required(6, "double_type", Types.DoubleType.get()),
-        required(7, "binary_type", Types.BinaryType.get()),
-        required(8, "date_type", Types.DateType.get()),
-        required(9, "timestamp_with_zone_type", Types.TimestampType.withZone()),
-        required(10, "timestamp_without_zone_type", Types.TimestampType.withoutZone()),
-        required(11, "map_type", Types.MapType
-            .ofRequired(12, 13, Types.IntegerType.get(), Types.StringType.get())),
-        required(14, "list_type", Types.ListType.ofRequired(15, Types.LongType.get()))
-    );
-    LocalDate localDate = LocalDate.of(2018, 11, 10);
-    LocalDateTime localDateTime = LocalDateTime.of(2018, 11, 10, 11, 55);
-    OffsetDateTime offsetDateTime = OffsetDateTime.of(localDateTime, ZoneOffset.UTC);
+  public void testInitialize() throws IOException, SerDeException {
+    File location = tmp.newFolder();
+    Assert.assertTrue(location.delete());
 
-    Object[] input = Lists.newArrayList("foo", 5, 6L, true, 1.02F, 1.4D, new byte[] { (byte) 0xe0},
-        localDate, offsetDateTime, localDateTime, ImmutableMap.of(22, "bar"),
-        Arrays.asList(1000L, 2000L, 3000L)).toArray();
+    Configuration conf = new Configuration();
 
-    //Inputs and outputs differ slightly because of Date/Timestamp conversions for Hive
-    Object[] expected = Lists.newArrayList("foo", 5, 6L, true, 1.02F, 1.4D, new byte[] { (byte) 0xe0},
-        Date.valueOf(localDate), Timestamp.valueOf(offsetDateTime.toLocalDateTime()), Timestamp.valueOf(localDateTime),
-        ImmutableMap.of(22, "bar"), Arrays.asList(1000L, 2000L, 3000L)).toArray();
+    Properties properties = new Properties();
+    properties.setProperty(InputFormatConfig.CATALOG_NAME, InputFormatConfig.HADOOP_TABLES);
+    properties.setProperty(InputFormatConfig.TABLE_LOCATION, location.toString());
 
-    Record record = TestHelpers.createCustomRecord(schema, input);
-    IcebergWritable writable = new IcebergWritable();
-    writable.wrapRecord(record);
-    writable.wrapSchema(schema);
+    HadoopTables tables = new HadoopTables(conf);
+    tables.create(schema, PartitionSpec.unpartitioned(), Collections.emptyMap(), location.toString());
 
     IcebergSerDe serDe = new IcebergSerDe();
-    List<Object> deserialized = (List<Object>) serDe.deserialize(writable);
-    assertArrayEquals("Test values from an Iceberg Record deserialize into expected Java objects.",
-        expected, deserialized.toArray());
+    serDe.initialize(conf, properties);
+
+    Assert.assertEquals(IcebergObjectInspector.create(schema), serDe.getObjectInspector());
   }
+
+  @Test
+  public void testDeserialize() {
+    IcebergSerDe serDe = new IcebergSerDe();
+
+    Record record = RandomGenericData.generate(schema, 1, 0).get(0);
+    IcebergWritable writable = new IcebergWritable(record, schema);
+
+    Assert.assertEquals(record, serDe.deserialize(writable));
+  }
+
 }
