@@ -176,7 +176,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private boolean reuseContainers;
     private boolean caseSensitive;
     private InputFormatConfig.InMemoryDataModel inMemoryDataModel;
-    private Map<String, Integer> namesToPos;
     private Iterator<FileScanTask> tasks;
     private T currentRow;
     private CloseableIterator<T> currentIterator;
@@ -191,12 +190,11 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       this.tableSchema = SchemaParser.fromJson(conf.get(InputFormatConfig.TABLE_SCHEMA));
       String readSchemaStr = conf.get(InputFormatConfig.READ_SCHEMA);
       this.expectedSchema = readSchemaStr != null ? SchemaParser.fromJson(readSchemaStr) : tableSchema;
-      this.namesToPos = buildNameToPos(expectedSchema);
       this.reuseContainers = conf.getBoolean(InputFormatConfig.REUSE_CONTAINERS, false);
       this.caseSensitive = conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, true);
       this.inMemoryDataModel = conf.getEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL,
               InputFormatConfig.InMemoryDataModel.GENERIC);
-      this.currentIterator = open(tasks.next());
+      this.currentIterator = open(tasks.next(), expectedSchema).iterator();
     }
 
     @Override
@@ -239,35 +237,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     @Override
     public void close() throws IOException {
       currentIterator.close();
-    }
-
-    private static Map<String, Integer> buildNameToPos(Schema expectedSchema) {
-      Map<String, Integer> nameToPos = Maps.newHashMap();
-      for (int pos = 0; pos < expectedSchema.asStruct().fields().size(); pos++) {
-        Types.NestedField field = expectedSchema.asStruct().fields().get(pos);
-        nameToPos.put(field.name(), pos);
-      }
-      return nameToPos;
-    }
-
-    private CloseableIterator<T> open(FileScanTask currentTask) {
-      DataFile file = currentTask.file();
-      // schema of rows returned by readers
-      PartitionSpec spec = currentTask.spec();
-      Set<Integer> idColumns = Sets.intersection(spec.identitySourceIds(), TypeUtil.getProjectedIds(expectedSchema));
-      boolean hasJoinedPartitionColumns = !idColumns.isEmpty();
-
-      CloseableIterable<T> iterable;
-      if (hasJoinedPartitionColumns) {
-        Schema readDataSchema = TypeUtil.selectNot(expectedSchema, idColumns);
-        Schema identityPartitionSchema = TypeUtil.select(expectedSchema, idColumns);
-        iterable = CloseableIterable.transform(open(currentTask, readDataSchema),
-            row -> withIdentityPartitionColumns(row, identityPartitionSchema, spec, file.partition()));
-      } else {
-        iterable = open(currentTask, expectedSchema);
-      }
-
-      return iterable.iterator();
     }
 
     private CloseableIterable<T> open(FileScanTask currentTask, Schema readSchema) {
