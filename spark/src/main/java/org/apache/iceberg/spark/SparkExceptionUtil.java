@@ -26,36 +26,37 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.spark.sql.AnalysisException;
 
-public class ExceptionUtil {
+public class SparkExceptionUtil {
 
-  private ExceptionUtil() {
+  private SparkExceptionUtil() {
   }
 
   /**
-   * Converts Checked Exceptions to Unchecked Exceptions.
+   * Converts checked exceptions to unchecked exceptions.
    *
-   * @param exception - a checked exception object which is to be converted to its unchecked equivalent.
-   * @return - unchecked exception.
+   * @param cause a checked exception object which is to be converted to its unchecked equivalent.
+   * @param message exception message as a format string
+   * @param args format specifiers
+   * @return unchecked exception.
    */
-  public static RuntimeException toUncheckedException(Throwable exception) {
+  public static RuntimeException toUncheckedException(Throwable cause, String message, Object... args) {
+    if (cause instanceof RuntimeException) {
+      return (RuntimeException) cause;
 
-    if (exception instanceof RuntimeException) {
-      return (RuntimeException) exception;
+    } else if (cause instanceof org.apache.spark.sql.catalyst.analysis.NoSuchDatabaseException) {
+      return new NoSuchNamespaceException(cause, message, args);
 
-    } else if (exception instanceof org.apache.spark.sql.catalyst.analysis.NoSuchDatabaseException) {
-      return new NoSuchNamespaceException(exception, exception.getMessage());
+    } else if (cause instanceof org.apache.spark.sql.catalyst.analysis.NoSuchTableException) {
+      return new NoSuchTableException(cause, message, args);
 
-    } else if (exception instanceof org.apache.spark.sql.catalyst.analysis.NoSuchTableException) {
-      return new NoSuchTableException(exception, exception.getMessage());
+    } else if (cause instanceof AnalysisException) {
+      return new ValidationException(cause, message, args);
 
-    } else if (exception instanceof AnalysisException) {
-      return new ValidationException(exception, exception.getMessage());
-
-    } else if (exception instanceof IOException) {
-      return new RuntimeIOException((IOException) exception);
+    } else if (cause instanceof IOException) {
+      return new RuntimeIOException((IOException) cause, message, args);
 
     } else {
-      return new RuntimeException(exception);
+      return new RuntimeException(String.format(message, args), cause);
     }
   }
 }
