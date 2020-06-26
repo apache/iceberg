@@ -47,7 +47,8 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "com.google.errorprone:error_prone_annotations": {
@@ -108,13 +109,15 @@
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-arrow": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-bundled-guava": {
@@ -128,7 +131,8 @@
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-core": {
@@ -138,35 +142,46 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-data": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-hive": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-orc": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-parquet": {
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-spark": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark2"
+            ]
+        },
+        "org.apache.iceberg:iceberg-spark2": {
             "project": true
         },
         "org.apache.orc:orc-core": {
@@ -306,7 +321,8 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "com.google.errorprone:error_prone_annotations": {
@@ -367,13 +383,15 @@
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-arrow": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-bundled-guava": {
@@ -387,7 +405,8 @@
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-core": {
@@ -397,35 +416,46 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-data": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-hive": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-orc": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-parquet": {
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-spark": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark2"
+            ]
+        },
+        "org.apache.iceberg:iceberg-spark2": {
             "project": true
         },
         "org.apache.orc:orc-core": {
@@ -565,7 +595,8 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "com.google.errorprone:error_prone_annotations": {
@@ -626,13 +657,15 @@
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-arrow": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-bundled-guava": {
@@ -646,7 +679,8 @@
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-core": {
@@ -656,35 +690,46 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-data": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-hive": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-orc": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-parquet": {
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-spark": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark2"
+            ]
+        },
+        "org.apache.iceberg:iceberg-spark2": {
             "project": true
         },
         "org.apache.orc:orc-core": {
@@ -824,7 +869,8 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "com.google.errorprone:error_prone_annotations": {
@@ -885,13 +931,15 @@
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-arrow": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-bundled-guava": {
@@ -905,7 +953,8 @@
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-core": {
@@ -915,35 +964,46 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-data": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-hive": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-orc": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-parquet": {
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-spark": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark2"
+            ]
+        },
+        "org.apache.iceberg:iceberg-spark2": {
             "project": true
         },
         "org.apache.orc:orc-core": {
@@ -1083,7 +1143,8 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "com.google.errorprone:error_prone_annotations": {
@@ -1144,13 +1205,15 @@
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-arrow": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-bundled-guava": {
@@ -1164,7 +1227,8 @@
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-core": {
@@ -1174,35 +1238,46 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-data": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-hive": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-orc": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-parquet": {
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-spark": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark2"
+            ]
+        },
+        "org.apache.iceberg:iceberg-spark2": {
             "project": true
         },
         "org.apache.orc:orc-core": {
@@ -1342,7 +1417,8 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "com.google.errorprone:error_prone_annotations": {
@@ -1406,13 +1482,15 @@
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-arrow": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-bundled-guava": {
@@ -1426,7 +1504,8 @@
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-core": {
@@ -1436,35 +1515,46 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-data": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-hive": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-orc": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-parquet": {
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-spark": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark2"
+            ]
+        },
+        "org.apache.iceberg:iceberg-spark2": {
             "project": true
         },
         "org.apache.orc:orc-core": {
@@ -1623,7 +1713,8 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "com.google.errorprone:error_prone_annotations": {
@@ -1687,13 +1778,15 @@
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-arrow": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-bundled-guava": {
@@ -1707,7 +1800,8 @@
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-core": {
@@ -1717,35 +1811,46 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-data": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-hive": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-orc": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-parquet": {
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-spark": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark2"
+            ]
+        },
+        "org.apache.iceberg:iceberg-spark2": {
             "project": true
         },
         "org.apache.orc:orc-core": {
@@ -1897,7 +2002,8 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "com.google.errorprone:error_prone_annotations": {
@@ -1961,13 +2067,15 @@
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-arrow": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-bundled-guava": {
@@ -1981,7 +2089,8 @@
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-core": {
@@ -1991,35 +2100,46 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-data": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-hive": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-orc": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-parquet": {
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-spark": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark2"
+            ]
+        },
+        "org.apache.iceberg:iceberg-spark2": {
             "project": true
         },
         "org.apache.orc:orc-core": {
@@ -2178,7 +2298,8 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "com.google.errorprone:error_prone_annotations": {
@@ -2242,13 +2363,15 @@
                 "org.apache.iceberg:iceberg-data",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-arrow": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-bundled-guava": {
@@ -2262,7 +2385,8 @@
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-core",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-core": {
@@ -2272,35 +2396,46 @@
                 "org.apache.iceberg:iceberg-hive",
                 "org.apache.iceberg:iceberg-orc",
                 "org.apache.iceberg:iceberg-parquet",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-data": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-hive": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-orc": {
             "project": true,
             "transitive": [
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-parquet": {
             "project": true,
             "transitive": [
                 "org.apache.iceberg:iceberg-arrow",
-                "org.apache.iceberg:iceberg-spark"
+                "org.apache.iceberg:iceberg-spark",
+                "org.apache.iceberg:iceberg-spark2"
             ]
         },
         "org.apache.iceberg:iceberg-spark": {
+            "project": true,
+            "transitive": [
+                "org.apache.iceberg:iceberg-spark2"
+            ]
+        },
+        "org.apache.iceberg:iceberg-spark2": {
             "project": true
         },
         "org.apache.orc:orc-core": {

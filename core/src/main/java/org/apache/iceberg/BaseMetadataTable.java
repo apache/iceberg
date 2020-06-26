@@ -128,6 +128,11 @@ abstract class BaseMetadataTable implements Table {
   }
 
   @Override
+  public RowDelta newRowDelta() {
+    throw new UnsupportedOperationException("Cannot remove or replace rows in a metadata table");
+  }
+
+  @Override
   public ReplacePartitions newReplacePartitions() {
     throw new UnsupportedOperationException("Cannot replace partitions in a metadata table");
   }

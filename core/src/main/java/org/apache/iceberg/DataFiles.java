@@ -37,11 +37,11 @@ public class DataFiles {
 
   private DataFiles() {}
 
-  private static PartitionData newPartitionData(PartitionSpec spec) {
+  static PartitionData newPartitionData(PartitionSpec spec) {
     return new PartitionData(spec.partitionType());
   }
 
-  private static PartitionData copyPartitionData(PartitionSpec spec, StructLike partitionData, PartitionData reuse) {
+  static PartitionData copyPartitionData(PartitionSpec spec, StructLike partitionData, PartitionData reuse) {
     PartitionData data = reuse;
     if (data == null) {
       data = newPartitionData(spec);
@@ -56,7 +56,7 @@ public class DataFiles {
     return data;
   }
 
-  private static PartitionData fillFromPath(PartitionSpec spec, String partitionPath, PartitionData reuse) {
+  static PartitionData fillFromPath(PartitionSpec spec, String partitionPath, PartitionData reuse) {
     PartitionData data = reuse;
     if (data == null) {
       data = newPartitionData(spec);

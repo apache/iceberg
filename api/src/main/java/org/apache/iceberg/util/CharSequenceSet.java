@@ -23,6 +23,7 @@ import java.io.Serializable;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -30,6 +31,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 public class CharSequenceSet implements Set<CharSequence>, Serializable {
   public static Set<CharSequence> of(Iterable<CharSequence> charSequences) {
     return new CharSequenceSet(charSequences);
+  }
+
+  public static Set<CharSequence> empty() {
+    return new CharSequenceSet(ImmutableList.of());
   }
 
   private final Set<CharSequenceWrapper> wrapperSet;

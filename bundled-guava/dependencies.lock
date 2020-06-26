@@ -1,0 +1,331 @@
+{
+    "compile": {
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1"
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.25"
+        }
+    },
+    "compileClasspath": {
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1"
+        },
+        "com.google.guava:failureaccess": {
+            "locked": "1.0.1",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "com.google.guava:guava": {
+            "locked": "28.0-jre"
+        },
+        "com.google.guava:listenablefuture": {
+            "locked": "9999.0-empty-to-avoid-conflict-with-guava",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "org.checkerframework:checker-qual": {
+            "locked": "2.8.1",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "org.codehaus.mojo:animal-sniffer-annotations": {
+            "locked": "1.17",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.25"
+        }
+    },
+    "compileOnly": {
+        "com.google.guava:failureaccess": {
+            "locked": "1.0.1",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "com.google.guava:guava": {
+            "locked": "28.0-jre"
+        },
+        "com.google.guava:listenablefuture": {
+            "locked": "9999.0-empty-to-avoid-conflict-with-guava",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "org.checkerframework:checker-qual": {
+            "locked": "2.8.1",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "org.codehaus.mojo:animal-sniffer-annotations": {
+            "locked": "1.17",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        }
+    },
+    "default": {
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1"
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.25"
+        }
+    },
+    "runtime": {
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1"
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.25"
+        }
+    },
+    "runtimeClasspath": {
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1"
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.25"
+        }
+    },
+    "testCompile": {
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1"
+        },
+        "com.google.guava:failureaccess": {
+            "locked": "1.0.1",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "com.google.guava:guava": {
+            "locked": "28.0-jre"
+        },
+        "com.google.guava:listenablefuture": {
+            "locked": "9999.0-empty-to-avoid-conflict-with-guava",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "junit:junit": {
+            "locked": "4.12"
+        },
+        "org.checkerframework:checker-qual": {
+            "locked": "2.8.1",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "org.codehaus.mojo:animal-sniffer-annotations": {
+            "locked": "1.17",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "org.hamcrest:hamcrest-core": {
+            "locked": "1.3",
+            "transitive": [
+                "junit:junit",
+                "org.mockito:mockito-core"
+            ]
+        },
+        "org.mockito:mockito-core": {
+            "locked": "1.10.19"
+        },
+        "org.objenesis:objenesis": {
+            "locked": "2.1",
+            "transitive": [
+                "org.mockito:mockito-core"
+            ]
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.25",
+            "transitive": [
+                "org.slf4j:slf4j-simple"
+            ]
+        },
+        "org.slf4j:slf4j-simple": {
+            "locked": "1.7.25"
+        }
+    },
+    "testCompileClasspath": {
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1"
+        },
+        "com.google.guava:failureaccess": {
+            "locked": "1.0.1",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "com.google.guava:guava": {
+            "locked": "28.0-jre"
+        },
+        "com.google.guava:listenablefuture": {
+            "locked": "9999.0-empty-to-avoid-conflict-with-guava",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "junit:junit": {
+            "locked": "4.12"
+        },
+        "org.checkerframework:checker-qual": {
+            "locked": "2.8.1",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "org.codehaus.mojo:animal-sniffer-annotations": {
+            "locked": "1.17",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "org.hamcrest:hamcrest-core": {
+            "locked": "1.3",
+            "transitive": [
+                "junit:junit"
+            ]
+        },
+        "org.mockito:mockito-core": {
+            "locked": "1.10.19"
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.25",
+            "transitive": [
+                "org.slf4j:slf4j-simple"
+            ]
+        },
+        "org.slf4j:slf4j-simple": {
+            "locked": "1.7.25"
+        }
+    },
+    "testRuntime": {
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1"
+        },
+        "com.google.guava:failureaccess": {
+            "locked": "1.0.1",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "com.google.guava:guava": {
+            "locked": "28.0-jre"
+        },
+        "com.google.guava:listenablefuture": {
+            "locked": "9999.0-empty-to-avoid-conflict-with-guava",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "junit:junit": {
+            "locked": "4.12"
+        },
+        "org.checkerframework:checker-qual": {
+            "locked": "2.8.1",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "org.codehaus.mojo:animal-sniffer-annotations": {
+            "locked": "1.17",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "org.hamcrest:hamcrest-core": {
+            "locked": "1.3",
+            "transitive": [
+                "junit:junit",
+                "org.mockito:mockito-core"
+            ]
+        },
+        "org.mockito:mockito-core": {
+            "locked": "1.10.19"
+        },
+        "org.objenesis:objenesis": {
+            "locked": "2.1",
+            "transitive": [
+                "org.mockito:mockito-core"
+            ]
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.25",
+            "transitive": [
+                "org.slf4j:slf4j-simple"
+            ]
+        },
+        "org.slf4j:slf4j-simple": {
+            "locked": "1.7.25"
+        }
+    },
+    "testRuntimeClasspath": {
+        "com.github.stephenc.findbugs:findbugs-annotations": {
+            "locked": "1.3.9-1"
+        },
+        "com.google.guava:failureaccess": {
+            "locked": "1.0.1",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "com.google.guava:guava": {
+            "locked": "28.0-jre"
+        },
+        "com.google.guava:listenablefuture": {
+            "locked": "9999.0-empty-to-avoid-conflict-with-guava",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "junit:junit": {
+            "locked": "4.12"
+        },
+        "org.checkerframework:checker-qual": {
+            "locked": "2.8.1",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "org.codehaus.mojo:animal-sniffer-annotations": {
+            "locked": "1.17",
+            "transitive": [
+                "com.google.guava:guava"
+            ]
+        },
+        "org.hamcrest:hamcrest-core": {
+            "locked": "1.3",
+            "transitive": [
+                "junit:junit",
+                "org.mockito:mockito-core"
+            ]
+        },
+        "org.mockito:mockito-core": {
+            "locked": "1.10.19"
+        },
+        "org.objenesis:objenesis": {
+            "locked": "2.1",
+            "transitive": [
+                "org.mockito:mockito-core"
+            ]
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.25",
+            "transitive": [
+                "org.slf4j:slf4j-simple"
+            ]
+        },
+        "org.slf4j:slf4j-simple": {
+            "locked": "1.7.25"
+        }
+    }
+}

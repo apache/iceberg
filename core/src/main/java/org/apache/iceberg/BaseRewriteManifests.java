@@ -235,7 +235,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
               keptManifests.add(manifest);
             } else {
               rewrittenManifests.add(manifest);
-              try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())
+              try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())
                   .select(Arrays.asList("*"))) {
                 reader.liveEntries().forEach(
                     entry -> appendEntry(entry, clusterByFunc.apply(entry.file()), manifest.partitionSpecId())

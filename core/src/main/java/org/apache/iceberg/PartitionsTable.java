@@ -65,7 +65,7 @@ public class PartitionsTable extends BaseMetadataTable {
 
   private DataTask task(TableScan scan) {
     return StaticDataTask.of(
-        ops.current().file(),
+        ops.io().newInputFile(ops.current().metadataFileLocation()),
         partitions(table, scan.snapshot().snapshotId()),
         PartitionsTable::convertPartition);
   }

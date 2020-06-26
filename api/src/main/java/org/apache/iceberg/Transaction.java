@@ -99,6 +99,13 @@ public interface Transaction {
   OverwriteFiles newOverwrite();
 
   /**
+   * Create a new {@link RowDelta row-level delta API} to remove or replace rows in existing data files.
+   *
+   * @return a new {@link RowDelta}
+   */
+  RowDelta newRowDelta();
+
+  /**
    * Not recommended: Create a new {@link ReplacePartitions replace partitions API} to dynamically
    * overwrite partitions in the table with new data.
    * <p>

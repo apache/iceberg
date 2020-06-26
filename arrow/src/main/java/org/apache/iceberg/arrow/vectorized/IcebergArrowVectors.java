@@ -21,8 +21,8 @@ package org.apache.iceberg.arrow.vectorized;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.DecimalVector;
-import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.holders.NullableVarCharHolder;
 
 /**
  * The general way of getting a value at an index in the Arrow vector
@@ -65,37 +65,8 @@ public class IcebergArrowVectors {
   }
 
   /**
-   * Extension of Arrow's @{@link VarBinaryVector}. The whole reason of having this implementation is to override the
-   * expensive {@link VarBinaryVector#isSet(int)} method.
-   */
-  public static class VarBinaryArrowVector extends VarBinaryVector {
-    private NullabilityHolder nullabilityHolder;
-
-    public VarBinaryArrowVector(
-        String name,
-        BufferAllocator allocator) {
-      super(name, allocator);
-    }
-
-    /**
-     * Same as {@link #isNull(int)}.
-     *
-     * @param index position of element
-     * @return 1 if element at given index is not null, 0 otherwise
-     */
-    @Override
-    public int isSet(int index) {
-      return nullabilityHolder.isNullAt(index) ^ 1;
-    }
-
-    public void setNullabilityHolder(NullabilityHolder nullabilityHolder) {
-      this.nullabilityHolder = nullabilityHolder;
-    }
-  }
-
-  /**
    * Extension of Arrow's @{@link VarCharVector}. The reason of having this implementation is to override the expensive
-   * {@link VarCharVector#isSet(int)} method.
+   * {@link VarCharVector#isSet(int)} method called by {@link VarCharVector#get(int, NullableVarCharHolder)}
    */
   public static class VarcharArrowVector extends VarCharVector {
 

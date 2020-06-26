@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.arrow.vectorized.parquet;
 
-import io.netty.buffer.ArrowBuf;
 import java.nio.ByteBuffer;
 import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.BitVectorHelper;
@@ -53,15 +52,14 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
         case RLE:
           for (int i = 0; i < numValues; i++) {
             intVector.set(idx, currentValue);
-            nullabilityHolder.setNotNull(idx);
+            setNotNull(intVector, nullabilityHolder, idx);
             idx++;
           }
           break;
         case PACKED:
           for (int i = 0; i < numValues; i++) {
-            intVector.set(idx, packedValuesBuffer[packedValuesBufferIdx]);
-            nullabilityHolder.setNotNull(idx);
-            packedValuesBufferIdx++;
+            intVector.set(idx, packedValuesBuffer[packedValuesBufferIdx++]);
+            setNotNull(intVector, nullabilityHolder, idx);
             idx++;
           }
           break;
@@ -72,7 +70,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
   }
 
   void readBatchOfDictionaryEncodedLongs(FieldVector vector, int startOffset, int numValuesToRead, Dictionary dict,
-                                         NullabilityHolder nullabilityHolder) {
+                                         NullabilityHolder nullabilityHolder, int typeWidth) {
     int left = numValuesToRead;
     int idx = startOffset;
     while (left > 0) {
@@ -83,24 +81,16 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
       switch (mode) {
         case RLE:
           for (int i = 0; i < numValues; i++) {
-            vector.getDataBuffer().setLong(idx, dict.decodeToLong(currentValue));
-            if (setArrowValidityVector) {
-              BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
-            } else {
-              nullabilityHolder.setNotNull(idx);
-            }
+            vector.getDataBuffer().setLong(idx * typeWidth, dict.decodeToLong(currentValue));
+            setNotNull(vector, nullabilityHolder, idx);
             idx++;
           }
           break;
         case PACKED:
           for (int i = 0; i < numValues; i++) {
             vector.getDataBuffer()
-                .setLong(idx, dict.decodeToLong(packedValuesBuffer[packedValuesBufferIdx++]));
-            if (setArrowValidityVector) {
-              BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
-            } else {
-              nullabilityHolder.setNotNull(idx);
-            }
+                .setLong(idx * typeWidth, dict.decodeToLong(packedValuesBuffer[packedValuesBufferIdx++]));
+            setNotNull(vector, nullabilityHolder, idx);
             idx++;
           }
           break;
@@ -110,8 +100,9 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedTimestampMillis(FieldVector vector, int startOffset, int numValuesToRead,
-                                                   Dictionary dict, NullabilityHolder nullabilityHolder) {
+  void readBatchOfDictionaryEncodedTimestampMillis(
+      FieldVector vector, int startOffset, int numValuesToRead,
+      Dictionary dict, NullabilityHolder nullabilityHolder, int typeWidth) {
     int left = numValuesToRead;
     int idx = startOffset;
     while (left > 0) {
@@ -122,24 +113,16 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
       switch (mode) {
         case RLE:
           for (int i = 0; i < numValues; i++) {
-            vector.getDataBuffer().setLong(idx, dict.decodeToLong(currentValue) * 1000);
-            if (setArrowValidityVector) {
-              BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
-            } else {
-              nullabilityHolder.setNotNull(idx);
-            }
+            vector.getDataBuffer().setLong(idx * typeWidth, dict.decodeToLong(currentValue) * 1000);
+            setNotNull(vector, nullabilityHolder, idx);
             idx++;
           }
           break;
         case PACKED:
           for (int i = 0; i < numValues; i++) {
             vector.getDataBuffer()
-                .setLong(idx, dict.decodeToLong(packedValuesBuffer[packedValuesBufferIdx++]) * 1000);
-            if (setArrowValidityVector) {
-              BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
-            } else {
-              nullabilityHolder.setNotNull(idx);
-            }
+                .setLong(idx * typeWidth, dict.decodeToLong(packedValuesBuffer[packedValuesBufferIdx++]) * 1000);
+            setNotNull(vector, nullabilityHolder, idx);
             idx++;
           }
           break;
@@ -150,7 +133,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
   }
 
   void readBatchOfDictionaryEncodedIntegers(FieldVector vector, int startOffset, int numValuesToRead, Dictionary dict,
-                                            NullabilityHolder nullabilityHolder) {
+                                            NullabilityHolder nullabilityHolder, int typeWidth) {
     int left = numValuesToRead;
     int idx = startOffset;
     while (left > 0) {
@@ -158,27 +141,19 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
         this.readNextGroup();
       }
       int num = Math.min(left, this.currentCount);
-      ArrowBuf dataBuffer = vector.getDataBuffer();
       switch (mode) {
         case RLE:
           for (int i = 0; i < num; i++) {
-            dataBuffer.setInt(idx, dict.decodeToInt(currentValue));
-            if (setArrowValidityVector) {
-              BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
-            } else {
-              nullabilityHolder.setNotNull(idx);
-            }
+            vector.getDataBuffer().setInt(idx * typeWidth, dict.decodeToInt(currentValue));
+            setNotNull(vector, nullabilityHolder, idx);
             idx++;
           }
           break;
         case PACKED:
           for (int i = 0; i < num; i++) {
-            dataBuffer.setInt(idx, dict.decodeToInt(packedValuesBuffer[packedValuesBufferIdx++]));
-            if (setArrowValidityVector) {
-              BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
-            } else {
-              nullabilityHolder.setNotNull(idx);
-            }
+            vector.getDataBuffer()
+                .setInt(idx * typeWidth, dict.decodeToInt(packedValuesBuffer[packedValuesBufferIdx++]));
+            setNotNull(vector, nullabilityHolder, idx);
             idx++;
           }
           break;
@@ -189,7 +164,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
   }
 
   void readBatchOfDictionaryEncodedFloats(FieldVector vector, int startOffset, int numValuesToRead, Dictionary dict,
-                                          NullabilityHolder nullabilityHolder) {
+                                          NullabilityHolder nullabilityHolder, int typeWidth) {
     int left = numValuesToRead;
     int idx = startOffset;
     while (left > 0) {
@@ -200,23 +175,16 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
       switch (mode) {
         case RLE:
           for (int i = 0; i < num; i++) {
-            vector.getDataBuffer().setFloat(idx, dict.decodeToFloat(currentValue));
-            if (setArrowValidityVector) {
-              BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
-            } else {
-              nullabilityHolder.setNotNull(idx);
-            }
+            vector.getDataBuffer().setFloat(idx * typeWidth, dict.decodeToFloat(currentValue));
+            setNotNull(vector, nullabilityHolder, idx);
             idx++;
           }
           break;
         case PACKED:
           for (int i = 0; i < num; i++) {
-            vector.getDataBuffer().setFloat(idx, dict.decodeToFloat(packedValuesBuffer[packedValuesBufferIdx++]));
-            if (setArrowValidityVector) {
-              BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
-            } else {
-              nullabilityHolder.setNotNull(idx);
-            }
+            vector.getDataBuffer()
+                .setFloat(idx * typeWidth, dict.decodeToFloat(packedValuesBuffer[packedValuesBufferIdx++]));
+            setNotNull(vector, nullabilityHolder, idx);
             idx++;
           }
           break;
@@ -227,7 +195,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
   }
 
   void readBatchOfDictionaryEncodedDoubles(FieldVector vector, int startOffset, int numValuesToRead, Dictionary dict,
-                                           NullabilityHolder nullabilityHolder) {
+                                           NullabilityHolder nullabilityHolder, int typeWidth) {
     int left = numValuesToRead;
     int idx = startOffset;
     while (left > 0) {
@@ -238,24 +206,16 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
       switch (mode) {
         case RLE:
           for (int i = 0; i < num; i++) {
-            vector.getDataBuffer().setDouble(idx, dict.decodeToDouble(currentValue));
-            nullabilityHolder.setNotNull(idx);
-            if (setArrowValidityVector) {
-              BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
-            } else {
-              nullabilityHolder.setNotNull(idx);
-            }
+            vector.getDataBuffer().setDouble(idx * typeWidth, dict.decodeToDouble(currentValue));
+            setNotNull(vector, nullabilityHolder, idx);
             idx++;
           }
           break;
         case PACKED:
           for (int i = 0; i < num; i++) {
-            vector.getDataBuffer().setDouble(idx, dict.decodeToDouble(packedValuesBuffer[packedValuesBufferIdx++]));
-            if (setArrowValidityVector) {
-              BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
-            } else {
-              nullabilityHolder.setNotNull(idx);
-            }
+            vector.getDataBuffer()
+                .setDouble(idx * typeWidth, dict.decodeToDouble(packedValuesBuffer[packedValuesBufferIdx++]));
+            setNotNull(vector, nullabilityHolder, idx);
             idx++;
           }
           break;
@@ -279,33 +239,36 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
         case RLE:
           for (int i = 0; i < num; i++) {
             ByteBuffer buffer = dict.decodeToBinary(currentValue).toByteBuffer();
-            vector.getDataBuffer().setBytes(idx * typeWidth, buffer.array(),
-                buffer.position() + buffer.arrayOffset(), buffer.limit() - buffer.position());
-            if (setArrowValidityVector) {
-              BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
-            } else {
-              nullabilityHolder.setNotNull(idx);
-            }
+            setFixedWidthBinary(vector, typeWidth, nullabilityHolder, idx, buffer);
             idx++;
           }
           break;
         case PACKED:
           for (int i = 0; i < num; i++) {
             ByteBuffer buffer = dict.decodeToBinary(packedValuesBuffer[packedValuesBufferIdx++]).toByteBuffer();
-            vector.getDataBuffer()
-                .setBytes(idx * typeWidth, buffer.array(),
-                    buffer.position() + buffer.arrayOffset(), buffer.limit() - buffer.position());
-            if (setArrowValidityVector) {
-              BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
-            } else {
-              nullabilityHolder.setNotNull(idx);
-            }
+            setFixedWidthBinary(vector, typeWidth, nullabilityHolder, idx, buffer);
             idx++;
           }
           break;
       }
       left -= num;
       currentCount -= num;
+    }
+  }
+
+  private void setFixedWidthBinary(
+      FieldVector vector, int typeWidth, NullabilityHolder nullabilityHolder,
+      int idx, ByteBuffer buffer) {
+    vector.getDataBuffer()
+        .setBytes(idx * typeWidth, buffer.array(),
+            buffer.position() + buffer.arrayOffset(), buffer.limit() - buffer.position());
+    setNotNull(vector, nullabilityHolder, idx);
+  }
+
+  private void setNotNull(FieldVector vector, NullabilityHolder nullabilityHolder, int idx) {
+    nullabilityHolder.setNotNull(idx);
+    if (setArrowValidityVector) {
+      BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
     }
   }
 
@@ -405,7 +368,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
             ((DecimalVector) vector).set(
                 idx,
                 typeWidth == Integer.BYTES ?
-                    dict.decodeToInt(currentValue)
+                    dict.decodeToInt(packedValuesBuffer[packedValuesBufferIdx++])
                     : dict.decodeToLong(packedValuesBuffer[packedValuesBufferIdx++]));
             nullabilityHolder.setNotNull(idx);
             idx++;
