@@ -25,6 +25,7 @@ import org.apache.orc.TypeDescription;
 import org.junit.Test;
 
 import static org.apache.iceberg.AssertHelpers.assertThrows;
+import static org.apache.iceberg.orc.ORCSchemaUtil.ICEBERG_ID_ATTRIBUTE;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.junit.Assert.assertEquals;
@@ -208,5 +209,40 @@ public class TestORCSchemaUtil {
         IllegalArgumentException.class, "Can not promote", () -> {
           ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema);
         });
+  }
+
+  @Test
+  public void testSkipNonIcebergColumns() {
+    TypeDescription schema = TypeDescription.createStruct();
+    TypeDescription intCol = TypeDescription.createInt();
+    intCol.setAttribute(ICEBERG_ID_ATTRIBUTE, "1");
+    TypeDescription listCol = TypeDescription
+        .createList(TypeDescription.createMap(TypeDescription.createString(), TypeDescription.createDate()));
+    listCol.setAttribute(ICEBERG_ID_ATTRIBUTE, "2");
+    schema.addField("intCol", intCol);
+    schema.addField("listCol", listCol);
+    TypeDescription stringKey = TypeDescription.createString();
+    stringKey.setAttribute(ICEBERG_ID_ATTRIBUTE, "3");
+    TypeDescription booleanVal = TypeDescription.createBoolean();
+    booleanVal.setAttribute(ICEBERG_ID_ATTRIBUTE, "4");
+    TypeDescription mapCol = TypeDescription.createMap(stringKey, booleanVal);
+    mapCol.setAttribute(ICEBERG_ID_ATTRIBUTE, "5");
+    schema.addField("mapCol", mapCol);
+
+    Schema icebergSchema = ORCSchemaUtil.convert(schema);
+    assertEquals(2, icebergSchema.asStruct().fields().size());
+
+    TypeDescription structCol = TypeDescription.createStruct();
+    structCol.setAttribute(ICEBERG_ID_ATTRIBUTE, "7");
+    TypeDescription binaryCol = TypeDescription.createBinary();
+    TypeDescription doubleCol = TypeDescription.createDouble();
+    doubleCol.setAttribute(ICEBERG_ID_ATTRIBUTE, "6");
+    structCol.addField("binaryCol", binaryCol);
+    structCol.addField("doubleCol", doubleCol);
+    schema.addField("structCol", structCol);
+
+    Schema icebergSchema2 = ORCSchemaUtil.convert(schema);
+    assertEquals(3, icebergSchema2.asStruct().fields().size());
+    assertEquals(1, icebergSchema2.findField("structCol").type().asStructType().fields().size());
   }
 }

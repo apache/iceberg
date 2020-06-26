@@ -65,8 +65,8 @@ public final class ORCSchemaUtil {
     }
   }
 
-  private static final String ICEBERG_ID_ATTRIBUTE = "iceberg.id";
-  private static final String ICEBERG_REQUIRED_ATTRIBUTE = "iceberg.required";
+  static final String ICEBERG_ID_ATTRIBUTE = "iceberg.id";
+  static final String ICEBERG_REQUIRED_ATTRIBUTE = "iceberg.required";
 
   /**
    * The name of the ORC {@link TypeDescription} attribute indicating the Iceberg type corresponding to an
@@ -213,7 +213,6 @@ public final class ORCSchemaUtil {
 
     List<Types.NestedField> icebergFields = Lists.newArrayListWithExpectedSize(children.size());
     OrcToIcebergVisitor schemaConverter = new OrcToIcebergVisitor(icebergToOrcMapping("root", orcSchema));
-
     for (TypeDescription child : orcSchema.getChildren()) {
       OrcToIcebergVisitor.visit((Type) null, child, schemaConverter).ifPresent(icebergFields::add);
     }
@@ -384,12 +383,6 @@ public final class ORCSchemaUtil {
         .map(Integer::parseInt);
   }
 
-  static int fieldId(TypeDescription orcType) {
-    String idStr = orcType.getAttributeValue(ICEBERG_ID_ATTRIBUTE);
-    Preconditions.checkNotNull(idStr, "Missing expected '%s' property", ICEBERG_ID_ATTRIBUTE);
-    return Integer.parseInt(idStr);
-  }
-
   private static boolean isRequired(TypeDescription orcType) {
     String isRequiredStr = orcType.getAttributeValue(ICEBERG_REQUIRED_ATTRIBUTE);
     if (isRequiredStr != null) {
@@ -422,9 +415,10 @@ public final class ORCSchemaUtil {
         return Optional.empty();
       }
 
+      Types.StructType structType = Types.StructType.of(
+          fields.stream().filter(Optional::isPresent).map(Optional::get).collect(Collectors.toList()));
       return Optional.of(getIcebergType(icebergIdOpt.get(), icebergToOrcMapping.get(icebergIdOpt.get()).name(),
-          Types.StructType.of(fields.stream().filter(Optional::isPresent).map(Optional::get)
-                  .collect(Collectors.toList())), isRequired));
+          structType, isRequired));
     }
 
     @Override
@@ -461,8 +455,8 @@ public final class ORCSchemaUtil {
           Types.MapType.ofRequired(foundKey.fieldId(), foundValue.fieldId(), foundKey.type(), foundValue.type()) :
           Types.MapType.ofOptional(foundKey.fieldId(), foundValue.fieldId(), foundKey.type(), foundValue.type());
 
-      return Optional.of(getIcebergType(icebergIdOpt.get(),
-          icebergToOrcMapping.get(icebergIdOpt.get()).name(), mapTypeWithKV, isRequired));
+      return Optional.of(getIcebergType(icebergIdOpt.get(), icebergToOrcMapping.get(icebergIdOpt.get()).name(),
+          mapTypeWithKV, isRequired));
     }
 
     @Override
