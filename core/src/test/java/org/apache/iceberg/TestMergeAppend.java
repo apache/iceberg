@@ -40,16 +40,13 @@ public class TestMergeAppend extends TableTestBase {
   @Parameterized.Parameters
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] { 1, new int[]{ 1000, 1001, 1002, 1003, 1000, 1001 } },
-        new Object[] { 2, new int[]{ 1001, 1002, 1003, 1000, 1001, 1002 } },
+        new Object[] { 1 },
+        new Object[] { 2 },
     };
   }
 
-  private int[] expectedFieldIds;
-
-  public TestMergeAppend(int formatVersion, int[] expectedFieldIds) {
+  public TestMergeAppend(int formatVersion) {
     super(formatVersion);
-    this.expectedFieldIds = expectedFieldIds;
   }
 
   @Test
@@ -670,13 +667,11 @@ public class TestMergeAppend extends TableTestBase {
 
   @Test
   public void testUpdatePartitionSpecFieldIdsWithSpecEvolution() {
-    TableMetadata base = readMetadata();
-
-    table.updateSpec().clear()
+    table.updateSpec()
+        .removeField("data_bucket")
         .addBucketField("id", 16)
         .addIdentityField("data")
         .addBucketField("data", 4)
-        .addBucketField("data", 16, "data_partition") // reuse field id although different target name
         .commit();
 
     List<PartitionSpec> partitionSpecs = table.ops().current().specs();
@@ -694,15 +689,15 @@ public class TestMergeAppend extends TableTestBase {
 
     structType = partitionSpec.partitionType();
     fields = structType.fields();
-    Assert.assertEquals(4, fields.size());
-    Assert.assertEquals("id_bucket", fields.get(0).name());
-    Assert.assertEquals(expectedFieldIds[0], fields.get(0).fieldId());
-    Assert.assertEquals("data", fields.get(1).name());
-    Assert.assertEquals(expectedFieldIds[1], fields.get(1).fieldId());
-    Assert.assertEquals("data_bucket", fields.get(2).name());
-    Assert.assertEquals(expectedFieldIds[2], fields.get(2).fieldId());
-    Assert.assertEquals("data_partition", fields.get(3).name());
-    Assert.assertEquals(expectedFieldIds[3], fields.get(3).fieldId());
+
+    int offset = 2 - formatVersion; // 1 for V1 and 0 for V2
+    Assert.assertEquals("field size should be 4 in V1 and 3 in V2", 3 + offset, fields.size());
+    V1Assert.assertEquals("removed field should be soft deleted in V1",
+        "1000: 1000__[removed]: optional string", fields.get(0).toString());
+
+    Assert.assertEquals("id bucket field", "1001: id_bucket: optional int", fields.get(0 + offset).toString());
+    Assert.assertEquals("data identity field", "1002: data: optional string", fields.get(1 + offset).toString());
+    Assert.assertEquals("data bucket field", "1003: data_bucket: optional int", fields.get(2 + offset).toString());
   }
 
   @Test
@@ -716,9 +711,8 @@ public class TestMergeAppend extends TableTestBase {
         1, base.currentSnapshot().allManifests().size());
     ManifestFile initialManifest = base.currentSnapshot().allManifests().get(0);
 
-    table.updateSpec().clear()
+    table.updateSpec()
         .addBucketField("id", 8)
-        .addBucketField("data", 8)
         .commit();
 
     DataFile newFile = DataFiles.builder(table.spec())
@@ -738,15 +732,14 @@ public class TestMergeAppend extends TableTestBase {
     Assert.assertEquals("Second manifest should be the initial manifest with the old spec",
         initialManifest, pending.allManifests().get(1));
 
-    // field ids of manifest entries in two manifests with different specs of the same source field should be different
     ManifestEntry<DataFile> entry = ManifestFiles.read(pending.allManifests().get(0), FILE_IO)
         .entries().iterator().next();
     Types.NestedField field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(0);
-    Assert.assertEquals(expectedFieldIds[4], field.fieldId());
-    Assert.assertEquals("id_bucket", field.name());
-    field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(1);
-    Assert.assertEquals(expectedFieldIds[5], field.fieldId());
+    Assert.assertEquals(1000, field.fieldId());
     Assert.assertEquals("data_bucket", field.name());
+    field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(1);
+    Assert.assertEquals(1001, field.fieldId());
+    Assert.assertEquals("id_bucket", field.name());
 
     entry = ManifestFiles.read(pending.allManifests().get(1), FILE_IO).entries().iterator().next();
     field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(0);

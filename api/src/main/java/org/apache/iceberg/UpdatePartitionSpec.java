@@ -30,15 +30,6 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
 
   /**
-   * Clear all partition fields in the current partition spec.
-   * <p>
-   * It will remove all existing fields.
-   *
-   * @return this for method chaining
-   */
-  UpdatePartitionSpec clear();
-
-  /**
    * Add a new partition field with identity transform to the partition spec.
    * <p>
    *

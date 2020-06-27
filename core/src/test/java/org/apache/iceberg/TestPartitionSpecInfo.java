@@ -44,21 +44,18 @@ public class TestPartitionSpecInfo {
       required(2, "data", Types.StringType.get()));
   private File tableDir = null;
 
-  private int newFieldId;
-
   @Parameterized.Parameters
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] { 1, 1000 },
-        new Object[] { 2, 1001 },
+        new Object[] { 1 },
+        new Object[] { 2 },
     };
   }
 
   private final int formatVersion;
 
-  public TestPartitionSpecInfo(int formatVersion, int newFieldId) {
+  public TestPartitionSpecInfo(int formatVersion) {
     this.formatVersion = formatVersion;
-    this.newFieldId = newFieldId;
   }
 
   @Before
@@ -102,14 +99,24 @@ public class TestPartitionSpecInfo {
 
     Assert.assertEquals(spec, table.spec());
 
-    PartitionSpec expectedNewSpec = PartitionSpec.builderFor(table.schema())
-        .add(2, newFieldId, "data_bucket", "bucket[10]")
-        .withSpecId(1)
-        .build();
-
-    table.updateSpec().clear()
+    table.updateSpec()
+        .removeField("data_bucket")
         .addBucketField("data", 10)
         .commit();
+
+    PartitionSpec expectedNewSpec;
+    if (formatVersion == 1) {
+      expectedNewSpec = PartitionSpec.builderFor(table.schema())
+          .add(2, 1000, "1000__[removed]", "void")
+          .add(2, 1001, "data_bucket", "bucket[10]")
+          .withSpecId(1)
+          .build();
+    } else {
+      expectedNewSpec = PartitionSpec.builderFor(table.schema())
+          .add(2, 1001, "data_bucket", "bucket[10]")
+          .withSpecId(1)
+          .build();
+    }
 
     Assert.assertEquals(expectedNewSpec, table.spec());
     Assert.assertEquals(expectedNewSpec, table.specs().get(expectedNewSpec.specId()));

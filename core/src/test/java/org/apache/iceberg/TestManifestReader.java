@@ -34,16 +34,13 @@ public class TestManifestReader extends TableTestBase {
   @Parameterized.Parameters
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] { 1, new int[]{ 1000, 1001 } },
-        new Object[] { 2, new int[]{ 1001, 1000 }},
+        new Object[] { 1 },
+        new Object[] { 2 },
     };
   }
 
-  private int[] expectedFieldIds;
-
-  public TestManifestReader(int formatVersion, int[] expectedFieldIds) {
+  public TestManifestReader(int formatVersion) {
     super(formatVersion);
-    this.expectedFieldIds = expectedFieldIds;
   }
 
   @Test
@@ -109,9 +106,8 @@ public class TestManifestReader extends TableTestBase {
 
   @Test
   public void testManifestReaderWithPartitionMetadataEvolution() throws IOException {
-    table.updateSpec().clear()
+    table.updateSpec()
         .addBucketField("id", 8)
-        .addBucketField("data", 16)
         .commit();
 
     ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 123L, FILE_A));
@@ -121,12 +117,12 @@ public class TestManifestReader extends TableTestBase {
 
       List<Types.NestedField> fields = ((PartitionData) entry.file().partition()).getPartitionType().fields();
       Assert.assertEquals(2, fields.size());
-      Assert.assertEquals(expectedFieldIds[0], fields.get(0).fieldId());
-      Assert.assertEquals("id_bucket", fields.get(0).name());
+      Assert.assertEquals(1000, fields.get(0).fieldId());
+      Assert.assertEquals("data_bucket", fields.get(0).name());
       Assert.assertEquals(Types.IntegerType.get(), fields.get(0).type());
 
-      Assert.assertEquals(expectedFieldIds[1], fields.get(1).fieldId());
-      Assert.assertEquals("data_bucket", fields.get(1).name());
+      Assert.assertEquals(1001, fields.get(1).fieldId());
+      Assert.assertEquals("id_bucket", fields.get(1).name());
       Assert.assertEquals(Types.IntegerType.get(), fields.get(1).type());
     }
   }

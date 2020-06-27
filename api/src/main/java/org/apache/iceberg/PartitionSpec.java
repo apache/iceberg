@@ -49,7 +49,7 @@ import org.apache.iceberg.types.Types.StructType;
  */
 public class PartitionSpec implements Serializable {
   // IDs for partition fields start at 1000
-  private static final int PARTITION_DATA_ID_START = 1000;
+  static final int PARTITION_DATA_ID_START = 1000;
 
   private final Schema schema;
 
@@ -311,7 +311,7 @@ public class PartitionSpec implements Serializable {
     private final Schema schema;
     private final List<PartitionField> fields = Lists.newArrayList();
     private final Set<String> partitionNames = Sets.newHashSet();
-    private Map<Integer, PartitionField> timeFields = Maps.newHashMap();
+    private Map<String, PartitionField> partitionFields = Maps.newHashMap();
     private int specId = 0;
     private final AtomicInteger lastAssignedFieldId = new AtomicInteger(PARTITION_DATA_ID_START - 1);
 
@@ -346,17 +346,34 @@ public class PartitionSpec implements Serializable {
       partitionNames.add(name);
     }
 
+    private String getDedupKey(PartitionField field) {
+      String transform = field.transform().toString();
+      String type;
+      if ("hour".equalsIgnoreCase(transform) || "day".equalsIgnoreCase(transform) ||
+          "month".equalsIgnoreCase(transform) || "year".equalsIgnoreCase(transform)) {
+        type = "time";
+      } else if (transform.startsWith("bucket[")) {
+        type = "bucket";
+      } else {
+        return null;
+      }
+      return type + "(" + field.sourceId() + ")";
+    }
+
     private void checkForRedundantPartitions(PartitionField field) {
-      PartitionField timeField = timeFields.get(field.sourceId());
-      Preconditions.checkArgument(timeField == null,
-          "Cannot add redundant partition: %s conflicts with %s", timeField, field);
-      timeFields.put(field.sourceId(), field);
+      String dedupKey = getDedupKey(field);
+      if (dedupKey == null) {
+        return;
+      }
+      PartitionField partitionField = partitionFields.get(dedupKey);
+      Preconditions.checkArgument(partitionField == null,
+          "Cannot add redundant partition: %s conflicts with %s", partitionField, field);
+      partitionFields.put(dedupKey, field);
     }
 
     private void checkDuplicateFieldId(int fieldId) {
       Preconditions.checkArgument(fields.stream().allMatch(f -> f.fieldId() != fieldId),
-          "Field Id %s has already been used in the existing partition fields: %s.",
-          fieldId, fields);
+          "Cannot add a partition that duplicates another within %s.", fields);
     }
 
     public Builder withSpecId(int newSpecId) {
@@ -383,11 +400,11 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder year(String sourceName, String targetName) {
-      checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.year(sourceColumn.type()));
       checkForRedundantPartitions(field);
+      checkAndAddPartitionName(targetName);
       fields.add(field);
       return this;
     }
@@ -397,11 +414,11 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder month(String sourceName, String targetName) {
-      checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.month(sourceColumn.type()));
       checkForRedundantPartitions(field);
+      checkAndAddPartitionName(targetName);
       fields.add(field);
       return this;
     }
@@ -411,11 +428,11 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder day(String sourceName, String targetName) {
-      checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.day(sourceColumn.type()));
       checkForRedundantPartitions(field);
+      checkAndAddPartitionName(targetName);
       fields.add(field);
       return this;
     }
@@ -425,11 +442,11 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder hour(String sourceName, String targetName) {
-      checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.hour(sourceColumn.type()));
       checkForRedundantPartitions(field);
+      checkAndAddPartitionName(targetName);
       fields.add(field);
       return this;
     }
@@ -439,10 +456,12 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder bucket(String sourceName, int numBuckets, String targetName) {
-      checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
-      fields.add(new PartitionField(
-          sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.bucket(sourceColumn.type(), numBuckets)));
+      PartitionField field = new PartitionField(
+          sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.bucket(sourceColumn.type(), numBuckets));
+      checkForRedundantPartitions(field);
+      checkAndAddPartitionName(targetName);
+      fields.add(field);
       return this;
     }
 
@@ -486,6 +505,18 @@ public class PartitionSpec implements Serializable {
       fields.add(new PartitionField(sourceId, fieldId, name, Transforms.fromString(column.type(), transform)));
       lastAssignedFieldId.getAndAccumulate(fieldId, Math::max);
       return this;
+    }
+
+    Builder addAll(Iterable<PartitionField> fieldsToAdd) {
+      fieldsToAdd.forEach(field -> {
+        checkForRedundantPartitions(field);
+        add(field.sourceId(), field.fieldId(), field.name(), field.transform().toString());
+      });
+      return this;
+    }
+
+    PartitionField getLastPartitionField() {
+      return fields.get(fields.size() - 1);
     }
 
     public PartitionSpec build() {

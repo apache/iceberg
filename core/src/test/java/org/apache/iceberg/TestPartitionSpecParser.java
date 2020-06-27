@@ -19,28 +19,17 @@
 
 package org.apache.iceberg;
 
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
-@RunWith(Parameterized.class)
-public class TestPartitionSpecParser extends TableTestBase {
+import static org.apache.iceberg.types.Types.NestedField.required;
 
-  private int[] expectedFieldIds;
-
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { 1, new int[]{ 1000, 1001 } },
-        new Object[] { 2, new int[]{ 1001, 1000 } },
-    };
-  }
-
-  public TestPartitionSpecParser(int formatVersion, int[] expectedFieldIds) {
-    super(formatVersion);
-    this.expectedFieldIds = expectedFieldIds;
-  }
+public class TestPartitionSpecParser {
+  private static final Schema SCHEMA = new Schema(
+      required(1, "id", Types.IntegerType.get()),
+      required(2, "data", Types.StringType.get())
+  );
 
   @Test
   public void testToJson() {
@@ -53,28 +42,36 @@ public class TestPartitionSpecParser extends TableTestBase {
         "    \"field-id\" : 1000\n" +
         "  } ]\n" +
         "}";
-    Assert.assertEquals(expected, PartitionSpecParser.toJson(table.spec(), true));
+    PartitionSpec initialSpec = PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
+    Assert.assertEquals(expected, PartitionSpecParser.toJson(initialSpec, true));
 
-    table.updateSpec().clear()
-        .addBucketField("id", 8)
-        .addBucketField("data", 16)
-        .commit();
+    PartitionSpec evolvedSpec = PartitionSpec.builderFor(SCHEMA)
+        .withSpecId(1)
+        .alwaysNull("data", "1000__[removed]")
+        .bucket("id", 8)
+        .bucket("data", 4)
+        .build();
 
     expected = "{\n" +
         "  \"spec-id\" : 1,\n" +
         "  \"fields\" : [ {\n" +
+        "    \"name\" : \"1000__[removed]\",\n" +
+        "    \"transform\" : \"void\",\n" +
+        "    \"source-id\" : 2,\n" +
+        "    \"field-id\" : 1000\n" +
+        "  }, {\n" +
         "    \"name\" : \"id_bucket\",\n" +
         "    \"transform\" : \"bucket[8]\",\n" +
         "    \"source-id\" : 1,\n" +
-        "    \"field-id\" : " + expectedFieldIds[0] +
-        "\n  }, {\n" +
+        "    \"field-id\" : 1001\n" +
+        "  }, {\n" +
         "    \"name\" : \"data_bucket\",\n" +
-        "    \"transform\" : \"bucket[16]\",\n" +
+        "    \"transform\" : \"bucket[4]\",\n" +
         "    \"source-id\" : 2,\n" +
-        "    \"field-id\" : " + expectedFieldIds[1] +
-        "\n  } ]\n" +
+        "    \"field-id\" : 1002\n" +
+        "  } ]\n" +
         "}";
-    Assert.assertEquals(expected, PartitionSpecParser.toJson(table.spec(), true));
+    Assert.assertEquals(expected, PartitionSpecParser.toJson(evolvedSpec, true));
   }
 
   @Test
@@ -94,7 +91,7 @@ public class TestPartitionSpecParser extends TableTestBase {
         "  } ]\n" +
         "}";
 
-    PartitionSpec spec = PartitionSpecParser.fromJson(table.schema(), specString);
+    PartitionSpec spec = PartitionSpecParser.fromJson(SCHEMA, specString);
 
     Assert.assertEquals(2, spec.fields().size());
     // should be the field ids in the JSON
@@ -117,7 +114,7 @@ public class TestPartitionSpecParser extends TableTestBase {
         "  } ]\n" +
         "}";
 
-    PartitionSpec spec = PartitionSpecParser.fromJson(table.schema(), specString);
+    PartitionSpec spec = PartitionSpecParser.fromJson(SCHEMA, specString);
 
     Assert.assertEquals(2, spec.fields().size());
     // should be the default assignment

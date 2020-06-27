@@ -429,11 +429,16 @@ public class TableMetadata implements Serializable {
       }
     }
 
-    Preconditions.checkArgument(defaultSpecId != newDefaultSpecId,
-        "Cannot set default partition spec to the current default");
+    // Always setting default partition spec to the new partition spec
+    ImmutableList.Builder<PartitionSpec> builder = ImmutableList.builder();
+    for (PartitionSpec spec : specs) {
+      if (spec.specId() == newDefaultSpecId) {
+        builder.add(freshSpec(newDefaultSpecId, schema, newPartitionSpec));
+      } else {
+        builder.add(spec);
+      }
+    }
 
-    ImmutableList.Builder<PartitionSpec> builder = ImmutableList.<PartitionSpec>builder()
-        .addAll(specs);
     if (!specsById.containsKey(newDefaultSpecId)) {
       // get a fresh spec to ensure the spec ID is set to the new default
       builder.add(freshSpec(newDefaultSpecId, schema, newPartitionSpec));

@@ -533,7 +533,7 @@ public class TestTableMetadata {
         .add(1, 1005, "x_partition", "bucket[4]")
         .build();
     String location = "file://tmp/db/table";
-    TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, location, ImmutableMap.of());
+    TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, location, ImmutableMap.of(), 1);
 
     AssertHelpers.assertThrows("Should fail to update an invalid partition spec",
         ValidationException.class, "Spec does not use sequential IDs that are required in v1",
