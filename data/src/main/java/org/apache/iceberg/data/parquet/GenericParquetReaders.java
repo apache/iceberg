@@ -62,39 +62,32 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 public class GenericParquetReaders {
-  private GenericParquetReaders() {
+  protected GenericParquetReaders() {
   }
 
   public static ParquetValueReader<Record> buildReader(Schema expectedSchema,
                                                        MessageType fileSchema) {
-    return buildReader(expectedSchema, fileSchema, ImmutableMap.of(), RecordReader::new);
-  }
-
-  public static ParquetValueReader<Record> buildReader(Schema expectedSchema,
-                                                       MessageType fileSchema,
-                                                       Map<Integer, ?> idToConstant) {
-    return buildReader(expectedSchema, fileSchema, idToConstant, RecordReader::new);
+    return buildReader(expectedSchema, fileSchema, ImmutableMap.of());
   }
 
   @SuppressWarnings("unchecked")
-  public static <T> ParquetValueReader<T> buildReader(Schema expectedSchema,
-                                                      MessageType fileSchema,
-                                                      Map<Integer, ?> idToConstant,
-                                                      StructReaderFactory<T> structReaderFactory) {
+  public static ParquetValueReader<Record> buildReader(Schema expectedSchema,
+                                                       MessageType fileSchema,
+                                                       Map<Integer, ?> idToConstant) {
     if (ParquetSchemaUtil.hasIds(fileSchema)) {
-      return (ParquetValueReader<T>)
+      return (ParquetValueReader<Record>)
           TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-              new ReadBuilder(fileSchema, idToConstant, structReaderFactory));
+              new ReadBuilder(fileSchema, idToConstant));
     } else {
-      return (ParquetValueReader<T>)
+      return (ParquetValueReader<Record>)
           TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-              new FallbackReadBuilder(fileSchema, idToConstant, structReaderFactory));
+              new FallbackReadBuilder(fileSchema, idToConstant));
     }
   }
 
-  private static class FallbackReadBuilder extends ReadBuilder {
-    FallbackReadBuilder(MessageType type, Map<Integer, ?> idToConstant, StructReaderFactory<?> structReaderFactory) {
-      super(type, idToConstant, structReaderFactory);
+  protected static class FallbackReadBuilder extends ReadBuilder {
+    protected FallbackReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
+      super(type, idToConstant);
     }
 
     @Override
@@ -119,25 +112,29 @@ public class GenericParquetReaders {
         types.add(fieldType);
       }
 
-      return structReaderFactory().create(types, newFields, expected);
+      return createStructReader(types, newFields, expected);
     }
   }
 
-  private static class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
+  protected static class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
     private final MessageType type;
     private final Map<Integer, ?> idToConstant;
-    private final StructReaderFactory<?> structReaderFactory;
 
-    ReadBuilder(MessageType type, Map<Integer, ?> idToConstant, StructReaderFactory structReaderFactory) {
+    protected ReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
       this.type = type;
       this.idToConstant = idToConstant;
-      this.structReaderFactory = structReaderFactory;
     }
 
     @Override
     public ParquetValueReader<?> message(StructType expected, MessageType message,
                                          List<ParquetValueReader<?>> fieldReaders) {
       return struct(expected, message.asGroupType(), fieldReaders);
+    }
+
+    protected StructReader<?, ?> createStructReader(List<Type> types,
+                                                    List<ParquetValueReader<?>> readers,
+                                                    StructType struct) {
+      return new RecordReader(types, readers, struct);
     }
 
     @Override
@@ -178,7 +175,7 @@ public class GenericParquetReaders {
         }
       }
 
-      return structReaderFactory.create(types, reorderedFields, expected);
+      return createStructReader(types, reorderedFields, expected);
     }
 
     @Override
@@ -308,10 +305,6 @@ public class GenericParquetReaders {
     MessageType type() {
       return type;
     }
-
-    StructReaderFactory<?> structReaderFactory() {
-      return structReaderFactory;
-    }
   }
 
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
@@ -408,10 +401,6 @@ public class GenericParquetReaders {
         return column.nextBinary().getBytes();
       }
     }
-  }
-
-  public interface StructReaderFactory<T> {
-    StructReader<T, T> create(List<Type> types, List<ParquetValueReader<?>> readers, StructType struct);
   }
 
   static class RecordReader extends StructReader<Record, Record> {

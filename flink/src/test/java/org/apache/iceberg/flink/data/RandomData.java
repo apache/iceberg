@@ -37,9 +37,9 @@ class RandomData {
   private RandomData() {
   }
 
-  private static Iterable<Row> generateData(Schema schema, int numRecords, Supplier<RandomRowDataGenerator> supplier) {
+  private static Iterable<Row> generateData(Schema schema, int numRecords, Supplier<RandomRowGenerator> supplier) {
     return () -> new Iterator<Row>() {
-      private final RandomRowDataGenerator generator = supplier.get();
+      private final RandomRowGenerator generator = supplier.get();
       private int count = 0;
 
       @Override
@@ -59,20 +59,20 @@ class RandomData {
   }
 
   static Iterable<Row> generate(Schema schema, int numRecords, long seed) {
-    return generateData(schema, numRecords, () -> new RandomRowDataGenerator(seed));
+    return generateData(schema, numRecords, () -> new RandomRowGenerator(seed));
   }
 
   static Iterable<Row> generateFallbackData(Schema schema, int numRecords, long seed, long numDictRows) {
-    return generateData(schema, numRecords, () -> new FallbackDataGenerator(seed, numDictRows));
+    return generateData(schema, numRecords, () -> new FallbackGenerator(seed, numDictRows));
   }
 
   static Iterable<Row> generateDictionaryEncodableData(Schema schema, int numRecords, long seed) {
-    return generateData(schema, numRecords, () -> new DictionaryEncodedDataGenerator(seed));
+    return generateData(schema, numRecords, () -> new DictionaryEncodedGenerator(seed));
   }
 
-  private static class RandomRowDataGenerator extends RandomGenericData.RandomDataGenerator<Row> {
+  private static class RandomRowGenerator extends RandomGenericData.RandomDataGenerator<Row> {
 
-    RandomRowDataGenerator(long seed) {
+    RandomRowGenerator(long seed) {
       super(seed);
     }
 
@@ -94,8 +94,8 @@ class RandomData {
     }
   }
 
-  private static class DictionaryEncodedDataGenerator extends RandomRowDataGenerator {
-    DictionaryEncodedDataGenerator(long seed) {
+  private static class DictionaryEncodedGenerator extends RandomRowGenerator {
+    DictionaryEncodedGenerator(long seed) {
       super(seed);
     }
 
@@ -114,11 +114,11 @@ class RandomData {
     }
   }
 
-  private static class FallbackDataGenerator extends RandomRowDataGenerator {
+  private static class FallbackGenerator extends RandomRowGenerator {
     private final long dictionaryEncodedRows;
     private long rowCount = 0;
 
-    FallbackDataGenerator(long seed, long numDictionaryEncoded) {
+    FallbackGenerator(long seed, long numDictionaryEncoded) {
       super(seed);
       this.dictionaryEncodedRows = numDictionaryEncoded;
     }

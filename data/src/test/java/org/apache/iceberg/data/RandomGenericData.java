@@ -46,7 +46,7 @@ public class RandomGenericData {
   private RandomGenericData() {}
 
   public static List<Record> generate(Schema schema, int numRecords, long seed) {
-    RandomRecordDataGenerator generator = new RandomRecordDataGenerator(seed);
+    RandomRecordGenerator generator = new RandomRecordGenerator(seed);
     List<Record> records = Lists.newArrayListWithExpectedSize(numRecords);
     for (int i = 0; i < numRecords; i += 1) {
       records.add((Record) TypeUtil.visit(schema, generator));
@@ -55,8 +55,8 @@ public class RandomGenericData {
     return records;
   }
 
-  private static class RandomRecordDataGenerator extends RandomDataGenerator<Record> {
-    private RandomRecordDataGenerator(long seed) {
+  private static class RandomRecordGenerator extends RandomDataGenerator<Record> {
+    private RandomRecordGenerator(long seed) {
       super(seed);
     }
 

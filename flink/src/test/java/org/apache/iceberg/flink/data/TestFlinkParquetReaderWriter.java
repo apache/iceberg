@@ -38,7 +38,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestFlinkParquetReaderWriter {
-  private static final int NUM_RECORDS = 1_000_000;
+  private static final int NUM_RECORDS = 20_000;
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -76,14 +76,14 @@ public class TestFlinkParquetReaderWriter {
 
     try (FileAppender<Row> writer = Parquet.write(Files.localOutput(testFile))
         .schema(schema)
-        .createWriterFunc(FlinkParquetWriters::buildWriter)
+        .createWriterFunc(FlinkParquetWriters::buildRowWriter)
         .build()) {
       writer.addAll(iterable);
     }
 
     try (CloseableIterable<Row> reader = Parquet.read(Files.localInput(testFile))
         .project(schema)
-        .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
+        .createReaderFunc(type -> FlinkParquetReaders.buildRowReader(schema, type))
         .build()) {
       Iterator<Row> expected = iterable.iterator();
       Iterator<Row> rows = reader.iterator();
