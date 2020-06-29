@@ -37,6 +37,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkAvroWriter;
 import org.apache.iceberg.spark.data.SparkOrcWriter;
@@ -89,7 +90,7 @@ public class TestPositionDeleteFileReadWrite {
         try (FileAppender<InternalRow> writer = Parquet.write(Files.localOutput(testFile))
             .schema(SCHEMA)
             .named("test")
-            .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(SCHEMA, msgType))
+            .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(SCHEMA), msgType))
             .build()) {
           writer.addAll(expected);
         }
@@ -97,7 +98,7 @@ public class TestPositionDeleteFileReadWrite {
       case AVRO:
         try (FileAppender<InternalRow> writer = Avro.write(Files.localOutput(testFile))
             .schema(SCHEMA)
-            .createWriterFunc(ignored -> new SparkAvroWriter(SCHEMA))
+            .createWriterFunc(ignored -> new SparkAvroWriter(SparkSchemaUtil.convert(SCHEMA)))
             .named("test")
             .build()) {
           writer.addAll(expected);

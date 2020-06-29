@@ -69,7 +69,7 @@ class PositionDeleteFileReader {
         return ORC.read(inputFile)
             .project(deleteSchema)
             .split(start, length)
-            .createReaderFunc(SparkOrcReader::new)
+            .createReaderFunc(readOrcSchema -> new SparkOrcReader(deleteSchema, readOrcSchema))
             .build();
 
       default:
