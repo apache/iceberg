@@ -854,6 +854,18 @@ Each partition field in the fields list is stored as an object. See the table fo
 
 In some cases partition specs are stored using only the field list instead of the object format that includes the spec ID, like the deprecated `partition-spec` field in table metadata. The object format should be used unless otherwise noted in this spec.
 
+#### Partition Field ID handling
+
+A partition field id is an integer (starting at 1000) used to identify a partition field.
+
+Since iceberg release 0.8.0, partition fields are present in every partition field of partition specs in a table metadata.
+
+* For backward compatibility, if field ids are missing in a table metadata, iceberg will sequentially generate ids for each field starting at 1000 based on its position in the list of fields.
+* For forward compatibility, if field ids are not supported, iceberg will ignore field ids.
+
+Additionally, in table metadata format v2, partition fields are required to have unique field IDs to support partition spec evolution.
+
+For tables without partition field IDs, iceberg will generate an auto-increment unique field id starting at 1000 for every partition field.
 
 ### Sort Orders
 
