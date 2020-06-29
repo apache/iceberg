@@ -61,8 +61,6 @@ public class Spark3Util {
 
   /**
    * Applies a list of Spark table changes to an {@link UpdateProperties} operation.
-   * <p>
-   * All non-property changes in the list are ignored.
    *
    * @param pendingUpdate an uncommitted UpdateProperties operation to configure
    * @param changes a list of Spark table changes
@@ -88,8 +86,6 @@ public class Spark3Util {
 
   /**
    * Applies a list of Spark table changes to an {@link UpdateSchema} operation.
-   * <p>
-   * All non-schema changes in the list are ignored.
    *
    * @param pendingUpdate an uncommitted UpdateSchema operation to configure
    * @param changes a list of Spark table changes

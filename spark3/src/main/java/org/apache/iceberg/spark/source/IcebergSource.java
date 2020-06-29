@@ -63,11 +63,7 @@ public class IcebergSource implements DataSourceRegister, TableProvider {
     Table icebergTable = getTableAndResolveHadoopConfiguration(options, conf);
 
     // Build Spark table based on Iceberg table, and return it
-    if (schema != null) {
-      return new SparkTable(icebergTable, schema);
-    } else {
-      return new SparkTable(icebergTable);
-    }
+    return new SparkTable(icebergTable, schema);
   }
 
   protected Table findTable(Map<String, String> options, Configuration conf) {
@@ -84,8 +80,7 @@ public class IcebergSource implements DataSourceRegister, TableProvider {
     }
   }
 
-  private Table getTableAndResolveHadoopConfiguration(
-      Map<String, String> options, Configuration conf) {
+  private Table getTableAndResolveHadoopConfiguration(Map<String, String> options, Configuration conf) {
     // Overwrite configurations from the Spark Context with configurations from the options.
     mergeIcebergHadoopConfs(conf, options);
 
@@ -100,8 +95,7 @@ public class IcebergSource implements DataSourceRegister, TableProvider {
     return table;
   }
 
-  private static void mergeIcebergHadoopConfs(
-      Configuration baseConf, Map<String, String> options) {
+  private static void mergeIcebergHadoopConfs(Configuration baseConf, Map<String, String> options) {
     options.keySet().stream()
         .filter(key -> key.startsWith("hadoop."))
         .forEach(key -> baseConf.set(key.replaceFirst("hadoop.", ""), options.get(key)));

@@ -112,8 +112,7 @@ public class SparkCatalog implements StagingTableCatalog {
   @Override
   public SparkTable createTable(Identifier ident, StructType schema,
                                 Transform[] transforms,
-                                Map<String, String> properties)
-      throws TableAlreadyExistsException {
+                                Map<String, String> properties) throws TableAlreadyExistsException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
     try {
       return new SparkTable(icebergCatalog.createTable(
