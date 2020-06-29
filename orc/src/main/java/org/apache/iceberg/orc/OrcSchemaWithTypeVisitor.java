@@ -20,18 +20,13 @@
 package org.apache.iceberg.orc;
 
 import java.util.List;
-import java.util.Optional;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 
 public abstract class OrcSchemaWithTypeVisitor<T> {
-  private static final Logger LOG = LoggerFactory.getLogger(OrcSchemaWithTypeVisitor.class);
-
   public static <T> T visit(
       org.apache.iceberg.Schema iSchema, TypeDescription schema, OrcSchemaWithTypeVisitor<T> visitor) {
     return visit(iSchema.asStruct(), schema, visitor);
@@ -68,20 +63,12 @@ public abstract class OrcSchemaWithTypeVisitor<T> {
     List<TypeDescription> fields = record.getChildren();
     List<String> names = record.getFieldNames();
     List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
-    List<String> includedNames = Lists.newArrayListWithExpectedSize(names.size());
-    for (int i = 0; i < fields.size(); ++i) {
-      TypeDescription field = fields.get(i);
-      String name = names.get(i);
-      Optional<Integer> fieldId = ORCSchemaUtil.icebergID(field);
-      if (!fieldId.isPresent()) {
-        LOG.warn("Missing expected '{}' property - skipping field {}", ORCSchemaUtil.ICEBERG_ID_ATTRIBUTE, name);
-        continue;
-      }
-      Types.NestedField iField = struct != null ? struct.field(fieldId.get()) : null;
+    for (TypeDescription field : fields) {
+      int fieldId = ORCSchemaUtil.fieldId(field);
+      Types.NestedField iField = struct != null ? struct.field(fieldId) : null;
       results.add(visit(iField != null ? iField.type() : null, field, visitor));
-      includedNames.add(name);
     }
-    return visitor.record(struct, record, includedNames, results);
+    return visitor.record(struct, record, names, results);
   }
 
   public T record(Types.StructType iStruct, TypeDescription record, List<String> names, List<T> fields) {

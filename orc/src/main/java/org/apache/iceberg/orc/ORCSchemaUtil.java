@@ -215,7 +215,7 @@ public final class ORCSchemaUtil {
     List<Types.NestedField> icebergFields = Lists.newArrayListWithExpectedSize(children.size());
     OrcToIcebergVisitor schemaConverter = new OrcToIcebergVisitor(icebergToOrcMapping("root", orcSchema));
     for (TypeDescription child : orcSchema.getChildren()) {
-      OrcToIcebergVisitor.visit((Type) null, child, schemaConverter).ifPresent(icebergFields::add);
+      OrcToIcebergVisitor.visit(child, schemaConverter).ifPresent(icebergFields::add);
     }
 
     if (icebergFields.size() == 0) {
@@ -384,6 +384,12 @@ public final class ORCSchemaUtil {
         .map(Integer::parseInt);
   }
 
+  static int fieldId(TypeDescription orcType) {
+    String idStr = orcType.getAttributeValue(ICEBERG_ID_ATTRIBUTE);
+    Preconditions.checkNotNull(idStr, "Missing expected '%s' property", ICEBERG_ID_ATTRIBUTE);
+    return Integer.parseInt(idStr);
+  }
+
   private static boolean isRequired(TypeDescription orcType) {
     String isRequiredStr = orcType.getAttributeValue(ICEBERG_REQUIRED_ATTRIBUTE);
     if (isRequiredStr != null) {
@@ -399,7 +405,7 @@ public final class ORCSchemaUtil {
         Types.NestedField.optional(icebergID, name, type);
   }
 
-  private static class OrcToIcebergVisitor extends OrcSchemaWithTypeVisitor<Optional<Types.NestedField>> {
+  private static class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> {
 
     private final Map<Integer, OrcField> icebergToOrcMapping;
 
@@ -408,7 +414,7 @@ public final class ORCSchemaUtil {
     }
 
     @Override
-    public Optional<Types.NestedField> record(Types.StructType iStruct, TypeDescription record, List<String> names,
+    public Optional<Types.NestedField> record(TypeDescription record, List<String> names,
                                               List<Optional<Types.NestedField>> fields) {
       boolean isRequired = isRequired(record);
       Optional<Integer> icebergIdOpt = icebergID(record);
@@ -423,7 +429,7 @@ public final class ORCSchemaUtil {
     }
 
     @Override
-    public Optional<Types.NestedField> list(Types.ListType iList, TypeDescription array,
+    public Optional<Types.NestedField> list(TypeDescription array,
                                             Optional<Types.NestedField> element) {
       boolean isRequired = isRequired(array);
       Optional<Integer> icebergIdOpt = icebergID(array);
@@ -441,7 +447,7 @@ public final class ORCSchemaUtil {
     }
 
     @Override
-    public Optional<Types.NestedField> map(Types.MapType iMap, TypeDescription map, Optional<Types.NestedField> key,
+    public Optional<Types.NestedField> map(TypeDescription map, Optional<Types.NestedField> key,
                                            Optional<Types.NestedField> value) {
       boolean isRequired = isRequired(map);
       Optional<Integer> icebergIdOpt = icebergID(map);
@@ -461,7 +467,7 @@ public final class ORCSchemaUtil {
     }
 
     @Override
-    public Optional<Types.NestedField> primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
+    public Optional<Types.NestedField> primitive(TypeDescription primitive) {
       boolean isRequired = isRequired(primitive);
       Optional<Integer> icebergIdOpt = icebergID(primitive);
 
