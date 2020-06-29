@@ -116,7 +116,18 @@ public class ParquetDictionaryRowGroupFilter {
         }
       }
 
-      return ExpressionVisitors.visitEvaluator(expr, this);
+      try {
+        return ExpressionVisitors.visitEvaluator(expr, this);
+
+      } finally {
+        // allow temporary state to be collected because this is in a thread-local
+        this.dictionaries = null;
+        this.dictCache = null;
+        this.isFallback = null;
+        this.mayContainNulls = null;
+        this.cols = null;
+        this.conversions = null;
+      }
     }
 
     @Override
