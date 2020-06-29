@@ -200,10 +200,11 @@ public final class ORCSchemaUtil {
 
   /**
    * Convert an ORC schema to an Iceberg schema. This method handles the convertion from the original
-   * Iceberg column mapping IDs if present in the ORC column attributes, otherwise, ORC column IDs
-   * will be assigned following ORCs pre-order ID assignment.
+   * Iceberg column mapping IDs if present in the ORC column attributes, otherwise, ORC columns with no
+   * Iceberg IDs will be ignored and skipped in the conversion.
    *
    * @return the Iceberg schema
+   * @throws IllegalArgumentException if ORC schema has no columns with Iceberg ID attributes
    */
   public static Schema convert(TypeDescription orcSchema) {
     List<TypeDescription> children = orcSchema.getChildren();
