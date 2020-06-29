@@ -46,7 +46,7 @@ public class RandomGenericData {
   private RandomGenericData() {}
 
   public static List<Record> generate(Schema schema, int numRecords, long seed) {
-    RandomDataGenerator generator = new RandomDataGenerator(seed);
+    RandomRecordGenerator generator = new RandomRecordGenerator(seed);
     List<Record> records = Lists.newArrayListWithExpectedSize(numRecords);
     for (int i = 0; i < numRecords; i += 1) {
       records.add((Record) TypeUtil.visit(schema, generator));
@@ -55,11 +55,9 @@ public class RandomGenericData {
     return records;
   }
 
-  private static class RandomDataGenerator extends TypeUtil.CustomOrderSchemaVisitor<Object> {
-    private final Random random;
-
-    private RandomDataGenerator(long seed) {
-      this.random = new Random(seed);
+  private static class RandomRecordGenerator extends RandomDataGenerator<Record> {
+    private RandomRecordGenerator(long seed) {
+      super(seed);
     }
 
     @Override
@@ -78,6 +76,25 @@ public class RandomGenericData {
 
       return rec;
     }
+  }
+
+  public abstract static class RandomDataGenerator<T> extends TypeUtil.CustomOrderSchemaVisitor<Object> {
+    private final Random random;
+    private static final int MAX_ENTRIES = 20;
+
+    protected RandomDataGenerator(long seed) {
+      this.random = new Random(seed);
+    }
+
+    protected int getMaxEntries() {
+      return MAX_ENTRIES;
+    }
+
+    @Override
+    public abstract T schema(Schema schema, Supplier<Object> structResult);
+
+    @Override
+    public abstract T struct(Types.StructType struct, Iterable<Object> fieldResults);
 
     @Override
     public Object field(Types.NestedField field, Supplier<Object> fieldResult) {
@@ -90,7 +107,7 @@ public class RandomGenericData {
 
     @Override
     public Object list(Types.ListType list, Supplier<Object> elementResult) {
-      int numElements = random.nextInt(20);
+      int numElements = random.nextInt(getMaxEntries());
 
       List<Object> result = Lists.newArrayListWithExpectedSize(numElements);
       for (int i = 0; i < numElements; i += 1) {
@@ -107,7 +124,7 @@ public class RandomGenericData {
 
     @Override
     public Object map(Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
-      int numEntries = random.nextInt(20);
+      int numEntries = random.nextInt(getMaxEntries());
 
       Map<Object, Object> result = Maps.newLinkedHashMap();
       Supplier<Object> keyFunc;
@@ -140,7 +157,7 @@ public class RandomGenericData {
 
     @Override
     public Object primitive(Type.PrimitiveType primitive) {
-      Object result = RandomUtil.generatePrimitive(primitive, random);
+      Object result = randomValue(primitive, random);
       switch (primitive.typeId()) {
         case BINARY:
           return ByteBuffer.wrap((byte[]) result);
@@ -160,6 +177,10 @@ public class RandomGenericData {
         default:
           return result;
       }
+    }
+
+    protected Object randomValue(Type.PrimitiveType primitive, Random rand) {
+      return RandomUtil.generatePrimitive(primitive, rand);
     }
   }
 

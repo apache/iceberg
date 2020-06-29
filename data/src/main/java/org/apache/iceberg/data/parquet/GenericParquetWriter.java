@@ -46,18 +46,18 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 public class GenericParquetWriter {
-  private GenericParquetWriter() {
+  protected GenericParquetWriter() {
   }
 
   @SuppressWarnings("unchecked")
-  public static <T> ParquetValueWriter<T> buildWriter(MessageType type) {
-    return (ParquetValueWriter<T>) ParquetTypeVisitor.visit(type, new WriteBuilder(type));
+  public static ParquetValueWriter<Record> buildWriter(MessageType type) {
+    return (ParquetValueWriter<Record>) ParquetTypeVisitor.visit(type, new WriteBuilder(type));
   }
 
-  private static class WriteBuilder extends ParquetTypeVisitor<ParquetValueWriter<?>> {
+  protected static class WriteBuilder extends ParquetTypeVisitor<ParquetValueWriter<?>> {
     private final MessageType type;
 
-    WriteBuilder(MessageType type) {
+    protected WriteBuilder(MessageType type) {
       this.type = type;
     }
 
@@ -65,6 +65,10 @@ public class GenericParquetWriter {
     public ParquetValueWriter<?> message(MessageType message,
                                          List<ParquetValueWriter<?>> fieldWriters) {
       return struct(message.asGroupType(), fieldWriters);
+    }
+
+    protected StructWriter<?> createStructWriter(List<ParquetValueWriter<?>> writers) {
+      return new RecordWriter(writers);
     }
 
     @Override
@@ -78,7 +82,7 @@ public class GenericParquetWriter {
         writers.add(ParquetValueWriters.option(fieldType, fieldD, fieldWriters.get(i)));
       }
 
-      return new RecordWriter(writers);
+      return createStructWriter(writers);
     }
 
     @Override
