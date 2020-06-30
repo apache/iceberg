@@ -322,6 +322,12 @@
                 "com.sun.jersey:jersey-server"
             ]
         },
+        "com.carrotsearch:hppc": {
+            "locked": "0.7.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
         "com.clearspring.analytics:stream": {
             "locked": "2.9.6",
             "transitive": [
@@ -432,7 +438,6 @@
             "locked": "3.0.2",
             "transitive": [
                 "com.github.spotbugs:spotbugs-annotations",
-                "org.apache.arrow:arrow-memory",
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-hive_2.12",
@@ -921,23 +926,22 @@
             ]
         },
         "org.apache.arrow:arrow-format": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
                 "org.apache.arrow:arrow-vector"
             ]
         },
         "org.apache.arrow:arrow-memory": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
                 "org.apache.arrow:arrow-vector",
                 "org.apache.iceberg:iceberg-arrow"
             ]
         },
         "org.apache.arrow:arrow-vector": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
-                "org.apache.iceberg:iceberg-arrow",
-                "org.apache.spark:spark-catalyst_2.12"
+                "org.apache.iceberg:iceberg-arrow"
             ]
         },
         "org.apache.avro:avro": {
@@ -1978,7 +1982,6 @@
             "transitive": [
                 "com.fasterxml.jackson.core:jackson-databind",
                 "com.fasterxml.jackson.module:jackson-module-scala_2.12",
-                "org.apache.arrow:arrow-vector",
                 "org.apache.avro:avro",
                 "org.apache.spark:spark-kvstore_2.12"
             ]
@@ -2031,7 +2034,6 @@
             "locked": "3.0.2",
             "transitive": [
                 "com.github.spotbugs:spotbugs-annotations",
-                "org.apache.arrow:arrow-memory",
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-hive_2.12",
@@ -2044,13 +2046,6 @@
             "transitive": [
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.hive:hive-exec"
-            ]
-        },
-        "com.google.flatbuffers:flatbuffers-java": {
-            "locked": "1.9.0",
-            "transitive": [
-                "org.apache.arrow:arrow-format",
-                "org.apache.arrow:arrow-vector"
             ]
         },
         "com.google.guava:guava": {
@@ -2213,7 +2208,6 @@
             "transitive": [
                 "commons-httpclient:commons-httpclient",
                 "net.java.dev.jets3t:jets3t",
-                "org.apache.arrow:arrow-vector",
                 "org.apache.avro:avro-mapred",
                 "org.apache.hadoop:hadoop-auth",
                 "org.apache.hadoop:hadoop-common",
@@ -2529,24 +2523,6 @@
         },
         "org.antlr:antlr4-runtime": {
             "locked": "4.7.1",
-            "transitive": [
-                "org.apache.spark:spark-catalyst_2.12"
-            ]
-        },
-        "org.apache.arrow:arrow-format": {
-            "locked": "0.15.1",
-            "transitive": [
-                "org.apache.arrow:arrow-vector"
-            ]
-        },
-        "org.apache.arrow:arrow-memory": {
-            "locked": "0.15.1",
-            "transitive": [
-                "org.apache.arrow:arrow-vector"
-            ]
-        },
-        "org.apache.arrow:arrow-vector": {
-            "locked": "0.15.1",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12"
             ]
@@ -3357,8 +3333,6 @@
                 "io.dropwizard.metrics:metrics-jmx",
                 "io.dropwizard.metrics:metrics-json",
                 "io.dropwizard.metrics:metrics-jvm",
-                "org.apache.arrow:arrow-memory",
-                "org.apache.arrow:arrow-vector",
                 "org.apache.avro:avro",
                 "org.apache.avro:avro-ipc",
                 "org.apache.avro:avro-mapred",
@@ -4399,6 +4373,12 @@
                 "org.sonatype.sisu.inject:cglib"
             ]
         },
+        "com.carrotsearch:hppc": {
+            "locked": "0.7.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
         "com.clearspring.analytics:stream": {
             "locked": "2.9.6",
             "transitive": [
@@ -4509,7 +4489,6 @@
             "locked": "3.0.2",
             "transitive": [
                 "com.github.spotbugs:spotbugs-annotations",
-                "org.apache.arrow:arrow-memory",
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-hive_2.12",
@@ -5126,23 +5105,22 @@
             ]
         },
         "org.apache.arrow:arrow-format": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
                 "org.apache.arrow:arrow-vector"
             ]
         },
         "org.apache.arrow:arrow-memory": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
                 "org.apache.arrow:arrow-vector",
                 "org.apache.iceberg:iceberg-arrow"
             ]
         },
         "org.apache.arrow:arrow-vector": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
-                "org.apache.iceberg:iceberg-arrow",
-                "org.apache.spark:spark-catalyst_2.12"
+                "org.apache.iceberg:iceberg-arrow"
             ]
         },
         "org.apache.avro:avro": {
@@ -6265,6 +6243,12 @@
                 "org.sonatype.sisu.inject:cglib"
             ]
         },
+        "com.carrotsearch:hppc": {
+            "locked": "0.7.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
         "com.clearspring.analytics:stream": {
             "locked": "2.9.6",
             "transitive": [
@@ -6375,7 +6359,6 @@
             "locked": "3.0.2",
             "transitive": [
                 "com.github.spotbugs:spotbugs-annotations",
-                "org.apache.arrow:arrow-memory",
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-hive_2.12",
@@ -6983,23 +6966,22 @@
             ]
         },
         "org.apache.arrow:arrow-format": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
                 "org.apache.arrow:arrow-vector"
             ]
         },
         "org.apache.arrow:arrow-memory": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
                 "org.apache.arrow:arrow-vector",
                 "org.apache.iceberg:iceberg-arrow"
             ]
         },
         "org.apache.arrow:arrow-vector": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
-                "org.apache.iceberg:iceberg-arrow",
-                "org.apache.spark:spark-catalyst_2.12"
+                "org.apache.iceberg:iceberg-arrow"
             ]
         },
         "org.apache.avro:avro": {
@@ -8106,6 +8088,12 @@
                 "org.sonatype.sisu.inject:cglib"
             ]
         },
+        "com.carrotsearch:hppc": {
+            "locked": "0.7.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
         "com.clearspring.analytics:stream": {
             "locked": "2.9.6",
             "transitive": [
@@ -8216,7 +8204,6 @@
             "locked": "3.0.2",
             "transitive": [
                 "com.github.spotbugs:spotbugs-annotations",
-                "org.apache.arrow:arrow-memory",
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-hive_2.12",
@@ -8833,23 +8820,22 @@
             ]
         },
         "org.apache.arrow:arrow-format": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
                 "org.apache.arrow:arrow-vector"
             ]
         },
         "org.apache.arrow:arrow-memory": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
                 "org.apache.arrow:arrow-vector",
                 "org.apache.iceberg:iceberg-arrow"
             ]
         },
         "org.apache.arrow:arrow-vector": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
-                "org.apache.iceberg:iceberg-arrow",
-                "org.apache.spark:spark-catalyst_2.12"
+                "org.apache.iceberg:iceberg-arrow"
             ]
         },
         "org.apache.avro:avro": {
@@ -9972,6 +9958,12 @@
                 "org.sonatype.sisu.inject:cglib"
             ]
         },
+        "com.carrotsearch:hppc": {
+            "locked": "0.7.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
         "com.clearspring.analytics:stream": {
             "locked": "2.9.6",
             "transitive": [
@@ -10082,7 +10074,6 @@
             "locked": "3.0.2",
             "transitive": [
                 "com.github.spotbugs:spotbugs-annotations",
-                "org.apache.arrow:arrow-memory",
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-hive_2.12",
@@ -10699,23 +10690,22 @@
             ]
         },
         "org.apache.arrow:arrow-format": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
                 "org.apache.arrow:arrow-vector"
             ]
         },
         "org.apache.arrow:arrow-memory": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
                 "org.apache.arrow:arrow-vector",
                 "org.apache.iceberg:iceberg-arrow"
             ]
         },
         "org.apache.arrow:arrow-vector": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
-                "org.apache.iceberg:iceberg-arrow",
-                "org.apache.spark:spark-catalyst_2.12"
+                "org.apache.iceberg:iceberg-arrow"
             ]
         },
         "org.apache.avro:avro": {

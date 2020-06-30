@@ -17,24 +17,20 @@
  * under the License.
  */
 
-package org.apache.iceberg.actions;
+package org.apache.iceberg.spark.source;
 
-import org.apache.iceberg.MetadataTableType;
+import java.util.Map;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Table;
 
-abstract class BaseAction<R> implements Action<R> {
+public class TestIcebergSource extends IcebergSource {
+  @Override
+  public String shortName() {
+    return "iceberg-test";
+  }
 
-  protected abstract Table table();
-
-  protected String metadataTableName(MetadataTableType type) {
-    String tableName = table().toString();
-    if (tableName.contains("/")) {
-      return tableName + "#" + type;
-    } else if (tableName.startsWith("hadoop.") || tableName.startsWith("hive.")) {
-      // HiveCatalog and HadoopCatalog prepend a logical name which we need to drop for Spark 2.4
-      return tableName.replaceFirst("(hadoop\\.)|(hive\\.)", "") + "." + type;
-    } else {
-      return tableName + "." + type;
-    }
+  @Override
+  protected Table findTable(Map<String, String> options, Configuration conf) {
+    return TestTables.load(options.get("iceberg.table.name"));
   }
 }

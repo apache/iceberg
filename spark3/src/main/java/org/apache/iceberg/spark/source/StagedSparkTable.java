@@ -17,24 +17,26 @@
  * under the License.
  */
 
-package org.apache.iceberg.actions;
+package org.apache.iceberg.spark.source;
 
-import org.apache.iceberg.MetadataTableType;
-import org.apache.iceberg.Table;
+import org.apache.iceberg.Transaction;
+import org.apache.spark.sql.connector.catalog.StagedTable;
 
-abstract class BaseAction<R> implements Action<R> {
+public class StagedSparkTable extends SparkTable implements StagedTable {
+  private final Transaction transaction;
 
-  protected abstract Table table();
+  public StagedSparkTable(Transaction transaction) {
+    super(transaction.table());
+    this.transaction = transaction;
+  }
 
-  protected String metadataTableName(MetadataTableType type) {
-    String tableName = table().toString();
-    if (tableName.contains("/")) {
-      return tableName + "#" + type;
-    } else if (tableName.startsWith("hadoop.") || tableName.startsWith("hive.")) {
-      // HiveCatalog and HadoopCatalog prepend a logical name which we need to drop for Spark 2.4
-      return tableName.replaceFirst("(hadoop\\.)|(hive\\.)", "") + "." + type;
-    } else {
-      return tableName + "." + type;
-    }
+  @Override
+  public void commitStagedChanges() {
+    transaction.commitTransaction();
+  }
+
+  @Override
+  public void abortStagedChanges() {
+    // TODO: clean up
   }
 }

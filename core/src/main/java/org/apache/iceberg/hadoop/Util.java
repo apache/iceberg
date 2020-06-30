@@ -21,6 +21,7 @@ package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
@@ -29,6 +30,8 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,5 +65,17 @@ public class Util {
     }
 
     return locationSets.toArray(new String[0]);
+  }
+
+  public static String[] blockLocations(FileIO io, CombinedScanTask task) {
+    Set<String> locations = Sets.newHashSet();
+    for (FileScanTask f : task.files()) {
+      InputFile in = io.newInputFile(f.file().path().toString());
+      if (in instanceof HadoopInputFile) {
+        Collections.addAll(locations, ((HadoopInputFile) in).getBlockLocations(f.start(), f.length()));
+      }
+    }
+
+    return locations.toArray(HadoopInputFile.NO_LOCATION_PREFERENCE);
   }
 }
