@@ -46,7 +46,6 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import scala.collection.Seq;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
@@ -213,7 +212,7 @@ public class TestSparkTableUtilWithInMemoryCatalog {
           .saveAsTable("parquet_table");
 
       File stagingDir = temp.newFolder("staging-dir");
-      Seq<SparkPartition> partitions = SparkTableUtil.getPartitionsByFilter(spark, "parquet_table", "data = 'a'");
+      List<SparkPartition> partitions = SparkTableUtil.getPartitionsByFilter(spark, "parquet_table", "data = 'a'");
       SparkTableUtil.importSparkPartitions(spark, partitions, table, table.spec(), stagingDir.toString());
 
       List<SimpleRecord> expectedRecords = Lists.newArrayList(new SimpleRecord(1, "a"));
@@ -258,7 +257,7 @@ public class TestSparkTableUtilWithInMemoryCatalog {
           .saveAsTable("parquet_table");
 
       File stagingDir = temp.newFolder("staging-dir");
-      Seq<SparkPartition> partitions = SparkTableUtil.getPartitionsByFilter(spark, "parquet_table", "data = 'a'");
+      List<SparkPartition> partitions = SparkTableUtil.getPartitionsByFilter(spark, "parquet_table", "data = 'a'");
       SparkTableUtil.importSparkPartitions(spark, partitions, table, table.spec(), stagingDir.toString());
 
       List<SimpleRecord> expectedRecords = Lists.newArrayList(new SimpleRecord(1, "a"));
