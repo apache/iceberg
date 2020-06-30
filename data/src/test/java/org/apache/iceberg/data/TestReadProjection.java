@@ -20,6 +20,7 @@
 package org.apache.iceberg.data;
 
 import java.io.IOException;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
@@ -192,12 +193,14 @@ public abstract class TestReadProjection {
   public void testBasicProjection() throws Exception {
     Schema writeSchema = new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get()),
-        Types.NestedField.optional(1, "data", Types.StringType.get())
+        Types.NestedField.optional(1, "data", Types.StringType.get()),
+        Types.NestedField.optional(2, "time", Types.TimestampType.withZone())
     );
 
     Record record = GenericRecord.create(writeSchema.asStruct());
     record.setField("id", 34L);
     record.setField("data", "test");
+    record.setField("time", OffsetDateTime.now());
 
     Schema idOnly = new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get())
