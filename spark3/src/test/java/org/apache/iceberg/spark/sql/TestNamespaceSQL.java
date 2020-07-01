@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.sql;
 
-import com.google.common.collect.Iterables;
 import java.io.File;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +28,7 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.spark.SparkException;
 import org.junit.After;
