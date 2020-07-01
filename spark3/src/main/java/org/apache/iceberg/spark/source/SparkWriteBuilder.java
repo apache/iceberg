@@ -66,7 +66,8 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     this.dsSchema = info.schema();
     this.options = info.options();
     this.overwriteMode = options.containsKey("overwrite-mode") ?
-        options.get("overwrite-mode").toLowerCase(Locale.ROOT) : null;
+        options.get("overwrite-mode").toLowerCase(Locale.ROOT) :
+        spark.sqlContext().conf().partitionOverwriteMode().toString().toLowerCase(Locale.ROOT);
   }
 
   private JavaSparkContext lazySparkContext() {
@@ -87,7 +88,17 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   public WriteBuilder overwrite(Filter[] filters) {
     this.overwriteExpr = SparkFilters.convert(filters);
     if (overwriteExpr == Expressions.alwaysTrue() && "dynamic".equals(overwriteMode)) {
-      // use the write option to override truncating the table. use dynamic overwrite instead.
+      // this is a work-around for a Spark bug, where Spark will use a static overwrite expression, alwaysTrue. this
+      // happens Spark checks whether an INSERT plan should use dynamic overwrite or a static overwrite. Spark uses the
+      // number of identity partitions instead of the total number of partitions and defaults to static when the number
+      // of static values provided are equal. if the table has hidden partitions, then it looks like the overwrite
+      // should be static when there are no static values provided. instead, Spark should rely on the overwrite mode
+      // when the number of identity partitions and the number of static values is equal.
+      //
+      // here, we detect the bug by catching alwaysTrue, which indicates that there were no static partition values.
+      // there is a slight chance that overwriting the entire table was intended. there are two paths that will result
+      // in a truncate or overwrite(true): DataFrameWriter with mode overwrite, which was a dynamic overwrite in 2.4,
+      // and the new DataFrameWriterV2 using overwrite(lit(true)).
       this.overwriteDynamic = true;
     } else {
       Preconditions.checkState(!overwriteDynamic, "Cannot overwrite dynamically and by filter: %s", overwriteExpr);

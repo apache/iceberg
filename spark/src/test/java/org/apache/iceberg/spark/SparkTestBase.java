@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark;
 
+import com.google.common.collect.Iterables;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -28,12 +29,16 @@ import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.internal.SQLConf;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 
 public class SparkTestBase {
+
+  protected static final Object ANY = new Object();
 
   private static TestHiveMetastore metastore = null;
   private static HiveConf hiveConf = null;
@@ -48,6 +53,7 @@ public class SparkTestBase {
 
     SparkTestBase.spark = SparkSession.builder()
         .master("local[2]")
+        .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
         .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
         .enableHiveSupport()
         .getOrCreate();
@@ -65,7 +71,7 @@ public class SparkTestBase {
     SparkTestBase.spark = null;
   }
 
-  protected List<String[]> sql(String query, Object... args) {
+  protected List<Object[]> sql(String query, Object... args) {
     List<Row> rows = spark.sql(String.format(query, args)).collectAsList();
     if (rows.size() < 1) {
       return ImmutableList.of();
@@ -73,9 +79,35 @@ public class SparkTestBase {
 
     return rows.stream()
         .map(row -> IntStream.range(0, row.size())
-            .mapToObj(pos -> row.isNullAt(pos) ? null : row.get(pos).toString())
-            .toArray(String[]::new)
+            .mapToObj(pos -> row.isNullAt(pos) ? null : row.get(pos))
+            .toArray(Object[]::new)
         ).collect(Collectors.toList());
+  }
+
+  protected Object scalarSql(String query, Object... args) {
+    List<Object[]> rows = sql(query, args);
+    Assert.assertEquals("Scalar SQL should return one row", 1, rows.size());
+    Object[] row = Iterables.getOnlyElement(rows);
+    Assert.assertEquals("Scalar SQL should return one value", 1, row.length);
+    return row[0];
+  }
+
+  protected Object[] row(Object... values) {
+    return values;
+  }
+
+  protected void assertEquals(String context, List<Object[]> expectedRows, List<Object[]> actualRows) {
+    Assert.assertEquals(context + ": number of results should match", expectedRows.size(), actualRows.size());
+    for (int row = 0; row < expectedRows.size(); row += 1) {
+      Object[] expected = expectedRows.get(row);
+      Object[] actual = actualRows.get(row);
+      for (int col = 0; col < actualRows.get(row).length; col += 1) {
+        if (expected[col] != ANY) {
+          Assert.assertEquals(context + ": row " + row + " col " + col + " contents should match",
+              expected[col], actual[col]);
+        }
+      }
+    }
   }
 
   protected static String dbPath(String dbName) {
