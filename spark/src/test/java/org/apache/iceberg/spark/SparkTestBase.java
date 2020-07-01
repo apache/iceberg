@@ -101,6 +101,7 @@ public class SparkTestBase {
     for (int row = 0; row < expectedRows.size(); row += 1) {
       Object[] expected = expectedRows.get(row);
       Object[] actual = actualRows.get(row);
+      Assert.assertEquals("Number of columns should match", expected.length, actual.length);
       for (int col = 0; col < actualRows.get(row).length; col += 1) {
         if (expected[col] != ANY) {
           Assert.assertEquals(context + ": row " + row + " col " + col + " contents should match",

@@ -566,7 +566,7 @@ public class TableMetadata implements Serializable {
 
   // The caller is responsible to pass a updatedPartitionSpec with correct partition field IDs
   public TableMetadata buildReplacement(Schema updatedSchema, PartitionSpec updatedPartitionSpec,
-                                 Map<String, String> updatedProperties) {
+                                        String newLocation, Map<String, String> updatedProperties) {
     ValidationException.check(formatVersion > 1 || PartitionSpec.hasSequentialIds(updatedPartitionSpec),
         "Spec does not use sequential IDs that are required in v1: %s", updatedPartitionSpec);
 
@@ -602,7 +602,7 @@ public class TableMetadata implements Serializable {
     newProperties.putAll(this.properties);
     newProperties.putAll(updatedProperties);
 
-    return new TableMetadata(null, formatVersion, uuid, location,
+    return new TableMetadata(null, formatVersion, uuid, newLocation,
         lastSequenceNumber, System.currentTimeMillis(), nextLastColumnId.get(), freshSchema,
         specId, builder.build(), ImmutableMap.copyOf(newProperties),
         -1, snapshots, ImmutableList.of(), addPreviousFile(file, lastUpdatedMillis, newProperties));

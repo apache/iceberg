@@ -97,4 +97,8 @@ public abstract class SparkCatalogTestBase extends SparkTestBase {
 
     this.tableName = (catalogName.equals("spark_catalog") ? "" : catalogName + ".") + "default.table";
   }
+
+  protected String tableName(String name) {
+    return (catalogName.equals("spark_catalog") ? "" : catalogName + ".") + "default." + name;
+  }
 }
