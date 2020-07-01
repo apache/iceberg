@@ -35,7 +35,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
-public class SparkCatalogTestBase extends SparkTestBase {
+public abstract class SparkCatalogTestBase extends SparkTestBase {
   private static File warehouse = null;
 
   @BeforeClass
