@@ -119,7 +119,7 @@ public class SparkCatalog implements StagingTableCatalog {
           icebergSchema,
           Spark3Util.toPartitionSpec(icebergSchema, transforms),
           properties.get("location"),
-          properties));
+          Spark3Util.rebuildCreateProperties(properties)));
     } catch (AlreadyExistsException e) {
       throw new TableAlreadyExistsException(ident);
     }
