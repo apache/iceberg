@@ -57,7 +57,6 @@ public class IcebergSource implements DataSourceRegister, TableProvider {
 
   @Override
   public SparkTable getTable(StructType schema, Transform[] partitioning, Map<String, String> options) {
-    // TODO: if partitioning is non-null, the table is being created?
     // Get Iceberg table from options
     Configuration conf = new Configuration(SparkSession.active().sparkContext().hadoopConfiguration());
     Table icebergTable = getTableAndResolveHadoopConfiguration(options, conf);
