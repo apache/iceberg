@@ -58,6 +58,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
@@ -128,8 +129,8 @@ public class TestIcebergInputFormat {
          .appendFile(dataFile)
          .commit();
     Job job = Job.getInstance(conf);
-    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
-    configBuilder.readFrom(location.toString());
+    InputFormatConfig.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
+    configBuilder.readFrom(location.toString()).schema(table.schema());
     validate(job, expectedRecords);
   }
 
@@ -148,8 +149,8 @@ public class TestIcebergInputFormat {
          .commit();
 
     Job job = Job.getInstance(conf);
-    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
-    configBuilder.readFrom(location.toString());
+    InputFormatConfig.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
+    configBuilder.readFrom(location.toString()).schema(table.schema());
     validate(job, expectedRecords);
   }
 
@@ -171,9 +172,10 @@ public class TestIcebergInputFormat {
          .appendFile(dataFile2)
          .commit();
     Job job = Job.getInstance(conf);
-    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
+    InputFormatConfig.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
     configBuilder.readFrom(location.toString())
-                 .filter(Expressions.equal("date", "2020-03-20"));
+            .schema(table.schema())
+            .filter(Expressions.equal("date", "2020-03-20"));
     validate(job, expectedRecords);
   }
 
@@ -201,20 +203,22 @@ public class TestIcebergInputFormat {
          .appendFile(dataFile2)
          .commit();
     Job job = Job.getInstance(conf);
-    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
+    InputFormatConfig.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
     configBuilder.readFrom(location.toString())
-        .filter(Expressions.and(
-            Expressions.equal("date", "2020-03-20"),
-            Expressions.equal("id", 123)));
+            .schema(table.schema())
+            .filter(Expressions.and(
+                    Expressions.equal("date", "2020-03-20"),
+                    Expressions.equal("id", 123)));
     validate(job, expectedRecords);
 
     // skip residual filtering
     job = Job.getInstance(conf);
     configBuilder = IcebergInputFormat.configure(job);
     configBuilder.skipResidualFiltering().readFrom(location.toString())
-        .filter(Expressions.and(
-            Expressions.equal("date", "2020-03-20"),
-            Expressions.equal("id", 123)));
+            .schema(table.schema())
+            .filter(Expressions.and(
+                    Expressions.equal("date", "2020-03-20"),
+                    Expressions.equal("id", 123)));
     validate(job, writeRecords);
   }
 
@@ -235,8 +239,9 @@ public class TestIcebergInputFormat {
         .commit();
 
     Job jobShouldFail1 = Job.getInstance(conf);
-    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(jobShouldFail1);
+    InputFormatConfig.ConfigBuilder configBuilder = IcebergInputFormat.configure(jobShouldFail1);
     configBuilder.useHiveRows().readFrom(location.toString())
+        .schema(table.schema())
         .filter(Expressions.and(
             Expressions.equal("date", "2020-03-20"),
             Expressions.equal("id", 0)));
@@ -248,6 +253,7 @@ public class TestIcebergInputFormat {
     Job jobShouldFail2 = Job.getInstance(conf);
     configBuilder = IcebergInputFormat.configure(jobShouldFail2);
     configBuilder.usePigTuples().readFrom(location.toString())
+        .schema(table.schema())
         .filter(Expressions.and(
             Expressions.equal("date", "2020-03-20"),
             Expressions.equal("id", 0)));
@@ -272,8 +278,9 @@ public class TestIcebergInputFormat {
          .commit();
 
     Job job = Job.getInstance(conf);
-    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
+    InputFormatConfig.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
     configBuilder
+        .schema(table.schema())
         .readFrom(location.toString())
         .project(projectedSchema);
     List<Record> outputRecords = readRecords(job.getConfiguration());
@@ -311,27 +318,43 @@ public class TestIcebergInputFormat {
     append.commit();
 
     // individual fields
-    validateIdentityPartitionProjections(location.toString(), withColumns("date"), inputRecords);
-    validateIdentityPartitionProjections(location.toString(), withColumns("level"), inputRecords);
-    validateIdentityPartitionProjections(location.toString(), withColumns("message"), inputRecords);
-    validateIdentityPartitionProjections(location.toString(), withColumns("id"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), table.schema(),
+            withColumns("date"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), table.schema(),
+            withColumns("level"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), table.schema(),
+            withColumns("message"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), table.schema(),
+            withColumns("id"), inputRecords);
     // field pairs
-    validateIdentityPartitionProjections(location.toString(), withColumns("date", "message"), inputRecords);
-    validateIdentityPartitionProjections(location.toString(), withColumns("level", "message"), inputRecords);
-    validateIdentityPartitionProjections(location.toString(), withColumns("date", "level"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), table.schema(),
+            withColumns("date", "message"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), table.schema(),
+            withColumns("level", "message"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), table.schema(),
+            withColumns("date", "level"), inputRecords);
     // out-of-order pairs
-    validateIdentityPartitionProjections(location.toString(), withColumns("message", "date"), inputRecords);
-    validateIdentityPartitionProjections(location.toString(), withColumns("message", "level"), inputRecords);
-    validateIdentityPartitionProjections(location.toString(), withColumns("level", "date"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), table.schema(),
+            withColumns("message", "date"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), table.schema(),
+            withColumns("message", "level"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), table.schema(),
+            withColumns("level", "date"), inputRecords);
     // full projection
-    validateIdentityPartitionProjections(location.toString(), LOG_SCHEMA, inputRecords);
+    validateIdentityPartitionProjections(location.toString(), table.schema(), LOG_SCHEMA, inputRecords);
     // out-of-order triplets
-    validateIdentityPartitionProjections(location.toString(), withColumns("date", "level", "message"), inputRecords);
-    validateIdentityPartitionProjections(location.toString(), withColumns("level", "date", "message"), inputRecords);
-    validateIdentityPartitionProjections(location.toString(), withColumns("date", "message", "level"), inputRecords);
-    validateIdentityPartitionProjections(location.toString(), withColumns("level", "message", "date"), inputRecords);
-    validateIdentityPartitionProjections(location.toString(), withColumns("message", "date", "level"), inputRecords);
-    validateIdentityPartitionProjections(location.toString(), withColumns("message", "level", "date"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), table.schema(),
+            withColumns("date", "level", "message"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), table.schema(),
+            withColumns("level", "date", "message"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), table.schema(),
+            withColumns("date", "message", "level"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), table.schema(),
+            withColumns("level", "message", "date"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), table.schema(),
+            withColumns("message", "date", "level"), inputRecords);
+    validateIdentityPartitionProjections(location.toString(), table.schema(),
+            withColumns("message", "level", "date"), inputRecords);
   }
 
   private static Schema withColumns(String... names) {
@@ -344,10 +367,11 @@ public class TestIcebergInputFormat {
   }
 
   private void validateIdentityPartitionProjections(
-      String tablePath, Schema projectedSchema, List<Record> inputRecords) throws Exception {
+      String tablePath, Schema tableSchema, Schema projectedSchema, List<Record> inputRecords) throws Exception {
     Job job = Job.getInstance(conf);
-    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
+    InputFormatConfig.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
     configBuilder
+        .schema(tableSchema)
         .readFrom(tablePath)
         .project(projectedSchema);
     List<Record> actualRecords = readRecords(job.getConfiguration());
@@ -381,8 +405,9 @@ public class TestIcebergInputFormat {
          .commit();
 
     Job job = Job.getInstance(conf);
-    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
+    InputFormatConfig.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
     configBuilder
+        .schema(table.schema())
         .readFrom(location.toString())
         .snapshotId(snapshotId);
 
@@ -401,8 +426,8 @@ public class TestIcebergInputFormat {
          .appendFile(writeFile(table, null, format, expectedRecords))
          .commit();
     Job job = Job.getInstance(conf);
-    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
-    configBuilder.readFrom(location.toString());
+    InputFormatConfig.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
+    configBuilder.readFrom(location.toString()).schema(table.schema());
 
     for (InputSplit split : splits(job.getConfiguration())) {
       Assert.assertArrayEquals(IcebergInputFormat.IcebergSplit.ANYWHERE, split.getLocations());
@@ -438,9 +463,10 @@ public class TestIcebergInputFormat {
          .commit();
 
     Job job = Job.getInstance(conf);
-    IcebergInputFormat.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
+    InputFormatConfig.ConfigBuilder configBuilder = IcebergInputFormat.configure(job);
     configBuilder
         .catalogFunc(HadoopCatalogFunc.class)
+        .schema(table.schema())
         .readFrom(tableIdentifier.toString());
     validate(job, expectedRecords);
   }
