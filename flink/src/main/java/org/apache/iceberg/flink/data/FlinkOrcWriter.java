@@ -17,44 +17,45 @@
  * under the License.
  */
 
-package org.apache.iceberg.data.orc;
+package org.apache.iceberg.flink.data;
 
-import org.apache.iceberg.data.Record;
-import org.apache.iceberg.orc.OrcValueWriter;
+import org.apache.flink.types.Row;
+import org.apache.iceberg.data.orc.BaseOrcWriter;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
 import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
-public class GenericOrcWriter extends BaseOrcWriter<Record> {
+public class FlinkOrcWriter extends BaseOrcWriter<Row> {
 
-  protected GenericOrcWriter(TypeDescription schema) {
+  protected FlinkOrcWriter(TypeDescription schema) {
     super(schema);
   }
 
-  public static OrcValueWriter<Record> buildWriter(TypeDescription fileSchema) {
-    return new GenericOrcWriter(fileSchema);
+  public static BaseOrcWriter<Row> buildWriter(TypeDescription fileSchema) {
+    return new FlinkOrcWriter(fileSchema);
   }
 
-  @SuppressWarnings("unchecked")
   @Override
-  public void write(Record value, VectorizedRowBatch output) {
+  protected Converter<Row> createStructConverter(TypeDescription schema) {
+    return new RowConverter(schema);
+  }
+
+  @Override
+  @SuppressWarnings("unchecked")
+  public void write(Row value, VectorizedRowBatch output) {
     int row = output.size++;
     Converter[] converters = getConverters();
     for (int c = 0; c < converters.length; ++c) {
-      converters[c].addValue(row, value.get(c, converters[c].getJavaClass()), output.cols[c]);
+      Class clazz = converters[c].getJavaClass();
+      converters[c].addValue(row, clazz.cast(value.getField(c)), output.cols[c]);
     }
   }
 
-  @Override
-  protected Converter<Record> createStructConverter(TypeDescription schema) {
-    return new StructConverter(schema);
-  }
-
-  private class StructConverter implements Converter<Record> {
+  private class RowConverter implements Converter<Row> {
     private final Converter[] children;
 
-    StructConverter(TypeDescription schema) {
+    private RowConverter(TypeDescription schema) {
       this.children = new Converter[schema.getChildren().size()];
       for (int c = 0; c < children.length; ++c) {
         children[c] = buildConverter(schema.getChildren().get(c));
@@ -62,13 +63,13 @@ public class GenericOrcWriter extends BaseOrcWriter<Record> {
     }
 
     @Override
-    public Class<Record> getJavaClass() {
-      return Record.class;
+    public Class<Row> getJavaClass() {
+      return Row.class;
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    public void addValue(int rowId, Record data, ColumnVector output) {
+    public void addValue(int rowId, Row data, ColumnVector output) {
       if (data == null) {
         output.noNulls = false;
         output.isNull[rowId] = true;
@@ -76,7 +77,8 @@ public class GenericOrcWriter extends BaseOrcWriter<Record> {
         output.isNull[rowId] = false;
         StructColumnVector cv = (StructColumnVector) output;
         for (int c = 0; c < children.length; ++c) {
-          children[c].addValue(rowId, data.get(c, children[c].getJavaClass()), cv.fields[c]);
+          Class childCls = children[c].getJavaClass();
+          children[c].addValue(rowId, childCls.cast(data.getField(c)), cv.fields[c]);
         }
       }
     }

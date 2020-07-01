@@ -27,7 +27,7 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.orc.ORC;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -35,7 +35,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.flink.data.RandomData.COMPLEX_SCHEMA;
 
-public class TestFlinkParquetReaderWriter {
+public class TestFlinkOrcReaderWriter {
   private static final int NUM_RECORDS = 20_000;
 
   @Rule
@@ -45,16 +45,16 @@ public class TestFlinkParquetReaderWriter {
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
-    try (FileAppender<Row> writer = Parquet.write(Files.localOutput(testFile))
+    try (FileAppender<Row> writer = ORC.write(Files.localOutput(testFile))
         .schema(schema)
-        .createWriterFunc(FlinkParquetWriters::buildRowWriter)
+        .createWriterFunc(FlinkOrcWriter::buildWriter)
         .build()) {
       writer.addAll(iterable);
     }
 
-    try (CloseableIterable<Row> reader = Parquet.read(Files.localInput(testFile))
+    try (CloseableIterable<Row> reader = ORC.read(Files.localInput(testFile))
         .project(schema)
-        .createReaderFunc(type -> FlinkParquetReaders.buildRowReader(schema, type))
+        .createReaderFunc(type -> FlinkOrcReader.buildReader(schema, type))
         .build()) {
       Iterator<Row> expected = iterable.iterator();
       Iterator<Row> rows = reader.iterator();
@@ -69,17 +69,5 @@ public class TestFlinkParquetReaderWriter {
   @Test
   public void testNormalRowData() throws IOException {
     testCorrectness(COMPLEX_SCHEMA, NUM_RECORDS, RandomData.generate(COMPLEX_SCHEMA, NUM_RECORDS, 19981));
-  }
-
-  @Test
-  public void testDictionaryEncodedData() throws IOException {
-    testCorrectness(COMPLEX_SCHEMA, NUM_RECORDS,
-        RandomData.generateDictionaryEncodableData(COMPLEX_SCHEMA, NUM_RECORDS, 21124));
-  }
-
-  @Test
-  public void testFallbackData() throws IOException {
-    testCorrectness(COMPLEX_SCHEMA, NUM_RECORDS,
-        RandomData.generateFallbackData(COMPLEX_SCHEMA, NUM_RECORDS, 21124, NUM_RECORDS / 20));
   }
 }
