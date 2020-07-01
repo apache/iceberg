@@ -20,6 +20,7 @@
 package org.apache.iceberg.orc;
 
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.orc.TypeDescription;
 
@@ -27,6 +28,17 @@ import org.apache.orc.TypeDescription;
  * Generic visitor of an ORC Schema.
  */
 public abstract class OrcSchemaVisitor<T> {
+
+  public static <T> List<T> visitSchema(TypeDescription schema, OrcSchemaVisitor<T> visitor) {
+    Preconditions.checkArgument(schema.getId() == 0, "TypeDescription must be root schema.");
+
+    List<TypeDescription> children = schema.getChildren();
+    List<T> results = Lists.newArrayListWithExpectedSize(children.size());
+    for (TypeDescription child : children) {
+      results.add(visit(child, visitor));
+    }
+    return results;
+  }
 
   public static <T> T visit(TypeDescription schema, OrcSchemaVisitor<T> visitor) {
     switch (schema.getCategory()) {
@@ -53,14 +65,10 @@ public abstract class OrcSchemaVisitor<T> {
     List<TypeDescription> fields = record.getChildren();
     List<String> names = record.getFieldNames();
     List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
-    List<String> includedNames = Lists.newArrayListWithExpectedSize(names.size());
-    for (int i = 0; i < fields.size(); ++i) {
-      TypeDescription field = fields.get(i);
-      String name = names.get(i);
+    for (TypeDescription field : fields) {
       results.add(visit(field, visitor));
-      includedNames.add(name);
     }
-    return visitor.record(record, includedNames, results);
+    return visitor.record(record, names, results);
   }
 
   public T record(TypeDescription record, List<String> names, List<T> fields) {

@@ -27,7 +27,6 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -212,17 +211,15 @@ public final class ORCSchemaUtil {
     Preconditions.checkState(children.size() == childrenNames.size(),
         "Error in ORC file, children fields and names do not match.");
 
-    List<Types.NestedField> icebergFields = Lists.newArrayListWithExpectedSize(children.size());
     OrcToIcebergVisitor schemaConverter = new OrcToIcebergVisitor(icebergToOrcMapping("root", orcSchema));
-    for (TypeDescription child : orcSchema.getChildren()) {
-      OrcToIcebergVisitor.visit(child, schemaConverter).ifPresent(icebergFields::add);
-    }
+    List<Types.NestedField> fields = OrcToIcebergVisitor.visitSchema(orcSchema, schemaConverter).stream()
+        .filter(Optional::isPresent).map(Optional::get).collect(Collectors.toList());
 
-    if (icebergFields.size() == 0) {
+    if (fields.size() == 0) {
       throw new IllegalArgumentException("ORC schema does not contain Iceberg IDs");
     }
 
-    return new Schema(icebergFields);
+    return new Schema(fields);
   }
 
   /**
