@@ -136,6 +136,11 @@ To show table history, run:
 ```scala
 spark.read.format("iceberg").load("db.table.history").show(truncate = false)
 ```
+
+To show table history by HDFS path, run:
+```scala
+spark.read.format("iceberg").load(table.location() + "#" + MetadataTableType.HISTORY).show( truncate = false)
+```
 ```text
 +-------------------------+---------------------+---------------------+---------------------+
 | made_current_at         | snapshot_id         | parent_id           | is_current_ancestor |
@@ -158,6 +163,11 @@ To show the valid snapshots for a table, run:
 
 ```scala
 spark.read.format("iceberg").load("db.table.snapshots").show(truncate = false)
+```
+
+To show the valid snapshots for a table by HDFS path, run:
+```scala
+spark.read.format("iceberg").load(table.location() + "#" + MetadataTableType.SNAPSHOTS).show( truncate = false)
 ```
 ```text
 +-------------------------+----------------+-----------+-----------+----------------------------------------------------+-------------------------------------------------------+
@@ -206,6 +216,11 @@ To show a table's file manifests and each file's metadata, run:
 ```scala
 spark.read.format("iceberg").load("db.table.manifests").show(truncate = false)
 ```
+
+To show a table’s file manifests and each file’s metadata by HDFS path, run:
+```scala
+spark.read.format("iceberg").load(table.location() + "#" + MetadataTableType.MANIFESTS).show( truncate = false)
+```
 ```text
 +----------------------------------------------------------------------+--------+-------------------+---------------------+------------------------+---------------------------+--------------------------+---------------------------------+
 | path                                                                 | length | partition_spec_id | added_snapshot_id   | added_data_files_count | existing_data_files_count | deleted_data_files_count | partitions                      |
@@ -220,6 +235,11 @@ To show a table's data files and each file's metadata, run:
 
 ```scala
 spark.read.format("iceberg").load("db.table.files").show(truncate = false)
+```
+
+To show a table’s data files and each file’s metadata by HDFS path, run:
+```scala
+spark.read.format("iceberg").load(table.location() + "#" + MetadataTableType.ALL_DATA_FILES).show( truncate = false)
 ```
 ```text
 +-------------------------------------------------------------------------+-------------+--------------+--------------------+--------------------+------------------+-------------------+-----------------+-----------------+--------------+---------------+
