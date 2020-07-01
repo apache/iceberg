@@ -71,7 +71,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   private static final Joiner SLASH = Joiner.on("/");
   private static final PathFilter TABLE_FILTER = path -> path.getName().endsWith(TABLE_METADATA_FILE_EXTENSION);
 
-  private final String name;
+  private final String catalogName;
   private final Configuration conf;
   private final String warehouseLocation;
   private final FileSystem fs;
@@ -87,7 +87,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     Preconditions.checkArgument(warehouseLocation != null && !warehouseLocation.equals(""),
         "no location provided for warehouse");
 
-    this.name = name;
+    this.catalogName = name;
     this.conf = conf;
     this.warehouseLocation = warehouseLocation.replaceAll("/*$", "");
     this.fs = Util.getFs(new Path(warehouseLocation), conf);
@@ -116,7 +116,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   @Override
   protected String name() {
-    return name;
+    return catalogName;
   }
 
   @Override

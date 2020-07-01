@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Map;
 import java.util.Set;
-import org.apache.iceberg.DeleteFiles;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
