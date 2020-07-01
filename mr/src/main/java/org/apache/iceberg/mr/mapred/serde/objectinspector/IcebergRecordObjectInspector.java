@@ -21,6 +21,7 @@ package org.apache.iceberg.mr.mapred.serde.objectinspector;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
@@ -157,12 +158,12 @@ public final class IcebergRecordObjectInspector extends StructObjectInspector {
       }
 
       IcebergRecordStructField that = (IcebergRecordStructField) o;
-      return field.equals(that.field) && oi.equals(that.oi);
+      return field.equals(that.field) && oi.equals(that.oi) && position == that.position;
     }
 
     @Override
     public int hashCode() {
-      return 31 * field.hashCode() + oi.hashCode();
+      return Objects.hash(field, oi, position);
     }
 
   }

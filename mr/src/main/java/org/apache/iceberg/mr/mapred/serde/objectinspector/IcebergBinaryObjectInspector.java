@@ -21,26 +21,46 @@ package org.apache.iceberg.mr.mapred.serde.objectinspector;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BinaryObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.hadoop.io.BytesWritable;
+import org.apache.iceberg.util.ByteBuffers;
 
-public final class IcebergBinaryObjectInspector extends IcebergPrimitiveObjectInspector
-                                                implements BinaryObjectInspector {
+public abstract class IcebergBinaryObjectInspector extends AbstractPrimitiveJavaObjectInspector
+                                                   implements BinaryObjectInspector {
 
-  private static final IcebergBinaryObjectInspector INSTANCE = new IcebergBinaryObjectInspector();
+  private static final IcebergBinaryObjectInspector BYTE_ARRAY = new IcebergBinaryObjectInspector() {
+    @Override
+    byte[] toByteArray(Object o) {
+      return (byte[]) o;
+    }
+  };
 
-  public static IcebergBinaryObjectInspector get() {
-    return INSTANCE;
+  private static final IcebergBinaryObjectInspector BYTE_BUFFER = new IcebergBinaryObjectInspector() {
+    @Override
+    byte[] toByteArray(Object o) {
+      return ByteBuffers.toByteArray((ByteBuffer) o);
+    }
+  };
+
+  public static IcebergBinaryObjectInspector byteArray() {
+    return BYTE_ARRAY;
+  }
+
+  public static IcebergBinaryObjectInspector byteBuffer() {
+    return BYTE_BUFFER;
   }
 
   private IcebergBinaryObjectInspector() {
     super(TypeInfoFactory.binaryTypeInfo);
   }
 
+  abstract byte[] toByteArray(Object object);
+
   @Override
   public byte[] getPrimitiveJavaObject(Object o) {
-    return o == null ? null : ((ByteBuffer) o).array();
+    return toByteArray(o);
   }
 
   @Override

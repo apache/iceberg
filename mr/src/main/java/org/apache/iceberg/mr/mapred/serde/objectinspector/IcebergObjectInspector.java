@@ -67,7 +67,7 @@ public final class IcebergObjectInspector extends TypeUtil.SchemaVisitor<ObjectI
 
     switch (primitiveType.typeId()) {
       case BINARY:
-        return IcebergBinaryObjectInspector.get();
+        return IcebergBinaryObjectInspector.byteBuffer();
       case BOOLEAN:
         primitiveTypeInfo = TypeInfoFactory.booleanTypeInfo;
         break;
@@ -79,6 +79,8 @@ public final class IcebergObjectInspector extends TypeUtil.SchemaVisitor<ObjectI
       case DOUBLE:
         primitiveTypeInfo = TypeInfoFactory.doubleTypeInfo;
         break;
+      case FIXED:
+        return IcebergBinaryObjectInspector.byteArray();
       case FLOAT:
         primitiveTypeInfo = TypeInfoFactory.floatTypeInfo;
         break;
@@ -89,15 +91,14 @@ public final class IcebergObjectInspector extends TypeUtil.SchemaVisitor<ObjectI
         primitiveTypeInfo = TypeInfoFactory.longTypeInfo;
         break;
       case STRING:
+      case UUID:
         primitiveTypeInfo = TypeInfoFactory.stringTypeInfo;
         break;
       case TIMESTAMP:
         boolean adjustToUTC = ((Types.TimestampType) primitiveType).shouldAdjustToUTC();
         return IcebergTimestampObjectInspector.get(adjustToUTC);
 
-      case FIXED:
       case TIME:
-      case UUID:
       default:
         throw new IllegalArgumentException(primitiveType.typeId() + " type is not supported");
     }

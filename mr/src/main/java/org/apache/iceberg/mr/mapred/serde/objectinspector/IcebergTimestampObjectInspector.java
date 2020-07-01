@@ -22,34 +22,42 @@ package org.apache.iceberg.mr.mapred.serde.objectinspector;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.util.function.Function;
 import org.apache.hadoop.hive.serde2.io.TimestampWritable;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 
-public final class IcebergTimestampObjectInspector extends IcebergPrimitiveObjectInspector
-        implements TimestampObjectInspector {
+public abstract class IcebergTimestampObjectInspector extends AbstractPrimitiveJavaObjectInspector
+                                                      implements TimestampObjectInspector {
 
-  private static final IcebergTimestampObjectInspector INSTANCE_WITH_ZONE =
-          new IcebergTimestampObjectInspector(o -> ((OffsetDateTime) o).toLocalDateTime());
+  private static final IcebergTimestampObjectInspector INSTANCE_WITH_ZONE = new IcebergTimestampObjectInspector() {
+    @Override
+    LocalDateTime toLocalDateTime(Object o) {
+      return ((OffsetDateTime) o).toLocalDateTime();
+    }
+  };
 
-  private static final IcebergTimestampObjectInspector INSTANCE_WITHOUT_ZONE =
-          new IcebergTimestampObjectInspector(o -> (LocalDateTime) o);
+  private static final IcebergTimestampObjectInspector INSTANCE_WITHOUT_ZONE = new IcebergTimestampObjectInspector() {
+    @Override
+    LocalDateTime toLocalDateTime(Object o) {
+      return (LocalDateTime) o;
+    }
+  };
 
   public static IcebergTimestampObjectInspector get(boolean adjustToUTC) {
     return adjustToUTC ? INSTANCE_WITH_ZONE : INSTANCE_WITHOUT_ZONE;
   }
 
-  private final Function<Object, LocalDateTime> cast;
-
-  private IcebergTimestampObjectInspector(Function<Object, LocalDateTime> cast) {
+  private IcebergTimestampObjectInspector() {
     super(TypeInfoFactory.timestampTypeInfo);
-    this.cast = cast;
   }
+
+
+  abstract LocalDateTime toLocalDateTime(Object object);
 
   @Override
   public Timestamp getPrimitiveJavaObject(Object o) {
-    return o == null ? null : Timestamp.valueOf(cast.apply(o));
+    return o == null ? null : Timestamp.valueOf(toLocalDateTime(o));
   }
 
   @Override

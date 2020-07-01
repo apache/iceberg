@@ -22,10 +22,13 @@ package org.apache.iceberg.mr.mapred.serde.objectinspector;
 import java.sql.Date;
 import java.time.LocalDate;
 import org.apache.hadoop.hive.serde2.io.DateWritable;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.DateObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
+import org.apache.iceberg.util.DateTimeUtil;
 
-public final class IcebergDateObjectInspector extends IcebergPrimitiveObjectInspector implements DateObjectInspector {
+public final class IcebergDateObjectInspector extends AbstractPrimitiveJavaObjectInspector
+                                              implements DateObjectInspector {
 
   private static final IcebergDateObjectInspector INSTANCE = new IcebergDateObjectInspector();
 
@@ -44,8 +47,7 @@ public final class IcebergDateObjectInspector extends IcebergPrimitiveObjectInsp
 
   @Override
   public DateWritable getPrimitiveWritableObject(Object o) {
-    Date date = getPrimitiveJavaObject(o);
-    return date == null ? null : new DateWritable(date);
+    return o == null ? null : new DateWritable(DateTimeUtil.daysFromDate((LocalDate) o));
   }
 
   @Override

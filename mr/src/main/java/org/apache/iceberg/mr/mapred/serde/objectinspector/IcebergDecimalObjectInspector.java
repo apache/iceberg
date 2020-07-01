@@ -25,11 +25,12 @@ import java.math.BigDecimal;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.hive.common.type.HiveDecimal;
 import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveDecimalObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.DecimalTypeInfo;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-public final class IcebergDecimalObjectInspector extends IcebergPrimitiveObjectInspector
+public final class IcebergDecimalObjectInspector extends AbstractPrimitiveJavaObjectInspector
                                                  implements HiveDecimalObjectInspector {
 
   private static final Cache<Integer, IcebergDecimalObjectInspector> CACHE = Caffeine.newBuilder()
@@ -47,16 +48,6 @@ public final class IcebergDecimalObjectInspector extends IcebergPrimitiveObjectI
 
   private IcebergDecimalObjectInspector(int precision, int scale) {
     super(new DecimalTypeInfo(precision, scale));
-  }
-
-  @Override
-  public int precision() {
-    return ((DecimalTypeInfo) getTypeInfo()).precision();
-  }
-
-  @Override
-  public int scale() {
-    return ((DecimalTypeInfo) getTypeInfo()).scale();
   }
 
   @Override
