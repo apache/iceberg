@@ -20,12 +20,12 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -130,7 +130,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
         newManifests.add(manifest);
       }
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write manifest");
+      throw new UncheckedIOException("Failed to write manifest", e);
     }
 
     Iterable<ManifestFile> appendManifestsWithMetadata = Iterables.transform(

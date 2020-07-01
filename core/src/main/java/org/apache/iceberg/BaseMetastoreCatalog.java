@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.catalog.Catalog;
@@ -27,7 +28,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -277,7 +277,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
               }
             }
           } catch (IOException e) {
-            throw new RuntimeIOException(e, "Failed to read manifest file: " + manifest.path());
+            throw new UncheckedIOException("Failed to read manifest file: " + manifest.path(), e);
           }
         });
   }

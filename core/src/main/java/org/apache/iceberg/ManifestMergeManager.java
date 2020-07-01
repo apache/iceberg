@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.reflect.Array;
 import java.util.Comparator;
 import java.util.Iterator;
@@ -27,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.ManifestEntry.Status;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.ListMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -172,7 +172,7 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
             }
           }
         } catch (IOException e) {
-          throw new RuntimeIOException("Failed to close manifest reader", e);
+          throw new UncheckedIOException("Failed to close manifest reader", e);
         }
       }
       threw = false;

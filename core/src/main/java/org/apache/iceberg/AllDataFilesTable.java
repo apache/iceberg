@@ -20,8 +20,8 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
@@ -133,7 +133,7 @@ public class AllDataFilesTable extends BaseMetadataTable {
         Iterables.transform(snapshots, Snapshot::dataManifests), ThreadPools.getWorkerPool())) {
       return CloseableIterable.withNoopClose(Sets.newHashSet(iterable));
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to close parallel iterable");
+      throw new UncheckedIOException("Failed to close parallel iterable", e);
     }
   }
 }

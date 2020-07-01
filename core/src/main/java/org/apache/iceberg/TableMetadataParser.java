@@ -26,6 +26,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.StringWriter;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
@@ -35,7 +36,6 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -118,7 +118,7 @@ public class TableMetadataParser {
       toJson(metadata, generator);
       generator.flush();
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write json to file: %s", outputFile);
+      throw new UncheckedIOException(String.format("Failed to write json to file: %s", outputFile), e);
     }
   }
 
@@ -142,7 +142,7 @@ public class TableMetadataParser {
       generator.flush();
       return writer.toString();
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write json for: %s", metadata);
+      throw new UncheckedIOException(String.format("Failed to write json for: %s", metadata), e);
     }
   }
 
@@ -228,7 +228,7 @@ public class TableMetadataParser {
     try (InputStream is = codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
       return fromJson(io, file, JsonUtil.mapper().readValue(is, JsonNode.class));
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to read file: %s", file);
+      throw new UncheckedIOException(String.format("Failed to read file: %s", file), e);
     }
   }
 

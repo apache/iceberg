@@ -23,10 +23,10 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.io.StringWriter;
+import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -99,7 +99,7 @@ public class SnapshotParser {
       generator.flush();
       return writer.toString();
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write json for: %s", snapshot);
+      throw new UncheckedIOException(String.format("Failed to write json for: %s", snapshot), e);
     }
   }
 
@@ -156,7 +156,7 @@ public class SnapshotParser {
     try {
       return fromJson(io, JsonUtil.mapper().readValue(json, JsonNode.class));
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to read version from json: %s", json);
+      throw new UncheckedIOException(String.format("Failed to read version from json: %s", json), e);
     }
   }
 }

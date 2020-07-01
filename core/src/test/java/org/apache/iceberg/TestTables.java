@@ -20,10 +20,11 @@
 package org.apache.iceberg;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.LocationProvider;
@@ -228,7 +229,7 @@ public class TestTables {
     @Override
     public void deleteFile(String path) {
       if (!new File(path).delete()) {
-        throw new RuntimeIOException("Failed to delete file: " + path);
+        throw new UncheckedIOException(new IOException("Failed to delete file: " + path));
       }
     }
   }

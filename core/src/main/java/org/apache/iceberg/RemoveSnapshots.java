@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
@@ -28,7 +29,6 @@ import java.util.function.Consumer;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NotFoundException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -228,8 +228,8 @@ class RemoveSnapshots implements ExpireSnapshots {
                 }
 
               } catch (IOException e) {
-                throw new RuntimeIOException(e,
-                    "Failed to close manifest list: %s", snapshot.manifestListLocation());
+                throw new UncheckedIOException(String.format("Failed to close manifest list: %s",
+                    snapshot.manifestListLocation()), e);
               }
             });
 
@@ -302,8 +302,8 @@ class RemoveSnapshots implements ExpireSnapshots {
                     }
                   }
                 } catch (IOException e) {
-                  throw new RuntimeIOException(e,
-                      "Failed to close manifest list: %s", snapshot.manifestListLocation());
+                  throw new UncheckedIOException(String.format("Failed to close manifest list: %s",
+                      snapshot.manifestListLocation()), e);
                 }
 
                 // add the manifest list to the delete set, if present
@@ -359,7 +359,7 @@ class RemoveSnapshots implements ExpireSnapshots {
               }
             }
           } catch (IOException e) {
-            throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);
+            throw new UncheckedIOException(String.format("Failed to read manifest file: %s", manifest), e);
           }
         });
 
@@ -378,7 +378,7 @@ class RemoveSnapshots implements ExpireSnapshots {
               }
             }
           } catch (IOException e) {
-            throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);
+            throw new UncheckedIOException(String.format("Failed to read manifest file: %s", manifest), e);
           }
         });
 

@@ -20,11 +20,11 @@
 package org.apache.iceberg.orc;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -94,8 +94,8 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
 
     try {
       return new VectorizedRowBatchIterator(file.location(), readerSchema, orcFileReader.rows(options));
-    } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Failed to get ORC rows for file: %s", file);
+    } catch (IOException e) {
+      throw new UncheckedIOException(String.format("Failed to get ORC rows for file: %s", file), e);
     }
   }
 

@@ -23,6 +23,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.io.StringWriter;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -33,7 +34,6 @@ import java.util.SortedSet;
 import java.util.UUID;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -238,7 +238,7 @@ public class TestTableMetadata {
 
       generator.flush();
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write json for: %s", metadata);
+      throw new UncheckedIOException(String.format("Failed to write json for: %s", metadata), e);
     }
     return writer.toString();
   }
@@ -494,7 +494,7 @@ public class TestTableMetadata {
 
       generator.flush();
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write json for: %s", metadata);
+      throw new UncheckedIOException(String.format("Failed to write json for: %s", metadata), e);
     }
     return writer.toString();
   }

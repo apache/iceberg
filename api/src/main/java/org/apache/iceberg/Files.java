@@ -23,10 +23,10 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.io.UncheckedIOException;
 import java.nio.file.Paths;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NotFoundException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
@@ -58,10 +58,9 @@ public class Files {
       }
 
       if (!file.getParentFile().isDirectory() && !file.getParentFile().mkdirs()) {
-        throw new RuntimeIOException(
-            String.format(
+        throw new UncheckedIOException(new IOException(String.format(
                 "Failed to create the file's directory at %s.",
-                file.getParentFile().getAbsolutePath()));
+                file.getParentFile().getAbsolutePath())));
       }
 
       try {
@@ -75,7 +74,7 @@ public class Files {
     public PositionOutputStream createOrOverwrite() {
       if (file.exists()) {
         if (!file.delete()) {
-          throw new RuntimeIOException("Failed to delete: " + file);
+          throw new UncheckedIOException(new IOException("Failed to delete: " + file));
         }
       }
       return create();

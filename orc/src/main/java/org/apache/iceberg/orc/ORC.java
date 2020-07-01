@@ -20,6 +20,7 @@
 package org.apache.iceberg.orc;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
@@ -27,7 +28,6 @@ import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
@@ -186,8 +186,8 @@ public class ORC {
   static Reader newFileReader(String location, ReaderOptions readerOptions) {
     try {
       return OrcFile.createReader(new Path(location), readerOptions);
-    } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Failed to open file: %s", location);
+    } catch (IOException e) {
+      throw new UncheckedIOException(String.format("Failed to open file: %s", location), e);
     }
   }
 

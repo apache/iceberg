@@ -20,6 +20,7 @@
 package org.apache.iceberg.avro;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -27,7 +28,6 @@ import org.apache.avro.Schema;
 import org.apache.avro.file.DataFileReader;
 import org.apache.avro.file.FileReader;
 import org.apache.avro.io.DatumReader;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -66,7 +66,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
       try (DataFileReader<D> reader = newFileReader()) {
         initMetadata(reader);
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to read metadata for file: %s", file);
+        throw new UncheckedIOException(String.format("Failed to read metadata for file: %s", file), e);
       }
     }
     return metadata;
@@ -94,7 +94,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
       return (DataFileReader<D>) DataFileReader.openReader(
           AvroIO.stream(file.newStream(), file.getLength()), reader);
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to open file: %s", file);
+      throw new UncheckedIOException(String.format("Failed to open file: %s", file), e);
     }
   }
 
@@ -109,7 +109,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
       try {
         reader.sync(start);
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to find sync past position %d", start);
+        throw new UncheckedIOException(String.format("Failed to find sync past position %d", start), e);
       }
     }
 
@@ -123,7 +123,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
       try {
         return reader.hasNext() && !reader.pastSync(end);
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to check range end: %d", end);
+        throw new UncheckedIOException(String.format("Failed to check range end: %d", end), e);
       }
     }
 
@@ -143,7 +143,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
       try {
         return reader.next(reuse);
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to read next record");
+        throw new UncheckedIOException("Failed to read next record", e);
       }
     }
 
@@ -196,7 +196,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
         this.reused = reader.next(reused);
         return reused;
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to read next record");
+        throw new UncheckedIOException("Failed to read next record", e);
       }
     }
 

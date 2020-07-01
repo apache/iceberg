@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -36,7 +37,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopFileIO;
@@ -365,7 +365,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
       try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
         this.tasks = Lists.newArrayList(tasksIterable);
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to close table scan: %s", scan);
+        throw new UncheckedIOException(String.format("Failed to close table scan: %s", scan), e);
       }
     }
 

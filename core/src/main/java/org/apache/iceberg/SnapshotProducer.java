@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +33,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -168,7 +168,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         writer.addAll(Arrays.asList(manifestFiles));
 
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to write manifest list file");
+        throw new UncheckedIOException("Failed to write manifest list file", e);
       }
 
       return new BaseSnapshot(ops.io(),
@@ -421,7 +421,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries());
 
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to read manifest: %s", manifest.path());
+      throw new UncheckedIOException(String.format("Failed to read manifest: %s", manifest.path()), e);
     }
   }
 

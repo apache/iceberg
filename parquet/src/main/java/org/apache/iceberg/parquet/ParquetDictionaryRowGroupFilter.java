@@ -20,12 +20,12 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
@@ -360,7 +360,7 @@ public class ParquetDictionaryRowGroupFilter {
       try {
         dict = page.getEncoding().initDictionary(col, page);
       } catch (IOException e) {
-        throw new RuntimeIOException("Failed to create reader for dictionary page");
+        throw new UncheckedIOException("Failed to create reader for dictionary page", e);
       }
 
       Set<T> dictSet = Sets.newTreeSet(comparator);

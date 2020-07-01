@@ -20,12 +20,12 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.orc.ORC;
@@ -80,7 +80,7 @@ class SparkAppenderFactory {
           throw new UnsupportedOperationException("Cannot write unknown format: " + fileFormat);
       }
     } catch (IOException e) {
-      throw new RuntimeIOException(e);
+      throw new UncheckedIOException(e);
     }
   }
 }

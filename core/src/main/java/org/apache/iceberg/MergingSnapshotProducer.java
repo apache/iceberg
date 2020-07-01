@@ -20,11 +20,11 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.events.CreateSnapshotEvent;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.InputFile;
@@ -327,7 +327,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         this.cachedNewManifest = writer.toManifestFile();
         this.hasNewFiles = false;
       } catch (IOException e) {
-        throw new RuntimeIOException("Failed to close manifest writer", e);
+        throw new UncheckedIOException("Failed to close manifest writer", e);
       }
     }
 
@@ -360,7 +360,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         this.cachedNewDeleteManifest = writer.toManifestFile();
         this.hasNewDeleteFiles = false;
       } catch (IOException e) {
-        throw new RuntimeIOException("Failed to close manifest writer", e);
+        throw new UncheckedIOException("Failed to close manifest writer", e);
       }
     }
 

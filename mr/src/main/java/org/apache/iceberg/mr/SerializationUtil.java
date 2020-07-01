@@ -24,9 +24,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 
 public class SerializationUtil {
 
@@ -39,7 +39,7 @@ public class SerializationUtil {
       oos.writeObject(obj);
       return baos.toByteArray();
     } catch (IOException e) {
-      throw new RuntimeIOException("Failed to serialize object", e);
+      throw new UncheckedIOException("Failed to serialize object", e);
     }
   }
 
@@ -53,7 +53,7 @@ public class SerializationUtil {
         ObjectInputStream ois = new ObjectInputStream(bais)) {
       return (T) ois.readObject();
     } catch (IOException e) {
-      throw new RuntimeIOException("Failed to deserialize object", e);
+      throw new UncheckedIOException("Failed to deserialize object", e);
     } catch (ClassNotFoundException e) {
       throw new RuntimeException("Could not read object ", e);
     }
