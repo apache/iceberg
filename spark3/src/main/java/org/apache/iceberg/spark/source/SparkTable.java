@@ -153,17 +153,12 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   @Override
   public void deleteWhere(Filter[] filters) {
     Expression deleteExpr = SparkFilters.convert(filters);
-    DeleteFiles delete = icebergTable.newDelete()
-        .set("spark.app.id", sparkSession().sparkContext().applicationId())
-        .deleteFromRowFilter(deleteExpr);
-
-    String genieId = sparkSession().sparkContext().hadoopConfiguration().get("genie.job.id");
-    if (genieId != null) {
-      delete.set("genie-id", genieId);
-    }
 
     try {
-      delete.commit();
+      icebergTable.newDelete()
+          .set("spark.app.id", sparkSession().sparkContext().applicationId())
+          .deleteFromRowFilter(deleteExpr)
+          .commit();
     } catch (ValidationException e) {
       throw new IllegalArgumentException("Failed to cleanly delete data files matching: " + deleteExpr, e);
     }

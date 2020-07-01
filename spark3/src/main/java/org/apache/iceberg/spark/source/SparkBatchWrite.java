@@ -81,7 +81,6 @@ class SparkBatchWrite implements BatchWrite {
   private final Expression overwriteExpr;
   private final String applicationId;
   private final String wapId;
-  private final String genieId;
   private final long targetFileSize;
   private final Schema writeSchema;
   private final StructType dsSchema;
@@ -99,7 +98,6 @@ class SparkBatchWrite implements BatchWrite {
     this.overwriteExpr = overwriteExpr;
     this.applicationId = applicationId;
     this.wapId = wapId;
-    this.genieId = options.get("genie-id");
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
 
@@ -140,10 +138,6 @@ class SparkBatchWrite implements BatchWrite {
 
   protected void commitOperation(SnapshotUpdate<?> operation, int numFiles, String description) {
     LOG.info("Committing {} with {} files to table {}", description, numFiles, table);
-    if (genieId != null) {
-      operation.set("genie-id", genieId);
-    }
-
     if (applicationId != null) {
       operation.set("spark.app.id", applicationId);
     }
