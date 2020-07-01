@@ -111,4 +111,21 @@ public class TestTableResolver {
     Assert.assertEquals(tableLocation.getAbsolutePath(), table.location());
   }
 
+  @Test(expected = UnsupportedOperationException.class)
+  public void resolveTableFromConfigurationHiveCatalog() throws IOException {
+    Configuration conf = new Configuration();
+    conf.set(InputFormatConfig.CATALOG_NAME, InputFormatConfig.HIVE_CATALOG);
+    conf.set(InputFormatConfig.TABLE_NAME, "table_a");
+
+    TableResolver.resolveTableFromConfiguration(conf);
+  }
+
+  @Test(expected = NullPointerException.class)
+  public void resolveTableFromConfigurationHiveCatalogMissingTableName() throws IOException {
+    Configuration conf = new Configuration();
+    conf.set(InputFormatConfig.CATALOG_NAME, InputFormatConfig.HIVE_CATALOG);
+
+    TableResolver.resolveTableFromConfiguration(conf);
+  }
+
 }

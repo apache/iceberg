@@ -56,8 +56,8 @@ final class TableResolver {
       case InputFormatConfig.HIVE_CATALOG:
         String tableName = conf.get(InputFormatConfig.TABLE_NAME);
         Preconditions.checkNotNull(tableName, InputFormatConfig.TABLE_NAME + " is not set.");
-        //TODO Implement HiveCatalog
-        return null;
+        throw new UnsupportedOperationException(InputFormatConfig.HIVE_CATALOG + " is not supported yet");
+
       default:
         throw new NoSuchNamespaceException("Catalog " + catalogName + " not supported.");
     }
