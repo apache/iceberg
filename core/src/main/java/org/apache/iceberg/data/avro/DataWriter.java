@@ -40,7 +40,7 @@ public class DataWriter<T> implements DatumWriter<T> {
     return new DataWriter<>(schema);
   }
 
-  private DataWriter(Schema schema) {
+  protected DataWriter(Schema schema) {
     setSchema(schema);
   }
 
@@ -50,13 +50,17 @@ public class DataWriter<T> implements DatumWriter<T> {
     this.writer = (ValueWriter<T>) AvroSchemaVisitor.visit(schema, new WriteBuilder());
   }
 
+  protected void setWriter(ValueWriter<T> writer) {
+    this.writer = writer;
+  }
+
   @Override
   public void write(T datum, Encoder out) throws IOException {
     writer.write(datum, out);
   }
 
-  private static class WriteBuilder extends AvroSchemaVisitor<ValueWriter<?>> {
-    private WriteBuilder() {
+  protected static class WriteBuilder extends AvroSchemaVisitor<ValueWriter<?>> {
+    protected WriteBuilder() {
     }
 
     @Override

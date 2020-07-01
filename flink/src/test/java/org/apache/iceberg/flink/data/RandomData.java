@@ -33,9 +33,39 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.RandomUtil;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
+
 class RandomData {
   private RandomData() {
   }
+
+  static final Schema COMPLEX_SCHEMA = new Schema(
+      required(1, "roots", Types.LongType.get()),
+      optional(3, "lime", Types.ListType.ofRequired(4, Types.DoubleType.get())),
+      required(5, "strict", Types.StructType.of(
+          required(9, "tangerine", Types.StringType.get()),
+          optional(6, "hopeful", Types.StructType.of(
+              required(7, "steel", Types.FloatType.get()),
+              required(8, "lantern", Types.DateType.get())
+          )),
+          optional(10, "vehement", Types.LongType.get())
+      )),
+      optional(11, "metamorphosis", Types.MapType.ofRequired(12, 13,
+          Types.StringType.get(), Types.TimestampType.withZone())),
+      required(14, "winter", Types.ListType.ofOptional(15, Types.StructType.of(
+          optional(16, "beet", Types.DoubleType.get()),
+          required(17, "stamp", Types.FloatType.get()),
+          optional(18, "wheeze", Types.StringType.get())
+      ))),
+      optional(19, "renovate", Types.MapType.ofRequired(20, 21,
+          Types.StringType.get(), Types.StructType.of(
+              optional(22, "jumpy", Types.DoubleType.get()),
+              required(23, "koala", Types.IntegerType.get()),
+              required(24, "couch rope", Types.IntegerType.get())
+          ))),
+      optional(2, "slide", Types.StringType.get())
+  );
 
   private static Iterable<Row> generateData(Schema schema, int numRecords, Supplier<RandomRowGenerator> supplier) {
     return () -> new Iterator<Row>() {
