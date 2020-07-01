@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.orc;
 
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -27,6 +28,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -211,7 +213,7 @@ public final class ORCSchemaUtil {
     Preconditions.checkState(children.size() == childrenNames.size(),
         "Error in ORC file, children fields and names do not match.");
 
-    OrcToIcebergVisitor schemaConverter = new OrcToIcebergVisitor(icebergToOrcMapping("root", orcSchema));
+    OrcToIcebergVisitor schemaConverter = new OrcToIcebergVisitor();
     List<Types.NestedField> fields = OrcToIcebergVisitor.visitSchema(orcSchema, schemaConverter).stream()
         .filter(Optional::isPresent).map(Optional::get).collect(Collectors.toList());
 
@@ -397,10 +399,24 @@ public final class ORCSchemaUtil {
 
   private static class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> {
 
-    private final Map<Integer, OrcField> icebergToOrcMapping;
+    private final Deque<String> fieldNames;
 
-    OrcToIcebergVisitor(Map<Integer, OrcField> icebergToOrcMapping) {
-      this.icebergToOrcMapping = icebergToOrcMapping;
+    OrcToIcebergVisitor() {
+      this.fieldNames = Lists.newLinkedList();
+    }
+
+    @Override
+    public void beforeField(String name, TypeDescription type) {
+      fieldNames.push(name);
+    }
+
+    @Override
+    public void afterField(String name, TypeDescription type) {
+      fieldNames.pop();
+    }
+
+    private String currentFieldName() {
+      return fieldNames.peek();
     }
 
     @Override
@@ -414,8 +430,7 @@ public final class ORCSchemaUtil {
 
       Types.StructType structType = Types.StructType.of(
           fields.stream().filter(Optional::isPresent).map(Optional::get).collect(Collectors.toList()));
-      return Optional.of(Types.NestedField.of(icebergIdOpt.get(), isOptional,
-          icebergToOrcMapping.get(icebergIdOpt.get()).name(), structType));
+      return Optional.of(Types.NestedField.of(icebergIdOpt.get(), isOptional, currentFieldName(), structType));
     }
 
     @Override
@@ -433,8 +448,7 @@ public final class ORCSchemaUtil {
           Types.ListType.ofOptional(foundElement.fieldId(), foundElement.type()) :
           Types.ListType.ofRequired(foundElement.fieldId(), foundElement.type());
 
-      return Optional.of(Types.NestedField.of(icebergIdOpt.get(), isOptional,
-          icebergToOrcMapping.get(icebergIdOpt.get()).name(), listTypeWithElem));
+      return Optional.of(Types.NestedField.of(icebergIdOpt.get(), isOptional, currentFieldName(), listTypeWithElem));
     }
 
     @Override
@@ -453,8 +467,7 @@ public final class ORCSchemaUtil {
           Types.MapType.ofOptional(foundKey.fieldId(), foundValue.fieldId(), foundKey.type(), foundValue.type()) :
           Types.MapType.ofRequired(foundKey.fieldId(), foundValue.fieldId(), foundKey.type(), foundValue.type());
 
-      return Optional.of(Types.NestedField.of(icebergIdOpt.get(), isOptional,
-          icebergToOrcMapping.get(icebergIdOpt.get()).name(), mapTypeWithKV));
+      return Optional.of(Types.NestedField.of(icebergIdOpt.get(), isOptional, currentFieldName(), mapTypeWithKV));
     }
 
     @Override
@@ -468,7 +481,7 @@ public final class ORCSchemaUtil {
 
       final Types.NestedField foundField;
       int icebergID = icebergIdOpt.get();
-      String name = icebergToOrcMapping.get(icebergID).name();
+      String name = currentFieldName();
       switch (primitive.getCategory()) {
         case BOOLEAN:
           foundField = Types.NestedField.of(icebergID, isOptional, name, Types.BooleanType.get());

@@ -32,12 +32,10 @@ public abstract class OrcSchemaVisitor<T> {
   public static <T> List<T> visitSchema(TypeDescription schema, OrcSchemaVisitor<T> visitor) {
     Preconditions.checkArgument(schema.getId() == 0, "TypeDescription must be root schema.");
 
-    List<TypeDescription> children = schema.getChildren();
-    List<T> results = Lists.newArrayListWithExpectedSize(children.size());
-    for (TypeDescription child : children) {
-      results.add(visit(child, visitor));
-    }
-    return results;
+    List<TypeDescription> fields = schema.getChildren();
+    List<String> names = schema.getFieldNames();
+
+    return visitFields(fields, names, visitor);
   }
 
   public static <T> T visit(TypeDescription schema, OrcSchemaVisitor<T> visitor) {
@@ -52,8 +50,7 @@ public abstract class OrcSchemaVisitor<T> {
         return visitor.list(schema, visit(schema.getChildren().get(0), visitor));
 
       case MAP:
-        return visitor.map(schema,
-            visit(schema.getChildren().get(0), visitor),
+        return visitor.map(schema, visit(schema.getChildren().get(0), visitor),
             visit(schema.getChildren().get(1), visitor));
 
       default:
@@ -61,15 +58,34 @@ public abstract class OrcSchemaVisitor<T> {
     }
   }
 
+  private static <T> List<T> visitFields(List<TypeDescription> fields, List<String> names,
+                                         OrcSchemaVisitor<T> visitor) {
+    Preconditions.checkArgument(fields.size() == names.size(), "Not all fields have names in ORC struct");
+
+    List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
+    for (int i = 0; i < fields.size(); i++) {
+      TypeDescription field = fields.get(i);
+      String name = names.get(i);
+      visitor.beforeField(name, field);
+      try {
+        results.add(visit(field, visitor));
+      } finally {
+        visitor.afterField(name, field);
+      }
+    }
+    return results;
+  }
+
   private static <T> T visitRecord(TypeDescription record, OrcSchemaVisitor<T> visitor) {
     List<TypeDescription> fields = record.getChildren();
     List<String> names = record.getFieldNames();
-    List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
-    for (TypeDescription field : fields) {
-      results.add(visit(field, visitor));
-    }
-    return visitor.record(record, names, results);
+
+    return visitor.record(record, names, visitFields(fields, names, visitor));
   }
+
+  public void beforeField(String name, TypeDescription type) {}
+
+  public void afterField(String name, TypeDescription type) {}
 
   public T record(TypeDescription record, List<String> names, List<T> fields) {
     return null;
