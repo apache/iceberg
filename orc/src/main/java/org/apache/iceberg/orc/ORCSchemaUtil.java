@@ -219,7 +219,7 @@ public final class ORCSchemaUtil {
     }
 
     if (icebergFields.size() == 0) {
-      throw new IllegalArgumentException("ORC schema has no Iceberg mappings");
+      throw new IllegalArgumentException("ORC schema does not contain Iceberg IDs");
     }
 
     return new Schema(icebergFields);
@@ -411,7 +411,7 @@ public final class ORCSchemaUtil {
                                               List<Optional<Types.NestedField>> fields) {
       boolean isOptional = isOptional(record);
       Optional<Integer> icebergIdOpt = icebergID(record);
-      if (!icebergIdOpt.isPresent() || fields.size() == 0) {
+      if (!icebergIdOpt.isPresent() || fields.stream().noneMatch(Optional::isPresent)) {
         return Optional.empty();
       }
 

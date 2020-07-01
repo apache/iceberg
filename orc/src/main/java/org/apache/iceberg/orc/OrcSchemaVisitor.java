@@ -37,12 +37,10 @@ public abstract class OrcSchemaVisitor<T> {
         throw new UnsupportedOperationException("Cannot handle " + schema);
 
       case LIST:
-        return visitor.list(
-            schema, visit(schema.getChildren().get(0), visitor));
+        return visitor.list(schema, visit(schema.getChildren().get(0), visitor));
 
       case MAP:
-        return visitor.map(
-            schema,
+        return visitor.map(schema,
             visit(schema.getChildren().get(0), visitor),
             visit(schema.getChildren().get(1), visitor));
 
