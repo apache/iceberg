@@ -26,6 +26,7 @@ import org.junit.Test;
 
 import static org.apache.iceberg.AssertHelpers.assertThrows;
 import static org.apache.iceberg.orc.ORCSchemaUtil.ICEBERG_ID_ATTRIBUTE;
+import static org.apache.iceberg.orc.ORCSchemaUtil.ICEBERG_REQUIRED_ATTRIBUTE;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.junit.Assert.assertEquals;
@@ -216,6 +217,7 @@ public class TestORCSchemaUtil {
     TypeDescription schema = TypeDescription.createStruct();
     TypeDescription intCol = TypeDescription.createInt();
     intCol.setAttribute(ICEBERG_ID_ATTRIBUTE, "1");
+    intCol.setAttribute(ICEBERG_REQUIRED_ATTRIBUTE, "true");
     TypeDescription listCol = TypeDescription
         .createList(TypeDescription.createMap(TypeDescription.createString(), TypeDescription.createDate()));
     listCol.setAttribute(ICEBERG_ID_ATTRIBUTE, "2");
@@ -230,19 +232,41 @@ public class TestORCSchemaUtil {
     schema.addField("mapCol", mapCol);
 
     Schema icebergSchema = ORCSchemaUtil.convert(schema);
-    assertEquals(2, icebergSchema.asStruct().fields().size());
+    Schema expectedSchema = new Schema(
+        required(1, "intCol", Types.IntegerType.get()),
+        // Skipped listCol since element has no Iceberg ID
+        optional(5, "mapCol", Types.MapType.ofOptional(3, 4,
+            Types.StringType.get(), Types.BooleanType.get()))
+    );
+    assertEquals("Schemas must match.", expectedSchema.asStruct(), icebergSchema.asStruct());
 
     TypeDescription structCol = TypeDescription.createStruct();
     structCol.setAttribute(ICEBERG_ID_ATTRIBUTE, "7");
+    structCol.setAttribute(ICEBERG_REQUIRED_ATTRIBUTE, "true");
     TypeDescription binaryCol = TypeDescription.createBinary();
     TypeDescription doubleCol = TypeDescription.createDouble();
     doubleCol.setAttribute(ICEBERG_ID_ATTRIBUTE, "6");
+    doubleCol.setAttribute(ICEBERG_REQUIRED_ATTRIBUTE, "true");
     structCol.addField("binaryCol", binaryCol);
     structCol.addField("doubleCol", doubleCol);
     schema.addField("structCol", structCol);
+    TypeDescription stringKey2 = TypeDescription.createString();
+    stringKey2.setAttribute(ICEBERG_ID_ATTRIBUTE, "8");
+    TypeDescription mapCol2 = TypeDescription.createMap(stringKey2, TypeDescription.createDate());
+    mapCol2.setAttribute(ICEBERG_ID_ATTRIBUTE, "10");
+    schema.addField("mapCol2", mapCol2);
 
     Schema icebergSchema2 = ORCSchemaUtil.convert(schema);
-    assertEquals(3, icebergSchema2.asStruct().fields().size());
-    assertEquals(1, icebergSchema2.findField("structCol").type().asStructType().fields().size());
+    Schema expectedSchema2 = new Schema(
+        required(1, "intCol", Types.IntegerType.get()),
+        optional(5, "mapCol", Types.MapType.ofOptional(3, 4,
+            Types.StringType.get(), Types.BooleanType.get())),
+        required(7, "structCol", Types.StructType.of(
+            // Skipped binaryCol
+            required(6, "doubleCol", Types.DoubleType.get())
+        // Skipped mapCol2 since value has no Iceberg ID
+        ))
+    );
+    assertEquals("Schemas must match.", expectedSchema2.asStruct(), icebergSchema2.asStruct());
   }
 }
