@@ -547,7 +547,7 @@ public class TestRemoveOrphanFilesAction {
   }
 
   @Test
-  public void testRemoveOrphanFilesWithHadoopCatalog() throws InterruptedException, IOException {
+  public void testRemoveOrphanFilesWithHadoopCatalog() throws InterruptedException {
     HadoopCatalog CATALOGS = new HadoopCatalog(new Configuration(), tableLocation);
     String namespaceName = "testDb";
     String tableName = "testTb";
