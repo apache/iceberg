@@ -21,12 +21,12 @@ package org.apache.iceberg.io;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -162,7 +162,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
           try {
             currentIterable.close();
           } catch (IOException e) {
-            throw new UncheckedIOException("Failed to close iterable", e);
+            throw new RuntimeIOException(e, "Failed to close iterable");
           }
 
           this.currentIterable = iterables.next();
@@ -176,7 +176,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
         try {
           currentIterable.close();
         } catch (IOException e) {
-          throw new UncheckedIOException("Failed to close iterable", e);
+          throw new RuntimeIOException(e, "Failed to close iterable");
         }
 
         this.closed = true;

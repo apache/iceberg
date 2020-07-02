@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.types;
 
-import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -31,6 +30,7 @@ import java.nio.charset.CharsetEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.UUID;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Literal;
 
 public class Conversions {
@@ -108,7 +108,7 @@ public class Conversions {
         try {
           return ENCODER.get().encode(buffer);
         } catch (CharacterCodingException e) {
-          throw new UncheckedIOException("Failed to encode value as UTF-8: " + value, e);
+          throw new RuntimeIOException(e, "Failed to encode value as UTF-8: " + value);
         }
       case UUID:
         UUID uuid = (UUID) value;
@@ -167,7 +167,7 @@ public class Conversions {
         try {
           return DECODER.get().decode(tmp);
         } catch (CharacterCodingException e) {
-          throw new UncheckedIOException("Failed to decode value as UTF-8: " + buffer, e);
+          throw new RuntimeIOException(e, "Failed to decode value as UTF-8: " + buffer);
         }
       case UUID:
         long mostSigBits = tmp.getLong();

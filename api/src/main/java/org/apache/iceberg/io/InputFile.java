@@ -21,6 +21,7 @@ package org.apache.iceberg.io;
 
 import java.io.IOException;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 
 /**
  * An interface used to read input files using {@link SeekableInputStream} instances.
