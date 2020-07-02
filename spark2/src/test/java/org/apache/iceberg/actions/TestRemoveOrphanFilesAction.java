@@ -34,6 +34,9 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -541,5 +544,42 @@ public class TestRemoveOrphanFilesAction {
         .execute();
     Assert.assertEquals("Action should find 1 file", invalidFiles, result);
     Assert.assertTrue("Invalid file should be present", fs.exists(new Path(invalidFiles.get(0))));
+  }
+
+  @Test
+  public void testRemoveOrphanFilesWithHadoopCatalog() throws InterruptedException, IOException {
+    HadoopCatalog CATALOGS = new HadoopCatalog(new Configuration(), tableLocation);
+    String namespaceName = "testDb";
+    String tableName = "testTb";
+
+    Namespace namespace = Namespace.of(namespaceName);
+    TableIdentifier tableIdentifier = TableIdentifier.of(namespace, tableName);
+    Table table = CATALOGS.createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap());
+
+    List<ThreeColumnRecord> records = Lists.newArrayList(
+            new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
+    );
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+
+    String tableFileSystemPath = tableLocation + "/" + namespaceName + "/" + tableName;
+    df.select("c1", "c2", "c3")
+            .write()
+            .format("iceberg")
+            .mode("append")
+            .save(tableFileSystemPath);
+
+    df.write().mode("append").parquet(tableFileSystemPath + "/data");
+
+    Thread.sleep(1000);
+
+    long timestamp = System.currentTimeMillis();
+
+    Actions actions = Actions.forTable(table);
+
+    List<String> result = actions.removeOrphanFiles()
+            .olderThan(timestamp)
+            .execute();
+
+    Assert.assertEquals("Should delete only 1 files", 1, result.size());
   }
 }
