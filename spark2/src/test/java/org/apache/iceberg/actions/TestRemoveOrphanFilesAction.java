@@ -548,13 +548,13 @@ public class TestRemoveOrphanFilesAction {
 
   @Test
   public void testRemoveOrphanFilesWithHadoopCatalog() throws InterruptedException {
-    HadoopCatalog CATALOGS = new HadoopCatalog(new Configuration(), tableLocation);
+    HadoopCatalog catalog = new HadoopCatalog(new Configuration(), tableLocation);
     String namespaceName = "testDb";
     String tableName = "testTb";
 
     Namespace namespace = Namespace.of(namespaceName);
     TableIdentifier tableIdentifier = TableIdentifier.of(namespace, tableName);
-    Table table = CATALOGS.createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap());
+    Table table = catalog.createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap());
 
     List<ThreeColumnRecord> records = Lists.newArrayList(
             new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
