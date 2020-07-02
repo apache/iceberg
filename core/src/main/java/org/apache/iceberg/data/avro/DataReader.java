@@ -64,7 +64,8 @@ public class DataReader<T> implements DatumReader<T> {
   }
 
   @SuppressWarnings("unchecked")
-  protected ValueReader<T> initReader(org.apache.iceberg.Schema expectedSchema, Schema avroSchema, Map<Integer, ?> idToConstant) {
+  protected ValueReader<T> initReader(org.apache.iceberg.Schema expectedSchema,
+                                      Schema avroSchema, Map<Integer, ?> idToConstant) {
     return (ValueReader<T>) AvroSchemaWithTypeVisitor
         .visit(expectedSchema, avroSchema, new ReadBuilder(idToConstant));
   }

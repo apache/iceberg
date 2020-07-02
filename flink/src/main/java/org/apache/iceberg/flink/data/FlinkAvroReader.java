@@ -41,7 +41,8 @@ public class FlinkAvroReader extends DataReader<Row> {
   protected ValueReader<Row> initReader(org.apache.iceberg.Schema expectedSchema,
                                         Schema readSchema,
                                         Map<Integer, ?> idToConstant) {
-    return (ValueReader<Row>) AvroSchemaWithTypeVisitor.visit(expectedSchema, readSchema, new ReadBuilder(idToConstant));
+    return (ValueReader<Row>) AvroSchemaWithTypeVisitor.visit(expectedSchema, readSchema,
+        new ReadBuilder(idToConstant));
   }
 
   private static class ReadBuilder extends DataReader.ReadBuilder {
