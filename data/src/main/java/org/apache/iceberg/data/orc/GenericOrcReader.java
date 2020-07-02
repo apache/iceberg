@@ -25,7 +25,6 @@ import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.orc.OrcRowReader;
-import org.apache.iceberg.orc.OrcSchemaWithTypeVisitor;
 import org.apache.iceberg.orc.OrcValueReader;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
@@ -33,12 +32,11 @@ import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 public class GenericOrcReader extends BaseOrcReader<Record> {
-  private final OrcValueReader<?> reader;
 
   private GenericOrcReader(org.apache.iceberg.Schema expectedSchema,
                            TypeDescription readOrcSchema,
                            Map<Integer, ?> idToConstant) {
-    this.reader = OrcSchemaWithTypeVisitor.visit(expectedSchema, readOrcSchema, new ReadBuilder(idToConstant));
+    super(expectedSchema, readOrcSchema, idToConstant);
   }
 
   public static OrcRowReader<Record> buildReader(Schema expectedSchema, TypeDescription fileSchema) {
@@ -52,11 +50,11 @@ public class GenericOrcReader extends BaseOrcReader<Record> {
 
   @Override
   public Record read(VectorizedRowBatch batch, int row) {
-    return (Record) reader.read(new StructColumnVector(batch.size, batch.cols), row);
+    return (Record) getReader().read(new StructColumnVector(batch.size, batch.cols), row);
   }
 
   @Override
-  protected OrcValueReader<Record> createRecordReader(List<OrcValueReader<?>> fields,
+  protected OrcValueReader<Record> createStructReader(List<OrcValueReader<?>> fields,
                                                       Types.StructType expected,
                                                       Map<Integer, ?> idToConstant) {
     return GenericOrcReaders.struct(fields, expected, idToConstant);

@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.data;
 
 import org.apache.flink.types.Row;
 import org.apache.iceberg.data.orc.BaseOrcWriter;
+import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
 import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
@@ -28,11 +29,11 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 public class FlinkOrcWriter extends BaseOrcWriter<Row> {
 
-  protected FlinkOrcWriter(TypeDescription schema) {
+  private FlinkOrcWriter(TypeDescription schema) {
     super(schema);
   }
 
-  public static BaseOrcWriter<Row> buildWriter(TypeDescription fileSchema) {
+  public static OrcValueWriter<Row> buildWriter(TypeDescription fileSchema) {
     return new FlinkOrcWriter(fileSchema);
   }
 
@@ -77,8 +78,8 @@ public class FlinkOrcWriter extends BaseOrcWriter<Row> {
         output.isNull[rowId] = false;
         StructColumnVector cv = (StructColumnVector) output;
         for (int c = 0; c < children.length; ++c) {
-          Class childCls = children[c].getJavaClass();
-          children[c].addValue(rowId, childCls.cast(data.getField(c)), cv.fields[c]);
+          Class clazz = children[c].getJavaClass();
+          children[c].addValue(rowId, clazz.cast(data.getField(c)), cv.fields[c]);
         }
       }
     }

@@ -30,21 +30,32 @@ import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
 
 public abstract class BaseOrcReader<T> implements OrcRowReader<T> {
+  private final OrcValueReader<?> reader;
 
-  protected abstract OrcValueReader<T> createRecordReader(List<OrcValueReader<?>> fields,
+  protected BaseOrcReader(org.apache.iceberg.Schema expectedSchema,
+                          TypeDescription readOrcSchema,
+                          Map<Integer, ?> idToConstant) {
+    this.reader = OrcSchemaWithTypeVisitor.visit(expectedSchema, readOrcSchema, new ReadBuilder(idToConstant));
+  }
+
+  protected OrcValueReader<?> getReader() {
+    return this.reader;
+  }
+
+  protected abstract OrcValueReader<T> createStructReader(List<OrcValueReader<?>> fields,
                                                           Types.StructType expected, Map<Integer, ?> idToConstant);
 
-  protected class ReadBuilder extends OrcSchemaWithTypeVisitor<OrcValueReader<?>> {
+  private class ReadBuilder extends OrcSchemaWithTypeVisitor<OrcValueReader<?>> {
     private final Map<Integer, ?> idToConstant;
 
-    public ReadBuilder(Map<Integer, ?> idToConstant) {
+    private ReadBuilder(Map<Integer, ?> idToConstant) {
       this.idToConstant = idToConstant;
     }
 
     @Override
     public OrcValueReader<?> record(
         Types.StructType expected, TypeDescription record, List<String> names, List<OrcValueReader<?>> fields) {
-      return createRecordReader(fields, expected, idToConstant);
+      return createStructReader(fields, expected, idToConstant);
     }
 
     @Override

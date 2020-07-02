@@ -26,7 +26,6 @@ import org.apache.flink.types.Row;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.orc.BaseOrcReader;
 import org.apache.iceberg.orc.OrcRowReader;
-import org.apache.iceberg.orc.OrcSchemaWithTypeVisitor;
 import org.apache.iceberg.orc.OrcValueReader;
 import org.apache.iceberg.orc.OrcValueReaders;
 import org.apache.iceberg.types.Types;
@@ -35,12 +34,11 @@ import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 public class FlinkOrcReader extends BaseOrcReader<Row> {
-  private final OrcValueReader<?> reader;
 
   private FlinkOrcReader(org.apache.iceberg.Schema expectedSchema,
                          TypeDescription readOrcSchema,
                          Map<Integer, ?> idToConstant) {
-    this.reader = OrcSchemaWithTypeVisitor.visit(expectedSchema, readOrcSchema, new ReadBuilder(idToConstant));
+    super(expectedSchema, readOrcSchema, idToConstant);
   }
 
   public static OrcRowReader<Row> buildReader(Schema expectedSchema, TypeDescription fileSchema) {
@@ -54,7 +52,7 @@ public class FlinkOrcReader extends BaseOrcReader<Row> {
   }
 
   @Override
-  protected OrcValueReader<Row> createRecordReader(List<OrcValueReader<?>> fields,
+  protected OrcValueReader<Row> createStructReader(List<OrcValueReader<?>> fields,
                                                    Types.StructType expected,
                                                    Map<Integer, ?> idToConstant) {
     return new RowReader(fields, expected, idToConstant);
@@ -62,7 +60,7 @@ public class FlinkOrcReader extends BaseOrcReader<Row> {
 
   @Override
   public Row read(VectorizedRowBatch batch, int row) {
-    return (Row) reader.read(new StructColumnVector(batch.size, batch.cols), row);
+    return (Row) getReader().read(new StructColumnVector(batch.size, batch.cols), row);
   }
 
   private static class RowReader extends OrcValueReaders.StructReader<Row> {
