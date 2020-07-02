@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.orc;
 
-import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -28,7 +27,6 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -79,7 +77,7 @@ public final class ORCSchemaUtil {
    * ORC long type. The values for this attribute are denoted in {@code LongType}.
    */
   public static final String ICEBERG_LONG_TYPE_ATTRIBUTE = "iceberg.long-type";
-  private static final String ICEBERG_FIELD_LENGTH = "iceberg.length";
+  static final String ICEBERG_FIELD_LENGTH = "iceberg.length";
 
   private static final ImmutableMap<Type.TypeID, TypeDescription.Category> TYPE_MAPPING =
       ImmutableMap.<Type.TypeID, TypeDescription.Category>builder()
@@ -389,170 +387,12 @@ public final class ORCSchemaUtil {
     return Integer.parseInt(idStr);
   }
 
-  private static boolean isOptional(TypeDescription orcType) {
+  static boolean isOptional(TypeDescription orcType) {
     String isRequiredStr = orcType.getAttributeValue(ICEBERG_REQUIRED_ATTRIBUTE);
     if (isRequiredStr != null) {
       return !Boolean.parseBoolean(isRequiredStr);
     }
     return true;
-  }
-
-  private static class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> {
-
-    private final Deque<String> fieldNames;
-
-    OrcToIcebergVisitor() {
-      this.fieldNames = Lists.newLinkedList();
-    }
-
-    @Override
-    public void beforeField(String name, TypeDescription type) {
-      fieldNames.push(name);
-    }
-
-    @Override
-    public void afterField(String name, TypeDescription type) {
-      fieldNames.pop();
-    }
-
-    private String currentFieldName() {
-      return fieldNames.peek();
-    }
-
-    @Override
-    public Optional<Types.NestedField> record(TypeDescription record, List<String> names,
-                                              List<Optional<Types.NestedField>> fields) {
-      boolean isOptional = isOptional(record);
-      Optional<Integer> icebergIdOpt = icebergID(record);
-      if (!icebergIdOpt.isPresent() || fields.stream().noneMatch(Optional::isPresent)) {
-        return Optional.empty();
-      }
-
-      Types.StructType structType = Types.StructType.of(
-          fields.stream().filter(Optional::isPresent).map(Optional::get).collect(Collectors.toList()));
-      return Optional.of(Types.NestedField.of(icebergIdOpt.get(), isOptional, currentFieldName(), structType));
-    }
-
-    @Override
-    public Optional<Types.NestedField> list(TypeDescription array,
-                                            Optional<Types.NestedField> element) {
-      boolean isOptional = isOptional(array);
-      Optional<Integer> icebergIdOpt = icebergID(array);
-
-      if (!icebergIdOpt.isPresent() || !element.isPresent()) {
-        return Optional.empty();
-      }
-
-      Types.NestedField foundElement = element.get();
-      Types.ListType listTypeWithElem = isOptional(array.getChildren().get(0)) ?
-          Types.ListType.ofOptional(foundElement.fieldId(), foundElement.type()) :
-          Types.ListType.ofRequired(foundElement.fieldId(), foundElement.type());
-
-      return Optional.of(Types.NestedField.of(icebergIdOpt.get(), isOptional, currentFieldName(), listTypeWithElem));
-    }
-
-    @Override
-    public Optional<Types.NestedField> map(TypeDescription map, Optional<Types.NestedField> key,
-                                           Optional<Types.NestedField> value) {
-      boolean isOptional = isOptional(map);
-      Optional<Integer> icebergIdOpt = icebergID(map);
-
-      if (!icebergIdOpt.isPresent() || !key.isPresent() || !value.isPresent()) {
-        return Optional.empty();
-      }
-
-      Types.NestedField foundKey = key.get();
-      Types.NestedField foundValue = value.get();
-      Types.MapType mapTypeWithKV = isOptional(map.getChildren().get(1)) ?
-          Types.MapType.ofOptional(foundKey.fieldId(), foundValue.fieldId(), foundKey.type(), foundValue.type()) :
-          Types.MapType.ofRequired(foundKey.fieldId(), foundValue.fieldId(), foundKey.type(), foundValue.type());
-
-      return Optional.of(Types.NestedField.of(icebergIdOpt.get(), isOptional, currentFieldName(), mapTypeWithKV));
-    }
-
-    @Override
-    public Optional<Types.NestedField> primitive(TypeDescription primitive) {
-      boolean isOptional = isOptional(primitive);
-      Optional<Integer> icebergIdOpt = icebergID(primitive);
-
-      if (!icebergIdOpt.isPresent()) {
-        return Optional.empty();
-      }
-
-      final Types.NestedField foundField;
-      int icebergID = icebergIdOpt.get();
-      String name = currentFieldName();
-      switch (primitive.getCategory()) {
-        case BOOLEAN:
-          foundField = Types.NestedField.of(icebergID, isOptional, name, Types.BooleanType.get());
-          break;
-        case BYTE:
-        case SHORT:
-        case INT:
-          foundField = Types.NestedField.of(icebergID, isOptional, name, Types.IntegerType.get());
-          break;
-        case LONG:
-          String longAttributeValue = primitive.getAttributeValue(ICEBERG_LONG_TYPE_ATTRIBUTE);
-          LongType longType = longAttributeValue == null ? LongType.LONG : LongType.valueOf(longAttributeValue);
-          switch (longType) {
-            case TIME:
-              foundField = Types.NestedField.of(icebergID, isOptional, name, Types.TimeType.get());
-              break;
-            case LONG:
-              foundField = Types.NestedField.of(icebergID, isOptional, name, Types.LongType.get());
-              break;
-            default:
-              throw new IllegalStateException("Invalid Long type found in ORC type attribute");
-          }
-          break;
-        case FLOAT:
-          foundField = Types.NestedField.of(icebergID, isOptional, name, Types.FloatType.get());
-          break;
-        case DOUBLE:
-          foundField = Types.NestedField.of(icebergID, isOptional, name, Types.DoubleType.get());
-          break;
-        case STRING:
-        case CHAR:
-        case VARCHAR:
-          foundField = Types.NestedField.of(icebergID, isOptional, name, Types.StringType.get());
-          break;
-        case BINARY:
-          String binaryAttributeValue = primitive.getAttributeValue(ICEBERG_BINARY_TYPE_ATTRIBUTE);
-          BinaryType binaryType = binaryAttributeValue == null ? BinaryType.BINARY :
-              BinaryType.valueOf(binaryAttributeValue);
-          switch (binaryType) {
-            case UUID:
-              foundField = Types.NestedField.of(icebergID, isOptional, name, Types.UUIDType.get());
-              break;
-            case FIXED:
-              int fixedLength = Integer.parseInt(primitive.getAttributeValue(ICEBERG_FIELD_LENGTH));
-              foundField = Types.NestedField.of(icebergID, isOptional, name, Types.FixedType.ofLength(fixedLength));
-              break;
-            case BINARY:
-              foundField = Types.NestedField.of(icebergID, isOptional, name, Types.BinaryType.get());
-              break;
-            default:
-              throw new IllegalStateException("Invalid Binary type found in ORC type attribute");
-          }
-          break;
-        case DATE:
-          foundField = Types.NestedField.of(icebergID, isOptional, name, Types.DateType.get());
-          break;
-        case TIMESTAMP:
-          foundField = Types.NestedField.of(icebergID, isOptional, name, Types.TimestampType.withoutZone());
-          break;
-        case TIMESTAMP_INSTANT:
-          foundField = Types.NestedField.of(icebergID, isOptional, name, Types.TimestampType.withZone());
-          break;
-        case DECIMAL:
-          foundField = Types.NestedField.of(icebergID, isOptional, name,
-              Types.DecimalType.of(primitive.getPrecision(), primitive.getScale()));
-          break;
-        default:
-          throw new IllegalArgumentException("Can't handle " + primitive);
-      }
-      return Optional.of(foundField);
-    }
   }
 
   /**
