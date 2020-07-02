@@ -139,7 +139,7 @@ spark.read.format("iceberg").load("db.table.history").show(truncate = false)
 
 To show table history by HDFS path, run:
 ```scala
-spark.read.format("iceberg").load(table.location() + "#" + MetadataTableType.HISTORY).show( truncate = false)
+spark.read.format("iceberg").load("hdfs://nn:8020/warehouse/db.db/table#history").show( truncate = false)
 ```
 ```text
 +-------------------------+---------------------+---------------------+---------------------+
@@ -167,7 +167,7 @@ spark.read.format("iceberg").load("db.table.snapshots").show(truncate = false)
 
 To show the valid snapshots for a table by HDFS path, run:
 ```scala
-spark.read.format("iceberg").load(table.location() + "#" + MetadataTableType.SNAPSHOTS).show( truncate = false)
+spark.read.format("iceberg").load("hdfs://nn:8020/warehouse/db.db/table#snapshots").show( truncate = false)
 ```
 ```text
 +-------------------------+----------------+-----------+-----------+----------------------------------------------------+-------------------------------------------------------+
@@ -219,7 +219,7 @@ spark.read.format("iceberg").load("db.table.manifests").show(truncate = false)
 
 To show a table’s file manifests and each file’s metadata by HDFS path, run:
 ```scala
-spark.read.format("iceberg").load(table.location() + "#" + MetadataTableType.MANIFESTS).show( truncate = false)
+spark.read.format("iceberg").load("hdfs://nn:8020/warehouse/db.db/table#manifests").show( truncate = false)
 ```
 ```text
 +----------------------------------------------------------------------+--------+-------------------+---------------------+------------------------+---------------------------+--------------------------+---------------------------------+
@@ -239,7 +239,7 @@ spark.read.format("iceberg").load("db.table.files").show(truncate = false)
 
 To show a table’s data files and each file’s metadata by HDFS path, run:
 ```scala
-spark.read.format("iceberg").load(table.location() + "#" + MetadataTableType.ALL_DATA_FILES).show( truncate = false)
+spark.read.format("iceberg").load("hdfs://nn:8020/warehouse/db.db/table#files").show( truncate = false)
 ```
 ```text
 +-------------------------------------------------------------------------+-------------+--------------+--------------------+--------------------+------------------+-------------------+-----------------+-----------------+--------------+---------------+
