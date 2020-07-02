@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.actions;
 
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Table;
 
@@ -30,8 +31,11 @@ abstract class BaseAction<R> implements Action<R> {
     String tableName = table().toString();
     if (tableName.contains("/")) {
       return tableName + "#" + type;
-    } else if (tableName.startsWith("hadoop.") || tableName.startsWith("hive.")) {
-      // HiveCatalog and HadoopCatalog prepend a logical name which we need to drop for Spark 2.4
+    } else if (tableName.startsWith("hadoop.")) {
+      // HadoopCatalog tableName style is 'hadoop.ns.tb'
+      return ((BaseTable) table()).operations().current().location() + "#" + type;
+    } else if (tableName.startsWith("hive.")) {
+      // HiveCatalog prepend a logical name which we need to drop for Spark 2.4
       return tableName.replaceFirst("(hadoop\\.)|(hive\\.)", "") + "." + type;
     } else {
       return tableName + "." + type;
