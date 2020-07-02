@@ -63,7 +63,7 @@ public class TestSelect extends SparkCatalogTestBase {
 
   @Test
   public void testSelect() {
-    List<Object[]> expected = ImmutableList.of(row(1L, "a"), row(2L, "b"),row(3L, "c"));
+    List<Object[]> expected = ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c"));
 
     assertEquals("Should return all expected rows", expected, sql("SELECT * FROM %s", tableName));
   }
