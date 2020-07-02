@@ -76,14 +76,14 @@ public class TestFlinkParquetReaderWriter {
 
     try (FileAppender<Row> writer = Parquet.write(Files.localOutput(testFile))
         .schema(schema)
-        .createWriterFunc(FlinkParquetWriters::buildRowWriter)
+        .createWriterFunc(FlinkParquetWriters::buildWriter)
         .build()) {
       writer.addAll(iterable);
     }
 
     try (CloseableIterable<Row> reader = Parquet.read(Files.localInput(testFile))
         .project(schema)
-        .createReaderFunc(type -> FlinkParquetReaders.buildRowReader(schema, type))
+        .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
         .build()) {
       Iterator<Row> expected = iterable.iterator();
       Iterator<Row> rows = reader.iterator();
