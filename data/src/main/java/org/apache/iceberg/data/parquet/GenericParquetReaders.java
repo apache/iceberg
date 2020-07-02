@@ -62,30 +62,31 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 public class GenericParquetReaders {
-  private GenericParquetReaders() {
+  protected GenericParquetReaders() {
   }
 
-  public static ParquetValueReader<GenericRecord> buildReader(Schema expectedSchema,
-                                                              MessageType fileSchema) {
+  public static ParquetValueReader<Record> buildReader(Schema expectedSchema,
+                                                       MessageType fileSchema) {
     return buildReader(expectedSchema, fileSchema, ImmutableMap.of());
   }
+
   @SuppressWarnings("unchecked")
-  public static ParquetValueReader<GenericRecord> buildReader(Schema expectedSchema,
-                                                              MessageType fileSchema,
-                                                              Map<Integer, ?> idToConstant) {
+  public static ParquetValueReader<Record> buildReader(Schema expectedSchema,
+                                                       MessageType fileSchema,
+                                                       Map<Integer, ?> idToConstant) {
     if (ParquetSchemaUtil.hasIds(fileSchema)) {
-      return (ParquetValueReader<GenericRecord>)
+      return (ParquetValueReader<Record>)
           TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
               new ReadBuilder(fileSchema, idToConstant));
     } else {
-      return (ParquetValueReader<GenericRecord>)
+      return (ParquetValueReader<Record>)
           TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
               new FallbackReadBuilder(fileSchema, idToConstant));
     }
   }
 
-  private static class FallbackReadBuilder extends ReadBuilder {
-    FallbackReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
+  protected static class FallbackReadBuilder extends ReadBuilder {
+    protected FallbackReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
       super(type, idToConstant);
     }
 
@@ -111,15 +112,15 @@ public class GenericParquetReaders {
         types.add(fieldType);
       }
 
-      return new RecordReader(types, newFields, expected);
+      return createStructReader(types, newFields, expected);
     }
   }
 
-  private static class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
+  protected static class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
     private final MessageType type;
     private final Map<Integer, ?> idToConstant;
 
-    ReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
+    protected ReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
       this.type = type;
       this.idToConstant = idToConstant;
     }
@@ -128,6 +129,12 @@ public class GenericParquetReaders {
     public ParquetValueReader<?> message(StructType expected, MessageType message,
                                          List<ParquetValueReader<?>> fieldReaders) {
       return struct(expected, message.asGroupType(), fieldReaders);
+    }
+
+    protected StructReader<?, ?> createStructReader(List<Type> types,
+                                                    List<ParquetValueReader<?>> readers,
+                                                    StructType struct) {
+      return new RecordReader(types, readers, struct);
     }
 
     @Override
@@ -168,7 +175,7 @@ public class GenericParquetReaders {
         }
       }
 
-      return new RecordReader(types, reorderedFields, expected);
+      return createStructReader(types, reorderedFields, expected);
     }
 
     @Override
@@ -416,7 +423,6 @@ public class GenericParquetReaders {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     protected Object getField(Record intermediate, int pos) {
       return intermediate.get(pos);
     }

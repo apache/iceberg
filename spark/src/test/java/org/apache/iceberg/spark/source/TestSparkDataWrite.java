@@ -41,6 +41,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -51,7 +52,7 @@ import org.junit.runners.Parameterized;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 @RunWith(Parameterized.class)
-public class TestSparkDataWrite {
+public abstract class TestSparkDataWrite {
   private static final Configuration CONF = new Configuration();
   private final FileFormat format;
   private static SparkSession spark = null;
@@ -224,6 +225,7 @@ public class TestSparkDataWrite {
         .format("iceberg")
         .option("write-format", format.toString())
         .mode("overwrite")
+        .option("overwrite-mode", "dynamic")
         .save(location.toString());
 
     table.refresh();
@@ -378,6 +380,10 @@ public class TestSparkDataWrite {
 
   @Test
   public void testWriteProjection() throws IOException {
+    Assume.assumeTrue(
+        "Not supported in Spark 3.0; analysis requires all columns are present",
+        spark.version().startsWith("2"));
+
     File parent = temp.newFolder(format.toString());
     File location = new File(parent, "test");
 
@@ -412,6 +418,10 @@ public class TestSparkDataWrite {
 
   @Test
   public void testWriteProjectionWithMiddle() throws IOException {
+    Assume.assumeTrue(
+        "Not supported in Spark 3.0; analysis requires all columns are present",
+        spark.version().startsWith("2"));
+
     File parent = temp.newFolder(format.toString());
     File location = new File(parent, "test");
 

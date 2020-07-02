@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.junit.Test;
 
@@ -79,8 +80,11 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
     manifestFile = snap4.allManifests().stream()
         .filter(manifest -> manifest.snapshotId() == commitId4)
         .collect(Collectors.toList()).get(0);
-    validateManifest(manifestFile, seqs(4, 3, 2, 1), ids(commitId4, commitId3, commitId2, commitId1),
-        files(FILE_D, FILE_C, FILE_B, FILE_A));
+    validateManifest(manifestFile,
+        seqs(4, 3, 2, 1),
+        ids(commitId4, commitId3, commitId2, commitId1),
+        files(FILE_D, FILE_C, FILE_B, FILE_A),
+        statuses(Status.ADDED, Status.EXISTING, Status.EXISTING, Status.EXISTING));
     V2Assert.assertEquals("Snapshot sequence number should be 4", 4, snap4.sequenceNumber());
     V2Assert.assertEquals("Last sequence number should be 4", 4, readMetadata().lastSequenceNumber());
   }
@@ -115,7 +119,7 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
     V2Assert.assertEquals("Last sequence number should be 3", 3, readMetadata().lastSequenceNumber());
 
     // FILE_A and FILE_B in manifest may reorder
-    for (ManifestEntry entry : ManifestFiles.read(newManifest, FILE_IO).entries()) {
+    for (ManifestEntry<DataFile> entry : ManifestFiles.read(newManifest, FILE_IO).entries()) {
       if (entry.file().path().equals(FILE_A.path())) {
         V2Assert.assertEquals("FILE_A sequence number should be 1", 1, entry.sequenceNumber().longValue());
       }
@@ -272,7 +276,7 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
     manifestFile = table.currentSnapshot().allManifests().stream()
         .filter(manifest -> manifest.snapshotId() == commitId4)
         .collect(Collectors.toList()).get(0);
-    validateManifest(manifestFile, seqs(3, 2, 4), ids(commitId3, commitId2, commitId4), files(FILE_C, FILE_B, FILE_A));
+    validateManifest(manifestFile, seqs(4), ids(commitId4), files(FILE_A), statuses(Status.DELETED));
     V2Assert.assertEquals("Snapshot sequence number should be 4", 4, snap4.sequenceNumber());
     V2Assert.assertEquals("Last sequence number should be 4", 4, readMetadata().lastSequenceNumber());
   }

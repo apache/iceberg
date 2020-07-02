@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.util.ArrayList;
 import java.util.List;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Evaluator;
@@ -28,7 +27,7 @@ import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.util.SnapshotUtil;
 
 public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> implements OverwriteFiles {
   private boolean validateAddedFilesMatchOverwriteFilter = false;
@@ -109,14 +108,15 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
       }
     }
 
-    if (conflictDetectionFilter != null) {
+    if (conflictDetectionFilter != null && base.currentSnapshot() != null) {
       PartitionSpec spec = writeSpec();
       Expression inclusiveExpr = Projections.inclusive(spec).project(conflictDetectionFilter);
       Evaluator inclusive = new Evaluator(spec.partitionType(), inclusiveExpr);
 
       InclusiveMetricsEvaluator metrics = new InclusiveMetricsEvaluator(base.schema(), conflictDetectionFilter);
 
-      List<DataFile> newFiles = collectNewFiles(base);
+      List<DataFile> newFiles = SnapshotUtil.newFiles(
+          readSnapshotId, base.currentSnapshot().snapshotId(), base::snapshot);
       for (DataFile newFile : newFiles) {
         ValidationException.check(
             !inclusive.eval(newFile.partition()) || !metrics.eval(newFile),
@@ -126,25 +126,5 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
     }
 
     return super.apply(base);
-  }
-
-  private List<DataFile> collectNewFiles(TableMetadata meta) {
-    List<DataFile> newFiles = new ArrayList<>();
-
-    Long currentSnapshotId = meta.currentSnapshot() == null ? null : meta.currentSnapshot().snapshotId();
-    while (currentSnapshotId != null && !currentSnapshotId.equals(readSnapshotId)) {
-      Snapshot currentSnapshot = meta.snapshot(currentSnapshotId);
-
-      if (currentSnapshot == null) {
-        throw new ValidationException(
-            "Cannot determine history between read snapshot %s and current %s",
-            readSnapshotId, currentSnapshotId);
-      }
-
-      Iterables.addAll(newFiles, currentSnapshot.addedFiles());
-      currentSnapshotId = currentSnapshot.parentId();
-    }
-
-    return newFiles;
   }
 }

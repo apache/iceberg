@@ -31,6 +31,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
@@ -48,14 +49,14 @@ import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.Files.localOutput;
 
-public class TestParquetScan extends AvroDataTest {
+@RunWith(Parameterized.class)
+public abstract class TestParquetScan extends AvroDataTest {
   private static final Configuration CONF = new Configuration();
-
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
 
   private static SparkSession spark = null;
 
@@ -69,6 +70,23 @@ public class TestParquetScan extends AvroDataTest {
     SparkSession currentSpark = TestParquetScan.spark;
     TestParquetScan.spark = null;
     currentSpark.stop();
+  }
+
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
+
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { false },
+        new Object[] { true },
+    };
+  }
+
+  private final boolean vectorized;
+
+  public TestParquetScan(boolean vectorized) {
+    this.vectorized = vectorized;
   }
 
   @Override
@@ -108,6 +126,7 @@ public class TestParquetScan extends AvroDataTest {
         .build();
 
     table.newAppend().appendFile(file).commit();
+    table.updateProperties().set(TableProperties.PARQUET_VECTORIZATION_ENABLED, String.valueOf(vectorized)).commit();
 
     Dataset<Row> df = spark.read()
         .format("iceberg")

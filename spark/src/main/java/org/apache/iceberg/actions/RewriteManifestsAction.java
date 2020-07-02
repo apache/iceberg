@@ -41,7 +41,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -49,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkDataFile;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -64,7 +64,6 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.util.SerializableConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -104,14 +103,7 @@ public class RewriteManifestsAction
         table.properties(),
         TableProperties.MANIFEST_TARGET_SIZE_BYTES,
         TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
-
-    if (table.io() instanceof HadoopFileIO) {
-      // we need to use Spark's SerializableConfiguration to avoid issues with Kryo serialization
-      SerializableConfiguration conf = new SerializableConfiguration(((HadoopFileIO) table.io()).conf());
-      this.fileIO = new HadoopFileIO(conf::value);
-    } else {
-      this.fileIO = table.io();
-    }
+    this.fileIO = SparkUtil.serializableFileIO(table);
 
     // default the staging location to the metadata location
     TableOperations ops = ((HasTableOperations) table).operations();

@@ -322,6 +322,12 @@
                 "com.sun.jersey:jersey-server"
             ]
         },
+        "com.carrotsearch:hppc": {
+            "locked": "0.7.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
         "com.clearspring.analytics:stream": {
             "locked": "2.9.6",
             "transitive": [
@@ -379,13 +385,13 @@
             ]
         },
         "com.fasterxml.jackson.module:jackson-module-paranamer": {
-            "locked": "2.10.0",
+            "locked": "2.10.2",
             "transitive": [
                 "com.fasterxml.jackson.module:jackson-module-scala_2.12"
             ]
         },
         "com.fasterxml.jackson.module:jackson-module-scala_2.12": {
-            "locked": "2.10.0",
+            "locked": "2.10.2",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
@@ -432,7 +438,6 @@
             "locked": "3.0.2",
             "transitive": [
                 "com.github.spotbugs:spotbugs-annotations",
-                "org.apache.arrow:arrow-memory",
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-hive_2.12",
@@ -458,22 +463,6 @@
             "transitive": [
                 "org.apache.arrow:arrow-format",
                 "org.apache.arrow:arrow-vector"
-            ]
-        },
-        "com.google.guava:guava": {
-            "locked": "16.0.1",
-            "transitive": [
-                "org.apache.curator:curator-client",
-                "org.apache.curator:curator-framework",
-                "org.apache.curator:curator-recipes",
-                "org.apache.hadoop:hadoop-common",
-                "org.apache.hadoop:hadoop-hdfs",
-                "org.apache.hadoop:hadoop-yarn-api",
-                "org.apache.hadoop:hadoop-yarn-client",
-                "org.apache.hadoop:hadoop-yarn-common",
-                "org.apache.hadoop:hadoop-yarn-server-common",
-                "org.apache.hadoop:hadoop-yarn-server-nodemanager",
-                "org.apache.hive:hive-vector-code-gen"
             ]
         },
         "com.google.inject:guice": {
@@ -565,14 +554,14 @@
             ]
         },
         "com.twitter:chill-java": {
-            "locked": "0.9.3",
+            "locked": "0.9.5",
             "transitive": [
                 "com.twitter:chill_2.12",
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "com.twitter:chill_2.12": {
-            "locked": "0.9.3",
+            "locked": "0.9.5",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-unsafe_2.12"
@@ -611,8 +600,7 @@
                 "org.apache.hadoop:hadoop-yarn-client",
                 "org.apache.hadoop:hadoop-yarn-common",
                 "org.apache.hive:hive-common",
-                "org.apache.hive:hive-metastore",
-                "org.apache.hive:hive-service-rpc"
+                "org.apache.hive:hive-metastore"
             ]
         },
         "commons-codec:commons-codec": {
@@ -769,7 +757,7 @@
             ]
         },
         "io.netty:netty-all": {
-            "locked": "4.1.42.Final",
+            "locked": "4.1.47.Final",
             "transitive": [
                 "org.apache.hadoop:hadoop-hdfs",
                 "org.apache.spark:spark-core_2.12",
@@ -785,8 +773,6 @@
         "jakarta.annotation:jakarta.annotation-api": {
             "locked": "1.3.5",
             "transitive": [
-                "org.glassfish.hk2:hk2-locator",
-                "org.glassfish.hk2:hk2-utils",
                 "org.glassfish.jersey.core:jersey-common",
                 "org.glassfish.jersey.core:jersey-server"
             ]
@@ -914,7 +900,7 @@
             ]
         },
         "net.sf.py4j:py4j": {
-            "locked": "0.10.8.1",
+            "locked": "0.10.9",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
@@ -940,23 +926,22 @@
             ]
         },
         "org.apache.arrow:arrow-format": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
                 "org.apache.arrow:arrow-vector"
             ]
         },
         "org.apache.arrow:arrow-memory": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
                 "org.apache.arrow:arrow-vector",
                 "org.apache.iceberg:iceberg-arrow"
             ]
         },
         "org.apache.arrow:arrow-vector": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
-                "org.apache.iceberg:iceberg-arrow",
-                "org.apache.spark:spark-catalyst_2.12"
+                "org.apache.iceberg:iceberg-arrow"
             ]
         },
         "org.apache.avro:avro": {
@@ -1178,67 +1163,61 @@
             ]
         },
         "org.apache.hive.shims:hive-shims-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-shims"
             ]
         },
         "org.apache.hive:hive-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-exec": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-llap-client": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-llap-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-metastore": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-serde": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
-        "org.apache.hive:hive-service-rpc": {
-            "locked": "2.3.6",
-            "transitive": [
-                "org.apache.hive:hive-serde"
-            ]
-        },
         "org.apache.hive:hive-shims": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-storage-api": {
-            "locked": "2.6.0",
+            "locked": "2.7.1",
             "transitive": [
                 "org.apache.spark:spark-sql_2.12"
             ]
         },
         "org.apache.hive:hive-vector-code-gen": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-exec"
             ]
@@ -1351,7 +1330,7 @@
             ]
         },
         "org.apache.orc:orc-mapreduce": {
-            "locked": "1.5.8",
+            "locked": "1.5.10",
             "transitive": [
                 "org.apache.spark:spark-sql_2.12"
             ]
@@ -1411,13 +1390,13 @@
             ]
         },
         "org.apache.spark:spark-catalyst_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-sql_2.12"
             ]
         },
         "org.apache.spark:spark-core_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-hive_2.12",
@@ -1425,49 +1404,48 @@
             ]
         },
         "org.apache.spark:spark-hive_2.12": {
-            "locked": "3.0.0-preview2",
-            "requested": "3.0.0-preview2"
+            "locked": "3.0.0"
         },
         "org.apache.spark:spark-kvstore_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.apache.spark:spark-launcher_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.apache.spark:spark-network-common_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-network-shuffle_2.12"
             ]
         },
         "org.apache.spark:spark-network-shuffle_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.apache.spark:spark-sketch_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-sql_2.12"
             ]
         },
         "org.apache.spark:spark-sql_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.spark:spark-tags_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-core_2.12",
@@ -1479,7 +1457,7 @@
             ]
         },
         "org.apache.spark:spark-unsafe_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-core_2.12"
@@ -1507,6 +1485,7 @@
         "org.apache.xbean:xbean-asm7-shaded": {
             "locked": "4.15",
             "transitive": [
+                "com.twitter:chill_2.12",
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-sql_2.12"
             ]
@@ -1577,14 +1556,14 @@
             ]
         },
         "org.codehaus.janino:commons-compiler": {
-            "locked": "3.0.15",
+            "locked": "3.0.16",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.codehaus.janino:janino"
             ]
         },
         "org.codehaus.janino:janino": {
-            "locked": "3.0.15",
+            "locked": "3.0.16",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12"
             ]
@@ -1676,27 +1655,27 @@
             ]
         },
         "org.glassfish.jersey.containers:jersey-container-servlet": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.glassfish.jersey.containers:jersey-container-servlet-core": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.containers:jersey-container-servlet"
             ]
         },
         "org.glassfish.jersey.core:jersey-client": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.core:jersey-server"
             ]
         },
         "org.glassfish.jersey.core:jersey-common": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.containers:jersey-container-servlet",
@@ -1708,7 +1687,7 @@
             ]
         },
         "org.glassfish.jersey.core:jersey-server": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.containers:jersey-container-servlet",
@@ -1716,21 +1695,21 @@
             ]
         },
         "org.glassfish.jersey.inject:jersey-hk2": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.glassfish.jersey.media:jersey-media-jaxb": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.glassfish.jersey.core:jersey-server"
             ]
         },
         "org.javassist:javassist": {
-            "locked": "3.22.0-CR2",
+            "locked": "3.25.0-GA",
             "transitive": [
-                "org.glassfish.hk2:hk2-locator"
+                "org.glassfish.jersey.inject:jersey-hk2"
             ]
         },
         "org.jetbrains:annotations": {
@@ -1770,7 +1749,7 @@
             ]
         },
         "org.lz4:lz4-java": {
-            "locked": "1.7.0",
+            "locked": "1.7.1",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
@@ -1830,19 +1809,19 @@
             ]
         },
         "org.slf4j:jcl-over-slf4j": {
-            "locked": "1.7.16",
+            "locked": "1.7.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.slf4j:jul-to-slf4j": {
-            "locked": "1.7.16",
+            "locked": "1.7.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.slf4j:slf4j-api": {
-            "locked": "1.7.28",
+            "locked": "1.7.30",
             "transitive": [
                 "com.clearspring.analytics:stream",
                 "io.dropwizard.metrics:metrics-core",
@@ -1918,7 +1897,7 @@
             ]
         },
         "org.xerial.snappy:snappy-java": {
-            "locked": "1.1.7.3",
+            "locked": "1.1.7.5",
             "transitive": [
                 "org.apache.parquet:parquet-hadoop",
                 "org.apache.spark:spark-core_2.12"
@@ -2003,7 +1982,6 @@
             "transitive": [
                 "com.fasterxml.jackson.core:jackson-databind",
                 "com.fasterxml.jackson.module:jackson-module-scala_2.12",
-                "org.apache.arrow:arrow-vector",
                 "org.apache.avro:avro",
                 "org.apache.spark:spark-kvstore_2.12"
             ]
@@ -2023,13 +2001,13 @@
             ]
         },
         "com.fasterxml.jackson.module:jackson-module-paranamer": {
-            "locked": "2.10.0",
+            "locked": "2.10.2",
             "transitive": [
                 "com.fasterxml.jackson.module:jackson-module-scala_2.12"
             ]
         },
         "com.fasterxml.jackson.module:jackson-module-scala_2.12": {
-            "locked": "2.10.0",
+            "locked": "2.10.2",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
@@ -2056,7 +2034,6 @@
             "locked": "3.0.2",
             "transitive": [
                 "com.github.spotbugs:spotbugs-annotations",
-                "org.apache.arrow:arrow-memory",
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-hive_2.12",
@@ -2069,13 +2046,6 @@
             "transitive": [
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.hive:hive-exec"
-            ]
-        },
-        "com.google.flatbuffers:flatbuffers-java": {
-            "locked": "1.9.0",
-            "transitive": [
-                "org.apache.arrow:arrow-format",
-                "org.apache.arrow:arrow-vector"
             ]
         },
         "com.google.guava:guava": {
@@ -2184,14 +2154,14 @@
             ]
         },
         "com.twitter:chill-java": {
-            "locked": "0.9.3",
+            "locked": "0.9.5",
             "transitive": [
                 "com.twitter:chill_2.12",
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "com.twitter:chill_2.12": {
-            "locked": "0.9.3",
+            "locked": "0.9.5",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-unsafe_2.12"
@@ -2230,8 +2200,7 @@
                 "org.apache.hadoop:hadoop-yarn-client",
                 "org.apache.hadoop:hadoop-yarn-common",
                 "org.apache.hive:hive-common",
-                "org.apache.hive:hive-metastore",
-                "org.apache.hive:hive-service-rpc"
+                "org.apache.hive:hive-metastore"
             ]
         },
         "commons-codec:commons-codec": {
@@ -2239,7 +2208,6 @@
             "transitive": [
                 "commons-httpclient:commons-httpclient",
                 "net.java.dev.jets3t:jets3t",
-                "org.apache.arrow:arrow-vector",
                 "org.apache.avro:avro-mapred",
                 "org.apache.hadoop:hadoop-auth",
                 "org.apache.hadoop:hadoop-common",
@@ -2390,7 +2358,7 @@
             ]
         },
         "io.netty:netty-all": {
-            "locked": "4.1.42.Final",
+            "locked": "4.1.47.Final",
             "transitive": [
                 "org.apache.hadoop:hadoop-hdfs",
                 "org.apache.spark:spark-core_2.12",
@@ -2400,8 +2368,6 @@
         "jakarta.annotation:jakarta.annotation-api": {
             "locked": "1.3.5",
             "transitive": [
-                "org.glassfish.hk2:hk2-locator",
-                "org.glassfish.hk2:hk2-utils",
                 "org.glassfish.jersey.core:jersey-common",
                 "org.glassfish.jersey.core:jersey-server"
             ]
@@ -2536,7 +2502,7 @@
             ]
         },
         "net.sf.py4j:py4j": {
-            "locked": "0.10.8.1",
+            "locked": "0.10.9",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
@@ -2557,24 +2523,6 @@
         },
         "org.antlr:antlr4-runtime": {
             "locked": "4.7.1",
-            "transitive": [
-                "org.apache.spark:spark-catalyst_2.12"
-            ]
-        },
-        "org.apache.arrow:arrow-format": {
-            "locked": "0.15.1",
-            "transitive": [
-                "org.apache.arrow:arrow-vector"
-            ]
-        },
-        "org.apache.arrow:arrow-memory": {
-            "locked": "0.15.1",
-            "transitive": [
-                "org.apache.arrow:arrow-vector"
-            ]
-        },
-        "org.apache.arrow:arrow-vector": {
-            "locked": "0.15.1",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12"
             ]
@@ -2795,13 +2743,13 @@
             ]
         },
         "org.apache.hive.shims:hive-shims-0.23": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-shims"
             ]
         },
         "org.apache.hive.shims:hive-shims-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive.shims:hive-shims-0.23",
                 "org.apache.hive.shims:hive-shims-scheduler",
@@ -2809,67 +2757,61 @@
             ]
         },
         "org.apache.hive.shims:hive-shims-scheduler": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-shims"
             ]
         },
         "org.apache.hive:hive-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-exec": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-llap-client": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-llap-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-metastore": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-serde": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
-        "org.apache.hive:hive-service-rpc": {
-            "locked": "2.3.6",
-            "transitive": [
-                "org.apache.hive:hive-serde"
-            ]
-        },
         "org.apache.hive:hive-shims": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-storage-api": {
-            "locked": "2.6.0",
+            "locked": "2.7.1",
             "transitive": [
                 "org.apache.spark:spark-sql_2.12"
             ]
         },
         "org.apache.hive:hive-vector-code-gen": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-exec"
             ]
@@ -2906,19 +2848,19 @@
             ]
         },
         "org.apache.orc:orc-core": {
-            "locked": "1.5.8",
+            "locked": "1.5.10",
             "transitive": [
                 "org.apache.spark:spark-sql_2.12"
             ]
         },
         "org.apache.orc:orc-mapreduce": {
-            "locked": "1.5.8",
+            "locked": "1.5.10",
             "transitive": [
                 "org.apache.spark:spark-sql_2.12"
             ]
         },
         "org.apache.orc:orc-shims": {
-            "locked": "1.5.8",
+            "locked": "1.5.10",
             "transitive": [
                 "org.apache.orc:orc-core"
             ]
@@ -2963,13 +2905,13 @@
             ]
         },
         "org.apache.spark:spark-catalyst_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-sql_2.12"
             ]
         },
         "org.apache.spark:spark-core_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-hive_2.12",
@@ -2977,49 +2919,48 @@
             ]
         },
         "org.apache.spark:spark-hive_2.12": {
-            "locked": "3.0.0-preview2",
-            "requested": "3.0.0-preview2"
+            "locked": "3.0.0"
         },
         "org.apache.spark:spark-kvstore_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.apache.spark:spark-launcher_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.apache.spark:spark-network-common_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-network-shuffle_2.12"
             ]
         },
         "org.apache.spark:spark-network-shuffle_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.apache.spark:spark-sketch_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-sql_2.12"
             ]
         },
         "org.apache.spark:spark-sql_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.spark:spark-tags_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-core_2.12",
@@ -3031,7 +2972,7 @@
             ]
         },
         "org.apache.spark:spark-unsafe_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-core_2.12"
@@ -3059,6 +3000,7 @@
         "org.apache.xbean:xbean-asm7-shaded": {
             "locked": "4.15",
             "transitive": [
+                "com.twitter:chill_2.12",
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-sql_2.12"
             ]
@@ -3124,14 +3066,14 @@
             ]
         },
         "org.codehaus.janino:commons-compiler": {
-            "locked": "3.0.15",
+            "locked": "3.0.16",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.codehaus.janino:janino"
             ]
         },
         "org.codehaus.janino:janino": {
-            "locked": "3.0.15",
+            "locked": "3.0.16",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12"
             ]
@@ -3223,27 +3165,27 @@
             ]
         },
         "org.glassfish.jersey.containers:jersey-container-servlet": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.glassfish.jersey.containers:jersey-container-servlet-core": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.containers:jersey-container-servlet"
             ]
         },
         "org.glassfish.jersey.core:jersey-client": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.core:jersey-server"
             ]
         },
         "org.glassfish.jersey.core:jersey-common": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.containers:jersey-container-servlet",
@@ -3255,7 +3197,7 @@
             ]
         },
         "org.glassfish.jersey.core:jersey-server": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.containers:jersey-container-servlet",
@@ -3263,21 +3205,21 @@
             ]
         },
         "org.glassfish.jersey.inject:jersey-hk2": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.glassfish.jersey.media:jersey-media-jaxb": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.glassfish.jersey.core:jersey-server"
             ]
         },
         "org.javassist:javassist": {
-            "locked": "3.22.0-CR2",
+            "locked": "3.25.0-GA",
             "transitive": [
-                "org.glassfish.hk2:hk2-locator"
+                "org.glassfish.jersey.inject:jersey-hk2"
             ]
         },
         "org.jodd:jodd-core": {
@@ -3311,7 +3253,7 @@
             ]
         },
         "org.lz4:lz4-java": {
-            "locked": "1.7.0",
+            "locked": "1.7.1",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
@@ -3371,19 +3313,19 @@
             ]
         },
         "org.slf4j:jcl-over-slf4j": {
-            "locked": "1.7.16",
+            "locked": "1.7.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.slf4j:jul-to-slf4j": {
-            "locked": "1.7.16",
+            "locked": "1.7.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.slf4j:slf4j-api": {
-            "locked": "1.7.28",
+            "locked": "1.7.30",
             "transitive": [
                 "com.clearspring.analytics:stream",
                 "io.dropwizard.metrics:metrics-core",
@@ -3391,8 +3333,6 @@
                 "io.dropwizard.metrics:metrics-jmx",
                 "io.dropwizard.metrics:metrics-json",
                 "io.dropwizard.metrics:metrics-jvm",
-                "org.apache.arrow:arrow-memory",
-                "org.apache.arrow:arrow-vector",
                 "org.apache.avro:avro",
                 "org.apache.avro:avro-ipc",
                 "org.apache.avro:avro-mapred",
@@ -3443,8 +3383,14 @@
                 "org.apache.spark:spark-unsafe_2.12"
             ]
         },
+        "org.threeten:threeten-extra": {
+            "locked": "1.5.0",
+            "transitive": [
+                "org.apache.orc:orc-core"
+            ]
+        },
         "org.xerial.snappy:snappy-java": {
-            "locked": "1.1.7.3",
+            "locked": "1.1.7.5",
             "transitive": [
                 "org.apache.parquet:parquet-hadoop",
                 "org.apache.spark:spark-core_2.12"
@@ -4427,6 +4373,12 @@
                 "org.sonatype.sisu.inject:cglib"
             ]
         },
+        "com.carrotsearch:hppc": {
+            "locked": "0.7.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
         "com.clearspring.analytics:stream": {
             "locked": "2.9.6",
             "transitive": [
@@ -4484,13 +4436,13 @@
             ]
         },
         "com.fasterxml.jackson.module:jackson-module-paranamer": {
-            "locked": "2.10.0",
+            "locked": "2.10.2",
             "transitive": [
                 "com.fasterxml.jackson.module:jackson-module-scala_2.12"
             ]
         },
         "com.fasterxml.jackson.module:jackson-module-scala_2.12": {
-            "locked": "2.10.0",
+            "locked": "2.10.2",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
@@ -4537,7 +4489,6 @@
             "locked": "3.0.2",
             "transitive": [
                 "com.github.spotbugs:spotbugs-annotations",
-                "org.apache.arrow:arrow-memory",
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-hive_2.12",
@@ -4729,14 +4680,14 @@
             ]
         },
         "com.twitter:chill-java": {
-            "locked": "0.9.3",
+            "locked": "0.9.5",
             "transitive": [
                 "com.twitter:chill_2.12",
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "com.twitter:chill_2.12": {
-            "locked": "0.9.3",
+            "locked": "0.9.5",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-unsafe_2.12"
@@ -4775,8 +4726,7 @@
                 "org.apache.hadoop:hadoop-yarn-client",
                 "org.apache.hadoop:hadoop-yarn-common",
                 "org.apache.hive:hive-common",
-                "org.apache.hive:hive-metastore",
-                "org.apache.hive:hive-service-rpc"
+                "org.apache.hive:hive-metastore"
             ]
         },
         "commons-codec:commons-codec": {
@@ -4966,7 +4916,7 @@
             ]
         },
         "io.netty:netty-all": {
-            "locked": "4.1.42.Final",
+            "locked": "4.1.47.Final",
             "transitive": [
                 "org.apache.hadoop:hadoop-hdfs",
                 "org.apache.spark:spark-core_2.12",
@@ -4982,8 +4932,6 @@
         "jakarta.annotation:jakarta.annotation-api": {
             "locked": "1.3.5",
             "transitive": [
-                "org.glassfish.hk2:hk2-locator",
-                "org.glassfish.hk2:hk2-utils",
                 "org.glassfish.jersey.core:jersey-common",
                 "org.glassfish.jersey.core:jersey-server"
             ]
@@ -5131,7 +5079,7 @@
             ]
         },
         "net.sf.py4j:py4j": {
-            "locked": "0.10.8.1",
+            "locked": "0.10.9",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
@@ -5157,23 +5105,22 @@
             ]
         },
         "org.apache.arrow:arrow-format": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
                 "org.apache.arrow:arrow-vector"
             ]
         },
         "org.apache.arrow:arrow-memory": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
                 "org.apache.arrow:arrow-vector",
                 "org.apache.iceberg:iceberg-arrow"
             ]
         },
         "org.apache.arrow:arrow-vector": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
-                "org.apache.iceberg:iceberg-arrow",
-                "org.apache.spark:spark-catalyst_2.12"
+                "org.apache.iceberg:iceberg-arrow"
             ]
         },
         "org.apache.avro:avro": {
@@ -5466,13 +5413,13 @@
             ]
         },
         "org.apache.hive.shims:hive-shims-0.23": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-shims"
             ]
         },
         "org.apache.hive.shims:hive-shims-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive.shims:hive-shims-0.23",
                 "org.apache.hive.shims:hive-shims-scheduler",
@@ -5480,67 +5427,61 @@
             ]
         },
         "org.apache.hive.shims:hive-shims-scheduler": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-shims"
             ]
         },
         "org.apache.hive:hive-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-exec": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-llap-client": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-llap-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-metastore": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-serde": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
-        "org.apache.hive:hive-service-rpc": {
-            "locked": "2.3.6",
-            "transitive": [
-                "org.apache.hive:hive-serde"
-            ]
-        },
         "org.apache.hive:hive-shims": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-storage-api": {
-            "locked": "2.6.0",
+            "locked": "2.7.1",
             "transitive": [
                 "org.apache.spark:spark-sql_2.12"
             ]
         },
         "org.apache.hive:hive-vector-code-gen": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-exec"
             ]
@@ -5653,7 +5594,7 @@
             ]
         },
         "org.apache.orc:orc-mapreduce": {
-            "locked": "1.5.8",
+            "locked": "1.5.10",
             "transitive": [
                 "org.apache.spark:spark-sql_2.12"
             ]
@@ -5713,13 +5654,13 @@
             ]
         },
         "org.apache.spark:spark-catalyst_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-sql_2.12"
             ]
         },
         "org.apache.spark:spark-core_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-hive_2.12",
@@ -5727,49 +5668,48 @@
             ]
         },
         "org.apache.spark:spark-hive_2.12": {
-            "locked": "3.0.0-preview2",
-            "requested": "3.0.0-preview2"
+            "locked": "3.0.0"
         },
         "org.apache.spark:spark-kvstore_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.apache.spark:spark-launcher_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.apache.spark:spark-network-common_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-network-shuffle_2.12"
             ]
         },
         "org.apache.spark:spark-network-shuffle_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.apache.spark:spark-sketch_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-sql_2.12"
             ]
         },
         "org.apache.spark:spark-sql_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.spark:spark-tags_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-core_2.12",
@@ -5781,7 +5721,7 @@
             ]
         },
         "org.apache.spark:spark-unsafe_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-core_2.12"
@@ -5809,6 +5749,7 @@
         "org.apache.xbean:xbean-asm7-shaded": {
             "locked": "4.15",
             "transitive": [
+                "com.twitter:chill_2.12",
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-sql_2.12"
             ]
@@ -5882,14 +5823,14 @@
             ]
         },
         "org.codehaus.janino:commons-compiler": {
-            "locked": "3.0.15",
+            "locked": "3.0.16",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.codehaus.janino:janino"
             ]
         },
         "org.codehaus.janino:janino": {
-            "locked": "3.0.15",
+            "locked": "3.0.16",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12"
             ]
@@ -5990,27 +5931,27 @@
             ]
         },
         "org.glassfish.jersey.containers:jersey-container-servlet": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.glassfish.jersey.containers:jersey-container-servlet-core": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.containers:jersey-container-servlet"
             ]
         },
         "org.glassfish.jersey.core:jersey-client": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.core:jersey-server"
             ]
         },
         "org.glassfish.jersey.core:jersey-common": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.containers:jersey-container-servlet",
@@ -6022,7 +5963,7 @@
             ]
         },
         "org.glassfish.jersey.core:jersey-server": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.containers:jersey-container-servlet",
@@ -6030,13 +5971,13 @@
             ]
         },
         "org.glassfish.jersey.inject:jersey-hk2": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.glassfish.jersey.media:jersey-media-jaxb": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.glassfish.jersey.core:jersey-server"
             ]
@@ -6049,9 +5990,9 @@
             ]
         },
         "org.javassist:javassist": {
-            "locked": "3.22.0-CR2",
+            "locked": "3.25.0-GA",
             "transitive": [
-                "org.glassfish.hk2:hk2-locator"
+                "org.glassfish.jersey.inject:jersey-hk2"
             ]
         },
         "org.jetbrains:annotations": {
@@ -6091,7 +6032,7 @@
             ]
         },
         "org.lz4:lz4-java": {
-            "locked": "1.7.0",
+            "locked": "1.7.1",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
@@ -6155,19 +6096,19 @@
             ]
         },
         "org.slf4j:jcl-over-slf4j": {
-            "locked": "1.7.16",
+            "locked": "1.7.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.slf4j:jul-to-slf4j": {
-            "locked": "1.7.16",
+            "locked": "1.7.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.slf4j:slf4j-api": {
-            "locked": "1.7.28",
+            "locked": "1.7.30",
             "transitive": [
                 "com.clearspring.analytics:stream",
                 "io.dropwizard.metrics:metrics-core",
@@ -6249,7 +6190,7 @@
             ]
         },
         "org.xerial.snappy:snappy-java": {
-            "locked": "1.1.7.3",
+            "locked": "1.1.7.5",
             "transitive": [
                 "org.apache.parquet:parquet-hadoop",
                 "org.apache.spark:spark-core_2.12"
@@ -6302,6 +6243,12 @@
                 "org.sonatype.sisu.inject:cglib"
             ]
         },
+        "com.carrotsearch:hppc": {
+            "locked": "0.7.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
         "com.clearspring.analytics:stream": {
             "locked": "2.9.6",
             "transitive": [
@@ -6359,13 +6306,13 @@
             ]
         },
         "com.fasterxml.jackson.module:jackson-module-paranamer": {
-            "locked": "2.10.0",
+            "locked": "2.10.2",
             "transitive": [
                 "com.fasterxml.jackson.module:jackson-module-scala_2.12"
             ]
         },
         "com.fasterxml.jackson.module:jackson-module-scala_2.12": {
-            "locked": "2.10.0",
+            "locked": "2.10.2",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
@@ -6412,7 +6359,6 @@
             "locked": "3.0.2",
             "transitive": [
                 "com.github.spotbugs:spotbugs-annotations",
-                "org.apache.arrow:arrow-memory",
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-hive_2.12",
@@ -6603,14 +6549,14 @@
             ]
         },
         "com.twitter:chill-java": {
-            "locked": "0.9.3",
+            "locked": "0.9.5",
             "transitive": [
                 "com.twitter:chill_2.12",
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "com.twitter:chill_2.12": {
-            "locked": "0.9.3",
+            "locked": "0.9.5",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-unsafe_2.12"
@@ -6649,8 +6595,7 @@
                 "org.apache.hadoop:hadoop-yarn-client",
                 "org.apache.hadoop:hadoop-yarn-common",
                 "org.apache.hive:hive-common",
-                "org.apache.hive:hive-metastore",
-                "org.apache.hive:hive-service-rpc"
+                "org.apache.hive:hive-metastore"
             ]
         },
         "commons-codec:commons-codec": {
@@ -6839,7 +6784,7 @@
             ]
         },
         "io.netty:netty-all": {
-            "locked": "4.1.42.Final",
+            "locked": "4.1.47.Final",
             "transitive": [
                 "org.apache.hadoop:hadoop-hdfs",
                 "org.apache.spark:spark-core_2.12",
@@ -6855,8 +6800,6 @@
         "jakarta.annotation:jakarta.annotation-api": {
             "locked": "1.3.5",
             "transitive": [
-                "org.glassfish.hk2:hk2-locator",
-                "org.glassfish.hk2:hk2-utils",
                 "org.glassfish.jersey.core:jersey-common",
                 "org.glassfish.jersey.core:jersey-server"
             ]
@@ -6997,7 +6940,7 @@
             ]
         },
         "net.sf.py4j:py4j": {
-            "locked": "0.10.8.1",
+            "locked": "0.10.9",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
@@ -7023,23 +6966,22 @@
             ]
         },
         "org.apache.arrow:arrow-format": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
                 "org.apache.arrow:arrow-vector"
             ]
         },
         "org.apache.arrow:arrow-memory": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
                 "org.apache.arrow:arrow-vector",
                 "org.apache.iceberg:iceberg-arrow"
             ]
         },
         "org.apache.arrow:arrow-vector": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
-                "org.apache.iceberg:iceberg-arrow",
-                "org.apache.spark:spark-catalyst_2.12"
+                "org.apache.iceberg:iceberg-arrow"
             ]
         },
         "org.apache.avro:avro": {
@@ -7332,67 +7274,61 @@
             ]
         },
         "org.apache.hive.shims:hive-shims-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-shims"
             ]
         },
         "org.apache.hive:hive-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-exec": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-llap-client": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-llap-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-metastore": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-serde": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
-        "org.apache.hive:hive-service-rpc": {
-            "locked": "2.3.6",
-            "transitive": [
-                "org.apache.hive:hive-serde"
-            ]
-        },
         "org.apache.hive:hive-shims": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-storage-api": {
-            "locked": "2.6.0",
+            "locked": "2.7.1",
             "transitive": [
                 "org.apache.spark:spark-sql_2.12"
             ]
         },
         "org.apache.hive:hive-vector-code-gen": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-exec"
             ]
@@ -7505,7 +7441,7 @@
             ]
         },
         "org.apache.orc:orc-mapreduce": {
-            "locked": "1.5.8",
+            "locked": "1.5.10",
             "transitive": [
                 "org.apache.spark:spark-sql_2.12"
             ]
@@ -7565,13 +7501,13 @@
             ]
         },
         "org.apache.spark:spark-catalyst_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-sql_2.12"
             ]
         },
         "org.apache.spark:spark-core_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-hive_2.12",
@@ -7579,49 +7515,48 @@
             ]
         },
         "org.apache.spark:spark-hive_2.12": {
-            "locked": "3.0.0-preview2",
-            "requested": "3.0.0-preview2"
+            "locked": "3.0.0"
         },
         "org.apache.spark:spark-kvstore_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.apache.spark:spark-launcher_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.apache.spark:spark-network-common_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-network-shuffle_2.12"
             ]
         },
         "org.apache.spark:spark-network-shuffle_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.apache.spark:spark-sketch_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-sql_2.12"
             ]
         },
         "org.apache.spark:spark-sql_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.spark:spark-tags_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-core_2.12",
@@ -7633,7 +7568,7 @@
             ]
         },
         "org.apache.spark:spark-unsafe_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-core_2.12"
@@ -7661,6 +7596,7 @@
         "org.apache.xbean:xbean-asm7-shaded": {
             "locked": "4.15",
             "transitive": [
+                "com.twitter:chill_2.12",
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-sql_2.12"
             ]
@@ -7734,14 +7670,14 @@
             ]
         },
         "org.codehaus.janino:commons-compiler": {
-            "locked": "3.0.15",
+            "locked": "3.0.16",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.codehaus.janino:janino"
             ]
         },
         "org.codehaus.janino:janino": {
-            "locked": "3.0.15",
+            "locked": "3.0.16",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12"
             ]
@@ -7842,27 +7778,27 @@
             ]
         },
         "org.glassfish.jersey.containers:jersey-container-servlet": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.glassfish.jersey.containers:jersey-container-servlet-core": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.containers:jersey-container-servlet"
             ]
         },
         "org.glassfish.jersey.core:jersey-client": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.core:jersey-server"
             ]
         },
         "org.glassfish.jersey.core:jersey-common": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.containers:jersey-container-servlet",
@@ -7874,7 +7810,7 @@
             ]
         },
         "org.glassfish.jersey.core:jersey-server": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.containers:jersey-container-servlet",
@@ -7882,13 +7818,13 @@
             ]
         },
         "org.glassfish.jersey.inject:jersey-hk2": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.glassfish.jersey.media:jersey-media-jaxb": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.glassfish.jersey.core:jersey-server"
             ]
@@ -7900,9 +7836,9 @@
             ]
         },
         "org.javassist:javassist": {
-            "locked": "3.22.0-CR2",
+            "locked": "3.25.0-GA",
             "transitive": [
-                "org.glassfish.hk2:hk2-locator"
+                "org.glassfish.jersey.inject:jersey-hk2"
             ]
         },
         "org.jetbrains:annotations": {
@@ -7942,7 +7878,7 @@
             ]
         },
         "org.lz4:lz4-java": {
-            "locked": "1.7.0",
+            "locked": "1.7.1",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
@@ -8005,19 +7941,19 @@
             ]
         },
         "org.slf4j:jcl-over-slf4j": {
-            "locked": "1.7.16",
+            "locked": "1.7.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.slf4j:jul-to-slf4j": {
-            "locked": "1.7.16",
+            "locked": "1.7.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.slf4j:slf4j-api": {
-            "locked": "1.7.28",
+            "locked": "1.7.30",
             "transitive": [
                 "com.clearspring.analytics:stream",
                 "io.dropwizard.metrics:metrics-core",
@@ -8099,7 +8035,7 @@
             ]
         },
         "org.xerial.snappy:snappy-java": {
-            "locked": "1.1.7.3",
+            "locked": "1.1.7.5",
             "transitive": [
                 "org.apache.parquet:parquet-hadoop",
                 "org.apache.spark:spark-core_2.12"
@@ -8152,6 +8088,12 @@
                 "org.sonatype.sisu.inject:cglib"
             ]
         },
+        "com.carrotsearch:hppc": {
+            "locked": "0.7.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
         "com.clearspring.analytics:stream": {
             "locked": "2.9.6",
             "transitive": [
@@ -8209,13 +8151,13 @@
             ]
         },
         "com.fasterxml.jackson.module:jackson-module-paranamer": {
-            "locked": "2.10.0",
+            "locked": "2.10.2",
             "transitive": [
                 "com.fasterxml.jackson.module:jackson-module-scala_2.12"
             ]
         },
         "com.fasterxml.jackson.module:jackson-module-scala_2.12": {
-            "locked": "2.10.0",
+            "locked": "2.10.2",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
@@ -8262,7 +8204,6 @@
             "locked": "3.0.2",
             "transitive": [
                 "com.github.spotbugs:spotbugs-annotations",
-                "org.apache.arrow:arrow-memory",
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-hive_2.12",
@@ -8454,14 +8395,14 @@
             ]
         },
         "com.twitter:chill-java": {
-            "locked": "0.9.3",
+            "locked": "0.9.5",
             "transitive": [
                 "com.twitter:chill_2.12",
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "com.twitter:chill_2.12": {
-            "locked": "0.9.3",
+            "locked": "0.9.5",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-unsafe_2.12"
@@ -8500,8 +8441,7 @@
                 "org.apache.hadoop:hadoop-yarn-client",
                 "org.apache.hadoop:hadoop-yarn-common",
                 "org.apache.hive:hive-common",
-                "org.apache.hive:hive-metastore",
-                "org.apache.hive:hive-service-rpc"
+                "org.apache.hive:hive-metastore"
             ]
         },
         "commons-codec:commons-codec": {
@@ -8691,7 +8631,7 @@
             ]
         },
         "io.netty:netty-all": {
-            "locked": "4.1.42.Final",
+            "locked": "4.1.47.Final",
             "transitive": [
                 "org.apache.hadoop:hadoop-hdfs",
                 "org.apache.spark:spark-core_2.12",
@@ -8707,8 +8647,6 @@
         "jakarta.annotation:jakarta.annotation-api": {
             "locked": "1.3.5",
             "transitive": [
-                "org.glassfish.hk2:hk2-locator",
-                "org.glassfish.hk2:hk2-utils",
                 "org.glassfish.jersey.core:jersey-common",
                 "org.glassfish.jersey.core:jersey-server"
             ]
@@ -8856,7 +8794,7 @@
             ]
         },
         "net.sf.py4j:py4j": {
-            "locked": "0.10.8.1",
+            "locked": "0.10.9",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
@@ -8882,23 +8820,22 @@
             ]
         },
         "org.apache.arrow:arrow-format": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
                 "org.apache.arrow:arrow-vector"
             ]
         },
         "org.apache.arrow:arrow-memory": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
                 "org.apache.arrow:arrow-vector",
                 "org.apache.iceberg:iceberg-arrow"
             ]
         },
         "org.apache.arrow:arrow-vector": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
-                "org.apache.iceberg:iceberg-arrow",
-                "org.apache.spark:spark-catalyst_2.12"
+                "org.apache.iceberg:iceberg-arrow"
             ]
         },
         "org.apache.avro:avro": {
@@ -9191,13 +9128,13 @@
             ]
         },
         "org.apache.hive.shims:hive-shims-0.23": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-shims"
             ]
         },
         "org.apache.hive.shims:hive-shims-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive.shims:hive-shims-0.23",
                 "org.apache.hive.shims:hive-shims-scheduler",
@@ -9205,67 +9142,61 @@
             ]
         },
         "org.apache.hive.shims:hive-shims-scheduler": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-shims"
             ]
         },
         "org.apache.hive:hive-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-exec": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-llap-client": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-llap-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-metastore": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-serde": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
-        "org.apache.hive:hive-service-rpc": {
-            "locked": "2.3.6",
-            "transitive": [
-                "org.apache.hive:hive-serde"
-            ]
-        },
         "org.apache.hive:hive-shims": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-storage-api": {
-            "locked": "2.6.0",
+            "locked": "2.7.1",
             "transitive": [
                 "org.apache.spark:spark-sql_2.12"
             ]
         },
         "org.apache.hive:hive-vector-code-gen": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-exec"
             ]
@@ -9378,7 +9309,7 @@
             ]
         },
         "org.apache.orc:orc-mapreduce": {
-            "locked": "1.5.8",
+            "locked": "1.5.10",
             "transitive": [
                 "org.apache.spark:spark-sql_2.12"
             ]
@@ -9438,13 +9369,13 @@
             ]
         },
         "org.apache.spark:spark-catalyst_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-sql_2.12"
             ]
         },
         "org.apache.spark:spark-core_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-hive_2.12",
@@ -9452,49 +9383,48 @@
             ]
         },
         "org.apache.spark:spark-hive_2.12": {
-            "locked": "3.0.0-preview2",
-            "requested": "3.0.0-preview2"
+            "locked": "3.0.0"
         },
         "org.apache.spark:spark-kvstore_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.apache.spark:spark-launcher_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.apache.spark:spark-network-common_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-network-shuffle_2.12"
             ]
         },
         "org.apache.spark:spark-network-shuffle_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.apache.spark:spark-sketch_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-sql_2.12"
             ]
         },
         "org.apache.spark:spark-sql_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.spark:spark-tags_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-core_2.12",
@@ -9506,7 +9436,7 @@
             ]
         },
         "org.apache.spark:spark-unsafe_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-core_2.12"
@@ -9534,6 +9464,7 @@
         "org.apache.xbean:xbean-asm7-shaded": {
             "locked": "4.15",
             "transitive": [
+                "com.twitter:chill_2.12",
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-sql_2.12"
             ]
@@ -9607,14 +9538,14 @@
             ]
         },
         "org.codehaus.janino:commons-compiler": {
-            "locked": "3.0.15",
+            "locked": "3.0.16",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.codehaus.janino:janino"
             ]
         },
         "org.codehaus.janino:janino": {
-            "locked": "3.0.15",
+            "locked": "3.0.16",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12"
             ]
@@ -9715,27 +9646,27 @@
             ]
         },
         "org.glassfish.jersey.containers:jersey-container-servlet": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.glassfish.jersey.containers:jersey-container-servlet-core": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.containers:jersey-container-servlet"
             ]
         },
         "org.glassfish.jersey.core:jersey-client": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.core:jersey-server"
             ]
         },
         "org.glassfish.jersey.core:jersey-common": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.containers:jersey-container-servlet",
@@ -9747,7 +9678,7 @@
             ]
         },
         "org.glassfish.jersey.core:jersey-server": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.containers:jersey-container-servlet",
@@ -9755,13 +9686,13 @@
             ]
         },
         "org.glassfish.jersey.inject:jersey-hk2": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.glassfish.jersey.media:jersey-media-jaxb": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.glassfish.jersey.core:jersey-server"
             ]
@@ -9774,9 +9705,9 @@
             ]
         },
         "org.javassist:javassist": {
-            "locked": "3.22.0-CR2",
+            "locked": "3.25.0-GA",
             "transitive": [
-                "org.glassfish.hk2:hk2-locator"
+                "org.glassfish.jersey.inject:jersey-hk2"
             ]
         },
         "org.jetbrains:annotations": {
@@ -9816,7 +9747,7 @@
             ]
         },
         "org.lz4:lz4-java": {
-            "locked": "1.7.0",
+            "locked": "1.7.1",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
@@ -9880,19 +9811,19 @@
             ]
         },
         "org.slf4j:jcl-over-slf4j": {
-            "locked": "1.7.16",
+            "locked": "1.7.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.slf4j:jul-to-slf4j": {
-            "locked": "1.7.16",
+            "locked": "1.7.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.slf4j:slf4j-api": {
-            "locked": "1.7.28",
+            "locked": "1.7.30",
             "transitive": [
                 "com.clearspring.analytics:stream",
                 "io.dropwizard.metrics:metrics-core",
@@ -9974,7 +9905,7 @@
             ]
         },
         "org.xerial.snappy:snappy-java": {
-            "locked": "1.1.7.3",
+            "locked": "1.1.7.5",
             "transitive": [
                 "org.apache.parquet:parquet-hadoop",
                 "org.apache.spark:spark-core_2.12"
@@ -10027,6 +9958,12 @@
                 "org.sonatype.sisu.inject:cglib"
             ]
         },
+        "com.carrotsearch:hppc": {
+            "locked": "0.7.2",
+            "transitive": [
+                "org.apache.arrow:arrow-vector"
+            ]
+        },
         "com.clearspring.analytics:stream": {
             "locked": "2.9.6",
             "transitive": [
@@ -10084,13 +10021,13 @@
             ]
         },
         "com.fasterxml.jackson.module:jackson-module-paranamer": {
-            "locked": "2.10.0",
+            "locked": "2.10.2",
             "transitive": [
                 "com.fasterxml.jackson.module:jackson-module-scala_2.12"
             ]
         },
         "com.fasterxml.jackson.module:jackson-module-scala_2.12": {
-            "locked": "2.10.0",
+            "locked": "2.10.2",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
@@ -10137,7 +10074,6 @@
             "locked": "3.0.2",
             "transitive": [
                 "com.github.spotbugs:spotbugs-annotations",
-                "org.apache.arrow:arrow-memory",
                 "org.apache.hadoop:hadoop-common",
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-hive_2.12",
@@ -10329,14 +10265,14 @@
             ]
         },
         "com.twitter:chill-java": {
-            "locked": "0.9.3",
+            "locked": "0.9.5",
             "transitive": [
                 "com.twitter:chill_2.12",
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "com.twitter:chill_2.12": {
-            "locked": "0.9.3",
+            "locked": "0.9.5",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-unsafe_2.12"
@@ -10375,8 +10311,7 @@
                 "org.apache.hadoop:hadoop-yarn-client",
                 "org.apache.hadoop:hadoop-yarn-common",
                 "org.apache.hive:hive-common",
-                "org.apache.hive:hive-metastore",
-                "org.apache.hive:hive-service-rpc"
+                "org.apache.hive:hive-metastore"
             ]
         },
         "commons-codec:commons-codec": {
@@ -10566,7 +10501,7 @@
             ]
         },
         "io.netty:netty-all": {
-            "locked": "4.1.42.Final",
+            "locked": "4.1.47.Final",
             "transitive": [
                 "org.apache.hadoop:hadoop-hdfs",
                 "org.apache.spark:spark-core_2.12",
@@ -10582,8 +10517,6 @@
         "jakarta.annotation:jakarta.annotation-api": {
             "locked": "1.3.5",
             "transitive": [
-                "org.glassfish.hk2:hk2-locator",
-                "org.glassfish.hk2:hk2-utils",
                 "org.glassfish.jersey.core:jersey-common",
                 "org.glassfish.jersey.core:jersey-server"
             ]
@@ -10731,7 +10664,7 @@
             ]
         },
         "net.sf.py4j:py4j": {
-            "locked": "0.10.8.1",
+            "locked": "0.10.9",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
@@ -10757,23 +10690,22 @@
             ]
         },
         "org.apache.arrow:arrow-format": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
                 "org.apache.arrow:arrow-vector"
             ]
         },
         "org.apache.arrow:arrow-memory": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
                 "org.apache.arrow:arrow-vector",
                 "org.apache.iceberg:iceberg-arrow"
             ]
         },
         "org.apache.arrow:arrow-vector": {
-            "locked": "0.15.1",
+            "locked": "0.14.1",
             "transitive": [
-                "org.apache.iceberg:iceberg-arrow",
-                "org.apache.spark:spark-catalyst_2.12"
+                "org.apache.iceberg:iceberg-arrow"
             ]
         },
         "org.apache.avro:avro": {
@@ -11066,13 +10998,13 @@
             ]
         },
         "org.apache.hive.shims:hive-shims-0.23": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-shims"
             ]
         },
         "org.apache.hive.shims:hive-shims-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive.shims:hive-shims-0.23",
                 "org.apache.hive.shims:hive-shims-scheduler",
@@ -11080,67 +11012,61 @@
             ]
         },
         "org.apache.hive.shims:hive-shims-scheduler": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-shims"
             ]
         },
         "org.apache.hive:hive-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-exec": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-llap-client": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-llap-common": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-metastore": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-serde": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
-        "org.apache.hive:hive-service-rpc": {
-            "locked": "2.3.6",
-            "transitive": [
-                "org.apache.hive:hive-serde"
-            ]
-        },
         "org.apache.hive:hive-shims": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.hive:hive-storage-api": {
-            "locked": "2.6.0",
+            "locked": "2.7.1",
             "transitive": [
                 "org.apache.spark:spark-sql_2.12"
             ]
         },
         "org.apache.hive:hive-vector-code-gen": {
-            "locked": "2.3.6",
+            "locked": "2.3.7",
             "transitive": [
                 "org.apache.hive:hive-exec"
             ]
@@ -11253,7 +11179,7 @@
             ]
         },
         "org.apache.orc:orc-mapreduce": {
-            "locked": "1.5.8",
+            "locked": "1.5.10",
             "transitive": [
                 "org.apache.spark:spark-sql_2.12"
             ]
@@ -11313,13 +11239,13 @@
             ]
         },
         "org.apache.spark:spark-catalyst_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-sql_2.12"
             ]
         },
         "org.apache.spark:spark-core_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-hive_2.12",
@@ -11327,49 +11253,48 @@
             ]
         },
         "org.apache.spark:spark-hive_2.12": {
-            "locked": "3.0.0-preview2",
-            "requested": "3.0.0-preview2"
+            "locked": "3.0.0"
         },
         "org.apache.spark:spark-kvstore_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.apache.spark:spark-launcher_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.apache.spark:spark-network-common_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-network-shuffle_2.12"
             ]
         },
         "org.apache.spark:spark-network-shuffle_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.apache.spark:spark-sketch_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-sql_2.12"
             ]
         },
         "org.apache.spark:spark-sql_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-hive_2.12"
             ]
         },
         "org.apache.spark:spark-tags_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-core_2.12",
@@ -11381,7 +11306,7 @@
             ]
         },
         "org.apache.spark:spark-unsafe_2.12": {
-            "locked": "3.0.0-preview2",
+            "locked": "3.0.0",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.apache.spark:spark-core_2.12"
@@ -11409,6 +11334,7 @@
         "org.apache.xbean:xbean-asm7-shaded": {
             "locked": "4.15",
             "transitive": [
+                "com.twitter:chill_2.12",
                 "org.apache.spark:spark-core_2.12",
                 "org.apache.spark:spark-sql_2.12"
             ]
@@ -11482,14 +11408,14 @@
             ]
         },
         "org.codehaus.janino:commons-compiler": {
-            "locked": "3.0.15",
+            "locked": "3.0.16",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12",
                 "org.codehaus.janino:janino"
             ]
         },
         "org.codehaus.janino:janino": {
-            "locked": "3.0.15",
+            "locked": "3.0.16",
             "transitive": [
                 "org.apache.spark:spark-catalyst_2.12"
             ]
@@ -11590,27 +11516,27 @@
             ]
         },
         "org.glassfish.jersey.containers:jersey-container-servlet": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.glassfish.jersey.containers:jersey-container-servlet-core": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.containers:jersey-container-servlet"
             ]
         },
         "org.glassfish.jersey.core:jersey-client": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.core:jersey-server"
             ]
         },
         "org.glassfish.jersey.core:jersey-common": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.containers:jersey-container-servlet",
@@ -11622,7 +11548,7 @@
             ]
         },
         "org.glassfish.jersey.core:jersey-server": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12",
                 "org.glassfish.jersey.containers:jersey-container-servlet",
@@ -11630,13 +11556,13 @@
             ]
         },
         "org.glassfish.jersey.inject:jersey-hk2": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.glassfish.jersey.media:jersey-media-jaxb": {
-            "locked": "2.29.1",
+            "locked": "2.30",
             "transitive": [
                 "org.glassfish.jersey.core:jersey-server"
             ]
@@ -11649,9 +11575,9 @@
             ]
         },
         "org.javassist:javassist": {
-            "locked": "3.22.0-CR2",
+            "locked": "3.25.0-GA",
             "transitive": [
-                "org.glassfish.hk2:hk2-locator"
+                "org.glassfish.jersey.inject:jersey-hk2"
             ]
         },
         "org.jetbrains:annotations": {
@@ -11691,7 +11617,7 @@
             ]
         },
         "org.lz4:lz4-java": {
-            "locked": "1.7.0",
+            "locked": "1.7.1",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
@@ -11755,19 +11681,19 @@
             ]
         },
         "org.slf4j:jcl-over-slf4j": {
-            "locked": "1.7.16",
+            "locked": "1.7.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.slf4j:jul-to-slf4j": {
-            "locked": "1.7.16",
+            "locked": "1.7.30",
             "transitive": [
                 "org.apache.spark:spark-core_2.12"
             ]
         },
         "org.slf4j:slf4j-api": {
-            "locked": "1.7.28",
+            "locked": "1.7.30",
             "transitive": [
                 "com.clearspring.analytics:stream",
                 "io.dropwizard.metrics:metrics-core",
@@ -11849,7 +11775,7 @@
             ]
         },
         "org.xerial.snappy:snappy-java": {
-            "locked": "1.1.7.3",
+            "locked": "1.1.7.5",
             "transitive": [
                 "org.apache.parquet:parquet-hadoop",
                 "org.apache.spark:spark-core_2.12"

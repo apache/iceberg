@@ -40,7 +40,6 @@ import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestHelpers;
 import org.apache.iceberg.types.Types;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -92,21 +91,13 @@ public class TestIcebergInputFormat {
     assertEquals(splits.length, 1);
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test(expected = NullPointerException.class)
   public void testGetSplitsNoLocation() throws IOException {
     conf.set(InputFormatConfig.CATALOG_NAME, InputFormatConfig.HADOOP_TABLES);
     conf.set(InputFormatConfig.TABLE_NAME, "source_db.table_a");
     inputFormat.getSplits(conf, 1);
   }
 
-  @Test(expected = IllegalArgumentException.class)
-  public void testGetSplitsNoName() throws IOException {
-    conf.set(InputFormatConfig.CATALOG_NAME, InputFormatConfig.HADOOP_TABLES);
-    conf.set(InputFormatConfig.TABLE_LOCATION, "file:" + tableLocation.getAbsolutePath());
-    inputFormat.getSplits(conf, 1);
-  }
-
-  @Ignore("Requires SerDe")
   @Test
   public void testInputFormat() {
     shell.execute("CREATE DATABASE source_db");
@@ -136,7 +127,7 @@ public class TestIcebergInputFormat {
     List<Record> records = new ArrayList<>();
     IcebergWritable value = (IcebergWritable) reader.createValue();
     while (reader.next(null, value)) {
-      records.add(value.getRecord().copy());
+      records.add(value.record().copy());
     }
     return records;
   }

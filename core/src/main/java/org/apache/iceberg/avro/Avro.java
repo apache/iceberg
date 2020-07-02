@@ -235,7 +235,7 @@ public class Avro {
       return this;
     }
 
-    public ReadBuilder nameMapping(NameMapping newNameMapping) {
+    public ReadBuilder withNameMapping(NameMapping newNameMapping) {
       this.nameMapping = newNameMapping;
       return this;
     }

@@ -65,57 +65,62 @@ public class TestGenericData extends DataTest {
 
   @Test
   public void writeAndValidateTimestamps() throws IOException {
-    Schema timestampSchema = new Schema(
-        required(1, "tsTzCol", Types.TimestampType.withZone()),
-        required(2, "tsCol", Types.TimestampType.withoutZone())
-    );
+    TimeZone currentTz = TimeZone.getDefault();
+    try {
+      Schema timestampSchema = new Schema(
+          required(1, "tsTzCol", Types.TimestampType.withZone()),
+          required(2, "tsCol", Types.TimestampType.withoutZone())
+      );
 
-    // Write using America/New_York timezone
-    TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"));
-    GenericRecord record1 = GenericRecord.create(timestampSchema);
-    record1.setField("tsTzCol", OffsetDateTime.parse("2017-01-16T17:10:34-08:00"));
-    record1.setField("tsCol", LocalDateTime.parse("1970-01-01T00:01:00"));
-    GenericRecord record2 = GenericRecord.create(timestampSchema);
-    record2.setField("tsTzCol", OffsetDateTime.parse("2017-05-16T17:10:34-08:00"));
-    record2.setField("tsCol", LocalDateTime.parse("1970-05-01T00:01:00"));
-    GenericRecord record3 = GenericRecord.create(timestampSchema);
-    record3.setField("tsTzCol", OffsetDateTime.parse("1935-01-16T17:10:34-08:00"));
-    record3.setField("tsCol", LocalDateTime.parse("1935-01-01T00:01:00"));
-    GenericRecord record4 = GenericRecord.create(timestampSchema);
-    record4.setField("tsTzCol", OffsetDateTime.parse("1935-05-16T17:10:34-08:00"));
-    record4.setField("tsCol", LocalDateTime.parse("1935-05-01T00:01:00"));
+      // Write using America/New_York timezone
+      TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"));
+      GenericRecord record1 = GenericRecord.create(timestampSchema);
+      record1.setField("tsTzCol", OffsetDateTime.parse("2017-01-16T17:10:34-08:00"));
+      record1.setField("tsCol", LocalDateTime.parse("1970-01-01T00:01:00"));
+      GenericRecord record2 = GenericRecord.create(timestampSchema);
+      record2.setField("tsTzCol", OffsetDateTime.parse("2017-05-16T17:10:34-08:00"));
+      record2.setField("tsCol", LocalDateTime.parse("1970-05-01T00:01:00"));
+      GenericRecord record3 = GenericRecord.create(timestampSchema);
+      record3.setField("tsTzCol", OffsetDateTime.parse("1935-01-16T17:10:34-08:00"));
+      record3.setField("tsCol", LocalDateTime.parse("1935-01-01T00:01:00"));
+      GenericRecord record4 = GenericRecord.create(timestampSchema);
+      record4.setField("tsTzCol", OffsetDateTime.parse("1935-05-16T17:10:34-08:00"));
+      record4.setField("tsCol", LocalDateTime.parse("1935-05-01T00:01:00"));
 
-    File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+      File testFile = temp.newFile();
+      Assert.assertTrue("Delete should succeed", testFile.delete());
 
-    try (FileAppender<Record> writer = ORC.write(Files.localOutput(testFile))
-        .schema(timestampSchema)
-        .createWriterFunc(GenericOrcWriter::buildWriter)
-        .build()) {
-      writer.add(record1);
-      writer.add(record2);
-      writer.add(record3);
-      writer.add(record4);
+      try (FileAppender<Record> writer = ORC.write(Files.localOutput(testFile))
+          .schema(timestampSchema)
+          .createWriterFunc(GenericOrcWriter::buildWriter)
+          .build()) {
+        writer.add(record1);
+        writer.add(record2);
+        writer.add(record3);
+        writer.add(record4);
+      }
+
+      // Read using Asia/Kolkata timezone
+      TimeZone.setDefault(TimeZone.getTimeZone("Asia/Kolkata"));
+      List<Record> rows;
+      try (CloseableIterable<Record> reader = ORC.read(Files.localInput(testFile))
+          .project(timestampSchema)
+          .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(timestampSchema, fileSchema))
+          .build()) {
+        rows = Lists.newArrayList(reader);
+      }
+
+      Assert.assertEquals(OffsetDateTime.parse("2017-01-17T01:10:34Z"), rows.get(0).getField("tsTzCol"));
+      Assert.assertEquals(LocalDateTime.parse("1970-01-01T00:01:00"), rows.get(0).getField("tsCol"));
+      Assert.assertEquals(OffsetDateTime.parse("2017-05-17T01:10:34Z"), rows.get(1).getField("tsTzCol"));
+      Assert.assertEquals(LocalDateTime.parse("1970-05-01T00:01:00"), rows.get(1).getField("tsCol"));
+      Assert.assertEquals(OffsetDateTime.parse("1935-01-17T01:10:34Z"), rows.get(2).getField("tsTzCol"));
+      Assert.assertEquals(LocalDateTime.parse("1935-01-01T00:01:00"), rows.get(2).getField("tsCol"));
+      Assert.assertEquals(OffsetDateTime.parse("1935-05-17T01:10:34Z"), rows.get(3).getField("tsTzCol"));
+      Assert.assertEquals(LocalDateTime.parse("1935-05-01T00:01:00"), rows.get(3).getField("tsCol"));
+    } finally {
+      TimeZone.setDefault(currentTz);
     }
-
-    // Read using Asia/Kolkata timezone
-    TimeZone.setDefault(TimeZone.getTimeZone("Asia/Kolkata"));
-    List<Record> rows;
-    try (CloseableIterable<Record> reader = ORC.read(Files.localInput(testFile))
-        .project(timestampSchema)
-        .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(timestampSchema, fileSchema))
-        .build()) {
-      rows = Lists.newArrayList(reader);
-    }
-
-    Assert.assertEquals(OffsetDateTime.parse("2017-01-17T01:10:34Z"), rows.get(0).getField("tsTzCol"));
-    Assert.assertEquals(LocalDateTime.parse("1970-01-01T00:01:00"), rows.get(0).getField("tsCol"));
-    Assert.assertEquals(OffsetDateTime.parse("2017-05-17T01:10:34Z"), rows.get(1).getField("tsTzCol"));
-    Assert.assertEquals(LocalDateTime.parse("1970-05-01T00:01:00"), rows.get(1).getField("tsCol"));
-    Assert.assertEquals(OffsetDateTime.parse("1935-01-17T01:10:34Z"), rows.get(2).getField("tsTzCol"));
-    Assert.assertEquals(LocalDateTime.parse("1935-01-01T00:01:00"), rows.get(2).getField("tsCol"));
-    Assert.assertEquals(OffsetDateTime.parse("1935-05-17T01:10:34Z"), rows.get(3).getField("tsTzCol"));
-    Assert.assertEquals(LocalDateTime.parse("1935-05-01T00:01:00"), rows.get(3).getField("tsCol"));
   }
 
   private void writeAndValidateRecords(Schema schema, List<Record> expected) throws IOException {

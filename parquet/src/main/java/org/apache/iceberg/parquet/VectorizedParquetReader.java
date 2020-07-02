@@ -32,6 +32,7 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mapping.NameMapping;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -48,11 +49,12 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
   private boolean reuseContainers;
   private final boolean caseSensitive;
   private final int batchSize;
+  private final NameMapping nameMapping;
 
   public VectorizedParquetReader(
       InputFile input, Schema expectedSchema, ParquetReadOptions options,
-      Function<MessageType, VectorizedReader<?>> readerFunc,
-      Expression filter, boolean reuseContainers, boolean caseSensitive, int maxRecordsPerBatch) {
+      Function<MessageType, VectorizedReader<?>> readerFunc, NameMapping nameMapping, Expression filter,
+      boolean reuseContainers, boolean caseSensitive, int maxRecordsPerBatch) {
     this.input = input;
     this.expectedSchema = expectedSchema;
     this.options = options;
@@ -62,6 +64,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     this.reuseContainers = reuseContainers;
     this.caseSensitive = caseSensitive;
     this.batchSize = maxRecordsPerBatch;
+    this.nameMapping = nameMapping;
   }
 
   private ReadConf conf = null;
@@ -69,7 +72,8 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
   private ReadConf init() {
     if (conf == null) {
       ReadConf readConf = new ReadConf(
-          input, options, expectedSchema, filter, null, batchReaderFunc, reuseContainers, caseSensitive, batchSize);
+          input, options, expectedSchema, filter, null, batchReaderFunc, nameMapping, reuseContainers,
+          caseSensitive, batchSize);
       this.conf = readConf.copy();
       return readConf;
     }
@@ -90,6 +94,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     private final long totalValues;
     private final int batchSize;
     private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetadata;
+    private final boolean reuseContainers;
     private int nextRowGroup = 0;
     private long nextRowGroupStart = 0;
     private long valuesRead = 0;
@@ -98,12 +103,14 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     FileIterator(ReadConf conf) {
       this.reader = conf.reader();
       this.shouldSkip = conf.shouldSkip();
-      this.model = conf.vectorizedModel();
       this.totalValues = conf.totalValues();
-      this.model.reuseContainers(conf.reuseContainers());
+      this.reuseContainers = conf.reuseContainers();
+      this.model = conf.vectorizedModel();
       this.batchSize = conf.batchSize();
+      this.model.setBatchSize(this.batchSize);
       this.columnChunkMetadata = conf.columnChunkMetadataForRowGroups();
     }
+
 
     @Override
     public boolean hasNext() {
@@ -118,10 +125,16 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       if (valuesRead >= nextRowGroupStart) {
         advance();
       }
-      long numValuesToRead = Math.min(nextRowGroupStart - valuesRead, batchSize);
+
       // batchSize is an integer, so casting to integer is safe
-      this.last = model.read((int) numValuesToRead);
+      int numValuesToRead = (int) Math.min(nextRowGroupStart - valuesRead, batchSize);
+      if (reuseContainers) {
+        this.last = model.read(last, numValuesToRead);
+      } else {
+        this.last = model.read(null, numValuesToRead);
+      }
       valuesRead += numValuesToRead;
+
       return last;
     }
 

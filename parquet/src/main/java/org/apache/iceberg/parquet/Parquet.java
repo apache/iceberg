@@ -38,6 +38,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -312,6 +313,7 @@ public class Parquet {
     private boolean callInit = false;
     private boolean reuseContainers = false;
     private int maxRecordsPerBatch = 10000;
+    private NameMapping nameMapping = null;
 
     private ReadBuilder(InputFile file) {
       this.file = file;
@@ -393,6 +395,11 @@ public class Parquet {
       return this;
     }
 
+    public ReadBuilder withNameMapping(NameMapping newNameMapping) {
+      this.nameMapping = newNameMapping;
+      return this;
+    }
+
     @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
     public <D> CloseableIterable<D> build() {
       if (readerFunc != null || batchedReaderFunc != null) {
@@ -419,11 +426,11 @@ public class Parquet {
         ParquetReadOptions options = optionsBuilder.build();
 
         if (batchedReaderFunc != null) {
-          return new VectorizedParquetReader(file, schema, options, batchedReaderFunc, filter, reuseContainers,
-              caseSensitive, maxRecordsPerBatch);
+          return new VectorizedParquetReader(file, schema, options, batchedReaderFunc, nameMapping, filter,
+              reuseContainers, caseSensitive, maxRecordsPerBatch);
         } else {
           return new org.apache.iceberg.parquet.ParquetReader<>(
-              file, schema, options, readerFunc, filter, reuseContainers, caseSensitive);
+              file, schema, options, readerFunc, nameMapping, filter, reuseContainers, caseSensitive);
         }
       }
 
@@ -475,6 +482,10 @@ public class Parquet {
         builder.withFileRange(start, start + length);
       }
 
+      if (nameMapping != null) {
+        builder.withNameMapping(nameMapping);
+      }
+
       return new ParquetIterable<>(builder);
     }
   }
@@ -483,6 +494,7 @@ public class Parquet {
     private Schema schema = null;
     private ReadSupport<T> readSupport = null;
     private boolean callInit = false;
+    private NameMapping nameMapping = null;
 
     private ParquetReadBuilder(org.apache.parquet.io.InputFile file) {
       super(file);
@@ -490,6 +502,11 @@ public class Parquet {
 
     public ParquetReadBuilder<T> project(Schema newSchema) {
       this.schema = newSchema;
+      return this;
+    }
+
+    public ParquetReadBuilder<T> withNameMapping(NameMapping newNameMapping) {
+      this.nameMapping = newNameMapping;
       return this;
     }
 
@@ -505,7 +522,7 @@ public class Parquet {
 
     @Override
     protected ReadSupport<T> getReadSupport() {
-      return new ParquetReadSupport<>(schema, readSupport, callInit);
+      return new ParquetReadSupport<>(schema, readSupport, callInit, nameMapping);
     }
   }
 }

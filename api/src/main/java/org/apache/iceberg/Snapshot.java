@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 
@@ -30,7 +31,7 @@ import java.util.Map;
  * <p>
  * Snapshots are created by table operations, like {@link AppendFiles} and {@link RewriteFiles}.
  */
-public interface Snapshot {
+public interface Snapshot extends Serializable {
   /**
    * Return this snapshot's sequence number.
    * <p>

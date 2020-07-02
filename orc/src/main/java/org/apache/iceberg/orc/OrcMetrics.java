@@ -22,16 +22,17 @@ package org.apache.iceberg.orc;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
@@ -43,7 +44,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.orc.BooleanColumnStatistics;
 import org.apache.orc.ColumnStatistics;
 import org.apache.orc.DateColumnStatistics;
@@ -55,6 +55,7 @@ import org.apache.orc.StringColumnStatistics;
 import org.apache.orc.TimestampColumnStatistics;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
+import org.apache.orc.impl.ColumnStatisticsImpl;
 
 public class OrcMetrics {
 
@@ -157,10 +158,7 @@ public class OrcMetrics {
               .setScale(((Types.DecimalType) column.type()).scale()))
           .orElse(null);
     } else if (columnStats instanceof DateColumnStatistics) {
-      min = Optional.ofNullable(((DateColumnStatistics) columnStats).getMinimum())
-          .map(minStats -> DateTimeUtil.daysFromDate(
-              DateTimeUtil.EPOCH.plus(minStats.getTime(), ChronoUnit.MILLIS).toLocalDate()))
-          .orElse(null);
+      min = Optional.ofNullable(minDayFromEpoch((DateColumnStatistics) columnStats)).orElse(null);
     } else if (columnStats instanceof TimestampColumnStatistics) {
       TimestampColumnStatistics tColStats = (TimestampColumnStatistics) columnStats;
       Timestamp minValue = tColStats.getMinimumUTC();
@@ -196,10 +194,7 @@ public class OrcMetrics {
               .setScale(((Types.DecimalType) column.type()).scale()))
           .orElse(null);
     } else if (columnStats instanceof DateColumnStatistics) {
-      max = Optional.ofNullable(((DateColumnStatistics) columnStats).getMaximum())
-          .map(maxStats -> DateTimeUtil.daysFromDate(
-              DateTimeUtil.EPOCH.plus(maxStats.getTime(), ChronoUnit.MILLIS).toLocalDate()))
-          .orElse(null);
+      max = Optional.ofNullable(maxDayFromEpoch((DateColumnStatistics) columnStats)).orElse(null);
     } else if (columnStats instanceof TimestampColumnStatistics) {
       TimestampColumnStatistics tColStats = (TimestampColumnStatistics) columnStats;
       Timestamp maxValue = tColStats.getMaximumUTC();
@@ -273,5 +268,28 @@ public class OrcMetrics {
     public TypeDescription primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
       return primitive;
     }
+  }
+
+  private static final Class<?> DATE_STATS_IMPL = Stream.of(ColumnStatisticsImpl.class.getDeclaredClasses())
+      .filter(statsClass -> "DateStatisticsImpl".equals(statsClass.getSimpleName()))
+      .findFirst()
+      .orElse(null);
+
+  private static final DynFields.UnboundField<Integer> DATE_MINIMUM = DynFields.builder()
+      .hiddenImpl(DATE_STATS_IMPL, "minimum")
+      .defaultAlwaysNull() // if the minimum field isn't found, don't add a value
+      .build();
+
+  private static final DynFields.UnboundField<Integer> DATE_MAXIMUM = DynFields.builder()
+      .hiddenImpl(DATE_STATS_IMPL, "maximum")
+      .defaultAlwaysNull() // if the minimum field isn't found, don't add a value
+      .build();
+
+  private static Integer minDayFromEpoch(DateColumnStatistics stats) {
+    return DATE_MINIMUM.get(stats);
+  }
+
+  private static Integer maxDayFromEpoch(DateColumnStatistics stats) {
+    return DATE_MAXIMUM.get(stats);
   }
 }

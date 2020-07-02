@@ -17,7 +17,7 @@
  * under the License.
  */
 
-def jmhProjects = [ project("iceberg-spark") ]
+def jmhProjects = [ project("iceberg-spark2") ]
 
 configure(jmhProjects) {
   apply plugin: 'me.champeau.gradle.jmh'

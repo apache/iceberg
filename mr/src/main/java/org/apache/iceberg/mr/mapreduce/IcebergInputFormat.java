@@ -24,8 +24,6 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.InputFormat;
@@ -35,18 +33,12 @@ import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.PartitionField;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -56,10 +48,6 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.SerializationUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,12 +60,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergInputFormat.class);
 
   private transient List<InputSplit> splits;
-
-  private enum InMemoryDataModel {
-    PIG,
-    HIVE,
-    GENERIC // Default data model is of Iceberg Generics
-  }
 
   /**
    * Configures the {@code Job} to use the {@code IcebergInputFormat} and
@@ -103,10 +85,12 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     splits = Lists.newArrayList();
     boolean applyResidual = !conf.getBoolean(InputFormatConfig.SKIP_RESIDUAL_FILTERING, false);
-    InMemoryDataModel model = conf.getEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL, InMemoryDataModel.GENERIC);
+    InputFormatConfig.InMemoryDataModel model = conf.getEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL,
+            InputFormatConfig.InMemoryDataModel.GENERIC);
     try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
       tasksIterable.forEach(task -> {
-        if (applyResidual && (model == InMemoryDataModel.HIVE || model == InMemoryDataModel.PIG)) {
+        if (applyResidual && (model == InputFormatConfig.InMemoryDataModel.HIVE ||
+                model == InputFormatConfig.InMemoryDataModel.PIG)) {
           //TODO: We do not support residual evaluation for HIVE and PIG in memory data model yet
           checkResiduals(task);
         }
@@ -169,8 +153,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private Schema expectedSchema;
     private boolean reuseContainers;
     private boolean caseSensitive;
-    private InMemoryDataModel inMemoryDataModel;
-    private Map<String, Integer> namesToPos;
+    private InputFormatConfig.InMemoryDataModel inMemoryDataModel;
     private Iterator<FileScanTask> tasks;
     private T currentRow;
     private CloseableIterator<T> currentIterator;
@@ -185,11 +168,11 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       this.tableSchema = SchemaParser.fromJson(conf.get(InputFormatConfig.TABLE_SCHEMA));
       String readSchemaStr = conf.get(InputFormatConfig.READ_SCHEMA);
       this.expectedSchema = readSchemaStr != null ? SchemaParser.fromJson(readSchemaStr) : tableSchema;
-      this.namesToPos = buildNameToPos(expectedSchema);
       this.reuseContainers = conf.getBoolean(InputFormatConfig.REUSE_CONTAINERS, false);
       this.caseSensitive = conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, true);
-      this.inMemoryDataModel = conf.getEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL, InMemoryDataModel.GENERIC);
-      this.currentIterator = open(tasks.next());
+      this.inMemoryDataModel = conf.getEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL,
+              InputFormatConfig.InMemoryDataModel.GENERIC);
+      this.currentIterator = open(tasks.next(), expectedSchema).iterator();
     }
 
     @Override
@@ -200,7 +183,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           return true;
         } else if (tasks.hasNext()) {
           currentIterator.close();
-          currentIterator = open(tasks.next());
+          currentIterator = open(tasks.next(), expectedSchema).iterator();
         } else {
           currentIterator.close();
           return false;
@@ -234,83 +217,12 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       currentIterator.close();
     }
 
-    private static Map<String, Integer> buildNameToPos(Schema expectedSchema) {
-      Map<String, Integer> nameToPos = Maps.newHashMap();
-      for (int pos = 0; pos < expectedSchema.asStruct().fields().size(); pos++) {
-        Types.NestedField field = expectedSchema.asStruct().fields().get(pos);
-        nameToPos.put(field.name(), pos);
-      }
-      return nameToPos;
-    }
-
-    private CloseableIterator<T> open(FileScanTask currentTask) {
-      DataFile file = currentTask.file();
-      // schema of rows returned by readers
-      PartitionSpec spec = currentTask.spec();
-      Set<Integer> idColumns = Sets.intersection(spec.identitySourceIds(), TypeUtil.getProjectedIds(expectedSchema));
-      boolean hasJoinedPartitionColumns = !idColumns.isEmpty();
-
-      CloseableIterable<T> iterable;
-      if (hasJoinedPartitionColumns) {
-        Schema readDataSchema = TypeUtil.selectNot(expectedSchema, idColumns);
-        Schema identityPartitionSchema = TypeUtil.select(expectedSchema, idColumns);
-        iterable = CloseableIterable.transform(open(currentTask, readDataSchema),
-            row -> withIdentityPartitionColumns(row, identityPartitionSchema, spec, file.partition()));
-      } else {
-        iterable = open(currentTask, expectedSchema);
-      }
-
-      return iterable.iterator();
-    }
-
     private CloseableIterable<T> open(FileScanTask currentTask, Schema readSchema) {
       org.apache.iceberg.mr.IcebergRecordReader<T> wrappedReader = new org.apache.iceberg.mr.IcebergRecordReader<T>();
       CloseableIterable<T> iterable = wrappedReader.createReader(context.getConfiguration(), currentTask, readSchema);
       return iterable;
     }
 
-    @SuppressWarnings("unchecked")
-    private T withIdentityPartitionColumns(
-            T row, Schema identityPartitionSchema, PartitionSpec spec, StructLike partition) {
-      switch (inMemoryDataModel) {
-        case PIG:
-        case HIVE:
-          throw new UnsupportedOperationException(
-                  "Adding partition columns to Pig and Hive data model are not supported yet");
-        case GENERIC:
-          return (T) withIdentityPartitionColumns((Record) row, identityPartitionSchema, spec, partition);
-      }
-      return row;
-    }
-
-    private Record withIdentityPartitionColumns(
-            Record record, Schema identityPartitionSchema, PartitionSpec spec, StructLike partitionTuple) {
-      List<PartitionField> partitionFields = spec.fields();
-      List<Types.NestedField> identityColumns = identityPartitionSchema.columns();
-      GenericRecord row = GenericRecord.create(expectedSchema.asStruct());
-      namesToPos.forEach((name, pos) -> {
-        Object field = record.getField(name);
-        if (field != null) {
-          row.set(pos, field);
-        }
-
-        // if the current name, pos points to an identity partition column, we set the
-        // column at pos correctly by reading the corresponding value from partitionTuple`
-        for (int i = 0; i < identityColumns.size(); i++) {
-          Types.NestedField identityColumn = identityColumns.get(i);
-          for (int j = 0; j < partitionFields.size(); j++) {
-            PartitionField partitionField = partitionFields.get(j);
-            if (name.equals(identityColumn.name()) &&
-                    identityColumn.fieldId() == partitionField.sourceId() &&
-                    "identity".equals(partitionField.transform().toString())) {
-              row.set(pos, partitionTuple.get(j, spec.javaClasses()[j]));
-            }
-          }
-        }
-      });
-
-      return row;
-    }
   }
 
   static class IcebergSplit extends InputSplit implements Writable {

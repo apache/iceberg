@@ -456,6 +456,8 @@ public class TestLocalScan {
 
   @Test
   public void testFilterWithDateAndTimestamp() throws IOException {
+    // TODO: Add multiple timestamp tests - there's an issue with ORC caching TZ in ThreadLocal, so it's not possible
+    //   to change TZ and test with ORC as they will produce incompatible values.
     Schema schema = new Schema(
         required(1, "timestamp_with_zone", Types.TimestampType.withZone()),
         required(2, "timestamp_without_zone", Types.TimestampType.withoutZone()),

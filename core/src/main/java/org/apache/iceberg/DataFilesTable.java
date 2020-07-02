@@ -19,13 +19,12 @@
 
 package org.apache.iceberg;
 
-import java.util.Collection;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 
@@ -75,21 +74,15 @@ public class DataFilesTable extends BaseMetadataTable {
       this.fileSchema = fileSchema;
     }
 
-    private FilesTableScan(
-        TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns, Schema fileSchema,
-        ImmutableMap<String, String> options) {
-      super(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, options);
+    private FilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema,
+                           TableScanContext context) {
+      super(ops, table, schema, context);
       this.fileSchema = fileSchema;
     }
 
     @Override
-    protected TableScan newRefinedScan(
-        TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
-        ImmutableMap<String, String> options) {
-      return new FilesTableScan(
-          ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, fileSchema, options);
+    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+      return new FilesTableScan(ops, table, schema, fileSchema, context);
     }
 
     @Override
@@ -100,11 +93,13 @@ public class DataFilesTable extends BaseMetadataTable {
 
     @Override
     protected CloseableIterable<FileScanTask> planFiles(
-        TableOperations ops, Snapshot snapshot, Expression rowFilter, boolean caseSensitive, boolean colStats) {
+        TableOperations ops, Snapshot snapshot, Expression rowFilter,
+        boolean ignoreResiduals, boolean caseSensitive, boolean colStats) {
       CloseableIterable<ManifestFile> manifests = CloseableIterable.withNoopClose(snapshot.dataManifests());
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
-      ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(rowFilter);
+      Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
+      ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
       // Data tasks produce the table schema, not the projection schema and projection is done by processing engines.
       // This data task needs to use the table schema, which may not include a partition schema to avoid having an

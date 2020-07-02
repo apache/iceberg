@@ -54,6 +54,7 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -64,7 +65,7 @@ import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsSafe;
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 
 @RunWith(Parameterized.class)
-public class TestDataFrameWrites extends AvroDataTest {
+public abstract class TestDataFrameWrites extends AvroDataTest {
   private static final Configuration CONF = new Configuration();
 
   private final String format;
@@ -233,16 +234,13 @@ public class TestDataFrameWrites extends AvroDataTest {
 
   @Test
   public void testNullableWithWriteOption() throws IOException {
+    Assume.assumeTrue("Spark 3.0 rejects writing nulls to a required column", spark.version().startsWith("2"));
+
     File location = new File(temp.newFolder("parquet"), "test");
     String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());
     String targetPath = String.format("%s/nullable_poc/targetFolder/", location.toString());
 
     tableProperties = ImmutableMap.of(TableProperties.WRITE_NEW_DATA_LOCATION, targetPath);
-
-    spark = SparkSession.builder()
-        .master("local[2]")
-        .appName("NullableTest")
-        .getOrCreate();
 
     // read this and append to iceberg dataset
     spark
@@ -272,21 +270,17 @@ public class TestDataFrameWrites extends AvroDataTest {
     // read all data
     List<Row> rows = spark.read().format("iceberg").load(targetPath).collectAsList();
     Assert.assertEquals("Should contain 6 rows", 6, rows.size());
-
   }
 
   @Test
   public void testNullableWithSparkSqlOption() throws IOException {
+    Assume.assumeTrue("Spark 3.0 rejects writing nulls to a required column", spark.version().startsWith("2"));
+
     File location = new File(temp.newFolder("parquet"), "test");
     String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());
     String targetPath = String.format("%s/nullable_poc/targetFolder/", location.toString());
 
     tableProperties = ImmutableMap.of(TableProperties.WRITE_NEW_DATA_LOCATION, targetPath);
-
-    spark = SparkSession.builder()
-        .master("local[2]")
-        .appName("NullableTest")
-        .getOrCreate();
 
     // read this and append to iceberg dataset
     spark

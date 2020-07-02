@@ -19,8 +19,11 @@
 
 package org.apache.iceberg;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -174,10 +177,44 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     filesMatch(Lists.newArrayList("B", "D", "E"), appendsAfterScan(1));
   }
 
+  @Test
+  public void testIgnoreResiduals() throws IOException {
+    add(table.newAppend(), files("A"));
+    add(table.newAppend(), files("B"));
+    add(table.newAppend(), files("C"));
+
+    TableScan scan1 = table.newScan()
+        .filter(Expressions.equal("id", 5))
+        .appendsBetween(1, 3);
+
+    try (CloseableIterable<CombinedScanTask> tasks = scan1.planTasks()) {
+      Assert.assertTrue("Tasks should not be empty", com.google.common.collect.Iterables.size(tasks) > 0);
+      for (CombinedScanTask combinedScanTask : tasks) {
+        for (FileScanTask fileScanTask : combinedScanTask.files()) {
+          Assert.assertNotEquals("Residuals must be preserved", Expressions.alwaysTrue(), fileScanTask.residual());
+        }
+      }
+    }
+
+    TableScan scan2 = table.newScan()
+        .filter(Expressions.equal("id", 5))
+        .appendsBetween(1, 3)
+        .ignoreResiduals();
+
+    try (CloseableIterable<CombinedScanTask> tasks = scan2.planTasks()) {
+      Assert.assertTrue("Tasks should not be empty", com.google.common.collect.Iterables.size(tasks) > 0);
+      for (CombinedScanTask combinedScanTask : tasks) {
+        for (FileScanTask fileScanTask : combinedScanTask.files()) {
+          Assert.assertEquals("Residuals must be ignored", Expressions.alwaysTrue(), fileScanTask.residual());
+        }
+      }
+    }
+  }
+
   private static DataFile file(String name) {
     return DataFiles.builder(SPEC)
             .withPath(name + ".parquet")
-            .withFileSizeInBytes(0)
+            .withFileSizeInBytes(10)
             .withPartitionPath("data_bucket=0") // easy way to set partition data for now
             .withRecordCount(1)
             .build();

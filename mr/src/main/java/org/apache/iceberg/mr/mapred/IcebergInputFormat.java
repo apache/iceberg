@@ -64,7 +64,7 @@ public class IcebergInputFormat<T> implements InputFormat<Void, T>, CombineHiveI
 
   @Override
   public InputSplit[] getSplits(JobConf conf, int numSplits) throws IOException {
-    table = TableResolver.resolveTableFromJob(conf);
+    table = TableResolver.resolveTableFromConfiguration(conf);
     String location = conf.get(InputFormatConfig.TABLE_LOCATION);
     List<CombinedScanTask> tasks = planTasks(conf);
     return createSplits(tasks, location);
@@ -145,14 +145,14 @@ public class IcebergInputFormat<T> implements InputFormat<Void, T>, CombineHiveI
     public boolean next(Void key, IcebergWritable value) {
       if (recordIterator.hasNext()) {
         currentRecord = recordIterator.next();
-        value.setRecord(currentRecord);
+        value.wrapRecord(currentRecord);
         return true;
       }
 
       if (tasks.hasNext()) {
         nextTask();
         currentRecord = recordIterator.next();
-        value.setRecord(currentRecord);
+        value.wrapRecord(currentRecord);
         return true;
       }
       return false;
@@ -166,8 +166,8 @@ public class IcebergInputFormat<T> implements InputFormat<Void, T>, CombineHiveI
     @Override
     public IcebergWritable createValue() {
       IcebergWritable record = new IcebergWritable();
-      record.setRecord(currentRecord);
-      record.setSchema(table.schema());
+      record.wrapRecord(currentRecord);
+      record.wrapSchema(table.schema());
       return record;
     }
 

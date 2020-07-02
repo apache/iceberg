@@ -55,6 +55,12 @@ public class InputFormatConfig {
   public static final String TABLE_LOCATION = "location";
   public static final String TABLE_NAME = "name";
 
+  public enum InMemoryDataModel {
+    PIG,
+    HIVE,
+    GENERIC // Default data model is of Iceberg Generics
+  }
+
   public static class ConfigBuilder {
     private final Configuration conf;
 
@@ -122,6 +128,16 @@ public class InputFormatConfig {
 
     public ConfigBuilder catalogFunc(Class<? extends Function<Configuration, Catalog>> catalogFuncClass) {
       conf.setClass(CATALOG, catalogFuncClass, Function.class);
+      return this;
+    }
+
+    public ConfigBuilder useHiveRows() {
+      conf.set(IN_MEMORY_DATA_MODEL, InMemoryDataModel.HIVE.name());
+      return this;
+    }
+
+    public ConfigBuilder usePigTuples() {
+      conf.set(IN_MEMORY_DATA_MODEL, InMemoryDataModel.PIG.name());
       return this;
     }
 

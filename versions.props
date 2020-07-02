@@ -1,11 +1,14 @@
 org.slf4j:* = 1.7.25
 org.apache.avro:avro = 1.9.2
+org.apache.flink:* = 1.10.1
 org.apache.hadoop:* = 2.7.3
 org.apache.hive:hive-metastore = 2.3.7
+org.apache.hive:hive-serde = 2.3.7
 org.apache.orc:* = 1.6.3
 org.apache.parquet:* = 1.11.0
 org.apache.spark:spark-hive_2.11 = 2.4.5
 org.apache.spark:spark-avro_2.11 = 2.4.5
+org.apache.spark:spark-hive_2.12 = 3.0.0
 org.apache.pig:pig = 0.14.0
 org.apache.commons:commons-lang3 = 3.9
 com.fasterxml.jackson.*:* = 2.10.0

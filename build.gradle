@@ -79,8 +79,7 @@ subprojects {
 
     compileClasspath {
       // do not exclude Guava so the bundle project can reference classes.
-      // the Spark module is also excluded because this breaks the Scala compiler
-      if (project.name != 'iceberg-bundled-guava' && project.name != 'iceberg-spark') {
+      if (project.name != 'iceberg-bundled-guava') {
         exclude group: 'com.google.guava', module: 'guava'
       }
     }
@@ -236,6 +235,38 @@ project(':iceberg-data') {
   }
 }
 
+project(':iceberg-flink') {
+  dependencies {
+    compile project(':iceberg-api')
+    compile project(':iceberg-common')
+    compile project(':iceberg-core')
+    compile project(':iceberg-data')
+    compile project(':iceberg-orc')
+    compile project(':iceberg-parquet')
+
+    compileOnly "org.apache.flink:flink-streaming-java_2.12"
+    compileOnly "org.apache.flink:flink-streaming-java_2.12::tests"
+    compileOnly "org.apache.flink:flink-table-api-java-bridge_2.12"
+    compileOnly "org.apache.flink:flink-table-planner-blink_2.12"
+    compileOnly "org.apache.flink:flink-table-planner_2.12"
+    compileOnly "org.apache.hadoop:hadoop-hdfs"
+    compileOnly "org.apache.hadoop:hadoop-common"
+    compileOnly("org.apache.hadoop:hadoop-minicluster") {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
+
+    testCompile "org.apache.flink:flink-core"
+    testCompile "org.apache.flink:flink-runtime_2.12"
+    testCompile "org.apache.flink:flink-test-utils-junit"
+    testCompile("org.apache.flink:flink-test-utils_2.12") {
+      exclude group: "org.apache.curator", module: 'curator-test'
+    }
+
+    testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
+  }
+}
+
 project(':iceberg-hive') {
   dependencies {
     compile project(':iceberg-core')
@@ -310,6 +341,7 @@ project(':iceberg-mr') {
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
+    compileOnly("org.apache.hive:hive-serde")
 
     compileOnly("org.apache.hive:hive-exec::core") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -420,16 +452,7 @@ project(':iceberg-arrow') {
 }
 
 project(':iceberg-spark') {
-  apply plugin: 'scala'
-
   configurations.all {
-    // this is needed to avoid a problem with dependency locking. it was
-    // suggested as a work-around here:
-    //  https://github.com/gradle/gradle/issues/6750
-    if (name.startsWith("incrementalScalaAnalysis")) {
-      extendsFrom = []
-    }
-
     resolutionStrategy {
       // Spark 2.4.4 can only use the below datanucleus version, the versions introduced
       // by Hive 2.3.6 will meet lots of unexpected issues, so here force to use the versions
@@ -449,6 +472,7 @@ project(':iceberg-spark') {
     compile project(':iceberg-parquet')
     compile project(':iceberg-arrow')
     compile project(':iceberg-hive')
+    compile project(':iceberg-arrow')
 
     compileOnly "org.apache.avro:avro"
     compileOnly("org.apache.spark:spark-hive_2.11") {
@@ -462,10 +486,71 @@ project(':iceberg-spark') {
     }
     testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+  }
 
-    jmh("org.apache.spark:spark-avro_2.11") {
+  test {
+    // For vectorized reads
+    // Allow unsafe memory access to avoid the costly check arrow does to check if index is within bounds
+    systemProperty("arrow.enable_unsafe_memory_access", "true")
+    // Disable expensive null check for every get(index) call.
+    // Iceberg manages nullability checks itself instead of relying on arrow.
+    systemProperty("arrow.enable_null_check_for_get", "false")
+
+    // Vectorized reads need more memory
+    maxHeapSize '2500m'
+  }
+}
+
+project(':iceberg-spark2') {
+
+  configurations.all {
+    resolutionStrategy {
+      // Spark 2.4.4 can only use the below datanucleus version, the versions introduced
+      // by Hive 2.3.6 will meet lots of unexpected issues, so here force to use the versions
+      // introduced by Hive 1.2.1.
+      force 'org.datanucleus:datanucleus-api-jdo:3.2.6'
+      force 'org.datanucleus:datanucleus-core:3.2.10'
+      force 'org.datanucleus:datanucleus-rdbms:3.2.9'
+    }
+  }
+
+  dependencies {
+    compile project(':iceberg-api')
+    compile project(':iceberg-common')
+    compile project(':iceberg-core')
+    compile project(':iceberg-data')
+    compile project(':iceberg-orc')
+    compile project(':iceberg-parquet')
+    compile project(':iceberg-arrow')
+    compile project(':iceberg-hive')
+    compile project(':iceberg-spark')
+
+    compileOnly "org.apache.avro:avro"
+    compileOnly("org.apache.spark:spark-hive_2.11") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
+
+    testCompile project(path: ':iceberg-spark', configuration: 'testArtifacts')
+
+    testCompile "org.apache.hadoop:hadoop-hdfs::tests"
+    testCompile "org.apache.hadoop:hadoop-common::tests"
+    testCompile("org.apache.hadoop:hadoop-minicluster") {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
+    testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+  }
+
+  test {
+    // For vectorized reads
+    // Allow unsafe memory access to avoid the costly check arrow does to check if index is within bounds
+    systemProperty("arrow.enable_unsafe_memory_access", "true")
+    // Disable expensive null check for every get(index) call.
+    // Iceberg manages nullability checks itself instead of relying on arrow.
+    systemProperty("arrow.enable_null_check_for_get", "false")
+
+    // Vectorized reads need more memory
+    maxHeapSize '2500m'
   }
 }
 
@@ -482,9 +567,12 @@ project(':iceberg-spark3') {
     compile project(':iceberg-spark')
 
     compileOnly "org.apache.avro:avro"
-    compileOnly("org.apache.spark:spark-hive_2.12:3.0.0-preview2") {
+    compileOnly("org.apache.spark:spark-hive_2.12") {
       exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.apache.arrow'
     }
+
+    testCompile project(path: ':iceberg-spark', configuration: 'testArtifacts')
 
     testCompile "org.apache.hadoop:hadoop-hdfs::tests"
     testCompile "org.apache.hadoop:hadoop-common::tests"
@@ -493,6 +581,18 @@ project(':iceberg-spark3') {
     }
     testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+  }
+
+  test {
+    // For vectorized reads
+    // Allow unsafe memory access to avoid the costly check arrow does to check if index is within bounds
+    systemProperty("arrow.enable_unsafe_memory_access", "true")
+    // Disable expensive null check for every get(index) call.
+    // Iceberg manages nullability checks itself instead of relying on arrow.
+    systemProperty("arrow.enable_null_check_for_get", "false")
+
+    // Vectorized reads need more memory
+    maxHeapSize '2500m'
   }
 }
 
@@ -542,7 +642,7 @@ project(':iceberg-spark-runtime') {
   }
 
   dependencies {
-    compile project(':iceberg-spark')
+    compile project(':iceberg-spark2')
     compile 'org.apache.spark:spark-hive_2.11'
   }
 
