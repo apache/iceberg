@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 
 /**
- * @deprecated Use java.io.UncheckedIOException directly instead
+ * @deprecated Use java.io.UncheckedIOException directly instead.
  *
  * Exception used to wrap {@link IOException} as a {@link RuntimeException} and add context.
  */
