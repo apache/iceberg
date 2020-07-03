@@ -59,7 +59,7 @@ public class DataReader<T> implements DatumReader<T> {
   private Schema fileSchema = null;
 
   @SuppressWarnings("unchecked")
-  private DataReader(org.apache.iceberg.Schema expectedSchema, Schema readSchema, Map<Integer, ?> idToConstant) {
+  protected DataReader(org.apache.iceberg.Schema expectedSchema, Schema readSchema, Map<Integer, ?> idToConstant) {
     this.readSchema = readSchema;
     this.reader = (ValueReader<T>) AvroSchemaWithTypeVisitor
         .visit(expectedSchema, readSchema, new ReadBuilder(idToConstant));
@@ -102,7 +102,12 @@ public class DataReader<T> implements DatumReader<T> {
     }
   }
 
-  private static class ReadBuilder extends AvroSchemaWithTypeVisitor<ValueReader<?>> {
+  protected ValueReader<?> createStructReader(Types.StructType struct,
+                                              List<ValueReader<?>> fields, Map<Integer, ?> idToConstant) {
+    return GenericReaders.struct(struct, fields, idToConstant);
+  }
+
+  private class ReadBuilder extends AvroSchemaWithTypeVisitor<ValueReader<?>> {
     private final Map<Integer, ?> idToConstant;
 
     private ReadBuilder(Map<Integer, ?> idToConstant) {
@@ -112,7 +117,7 @@ public class DataReader<T> implements DatumReader<T> {
     @Override
     public ValueReader<?> record(Types.StructType struct, Schema record,
                                  List<String> names, List<ValueReader<?>> fields) {
-      return GenericReaders.struct(struct, fields, idToConstant);
+      return createStructReader(struct, fields, idToConstant);
     }
 
     @Override
