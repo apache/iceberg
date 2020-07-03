@@ -26,7 +26,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.sql.functions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;

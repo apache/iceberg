@@ -23,7 +23,6 @@ import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
-import org.apache.spark.SparkException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
