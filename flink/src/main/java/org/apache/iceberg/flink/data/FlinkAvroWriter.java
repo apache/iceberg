@@ -22,7 +22,6 @@ package org.apache.iceberg.flink.data;
 import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.flink.types.Row;
-import org.apache.iceberg.avro.AvroSchemaVisitor;
 import org.apache.iceberg.avro.ValueWriter;
 import org.apache.iceberg.avro.ValueWriters;
 import org.apache.iceberg.data.avro.DataWriter;
@@ -33,17 +32,8 @@ public class FlinkAvroWriter extends DataWriter<Row> {
   }
 
   @Override
-  @SuppressWarnings("unchecked")
-  public void setSchema(Schema schema) {
-    ValueWriter<Row> writer = (ValueWriter<Row>) AvroSchemaVisitor.visit(schema, new WriterBuilder());
-    setWriter(writer);
-  }
-
-  private static class WriterBuilder extends DataWriter.WriteBuilder {
-    @Override
-    public ValueWriter<?> record(Schema record, List<String> names, List<ValueWriter<?>> fields) {
-      return new RowWriter(fields);
-    }
+  protected ValueWriter<?> createStructWriter(List<ValueWriter<?>> fields) {
+    return new RowWriter(fields);
   }
 
   private static class RowWriter extends ValueWriters.StructWriter<Row> {

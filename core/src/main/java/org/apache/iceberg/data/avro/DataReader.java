@@ -64,8 +64,8 @@ public class DataReader<T> implements DatumReader<T> {
   }
 
   @SuppressWarnings("unchecked")
-  protected ValueReader<T> initReader(org.apache.iceberg.Schema expectedSchema,
-                                      Schema avroSchema, Map<Integer, ?> idToConstant) {
+  private ValueReader<T> initReader(org.apache.iceberg.Schema expectedSchema,
+                                    Schema avroSchema, Map<Integer, ?> idToConstant) {
     return (ValueReader<T>) AvroSchemaWithTypeVisitor
         .visit(expectedSchema, avroSchema, new ReadBuilder(idToConstant));
   }
@@ -107,21 +107,22 @@ public class DataReader<T> implements DatumReader<T> {
     }
   }
 
-  protected static class ReadBuilder extends AvroSchemaWithTypeVisitor<ValueReader<?>> {
+  protected ValueReader<?> createStructReader(Types.StructType struct,
+                                              List<ValueReader<?>> fields, Map<Integer, ?> idToConstant) {
+    return GenericReaders.struct(struct, fields, idToConstant);
+  }
+
+  private class ReadBuilder extends AvroSchemaWithTypeVisitor<ValueReader<?>> {
     private final Map<Integer, ?> idToConstant;
 
-    protected ReadBuilder(Map<Integer, ?> idToConstant) {
+    private ReadBuilder(Map<Integer, ?> idToConstant) {
       this.idToConstant = idToConstant;
-    }
-
-    protected Map<Integer, ?> getIdToConstant() {
-      return this.idToConstant;
     }
 
     @Override
     public ValueReader<?> record(Types.StructType struct, Schema record,
                                  List<String> names, List<ValueReader<?>> fields) {
-      return GenericReaders.struct(struct, fields, idToConstant);
+      return createStructReader(struct, fields, idToConstant);
     }
 
     @Override

@@ -47,7 +47,8 @@ public class DataWriter<T> implements DatumWriter<T> {
   @Override
   @SuppressWarnings("unchecked")
   public void setSchema(Schema schema) {
-    this.writer = (ValueWriter<T>) AvroSchemaVisitor.visit(schema, new WriteBuilder());
+    ValueWriter<T> newWriter = (ValueWriter<T>) AvroSchemaVisitor.visit(schema, new WriteBuilder());
+    setWriter(newWriter);
   }
 
   protected void setWriter(ValueWriter<T> writer) {
@@ -59,13 +60,14 @@ public class DataWriter<T> implements DatumWriter<T> {
     writer.write(datum, out);
   }
 
-  protected static class WriteBuilder extends AvroSchemaVisitor<ValueWriter<?>> {
-    protected WriteBuilder() {
-    }
+  protected ValueWriter<?> createStructWriter(List<ValueWriter<?>> fields) {
+    return GenericWriters.struct(fields);
+  }
 
+  private class WriteBuilder extends AvroSchemaVisitor<ValueWriter<?>> {
     @Override
     public ValueWriter<?> record(Schema record, List<String> names, List<ValueWriter<?>> fields) {
-      return GenericWriters.struct(fields);
+      return createStructWriter(fields);
     }
 
     @Override

@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.avro.Schema;
 import org.apache.flink.types.Row;
-import org.apache.iceberg.avro.AvroSchemaWithTypeVisitor;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
 import org.apache.iceberg.data.avro.DataReader;
@@ -37,25 +36,10 @@ public class FlinkAvroReader extends DataReader<Row> {
   }
 
   @Override
-  @SuppressWarnings("unchecked")
-  protected ValueReader<Row> initReader(org.apache.iceberg.Schema expectedSchema,
-                                        Schema readSchema,
-                                        Map<Integer, ?> idToConstant) {
-    return (ValueReader<Row>) AvroSchemaWithTypeVisitor.visit(expectedSchema, readSchema,
-        new ReadBuilder(idToConstant));
-  }
-
-  private static class ReadBuilder extends DataReader.ReadBuilder {
-
-    ReadBuilder(Map<Integer, ?> idToConstant) {
-      super(idToConstant);
-    }
-
-    @Override
-    public ValueReader<?> record(Types.StructType struct, Schema record,
-                                 List<String> names, List<ValueReader<?>> fields) {
-      return new RowReader(fields, struct, getIdToConstant());
-    }
+  protected ValueReader<?> createStructReader(Types.StructType struct,
+                                              List<ValueReader<?>> fields,
+                                              Map<Integer, ?> idToConstant) {
+    return new RowReader(fields, struct, idToConstant);
   }
 
   private static class RowReader extends ValueReaders.StructReader<Row> {
