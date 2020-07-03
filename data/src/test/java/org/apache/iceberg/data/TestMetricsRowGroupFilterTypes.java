@@ -21,6 +21,7 @@ package org.apache.iceberg.data;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -41,7 +42,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -306,7 +306,7 @@ public class TestMetricsRowGroupFilterTypes {
         .build()) {
       return Lists.newArrayList(reader).size() > 0;
     } catch (IOException e) {
-      throw new RuntimeIOException(e);
+      throw new UncheckedIOException(e);
     }
   }
 

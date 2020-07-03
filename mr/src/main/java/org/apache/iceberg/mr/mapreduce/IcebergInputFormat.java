@@ -22,6 +22,7 @@ package org.apache.iceberg.mr.mapreduce;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -55,7 +56,6 @@ import org.apache.iceberg.data.IdentityPartitionConverters;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -146,7 +146,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
         splits.add(new IcebergSplit(conf, task));
       });
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to close table scan: %s", scan);
+      throw new UncheckedIOException(String.format("Failed to close table scan: %s", scan), e);
     }
 
     return splits;
