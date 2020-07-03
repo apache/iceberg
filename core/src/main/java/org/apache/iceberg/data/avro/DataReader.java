@@ -58,16 +58,11 @@ public class DataReader<T> implements DatumReader<T> {
   private final ValueReader<T> reader;
   private Schema fileSchema = null;
 
+  @SuppressWarnings("unchecked")
   protected DataReader(org.apache.iceberg.Schema expectedSchema, Schema readSchema, Map<Integer, ?> idToConstant) {
     this.readSchema = readSchema;
-    this.reader = initReader(expectedSchema, readSchema, idToConstant);
-  }
-
-  @SuppressWarnings("unchecked")
-  private ValueReader<T> initReader(org.apache.iceberg.Schema expectedSchema,
-                                    Schema avroSchema, Map<Integer, ?> idToConstant) {
-    return (ValueReader<T>) AvroSchemaWithTypeVisitor
-        .visit(expectedSchema, avroSchema, new ReadBuilder(idToConstant));
+    this.reader = (ValueReader<T>) AvroSchemaWithTypeVisitor
+        .visit(expectedSchema, readSchema, new ReadBuilder(idToConstant));
   }
 
   @Override

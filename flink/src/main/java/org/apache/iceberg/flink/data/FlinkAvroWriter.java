@@ -27,7 +27,7 @@ import org.apache.iceberg.avro.ValueWriters;
 import org.apache.iceberg.data.avro.DataWriter;
 
 public class FlinkAvroWriter extends DataWriter<Row> {
-  FlinkAvroWriter(Schema schema) {
+  public FlinkAvroWriter(Schema schema) {
     super(schema);
   }
 
