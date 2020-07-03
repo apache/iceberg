@@ -20,7 +20,6 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
@@ -31,6 +30,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
@@ -460,7 +460,7 @@ public class Parquet {
         try (ParquetFileReader schemaReader = ParquetFileReader.open(ParquetIO.file(file))) {
           type = schemaReader.getFileMetaData().getSchema();
         } catch (IOException e) {
-          throw new UncheckedIOException(e);
+          throw new RuntimeIOException(e);
         }
         Schema fileSchema = ParquetSchemaUtil.convert(type);
         builder.useStatsFilter()

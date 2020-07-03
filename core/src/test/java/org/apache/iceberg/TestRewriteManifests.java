@@ -21,12 +21,12 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -234,8 +234,8 @@ public class TestRewriteManifests extends TableTestBase {
       .rewriteIf(manifest -> {
         try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, table.io())) {
           return !reader.iterator().next().path().equals(FILE_A.path());
-        } catch (IOException e) {
-          throw new UncheckedIOException(e);
+        } catch (IOException x) {
+          throw new RuntimeIOException(x);
         }
       })
       .commit();
@@ -318,8 +318,8 @@ public class TestRewriteManifests extends TableTestBase {
       .rewriteIf(manifest -> {
         try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, table.io())) {
           return !reader.iterator().next().path().equals(FILE_A.path());
-        } catch (IOException e) {
-          throw new UncheckedIOException(e);
+        } catch (IOException x) {
+          throw new RuntimeIOException(x);
         }
       })
       .commit();
@@ -901,8 +901,8 @@ public class TestRewriteManifests extends TableTestBase {
         .rewriteIf(manifest -> {
           try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, table.io())) {
             return !reader.iterator().next().path().equals(FILE_B.path());
-          } catch (IOException e) {
-            throw new UncheckedIOException(e);
+          } catch (IOException x) {
+            throw new RuntimeIOException(x);
           }
         })
         .commit();

@@ -21,7 +21,7 @@ package org.apache.iceberg.util;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 
 public class Exceptions {
   private Exceptions() {
@@ -32,7 +32,7 @@ public class Exceptions {
       closeable.close();
     } catch (IOException e) {
       if (!suppressExceptions) {
-        throw new UncheckedIOException("Failed calling close", e);
+        throw new RuntimeIOException("Failed calling close", e);
       }
       // otherwise, ignore the exception
     }

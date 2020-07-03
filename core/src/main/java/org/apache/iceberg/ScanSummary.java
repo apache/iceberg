@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
@@ -28,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.Function;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.And;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
@@ -240,7 +240,7 @@ public class ScanSummary {
         }
 
       } catch (IOException e) {
-        throw new UncheckedIOException(e);
+        throw new RuntimeIOException(e);
       }
 
       return topN.get();

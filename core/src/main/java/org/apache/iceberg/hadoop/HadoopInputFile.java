@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.hadoop;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
 import org.apache.commons.compress.utils.Lists;
@@ -29,6 +29,8 @@ import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -135,7 +137,7 @@ public class HadoopInputFile implements InputFile {
       try {
         this.stat = fs.getFileStatus(path);
       } catch (IOException e) {
-        throw new UncheckedIOException(String.format("Failed to get status for file: %s", path), e);
+        throw new RuntimeIOException(e, "Failed to get status for file: %s", path);
       }
     }
     return stat;
@@ -153,8 +155,10 @@ public class HadoopInputFile implements InputFile {
   public SeekableInputStream newStream() {
     try {
       return HadoopStreams.wrap(fs.open(path));
+    } catch (FileNotFoundException e) {
+      throw new NotFoundException(e, "Failed to open input stream for file: %s", path);
     } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Failed to open input stream for file: %s", path), e);
+      throw new RuntimeIOException(e, "Failed to open input stream for file: %s", path);
     }
   }
 
@@ -184,7 +188,7 @@ public class HadoopInputFile implements InputFile {
       return hosts.toArray(NO_LOCATION_PREFERENCE);
 
     } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Failed to get block locations for path: %s", path), e);
+      throw new RuntimeIOException(e, "Failed to get block locations for path: %s", path);
     }
   }
 
@@ -198,7 +202,7 @@ public class HadoopInputFile implements InputFile {
     try {
       return fs.exists(path);
     } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Failed to check existence for file: %s", path), e);
+      throw new RuntimeIOException(e, "Failed to check existence for file: %s", path);
     }
   }
 

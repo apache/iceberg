@@ -20,7 +20,6 @@
 package org.apache.iceberg.spark.data;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +33,7 @@ import org.apache.avro.io.ResolvingDecoder;
 import org.apache.iceberg.avro.AvroSchemaWithTypeVisitor;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 import org.apache.iceberg.types.Type;
@@ -94,7 +94,7 @@ public class SparkAvroReader implements DatumReader<InternalRow> {
     try {
       return DecoderFactory.get().resolvingDecoder(fileSchema, readSchema, null);
     } catch (IOException e) {
-      throw new UncheckedIOException(e);
+      throw new RuntimeIOException(e);
     }
   }
 

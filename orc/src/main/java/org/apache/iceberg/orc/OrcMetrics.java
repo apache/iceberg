@@ -20,7 +20,6 @@
 package org.apache.iceberg.orc;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.util.List;
@@ -34,6 +33,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.common.DynFields;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -71,16 +71,16 @@ public class OrcMetrics {
   static Metrics fromInputFile(InputFile file, Configuration config) {
     try (Reader orcReader = ORC.newFileReader(file, config)) {
       return buildOrcMetrics(orcReader.getNumberOfRows(), orcReader.getSchema(), orcReader.getStatistics());
-    } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Failed to open file: %s", file.location()), e);
+    } catch (IOException ioe) {
+      throw new RuntimeIOException(ioe, "Failed to open file: %s", file.location());
     }
   }
 
   static Metrics fromWriter(Writer writer) {
     try {
       return buildOrcMetrics(writer.getNumberOfRows(), writer.getSchema(), writer.getStatistics());
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to get statistics from writer", e);
+    } catch (IOException ioe) {
+      throw new RuntimeIOException(ioe, "Failed to get statistics from writer");
     }
   }
 

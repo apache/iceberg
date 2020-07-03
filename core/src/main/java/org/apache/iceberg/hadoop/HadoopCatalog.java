@@ -21,7 +21,6 @@ package org.apache.iceberg.hadoop;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +44,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -137,8 +137,8 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
           tblIdents.add(tblIdent);
         }
       }
-    } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Failed to list tables under: %s", namespace), e);
+    } catch (IOException ioe) {
+      throw new RuntimeIOException(ioe, "Failed to list tables under: %s", namespace);
     }
 
     return Lists.newArrayList(tblIdents);
@@ -199,7 +199,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
       fs.delete(tablePath, true /* recursive */);
       return true;
     } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Failed to delete file: %s", tablePath), e);
+      throw new RuntimeIOException(e, "Failed to delete file: %s", tablePath);
     }
   }
 
@@ -225,8 +225,9 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
     try {
       fs.mkdirs(nsPath);
+
     } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Create namespace failed: %s", namespace), e);
+      throw new RuntimeIOException(e, "Create namespace failed: %s", namespace);
     }
   }
 
@@ -244,8 +245,8 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
         .filter(path -> isNamespace(path))
         .map(path -> append(namespace, path.getName()))
         .collect(Collectors.toList());
-    } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Failed to list namespace under: %s", namespace), e);
+    } catch (IOException ioe) {
+      throw new RuntimeIOException(ioe, "Failed to list namespace under: %s", namespace);
     }
   }
 
@@ -265,8 +266,9 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
     try {
       return fs.delete(nsPath, false /* recursive */);
+
     } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Namespace delete failed: %s", namespace), e);
+      throw new RuntimeIOException(e, "Namespace delete failed: %s", namespace);
     }
   }
 
@@ -298,8 +300,9 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     try {
       return fs.isDirectory(path) && !(fs.exists(metadataPath) && fs.isDirectory(metadataPath) &&
           (fs.listStatus(metadataPath, TABLE_FILTER).length >= 1));
-    } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Failed to list namespace info: %s ", path), e);
+
+    } catch (IOException ioe) {
+      throw new RuntimeIOException(ioe, "Failed to list namespace info: %s ", path);
     }
   }
 

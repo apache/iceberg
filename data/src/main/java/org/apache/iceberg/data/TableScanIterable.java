@@ -21,7 +21,6 @@ package org.apache.iceberg.data;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
@@ -36,6 +35,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableGroup;
@@ -151,7 +151,7 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
             try {
               currentCloseable.close();
             } catch (IOException e) {
-              throw new UncheckedIOException("Failed to close task", e);
+              throw new RuntimeIOException(e, "Failed to close task");
             }
           }
 

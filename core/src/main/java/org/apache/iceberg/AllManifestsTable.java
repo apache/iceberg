@@ -20,8 +20,8 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
@@ -167,8 +167,7 @@ public class AllManifestsTable extends BaseMetadataTable {
             manifest -> ManifestsTable.manifestFileToRow(spec, manifest));
 
       } catch (IOException e) {
-        throw new UncheckedIOException(String.format("Cannot read manifest list file: %s",
-            manifestListTask.file().path()), e);
+        throw new RuntimeIOException(e, "Cannot read manifest list file: %s", manifestListTask.file().path());
       }
     }
 

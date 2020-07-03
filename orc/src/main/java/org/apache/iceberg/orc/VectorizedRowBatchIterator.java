@@ -21,8 +21,8 @@ package org.apache.iceberg.orc;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Iterator;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.orc.RecordReader;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
@@ -53,8 +53,8 @@ public class VectorizedRowBatchIterator implements Iterator<VectorizedRowBatch>,
     if (!advanced) {
       try {
         rows.nextBatch(batch);
-      } catch (IOException e) {
-        throw new UncheckedIOException("Problem reading ORC file " + fileLocation, e);
+      } catch (IOException ioe) {
+        throw new RuntimeIOException(ioe, "Problem reading ORC file " + fileLocation);
       }
       advanced = true;
     }

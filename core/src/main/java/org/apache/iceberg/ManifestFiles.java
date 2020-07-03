@@ -20,9 +20,9 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.iceberg.ManifestReader.FileType;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -160,7 +160,7 @@ public class ManifestFiles {
       return copyManifestInternal(
           formatVersion, reader, outputFile, snapshotId, summaryBuilder, ManifestEntry.Status.ADDED);
     } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Failed to close manifest: %s", toCopy.location()), e);
+      throw new RuntimeIOException(e, "Failed to close manifest: %s", toCopy.location());
     }
   }
 
@@ -175,7 +175,7 @@ public class ManifestFiles {
       return copyManifestInternal(
           formatVersion, reader, outputFile, snapshotId, summaryBuilder, ManifestEntry.Status.EXISTING);
     } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Failed to close manifest: %s", toCopy.location()), e);
+      throw new RuntimeIOException(e, "Failed to close manifest: %s", toCopy.location());
     }
   }
 
@@ -213,7 +213,7 @@ public class ManifestFiles {
         writer.close();
       } catch (IOException e) {
         if (!threw) {
-          throw new UncheckedIOException(String.format("Failed to close manifest: %s", outputFile), e);
+          throw new RuntimeIOException(e, "Failed to close manifest: %s", outputFile);
         }
       }
     }

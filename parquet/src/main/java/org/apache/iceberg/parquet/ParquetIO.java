@@ -22,10 +22,10 @@ package org.apache.iceberg.parquet;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.UncheckedIOException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.DelegatingInputStream;
@@ -53,7 +53,7 @@ class ParquetIO {
       try {
         return org.apache.parquet.hadoop.util.HadoopInputFile.fromStatus(hfile.getStat(), hfile.getConf());
       } catch (IOException e) {
-        throw new UncheckedIOException(String.format("Failed to create Parquet input file for %s", file), e);
+        throw new RuntimeIOException(e, "Failed to create Parquet input file for %s", file);
       }
     }
     return new ParquetInputFile(file);
@@ -65,7 +65,7 @@ class ParquetIO {
       try {
         return org.apache.parquet.hadoop.util.HadoopOutputFile.fromPath(hfile.getPath(), hfile.getConf());
       } catch (IOException e) {
-        throw new UncheckedIOException(String.format("Failed to create Parquet output file for %s", file), e);
+        throw new RuntimeIOException(e, "Failed to create Parquet output file for %s", file);
       }
     }
     return new ParquetOutputFile(file);
@@ -77,7 +77,7 @@ class ParquetIO {
       try {
         return org.apache.parquet.hadoop.util.HadoopOutputFile.fromPath(hfile.getPath(), conf);
       } catch (IOException e) {
-        throw new UncheckedIOException(String.format("Failed to create Parquet output file for %s", file), e);
+        throw new RuntimeIOException(e, "Failed to create Parquet output file for %s", file);
       }
     }
     return new ParquetOutputFile(file);

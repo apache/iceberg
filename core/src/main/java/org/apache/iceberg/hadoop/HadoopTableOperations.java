@@ -22,7 +22,6 @@ package org.apache.iceberg.hadoop;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.UUID;
@@ -37,6 +36,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -112,7 +112,7 @@ public class HadoopTableOperations implements TableOperations {
       this.shouldRefresh = false;
       return currentMetadata;
     } catch (IOException e) {
-      throw new UncheckedIOException("Failed to refresh the table", e);
+      throw new RuntimeIOException(e, "Failed to refresh the table");
     }
   }
 
@@ -151,7 +151,8 @@ public class HadoopTableOperations implements TableOperations {
             "Version %d already exists: %s", nextVersion, finalMetadataFile);
       }
     } catch (IOException e) {
-      throw new UncheckedIOException("Failed to check if next version exists: " + finalMetadataFile, e);
+      throw new RuntimeIOException(e,
+          "Failed to check if next version exists: " + finalMetadataFile);
     }
 
     // this rename operation is the atomic commit operation
@@ -290,7 +291,7 @@ public class HadoopTableOperations implements TableOperations {
       }
 
     } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Failed to get file system for path: %s", versionHintFile), e);
+      throw new RuntimeIOException(e, "Failed to get file system for path: %s", versionHintFile);
     }
   }
 

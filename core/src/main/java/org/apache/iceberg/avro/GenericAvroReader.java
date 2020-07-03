@@ -20,7 +20,6 @@
 package org.apache.iceberg.avro;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +32,7 @@ import org.apache.avro.io.Decoder;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.ResolvingDecoder;
 import org.apache.iceberg.common.DynClasses;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 
 class GenericAvroReader<T> implements DatumReader<T> {
@@ -92,7 +92,7 @@ class GenericAvroReader<T> implements DatumReader<T> {
     try {
       return DecoderFactory.get().resolvingDecoder(fileSchema, readSchema, null);
     } catch (IOException e) {
-      throw new UncheckedIOException(e);
+      throw new RuntimeIOException(e);
     }
   }
 

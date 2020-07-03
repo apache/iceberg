@@ -20,10 +20,10 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.Map;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -98,7 +98,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
             .build();
 
       } catch (IOException e) {
-        throw new UncheckedIOException("Failed to create snapshot list writer for path: " + file, e);
+        throw new RuntimeIOException(e, "Failed to create snapshot list writer for path: " + file);
       }
     }
   }
@@ -131,7 +131,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
             .build();
 
       } catch (IOException e) {
-        throw new UncheckedIOException("Failed to create snapshot list writer for path: " + file, e);
+        throw new RuntimeIOException(e, "Failed to create snapshot list writer for path: " + file);
       }
     }
   }

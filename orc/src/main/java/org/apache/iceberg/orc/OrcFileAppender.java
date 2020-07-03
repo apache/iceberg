@@ -20,7 +20,6 @@
 package org.apache.iceberg.orc;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
@@ -30,6 +29,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
@@ -84,8 +84,8 @@ class OrcFileAppender<D> implements FileAppender<D> {
         writer.addRowBatch(batch);
         batch.reset();
       }
-    } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Problem writing to ORC file " + file.location()), e);
+    } catch (IOException ioe) {
+      throw new RuntimeIOException(ioe, "Problem writing to ORC file " + file.location());
     }
   }
 
@@ -110,7 +110,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
       List<StripeInformation> stripes = reader.getStripes();
       return Collections.unmodifiableList(Lists.transform(stripes, StripeInformation::getOffset));
     } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Can't close ORC reader %s", file.location()), e);
+      throw new RuntimeIOException(e, "Can't close ORC reader %s", file.location());
     }
   }
 
@@ -136,8 +136,8 @@ class OrcFileAppender<D> implements FileAppender<D> {
 
     try {
       writer = OrcFile.createWriter(locPath, options);
-    } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Can't create file " + locPath), e);
+    } catch (IOException ioe) {
+      throw new RuntimeIOException(ioe, "Can't create file " + locPath);
     }
 
     metadata.forEach((key, value) -> writer.addUserMetadata(key, ByteBuffer.wrap(value)));

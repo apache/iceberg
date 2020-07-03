@@ -20,7 +20,6 @@
 package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
@@ -33,6 +32,7 @@ import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -296,7 +296,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     );
 
     AssertHelpers.assertThrows("Should fail to drop namespace is not empty " + namespace1,
-        UncheckedIOException.class,
+        RuntimeIOException.class,
         "Namespace delete failed: " + namespace1, () -> {
           catalog.dropNamespace(Namespace.of("db"));
         });

@@ -21,7 +21,6 @@ package org.apache.iceberg.parquet;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -31,6 +30,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -99,13 +99,13 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       this.writer = new ParquetFileWriter(ParquetIO.file(output, conf), parquetSchema,
          writeMode, rowGroupSize, 0);
     } catch (IOException e) {
-      throw new UncheckedIOException("Failed to create Parquet file", e);
+      throw new RuntimeIOException(e, "Failed to create Parquet file");
     }
 
     try {
       writer.start();
     } catch (IOException e) {
-      throw new UncheckedIOException("Failed to start Parquet file writer", e);
+      throw new RuntimeIOException(e, "Failed to start Parquet file writer");
     }
 
     startRowGroup();
@@ -129,7 +129,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     try {
       return writer.getPos() + (writeStore.isColumnFlushNeeded() ? writeStore.getBufferedSize() : 0);
     } catch (IOException e) {
-      throw new UncheckedIOException("Failed to get file length", e);
+      throw new RuntimeIOException(e, "Failed to get file length");
     }
   }
 
@@ -165,7 +165,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
         }
       }
     } catch (IOException e) {
-      throw new UncheckedIOException("Failed to flush row group", e);
+      throw new RuntimeIOException(e, "Failed to flush row group");
     }
   }
 
@@ -173,7 +173,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     try {
       this.nextRowGroupSize = Math.min(writer.getNextRowGroupSize(), targetRowGroupSize);
     } catch (IOException e) {
-      throw new UncheckedIOException(e);
+      throw new RuntimeIOException(e);
     }
     this.nextCheckRecordCount = Math.min(Math.max(recordCount / 2, 100), 10000);
     this.recordCount = 0;

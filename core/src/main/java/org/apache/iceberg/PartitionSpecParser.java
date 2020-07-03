@@ -25,8 +25,8 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
 import java.io.StringWriter;
-import java.io.UncheckedIOException;
 import java.util.Iterator;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
@@ -67,7 +67,7 @@ public class PartitionSpecParser {
       return writer.toString();
 
     } catch (IOException e) {
-      throw new UncheckedIOException(e);
+      throw new RuntimeIOException(e);
     }
   }
 
@@ -90,7 +90,7 @@ public class PartitionSpecParser {
           try {
             return fromJson(schema, JsonUtil.mapper().readValue(json, JsonNode.class));
           } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            throw new RuntimeIOException(e);
           }
         });
   }
@@ -117,7 +117,7 @@ public class PartitionSpecParser {
       return writer.toString();
 
     } catch (IOException e) {
-      throw new UncheckedIOException(e);
+      throw new RuntimeIOException(e);
     }
   }
 
@@ -131,7 +131,7 @@ public class PartitionSpecParser {
     try {
       return fromJsonFields(schema, specId, JsonUtil.mapper().readValue(json, JsonNode.class));
     } catch (IOException e) {
-      throw new UncheckedIOException("Failed to parse partition spec fields: " + json, e);
+      throw new RuntimeIOException(e, "Failed to parse partition spec fields: " + json);
     }
   }
 

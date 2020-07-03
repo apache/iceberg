@@ -20,8 +20,8 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -193,7 +193,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
             .overwrite()
             .build();
       } catch (IOException e) {
-        throw new UncheckedIOException("Failed to create manifest writer for path: " + file, e);
+        throw new RuntimeIOException(e, "Failed to create manifest writer for path: " + file);
       }
     }
   }
@@ -226,7 +226,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
             .overwrite()
             .build();
       } catch (IOException e) {
-        throw new UncheckedIOException("Failed to create manifest writer for path: " + file, e);
+        throw new RuntimeIOException(e, "Failed to create manifest writer for path: " + file);
       }
     }
 
@@ -263,7 +263,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
             .overwrite()
             .build();
       } catch (IOException e) {
-        throw new UncheckedIOException("Failed to create manifest writer for path: " + file, e);
+        throw new RuntimeIOException(e, "Failed to create manifest writer for path: " + file);
       }
     }
   }

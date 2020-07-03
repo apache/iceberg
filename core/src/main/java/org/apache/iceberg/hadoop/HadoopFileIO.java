@@ -20,10 +20,10 @@
 package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -62,7 +62,7 @@ public class HadoopFileIO implements FileIO {
     try {
       fs.delete(toDelete, false /* not recursive */);
     } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Failed to delete file: %s", path), e);
+      throw new RuntimeIOException(e, "Failed to delete file: %s", path);
     }
   }
 }
