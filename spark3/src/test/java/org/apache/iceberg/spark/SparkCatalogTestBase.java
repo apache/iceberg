@@ -96,6 +96,8 @@ public abstract class SparkCatalogTestBase extends SparkTestBase {
     }
 
     this.tableName = (catalogName.equals("spark_catalog") ? "" : catalogName + ".") + "default.table";
+
+    sql("CREATE NAMESPACE IF NOT EXISTS default");
   }
 
   protected String tableName(String name) {
