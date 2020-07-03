@@ -355,7 +355,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     }
 
     // check if the identifier includes the catalog name and remove it
-    if (to.namespace().levels().length == 2 && name().equals(to.namespace().level(0))) {
+    if (to.namespace().levels().length == 2 && name().equalsIgnoreCase(to.namespace().level(0))) {
       return TableIdentifier.of(Namespace.of(to.namespace().level(1)), to.name());
     }
 

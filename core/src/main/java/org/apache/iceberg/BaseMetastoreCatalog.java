@@ -110,14 +110,14 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       throw new NoSuchTableException("No such table: " + identifier);
     }
 
+    Map<String, String> tableProperties = properties != null ? properties : Maps.newHashMap();
+
     TableMetadata metadata;
     if (ops.current() != null) {
       String baseLocation = location != null ? location : ops.current().location();
-      Map<String, String> tableProperties = properties != null ? properties : Maps.newHashMap();
       metadata = ops.current().buildReplacement(schema, spec, baseLocation, tableProperties);
     } else {
       String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
-      Map<String, String> tableProperties = properties != null ? properties : Maps.newHashMap();
       metadata = TableMetadata.newTableMetadata(schema, spec, baseLocation, tableProperties);
     }
 
