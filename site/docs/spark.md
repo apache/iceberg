@@ -49,12 +49,9 @@ Spark 2.4 is limited to reading and writing existing Iceberg tables. Use the [Ic
 To read an Iceberg table, use the `iceberg` format in `DataFrameReader`:
 
 ```scala
+// named metastore table
 spark.read.format("iceberg").load("db.table")
-```
-
-Iceberg tables identified by HDFS path are also supported:
-
-```scala
+// Hadoop path table
 spark.read.format("iceberg").load("hdfs://nn:8020/path/to/table")
 ```
 
@@ -134,7 +131,10 @@ Metadata tables are identified by adding the metadata table name after the origi
 To show table history, run:
 
 ```scala
+// named metastore table
 spark.read.format("iceberg").load("db.table.history").show(truncate = false)
+// Hadoop path table
+spark.read.format("iceberg").load("hdfs://nn:8020/path/to/table#history").show(truncate = false)
 ```
 ```text
 +-------------------------+---------------------+---------------------+---------------------+
@@ -157,7 +157,10 @@ spark.read.format("iceberg").load("db.table.history").show(truncate = false)
 To show the valid snapshots for a table, run:
 
 ```scala
+// named metastore table
 spark.read.format("iceberg").load("db.table.snapshots").show(truncate = false)
+// Hadoop path table
+spark.read.format("iceberg").load("hdfs://nn:8020/path/to/table#snapshots").show(truncate = false)
 ```
 ```text
 +-------------------------+----------------+-----------+-----------+----------------------------------------------------+-------------------------------------------------------+
@@ -204,7 +207,10 @@ order by made_current_at
 To show a table's file manifests and each file's metadata, run:
 
 ```scala
+// named metastore table
 spark.read.format("iceberg").load("db.table.manifests").show(truncate = false)
+// Hadoop path table
+spark.read.format("iceberg").load("hdfs://nn:8020/path/to/table#manifests").show(truncate = false)
 ```
 ```text
 +----------------------------------------------------------------------+--------+-------------------+---------------------+------------------------+---------------------------+--------------------------+---------------------------------+
@@ -219,7 +225,10 @@ spark.read.format("iceberg").load("db.table.manifests").show(truncate = false)
 To show a table's data files and each file's metadata, run:
 
 ```scala
+// named metastore table
 spark.read.format("iceberg").load("db.table.files").show(truncate = false)
+// Hadoop path table
+spark.read.format("iceberg").load("hdfs://nn:8020/path/to/table#files").show(truncate = false)
 ```
 ```text
 +-------------------------------------------------------------------------+-------------+--------------+--------------------+--------------------+------------------+-------------------+-----------------+-----------------+--------------+---------------+
