@@ -26,9 +26,14 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.functions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
+
+import static org.apache.spark.sql.functions.col;
+import static org.apache.spark.sql.functions.lit;
+import static org.apache.spark.sql.functions.when;
 
 public class TestCreateTableAsSelect extends SparkCatalogTestBase {
 
@@ -151,6 +156,139 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
     sql("CREATE OR REPLACE TABLE %s USING iceberg PARTITIONED BY (part) AS " +
         "SELECT 2 * id as id, data, CASE WHEN ((2 * id) %% 2) = 0 THEN 'even' ELSE 'odd' END AS part " +
         "FROM %s ORDER BY 3, 1", tableName, sourceName);
+
+    // spark_catalog does not use an atomic replace, so the table history is dropped
+    boolean isAtomic = !"spark_catalog".equals(catalogName);
+
+    Schema expectedSchema = new Schema(
+        Types.NestedField.optional(1, "id", Types.LongType.get()),
+        Types.NestedField.optional(2, "data", Types.StringType.get()),
+        Types.NestedField.optional(3, "part", Types.StringType.get())
+    );
+
+    PartitionSpec expectedSpec = PartitionSpec.builderFor(expectedSchema)
+        .identity("part")
+        .withSpecId(0) // the spec is identical and should be reused
+        .build();
+
+    Table rtasTable = validationCatalog.loadTable(tableIdent);
+
+    // the replacement table has a different schema and partition spec than the original
+    Assert.assertEquals("Should have expected nullable schema",
+        expectedSchema.asStruct(), rtasTable.schema().asStruct());
+    Assert.assertEquals("Should be partitioned by part",
+        expectedSpec, rtasTable.spec());
+
+    assertEquals("Should have rows matching the source table",
+        sql("SELECT 2 * id, data, CASE WHEN ((2 * id) %% 2) = 0 THEN 'even' ELSE 'odd' END AS part " +
+            "FROM %s ORDER BY id", sourceName),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    Assert.assertEquals("Table should have expected snapshots",
+        isAtomic ? 2 : 1, Iterables.size(rtasTable.snapshots()));
+  }
+
+  @Test
+  public void testDataFrameV2Create() throws Exception {
+    spark.table(sourceName).writeTo(tableName).using("iceberg").create();
+
+    Schema expectedSchema = new Schema(
+        Types.NestedField.optional(1, "id", Types.LongType.get()),
+        Types.NestedField.optional(2, "data", Types.StringType.get())
+    );
+
+    Table ctasTable = validationCatalog.loadTable(tableIdent);
+
+    Assert.assertEquals("Should have expected nullable schema",
+        expectedSchema.asStruct(), ctasTable.schema().asStruct());
+    Assert.assertEquals("Should be an unpartitioned table",
+        0, ctasTable.spec().fields().size());
+    assertEquals("Should have rows matching the source table",
+        sql("SELECT * FROM %s ORDER BY id", sourceName),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testDataFrameV2Replace() throws Exception {
+    spark.table(sourceName).writeTo(tableName).using("iceberg").create();
+
+    assertEquals("Should have rows matching the source table",
+        sql("SELECT * FROM %s ORDER BY id", sourceName),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    spark.table(sourceName)
+        .select(
+            col("id"),
+            col("data"),
+            when(col("id").mod(lit(2)).equalTo(lit(0)), lit("even")).otherwise("odd").as("part"))
+        .orderBy("part", "id")
+        .writeTo(tableName)
+        .partitionedBy(col("part"))
+        .using("iceberg")
+        .replace();
+
+    // spark_catalog does not use an atomic replace, so the table history and old spec is dropped
+    // the other catalogs do use atomic replace, so the spec id is incremented
+    boolean isAtomic = !"spark_catalog".equals(catalogName);
+
+    Schema expectedSchema = new Schema(
+        Types.NestedField.optional(1, "id", Types.LongType.get()),
+        Types.NestedField.optional(2, "data", Types.StringType.get()),
+        Types.NestedField.optional(3, "part", Types.StringType.get())
+    );
+
+    int specId = isAtomic ? 1 : 0;
+    PartitionSpec expectedSpec = PartitionSpec.builderFor(expectedSchema)
+        .identity("part")
+        .withSpecId(specId)
+        .build();
+
+    Table rtasTable = validationCatalog.loadTable(tableIdent);
+
+    // the replacement table has a different schema and partition spec than the original
+    Assert.assertEquals("Should have expected nullable schema",
+        expectedSchema.asStruct(), rtasTable.schema().asStruct());
+    Assert.assertEquals("Should be partitioned by part",
+        expectedSpec, rtasTable.spec());
+
+    assertEquals("Should have rows matching the source table",
+        sql("SELECT id, data, CASE WHEN (id %% 2) = 0 THEN 'even' ELSE 'odd' END AS part " +
+            "FROM %s ORDER BY id", sourceName),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    Assert.assertEquals("Table should have expected snapshots",
+        isAtomic ? 2 : 1, Iterables.size(rtasTable.snapshots()));
+  }
+
+  @Test
+  public void testDataFrameV2CreateOrReplace() {
+    spark.table(sourceName)
+        .select(
+            col("id"),
+            col("data"),
+            when(col("id").mod(lit(2)).equalTo(lit(0)), lit("even")).otherwise("odd").as("part"))
+        .orderBy("part", "id")
+        .writeTo(tableName)
+        .partitionedBy(col("part"))
+        .using("iceberg")
+        .createOrReplace();
+
+    assertEquals("Should have rows matching the source table",
+        sql("SELECT id, data, CASE WHEN (id %% 2) = 0 THEN 'even' ELSE 'odd' END AS part " +
+            "FROM %s ORDER BY id", sourceName),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    spark.table(sourceName)
+        .select(col("id").multiply(lit(2)).as("id"), col("data"))
+        .select(
+            col("id"),
+            col("data"),
+            when(col("id").mod(lit(2)).equalTo(lit(0)), lit("even")).otherwise("odd").as("part"))
+        .orderBy("part", "id")
+        .writeTo(tableName)
+        .partitionedBy(col("part"))
+        .using("iceberg")
+        .createOrReplace();
 
     // spark_catalog does not use an atomic replace, so the table history is dropped
     boolean isAtomic = !"spark_catalog".equals(catalogName);
