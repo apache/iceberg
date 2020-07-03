@@ -94,10 +94,13 @@ public abstract class BaseParquetReaders<T> {
       List<Type> types = Lists.newArrayListWithExpectedSize(fieldReaders.size());
       List<Type> fields = struct.getFields();
       for (int i = 0; i < fields.size(); i += 1) {
-        Type fieldType = fields.get(i);
-        int fieldD = type().getMaxDefinitionLevel(path(fieldType.getName())) - 1;
-        newFields.add(ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
-        types.add(fieldType);
+        ParquetValueReader<?> fieldReader = fieldReaders.get(i);
+        if (fieldReader != null) {
+          Type fieldType = fields.get(i);
+          int fieldD = type().getMaxDefinitionLevel(path(fieldType.getName())) - 1;
+          newFields.add(ParquetValueReaders.option(fieldType, fieldD, fieldReader));
+          types.add(fieldType);
+        }
       }
 
       return createStructReader(types, newFields, expected);
@@ -127,11 +130,14 @@ public abstract class BaseParquetReaders<T> {
       Map<Integer, Type> typesById = Maps.newHashMap();
       List<Type> fields = struct.getFields();
       for (int i = 0; i < fields.size(); i += 1) {
-        Type fieldType = fields.get(i);
-        int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName())) - 1;
-        int id = fieldType.getId().intValue();
-        readersById.put(id, ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
-        typesById.put(id, fieldType);
+        ParquetValueReader<?> fieldReader = fieldReaders.get(i);
+        if (fieldReader != null) {
+          Type fieldType = fields.get(i);
+          int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName())) - 1;
+          int id = fieldType.getId().intValue();
+          readersById.put(id, ParquetValueReaders.option(fieldType, fieldD, fieldReader));
+          typesById.put(id, fieldType);
+        }
       }
 
       List<Types.NestedField> expectedFields = expected != null ?
@@ -163,6 +169,10 @@ public abstract class BaseParquetReaders<T> {
     @Override
     public ParquetValueReader<?> list(Types.ListType expectedList, GroupType array,
                                       ParquetValueReader<?> elementReader) {
+      if (expectedList == null) {
+        return null;
+      }
+
       GroupType repeated = array.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
@@ -180,6 +190,10 @@ public abstract class BaseParquetReaders<T> {
     public ParquetValueReader<?> map(Types.MapType expectedMap, GroupType map,
                                      ParquetValueReader<?> keyReader,
                                      ParquetValueReader<?> valueReader) {
+      if (expectedMap == null) {
+        return null;
+      }
+
       GroupType repeatedKeyValue = map.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
@@ -199,6 +213,10 @@ public abstract class BaseParquetReaders<T> {
     @Override
     public ParquetValueReader<?> primitive(org.apache.iceberg.types.Type.PrimitiveType expected,
                                            PrimitiveType primitive) {
+      if (expected == null) {
+        return null;
+      }
+
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
 
       if (primitive.getOriginalType() != null) {
