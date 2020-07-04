@@ -26,32 +26,11 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.spark.sql.SparkSession;
-import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
 
-public class TestIcebergSourceHadoopTables extends TestIcebergSourceTablesBase {
+public abstract class TestIcebergSourceHadoopTables extends TestIcebergSourceTablesBase {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
-
-  @BeforeClass
-  public static void startSpark() {
-    TestIcebergSourceHadoopTables.spark = SparkSession.builder()
-        .master("local[2]")
-        .getOrCreate();
-  }
-
-  @AfterClass
-  public static void stopSpark() {
-    TestIcebergSourceHadoopTables.spark.stop();
-    TestIcebergSourceHadoopTables.spark = null;
-  }
-
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
 
   File tableDir = null;
   String tableLocation = null;
