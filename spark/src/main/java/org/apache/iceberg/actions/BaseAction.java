@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.actions;
 
-import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Table;
 
