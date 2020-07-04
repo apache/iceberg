@@ -38,7 +38,8 @@ public class CharSequenceSet implements Set<CharSequence>, Serializable {
   }
 
   private final Set<CharSequenceWrapper> wrapperSet;
-  private final CharSequenceWrapper containsWrapper = CharSequenceWrapper.wrap(null);
+  private final ThreadLocal<CharSequenceWrapper> containsWrapper = ThreadLocal.withInitial(
+      () -> CharSequenceWrapper.wrap(null));
 
   private CharSequenceSet(Iterable<CharSequence> charSequences) {
     this.wrapperSet = Sets.newHashSet(Iterables.transform(charSequences, CharSequenceWrapper::wrap));
@@ -57,7 +58,7 @@ public class CharSequenceSet implements Set<CharSequence>, Serializable {
   @Override
   public boolean contains(Object obj) {
     if (obj instanceof CharSequence) {
-      return wrapperSet.contains(containsWrapper.set((CharSequence) obj));
+      return wrapperSet.contains(containsWrapper.get().set((CharSequence) obj));
     }
     return false;
   }
@@ -102,7 +103,7 @@ public class CharSequenceSet implements Set<CharSequence>, Serializable {
   @Override
   public boolean remove(Object obj) {
     if (obj instanceof CharSequence) {
-      return wrapperSet.remove(containsWrapper.set((CharSequence) obj));
+      return wrapperSet.remove(containsWrapper.get().set((CharSequence) obj));
     }
     return false;
   }
