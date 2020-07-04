@@ -41,23 +41,21 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SparkSession;
-import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public class TestRemoveOrphanFilesAction {
+public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA = new Schema(
@@ -69,22 +67,6 @@ public class TestRemoveOrphanFilesAction {
       .truncate("c2", 2)
       .identity("c3")
       .build();
-
-  private static SparkSession spark;
-
-  @BeforeClass
-  public static void startSpark() {
-    TestRemoveOrphanFilesAction.spark = SparkSession.builder()
-        .master("local[2]")
-        .getOrCreate();
-  }
-
-  @AfterClass
-  public static void stopSpark() {
-    SparkSession currentSpark = TestRemoveOrphanFilesAction.spark;
-    TestRemoveOrphanFilesAction.spark = null;
-    currentSpark.stop();
-  }
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
