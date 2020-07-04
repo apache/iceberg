@@ -211,6 +211,7 @@ public abstract class BaseParquetReaders<T> {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public ParquetValueReader<?> primitive(org.apache.iceberg.types.Type.PrimitiveType expected,
                                            PrimitiveType primitive) {
       if (expected == null) {
