@@ -32,8 +32,8 @@ abstract class BaseAction<R> implements Action<R> {
     if (tableName.contains("/")) {
       return tableName + "#" + type;
     } else if (tableName.startsWith("hadoop.")) {
-      // HadoopCatalog tableName style is 'hadoop.ns.tb'
-      return ((BaseTable) table()).operations().current().location() + "#" + type;
+      // Load a path by HadoopCatalog or HadoopTables
+      return table().location() + "#" + type;
     } else if (tableName.startsWith("hive.")) {
       // HiveCatalog prepend a logical name which we need to drop for Spark 2.4
       return tableName.replaceFirst("(hadoop\\.)|(hive\\.)", "") + "." + type;

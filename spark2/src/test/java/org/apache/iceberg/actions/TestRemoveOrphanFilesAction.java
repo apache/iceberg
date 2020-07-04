@@ -557,29 +557,34 @@ public class TestRemoveOrphanFilesAction {
     Table table = catalog.createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap());
 
     List<ThreeColumnRecord> records = Lists.newArrayList(
-            new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
+        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
     );
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
 
-    String tableFileSystemPath = tableLocation + "/" + namespaceName + "/" + tableName;
     df.select("c1", "c2", "c3")
-            .write()
-            .format("iceberg")
-            .mode("append")
-            .save(tableFileSystemPath);
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(table.location());
 
-    df.write().mode("append").parquet(tableFileSystemPath + "/data");
+    df.write().mode("append").parquet(table.location() + "/data");
 
+    // sleep for 1 second to unsure files will be old enough
     Thread.sleep(1000);
 
-    long timestamp = System.currentTimeMillis();
+    table.refresh();
 
-    Actions actions = Actions.forTable(table);
-
-    List<String> result = actions.removeOrphanFiles()
-            .olderThan(timestamp)
-            .execute();
+    List<String> result = Actions.forTable(table)
+        .removeOrphanFiles()
+        .olderThan(System.currentTimeMillis())
+        .execute();
 
     Assert.assertEquals("Should delete only 1 files", 1, result.size());
+
+    Dataset<Row> resultDF = spark.read().format("iceberg").load(table.location());
+    List<ThreeColumnRecord> actualRecords = resultDF
+        .as(Encoders.bean(ThreeColumnRecord.class))
+        .collectAsList();
+    Assert.assertEquals("Rows must match", records, actualRecords);
   }
 }
