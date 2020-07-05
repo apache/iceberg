@@ -45,7 +45,7 @@ public class TestGenericReadProjection extends TestReadProjection {
 
     Iterable<Record> records = Avro.read(Files.localInput(file))
         .project(readSchema)
-        .createReaderFunc(DataReader::create)
+        .createReaderFunc(AvroGenericReader::create)
         .build();
 
     return Iterables.getOnlyElement(records);

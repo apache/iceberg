@@ -19,18 +19,21 @@
 
 package org.apache.iceberg.data.avro;
 
-import org.apache.avro.Schema;
+import java.util.Map;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-/**
- * @deprecated will be removed, please use AvroGenericWriter instead.
- */
-@Deprecated
-public class DataWriter<T> extends BaseAvroGenericWriter<T> {
-  DataWriter(Schema schema) {
-    super(schema);
+public class AvroGenericReader<T> extends BaseAvroGenericReader<T> {
+  protected AvroGenericReader(Schema expectedSchema, org.apache.avro.Schema readSchema, Map<Integer, ?> idToConstant) {
+    super(expectedSchema, readSchema, idToConstant);
   }
 
-  public static <D> DataWriter<D> create(Schema schema) {
-    return new DataWriter<>(schema);
+  public static <D> AvroGenericReader<D> create(Schema expectedSchema, org.apache.avro.Schema readSchema) {
+    return create(expectedSchema, readSchema, ImmutableMap.of());
+  }
+
+  public static <D> AvroGenericReader<D> create(Schema expectedSchema, org.apache.avro.Schema readSchema,
+                                         Map<Integer, ?> idToConstant) {
+    return new AvroGenericReader<>(expectedSchema, readSchema, idToConstant);
   }
 }

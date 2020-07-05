@@ -32,7 +32,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.avro.AvroGenericReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -84,7 +84,7 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
         Avro.ReadBuilder avro = Avro.read(input)
             .project(projection)
             .createReaderFunc(
-                avroSchema -> DataReader.create(projection, avroSchema, partition))
+                avroSchema -> AvroGenericReader.create(projection, avroSchema, partition))
             .split(task.start(), task.length());
 
         if (reuseContainers) {

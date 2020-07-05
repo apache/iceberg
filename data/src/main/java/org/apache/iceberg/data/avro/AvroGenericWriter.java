@@ -21,16 +21,12 @@ package org.apache.iceberg.data.avro;
 
 import org.apache.avro.Schema;
 
-/**
- * @deprecated will be removed, please use AvroGenericWriter instead.
- */
-@Deprecated
-public class DataWriter<T> extends BaseAvroGenericWriter<T> {
-  DataWriter(Schema schema) {
+public class AvroGenericWriter<T> extends BaseAvroGenericWriter<T> {
+  protected AvroGenericWriter(Schema schema) {
     super(schema);
   }
 
-  public static <D> DataWriter<D> create(Schema schema) {
-    return new DataWriter<>(schema);
+  public static <D> AvroGenericWriter<D> create(Schema schema) {
+    return new AvroGenericWriter<>(schema);
   }
 }

@@ -25,11 +25,11 @@ import org.apache.avro.Schema;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
-import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.avro.AvroGenericReader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 
-public class FlinkAvroReader extends DataReader<Row> {
+public class FlinkAvroReader extends AvroGenericReader<Row> {
 
   public FlinkAvroReader(org.apache.iceberg.Schema expectedSchema, Schema readSchema) {
     super(expectedSchema, readSchema, ImmutableMap.of());

@@ -24,9 +24,9 @@ import org.apache.avro.Schema;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.avro.ValueWriter;
 import org.apache.iceberg.avro.ValueWriters;
-import org.apache.iceberg.data.avro.DataWriter;
+import org.apache.iceberg.data.avro.AvroGenericWriter;
 
-public class FlinkAvroWriter extends DataWriter<Row> {
+public class FlinkAvroWriter extends AvroGenericWriter<Row> {
   public FlinkAvroWriter(Schema schema) {
     super(schema);
   }

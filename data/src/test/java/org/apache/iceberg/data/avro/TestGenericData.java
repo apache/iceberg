@@ -55,7 +55,7 @@ public class TestGenericData extends DataTest {
     List<Record> rows;
     try (AvroIterable<Record> reader = Avro.read(Files.localInput(testFile))
         .project(schema)
-        .createReaderFunc(DataReader::create)
+        .createReaderFunc(AvroGenericReader::create)
         .build()) {
       rows = Lists.newArrayList(reader);
     }
