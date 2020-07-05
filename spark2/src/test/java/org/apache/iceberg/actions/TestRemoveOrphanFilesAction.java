@@ -34,6 +34,9 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -541,5 +544,47 @@ public class TestRemoveOrphanFilesAction {
         .execute();
     Assert.assertEquals("Action should find 1 file", invalidFiles, result);
     Assert.assertTrue("Invalid file should be present", fs.exists(new Path(invalidFiles.get(0))));
+  }
+
+  @Test
+  public void testRemoveOrphanFilesWithHadoopCatalog() throws InterruptedException {
+    HadoopCatalog catalog = new HadoopCatalog(new Configuration(), tableLocation);
+    String namespaceName = "testDb";
+    String tableName = "testTb";
+
+    Namespace namespace = Namespace.of(namespaceName);
+    TableIdentifier tableIdentifier = TableIdentifier.of(namespace, tableName);
+    Table table = catalog.createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap());
+
+    List<ThreeColumnRecord> records = Lists.newArrayList(
+        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
+    );
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+
+    df.select("c1", "c2", "c3")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(table.location());
+
+    df.write().mode("append").parquet(table.location() + "/data");
+
+    // sleep for 1 second to unsure files will be old enough
+    Thread.sleep(1000);
+
+    table.refresh();
+
+    List<String> result = Actions.forTable(table)
+        .removeOrphanFiles()
+        .olderThan(System.currentTimeMillis())
+        .execute();
+
+    Assert.assertEquals("Should delete only 1 files", 1, result.size());
+
+    Dataset<Row> resultDF = spark.read().format("iceberg").load(table.location());
+    List<ThreeColumnRecord> actualRecords = resultDF
+        .as(Encoders.bean(ThreeColumnRecord.class))
+        .collectAsList();
+    Assert.assertEquals("Rows must match", records, actualRecords);
   }
 }
