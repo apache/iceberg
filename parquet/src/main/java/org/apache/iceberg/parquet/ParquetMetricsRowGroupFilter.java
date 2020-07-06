@@ -49,14 +49,6 @@ import org.apache.parquet.schema.PrimitiveType;
 public class ParquetMetricsRowGroupFilter {
   private final Schema schema;
   private final Expression expr;
-  private transient ThreadLocal<MetricsEvalVisitor> visitors = null;
-
-  private MetricsEvalVisitor visitor() {
-    if (visitors == null) {
-      this.visitors = ThreadLocal.withInitial(MetricsEvalVisitor::new);
-    }
-    return visitors.get();
-  }
 
   public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -76,7 +68,7 @@ public class ParquetMetricsRowGroupFilter {
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
   public boolean shouldRead(MessageType fileSchema, BlockMetaData rowGroup) {
-    return visitor().eval(fileSchema, rowGroup);
+    return new MetricsEvalVisitor().eval(fileSchema, rowGroup);
   }
 
   private static final boolean ROWS_MIGHT_MATCH = true;

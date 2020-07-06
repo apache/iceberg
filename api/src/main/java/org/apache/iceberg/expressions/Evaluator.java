@@ -35,14 +35,6 @@ import org.apache.iceberg.types.Types.StructType;
  */
 public class Evaluator implements Serializable {
   private final Expression expr;
-  private transient ThreadLocal<EvalVisitor> visitors = null;
-
-  private EvalVisitor visitor() {
-    if (visitors == null) {
-      this.visitors = ThreadLocal.withInitial(EvalVisitor::new);
-    }
-    return visitors.get();
-  }
 
   public Evaluator(StructType struct, Expression unbound) {
     this.expr = Binder.bind(struct, unbound, true);
@@ -53,7 +45,7 @@ public class Evaluator implements Serializable {
   }
 
   public boolean eval(StructLike data) {
-    return visitor().eval(data);
+    return new EvalVisitor().eval(data);
   }
 
   private class EvalVisitor extends BoundVisitor<Boolean> {

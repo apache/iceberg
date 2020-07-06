@@ -47,14 +47,6 @@ import static org.apache.iceberg.expressions.Expressions.rewriteNot;
  */
 public class InclusiveMetricsEvaluator {
   private final Expression expr;
-  private transient ThreadLocal<MetricsEvalVisitor> visitors = null;
-
-  private MetricsEvalVisitor visitor() {
-    if (visitors == null) {
-      this.visitors = ThreadLocal.withInitial(MetricsEvalVisitor::new);
-    }
-    return visitors.get();
-  }
 
   public InclusiveMetricsEvaluator(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -73,7 +65,7 @@ public class InclusiveMetricsEvaluator {
    */
   public boolean eval(ContentFile<?> file) {
     // TODO: detect the case where a column is missing from the file using file's max field id.
-    return visitor().eval(file);
+    return new MetricsEvalVisitor().eval(file);
   }
 
   private static final boolean ROWS_MIGHT_MATCH = true;
