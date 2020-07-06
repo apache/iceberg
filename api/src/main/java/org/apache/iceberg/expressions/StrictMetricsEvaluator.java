@@ -49,14 +49,6 @@ public class StrictMetricsEvaluator {
   private final Schema schema;
   private final StructType struct;
   private final Expression expr;
-  private transient ThreadLocal<MetricsEvalVisitor> visitors = null;
-
-  private MetricsEvalVisitor visitor() {
-    if (visitors == null) {
-      this.visitors = ThreadLocal.withInitial(MetricsEvalVisitor::new);
-    }
-    return visitors.get();
-  }
 
   public StrictMetricsEvaluator(Schema schema, Expression unbound) {
     this.schema = schema;
@@ -72,7 +64,7 @@ public class StrictMetricsEvaluator {
    */
   public boolean eval(ContentFile<?> file) {
     // TODO: detect the case where a column is missing from the file using file's max field id.
-    return visitor().eval(file);
+    return new MetricsEvalVisitor().eval(file);
   }
 
   private static final boolean ROWS_MUST_MATCH = true;
