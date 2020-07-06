@@ -130,6 +130,9 @@ class BaseSnapshot implements Snapshot {
     if (dataManifests == null) {
       this.dataManifests = ImmutableList.copyOf(Iterables.filter(allManifests,
           manifest -> manifest.content() == ManifestContent.DATA));
+    }
+
+    if (deleteManifests == null) {
       this.deleteManifests = ImmutableList.copyOf(Iterables.filter(allManifests,
           manifest -> manifest.content() == ManifestContent.DELETES));
     }
