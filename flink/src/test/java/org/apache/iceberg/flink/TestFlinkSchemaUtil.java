@@ -21,6 +21,9 @@ package org.apache.iceberg.flink;
 
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.types.logical.CharType;
+import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -57,8 +60,7 @@ public class TestFlinkSchemaUtil {
         .field("multiset", DataTypes.MULTISET(DataTypes.STRING().notNull()))
         .build();
 
-    Schema actualSchema = FlinkSchemaUtil.convert(flinkSchema);
-    Schema expectedSchema = new Schema(
+    Schema icebergSchema = new Schema(
         Types.NestedField.required(0, "id", Types.IntegerType.get(), null),
         Types.NestedField.optional(1, "name", Types.StringType.get(), null),
         Types.NestedField.required(2, "salary", Types.DoubleType.get(), null),
@@ -90,7 +92,7 @@ public class TestFlinkSchemaUtil {
             Types.IntegerType.get()))
     );
 
-    Assert.assertEquals(expectedSchema.asStruct(), actualSchema.asStruct());
+    checkSchema(flinkSchema, icebergSchema);
   }
 
   @Test
@@ -112,8 +114,7 @@ public class TestFlinkSchemaUtil {
         )
         .build();
 
-    Schema actualSchema = FlinkSchemaUtil.convert(flinkSchema);
-    Schema expectedSchema = new Schema(
+    Schema icebergSchema = new Schema(
         Types.NestedField.required(0, "map_int_long",
             Types.MapType.ofOptional(4, 5, Types.IntegerType.get(), Types.LongType.get()), null),
         Types.NestedField.optional(1, "map_int_array_string",
@@ -132,7 +133,7 @@ public class TestFlinkSchemaUtil {
         )
     );
 
-    Assert.assertEquals(expectedSchema.asStruct(), actualSchema.asStruct());
+    checkSchema(flinkSchema, icebergSchema);
   }
 
   @Test
@@ -152,8 +153,7 @@ public class TestFlinkSchemaUtil {
         ).nullable()) /* Optional */
         .build();
 
-    Schema actualSchema = FlinkSchemaUtil.convert(flinkSchema);
-    Schema expectedSchema = new Schema(
+    Schema icebergSchema = new Schema(
         Types.NestedField.required(0, "struct_int_string_decimal",
             Types.StructType.of(
                 Types.NestedField.optional(5, "field_int", Types.IntegerType.get()),
@@ -173,7 +173,8 @@ public class TestFlinkSchemaUtil {
             )
         )
     );
-    Assert.assertEquals(actualSchema.asStruct(), expectedSchema.asStruct());
+
+    checkSchema(flinkSchema, icebergSchema);
   }
 
   @Test
@@ -201,8 +202,7 @@ public class TestFlinkSchemaUtil {
         ).notNull()) /* Required */
         .build();
 
-    Schema actualSchema = FlinkSchemaUtil.convert(flinkSchema);
-    Schema expectedSchema = new Schema(
+    Schema icebergSchema = new Schema(
         Types.NestedField.required(0, "list_struct_fields",
             Types.ListType.ofOptional(4, Types.StructType.of(
                 Types.NestedField.optional(3, "field_int", Types.IntegerType.get())
@@ -222,6 +222,24 @@ public class TestFlinkSchemaUtil {
             ))
     );
 
-    Assert.assertEquals(expectedSchema.asStruct(), actualSchema.asStruct());
+    checkSchema(flinkSchema, icebergSchema);
+  }
+
+  private void checkSchema(TableSchema flinkSchema, Schema icebergSchema) {
+    Assert.assertEquals(icebergSchema.asStruct(), FlinkSchemaUtil.convert(flinkSchema).asStruct());
+    // The conversion is not a 1:1 mapping, so we just check iceberg types.
+    Assert.assertEquals(
+        icebergSchema.asStruct(),
+        FlinkSchemaUtil.convert(FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(icebergSchema))).asStruct());
+  }
+
+  @Test
+  public void testUUID() {
+    LogicalType flinkUUID = FlinkSchemaUtil.convert(Types.UUIDType.get());
+    Assert.assertEquals(new CharType(16), flinkUUID);
+
+    Assert.assertEquals(
+        Types.StructType.of(Types.NestedField.optional(0, "f0", Types.StringType.get())),
+        FlinkSchemaUtil.convert(FlinkSchemaUtil.toSchema(RowType.of(flinkUUID))).asStruct());
   }
 }
