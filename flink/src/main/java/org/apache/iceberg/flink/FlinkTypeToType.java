@@ -20,10 +20,8 @@
 package org.apache.iceberg.flink;
 
 import java.util.List;
-import org.apache.flink.table.types.AtomicDataType;
-import org.apache.flink.table.types.CollectionDataType;
-import org.apache.flink.table.types.FieldsDataType;
-import org.apache.flink.table.types.KeyValueDataType;
+import java.util.stream.Collectors;
+import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.BigIntType;
 import org.apache.flink.table.types.logical.BinaryType;
 import org.apache.flink.table.types.logical.BooleanType;
@@ -34,7 +32,8 @@ import org.apache.flink.table.types.logical.DoubleType;
 import org.apache.flink.table.types.logical.FloatType;
 import org.apache.flink.table.types.logical.IntType;
 import org.apache.flink.table.types.logical.LocalZonedTimestampType;
-import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.MapType;
+import org.apache.flink.table.types.logical.MultisetType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.SmallIntType;
 import org.apache.flink.table.types.logical.TimeType;
@@ -42,19 +41,19 @@ import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.flink.table.types.logical.TinyIntType;
 import org.apache.flink.table.types.logical.VarBinaryType;
 import org.apache.flink.table.types.logical.VarCharType;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 public class FlinkTypeToType extends FlinkTypeVisitor<Type> {
-  private final FieldsDataType root;
-  private int nextId = 0;
 
-  FlinkTypeToType(FieldsDataType root) {
+  private final RowType root;
+  private int nextId;
+
+  FlinkTypeToType(RowType root) {
     this.root = root;
     // the root struct's fields use the first ids
-    this.nextId = root.getFieldDataTypes().size();
+    this.nextId = root.getFieldCount();
   }
 
   private int getNextId() {
@@ -64,17 +63,126 @@ public class FlinkTypeToType extends FlinkTypeVisitor<Type> {
   }
 
   @Override
-  public Type fields(FieldsDataType fields, List<Type> types) {
-    List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(types.size());
-    boolean isRoot = root == fields;
+  public Type visit(CharType charType) {
+    return Types.StringType.get();
+  }
 
-    List<RowType.RowField> rowFields = ((RowType) fields.getLogicalType()).getFields();
-    Preconditions.checkArgument(rowFields.size() == types.size(), "fields list and types list should have same size.");
+  @Override
+  public Type visit(VarCharType varCharType) {
+    return Types.StringType.get();
+  }
 
-    for (int i = 0; i < rowFields.size(); i++) {
+  @Override
+  public Type visit(BooleanType booleanType) {
+    return Types.BooleanType.get();
+  }
+
+  @Override
+  public Type visit(BinaryType binaryType) {
+    return Types.FixedType.ofLength(binaryType.getLength());
+  }
+
+  @Override
+  public Type visit(VarBinaryType varBinaryType) {
+    return Types.BinaryType.get();
+  }
+
+  @Override
+  public Type visit(DecimalType decimalType) {
+    return Types.DecimalType.of(decimalType.getPrecision(), decimalType.getScale());
+  }
+
+  @Override
+  public Type visit(TinyIntType tinyIntType) {
+    return Types.IntegerType.get();
+  }
+
+  @Override
+  public Type visit(SmallIntType smallIntType) {
+    return Types.IntegerType.get();
+  }
+
+  @Override
+  public Type visit(IntType intType) {
+    return Types.IntegerType.get();
+  }
+
+  @Override
+  public Type visit(BigIntType bigIntType) {
+    return Types.LongType.get();
+  }
+
+  @Override
+  public Type visit(FloatType floatType) {
+    return Types.FloatType.get();
+  }
+
+  @Override
+  public Type visit(DoubleType doubleType) {
+    return Types.DoubleType.get();
+  }
+
+  @Override
+  public Type visit(DateType dateType) {
+    return Types.DateType.get();
+  }
+
+  @Override
+  public Type visit(TimeType timeType) {
+    return Types.TimeType.get();
+  }
+
+  @Override
+  public Type visit(TimestampType timestampType) {
+    return Types.TimestampType.withoutZone();
+  }
+
+  @Override
+  public Type visit(LocalZonedTimestampType localZonedTimestampType) {
+    return Types.TimestampType.withZone();
+  }
+
+  @Override
+  public Type visit(ArrayType arrayType) {
+    Type elementType = arrayType.getElementType().accept(this);
+    if (arrayType.getElementType().isNullable()) {
+      return Types.ListType.ofOptional(getNextId(), elementType);
+    } else {
+      return Types.ListType.ofRequired(getNextId(), elementType);
+    }
+  }
+
+  @Override
+  public Type visit(MultisetType multisetType) {
+    Type elementType = multisetType.getElementType().accept(this);
+    return Types.MapType.ofRequired(getNextId(), getNextId(), elementType, Types.IntegerType.get());
+  }
+
+  @Override
+  public Type visit(MapType mapType) {
+    // keys in map are not allowed to be null.
+    Type keyType = mapType.getKeyType().accept(this);
+    Type valueType = mapType.getValueType().accept(this);
+    if (mapType.getValueType().isNullable()) {
+      return Types.MapType.ofOptional(getNextId(), getNextId(), keyType, valueType);
+    } else {
+      return Types.MapType.ofRequired(getNextId(), getNextId(), keyType, valueType);
+    }
+  }
+
+  @Override
+  public Type visit(RowType rowType) {
+    List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(rowType.getFieldCount());
+    boolean isRoot = root == rowType;
+
+    List<Type> types = rowType.getFields().stream()
+        .map(f -> f.getType().accept(this))
+        .collect(Collectors.toList());
+
+    for (int i = 0; i < rowType.getFieldCount(); i++) {
       int id = isRoot ? i : getNextId();
 
-      RowType.RowField field = rowFields.get(i);
+      RowType.RowField field = rowType.getFields().get(i);
       String name = field.getName();
       String comment = field.getDescription().orElse(null);
 
@@ -86,64 +194,5 @@ public class FlinkTypeToType extends FlinkTypeVisitor<Type> {
     }
 
     return Types.StructType.of(newFields);
-  }
-
-  @Override
-  public Type collection(CollectionDataType collection, Type elementType) {
-    if (collection.getElementDataType().getLogicalType().isNullable()) {
-      return Types.ListType.ofOptional(getNextId(), elementType);
-    } else {
-      return Types.ListType.ofRequired(getNextId(), elementType);
-    }
-  }
-
-  @Override
-  public Type map(KeyValueDataType map, Type keyType, Type valueType) {
-    // keys in map are not allowed to be null.
-    if (map.getValueDataType().getLogicalType().isNullable()) {
-      return Types.MapType.ofOptional(getNextId(), getNextId(), keyType, valueType);
-    } else {
-      return Types.MapType.ofRequired(getNextId(), getNextId(), keyType, valueType);
-    }
-  }
-
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  @Override
-  public Type atomic(AtomicDataType type) {
-    LogicalType inner = type.getLogicalType();
-    if (inner instanceof VarCharType ||
-        inner instanceof CharType) {
-      return Types.StringType.get();
-    } else if (inner instanceof BooleanType) {
-      return Types.BooleanType.get();
-    } else if (inner instanceof IntType ||
-        inner instanceof SmallIntType ||
-        inner instanceof TinyIntType) {
-      return Types.IntegerType.get();
-    } else if (inner instanceof BigIntType) {
-      return Types.LongType.get();
-    } else if (inner instanceof VarBinaryType) {
-      return Types.BinaryType.get();
-    } else if (inner instanceof BinaryType) {
-      BinaryType binaryType = (BinaryType) inner;
-      return Types.FixedType.ofLength(binaryType.getLength());
-    } else if (inner instanceof FloatType) {
-      return Types.FloatType.get();
-    } else if (inner instanceof DoubleType) {
-      return Types.DoubleType.get();
-    } else if (inner instanceof DateType) {
-      return Types.DateType.get();
-    } else if (inner instanceof TimeType) {
-      return Types.TimeType.get();
-    } else if (inner instanceof TimestampType) {
-      return Types.TimestampType.withoutZone();
-    } else if (inner instanceof LocalZonedTimestampType) {
-      return Types.TimestampType.withZone();
-    } else if (inner instanceof DecimalType) {
-      DecimalType decimalType = (DecimalType) inner;
-      return Types.DecimalType.of(decimalType.getPrecision(), decimalType.getScale());
-    } else {
-      throw new UnsupportedOperationException("Not a supported type: " + type.toString());
-    }
   }
 }

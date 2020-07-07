@@ -54,6 +54,7 @@ public class TestFlinkSchemaUtil {
         .field("decimal", DataTypes.DECIMAL(2, 2))
         .field("decimal2", DataTypes.DECIMAL(38, 2))
         .field("decimal3", DataTypes.DECIMAL(10, 1))
+        .field("multiset", DataTypes.MULTISET(DataTypes.STRING().notNull()))
         .build();
 
     Schema actualSchema = FlinkSchemaUtil.convert(flinkSchema);
@@ -61,14 +62,14 @@ public class TestFlinkSchemaUtil {
         Types.NestedField.required(0, "id", Types.IntegerType.get(), null),
         Types.NestedField.optional(1, "name", Types.StringType.get(), null),
         Types.NestedField.required(2, "salary", Types.DoubleType.get(), null),
-        Types.NestedField.optional(3, "locations", Types.MapType.ofOptional(23, 24,
+        Types.NestedField.optional(3, "locations", Types.MapType.ofOptional(24, 25,
             Types.StringType.get(),
             Types.StructType.of(
-                Types.NestedField.required(21, "posX", Types.DoubleType.get(), "X field"),
-                Types.NestedField.required(22, "posY", Types.DoubleType.get(), "Y field")
+                Types.NestedField.required(22, "posX", Types.DoubleType.get(), "X field"),
+                Types.NestedField.required(23, "posY", Types.DoubleType.get(), "Y field")
             ))),
-        Types.NestedField.optional(4, "strArray", Types.ListType.ofOptional(25, Types.StringType.get())),
-        Types.NestedField.optional(5, "intArray", Types.ListType.ofOptional(26, Types.IntegerType.get())),
+        Types.NestedField.optional(4, "strArray", Types.ListType.ofOptional(26, Types.StringType.get())),
+        Types.NestedField.optional(5, "intArray", Types.ListType.ofOptional(27, Types.IntegerType.get())),
         Types.NestedField.required(6, "char", Types.StringType.get()),
         Types.NestedField.required(7, "varchar", Types.StringType.get()),
         Types.NestedField.optional(8, "boolean", Types.BooleanType.get()),
@@ -83,7 +84,10 @@ public class TestFlinkSchemaUtil {
         Types.NestedField.optional(17, "date", Types.DateType.get()),
         Types.NestedField.optional(18, "decimal", Types.DecimalType.of(2, 2)),
         Types.NestedField.optional(19, "decimal2", Types.DecimalType.of(38, 2)),
-        Types.NestedField.optional(20, "decimal3", Types.DecimalType.of(10, 1))
+        Types.NestedField.optional(20, "decimal3", Types.DecimalType.of(10, 1)),
+        Types.NestedField.optional(21, "multiset", Types.MapType.ofRequired(28, 29,
+            Types.StringType.get(),
+            Types.IntegerType.get()))
     );
 
     Assert.assertEquals(expectedSchema.asStruct(), actualSchema.asStruct());
