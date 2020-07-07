@@ -33,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
+import org.apache.iceberg.schema.UnionByNameVisitor;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -305,6 +306,12 @@ class SchemaUpdate implements UpdateSchema {
     Preconditions.checkArgument(afterId != null, "Cannot move %s after missing column: %s", name, afterName);
     Preconditions.checkArgument(!fieldId.equals(afterId), "Cannot move %s after itself", name);
     internalMove(name, Move.after(fieldId, afterId));
+    return this;
+  }
+
+  @Override
+  public UpdateSchema unionByNameWith(Schema newSchema) {
+    UnionByNameVisitor.visit(this, schema, newSchema);
     return this;
   }
 
