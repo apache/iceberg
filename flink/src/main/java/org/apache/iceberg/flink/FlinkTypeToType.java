@@ -45,7 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-public class FlinkTypeToType extends FlinkTypeVisitor<Type> {
+class FlinkTypeToType extends FlinkTypeVisitor<Type> {
 
   private final RowType root;
   private int nextId;
