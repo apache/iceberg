@@ -28,6 +28,8 @@ import org.apache.spark.sql.connector.catalog.CatalogExtension;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.NamespaceChange;
+import org.apache.spark.sql.connector.catalog.StagedTable;
+import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -42,14 +44,16 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * @param <T> CatalogPlugin class to avoid casting to TableCatalog and SupportsNamespaces.
  */
 public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
-    implements TableCatalog, SupportsNamespaces, CatalogExtension {
+    implements StagingTableCatalog, SupportsNamespaces, CatalogExtension {
   private static final String[] DEFAULT_NAMESPACE = new String[] {"default"};
 
   private String catalogName = null;
   private TableCatalog icebergCatalog = null;
+  private StagingTableCatalog asStagingCatalog = null;
   private T sessionCatalog = null;
   private boolean createParquetAsIceberg = false;
   private boolean createAvroAsIceberg = false;
+  private boolean createOrcAsIceberg = false;
 
   /**
    * Build a {@link SparkCatalog} to be used for Iceberg operations.
@@ -121,18 +125,85 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
                            Map<String, String> properties)
       throws TableAlreadyExistsException, NoSuchNamespaceException {
     String provider = properties.get("provider");
-    if (provider == null || "iceberg".equalsIgnoreCase(provider)) {
+    if (useIceberg(provider)) {
       return icebergCatalog.createTable(ident, schema, partitions, properties);
-
-    } else if (createParquetAsIceberg && "parquet".equalsIgnoreCase(provider)) {
-      return icebergCatalog.createTable(ident, schema, partitions, properties);
-
-    } else if (createAvroAsIceberg && "avro".equalsIgnoreCase(provider)) {
-      return icebergCatalog.createTable(ident, schema, partitions, properties);
-
     } else {
       // delegate to the session catalog
       return sessionCatalog.createTable(ident, schema, partitions, properties);
+    }
+  }
+
+  @Override
+  public StagedTable stageCreate(Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties) throws TableAlreadyExistsException, NoSuchNamespaceException {
+    String provider = properties.get("provider");
+    TableCatalog catalog;
+    if (useIceberg(provider)) {
+      if (asStagingCatalog != null) {
+        return asStagingCatalog.stageCreate(ident, schema, partitions, properties);
+      }
+      catalog = icebergCatalog;
+    } else {
+      catalog = sessionCatalog;
+    }
+
+    // create the table with the session catalog, then wrap it in a staged table that will delete to roll back
+    Table table = catalog.createTable(ident, schema, partitions, properties);
+    return new RollbackStagedTable(catalog, ident, table);
+  }
+
+  @Override
+  public StagedTable stageReplace(Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties) throws NoSuchNamespaceException, NoSuchTableException {
+    String provider = properties.get("provider");
+    TableCatalog catalog;
+    if (useIceberg(provider)) {
+      if (asStagingCatalog != null) {
+        return asStagingCatalog.stageReplace(ident, schema, partitions, properties);
+      }
+      catalog = icebergCatalog;
+    } else {
+      catalog = sessionCatalog;
+    }
+
+    // attempt to drop the table and fail if it doesn't exist
+    if (!catalog.dropTable(ident)) {
+      throw new NoSuchTableException(ident);
+    }
+
+    try {
+      // create the table with the session catalog, then wrap it in a staged table that will delete to roll back
+      Table table = catalog.createTable(ident, schema, partitions, properties);
+      return new RollbackStagedTable(catalog, ident, table);
+
+    } catch (TableAlreadyExistsException e) {
+      // the table was deleted, but now already exists again. retry the replace.
+      return stageReplace(ident, schema, partitions, properties);
+    }
+  }
+
+  @Override
+  public StagedTable stageCreateOrReplace(Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties) throws NoSuchNamespaceException {
+    String provider = properties.get("provider");
+    TableCatalog catalog;
+    if (useIceberg(provider)) {
+      if (asStagingCatalog != null) {
+        return asStagingCatalog.stageCreateOrReplace(ident, schema, partitions, properties);
+      }
+      catalog = icebergCatalog;
+    } else {
+      catalog = sessionCatalog;
+    }
+
+    // drop the table if it exists
+    catalog.dropTable(ident);
+
+    try {
+      // create the table with the session catalog, then wrap it in a staged table that will delete to roll back
+      Table sessionCatalogTable = catalog.createTable(ident, schema, partitions, properties);
+      return new RollbackStagedTable(catalog, ident, sessionCatalogTable);
+
+    } catch (TableAlreadyExistsException e) {
+      // the table was deleted, but now already exists again. retry the replace.
+      return stageCreateOrReplace(ident, schema, partitions, properties);
     }
   }
 
@@ -167,8 +238,13 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
   public final void initialize(String name, CaseInsensitiveStringMap options) {
     this.catalogName = name;
     this.icebergCatalog = buildSparkCatalog(name, options);
+    if (icebergCatalog instanceof StagingTableCatalog) {
+      this.asStagingCatalog = (StagingTableCatalog) icebergCatalog;
+    }
+
     this.createParquetAsIceberg = options.getBoolean("parquet-enabled", createParquetAsIceberg);
     this.createAvroAsIceberg = options.getBoolean("avro-enabled", createAvroAsIceberg);
+    this.createOrcAsIceberg = options.getBoolean("orc-enabled", createOrcAsIceberg);
   }
 
   @Override
@@ -184,5 +260,19 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
   @Override
   public String name() {
     return catalogName;
+  }
+
+  private boolean useIceberg(String provider) {
+    if (provider == null || "iceberg".equalsIgnoreCase(provider)) {
+      return true;
+    } else if (createParquetAsIceberg && "parquet".equalsIgnoreCase(provider)) {
+      return true;
+    } else if (createAvroAsIceberg && "avro".equalsIgnoreCase(provider)) {
+      return true;
+    } else if (createOrcAsIceberg && "orc".equalsIgnoreCase(provider)) {
+      return true;
+    }
+
+    return false;
   }
 }
