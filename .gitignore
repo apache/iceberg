@@ -1,10 +1,5 @@
-*.swp
-.DS_Store
-.cache
-
 # intellij files
 .idea
-.idea_modules/
 *.ipr
 *.iws
 *.iml
@@ -34,7 +29,6 @@ sdist/
 coverage.xml
 .pytest_cache/
 spark/tmp/
-spark/spark-warehouse/
 
 # vscode/eclipse files
 .classpath
