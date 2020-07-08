@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.data.parquet;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -28,6 +30,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
@@ -299,6 +302,10 @@ public abstract class BaseParquetReaders<T> {
         case INT64:
         case DOUBLE:
           return new ParquetValueReaders.UnboxedReader<>(desc);
+        case INT96:
+          // Impala & Spark used to write timestamps as INT96 without a logical type. For backwards
+          // compatibility we try to read INT96 as timestamps.
+          return new TimestampInt96Reader(desc);
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
@@ -342,6 +349,25 @@ public abstract class BaseParquetReaders<T> {
     @Override
     public LocalDateTime read(LocalDateTime reuse) {
       return EPOCH.plus(column.nextLong() * 1000, ChronoUnit.MICROS).toLocalDateTime();
+    }
+  }
+
+  private static class TimestampInt96Reader extends ParquetValueReaders.PrimitiveReader<LocalDateTime> {
+    private static final long UNIX_EPOCH_JULIAN = 2_440_588L;
+
+    private TimestampInt96Reader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public LocalDateTime read(LocalDateTime reuse) {
+      final ByteBuffer byteBuffer = column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+      final long timeOfDayNanos = byteBuffer.getLong();
+      final int julianDay = byteBuffer.getInt();
+
+      return Instant
+              .ofEpochMilli(TimeUnit.DAYS.toMillis(julianDay - UNIX_EPOCH_JULIAN))
+              .plusNanos(timeOfDayNanos).atOffset(ZoneOffset.UTC).toLocalDateTime();
     }
   }
 

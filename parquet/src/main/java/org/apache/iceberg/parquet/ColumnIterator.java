@@ -47,6 +47,13 @@ public abstract class ColumnIterator<T> extends BaseColumnIterator implements Tr
             return nextLong();
           }
         };
+      case INT96:
+        return (ColumnIterator<T>) new ColumnIterator<Binary>(desc, writerVersion) {
+          @Override
+          public Binary next() {
+            return nextBinary();
+          }
+        };
       case FLOAT:
         return (ColumnIterator<T>) new ColumnIterator<Float>(desc, writerVersion) {
           @Override
