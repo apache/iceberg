@@ -23,7 +23,9 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.AfterClass;
@@ -76,6 +78,8 @@ public abstract class SparkCatalogTestBase extends SparkTestBase {
   protected final String catalogName;
   protected final Catalog validationCatalog;
   protected final SupportsNamespaces validationNamespaceCatalog;
+  protected final TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("default"), "table");
+  protected final String tableName;
 
   public SparkCatalogTestBase(String catalogName, String implementation, Map<String, String> config) {
     this.catalogName = catalogName;
@@ -90,5 +94,13 @@ public abstract class SparkCatalogTestBase extends SparkTestBase {
     if (config.get("type").equalsIgnoreCase("hadoop")) {
       spark.conf().set("spark.sql.catalog." + catalogName + ".warehouse", "file:" + warehouse);
     }
+
+    this.tableName = (catalogName.equals("spark_catalog") ? "" : catalogName + ".") + "default.table";
+
+    sql("CREATE NAMESPACE IF NOT EXISTS default");
+  }
+
+  protected String tableName(String name) {
+    return (catalogName.equals("spark_catalog") ? "" : catalogName + ".") + "default." + name;
   }
 }

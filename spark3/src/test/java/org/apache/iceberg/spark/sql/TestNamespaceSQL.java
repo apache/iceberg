@@ -69,7 +69,7 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
     sql("USE %s", catalogName);
 
-    String[] current = Iterables.getOnlyElement(sql("SHOW CURRENT NAMESPACE"));
+    Object[] current = Iterables.getOnlyElement(sql("SHOW CURRENT NAMESPACE"));
     Assert.assertEquals("Should use the current catalog", current[0], catalogName);
     Assert.assertEquals("Should use the configured default namespace", current[1], "default");
   }
@@ -114,12 +114,12 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
     Assert.assertTrue("Namespace should exist", validationNamespaceCatalog.namespaceExists(NS));
 
-    List<String[]> rows = sql("SHOW TABLES IN %s", fullNamespace);
+    List<Object[]> rows = sql("SHOW TABLES IN %s", fullNamespace);
     Assert.assertEquals("Should not list any tables", 0, rows.size());
 
     sql("CREATE TABLE %s.table (id bigint) USING iceberg", fullNamespace);
 
-    String[] row = Iterables.getOnlyElement(sql("SHOW TABLES IN %s", fullNamespace));
+    Object[] row = Iterables.getOnlyElement(sql("SHOW TABLES IN %s", fullNamespace));
     Assert.assertEquals("Namespace should match", "db", row[0]);
     Assert.assertEquals("Table name should match", "table", row[1]);
   }
@@ -132,21 +132,21 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
     Assert.assertTrue("Namespace should exist", validationNamespaceCatalog.namespaceExists(NS));
 
-    List<String[]> namespaces = sql("SHOW NAMESPACES IN %s", catalogName);
+    List<Object[]> namespaces = sql("SHOW NAMESPACES IN %s", catalogName);
 
     if (isHadoopCatalog) {
       Assert.assertEquals("Should have 1 namespace", 1, namespaces.size());
-      Set<String> namespaceNames = namespaces.stream().map(arr -> arr[0]).collect(Collectors.toSet());
+      Set<String> namespaceNames = namespaces.stream().map(arr -> arr[0].toString()).collect(Collectors.toSet());
       Assert.assertEquals("Should have only db namespace", ImmutableSet.of("db"), namespaceNames);
     } else {
       Assert.assertEquals("Should have 2 namespaces", 2, namespaces.size());
-      Set<String> namespaceNames = namespaces.stream().map(arr -> arr[0]).collect(Collectors.toSet());
+      Set<String> namespaceNames = namespaces.stream().map(arr -> arr[0].toString()).collect(Collectors.toSet());
       Assert.assertEquals("Should have default and db namespaces", ImmutableSet.of("default", "db"), namespaceNames);
     }
 
-    List<String[]> nestedNamespaces = sql("SHOW NAMESPACES IN %s", fullNamespace);
+    List<Object[]> nestedNamespaces = sql("SHOW NAMESPACES IN %s", fullNamespace);
 
-    Set<String> nestedNames = nestedNamespaces.stream().map(arr -> arr[0]).collect(Collectors.toSet());
+    Set<String> nestedNames = nestedNamespaces.stream().map(arr -> arr[0].toString()).collect(Collectors.toSet());
     Assert.assertEquals("Should not have nested namespaces", ImmutableSet.of(), nestedNames);
   }
 

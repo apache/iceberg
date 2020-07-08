@@ -153,10 +153,12 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   }
 
   @Override
-  public void renameTable(TableIdentifier from, TableIdentifier to) {
+  public void renameTable(TableIdentifier from, TableIdentifier originalTo) {
     if (!isValidIdentifier(from)) {
       throw new NoSuchTableException("Invalid identifier: %s", from);
     }
+
+    TableIdentifier to = removeCatalogName(originalTo);
     Preconditions.checkArgument(isValidIdentifier(to), "Invalid identifier: %s", to);
 
     String toDatabase = to.namespace().level(0);
@@ -345,6 +347,20 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   @Override
   protected boolean isValidIdentifier(TableIdentifier tableIdentifier) {
     return tableIdentifier.namespace().levels().length == 1;
+  }
+
+  private TableIdentifier removeCatalogName(TableIdentifier to) {
+    if (isValidIdentifier(to)) {
+      return to;
+    }
+
+    // check if the identifier includes the catalog name and remove it
+    if (to.namespace().levels().length == 2 && name().equalsIgnoreCase(to.namespace().level(0))) {
+      return TableIdentifier.of(Namespace.of(to.namespace().level(1)), to.name());
+    }
+
+    // return the original unmodified
+    return to;
   }
 
   private boolean isValidateNamespace(Namespace namespace) {
