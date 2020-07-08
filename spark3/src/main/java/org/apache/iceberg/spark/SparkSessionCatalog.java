@@ -134,7 +134,9 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
   }
 
   @Override
-  public StagedTable stageCreate(Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties) throws TableAlreadyExistsException, NoSuchNamespaceException {
+  public StagedTable stageCreate(Identifier ident, StructType schema, Transform[] partitions,
+                                 Map<String, String> properties)
+      throws TableAlreadyExistsException, NoSuchNamespaceException {
     String provider = properties.get("provider");
     TableCatalog catalog;
     if (useIceberg(provider)) {
@@ -152,7 +154,9 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
   }
 
   @Override
-  public StagedTable stageReplace(Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties) throws NoSuchNamespaceException, NoSuchTableException {
+  public StagedTable stageReplace(Identifier ident, StructType schema, Transform[] partitions,
+                                  Map<String, String> properties)
+      throws NoSuchNamespaceException, NoSuchTableException {
     String provider = properties.get("provider");
     TableCatalog catalog;
     if (useIceberg(provider)) {
@@ -181,7 +185,8 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
   }
 
   @Override
-  public StagedTable stageCreateOrReplace(Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties) throws NoSuchNamespaceException {
+  public StagedTable stageCreateOrReplace(Identifier ident, StructType schema, Transform[] partitions,
+                                          Map<String, String> properties) throws NoSuchNamespaceException {
     String provider = properties.get("provider");
     TableCatalog catalog;
     if (useIceberg(provider)) {
