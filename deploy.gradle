@@ -17,7 +17,7 @@
  * under the License.
  */
 
-if (project.hasProperty('release') && jdkVersion != JavaVersion.VERSION_1_8) {
+if (project.hasProperty('release') && jdkVersion != '8') {
   throw new GradleException("Releases must be built with Java 8")
 }
 
