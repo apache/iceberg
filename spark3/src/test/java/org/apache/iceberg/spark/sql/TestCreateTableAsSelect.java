@@ -108,20 +108,15 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
         "SELECT id, data, CASE WHEN (id %% 2) = 0 THEN 'even' ELSE 'odd' END AS part " +
         "FROM %s ORDER BY 3, 1", tableName, sourceName);
 
-    // spark_catalog does not use an atomic replace, so the table history and old spec is dropped
-    // the other catalogs do use atomic replace, so the spec id is incremented
-    boolean isAtomic = !"spark_catalog".equals(catalogName);
-
     Schema expectedSchema = new Schema(
         Types.NestedField.optional(1, "id", Types.LongType.get()),
         Types.NestedField.optional(2, "data", Types.StringType.get()),
         Types.NestedField.optional(3, "part", Types.StringType.get())
     );
 
-    int specId = isAtomic ? 1 : 0;
     PartitionSpec expectedSpec = PartitionSpec.builderFor(expectedSchema)
         .identity("part")
-        .withSpecId(specId)
+        .withSpecId(1)
         .build();
 
     Table rtasTable = validationCatalog.loadTable(tableIdent);
@@ -138,7 +133,7 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
     Assert.assertEquals("Table should have expected snapshots",
-        isAtomic ? 2 : 1, Iterables.size(rtasTable.snapshots()));
+        2, Iterables.size(rtasTable.snapshots()));
   }
 
   @Test
@@ -155,9 +150,6 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
     sql("CREATE OR REPLACE TABLE %s USING iceberg PARTITIONED BY (part) AS " +
         "SELECT 2 * id as id, data, CASE WHEN ((2 * id) %% 2) = 0 THEN 'even' ELSE 'odd' END AS part " +
         "FROM %s ORDER BY 3, 1", tableName, sourceName);
-
-    // spark_catalog does not use an atomic replace, so the table history is dropped
-    boolean isAtomic = !"spark_catalog".equals(catalogName);
 
     Schema expectedSchema = new Schema(
         Types.NestedField.optional(1, "id", Types.LongType.get()),
@@ -184,7 +176,7 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
     Assert.assertEquals("Table should have expected snapshots",
-        isAtomic ? 2 : 1, Iterables.size(rtasTable.snapshots()));
+        2, Iterables.size(rtasTable.snapshots()));
   }
 
   @Test
@@ -226,20 +218,15 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
         .using("iceberg")
         .replace();
 
-    // spark_catalog does not use an atomic replace, so the table history and old spec is dropped
-    // the other catalogs do use atomic replace, so the spec id is incremented
-    boolean isAtomic = !"spark_catalog".equals(catalogName);
-
     Schema expectedSchema = new Schema(
         Types.NestedField.optional(1, "id", Types.LongType.get()),
         Types.NestedField.optional(2, "data", Types.StringType.get()),
         Types.NestedField.optional(3, "part", Types.StringType.get())
     );
 
-    int specId = isAtomic ? 1 : 0;
     PartitionSpec expectedSpec = PartitionSpec.builderFor(expectedSchema)
         .identity("part")
-        .withSpecId(specId)
+        .withSpecId(1)
         .build();
 
     Table rtasTable = validationCatalog.loadTable(tableIdent);
@@ -256,7 +243,7 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
     Assert.assertEquals("Table should have expected snapshots",
-        isAtomic ? 2 : 1, Iterables.size(rtasTable.snapshots()));
+        2, Iterables.size(rtasTable.snapshots()));
   }
 
   @Test
@@ -289,9 +276,6 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
         .using("iceberg")
         .createOrReplace();
 
-    // spark_catalog does not use an atomic replace, so the table history is dropped
-    boolean isAtomic = !"spark_catalog".equals(catalogName);
-
     Schema expectedSchema = new Schema(
         Types.NestedField.optional(1, "id", Types.LongType.get()),
         Types.NestedField.optional(2, "data", Types.StringType.get()),
@@ -317,6 +301,6 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
     Assert.assertEquals("Table should have expected snapshots",
-        isAtomic ? 2 : 1, Iterables.size(rtasTable.snapshots()));
+        2, Iterables.size(rtasTable.snapshots()));
   }
 }
