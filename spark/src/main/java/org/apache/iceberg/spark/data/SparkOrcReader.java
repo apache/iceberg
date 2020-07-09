@@ -32,7 +32,6 @@ import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.types.Decimal;
 
 /**
  * Converts the OrcIterator, which returns ORC's VectorizedRowBatch to a
@@ -103,11 +102,7 @@ public class SparkOrcReader implements OrcRowReader<InternalRow> {
         case TIMESTAMP_INSTANT:
           return SparkOrcValueReaders.timestampTzs();
         case DECIMAL:
-          if (primitive.getPrecision() <= Decimal.MAX_LONG_DIGITS()) {
-            return new SparkOrcValueReaders.Decimal18Reader(primitive.getPrecision(), primitive.getScale());
-          } else {
-            return new SparkOrcValueReaders.Decimal38Reader(primitive.getPrecision(), primitive.getScale());
-          }
+          return SparkOrcValueReaders.decimals(primitive.getPrecision(), primitive.getScale());
         case CHAR:
         case VARCHAR:
         case STRING:

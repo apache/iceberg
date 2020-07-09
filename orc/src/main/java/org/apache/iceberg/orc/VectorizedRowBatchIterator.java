@@ -38,10 +38,10 @@ public class VectorizedRowBatchIterator implements Iterator<VectorizedRowBatch>,
   private final VectorizedRowBatch batch;
   private boolean advanced = false;
 
-  VectorizedRowBatchIterator(String fileLocation, TypeDescription schema, RecordReader rows) {
+  VectorizedRowBatchIterator(String fileLocation, TypeDescription schema, RecordReader rows, int recordsPerBatch) {
     this.fileLocation = fileLocation;
     this.rows = rows;
-    this.batch = schema.createRowBatch();
+    this.batch = schema.createRowBatch(recordsPerBatch);
   }
 
   @Override

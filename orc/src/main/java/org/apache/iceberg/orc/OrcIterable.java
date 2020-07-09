@@ -49,10 +49,13 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private final Function<TypeDescription, OrcRowReader<?>> readerFunction;
   private final Expression filter;
   private final boolean caseSensitive;
+  private final Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction;
+  private final int recordsPerBatch;
 
   OrcIterable(InputFile file, Configuration config, Schema schema,
               Long start, Long length,
-              Function<TypeDescription, OrcRowReader<?>> readerFunction, boolean caseSensitive, Expression filter) {
+              Function<TypeDescription, OrcRowReader<?>> readerFunction, boolean caseSensitive, Expression filter,
+              Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction, int recordsPerBatch) {
     this.schema = schema;
     this.readerFunction = readerFunction;
     this.file = file;
@@ -61,6 +64,8 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
     this.config = config;
     this.caseSensitive = caseSensitive;
     this.filter = (filter == Expressions.alwaysTrue()) ? null : filter;
+    this.batchReaderFunction = batchReaderFunction;
+    this.recordsPerBatch = recordsPerBatch;
   }
 
   @SuppressWarnings("unchecked")
@@ -75,16 +80,20 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
       Expression boundFilter = Binder.bind(schema.asStruct(), filter, caseSensitive);
       sarg = ExpressionToSearchArgument.convert(boundFilter, readOrcSchema);
     }
-    Iterator<T> iterator = new OrcIterator(
-        newOrcIterator(file, readOrcSchema, start, length, orcFileReader, sarg),
-        readerFunction.apply(readOrcSchema));
+
+    VectorizedRowBatchIterator rowBatchIterator = newOrcIterator(file, readOrcSchema, start, length, orcFileReader,
+        sarg, recordsPerBatch);
+    Iterator<T> iterator = batchReaderFunction != null ?
+        new OrcBatchIterator(rowBatchIterator, batchReaderFunction.apply(readOrcSchema)) :
+        new OrcRowIterator(rowBatchIterator, readerFunction.apply(readOrcSchema));
     return CloseableIterator.withClose(iterator);
   }
 
   private static VectorizedRowBatchIterator newOrcIterator(InputFile file,
                                                            TypeDescription readerSchema,
                                                            Long start, Long length,
-                                                           Reader orcFileReader, SearchArgument sarg) {
+                                                           Reader orcFileReader, SearchArgument sarg,
+                                                           int recordsPerBatch) {
     final Reader.Options options = orcFileReader.options();
     if (start != null) {
       options.range(start, length);
@@ -93,13 +102,14 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
     options.searchArgument(sarg, new String[]{});
 
     try {
-      return new VectorizedRowBatchIterator(file.location(), readerSchema, orcFileReader.rows(options));
+      return new VectorizedRowBatchIterator(file.location(), readerSchema, orcFileReader.rows(options),
+          recordsPerBatch);
     } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to get ORC rows for file: %s", file);
     }
   }
 
-  private static class OrcIterator<T> implements Iterator<T> {
+  private static class OrcRowIterator<T> implements Iterator<T> {
 
     private int nextRow;
     private VectorizedRowBatch current;
@@ -107,7 +117,7 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
     private final VectorizedRowBatchIterator batchIter;
     private final OrcRowReader<T> reader;
 
-    OrcIterator(VectorizedRowBatchIterator batchIter, OrcRowReader<T> reader) {
+    OrcRowIterator(VectorizedRowBatchIterator batchIter, OrcRowReader<T> reader) {
       this.batchIter = batchIter;
       this.reader = reader;
       current = null;
@@ -127,6 +137,27 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
       }
 
       return this.reader.read(current, nextRow++);
+    }
+  }
+
+  private static class OrcBatchIterator<T> implements Iterator<T> {
+
+    private final VectorizedRowBatchIterator batchIter;
+    private final OrcBatchReader<T> reader;
+
+    OrcBatchIterator(VectorizedRowBatchIterator batchIter, OrcBatchReader<T> reader) {
+      this.batchIter = batchIter;
+      this.reader = reader;
+    }
+
+    @Override
+    public boolean hasNext() {
+      return batchIter.hasNext();
+    }
+
+    @Override
+    public T next() {
+      return this.reader.read(batchIter.next());
     }
   }
 

@@ -127,6 +127,8 @@ public class ORC {
     private boolean caseSensitive = true;
 
     private Function<TypeDescription, OrcRowReader<?>> readerFunc;
+    private Function<TypeDescription, OrcBatchReader<?>> batchedReaderFunc;
+    private int recordsPerBatch = VectorizedRowBatch.DEFAULT_SIZE;
 
     private ReadBuilder(InputFile file) {
       Preconditions.checkNotNull(file, "Input file cannot be null");
@@ -177,9 +179,20 @@ public class ORC {
       return this;
     }
 
+    public ReadBuilder createBatchedReaderFunc(Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction) {
+      this.batchedReaderFunc = batchReaderFunction;
+      return this;
+    }
+
+    public ReadBuilder recordsPerBatch(int numRecordsPerBatch) {
+      this.recordsPerBatch = numRecordsPerBatch;
+      return this;
+    }
+
     public <D> CloseableIterable<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
-      return new OrcIterable<>(file, conf, schema, start, length, readerFunc, caseSensitive, filter);
+      return new OrcIterable<>(file, conf, schema, start, length, readerFunc, caseSensitive, filter, batchedReaderFunc,
+          recordsPerBatch);
     }
   }
 

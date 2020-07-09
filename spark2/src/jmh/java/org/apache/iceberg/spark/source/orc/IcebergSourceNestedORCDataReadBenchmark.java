@@ -68,12 +68,25 @@ public class IcebergSourceNestedORCDataReadBenchmark extends IcebergSourceNested
 
   @Benchmark
   @Threads(1)
-  public void readIceberg() {
+  public void readIcebergNonVectorized() {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
       Dataset<Row> df = spark().read().format("iceberg").load(tableLocation);
+      materialize(df);
+    });
+  }
+
+  @Benchmark
+  @Threads(1)
+  public void readIcebergVectorized() {
+    Map<String, String> tableProperties = Maps.newHashMap();
+    tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
+    withTableProperties(tableProperties, () -> {
+      String tableLocation = table().location();
+      Dataset<Row> df = spark().read().option("vectorization-enabled", "true")
+          .format("iceberg").load(tableLocation);
       materialize(df);
     });
   }
@@ -104,12 +117,25 @@ public class IcebergSourceNestedORCDataReadBenchmark extends IcebergSourceNested
 
   @Benchmark
   @Threads(1)
-  public void readWithProjectionIceberg() {
+  public void readWithProjectionIcebergNonVectorized() {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
       Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).selectExpr("nested.col3");
+      materialize(df);
+    });
+  }
+
+  @Benchmark
+  @Threads(1)
+  public void readWithProjectionIcebergVectorized() {
+    Map<String, String> tableProperties = Maps.newHashMap();
+    tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
+    withTableProperties(tableProperties, () -> {
+      String tableLocation = table().location();
+      Dataset<Row> df = spark().read().option("vectorization-enabled", "true")
+          .format("iceberg").load(tableLocation).selectExpr("nested.col3");
       materialize(df);
     });
   }

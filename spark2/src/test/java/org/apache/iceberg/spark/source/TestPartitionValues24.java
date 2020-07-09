@@ -20,7 +20,7 @@
 package org.apache.iceberg.spark.source;
 
 public class TestPartitionValues24 extends TestPartitionValues {
-  public TestPartitionValues24(String format) {
-    super(format);
+  public TestPartitionValues24(String format, boolean vectorized) {
+    super(format, vectorized);
   }
 }
