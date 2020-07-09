@@ -97,7 +97,6 @@ subprojects {
   compileJava {
     options.encoding = "UTF-8"
   }
-  compileJava.dependsOn(generateLock, saveLock)
 
   compileTestJava {
     options.encoding = "UTF-8"
