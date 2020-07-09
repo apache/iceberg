@@ -20,7 +20,7 @@
 package org.apache.iceberg.data.avro;
 
 import java.util.Map;
-import org.apache.iceberg.Schema;
+import org.apache.avro.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 /**
@@ -28,15 +28,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
  */
 @Deprecated
 public class DataReader<T> extends BaseAvroGenericReader<T> {
-  DataReader(Schema expectedSchema, org.apache.avro.Schema readSchema, Map<Integer, ?> idToConstant) {
+  DataReader(org.apache.iceberg.Schema expectedSchema, Schema readSchema, Map<Integer, ?> idToConstant) {
     super(expectedSchema, readSchema, idToConstant);
   }
 
-  public static <D> DataReader<D> create(Schema expectedSchema, org.apache.avro.Schema readSchema) {
+  public static <D> DataReader<D> create(org.apache.iceberg.Schema expectedSchema, Schema readSchema) {
     return create(expectedSchema, readSchema, ImmutableMap.of());
   }
 
-  public static <D> DataReader<D> create(Schema expectedSchema, org.apache.avro.Schema readSchema,
+  public static <D> DataReader<D> create(org.apache.iceberg.Schema expectedSchema, Schema readSchema,
                                                     Map<Integer, ?> idToConstant) {
     return new DataReader<>(expectedSchema, readSchema, idToConstant);
   }
