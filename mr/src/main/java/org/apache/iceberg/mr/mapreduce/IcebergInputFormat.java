@@ -321,8 +321,10 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     private CloseableIterable<T> newOrcIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
+      Map<Integer, ?> idToConstant = constantsMap(task, IdentityPartitionConverters::convertConstant);
+      Schema readSchemaWithoutConstants = TypeUtil.selectNot(readSchema, idToConstant.keySet());
       ORC.ReadBuilder orcReadBuilder = ORC.read(inputFile)
-          .project(readSchema)
+          .project(readSchemaWithoutConstants)
           .filter(task.residual())
           .caseSensitive(caseSensitive)
           .split(task.start(), task.length());
@@ -335,7 +337,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
         case GENERIC:
           orcReadBuilder.createReaderFunc(
               fileSchema -> GenericOrcReader.buildReader(
-                  readSchema, fileSchema, constantsMap(task, IdentityPartitionConverters::convertConstant)));
+                  readSchema, fileSchema, idToConstant));
       }
 
       return applyResidualFiltering(orcReadBuilder.build(), task.residual(), readSchema);

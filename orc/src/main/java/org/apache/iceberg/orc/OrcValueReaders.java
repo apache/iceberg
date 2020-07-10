@@ -139,18 +139,19 @@ public class OrcValueReaders {
 
   public abstract static class StructReader<T> implements OrcValueReader<T> {
     private final OrcValueReader<?>[] readers;
-
-    protected StructReader(List<OrcValueReader<?>> readers) {
-      this.readers = readers.toArray(new OrcValueReader[0]);
-    }
+    private final boolean[] isConstantField;
 
     protected StructReader(List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
-      this.readers = readers.toArray(new OrcValueReader[0]);
       List<Types.NestedField> fields = struct.fields();
-      for (int pos = 0; pos < fields.size(); pos += 1) {
+      this.readers = new OrcValueReader[fields.size()];
+      this.isConstantField = new boolean[fields.size()];
+      for (int pos = 0, readerIndex = 0; pos < fields.size(); pos += 1) {
         Types.NestedField field = fields.get(pos);
         if (idToConstant.containsKey(field.fieldId())) {
+          this.isConstantField[pos] = true;
           this.readers[pos] = constants(idToConstant.get(field.fieldId()));
+        } else {
+          this.readers[pos] = readers.get(readerIndex++);
         }
       }
     }
@@ -170,8 +171,9 @@ public class OrcValueReaders {
     }
 
     private T readInternal(T struct, ColumnVector[] columnVectors, int row) {
-      for (int c = 0; c < readers.length; ++c) {
-        set(struct, c, reader(c).read(columnVectors[c], row));
+      for (int c = 0, vectorIndex = 0; c < readers.length; ++c) {
+        ColumnVector vector = isConstantField[c] ? null : columnVectors[vectorIndex++];
+        set(struct, c, reader(c).read(vector, row));
       }
       return struct;
     }

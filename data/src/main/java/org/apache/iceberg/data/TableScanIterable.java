@@ -47,6 +47,7 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
 
 class TableScanIterable extends CloseableGroup implements CloseableIterable<Record> {
@@ -106,8 +107,9 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
         return parquet.build();
 
       case ORC:
+        Schema projectionWithoutConstants = TypeUtil.selectNot(projection, partition.keySet());
         ORC.ReadBuilder orc = ORC.read(input)
-                .project(projection)
+                .project(projectionWithoutConstants)
                 .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(projection, fileSchema, partition))
                 .split(task.start(), task.length())
                 .filter(task.residual());
