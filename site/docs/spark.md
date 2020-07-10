@@ -51,7 +51,7 @@ Iceberg also supports a directory-based catalog in HDFS that can be configured u
 
 ```plain
 spark.sql.catalog.hadoop_prod = org.apache.iceberg.spark.SparkCatalog
-spark.sql.catalog.hadoop_prod.type = hive
+spark.sql.catalog.hadoop_prod.type = hadoop
 spark.sql.catalog.hadoop_prod.warehouse = hdfs://nn:8020/warehouse/path
 ```
 
@@ -66,7 +66,7 @@ Catalog names are used in SQL queries to identify a table. In the examples above
 SELECT * FROM hive_prod.db.table -- load db.table from catalog hive_prod
 ```
 
-Spark 3 keeps track of a current catalog and namespace, which can be omitted from table names.
+Spark 3 keeps track of the current catalog and namespace, which can be omitted from table names.
 
 ```sql
 USE hive_prod.db;
@@ -385,7 +385,7 @@ WHERE cast(ts as date) = '2020-07-01'
 GROUP BY uuid
 ```
 
-In dynamic mode, this will replace any partition with rows in the `SELECT` result. Because the date of all rows is restricted 1 July, only hours of that day will be replaced.
+In dynamic mode, this will replace any partition with rows in the `SELECT` result. Because the date of all rows is restricted to 1 July, only hours of that day will be replaced.
 
 #### Static overwrite
 
