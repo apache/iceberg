@@ -23,8 +23,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -393,6 +395,15 @@ public final class ORCSchemaUtil {
       return !Boolean.parseBoolean(isRequiredStr);
     }
     return true;
+  }
+
+  static boolean hasIds(TypeDescription orcSchema) {
+    List<Boolean> result = OrcSchemaVisitor.visitSchema(orcSchema, new HasIds());
+    return result.stream().anyMatch(Predicate.isEqual(true));
+  }
+
+  static TypeDescription applyNameMapping(TypeDescription orcSchema, NameMapping nameMapping) {
+    return OrcSchemaVisitor.visit(orcSchema, new ApplyNameMapping(nameMapping));
   }
 
   /**

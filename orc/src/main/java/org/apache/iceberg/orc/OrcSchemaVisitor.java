@@ -47,11 +47,36 @@ public abstract class OrcSchemaVisitor<T> {
         throw new UnsupportedOperationException("Cannot handle " + schema);
 
       case LIST:
-        return visitor.list(schema, visit(schema.getChildren().get(0), visitor));
+        TypeDescription element = schema.getChildren().get(0);
+        visitor.beforeElementField(element);
+        final T elementResult;
+        try {
+          elementResult = visit(element, visitor);
+        } finally {
+          visitor.afterElementField(element);
+        }
+        return visitor.list(schema, elementResult);
 
       case MAP:
-        return visitor.map(schema, visit(schema.getChildren().get(0), visitor),
-            visit(schema.getChildren().get(1), visitor));
+        final T keyResult;
+        final T valueResult;
+
+        TypeDescription key = schema.getChildren().get(0);
+        visitor.beforeKeyField(key);
+        try {
+          keyResult = visit(key, visitor);
+        } finally {
+          visitor.afterKeyField(key);
+        }
+
+        TypeDescription value = schema.getChildren().get(1);
+        visitor.beforeValueField(value);
+        try {
+          valueResult = visit(value, visitor);
+        } finally {
+          visitor.afterValueField(value);
+        }
+        return visitor.map(schema, keyResult, valueResult);
 
       default:
         return visitor.primitive(schema);
@@ -83,9 +108,45 @@ public abstract class OrcSchemaVisitor<T> {
     return visitor.record(record, names, visitFields(fields, names, visitor));
   }
 
+  public String elementName() {
+    return "_elem";
+  }
+
+  public String keyName() {
+    return "_key";
+  }
+
+  public String valueName() {
+    return "_value";
+  }
+
   public void beforeField(String name, TypeDescription type) {}
 
   public void afterField(String name, TypeDescription type) {}
+
+  public void beforeElementField(TypeDescription element) {
+    beforeField(elementName(), element);
+  }
+
+  public void afterElementField(TypeDescription element) {
+    afterField(elementName(), element);
+  }
+
+  public void beforeKeyField(TypeDescription key) {
+    beforeField(keyName(), key);
+  }
+
+  public void afterKeyField(TypeDescription key) {
+    afterField(keyName(), key);
+  }
+
+  public void beforeValueField(TypeDescription value) {
+    beforeField(valueName(), value);
+  }
+
+  public void afterValueField(TypeDescription value) {
+    afterField(valueName(), value);
+  }
 
   public T record(TypeDescription record, List<String> names, List<T> fields) {
     return null;
