@@ -42,7 +42,6 @@ import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.sql.vectorized.ColumnarMap;
 import org.apache.spark.unsafe.types.UTF8String;
-import scala.math.BigDecimal;
 
 public class VectorizedSparkOrcReaders {
 
@@ -303,12 +302,9 @@ public class VectorizedSparkOrcReaders {
 
     @Override
     public Decimal getDecimal(int rowId, int precision, int scale) {
-      Decimal value = (Decimal) primitiveValueReader.read(vector, rowId);
-      if (value == null || value.precision() == precision && value.scale() == scale) {
-        return value;
-      } else {
-        return value.toPrecision(precision, scale, BigDecimal.RoundingMode$.MODULE$.UNNECESSARY());
-      }
+      // TODO: Is it okay to assume that (precision,scale) parameters == (precision,scale) of the decimal type
+      // and return a Decimal with (precision,scale) of the decimal type?
+      return (Decimal) primitiveValueReader.read(vector, rowId);
     }
 
     @Override
