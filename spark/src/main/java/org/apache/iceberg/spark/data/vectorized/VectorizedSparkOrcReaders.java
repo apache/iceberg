@@ -77,7 +77,7 @@ public class VectorizedSparkOrcReaders {
     @Override
     public Converter record(Types.StructType iStruct, TypeDescription record, List<String> names,
         List<Converter> fields) {
-      return new StructReader(iStruct, fields, idToConstant);
+      return new StructConverter(iStruct, fields, idToConstant);
     }
 
     @Override
@@ -378,12 +378,13 @@ public class VectorizedSparkOrcReaders {
     }
   }
 
-  private static class StructReader implements Converter {
+  private static class StructConverter implements Converter {
     private final Types.StructType structType;
     private final List<Converter> fieldConverters;
     private final Map<Integer, ?> idToConstant;
 
-    private StructReader(Types.StructType structType, List<Converter> fieldConverters, Map<Integer, ?> idToConstant) {
+    private StructConverter(Types.StructType structType, List<Converter> fieldConverters,
+        Map<Integer, ?> idToConstant) {
       this.structType = structType;
       this.fieldConverters = fieldConverters;
       this.idToConstant = idToConstant;
