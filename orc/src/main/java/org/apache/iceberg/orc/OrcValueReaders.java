@@ -151,7 +151,8 @@ public class OrcValueReaders {
           this.isConstantField[pos] = true;
           this.readers[pos] = constants(idToConstant.get(field.fieldId()));
         } else {
-          this.readers[pos] = readers.get(readerIndex++);
+          this.readers[pos] = readers.get(readerIndex);
+          readerIndex++;
         }
       }
     }
@@ -172,7 +173,13 @@ public class OrcValueReaders {
 
     private T readInternal(T struct, ColumnVector[] columnVectors, int row) {
       for (int c = 0, vectorIndex = 0; c < readers.length; ++c) {
-        ColumnVector vector = isConstantField[c] ? null : columnVectors[vectorIndex++];
+        ColumnVector vector;
+        if (isConstantField[c]) {
+          vector = null;
+        } else {
+          vector = columnVectors[vectorIndex];
+          vectorIndex++;
+        }
         set(struct, c, reader(c).read(vector, row));
       }
       return struct;
