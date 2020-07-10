@@ -19,11 +19,13 @@
 
 package org.apache.iceberg.mr;
 
+import java.io.File;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Expression;
 
 public class InputFormatConfig {
@@ -73,6 +75,10 @@ public class InputFormatConfig {
       conf.setBoolean(LOCALITY, false);
     }
 
+    public Configuration conf() {
+      return conf;
+    }
+
     public ConfigBuilder filter(Expression expression) {
       conf.set(FILTER_EXPRESSION, SerializationUtil.serializeToBase64(expression));
       return this;
@@ -86,6 +92,14 @@ public class InputFormatConfig {
     public ConfigBuilder schema(Schema schema) {
       conf.set(TABLE_SCHEMA, SchemaParser.toJson(schema));
       return this;
+    }
+
+    public ConfigBuilder readFrom(TableIdentifier identifier) {
+      return readFrom(identifier.toString());
+    }
+
+    public ConfigBuilder readFrom(File path) {
+      return readFrom(path.toString());
     }
 
     public ConfigBuilder readFrom(String path) {

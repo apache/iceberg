@@ -72,9 +72,10 @@ public class TestIcebergSerDe {
     IcebergSerDe serDe = new IcebergSerDe();
 
     Record record = RandomGenericData.generate(schema, 1, 0).get(0);
-    IcebergWritable writable = new IcebergWritable(record, schema);
+    Container<Record> container = new Container<>();
+    container.set(record);
 
-    Assert.assertEquals(record, serDe.deserialize(writable));
+    Assert.assertEquals(record, serDe.deserialize(container));
   }
 
 }

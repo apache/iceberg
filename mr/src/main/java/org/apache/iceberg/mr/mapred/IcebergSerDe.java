@@ -55,7 +55,7 @@ public class IcebergSerDe extends AbstractSerDe {
 
   @Override
   public Class<? extends Writable> getSerializedClass() {
-    return IcebergWritable.class;
+    return Container.class;
   }
 
   @Override
@@ -70,7 +70,7 @@ public class IcebergSerDe extends AbstractSerDe {
 
   @Override
   public Object deserialize(Writable writable) {
-    return ((IcebergWritable) writable).record();
+    return ((Container<?>) writable).get();
   }
 
   @Override

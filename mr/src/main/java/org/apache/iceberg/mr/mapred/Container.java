@@ -22,38 +22,22 @@ package org.apache.iceberg.mr.mapred;
 import java.io.DataInput;
 import java.io.DataOutput;
 import org.apache.hadoop.io.Writable;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.data.Record;
 
 /**
- * Wraps an Iceberg Record in a Writable which Hive can use in the SerDe.
+ * A simple container of objects that you can get and set.
+ *
+ * @param <T> the Java type of the object held by this container
  */
-public class IcebergWritable implements Writable {
+public class Container<T> implements Writable {
 
-  private Record record;
-  private Schema schema;
+  private T value;
 
-  public IcebergWritable(Record record, Schema schema) {
-    this.record = record;
-    this.schema = schema;
+  public T get() {
+    return value;
   }
 
-  @SuppressWarnings("checkstyle:HiddenField")
-  public void wrapRecord(Record record) {
-    this.record = record;
-  }
-
-  public Record record() {
-    return record;
-  }
-
-  public Schema schema() {
-    return schema;
-  }
-
-  @SuppressWarnings("checkstyle:HiddenField")
-  public void wrapSchema(Schema schema) {
-    this.schema = schema;
+  public void set(T newValue) {
+    this.value = newValue;
   }
 
   @Override
