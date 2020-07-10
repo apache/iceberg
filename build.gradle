@@ -66,10 +66,6 @@ subprojects {
   apply plugin: 'nebula.dependency-recommender'
   apply plugin: 'java'
 
-  dependencyResolutionVerifierExtension {
-    shouldFailTheBuild = false
-  }
-
   configurations {
     testCompile.extendsFrom compileOnly
 
