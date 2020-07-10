@@ -332,6 +332,18 @@ project(':iceberg-mr') {
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
+
+    compileOnly("org.apache.hive:hive-exec::core") {
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'com.google.guava'
+      exclude group: 'com.google.protobuf', module: 'protobuf-java'
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.apache.calcite.avatica'
+      exclude group: 'org.apache.hive', module: 'hive-llap-tez'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+    }
     compileOnly("org.apache.hive:hive-serde")
 
     testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
