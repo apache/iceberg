@@ -22,7 +22,6 @@ package org.apache.iceberg.orc;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
@@ -57,6 +56,10 @@ public class OrcValueReaders {
 
   public static OrcValueReader<byte[]> bytes() {
     return BytesReader.INSTANCE;
+  }
+
+  public static <C> OrcValueReader<C> constants(C constant) {
+    return new ConstantReader<>(constant);
   }
 
   private static class BooleanReader implements OrcValueReader<Boolean> {
@@ -136,31 +139,20 @@ public class OrcValueReaders {
 
   public abstract static class StructReader<T> implements OrcValueReader<T> {
     private final OrcValueReader<?>[] readers;
-    private final int[] positions;
-    private final Object[] constants;
 
     protected StructReader(List<OrcValueReader<?>> readers) {
       this.readers = readers.toArray(new OrcValueReader[0]);
-      this.positions = new int[0];
-      this.constants = new Object[0];
     }
 
     protected StructReader(List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
       this.readers = readers.toArray(new OrcValueReader[0]);
       List<Types.NestedField> fields = struct.fields();
-      List<Integer> positionList = Lists.newArrayListWithCapacity(fields.size());
-      List<Object> constantList = Lists.newArrayListWithCapacity(fields.size());
       for (int pos = 0; pos < fields.size(); pos += 1) {
         Types.NestedField field = fields.get(pos);
-        Object constant = idToConstant.get(field.fieldId());
-        if (constant != null) {
-          positionList.add(pos);
-          constantList.add(idToConstant.get(field.fieldId()));
+        if (idToConstant.containsKey(field.fieldId())) {
+          this.readers[pos] = constants(idToConstant.get(field.fieldId()));
         }
       }
-
-      this.positions = positionList.stream().mapToInt(Integer::intValue).toArray();
-      this.constants = constantList.toArray();
     }
 
     protected abstract T create();
@@ -181,12 +173,25 @@ public class OrcValueReaders {
       for (int c = 0; c < readers.length; ++c) {
         set(struct, c, reader(c).read(columnVectors[c], row));
       }
-
-      for (int i = 0; i < positions.length; i += 1) {
-        set(struct, positions[i], constants[i]);
-      }
-
       return struct;
+    }
+  }
+
+  private static class ConstantReader<C> implements OrcValueReader<C> {
+    private final C constant;
+
+    private ConstantReader(C constant) {
+      this.constant = constant;
+    }
+
+    @Override
+    public C read(ColumnVector ignored, int ignoredRow) {
+      return constant;
+    }
+
+    @Override
+    public C nonNullRead(ColumnVector ignored, int ignoredRow) {
+      return constant;
     }
   }
 }
