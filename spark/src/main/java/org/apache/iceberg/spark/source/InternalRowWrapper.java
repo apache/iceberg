@@ -62,7 +62,9 @@ class InternalRowWrapper implements StructLike {
 
   @Override
   public <T> T get(int pos, Class<T> javaClass) {
-    if (getters[pos] != null) {
+    if (row.isNullAt(pos)) {
+      return null;
+    } else if (getters[pos] != null) {
       return javaClass.cast(getters[pos].apply(row, pos));
     }
 
