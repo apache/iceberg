@@ -34,7 +34,7 @@ sdist/
 coverage.xml
 .pytest_cache/
 spark/tmp/
-spark/spark-warehouse/
+spark-warehouse/
 
 # vscode/eclipse files
 .classpath
