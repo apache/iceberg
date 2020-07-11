@@ -49,7 +49,7 @@ public class VectorizedSparkOrcReaders {
   }
 
   public static OrcBatchReader<ColumnarBatch> buildReader(Schema expectedSchema, TypeDescription fileSchema,
-      Map<Integer, ?> idToConstant) {
+                                                          Map<Integer, ?> idToConstant) {
     Converter converter = OrcSchemaWithTypeVisitor.visit(expectedSchema, fileSchema, new ReadBuilder(idToConstant));
 
     return batch -> {
@@ -76,7 +76,7 @@ public class VectorizedSparkOrcReaders {
 
     @Override
     public Converter record(Types.StructType iStruct, TypeDescription record, List<String> names,
-        List<Converter> fields) {
+                            List<Converter> fields) {
       return new StructConverter(iStruct, fields, idToConstant);
     }
 
@@ -264,7 +264,7 @@ public class VectorizedSparkOrcReaders {
     private final OrcValueReader<?> primitiveValueReader;
 
     PrimitiveOrcColumnVector(Type type, int batchSize, org.apache.orc.storage.ql.exec.vector.ColumnVector vector,
-        OrcValueReader<?> primitiveValueReader) {
+                             OrcValueReader<?> primitiveValueReader) {
       super(type, batchSize, vector);
       this.vector = vector;
       this.primitiveValueReader = primitiveValueReader;
@@ -384,7 +384,7 @@ public class VectorizedSparkOrcReaders {
     private final Map<Integer, ?> idToConstant;
 
     private StructConverter(Types.StructType structType, List<Converter> fieldConverters,
-        Map<Integer, ?> idToConstant) {
+                            Map<Integer, ?> idToConstant) {
       this.structType = structType;
       this.fieldConverters = fieldConverters;
       this.idToConstant = idToConstant;
