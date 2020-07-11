@@ -20,7 +20,6 @@
 package org.apache.iceberg.orc;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
@@ -83,10 +82,12 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
 
     VectorizedRowBatchIterator rowBatchIterator = newOrcIterator(file, readOrcSchema, start, length, orcFileReader,
         sarg, recordsPerBatch);
-    Iterator<T> iterator = batchReaderFunction != null ?
-        new OrcBatchIterator(rowBatchIterator, batchReaderFunction.apply(readOrcSchema)) :
-        new OrcRowIterator(rowBatchIterator, readerFunction.apply(readOrcSchema));
-    return CloseableIterator.withClose(iterator);
+    if (batchReaderFunction != null) {
+      OrcBatchReader<T> batchReader = (OrcBatchReader<T>) batchReaderFunction.apply(readOrcSchema);
+      return CloseableIterator.transform(rowBatchIterator, batchReader::read);
+    } else {
+      return new OrcRowIterator<>(rowBatchIterator, (OrcRowReader<T>) readerFunction.apply(readOrcSchema));
+    }
   }
 
   private static VectorizedRowBatchIterator newOrcIterator(InputFile file,
@@ -109,7 +110,7 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
     }
   }
 
-  private static class OrcRowIterator<T> implements Iterator<T> {
+  private static class OrcRowIterator<T> implements CloseableIterator<T> {
 
     private int nextRow;
     private VectorizedRowBatch current;
@@ -138,27 +139,10 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
 
       return this.reader.read(current, nextRow++);
     }
-  }
-
-  private static class OrcBatchIterator<T> implements Iterator<T> {
-
-    private final VectorizedRowBatchIterator batchIter;
-    private final OrcBatchReader<T> reader;
-
-    OrcBatchIterator(VectorizedRowBatchIterator batchIter, OrcBatchReader<T> reader) {
-      this.batchIter = batchIter;
-      this.reader = reader;
-    }
 
     @Override
-    public boolean hasNext() {
-      return batchIter.hasNext();
-    }
-
-    @Override
-    public T next() {
-      return this.reader.read(batchIter.next());
+    public void close() throws IOException {
+      batchIter.close();
     }
   }
-
 }
