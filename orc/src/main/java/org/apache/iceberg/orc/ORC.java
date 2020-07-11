@@ -170,6 +170,8 @@ public class ORC {
     }
 
     public ReadBuilder createReaderFunc(Function<TypeDescription, OrcRowReader<?>> readerFunction) {
+      Preconditions.checkArgument(this.batchedReaderFunc == null,
+          "Reader function cannot be set since the batched version is already set");
       this.readerFunc = readerFunction;
       return this;
     }
@@ -180,6 +182,8 @@ public class ORC {
     }
 
     public ReadBuilder createBatchedReaderFunc(Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction) {
+      Preconditions.checkArgument(this.readerFunc == null,
+          "Batched reader function cannot be set since the non-batched version is already set");
       this.batchedReaderFunc = batchReaderFunction;
       return this;
     }
