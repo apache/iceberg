@@ -218,8 +218,25 @@ Partition specs capture the transform from table data to partition values. This 
 | **`month`**       | Extract a date or timestamp month, as months from 1970-01-01 | `date`, `timestamp(tz)`                                                                                   | `int`       |
 | **`day`**         | Extract a date or timestamp day, as days from 1970-01-01     | `date`, `timestamp(tz)`                                                                                   | `date`      |
 | **`hour`**        | Extract a timestamp hour, as hours from 1970-01-01 00:00:00  | `timestamp(tz)`                                                                                           | `int`       |
+| **`void`**        | Always produces `null` (the void transform)                  | Any                                                                                                       | `null`      |
 
 All transforms must return `null` for a `null` input value.
+
+
+#### Partition Field ID handling
+
+A partition field ID is an integer used to identify a partition field. 
+Field IDs are required in v2 and optional in v1.
+
+About compatibility between v1 and v2 tables:
+
+* For backward compatibility, if field ids are missing in a table metadata, iceberg will sequentially generate ids for each field starting at 1000 based on its position in the list of fields.
+* For forward compatibility, if field ids are not supported but present in the metadata, old versions of the reference implementation will ignore those field ids and then regenerate an auto-increment field id starting at 1000 for every partition field.
+
+While working with a v1 table, field IDs might be reused if removing partition fields from its partition spec. 
+This may cause problems in metadata tables, i.e. a partition field ID might be assigned to multiple different partition fields during partition spec evolution for a given v1 table. 
+To avoid the problem, don't reorder or delete partition fields. Instead, add new fields at the end and replace fields with with `void` transform. 
+Also note that this is not needed for v2 tables.
 
 
 #### Bucket Transform Details
@@ -854,18 +871,11 @@ Each partition field in the fields list is stored as an object. See the table fo
 
 In some cases partition specs are stored using only the field list instead of the object format that includes the spec ID, like the deprecated `partition-spec` field in table metadata. The object format should be used unless otherwise noted in this spec.
 
-#### Partition Field ID handling
+#### Partition Field ID
 
-A partition field id is an integer (starting at 1000) used to identify a partition field.
-
-Since iceberg release 0.8.0, partition fields are present in every partition field of partition specs in a table metadata.
-
-* For backward compatibility, if field ids are missing in a table metadata, iceberg will sequentially generate ids for each field starting at 1000 based on its position in the list of fields.
-* For forward compatibility, if field ids are not supported, iceberg will ignore field ids.
-
-Additionally, in table metadata format v2, partition fields are required to have unique field IDs to support partition spec evolution.
-
-For tables without partition field IDs, iceberg will generate an auto-increment unique field id starting at 1000 for every partition field.
+A partition field ID is an integer used to identify a partition field.
+They are unique and do not conflict with field IDs for columns in manifest files. 
+Field IDs are required in v2 and optional in v1. The reference implementation assigns partition field IDs starting at 1,000.
 
 ### Sort Orders
 
