@@ -21,13 +21,13 @@ package org.apache.iceberg.spark.data.vectorized;
 
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.orc.OrcBatchReader;
 import org.apache.iceberg.orc.OrcSchemaWithTypeVisitor;
 import org.apache.iceberg.orc.OrcValueReader;
 import org.apache.iceberg.orc.OrcValueReaders;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkOrcValueReaders;
 import org.apache.iceberg.types.Type;
@@ -393,16 +393,17 @@ public class VectorizedSparkOrcReaders {
     @Override
     public ColumnVector convert(org.apache.orc.storage.ql.exec.vector.ColumnVector vector, int batchSize) {
       StructColumnVector structVector = (StructColumnVector) vector;
-      List<ColumnVector> fieldVectors = IntStream.range(0, structVector.fields.length)
-          .mapToObj(i -> {
-            Types.NestedField field = structType.fields().get(i);
-            if (idToConstant.containsKey(field.fieldId())) {
-              return new ConstantColumnVector(field.type(), batchSize, idToConstant.get(field.fieldId()));
-            } else {
-              return fieldConverters.get(i).convert(structVector.fields[i], batchSize);
-            }
-          })
-          .collect(Collectors.toList());
+      List<Types.NestedField> fields = structType.fields();
+      List<ColumnVector> fieldVectors = Lists.newArrayListWithExpectedSize(fields.size());
+      for (int pos = 0, vectorIndex = 0; pos < fields.size(); pos += 1) {
+        Types.NestedField field = fields.get(pos);
+        if (idToConstant.containsKey(field.fieldId())) {
+          fieldVectors.add(new ConstantColumnVector(field.type(), batchSize, idToConstant.get(field.fieldId())));
+        } else {
+          fieldVectors.add(fieldConverters.get(vectorIndex).convert(structVector.fields[vectorIndex], batchSize));
+          vectorIndex++;
+        }
+      }
 
       return new BaseOrcColumnVector(structType, batchSize, vector) {
         @Override

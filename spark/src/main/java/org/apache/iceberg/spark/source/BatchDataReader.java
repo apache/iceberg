@@ -104,8 +104,9 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
 
       iter = builder.build();
     } else if (task.file().format() == FileFormat.ORC) {
+      Schema schemaWithoutConstants = TypeUtil.selectNot(expectedSchema, idToConstant.keySet());
       iter = ORC.read(location)
-          .project(expectedSchema)
+          .project(schemaWithoutConstants)
           .split(task.start(), task.length())
           .createBatchedReaderFunc(fileSchema -> VectorizedSparkOrcReaders.buildReader(expectedSchema, fileSchema,
               idToConstant))
