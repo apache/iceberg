@@ -183,7 +183,7 @@ class PartitionSpec(object):
         return "".join(sb)
 
     @staticmethod
-    def builder_for(schema):
+    def builder_for(schema: Schema) -> "PartitionSpecBuilder":
         return PartitionSpecBuilder(schema)
 
     @staticmethod
@@ -301,7 +301,7 @@ class PartitionSpecBuilder(object):
     def add_without_field_id(self, source_id, name, transform):
         return self.add(source_id, self.__next_field_id(), name, transform)
 
-    def add(self, source_id, field_id, name, transform):
+    def add(self, source_id: int, field_id: int, name: str, transform: str) -> "PartitionSpecBuilder":
         self.check_and_add_partition_name(name)
         column = self.schema.find_field(source_id)
         if column is None:
