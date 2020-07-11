@@ -178,8 +178,9 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       FileScanTask task,
       Schema readSchema,
       Map<Integer, ?> idToConstant) {
+    Schema readSchemaWithoutConstants = TypeUtil.selectNot(readSchema, idToConstant.keySet());
     return ORC.read(location)
-        .project(readSchema)
+        .project(readSchemaWithoutConstants)
         .split(task.start(), task.length())
         .createReaderFunc(readOrcSchema -> new SparkOrcReader(readSchema, readOrcSchema, idToConstant))
         .filter(task.residual())
