@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-
 from iceberg.api import Tables
 from iceberg.exceptions import NoSuchTableException
 
@@ -36,15 +35,15 @@ class FilesystemTables(Tables):
 
         return BaseTable(ops, location)
 
-    def create(self, schema, table_identifier=None, spec=None, properties=None, location=None):
+    def create(self, schema, table_identifier=None, spec=None, properties=None):
         from ..base_table import BaseTable
         spec, properties = super(FilesystemTables, self).default_args(spec, properties)
-        ops = self.new_table_ops(location)
+        ops = self.new_table_ops(table_identifier)
 
-        metadata = TableMetadata.new_table_metadata(ops, schema, spec, location, properties)
+        metadata = TableMetadata.new_table_metadata(ops, schema, spec, table_identifier, properties)
         ops.commit(None, metadata)
 
-        return BaseTable(ops, location)
+        return BaseTable(ops, table_identifier)
 
     def new_table_ops(self, location):
         if location is None:

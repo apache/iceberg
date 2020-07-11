@@ -16,22 +16,17 @@
 # specific language governing permissions and limitations
 # under the License.
 #
+import os
 
-from iceberg.api import PartitionSpec, PartitionSpecBuilder, Schema
-from iceberg.api.types import IntegerType, NestedField, StringType
-import pytest
-
-
-@pytest.fixture(scope="session")
-def base_scan_schema():
-    return Schema([NestedField.required(1, "id", IntegerType.get()),
-                   NestedField.required(2, "data", StringType.get())])
+from iceberg.core.filesystem import FilesystemTables
 
 
-@pytest.fixture(scope="session", params=["none", "one"])
-def base_scan_partition(base_scan_schema, request):
-    if request.param == "none":
-        spec = PartitionSpec.unpartitioned()
-    else:
-        spec = PartitionSpecBuilder(base_scan_schema).add(1, 1000, "id", "identity").build()
-    return spec
+def test_create_tables(base_scan_schema, base_scan_partition, tmpdir):
+
+    conf = {"hive.metastore.uris": 'thrift://hms:port',
+            "hive.metastore.warehouse.dir": tmpdir}
+    tables = FilesystemTables(conf)
+    table_location = os.path.join(str(tmpdir), "test", "test_123")
+    tables.create(base_scan_schema, table_location, base_scan_partition)
+
+    tables.load(table_location)

@@ -50,7 +50,7 @@ class LocalFileSystem(FileSystem):
         return open(open_path, mode=mode)
 
     def delete(self, path):
-        raise NotImplementedError()
+        os.remove(path)
 
     def stat(self, path):
         st = os.stat(LocalFileSystem.fix_path(path))

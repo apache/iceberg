@@ -16,12 +16,14 @@
 # under the License.
 
 from iceberg.api import Tables
-from iceberg.exceptions import NoSuchTableException
+from iceberg.exceptions import AlreadyExistsException, CommitFailedException, NoSuchTableException
 
 from .base_table import BaseTable
+from .table_metadata import TableMetadata
 
 
 class BaseMetastoreTables(Tables):
+    DOT = '.'
 
     def __init__(self, conf):
         self.conf = conf
@@ -29,15 +31,36 @@ class BaseMetastoreTables(Tables):
     def new_table_ops(self, conf, database, table):
         raise RuntimeError("Abstract Implementation")
 
-    def load(self, database, table):
+    def load(self, table_identifier):
+        parts = table_identifier.rsplit(BaseMetastoreTables.DOT, 1)
+        if len(parts) > 1:
+            database = parts[0]
+            table = parts[1]
+        else:
+            database = "default"
+            table = parts[0]
         ops = self.new_table_ops(self.conf, database, table)
         if ops.current() is None:
             raise NoSuchTableException("Table does not exist: {}.{}".format(database, table))
 
         return BaseTable(ops, "{}.{}".format(database, table))
 
-    def create(self, schema, spec, table_identifier=None, database=None, table=None):
-        raise RuntimeError("Not Yet Implemented")
+    def create(self, schema, table_identifier=None, spec=None, properties=None):
+        database, table = table_identifier.rsplit(BaseMetastoreTables.DOT, 1)
+        ops = self.new_table_ops(self.conf, database, table)
+        if ops.current() is not None:
+            raise AlreadyExistsException("Table already exists: " + table_identifier)
+
+        base_location = self.default_warehouse_location(self.conf, database, table)
+
+        metadata = TableMetadata.new_table_metadata(ops, schema, spec, base_location, dict() if properties is None else properties)
+
+        try:
+            ops.commit(None, metadata)
+        except CommitFailedException:
+            raise AlreadyExistsException("Table was created concurrently: " + table_identifier)
+
+        return BaseTable(ops, "{}.{}".format(database, table))
 
     def begin_create(self, schema, spec, database, table_name, properties=None):
         raise RuntimeError("Not Yet Implemented")
