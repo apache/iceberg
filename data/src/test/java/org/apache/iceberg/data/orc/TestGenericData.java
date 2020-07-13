@@ -92,7 +92,7 @@ public class TestGenericData extends DataTest {
 
       try (FileAppender<Record> writer = ORC.write(Files.localOutput(testFile))
           .schema(timestampSchema)
-          .createWriterFunc(GenericOrcWriter::buildWriter)
+          .createWriterFunc(typeDesc -> GenericOrcWriter.buildWriter(timestampSchema, typeDesc))
           .build()) {
         writer.add(record1);
         writer.add(record2);
@@ -129,7 +129,7 @@ public class TestGenericData extends DataTest {
 
     try (FileAppender<Record> writer = ORC.write(Files.localOutput(testFile))
         .schema(schema)
-        .createWriterFunc(GenericOrcWriter::buildWriter)
+        .createWriterFunc(typeDesc -> GenericOrcWriter.buildWriter(schema, typeDesc))
         .build()) {
       for (Record rec : expected) {
         writer.add(rec);

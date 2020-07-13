@@ -172,7 +172,7 @@ public class TestMetricsRowGroupFilter {
     OutputFile outFile = Files.localOutput(orcFile);
     try (FileAppender<GenericRecord> appender = ORC.write(outFile)
         .schema(FILE_SCHEMA)
-        .createWriterFunc(GenericOrcWriter::buildWriter)
+        .createWriterFunc(typeDesc -> GenericOrcWriter.buildWriter(FILE_SCHEMA, typeDesc))
         .build()) {
       GenericRecord record = GenericRecord.create(FILE_SCHEMA);
       // create 50 records

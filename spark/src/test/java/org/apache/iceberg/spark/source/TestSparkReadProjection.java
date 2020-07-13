@@ -132,7 +132,7 @@ public abstract class TestSparkReadProjection extends TestReadProjection {
 
         case ORC:
           try (FileAppender<org.apache.iceberg.data.Record> writer = ORC.write(localOutput(testFile))
-              .createWriterFunc(GenericOrcWriter::buildWriter)
+              .createWriterFunc(typeDesc -> GenericOrcWriter.buildWriter(tableSchema, typeDesc))
               .schema(tableSchema)
               .build()) {
             writer.add(record);

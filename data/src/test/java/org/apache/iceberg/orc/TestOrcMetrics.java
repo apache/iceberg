@@ -79,7 +79,7 @@ public class TestOrcMetrics extends TestMetrics {
     try (FileAppender<Record> writer = ORC.write(file)
         .schema(schema)
         .setAll(properties)
-        .createWriterFunc(GenericOrcWriter::buildWriter)
+        .createWriterFunc(typeDesc -> GenericOrcWriter.buildWriter(schema, typeDesc))
         .build()) {
       writer.addAll(Lists.newArrayList(records));
     }

@@ -40,7 +40,7 @@ public class TestGenericReadProjection extends TestReadProjection {
 
     try (FileAppender<Record> appender = ORC.write(Files.localOutput(file))
         .schema(writeSchema)
-        .createWriterFunc(GenericOrcWriter::buildWriter)
+        .createWriterFunc(typeDesc -> GenericOrcWriter.buildWriter(writeSchema, typeDesc))
         .build()) {
       appender.add(record);
     }
