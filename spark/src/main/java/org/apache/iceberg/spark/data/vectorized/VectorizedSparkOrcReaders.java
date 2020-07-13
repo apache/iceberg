@@ -272,32 +272,27 @@ public class VectorizedSparkOrcReaders {
 
     @Override
     public boolean getBoolean(int rowId) {
-      Boolean value = (Boolean) primitiveValueReader.read(vector, rowId);
-      return value != null ? value : false;
+      return (Boolean) primitiveValueReader.read(vector, rowId);
     }
 
     @Override
     public int getInt(int rowId) {
-      Integer value = (Integer) primitiveValueReader.read(vector, rowId);
-      return value != null ? value : 0;
+      return (Integer) primitiveValueReader.read(vector, rowId);
     }
 
     @Override
     public long getLong(int rowId) {
-      Long value = (Long) primitiveValueReader.read(vector, rowId);
-      return value != null ? value : 0L;
+      return (Long) primitiveValueReader.read(vector, rowId);
     }
 
     @Override
     public float getFloat(int rowId) {
-      Float value = (Float) primitiveValueReader.read(vector, rowId);
-      return value != null ? value : 0.0F;
+      return (Float) primitiveValueReader.read(vector, rowId);
     }
 
     @Override
     public double getDouble(int rowId) {
-      Double value = (Double) primitiveValueReader.read(vector, rowId);
-      return value != null ? value : 0.0;
+      return (Double) primitiveValueReader.read(vector, rowId);
     }
 
     @Override
@@ -335,12 +330,8 @@ public class VectorizedSparkOrcReaders {
       return new BaseOrcColumnVector(listType, batchSize, vector) {
         @Override
         public ColumnarArray getArray(int rowId) {
-          if (isNullAt(rowId)) {
-            return null;
-          } else {
-            int index = getRowIndex(rowId);
-            return new ColumnarArray(elementVector, (int) listVector.offsets[index], (int) listVector.lengths[index]);
-          }
+          int index = getRowIndex(rowId);
+          return new ColumnarArray(elementVector, (int) listVector.offsets[index], (int) listVector.lengths[index]);
         }
       };
     }
@@ -366,13 +357,9 @@ public class VectorizedSparkOrcReaders {
       return new BaseOrcColumnVector(mapType, batchSize, vector) {
         @Override
         public ColumnarMap getMap(int rowId) {
-          if (isNullAt(rowId)) {
-            return null;
-          } else {
-            int index = getRowIndex(rowId);
-            return new ColumnarMap(keyVector, valueVector, (int) mapVector.offsets[index],
-                (int) mapVector.lengths[index]);
-          }
+          int index = getRowIndex(rowId);
+          return new ColumnarMap(keyVector, valueVector, (int) mapVector.offsets[index],
+              (int) mapVector.lengths[index]);
         }
       };
     }
