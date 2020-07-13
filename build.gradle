@@ -38,7 +38,6 @@ buildscript {
 plugins {
   id 'com.palantir.git-version' version '0.9.1'
   id 'nebula.dependency-recommender' version '9.0.2'
-  id 'nebula.dependency-lock' version '9.0.0'
 }
 
 if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
@@ -65,16 +64,7 @@ allprojects {
 
 subprojects {
   apply plugin: 'nebula.dependency-recommender'
-  apply plugin: 'nebula.dependency-lock'
   apply plugin: 'java'
-
-  dependencyLock {
-    includeTransitives = true
-  }
-
-  dependencyResolutionVerifierExtension {
-    shouldFailTheBuild = false
-  }
 
   configurations {
     testCompile.extendsFrom compileOnly

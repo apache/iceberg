@@ -12,6 +12,8 @@
 # gradle build
 .gradle
 build
+dependencies.lock
+**/dependencies.lock
 gradle/
 out
 gradle/wrapper/gradle-wrapper.jar
