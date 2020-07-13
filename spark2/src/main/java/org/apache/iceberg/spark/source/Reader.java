@@ -299,6 +299,13 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
                   .allMatch(fileScanTask -> fileScanTask.file().format().equals(
                       FileFormat.PARQUET)));
 
+      boolean allOrcFileScanTasks =
+          tasks().stream()
+              .allMatch(combinedScanTask -> !combinedScanTask.isDataTask() && combinedScanTask.files()
+                  .stream()
+                  .allMatch(fileScanTask -> fileScanTask.file().format().equals(
+                      FileFormat.ORC)));
+
       boolean atLeastOneColumn = lazySchema().columns().size() > 0;
 
       boolean hasNoIdentityProjections = tasks().stream()
@@ -308,8 +315,8 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
       boolean onlyPrimitives = lazySchema().columns().stream().allMatch(c -> c.type().isPrimitiveType());
 
-      this.readUsingBatch = batchReadsEnabled && allParquetFileScanTasks && atLeastOneColumn &&
-          hasNoIdentityProjections && onlyPrimitives;
+      this.readUsingBatch = batchReadsEnabled && (allOrcFileScanTasks ||
+          (allParquetFileScanTasks && atLeastOneColumn && hasNoIdentityProjections && onlyPrimitives));
     }
     return readUsingBatch;
   }

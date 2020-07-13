@@ -23,6 +23,8 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.function.Function;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public interface CloseableIterator<T> extends Iterator<T>, Closeable {
 
@@ -51,6 +53,27 @@ public interface CloseableIterator<T> extends Iterator<T>, Closeable {
       @Override
       public E next() {
         return iterator.next();
+      }
+    };
+  }
+
+  static <I, O> CloseableIterator<O> transform(CloseableIterator<I> iterator, Function<I, O> transform) {
+    Preconditions.checkNotNull(transform, "Cannot apply a null transform");
+
+    return new CloseableIterator<O>() {
+      @Override
+      public void close() throws IOException {
+        iterator.close();
+      }
+
+      @Override
+      public boolean hasNext() {
+        return iterator.hasNext();
+      }
+
+      @Override
+      public O next() {
+        return transform.apply(iterator.next());
       }
     };
   }

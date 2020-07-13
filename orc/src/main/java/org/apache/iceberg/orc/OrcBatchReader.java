@@ -17,10 +17,19 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.source;
+package org.apache.iceberg.orc;
 
-public class TestIdentityPartitionData3 extends TestIdentityPartitionData {
-  public TestIdentityPartitionData3(String format, boolean vectorized) {
-    super(format, vectorized);
-  }
+import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
+
+/**
+ * Used for implementing ORC batch readers.
+ */
+@FunctionalInterface
+public interface OrcBatchReader<T> {
+
+  /**
+   * Reads a row batch.
+   */
+  T read(VectorizedRowBatch batch);
+
 }

@@ -62,9 +62,11 @@ public abstract class TestPartitionValues {
   @Parameterized.Parameters
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] { "parquet" },
-        new Object[] { "avro" },
-        new Object[] { "orc" }
+        new Object[] { "parquet", false },
+        new Object[] { "parquet", true },
+        new Object[] { "avro", false },
+        new Object[] { "orc", false },
+        new Object[] { "orc", true }
     };
   }
 
@@ -111,9 +113,11 @@ public abstract class TestPartitionValues {
   public TemporaryFolder temp = new TemporaryFolder();
 
   private final String format;
+  private final boolean vectorized;
 
-  public TestPartitionValues(String format) {
+  public TestPartitionValues(String format, boolean vectorized) {
     this.format = format;
+    this.vectorized = vectorized;
   }
 
   @Test
@@ -144,6 +148,7 @@ public abstract class TestPartitionValues {
 
     Dataset<Row> result = spark.read()
         .format("iceberg")
+        .option("vectorization-enabled", String.valueOf(vectorized))
         .load(location.toString());
 
     List<SimpleRecord> actual = result
@@ -183,6 +188,7 @@ public abstract class TestPartitionValues {
 
     Dataset<Row> result = spark.read()
             .format("iceberg")
+            .option("vectorization-enabled", String.valueOf(vectorized))
             .load(location.toString());
 
     List<SimpleRecord> actual = result
@@ -223,6 +229,7 @@ public abstract class TestPartitionValues {
 
     Dataset<Row> result = spark.read()
             .format("iceberg")
+            .option("vectorization-enabled", String.valueOf(vectorized))
             .load(location.toString());
 
     List<SimpleRecord> actual = result
@@ -261,7 +268,9 @@ public abstract class TestPartitionValues {
         .appendFile(DataFiles.fromInputFile(Files.localInput(avroData), 10))
         .commit();
 
-    Dataset<Row> sourceDF = spark.read().format("iceberg").load(sourceLocation);
+    Dataset<Row> sourceDF = spark.read().format("iceberg")
+        .option("vectorization-enabled", String.valueOf(vectorized))
+        .load(sourceLocation);
 
     for (String column : columnNames) {
       String desc = "partition_by_" + SUPPORTED_PRIMITIVES.findType(column).toString();
@@ -283,6 +292,7 @@ public abstract class TestPartitionValues {
 
       List<Row> actual = spark.read()
           .format("iceberg")
+          .option("vectorization-enabled", String.valueOf(vectorized))
           .load(location.toString())
           .collectAsList();
 
@@ -323,7 +333,9 @@ public abstract class TestPartitionValues {
         .appendFile(DataFiles.fromInputFile(Files.localInput(avroData), 10))
         .commit();
 
-    Dataset<Row> sourceDF = spark.read().format("iceberg").load(sourceLocation);
+    Dataset<Row> sourceDF = spark.read().format("iceberg")
+        .option("vectorization-enabled", String.valueOf(vectorized))
+        .load(sourceLocation);
 
     for (String column : columnNames) {
       String desc = "partition_by_" + SUPPORTED_PRIMITIVES.findType(column).toString();
@@ -345,6 +357,7 @@ public abstract class TestPartitionValues {
 
       List<Row> actual = spark.read()
           .format("iceberg")
+          .option("vectorization-enabled", String.valueOf(vectorized))
           .load(location.toString())
           .collectAsList();
 
@@ -403,6 +416,7 @@ public abstract class TestPartitionValues {
     // verify
     List<Row> actual = spark.read()
         .format("iceberg")
+        .option("vectorization-enabled", String.valueOf(vectorized))
         .load(baseLocation)
         .collectAsList();
 

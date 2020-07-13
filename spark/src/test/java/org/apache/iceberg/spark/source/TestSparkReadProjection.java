@@ -31,7 +31,6 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataWriter;
@@ -70,7 +69,8 @@ public abstract class TestSparkReadProjection extends TestReadProjection {
         new Object[] { "parquet", false },
         new Object[] { "parquet", true },
         new Object[] { "avro", false },
-        new Object[] { "orc", false }
+        new Object[] { "orc", false },
+        new Object[] { "orc", true }
     };
   }
 
@@ -148,8 +148,6 @@ public abstract class TestSparkReadProjection extends TestReadProjection {
 
       table.newAppend().appendFile(file).commit();
 
-      table.updateProperties().set(TableProperties.PARQUET_VECTORIZATION_ENABLED, String.valueOf(vectorized)).commit();
-
       // rewrite the read schema for the table's reassigned ids
       Map<Integer, Integer> idMapping = Maps.newHashMap();
       for (int id : allIds(writeSchema)) {
@@ -166,6 +164,7 @@ public abstract class TestSparkReadProjection extends TestReadProjection {
       Dataset<Row> df = spark.read()
           .format("org.apache.iceberg.spark.source.TestIcebergSource")
           .option("iceberg.table.name", desc)
+          .option("vectorization-enabled", String.valueOf(vectorized))
           .load();
 
       return SparkValueConverter.convert(readSchema, df.collectAsList().get(0));

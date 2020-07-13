@@ -19,10 +19,9 @@
 
 package org.apache.iceberg.orc;
 
-import java.io.Closeable;
 import java.io.IOException;
-import java.util.Iterator;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.orc.RecordReader;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
@@ -32,16 +31,16 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
  * Because the same VectorizedRowBatch is reused on each call to next,
  * it gets changed when hasNext or next is called.
  */
-public class VectorizedRowBatchIterator implements Iterator<VectorizedRowBatch>, Closeable {
+public class VectorizedRowBatchIterator implements CloseableIterator<VectorizedRowBatch> {
   private final String fileLocation;
   private final RecordReader rows;
   private final VectorizedRowBatch batch;
   private boolean advanced = false;
 
-  VectorizedRowBatchIterator(String fileLocation, TypeDescription schema, RecordReader rows) {
+  VectorizedRowBatchIterator(String fileLocation, TypeDescription schema, RecordReader rows, int recordsPerBatch) {
     this.fileLocation = fileLocation;
     this.rows = rows;
-    this.batch = schema.createRowBatch();
+    this.batch = schema.createRowBatch(recordsPerBatch);
   }
 
   @Override

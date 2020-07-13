@@ -22,10 +22,10 @@ package org.apache.iceberg.spark.source;
 import java.io.File;
 import java.io.IOException;
 import java.sql.Timestamp;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
-import org.apache.avro.generic.GenericData.Record;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -34,14 +34,18 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.avro.DataWriter;
+import org.apache.iceberg.data.orc.GenericOrcWriter;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.data.TestHelpers;
+import org.apache.iceberg.spark.data.GenericsHelpers;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
@@ -146,17 +150,22 @@ public class TestFilteredScan {
   public TemporaryFolder temp = new TemporaryFolder();
 
   private final String format;
+  private final boolean vectorized;
 
   @Parameterized.Parameters
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] { "parquet" },
-        new Object[] { "avro" }
+        new Object[] { "parquet", false },
+        new Object[] { "parquet", true },
+        new Object[] { "avro", false },
+        new Object[] { "orc", false },
+        new Object[] { "orc", true }
     };
   }
 
-  public TestFilteredScan(String format) {
+  public TestFilteredScan(String format, boolean vectorized) {
     this.format = format;
+    this.vectorized = vectorized;
   }
 
   private File parent = null;
@@ -177,13 +186,12 @@ public class TestFilteredScan {
 
     File testFile = new File(dataFolder, fileFormat.addExtension(UUID.randomUUID().toString()));
 
-    // create records using the table's schema
-    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(tableSchema, "test");
-    this.records = testRecords(avroSchema);
+    this.records = testRecords(tableSchema);
 
     switch (fileFormat) {
       case AVRO:
         try (FileAppender<Record> writer = Avro.write(localOutput(testFile))
+            .createWriterFunc(DataWriter::create)
             .schema(tableSchema)
             .build()) {
           writer.addAll(records);
@@ -192,6 +200,16 @@ public class TestFilteredScan {
 
       case PARQUET:
         try (FileAppender<Record> writer = Parquet.write(localOutput(testFile))
+            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .schema(tableSchema)
+            .build()) {
+          writer.addAll(records);
+        }
+        break;
+
+      case ORC:
+        try (FileAppender<Record> writer = ORC.write(localOutput(testFile))
+            .createWriterFunc(GenericOrcWriter::buildWriter)
             .schema(tableSchema)
             .build()) {
           writer.addAll(records);
@@ -224,7 +242,7 @@ public class TestFilteredScan {
 
       // validate row filtering
       assertEqualsSafe(SCHEMA.asStruct(), expected(i),
-          read(unpartitioned.toString(), "id = " + i));
+          read(unpartitioned.toString(), vectorized, "id = " + i));
     }
   }
 
@@ -252,7 +270,7 @@ public class TestFilteredScan {
 
         // validate row filtering
         assertEqualsSafe(SCHEMA.asStruct(), expected(i),
-            read(unpartitioned.toString(), "id = " + i));
+            read(unpartitioned.toString(), vectorized, "id = " + i));
       }
     } finally {
       // return global conf to previous state
@@ -275,7 +293,7 @@ public class TestFilteredScan {
     Assert.assertEquals("Should only create one task for a small file", 1, tasks.length);
 
     assertEqualsSafe(SCHEMA.asStruct(), expected(5, 6, 7, 8, 9),
-        read(unpartitioned.toString(), "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
+        read(unpartitioned.toString(), vectorized, "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
   }
 
   @Test
@@ -299,7 +317,7 @@ public class TestFilteredScan {
       Assert.assertEquals("Should create one task for a single bucket", 1, tasks.length);
 
       // validate row filtering
-      assertEqualsSafe(SCHEMA.asStruct(), expected(i), read(table.location(), "id = " + i));
+      assertEqualsSafe(SCHEMA.asStruct(), expected(i), read(table.location(), vectorized, "id = " + i));
     }
   }
 
@@ -323,7 +341,7 @@ public class TestFilteredScan {
       Assert.assertEquals("Should create one task for 2017-12-21", 1, tasks.length);
 
       assertEqualsSafe(SCHEMA.asStruct(), expected(5, 6, 7, 8, 9),
-          read(table.location(), "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
+          read(table.location(), vectorized, "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
     }
 
     {
@@ -337,7 +355,7 @@ public class TestFilteredScan {
       InputPartition[] tasks = scan.planInputPartitions();
       Assert.assertEquals("Should create one task for 2017-12-22", 1, tasks.length);
 
-      assertEqualsSafe(SCHEMA.asStruct(), expected(1, 2), read(table.location(),
+      assertEqualsSafe(SCHEMA.asStruct(), expected(1, 2), read(table.location(), vectorized,
           "ts > cast('2017-12-22 06:00:00+00:00' as timestamp) and " +
               "ts < cast('2017-12-22 08:00:00+00:00' as timestamp)"));
     }
@@ -364,7 +382,7 @@ public class TestFilteredScan {
       Assert.assertEquals("Should create 4 tasks for 2017-12-21: 15, 17, 21, 22", 4, tasks.length);
 
       assertEqualsSafe(SCHEMA.asStruct(), expected(8, 9, 7, 6, 5),
-          read(table.location(), "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
+          read(table.location(), vectorized, "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
     }
 
     {
@@ -378,7 +396,7 @@ public class TestFilteredScan {
       InputPartition[] tasks = scan.planInputPartitions();
       Assert.assertEquals("Should create 2 tasks for 2017-12-22: 6, 7", 2, tasks.length);
 
-      assertEqualsSafe(SCHEMA.asStruct(), expected(2, 1), read(table.location(),
+      assertEqualsSafe(SCHEMA.asStruct(), expected(2, 1), read(table.location(), vectorized,
           "ts > cast('2017-12-22 06:00:00+00:00' as timestamp) and " +
               "ts < cast('2017-12-22 08:00:00+00:00' as timestamp)"));
     }
@@ -395,7 +413,7 @@ public class TestFilteredScan {
       }
 
       assertEqualsSafe(actualProjection.asStruct(), expected, read(
-          unpartitioned.toString(),
+          unpartitioned.toString(), vectorized,
           "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)",
           "id", "data"));
     }
@@ -410,7 +428,7 @@ public class TestFilteredScan {
       }
 
       assertEqualsSafe(actualProjection.asStruct(), expected, read(
-          unpartitioned.toString(),
+          unpartitioned.toString(), vectorized,
           "ts > cast('2017-12-22 06:00:00+00:00' as timestamp) and " +
               "ts < cast('2017-12-22 08:00:00+00:00' as timestamp)",
           "id"));
@@ -450,6 +468,7 @@ public class TestFilteredScan {
   public void testUnpartitionedStartsWith() {
     Dataset<Row> df = spark.read()
         .format("iceberg")
+        .option("vectorization-enabled", String.valueOf(vectorized))
         .load(unpartitioned.toString());
 
     List<String> matchedData = df.select("data")
@@ -462,12 +481,11 @@ public class TestFilteredScan {
   }
 
   private static Record projectFlat(Schema projection, Record record) {
-    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(projection, "test");
-    Record result = new Record(avroSchema);
+    Record result = GenericRecord.create(projection);
     List<Types.NestedField> fields = projection.asStruct().fields();
     for (int i = 0; i < fields.size(); i += 1) {
       Types.NestedField field = fields.get(i);
-      result.put(i, record.get(field.name()));
+      result.set(i, record.getField(field.name()));
     }
     return result;
   }
@@ -477,7 +495,7 @@ public class TestFilteredScan {
     // TODO: match records by ID
     int numRecords = Math.min(expected.size(), actual.size());
     for (int i = 0; i < numRecords; i += 1) {
-      TestHelpers.assertEqualsUnsafe(struct, expected.get(i), actual.get(i));
+      GenericsHelpers.assertEqualsUnsafe(struct, expected.get(i), actual.get(i));
     }
     Assert.assertEquals("Number of results should match expected", expected.size(), actual.size());
   }
@@ -487,7 +505,7 @@ public class TestFilteredScan {
     // TODO: match records by ID
     int numRecords = Math.min(expected.size(), actual.size());
     for (int i = 0; i < numRecords; i += 1) {
-      TestHelpers.assertEqualsSafe(struct, expected.get(i), actual.get(i));
+      GenericsHelpers.assertEqualsSafe(struct, expected.get(i), actual.get(i));
     }
     Assert.assertEquals("Number of results should match expected", expected.size(), actual.size());
   }
@@ -517,6 +535,7 @@ public class TestFilteredScan {
     // copy the unpartitioned table into the partitioned table to produce the partitioned data
     Dataset<Row> allRows = spark.read()
         .format("iceberg")
+        .option("vectorization-enabled", String.valueOf(vectorized))
         .load(unpartitioned.toString());
 
     allRows
@@ -534,39 +553,41 @@ public class TestFilteredScan {
     return table;
   }
 
-  private List<Record> testRecords(org.apache.avro.Schema avroSchema) {
+  private List<Record> testRecords(Schema schema) {
     return Lists.newArrayList(
-        record(avroSchema, 0L, timestamp("2017-12-22T09:20:44.294658+00:00"), "junction"),
-        record(avroSchema, 1L, timestamp("2017-12-22T07:15:34.582910+00:00"), "alligator"),
-        record(avroSchema, 2L, timestamp("2017-12-22T06:02:09.243857+00:00"), "forrest"),
-        record(avroSchema, 3L, timestamp("2017-12-22T03:10:11.134509+00:00"), "clapping"),
-        record(avroSchema, 4L, timestamp("2017-12-22T00:34:00.184671+00:00"), "brush"),
-        record(avroSchema, 5L, timestamp("2017-12-21T22:20:08.935889+00:00"), "trap"),
-        record(avroSchema, 6L, timestamp("2017-12-21T21:55:30.589712+00:00"), "element"),
-        record(avroSchema, 7L, timestamp("2017-12-21T17:31:14.532797+00:00"), "limited"),
-        record(avroSchema, 8L, timestamp("2017-12-21T15:21:51.237521+00:00"), "global"),
-        record(avroSchema, 9L, timestamp("2017-12-21T15:02:15.230570+00:00"), "goldfish")
+        record(schema, 0L, parse("2017-12-22T09:20:44.294658+00:00"), "junction"),
+        record(schema, 1L, parse("2017-12-22T07:15:34.582910+00:00"), "alligator"),
+        record(schema, 2L, parse("2017-12-22T06:02:09.243857+00:00"), "forrest"),
+        record(schema, 3L, parse("2017-12-22T03:10:11.134509+00:00"), "clapping"),
+        record(schema, 4L, parse("2017-12-22T00:34:00.184671+00:00"), "brush"),
+        record(schema, 5L, parse("2017-12-21T22:20:08.935889+00:00"), "trap"),
+        record(schema, 6L, parse("2017-12-21T21:55:30.589712+00:00"), "element"),
+        record(schema, 7L, parse("2017-12-21T17:31:14.532797+00:00"), "limited"),
+        record(schema, 8L, parse("2017-12-21T15:21:51.237521+00:00"), "global"),
+        record(schema, 9L, parse("2017-12-21T15:02:15.230570+00:00"), "goldfish")
     );
   }
 
-  private static List<Row> read(String table, String expr) {
-    return read(table, expr, "*");
+  private static List<Row> read(String table, boolean vectorized, String expr) {
+    return read(table, vectorized, expr, "*");
   }
 
-  private static List<Row> read(String table, String expr, String select0, String... selectN) {
-    Dataset<Row> dataset = spark.read().format("iceberg").load(table).filter(expr)
+  private static List<Row> read(String table, boolean vectorized, String expr, String select0, String... selectN) {
+    Dataset<Row> dataset = spark.read().format("iceberg")
+        .option("vectorization-enabled", String.valueOf(vectorized))
+        .load(table).filter(expr)
         .select(select0, selectN);
     return dataset.collectAsList();
   }
 
-  private static long timestamp(String timestamp) {
-    return Literal.of(timestamp).<Long>to(Types.TimestampType.withZone()).value();
+  private static OffsetDateTime parse(String timestamp) {
+    return OffsetDateTime.parse(timestamp);
   }
 
-  private static Record record(org.apache.avro.Schema schema, Object... values) {
-    Record rec = new Record(schema);
+  private static Record record(Schema schema, Object... values) {
+    Record rec = GenericRecord.create(schema);
     for (int i = 0; i < values.length; i += 1) {
-      rec.put(i, values[i]);
+      rec.set(i, values[i]);
     }
     return rec;
   }

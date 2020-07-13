@@ -34,6 +34,7 @@ sdist/
 coverage.xml
 .pytest_cache/
 spark/tmp/
+spark-warehouse/
 spark/spark-warehouse/
 spark2/spark-warehouse/
 spark3/spark-warehouse/

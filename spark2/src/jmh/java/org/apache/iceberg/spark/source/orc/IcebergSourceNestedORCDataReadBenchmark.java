@@ -68,7 +68,7 @@ public class IcebergSourceNestedORCDataReadBenchmark extends IcebergSourceNested
 
   @Benchmark
   @Threads(1)
-  public void readIceberg() {
+  public void readIcebergNonVectorized() {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
     withTableProperties(tableProperties, () -> {
@@ -80,12 +80,13 @@ public class IcebergSourceNestedORCDataReadBenchmark extends IcebergSourceNested
 
   @Benchmark
   @Threads(1)
-  public void readFileSourceVectorized() {
-    Map<String, String> conf = Maps.newHashMap();
-    conf.put(SQLConf.ORC_VECTORIZED_READER_ENABLED().key(), "true");
-    conf.put(SQLConf.FILES_OPEN_COST_IN_BYTES().key(), Integer.toString(128 * 1024 * 1024));
-    withSQLConf(conf, () -> {
-      Dataset<Row> df = spark().read().orc(dataLocation());
+  public void readIcebergVectorized() {
+    Map<String, String> tableProperties = Maps.newHashMap();
+    tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
+    withTableProperties(tableProperties, () -> {
+      String tableLocation = table().location();
+      Dataset<Row> df = spark().read().option("vectorization-enabled", "true")
+          .format("iceberg").load(tableLocation);
       materialize(df);
     });
   }
@@ -104,7 +105,7 @@ public class IcebergSourceNestedORCDataReadBenchmark extends IcebergSourceNested
 
   @Benchmark
   @Threads(1)
-  public void readWithProjectionIceberg() {
+  public void readWithProjectionIcebergNonVectorized() {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
     withTableProperties(tableProperties, () -> {
@@ -116,12 +117,13 @@ public class IcebergSourceNestedORCDataReadBenchmark extends IcebergSourceNested
 
   @Benchmark
   @Threads(1)
-  public void readWithProjectionFileSourceVectorized() {
-    Map<String, String> conf = Maps.newHashMap();
-    conf.put(SQLConf.ORC_VECTORIZED_READER_ENABLED().key(), "true");
-    conf.put(SQLConf.FILES_OPEN_COST_IN_BYTES().key(), Integer.toString(128 * 1024 * 1024));
-    withSQLConf(conf, () -> {
-      Dataset<Row> df = spark().read().orc(dataLocation()).selectExpr("nested.col3");
+  public void readWithProjectionIcebergVectorized() {
+    Map<String, String> tableProperties = Maps.newHashMap();
+    tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
+    withTableProperties(tableProperties, () -> {
+      String tableLocation = table().location();
+      Dataset<Row> df = spark().read().option("vectorization-enabled", "true")
+          .format("iceberg").load(tableLocation).selectExpr("nested.col3");
       materialize(df);
     });
   }

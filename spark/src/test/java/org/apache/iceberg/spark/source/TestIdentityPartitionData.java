@@ -53,16 +53,20 @@ public abstract class TestIdentityPartitionData  {
   @Parameterized.Parameters
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] { "parquet" },
-        new Object[] { "avro" },
-        new Object[] { "orc" }
+        new Object[] { "parquet", false },
+        new Object[] { "parquet", true },
+        new Object[] { "avro", false },
+        new Object[] { "orc", false },
+        new Object[] { "orc", true },
     };
   }
 
   private final String format;
+  private final boolean vectorized;
 
-  public TestIdentityPartitionData(String format) {
+  public TestIdentityPartitionData(String format, boolean vectorized) {
     this.format = format;
+    this.vectorized = vectorized;
   }
 
   private static SparkSession spark = null;
@@ -121,7 +125,9 @@ public abstract class TestIdentityPartitionData  {
   @Test
   public void testFullProjection() {
     List<Row> expected = logs.orderBy("id").collectAsList();
-    List<Row> actual = spark.read().format("iceberg").load(table.location()).orderBy("id").collectAsList();
+    List<Row> actual = spark.read().format("iceberg")
+        .option("vectorization-enabled", String.valueOf(vectorized))
+        .load(table.location()).orderBy("id").collectAsList();
     Assert.assertEquals("Rows should match", expected, actual);
   }
 
@@ -152,7 +158,9 @@ public abstract class TestIdentityPartitionData  {
     for (String[] ordering : cases) {
       List<Row> expected = logs.select("id", ordering).orderBy("id").collectAsList();
       List<Row> actual = spark.read()
-          .format("iceberg").load(table.location())
+          .format("iceberg")
+          .option("vectorization-enabled", String.valueOf(vectorized))
+          .load(table.location())
           .select("id", ordering).orderBy("id")
           .collectAsList();
       Assert.assertEquals("Rows should match for ordering: " + Arrays.toString(ordering), expected, actual);

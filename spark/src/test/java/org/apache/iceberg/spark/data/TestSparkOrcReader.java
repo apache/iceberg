@@ -29,8 +29,12 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.orc.ORC;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
+import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -81,5 +85,23 @@ public class TestSparkOrcReader extends AvroDataTest {
       }
       Assert.assertFalse("Should not have extra rows", actualRows.hasNext());
     }
+
+    try (CloseableIterable<ColumnarBatch> reader = ORC.read(Files.localInput(testFile))
+        .project(schema)
+        .createBatchedReaderFunc(readOrcSchema ->
+            VectorizedSparkOrcReaders.buildReader(schema, readOrcSchema, ImmutableMap.of()))
+        .build()) {
+      final Iterator<InternalRow> actualRows = batchesToRows(reader.iterator());
+      final Iterator<InternalRow> expectedRows = expected.iterator();
+      while (expectedRows.hasNext()) {
+        Assert.assertTrue("Should have expected number of rows", actualRows.hasNext());
+        assertEquals(schema, expectedRows.next(), actualRows.next());
+      }
+      Assert.assertFalse("Should not have extra rows", actualRows.hasNext());
+    }
+  }
+
+  private Iterator<InternalRow> batchesToRows(Iterator<ColumnarBatch> batches) {
+    return Iterators.concat(Iterators.transform(batches, ColumnarBatch::rowIterator));
   }
 }

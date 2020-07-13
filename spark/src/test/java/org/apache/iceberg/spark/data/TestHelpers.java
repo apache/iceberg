@@ -638,7 +638,9 @@ public class TestHelpers {
     for (int i = 0; i < actual.numFields(); i += 1) {
       StructField field = struct.fields()[i];
       DataType type = field.dataType();
-      assertEquals(context + "." + field.name(), type, expected.get(i, type), actual.get(i, type));
+      assertEquals(context + "." + field.name(), type,
+          expected.isNullAt(i) ? null : expected.get(i, type),
+          actual.isNullAt(i) ? null : actual.get(i, type));
     }
   }
 

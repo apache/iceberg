@@ -21,105 +21,104 @@ package org.apache.iceberg.spark.data.vectorized;
 
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.sql.vectorized.ColumnarMap;
 import org.apache.spark.unsafe.types.UTF8String;
 
-public class NullValuesColumnVector extends ColumnVector {
+class ConstantColumnVector extends ColumnVector {
 
-  private final int numNulls;
-  private static final Type NULL_TYPE = Types.IntegerType.get();
+  private final Object constant;
+  private final int batchSize;
 
-  public NullValuesColumnVector(int nValues) {
-    super(SparkSchemaUtil.convert(NULL_TYPE));
-    this.numNulls = nValues;
+  ConstantColumnVector(Type type, int batchSize, Object constant) {
+    super(SparkSchemaUtil.convert(type));
+    this.constant = constant;
+    this.batchSize = batchSize;
   }
 
   @Override
   public void close() {
-
   }
 
   @Override
   public boolean hasNull() {
-    return true;
+    return constant == null;
   }
 
   @Override
   public int numNulls() {
-    return numNulls;
+    return constant == null ? batchSize : 0;
   }
 
   @Override
   public boolean isNullAt(int rowId) {
-    return true;
+    return constant == null;
   }
 
   @Override
   public boolean getBoolean(int rowId) {
-    throw new UnsupportedOperationException();
+    return constant != null ? (boolean) constant : false;
   }
 
   @Override
   public byte getByte(int rowId) {
-    throw new UnsupportedOperationException();
+    return constant != null ? (byte) constant : 0;
   }
 
   @Override
   public short getShort(int rowId) {
-    throw new UnsupportedOperationException();
+    return constant != null ? (short) constant : 0;
   }
 
   @Override
   public int getInt(int rowId) {
-    throw new UnsupportedOperationException();
+    return constant != null ? (int) constant : 0;
   }
 
   @Override
   public long getLong(int rowId) {
-    throw new UnsupportedOperationException();
+    return constant != null ? (long) constant : 0L;
   }
 
   @Override
   public float getFloat(int rowId) {
-    throw new UnsupportedOperationException();
+    return constant != null ? (float) constant : 0.0F;
   }
 
   @Override
   public double getDouble(int rowId) {
-    throw new UnsupportedOperationException();
+    return constant != null ? (double) constant : 0.0;
   }
 
   @Override
   public ColumnarArray getArray(int rowId) {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException("ConstantColumnVector only supports primitives");
   }
 
   @Override
   public ColumnarMap getMap(int ordinal) {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException("ConstantColumnVector only supports primitives");
   }
 
   @Override
   public Decimal getDecimal(int rowId, int precision, int scale) {
-    throw new UnsupportedOperationException();
+    return (Decimal) constant;
   }
 
   @Override
   public UTF8String getUTF8String(int rowId) {
-    throw new UnsupportedOperationException();
+    return (UTF8String) constant;
   }
 
   @Override
   public byte[] getBinary(int rowId) {
-    throw new UnsupportedOperationException();
+    return (byte[]) constant;
   }
 
   @Override
   protected ColumnVector getChild(int ordinal) {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException("ConstantColumnVector only supports primitives");
   }
 }
