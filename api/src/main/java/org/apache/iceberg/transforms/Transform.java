@@ -102,4 +102,13 @@ public interface Transform<S, T> extends Serializable {
   default String toHumanString(T value) {
     return String.valueOf(value);
   }
+
+  /**
+   * Returns the transform name
+   *
+   * @return the transform name in String format
+   */
+  default String getName() {
+    return null;
+  }
 }

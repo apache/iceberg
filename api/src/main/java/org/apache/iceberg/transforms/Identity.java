@@ -128,4 +128,9 @@ class Identity<T> implements Transform<T, T> {
   public int hashCode() {
     return Objects.hashCode(type);
   }
+
+  @Override
+  public String getName() {
+    return "identity";
+  }
 }

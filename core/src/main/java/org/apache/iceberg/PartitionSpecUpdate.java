@@ -24,7 +24,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -33,7 +33,10 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 
 /**
  * PartitionSpec evolution API implementation.
@@ -47,20 +50,17 @@ class PartitionSpecUpdate implements UpdatePartitionSpec {
   private final List<PartitionSpec> specs;
   private final Schema schema;
   private final Map<String, PartitionField> curSpecFields;
-  private final List<Consumer<PartitionSpec.Builder>> newSpecFields = Lists.newArrayList();
-  private final Map<String, PartitionField> newRemovedFields = Maps.newHashMap();
+  private final List<PartitionField> fields = Lists.newArrayList();
+  private final AtomicInteger lastAssignedFieldId = new AtomicInteger(0);
+  private final Map<String, Integer> partitionFieldIdByKey = Maps.newHashMap();
 
   PartitionSpecUpdate(TableOperations ops) {
     this.ops = ops;
     this.base = ops.current();
     this.specs = ImmutableList.<PartitionSpec>builder().addAll(base.specs()).add(base.spec()).build();
     this.schema = base.schema();
-    this.curSpecFields = base.spec().fields().stream().filter(PartitionSpecUpdate::notSoftDeleted).collect(
-        Collectors.toMap(
-            PartitionField::name,
-            Function.identity()
-        )
-    );
+    this.curSpecFields = buildSpecByNameMap(base.spec());
+    init();
   }
 
   /**
@@ -72,11 +72,27 @@ class PartitionSpecUpdate implements UpdatePartitionSpec {
     this.base = null;
     this.specs = partitionSpecs;
     this.schema = partitionSpecs.get(partitionSpecs.size() - 1).schema();
-    this.curSpecFields = partitionSpecs.get(partitionSpecs.size() - 1).fields().stream()
+    this.curSpecFields = buildSpecByNameMap(partitionSpecs.get(partitionSpecs.size() - 1));
+    init();
+  }
+
+  private Map<String, PartitionField> buildSpecByNameMap(PartitionSpec spec) {
+    return spec.fields().stream()
         .filter(PartitionSpecUpdate::notSoftDeleted).collect(
             Collectors.toMap(
                 PartitionField::name,
                 Function.identity()));
+  }
+
+  private void init() {
+    for (PartitionSpec spec : specs) {
+      for (PartitionField field : spec.fields()) {
+        if (notSoftDeleted(field)) {
+          partitionFieldIdByKey.put(getKey(field.transform(), field.sourceId()), field.fieldId());
+        }
+      }
+      lastAssignedFieldId.getAndAccumulate(spec.lastAssignedFieldId(), Math::max);
+    }
   }
 
   @Override
@@ -85,102 +101,108 @@ class PartitionSpecUpdate implements UpdatePartitionSpec {
     if (base.formatVersion() == 1) {
       newSpec = fillGapsByNullFields(newSpec);
     }
-    TableMetadata update = base.updatePartitionSpec(newSpec);
-    ops.commit(base, update);
+    TableMetadata updated = base.updatePartitionSpec(newSpec);
+
+    if (updated == base) {
+      // do not commit if the metadata has not changed. For example, this may happen
+      // when the committing partition spec is already current. Note that this check uses identity.
+      return;
+    }
+
+    ops.commit(base, updated);
   }
 
   @Override
   public PartitionSpec apply() {
-    PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(schema).addAll(curSpecFields.values());
-    newSpecFields.forEach(c -> {
-      c.accept(specBuilder);
-      checkIfRemoved(specBuilder.getLastPartitionField());
-    });
-    return freshSpecFieldIds(specBuilder.build());
+    fields.addAll(curSpecFields.values());
+    fields.sort(Comparator.comparingInt(PartitionField::fieldId));
+    return PartitionSpec.builderFor(schema).addAll(fields).build();
+  }
+
+  private UpdatePartitionSpec addFieldWithType(String sourceName,
+                                               String targetName,
+                                               Function<Type, Transform<?, ?>> func) {
+    Types.NestedField sourceColumn = schema.findField(sourceName);
+    Preconditions.checkArgument(sourceColumn != null, "Cannot find source column: %s", sourceName);
+
+    Transform<?, ?> transform = func.apply(sourceColumn.type());
+    Integer assignedFieldId = partitionFieldIdByKey.get(getKey(transform, sourceColumn.fieldId()));
+    if (assignedFieldId == null) {
+      assignedFieldId = lastAssignedFieldId.incrementAndGet();
+    }
+
+    fields.add(new PartitionField(sourceColumn.fieldId(), assignedFieldId, targetName, transform));
+    return this;
   }
 
   @Override
   public UpdatePartitionSpec addIdentityField(String sourceName, String targetName) {
-    newSpecFields.add(builder -> builder.identity(sourceName, targetName));
-    return this;
+    return addFieldWithType(sourceName, targetName, Transforms::identity);
   }
 
   @Override
   public UpdatePartitionSpec addIdentityField(String sourceName) {
-    newSpecFields.add(builder -> builder.identity(sourceName));
-    return this;
+    return addIdentityField(sourceName, sourceName);
   }
 
   @Override
   public UpdatePartitionSpec addYearField(String sourceName, String targetName) {
-    newSpecFields.add(builder -> builder.year(sourceName, targetName));
-    return this;
+    return addFieldWithType(sourceName, targetName, Transforms::year);
   }
 
   @Override
   public UpdatePartitionSpec addYearField(String sourceName) {
-    newSpecFields.add(builder -> builder.year(sourceName));
-    return this;
+    return addYearField(sourceName, sourceName + "_year");
   }
 
   @Override
   public UpdatePartitionSpec addMonthField(String sourceName, String targetName) {
-    newSpecFields.add(builder -> builder.month(sourceName, targetName));
-    return this;
+    return addFieldWithType(sourceName, targetName, Transforms::month);
   }
 
   @Override
   public UpdatePartitionSpec addMonthField(String sourceName) {
-    newSpecFields.add(builder -> builder.month(sourceName));
-    return this;
+    return addMonthField(sourceName, sourceName + "_month");
   }
 
   @Override
   public UpdatePartitionSpec addDayField(String sourceName, String targetName) {
-    newSpecFields.add(builder -> builder.day(sourceName, targetName));
-    return this;
+    return addFieldWithType(sourceName, targetName, Transforms::day);
   }
 
   @Override
   public UpdatePartitionSpec addDayField(String sourceName) {
-    newSpecFields.add(builder -> builder.day(sourceName));
-    return this;
+    return addDayField(sourceName, sourceName + "_day");
   }
 
   @Override
   public UpdatePartitionSpec addHourField(String sourceName, String targetName) {
-    newSpecFields.add(builder -> builder.hour(sourceName, targetName));
-    return this;
+    return addFieldWithType(sourceName, targetName, Transforms::hour);
   }
 
   @Override
   public UpdatePartitionSpec addHourField(String sourceName) {
-    newSpecFields.add(builder -> builder.hour(sourceName));
-    return this;
+    return addHourField(sourceName, sourceName + "_hour");
   }
 
   @Override
   public UpdatePartitionSpec addBucketField(String sourceName, int numBuckets, String targetName) {
-    newSpecFields.add(builder -> builder.bucket(sourceName, numBuckets, targetName));
-    return this;
+    return addFieldWithType(sourceName, targetName, type -> Transforms.bucket(type, numBuckets));
   }
 
   @Override
   public UpdatePartitionSpec addBucketField(String sourceName, int numBuckets) {
-    newSpecFields.add(builder -> builder.bucket(sourceName, numBuckets));
-    return this;
+    return addBucketField(sourceName, numBuckets, sourceName + "_bucket");
   }
 
   @Override
   public UpdatePartitionSpec addTruncateField(String sourceName, int width, String targetName) {
-    newSpecFields.add(builder -> builder.truncate(sourceName, width, targetName));
-    return this;
+    return addFieldWithType(sourceName, targetName, type -> Transforms.truncate(type, width));
   }
 
   @Override
   public UpdatePartitionSpec addTruncateField(String sourceName, int width) {
-    newSpecFields.add(builder -> builder.truncate(sourceName, width));
-    return this;
+    return addTruncateField(sourceName, width, sourceName + "_trunc");
   }
 
   @Override
@@ -200,8 +222,7 @@ class PartitionSpecUpdate implements UpdatePartitionSpec {
   public UpdatePartitionSpec removeField(String name) {
     Preconditions.checkArgument(curSpecFields.containsKey(name),
         "Cannot find an existing partition field with the name: %s", name);
-    PartitionField field = curSpecFields.remove(name);
-    newRemovedFields.put(getKey(field), field);
+    curSpecFields.remove(name);
     return this;
   }
 
@@ -209,46 +230,8 @@ class PartitionSpecUpdate implements UpdatePartitionSpec {
     return !(field.name().endsWith(SOFT_DELETE_POSTFIX) && Transforms.alwaysNull().equals(field.transform()));
   }
 
-  private static String getKey(PartitionField field) {
-    return field.transform() + "(" + field.sourceId() + ")";
-  }
-
-  private void checkIfRemoved(PartitionField addedField) {
-    String key = getKey(addedField);
-    Preconditions.checkArgument(!newRemovedFields.containsKey(key),
-        "Cannot add a partition field (%s) because it is compatible with a previously removed field: %s",
-        addedField, newRemovedFields.get(key));
-  }
-
-  private PartitionSpec freshSpecFieldIds(PartitionSpec partitionSpec) {
-    int lastAssignedFieldId = 0;
-    Map<String, Integer> partitionFieldIdByKey = Maps.newHashMap();
-    for (PartitionSpec spec : specs) {
-      for (PartitionField field : spec.fields()) {
-        if (notSoftDeleted(field)) {
-          partitionFieldIdByKey.put(getKey(field), field.fieldId());
-        }
-      }
-      lastAssignedFieldId = Math.max(lastAssignedFieldId, spec.lastAssignedFieldId());
-    }
-
-    List<PartitionField> partitionFields = Lists.newArrayList();
-    for (PartitionField field : partitionSpec.fields()) {
-      String key = getKey(field);
-      if (!partitionFieldIdByKey.containsKey(key)) {
-        lastAssignedFieldId++;
-      }
-      int assignedFieldId = partitionFieldIdByKey.getOrDefault(key, lastAssignedFieldId);
-
-      partitionFields.add(new PartitionField(
-          field.sourceId(),
-          assignedFieldId,
-          field.name(),
-          field.transform()));
-    }
-    partitionFields.sort(Comparator.comparingInt(PartitionField::fieldId));
-
-    return PartitionSpec.builderFor(schema).withSpecId(partitionSpec.specId()).addAll(partitionFields).build();
+  private static String getKey(Transform<?, ?> transform, int sourceId) {
+    return transform + "(" + sourceId + ")";
   }
 
   private PartitionSpec fillGapsByNullFields(PartitionSpec partitionSpec) {

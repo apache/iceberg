@@ -84,6 +84,48 @@ public class TestTablePartitionSpecUpdate extends TableTestBase {
   }
 
   @Test
+  public void testNoopCommit() {
+    TableMetadata current = table.ops().current();
+    Integer currentVersion = TestTables.metadataVersion("test");
+
+    // no-op commit due to no-op
+    table.updateSpec().commit();
+    TableMetadata updated = table.ops().current();
+    Integer updatedVersion = TestTables.metadataVersion("test");
+    Assert.assertEquals(current, updated);
+    Assert.assertEquals(currentVersion, updatedVersion);
+
+    // no-op commit due to no-op rename
+    table.updateSpec()
+        .renameField("data_bucket", "data_bucket")
+        .commit();
+    updated = table.ops().current();
+    updatedVersion = TestTables.metadataVersion("test");
+    Assert.assertEquals(current, updated);
+    Assert.assertEquals(currentVersion, updatedVersion);
+
+    // no-op commit due to no-ops (remove + add for the same field)
+    table.updateSpec()
+        .removeField("data_bucket")
+        .addBucketField("data", 16)
+        .commit();
+    updated = table.ops().current();
+    updatedVersion = TestTables.metadataVersion("test");
+    Assert.assertEquals(current, updated);
+    Assert.assertEquals(currentVersion, updatedVersion);
+
+    // no-op commit due to no-ops (add + remove for the same field)
+    table.updateSpec()
+        .addBucketField("data", 16)
+        .removeField("data_bucket")
+        .commit();
+    updated = table.ops().current();
+    updatedVersion = TestTables.metadataVersion("test");
+    Assert.assertEquals(current, updated);
+    Assert.assertEquals(currentVersion, updatedVersion);
+  }
+
+  @Test
   public void testRenameField() {
     table.updateSpec()
         .renameField("data_bucket", "data_partition")

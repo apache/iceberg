@@ -154,6 +154,11 @@ abstract class Bucket<T> implements Transform<T, Integer> {
     return Types.IntegerType.get();
   }
 
+  @Override
+  public String getName() {
+    return "bucket";
+  }
+
   private static class BucketInteger extends Bucket<Integer> {
     private BucketInteger(int numBuckets) {
       super(numBuckets);

@@ -174,7 +174,7 @@ public class PartitionSpec implements Serializable {
   }
 
   /**
-   * Returns true if this spec is equivalent to the other, with field names and partition field ids ignored.
+   * Returns true if this spec is compatible to the other, with field names and partition field ids ignored.
    * That is, if both specs have the same number of fields, field order, source columns, and transforms.
    *
    * @param other another PartitionSpec
@@ -200,6 +200,21 @@ public class PartitionSpec implements Serializable {
 
     return true;
   }
+
+  /**
+   * Returns true if this spec is equivalent to the other.
+   * That is, if both specs have the same number of fields, field order, and partition fields.
+   *
+   * @param other another PartitionSpec
+   * @return true if the specs have the same partition fields.
+   */
+  boolean equivalentTo(PartitionSpec other) {
+    if (equals(other)) {
+      return true;
+    }
+    return Arrays.equals(fields, other.fields);
+  }
+
 
   @Override
   public boolean equals(Object other) {
@@ -347,17 +362,12 @@ public class PartitionSpec implements Serializable {
     }
 
     private String getDedupKey(PartitionField field) {
-      String transform = field.transform().toString();
-      String type;
-      if ("hour".equalsIgnoreCase(transform) || "day".equalsIgnoreCase(transform) ||
-          "month".equalsIgnoreCase(transform) || "year".equalsIgnoreCase(transform)) {
-        type = "time";
-      } else if (transform.startsWith("bucket[")) {
-        type = "bucket";
+      String transformName = field.transform().getName();
+      if (transformName != null) {
+        return transformName + "(" + field.sourceId() + ")";
       } else {
         return null;
       }
-      return type + "(" + field.sourceId() + ")";
     }
 
     private void checkForRedundantPartitions(PartitionField field) {
@@ -513,10 +523,6 @@ public class PartitionSpec implements Serializable {
         add(field.sourceId(), field.fieldId(), field.name(), field.transform().toString());
       });
       return this;
-    }
-
-    PartitionField getLastPartitionField() {
-      return fields.get(fields.size() - 1);
     }
 
     public PartitionSpec build() {

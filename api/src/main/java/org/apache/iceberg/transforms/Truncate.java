@@ -63,6 +63,11 @@ abstract class Truncate<T> implements Transform<T, T> {
     return sourceType;
   }
 
+  @Override
+  public String getName() {
+    return "truncate";
+  }
+
   private static class TruncateInteger extends Truncate<Integer> {
     private final int width;
 

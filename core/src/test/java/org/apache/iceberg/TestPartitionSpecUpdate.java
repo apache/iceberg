@@ -65,24 +65,41 @@ public class TestPartitionSpecUpdate {
   }
 
   @Test
-  public void testAddRemovedFieldException() {
+  public void testAddRemovedSamePartitionField() {
     specUpdate = new PartitionSpecUpdate(initialSpecs);
-    AssertHelpers.assertThrows(
-        "Should throw IllegalArgumentException if adding back a pending removed field",
-        IllegalArgumentException.class, "Cannot add a partition field",
-        () -> specUpdate
+    Assert.assertEquals(
+        "remove and add operations should cancel each other, equivalent to noop",
+        PartitionSpec.builderFor(SCHEMA)
+            .add(2, 1000, "data_bucket", "bucket[16]")
+            .add(1, 1001, "id_bucket", "bucket[8]")
+            .build(),
+        specUpdate
             .removeField("data_bucket")
             .addBucketField("id", 8)
-            .addBucketField("data", 16, "data_partition")
+            .addBucketField("data", 16)
             .apply());
 
     specUpdate = new PartitionSpecUpdate(initialSpecs);
-    AssertHelpers.assertThrows(
-        "Should throw IllegalArgumentException if adding back a pending removed field",
-        IllegalArgumentException.class, "Cannot add a partition field",
-        () -> specUpdate
+    Assert.assertEquals(
+        "remove and add operations should cancel each other, equivalent to noop",
+        PartitionSpec.builderFor(SCHEMA)
+            .add(2, 1000, "data_bucket", "bucket[16]")
+            .add(1, 1001, "id_bucket", "bucket[8]")
+            .build(),
+        specUpdate
             .addBucketField("id", 8)
             .addBucketField("data", 16)
+            .removeField("data_bucket")
+            .apply());
+
+    specUpdate = new PartitionSpecUpdate(initialSpecs);
+    Assert.assertEquals(
+        "remove and add operations are equivalent to rename data_bucket to data_partition",
+        PartitionSpec.builderFor(SCHEMA)
+            .add(2, 1000, "data_partition", "bucket[16]")
+            .build(),
+        specUpdate
+            .addBucketField("data", 16, "data_partition")
             .removeField("data_bucket")
             .apply());
   }

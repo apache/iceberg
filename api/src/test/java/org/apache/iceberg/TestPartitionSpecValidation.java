@@ -35,10 +35,51 @@ public class TestPartitionSpecValidation {
   );
 
   @Test
-  public void testMultipleTimestampPartitions() {
-    AssertHelpers.assertThrows("Should not allow year(ts) and year(ts)",
+  public void testPartitionNameCollisions() {
+    AssertHelpers.assertThrows("Should not allow partition fields with the same name",
         IllegalArgumentException.class, "Cannot use partition name more than once",
         () -> PartitionSpec.builderFor(SCHEMA).year("ts", "year").year("another_ts", "year").build());
+    AssertHelpers.assertThrows("Should not allow partition fields with the same name",
+        IllegalArgumentException.class, "Cannot use partition name more than once",
+        () -> PartitionSpec.builderFor(SCHEMA).month("ts", "month").month("another_ts", "month").build());
+    AssertHelpers.assertThrows("Should not allow partition fields with the same name",
+        IllegalArgumentException.class, "Cannot use partition name more than once",
+        () -> PartitionSpec.builderFor(SCHEMA).day("ts", "day").day("another_ts", "day").build());
+    AssertHelpers.assertThrows("Should not allow partition fields with the same name)",
+        IllegalArgumentException.class, "Cannot use partition name more than once",
+        () -> PartitionSpec.builderFor(SCHEMA).hour("ts", "hour").hour("another_ts", "hour").build());
+
+    AssertHelpers.assertThrows("Should not allow partition fields with the same name",
+        IllegalArgumentException.class, "Cannot use partition name more than once",
+        () -> PartitionSpec.builderFor(SCHEMA).year("d", "year").year("another_d", "year").build());
+    AssertHelpers.assertThrows("Should not allow partition fields with the same name",
+        IllegalArgumentException.class, "Cannot use partition name more than once",
+        () -> PartitionSpec.builderFor(SCHEMA).month("d", "month").month("another_d", "month").build());
+    AssertHelpers.assertThrows("Should not allow partition fields with the same name",
+        IllegalArgumentException.class, "Cannot use partition name more than once",
+        () -> PartitionSpec.builderFor(SCHEMA).day("d", "day").day("another_d", "day").build());
+
+    AssertHelpers.assertThrows("Should not allow partition fields with the same name",
+        IllegalArgumentException.class, "Cannot use partition name more than once",
+        () -> PartitionSpec.builderFor(SCHEMA)
+            .bucket("id", 8, "bucket")
+            .bucket("s", 16, "bucket").build());
+
+    AssertHelpers.assertThrows("Should not allow partition fields with the same name",
+        IllegalArgumentException.class, "Cannot use partition name more than once",
+        () -> PartitionSpec.builderFor(SCHEMA)
+            .truncate("id", 8, "bucket")
+            .truncate("s", 16, "bucket").build());
+
+    AssertHelpers.assertThrows("Should not allow partition fields with the same name",
+        IllegalArgumentException.class, "Cannot use partition name more than once",
+        () -> PartitionSpec.builderFor(SCHEMA)
+            .identity("id", "identity")
+            .identity("s", "identity").build());
+  }
+
+  @Test
+  public void testMultipleTimestampPartitions() {
     AssertHelpers.assertThrows("Should not allow year(ts) and year(ts)",
         IllegalArgumentException.class, "Cannot add redundant partition",
         () -> PartitionSpec.builderFor(SCHEMA).year("ts").year("ts").build());
@@ -53,9 +94,6 @@ public class TestPartitionSpecValidation {
         () -> PartitionSpec.builderFor(SCHEMA).year("ts").hour("ts").build());
 
     AssertHelpers.assertThrows("Should not allow month(ts) and month(ts)",
-        IllegalArgumentException.class, "Cannot use partition name more than once",
-        () -> PartitionSpec.builderFor(SCHEMA).month("ts", "month").month("another_ts", "month").build());
-    AssertHelpers.assertThrows("Should not allow month(ts) and month(ts)",
         IllegalArgumentException.class, "Cannot add redundant partition",
         () -> PartitionSpec.builderFor(SCHEMA).month("ts").month("ts").build());
     AssertHelpers.assertThrows("Should not allow month(ts) and day(ts)",
@@ -66,9 +104,6 @@ public class TestPartitionSpecValidation {
         () -> PartitionSpec.builderFor(SCHEMA).month("ts").hour("ts").build());
 
     AssertHelpers.assertThrows("Should not allow day(ts) and day(ts)",
-        IllegalArgumentException.class, "Cannot use partition name more than once",
-        () -> PartitionSpec.builderFor(SCHEMA).day("ts", "day").day("another_ts", "day").build());
-    AssertHelpers.assertThrows("Should not allow day(ts) and day(ts)",
         IllegalArgumentException.class, "Cannot add redundant partition",
         () -> PartitionSpec.builderFor(SCHEMA).day("ts").day("ts").build());
     AssertHelpers.assertThrows("Should not allow day(ts) and hour(ts)",
@@ -76,18 +111,12 @@ public class TestPartitionSpecValidation {
         () -> PartitionSpec.builderFor(SCHEMA).day("ts").hour("ts").build());
 
     AssertHelpers.assertThrows("Should not allow hour(ts) and hour(ts)",
-        IllegalArgumentException.class, "Cannot use partition name more than once",
-        () -> PartitionSpec.builderFor(SCHEMA).hour("ts", "hour").hour("another_ts", "hour").build());
-    AssertHelpers.assertThrows("Should not allow hour(ts) and hour(ts)",
         IllegalArgumentException.class, "Cannot add redundant partition",
         () -> PartitionSpec.builderFor(SCHEMA).hour("ts").hour("ts").build());
   }
 
   @Test
   public void testMultipleDatePartitions() {
-    AssertHelpers.assertThrows("Should not allow year(d) and year(d)",
-        IllegalArgumentException.class, "Cannot use partition name more than once",
-        () -> PartitionSpec.builderFor(SCHEMA).year("d", "year").year("another_d", "year").build());
     AssertHelpers.assertThrows("Should not allow year(d) and year(d)",
         IllegalArgumentException.class, "Cannot add redundant partition",
         () -> PartitionSpec.builderFor(SCHEMA).year("d").year("d").build());
@@ -99,9 +128,6 @@ public class TestPartitionSpecValidation {
         () -> PartitionSpec.builderFor(SCHEMA).year("d").day("d").build());
 
     AssertHelpers.assertThrows("Should not allow month(d) and month(d)",
-        IllegalArgumentException.class, "Cannot use partition name more than once",
-        () -> PartitionSpec.builderFor(SCHEMA).month("d", "month").month("another_d", "month").build());
-    AssertHelpers.assertThrows("Should not allow month(d) and month(d)",
         IllegalArgumentException.class, "Cannot add redundant partition",
         () -> PartitionSpec.builderFor(SCHEMA).month("d").month("d").build());
     AssertHelpers.assertThrows("Should not allow month(d) and day(d)",
@@ -109,12 +135,8 @@ public class TestPartitionSpecValidation {
         () -> PartitionSpec.builderFor(SCHEMA).month("d").day("d").build());
 
     AssertHelpers.assertThrows("Should not allow day(d) and day(d)",
-        IllegalArgumentException.class, "Cannot use partition name more than once",
-        () -> PartitionSpec.builderFor(SCHEMA).day("d", "day").day("another_d", "day").build());
-    AssertHelpers.assertThrows("Should not allow day(d) and day(d)",
         IllegalArgumentException.class, "Cannot add redundant partition",
         () -> PartitionSpec.builderFor(SCHEMA).day("d").day("d").build());
-
   }
 
   @Test
@@ -288,12 +310,6 @@ public class TestPartitionSpecValidation {
   @Test
   public void testMultipleBucketPartitions() {
     AssertHelpers.assertThrows("Should not allow bucket[8](id) and bucket[16](id)",
-        IllegalArgumentException.class, "Cannot use partition name more than once",
-        () -> PartitionSpec.builderFor(SCHEMA)
-            .bucket("id", 8, "bucket")
-            .bucket("s", 16, "bucket").build());
-
-    AssertHelpers.assertThrows("Should not allow bucket[8](id) and bucket[16](id)",
         IllegalArgumentException.class, "Cannot add redundant partition",
         () -> PartitionSpec.builderFor(SCHEMA).bucket("id", 8).bucket("id", 16).build());
 
@@ -302,6 +318,5 @@ public class TestPartitionSpecValidation {
         () -> PartitionSpec.builderFor(SCHEMA)
             .bucket("id", 8, "id_bucket1")
             .bucket("id", 16, "id_bucket2").build());
-
   }
 }

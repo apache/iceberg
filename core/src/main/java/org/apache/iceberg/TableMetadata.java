@@ -429,6 +429,11 @@ public class TableMetadata implements Serializable {
       }
     }
 
+    if (defaultSpecId == newDefaultSpecId && newPartitionSpec.equivalentTo(spec())) {
+      // the new spec is already current and return the current table metadata
+      return this;
+    }
+
     // Always setting default partition spec to the new partition spec
     ImmutableList.Builder<PartitionSpec> builder = ImmutableList.builder();
     for (PartitionSpec spec : specs) {
