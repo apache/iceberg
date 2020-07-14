@@ -31,8 +31,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -296,8 +296,8 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     );
 
     AssertHelpers.assertThrows("Should fail to drop namespace is not empty " + namespace1,
-        RuntimeIOException.class,
-        "Namespace delete failed: " + namespace1, () -> {
+        NamespaceNotEmptyException.class,
+        "Namespace " + namespace1 + " is not empty.", () -> {
           catalog.dropNamespace(Namespace.of("db"));
         });
     Assert.assertFalse("Should fail to drop namespace doesn't exist",
