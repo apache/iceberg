@@ -149,8 +149,12 @@ public class SparkCatalog implements StagingTableCatalog, org.apache.spark.sql.c
                                  Map<String, String> properties) throws TableAlreadyExistsException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
     try {
-      return new StagedSparkTable(icebergCatalog.newCreateTableTransaction(buildIdentifier(ident), icebergSchema,
-          Spark3Util.toPartitionSpec(icebergSchema, transforms), properties.get("location"), properties));
+      return new StagedSparkTable(icebergCatalog.newCreateTableTransaction(
+          buildIdentifier(ident),
+          icebergSchema,
+          Spark3Util.toPartitionSpec(icebergSchema, transforms),
+          properties.get("location"),
+          Spark3Util.rebuildCreateProperties(properties)));
     } catch (AlreadyExistsException e) {
       throw new TableAlreadyExistsException(ident);
     }
@@ -161,8 +165,12 @@ public class SparkCatalog implements StagingTableCatalog, org.apache.spark.sql.c
                                   Map<String, String> properties) throws NoSuchTableException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
     try {
-      return new StagedSparkTable(icebergCatalog.newReplaceTableTransaction(buildIdentifier(ident), icebergSchema,
-          Spark3Util.toPartitionSpec(icebergSchema, transforms), properties.get("location"), properties,
+      return new StagedSparkTable(icebergCatalog.newReplaceTableTransaction(
+          buildIdentifier(ident),
+          icebergSchema,
+          Spark3Util.toPartitionSpec(icebergSchema, transforms),
+          properties.get("location"),
+          Spark3Util.rebuildCreateProperties(properties),
           false /* do not create */));
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
@@ -173,8 +181,12 @@ public class SparkCatalog implements StagingTableCatalog, org.apache.spark.sql.c
   public StagedTable stageCreateOrReplace(Identifier ident, StructType schema, Transform[] transforms,
                                           Map<String, String> properties) {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
-    return new StagedSparkTable(icebergCatalog.newReplaceTableTransaction(buildIdentifier(ident), icebergSchema,
-        Spark3Util.toPartitionSpec(icebergSchema, transforms), properties.get("location"), properties,
+    return new StagedSparkTable(icebergCatalog.newReplaceTableTransaction(
+        buildIdentifier(ident),
+        icebergSchema,
+        Spark3Util.toPartitionSpec(icebergSchema, transforms),
+        properties.get("location"),
+        Spark3Util.rebuildCreateProperties(properties),
         true /* create or replace */));
   }
 
