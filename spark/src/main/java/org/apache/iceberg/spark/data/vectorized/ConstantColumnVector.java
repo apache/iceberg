@@ -59,37 +59,37 @@ class ConstantColumnVector extends ColumnVector {
 
   @Override
   public boolean getBoolean(int rowId) {
-    return constant != null ? (boolean) constant : false;
+    return (boolean) constant;
   }
 
   @Override
   public byte getByte(int rowId) {
-    return constant != null ? (byte) constant : 0;
+    return (byte) constant;
   }
 
   @Override
   public short getShort(int rowId) {
-    return constant != null ? (short) constant : 0;
+    return (short) constant;
   }
 
   @Override
   public int getInt(int rowId) {
-    return constant != null ? (int) constant : 0;
+    return (int) constant;
   }
 
   @Override
   public long getLong(int rowId) {
-    return constant != null ? (long) constant : 0L;
+    return (long) constant;
   }
 
   @Override
   public float getFloat(int rowId) {
-    return constant != null ? (float) constant : 0.0F;
+    return (float) constant;
   }
 
   @Override
   public double getDouble(int rowId) {
-    return constant != null ? (double) constant : 0.0;
+    return (double) constant;
   }
 
   @Override

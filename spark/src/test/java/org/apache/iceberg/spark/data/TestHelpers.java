@@ -649,7 +649,9 @@ public class TestHelpers {
         expected.numElements(), actual.numElements());
     DataType type = array.elementType();
     for (int i = 0; i < actual.numElements(); i += 1) {
-      assertEquals(context + ".element", type, expected.get(i, type), actual.get(i, type));
+      assertEquals(context + ".element", type,
+          expected.isNullAt(i) ? null : expected.get(i, type),
+          actual.isNullAt(i) ? null : actual.get(i, type));
     }
   }
 
@@ -667,9 +669,11 @@ public class TestHelpers {
 
     for (int i = 0; i < actual.numElements(); i += 1) {
       assertEquals(context + ".key", keyType,
-          expectedKeys.get(i, keyType), actualKeys.get(i, keyType));
+          expectedKeys.isNullAt(i) ? null : expectedKeys.get(i, keyType),
+          actualKeys.isNullAt(i) ? null : actualKeys.get(i, keyType));
       assertEquals(context + ".value", valueType,
-          expectedValues.get(i, valueType), actualValues.get(i, valueType));
+          expectedValues.isNullAt(i) ? null : expectedValues.get(i, valueType),
+          actualValues.isNullAt(i) ? null : actualValues.get(i, valueType));
     }
   }
 }
