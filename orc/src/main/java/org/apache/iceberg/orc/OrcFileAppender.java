@@ -73,7 +73,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
     }
     options.setSchema(orcSchema);
     this.writer = newOrcWriter(file, options, metadata);
-    this.valueWriter = newOrcValueWriter(orcSchema, createWriterFunc);
+    this.valueWriter = newOrcRowWriter(orcSchema, createWriterFunc);
   }
 
   @Override
@@ -146,7 +146,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
   }
 
   @SuppressWarnings("unchecked")
-  private static <D> OrcRowWriter<D> newOrcValueWriter(
+  private static <D> OrcRowWriter<D> newOrcRowWriter(
       TypeDescription schema, Function<TypeDescription, OrcRowWriter<?>> createWriterFunc) {
     return (OrcRowWriter<D>) createWriterFunc.apply(schema);
   }
