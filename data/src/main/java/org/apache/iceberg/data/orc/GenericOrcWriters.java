@@ -34,7 +34,6 @@ import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.common.type.HiveDecimal;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
@@ -53,59 +52,59 @@ public class GenericOrcWriters {
   }
 
   public static OrcValueWriter<Boolean> booleans() {
-    return BooleanOrcValueWriter.INSTANCE;
+    return BooleanWriter.INSTANCE;
   }
 
   public static OrcValueWriter<Byte> bytes() {
-    return ByteOrcValueWriter.INSTANCE;
+    return ByteWriter.INSTANCE;
   }
 
   public static OrcValueWriter<Short> shorts() {
-    return ShortOrcValueWriter.INSTANCE;
+    return ShortWriter.INSTANCE;
   }
 
   public static OrcValueWriter<Integer> ints() {
-    return IntOrcValueWriter.INSTANCE;
+    return IntWriter.INSTANCE;
   }
 
   public static OrcValueWriter<LocalTime> times() {
-    return TimeOrcValueWriter.INSTANCE;
+    return TimeWriter.INSTANCE;
   }
 
   public static OrcValueWriter<Long> longs() {
-    return LongOrcValueWriter.INSTANCE;
+    return LongWriter.INSTANCE;
   }
 
   public static OrcValueWriter<Float> floats() {
-    return FloatOrcValueWriter.INSTANCE;
+    return FloatWriter.INSTANCE;
   }
 
   public static OrcValueWriter<Double> doubles() {
-    return DoubleOrcValueWriter.INSTANCE;
+    return DoubleWriter.INSTANCE;
   }
 
   public static OrcValueWriter<String> strings() {
-    return StringOrcValueWriter.INSTANCE;
+    return StringWriter.INSTANCE;
   }
 
   public static OrcValueWriter<ByteBuffer> binary() {
-    return BytesOrcValueWriter.INSTANCE;
+    return BytesWriter.INSTANCE;
   }
 
   public static OrcValueWriter<UUID> uuids() {
-    return UUIDOrcValueWriter.INSTANCE;
+    return UUIDWriter.INSTANCE;
   }
 
   public static OrcValueWriter<byte[]> fixed() {
-    return FixedOrcValueWriter.INSTANCE;
+    return FixedWriter.INSTANCE;
   }
 
   public static OrcValueWriter<LocalDate> dates() {
-    return DateOrcValueWriter.INSTANCE;
+    return DateWriter.INSTANCE;
   }
 
   public static OrcValueWriter<OffsetDateTime> timestampTz() {
-    return TimestampTzOrcValueWriter.INSTANCE;
+    return TimestampTzWriter.INSTANCE;
   }
 
   public static OrcValueWriter<LocalDateTime> timestamp() {
@@ -114,22 +113,22 @@ public class GenericOrcWriters {
 
   public static OrcValueWriter<BigDecimal> decimal(int scala, int precision) {
     if (precision <= 18) {
-      return new Decimal18OrcValueWriter(scala);
+      return new DecimalWriter(scala);
     } else {
-      return Decimal38OrcValueWriter.INSTANCE;
+      return Decimal38Writer.INSTANCE;
     }
   }
 
   public static OrcValueWriter<List> list(OrcValueWriter element) {
-    return new ListOrcValueWriter(element);
+    return new ListWriter(element);
   }
 
   public static OrcValueWriter<Map> map(OrcValueWriter key, OrcValueWriter value) {
-    return new MapOrcValueWriter(key, value);
+    return new MapWriter(key, value);
   }
 
-  private static class BooleanOrcValueWriter implements OrcValueWriter<Boolean> {
-    private static final OrcValueWriter<Boolean> INSTANCE = new BooleanOrcValueWriter();
+  private static class BooleanWriter implements OrcValueWriter<Boolean> {
+    private static final OrcValueWriter<Boolean> INSTANCE = new BooleanWriter();
 
     @Override
     public Class<Boolean> getJavaClass() {
@@ -148,8 +147,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class ByteOrcValueWriter implements OrcValueWriter<Byte> {
-    private static final OrcValueWriter<Byte> INSTANCE = new ByteOrcValueWriter();
+  private static class ByteWriter implements OrcValueWriter<Byte> {
+    private static final OrcValueWriter<Byte> INSTANCE = new ByteWriter();
 
     @Override
     public Class<Byte> getJavaClass() {
@@ -168,8 +167,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class ShortOrcValueWriter implements OrcValueWriter<Short> {
-    private static final OrcValueWriter<Short> INSTANCE = new ShortOrcValueWriter();
+  private static class ShortWriter implements OrcValueWriter<Short> {
+    private static final OrcValueWriter<Short> INSTANCE = new ShortWriter();
 
     @Override
     public Class<Short> getJavaClass() {
@@ -188,8 +187,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class IntOrcValueWriter implements OrcValueWriter<Integer> {
-    private static final OrcValueWriter<Integer> INSTANCE = new IntOrcValueWriter();
+  private static class IntWriter implements OrcValueWriter<Integer> {
+    private static final OrcValueWriter<Integer> INSTANCE = new IntWriter();
 
     @Override
     public Class<Integer> getJavaClass() {
@@ -208,8 +207,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class TimeOrcValueWriter implements OrcValueWriter<LocalTime> {
-    private static final OrcValueWriter<LocalTime> INSTANCE = new TimeOrcValueWriter();
+  private static class TimeWriter implements OrcValueWriter<LocalTime> {
+    private static final OrcValueWriter<LocalTime> INSTANCE = new TimeWriter();
 
     @Override
     public Class<LocalTime> getJavaClass() {
@@ -228,8 +227,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class LongOrcValueWriter implements OrcValueWriter<Long> {
-    private static final OrcValueWriter<Long> INSTANCE = new LongOrcValueWriter();
+  private static class LongWriter implements OrcValueWriter<Long> {
+    private static final OrcValueWriter<Long> INSTANCE = new LongWriter();
 
     @Override
     public Class<Long> getJavaClass() {
@@ -248,8 +247,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class FloatOrcValueWriter implements OrcValueWriter<Float> {
-    private static final OrcValueWriter<Float> INSTANCE = new FloatOrcValueWriter();
+  private static class FloatWriter implements OrcValueWriter<Float> {
+    private static final OrcValueWriter<Float> INSTANCE = new FloatWriter();
 
     @Override
     public Class<Float> getJavaClass() {
@@ -268,8 +267,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class DoubleOrcValueWriter implements OrcValueWriter<Double> {
-    private static final OrcValueWriter<Double> INSTANCE = new DoubleOrcValueWriter();
+  private static class DoubleWriter implements OrcValueWriter<Double> {
+    private static final OrcValueWriter<Double> INSTANCE = new DoubleWriter();
 
     @Override
     public Class<Double> getJavaClass() {
@@ -288,8 +287,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class StringOrcValueWriter implements OrcValueWriter<String> {
-    private static final OrcValueWriter<String> INSTANCE = new StringOrcValueWriter();
+  private static class StringWriter implements OrcValueWriter<String> {
+    private static final OrcValueWriter<String> INSTANCE = new StringWriter();
 
     @Override
     public Class<String> getJavaClass() {
@@ -309,8 +308,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class BytesOrcValueWriter implements OrcValueWriter<ByteBuffer> {
-    private static final OrcValueWriter<ByteBuffer> INSTANCE = new BytesOrcValueWriter();
+  private static class BytesWriter implements OrcValueWriter<ByteBuffer> {
+    private static final OrcValueWriter<ByteBuffer> INSTANCE = new BytesWriter();
 
     @Override
     public Class<ByteBuffer> getJavaClass() {
@@ -329,8 +328,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class UUIDOrcValueWriter implements OrcValueWriter<UUID> {
-    private static final OrcValueWriter<UUID> INSTANCE = new UUIDOrcValueWriter();
+  private static class UUIDWriter implements OrcValueWriter<UUID> {
+    private static final OrcValueWriter<UUID> INSTANCE = new UUIDWriter();
 
     @Override
     public Class<UUID> getJavaClass() {
@@ -352,8 +351,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class FixedOrcValueWriter implements OrcValueWriter<byte[]> {
-    private static final OrcValueWriter<byte[]> INSTANCE = new FixedOrcValueWriter();
+  private static class FixedWriter implements OrcValueWriter<byte[]> {
+    private static final OrcValueWriter<byte[]> INSTANCE = new FixedWriter();
 
     @Override
     public Class<byte[]> getJavaClass() {
@@ -372,8 +371,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class DateOrcValueWriter implements OrcValueWriter<LocalDate> {
-    private static final OrcValueWriter<LocalDate> INSTANCE = new DateOrcValueWriter();
+  private static class DateWriter implements OrcValueWriter<LocalDate> {
+    private static final OrcValueWriter<LocalDate> INSTANCE = new DateWriter();
 
     @Override
     public Class<LocalDate> getJavaClass() {
@@ -392,8 +391,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class TimestampTzOrcValueWriter implements OrcValueWriter<OffsetDateTime> {
-    private static final OrcValueWriter<OffsetDateTime> INSTANCE = new TimestampTzOrcValueWriter();
+  private static class TimestampTzWriter implements OrcValueWriter<OffsetDateTime> {
+    private static final OrcValueWriter<OffsetDateTime> INSTANCE = new TimestampTzWriter();
 
     @Override
     public Class<OffsetDateTime> getJavaClass() {
@@ -437,10 +436,10 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class Decimal18OrcValueWriter implements OrcValueWriter<BigDecimal> {
+  private static class DecimalWriter implements OrcValueWriter<BigDecimal> {
     private final int scale;
 
-    Decimal18OrcValueWriter(int scale) {
+    DecimalWriter(int scale) {
       this.scale = scale;
     }
 
@@ -463,8 +462,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class Decimal38OrcValueWriter implements OrcValueWriter<BigDecimal> {
-    private static final OrcValueWriter<BigDecimal> INSTANCE = new Decimal38OrcValueWriter();
+  private static class Decimal38Writer implements OrcValueWriter<BigDecimal> {
+    private static final OrcValueWriter<BigDecimal> INSTANCE = new Decimal38Writer();
 
     @Override
     public Class<BigDecimal> getJavaClass() {
@@ -484,10 +483,10 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class ListOrcValueWriter implements OrcValueWriter<List> {
+  private static class ListWriter implements OrcValueWriter<List> {
     private final OrcValueWriter element;
 
-    ListOrcValueWriter(OrcValueWriter element) {
+    ListWriter(OrcValueWriter element) {
       this.element = element;
     }
 
@@ -520,11 +519,11 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class MapOrcValueWriter implements OrcValueWriter<Map> {
+  private static class MapWriter implements OrcValueWriter<Map> {
     private final OrcValueWriter keyWriter;
     private final OrcValueWriter valueWriter;
 
-    MapOrcValueWriter(OrcValueWriter keyWriter, OrcValueWriter valueWriter) {
+    MapWriter(OrcValueWriter keyWriter, OrcValueWriter valueWriter) {
       this.keyWriter = keyWriter;
       this.valueWriter = valueWriter;
     }
