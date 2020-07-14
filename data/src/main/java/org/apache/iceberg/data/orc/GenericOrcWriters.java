@@ -55,14 +55,6 @@ public class GenericOrcWriters {
     return BooleanWriter.INSTANCE;
   }
 
-  public static OrcValueWriter<Byte> bytes() {
-    return ByteWriter.INSTANCE;
-  }
-
-  public static OrcValueWriter<Short> shorts() {
-    return ShortWriter.INSTANCE;
-  }
-
   public static OrcValueWriter<Integer> ints() {
     return IntWriter.INSTANCE;
   }
@@ -136,54 +128,8 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public void addValue(int rowId, Boolean data, ColumnVector output) {
-      if (data == null) {
-        output.noNulls = false;
-        output.isNull[rowId] = true;
-      } else {
-        output.isNull[rowId] = false;
-        ((LongColumnVector) output).vector[rowId] = data ? 1 : 0;
-      }
-    }
-  }
-
-  private static class ByteWriter implements OrcValueWriter<Byte> {
-    private static final OrcValueWriter<Byte> INSTANCE = new ByteWriter();
-
-    @Override
-    public Class<Byte> getJavaClass() {
-      return Byte.class;
-    }
-
-    @Override
-    public void addValue(int rowId, Byte data, ColumnVector output) {
-      if (data == null) {
-        output.noNulls = false;
-        output.isNull[rowId] = true;
-      } else {
-        output.isNull[rowId] = false;
-        ((LongColumnVector) output).vector[rowId] = data;
-      }
-    }
-  }
-
-  private static class ShortWriter implements OrcValueWriter<Short> {
-    private static final OrcValueWriter<Short> INSTANCE = new ShortWriter();
-
-    @Override
-    public Class<Short> getJavaClass() {
-      return Short.class;
-    }
-
-    @Override
-    public void addValue(int rowId, Short data, ColumnVector output) {
-      if (data == null) {
-        output.noNulls = false;
-        output.isNull[rowId] = true;
-      } else {
-        output.isNull[rowId] = false;
-        ((LongColumnVector) output).vector[rowId] = data;
-      }
+    public void nonNullWrite(int rowId, Boolean data, ColumnVector output) {
+      ((LongColumnVector) output).vector[rowId] = data ? 1 : 0;
     }
   }
 
@@ -196,14 +142,8 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public void addValue(int rowId, Integer data, ColumnVector output) {
-      if (data == null) {
-        output.noNulls = false;
-        output.isNull[rowId] = true;
-      } else {
-        output.isNull[rowId] = false;
-        ((LongColumnVector) output).vector[rowId] = data;
-      }
+    public void nonNullWrite(int rowId, Integer data, ColumnVector output) {
+      ((LongColumnVector) output).vector[rowId] = data;
     }
   }
 
@@ -216,14 +156,8 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public void addValue(int rowId, LocalTime data, ColumnVector output) {
-      if (data == null) {
-        output.noNulls = false;
-        output.isNull[rowId] = true;
-      } else {
-        output.isNull[rowId] = false;
-        ((LongColumnVector) output).vector[rowId] = data.toNanoOfDay() / 1_000;
-      }
+    public void nonNullWrite(int rowId, LocalTime data, ColumnVector output) {
+      ((LongColumnVector) output).vector[rowId] = data.toNanoOfDay() / 1_000;
     }
   }
 
@@ -236,14 +170,8 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public void addValue(int rowId, Long data, ColumnVector output) {
-      if (data == null) {
-        output.noNulls = false;
-        output.isNull[rowId] = true;
-      } else {
-        output.isNull[rowId] = false;
-        ((LongColumnVector) output).vector[rowId] = data;
-      }
+    public void nonNullWrite(int rowId, Long data, ColumnVector output) {
+      ((LongColumnVector) output).vector[rowId] = data;
     }
   }
 
@@ -256,14 +184,8 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public void addValue(int rowId, Float data, ColumnVector output) {
-      if (data == null) {
-        output.noNulls = false;
-        output.isNull[rowId] = true;
-      } else {
-        output.isNull[rowId] = false;
-        ((DoubleColumnVector) output).vector[rowId] = data;
-      }
+    public void nonNullWrite(int rowId, Float data, ColumnVector output) {
+      ((DoubleColumnVector) output).vector[rowId] = data;
     }
   }
 
@@ -276,14 +198,8 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public void addValue(int rowId, Double data, ColumnVector output) {
-      if (data == null) {
-        output.noNulls = false;
-        output.isNull[rowId] = true;
-      } else {
-        output.isNull[rowId] = false;
-        ((DoubleColumnVector) output).vector[rowId] = data;
-      }
+    public void nonNullWrite(int rowId, Double data, ColumnVector output) {
+      ((DoubleColumnVector) output).vector[rowId] = data;
     }
   }
 
@@ -296,15 +212,9 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public void addValue(int rowId, String data, ColumnVector output) {
-      if (data == null) {
-        output.noNulls = false;
-        output.isNull[rowId] = true;
-      } else {
-        output.isNull[rowId] = false;
-        byte[] value = data.getBytes(StandardCharsets.UTF_8);
-        ((BytesColumnVector) output).setRef(rowId, value, 0, value.length);
-      }
+    public void nonNullWrite(int rowId, String data, ColumnVector output) {
+      byte[] value = data.getBytes(StandardCharsets.UTF_8);
+      ((BytesColumnVector) output).setRef(rowId, value, 0, value.length);
     }
   }
 
@@ -317,14 +227,8 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public void addValue(int rowId, ByteBuffer data, ColumnVector output) {
-      if (data == null) {
-        output.noNulls = false;
-        output.isNull[rowId] = true;
-      } else {
-        output.isNull[rowId] = false;
-        ((BytesColumnVector) output).setRef(rowId, data.array(), 0, data.array().length);
-      }
+    public void nonNullWrite(int rowId, ByteBuffer data, ColumnVector output) {
+      ((BytesColumnVector) output).setRef(rowId, data.array(), 0, data.array().length);
     }
   }
 
@@ -337,17 +241,11 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public void addValue(int rowId, UUID data, ColumnVector output) {
-      if (data == null) {
-        output.noNulls = false;
-        output.isNull[rowId] = true;
-      } else {
-        output.isNull[rowId] = false;
-        ByteBuffer buffer = ByteBuffer.allocate(16);
-        buffer.putLong(data.getMostSignificantBits());
-        buffer.putLong(data.getLeastSignificantBits());
-        ((BytesColumnVector) output).setRef(rowId, buffer.array(), 0, buffer.array().length);
-      }
+    public void nonNullWrite(int rowId, UUID data, ColumnVector output) {
+      ByteBuffer buffer = ByteBuffer.allocate(16);
+      buffer.putLong(data.getMostSignificantBits());
+      buffer.putLong(data.getLeastSignificantBits());
+      ((BytesColumnVector) output).setRef(rowId, buffer.array(), 0, buffer.array().length);
     }
   }
 
@@ -360,14 +258,8 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public void addValue(int rowId, byte[] data, ColumnVector output) {
-      if (data == null) {
-        output.noNulls = false;
-        output.isNull[rowId] = true;
-      } else {
-        output.isNull[rowId] = false;
-        ((BytesColumnVector) output).setRef(rowId, data, 0, data.length);
-      }
+    public void nonNullWrite(int rowId, byte[] data, ColumnVector output) {
+      ((BytesColumnVector) output).setRef(rowId, data, 0, data.length);
     }
   }
 
@@ -380,14 +272,8 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public void addValue(int rowId, LocalDate data, ColumnVector output) {
-      if (data == null) {
-        output.noNulls = false;
-        output.isNull[rowId] = true;
-      } else {
-        output.isNull[rowId] = false;
-        ((LongColumnVector) output).vector[rowId] = ChronoUnit.DAYS.between(EPOCH_DAY, data);
-      }
+    public void nonNullWrite(int rowId, LocalDate data, ColumnVector output) {
+      ((LongColumnVector) output).vector[rowId] = ChronoUnit.DAYS.between(EPOCH_DAY, data);
     }
   }
 
@@ -400,16 +286,10 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public void addValue(int rowId, OffsetDateTime data, ColumnVector output) {
-      if (data == null) {
-        output.noNulls = false;
-        output.isNull[rowId] = true;
-      } else {
-        output.isNull[rowId] = false;
-        TimestampColumnVector cv = (TimestampColumnVector) output;
-        cv.time[rowId] = data.toInstant().toEpochMilli(); // millis
-        cv.nanos[rowId] = (data.getNano() / 1_000) * 1_000; // truncate nanos to only keep microsecond precision
-      }
+    public void nonNullWrite(int rowId, OffsetDateTime data, ColumnVector output) {
+      TimestampColumnVector cv = (TimestampColumnVector) output;
+      cv.time[rowId] = data.toInstant().toEpochMilli(); // millis
+      cv.nanos[rowId] = (data.getNano() / 1_000) * 1_000; // truncate nanos to only keep microsecond precision
     }
   }
 
@@ -422,17 +302,11 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public void addValue(int rowId, LocalDateTime data, ColumnVector output) {
-      if (data == null) {
-        output.noNulls = false;
-        output.isNull[rowId] = true;
-      } else {
-        output.isNull[rowId] = false;
-        TimestampColumnVector cv = (TimestampColumnVector) output;
-        cv.setIsUTC(true);
-        cv.time[rowId] = data.toInstant(ZoneOffset.UTC).toEpochMilli(); // millis
-        cv.nanos[rowId] = (data.getNano() / 1_000) * 1_000; // truncate nanos to only keep microsecond precision
-      }
+    public void nonNullWrite(int rowId, LocalDateTime data, ColumnVector output) {
+      TimestampColumnVector cv = (TimestampColumnVector) output;
+      cv.setIsUTC(true);
+      cv.time[rowId] = data.toInstant(ZoneOffset.UTC).toEpochMilli(); // millis
+      cv.nanos[rowId] = (data.getNano() / 1_000) * 1_000; // truncate nanos to only keep microsecond precision
     }
   }
 
@@ -449,16 +323,10 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public void addValue(int rowId, BigDecimal data, ColumnVector output) {
+    public void nonNullWrite(int rowId, BigDecimal data, ColumnVector output) {
       // TODO: validate precision and scale from schema
-      if (data == null) {
-        output.noNulls = false;
-        output.isNull[rowId] = true;
-      } else {
-        output.isNull[rowId] = false;
-        ((DecimalColumnVector) output).vector[rowId]
-            .setFromLongAndScale(data.unscaledValue().longValueExact(), scale);
-      }
+      ((DecimalColumnVector) output).vector[rowId]
+          .setFromLongAndScale(data.unscaledValue().longValueExact(), scale);
     }
   }
 
@@ -471,15 +339,9 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public void addValue(int rowId, BigDecimal data, ColumnVector output) {
+    public void nonNullWrite(int rowId, BigDecimal data, ColumnVector output) {
       // TODO: validate precision and scale from schema
-      if (data == null) {
-        output.noNulls = false;
-        output.isNull[rowId] = true;
-      } else {
-        output.isNull[rowId] = false;
-        ((DecimalColumnVector) output).vector[rowId].set(HiveDecimal.create(data, false));
-      }
+      ((DecimalColumnVector) output).vector[rowId].set(HiveDecimal.create(data, false));
     }
   }
 
@@ -497,24 +359,18 @@ public class GenericOrcWriters {
 
     @Override
     @SuppressWarnings("unchecked")
-    public void addValue(int rowId, List data, ColumnVector output) {
-      if (data == null) {
-        output.noNulls = false;
-        output.isNull[rowId] = true;
-      } else {
-        output.isNull[rowId] = false;
-        List<Object> value = (List<Object>) data;
-        ListColumnVector cv = (ListColumnVector) output;
-        // record the length and start of the list elements
-        cv.lengths[rowId] = value.size();
-        cv.offsets[rowId] = cv.childCount;
-        cv.childCount += cv.lengths[rowId];
-        // make sure the child is big enough
-        cv.child.ensureSize(cv.childCount, true);
-        // Add each element
-        for (int e = 0; e < cv.lengths[rowId]; ++e) {
-          element.addValue((int) (e + cv.offsets[rowId]), value.get(e), cv.child);
-        }
+    public void nonNullWrite(int rowId, List data, ColumnVector output) {
+      List<Object> value = (List<Object>) data;
+      ListColumnVector cv = (ListColumnVector) output;
+      // record the length and start of the list elements
+      cv.lengths[rowId] = value.size();
+      cv.offsets[rowId] = cv.childCount;
+      cv.childCount += cv.lengths[rowId];
+      // make sure the child is big enough
+      cv.child.ensureSize(cv.childCount, true);
+      // Add each element
+      for (int e = 0; e < cv.lengths[rowId]; ++e) {
+        element.write((int) (e + cv.offsets[rowId]), value.get(e), cv.child);
       }
     }
   }
@@ -535,33 +391,27 @@ public class GenericOrcWriters {
 
     @Override
     @SuppressWarnings("unchecked")
-    public void addValue(int rowId, Map data, ColumnVector output) {
-      if (data == null) {
-        output.noNulls = false;
-        output.isNull[rowId] = true;
-      } else {
-        output.isNull[rowId] = false;
-        Map<Object, Object> map = (Map<Object, Object>) data;
-        List<Object> keys = Lists.newArrayListWithExpectedSize(map.size());
-        List<Object> values = Lists.newArrayListWithExpectedSize(map.size());
-        for (Map.Entry<?, ?> entry : map.entrySet()) {
-          keys.add(entry.getKey());
-          values.add(entry.getValue());
-        }
-        MapColumnVector cv = (MapColumnVector) output;
-        // record the length and start of the list elements
-        cv.lengths[rowId] = map.size();
-        cv.offsets[rowId] = cv.childCount;
-        cv.childCount += cv.lengths[rowId];
-        // make sure the child is big enough
-        cv.keys.ensureSize(cv.childCount, true);
-        cv.values.ensureSize(cv.childCount, true);
-        // Add each element
-        for (int e = 0; e < cv.lengths[rowId]; ++e) {
-          int pos = (int) (e + cv.offsets[rowId]);
-          keyWriter.addValue(pos, keys.get(e), cv.keys);
-          valueWriter.addValue(pos, values.get(e), cv.values);
-        }
+    public void nonNullWrite(int rowId, Map data, ColumnVector output) {
+      Map<Object, Object> map = (Map<Object, Object>) data;
+      List<Object> keys = Lists.newArrayListWithExpectedSize(map.size());
+      List<Object> values = Lists.newArrayListWithExpectedSize(map.size());
+      for (Map.Entry<?, ?> entry : map.entrySet()) {
+        keys.add(entry.getKey());
+        values.add(entry.getValue());
+      }
+      MapColumnVector cv = (MapColumnVector) output;
+      // record the length and start of the list elements
+      cv.lengths[rowId] = map.size();
+      cv.offsets[rowId] = cv.childCount;
+      cv.childCount += cv.lengths[rowId];
+      // make sure the child is big enough
+      cv.keys.ensureSize(cv.childCount, true);
+      cv.values.ensureSize(cv.childCount, true);
+      // Add each element
+      for (int e = 0; e < cv.lengths[rowId]; ++e) {
+        int pos = (int) (e + cv.offsets[rowId]);
+        keyWriter.write(pos, keys.get(e), cv.keys);
+        valueWriter.write(pos, values.get(e), cv.values);
       }
     }
   }

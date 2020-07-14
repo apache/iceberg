@@ -32,5 +32,15 @@ public interface OrcValueWriter<T> {
    * @param data   the data value to write.
    * @param output the ColumnVector to put the value into
    */
-  void addValue(int rowId, T data, ColumnVector output);
+  default void write(int rowId, T data, ColumnVector output) {
+    if (data == null) {
+      output.noNulls = false;
+      output.isNull[rowId] = true;
+    } else {
+      output.isNull[rowId] = false;
+      nonNullWrite(rowId, data, output);
+    }
+  }
+
+  void nonNullWrite(int rowId, T data, ColumnVector output);
 }

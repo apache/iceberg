@@ -35,13 +35,13 @@ import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 public class GenericOrcWriter implements OrcRowWriter<Record> {
-  private final OrcValueWriter orcValueWriter;
+  private final OrcValueWriter writer;
 
   private GenericOrcWriter(Schema expectedSchema, TypeDescription orcSchema) {
     Preconditions.checkArgument(orcSchema.getCategory() == TypeDescription.Category.STRUCT,
         "Top level must be a struct " + orcSchema);
 
-    orcValueWriter = OrcSchemaWithTypeVisitor.visit(expectedSchema, orcSchema, new WriteBuilder());
+    writer = OrcSchemaWithTypeVisitor.visit(expectedSchema, orcSchema, new WriteBuilder());
   }
 
   public static OrcRowWriter<Record> buildWriter(Schema expectedSchema, TypeDescription fileSchema) {
@@ -88,7 +88,7 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
             case LONG:
               return GenericOrcWriters.longs();
             default:
-              throw new IllegalStateException(
+              throw new IllegalArgumentException(
                   String.format("Invalid iceberg type %s corresponding to ORC type %s", iPrimitive, primitive));
           }
         case FLOAT:
@@ -116,7 +116,7 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
             case BINARY:
               return GenericOrcWriters.binary();
             default:
-              throw new IllegalStateException(
+              throw new IllegalArgumentException(
                   String.format("Invalid iceberg type %s corresponding to ORC type %s", iPrimitive, primitive));
           }
         default:
@@ -128,26 +128,27 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
   @SuppressWarnings("unchecked")
   @Override
   public void write(Record value, VectorizedRowBatch output) {
-    Preconditions.checkArgument(orcValueWriter instanceof RecordOrcValueWriter,
+    Preconditions.checkArgument(writer instanceof RecordOrcValueWriter,
         "Converter must be a RecordConverter.");
 
     int row = output.size;
     output.size += 1;
-    List<OrcValueWriter> orcValueWriters = ((RecordOrcValueWriter) orcValueWriter).converters();
-    for (int c = 0; c < orcValueWriters.size(); ++c) {
-      orcValueWriters.get(c).addValue(row, value.get(c, orcValueWriters.get(c).getJavaClass()), output.cols[c]);
+    List<OrcValueWriter> writers = ((RecordOrcValueWriter) writer).writers();
+    for (int c = 0; c < writers.size(); ++c) {
+      OrcValueWriter child = writers.get(c);
+      child.write(row, value.get(c, child.getJavaClass()), output.cols[c]);
     }
   }
 
   private static class RecordOrcValueWriter implements OrcValueWriter<Record> {
-    private final List<OrcValueWriter> orcValueWriters;
+    private final List<OrcValueWriter> writers;
 
-    RecordOrcValueWriter(List<OrcValueWriter> orcValueWriters) {
-      this.orcValueWriters = orcValueWriters;
+    RecordOrcValueWriter(List<OrcValueWriter> writers) {
+      this.writers = writers;
     }
 
-    List<OrcValueWriter> converters() {
-      return orcValueWriters;
+    List<OrcValueWriter> writers() {
+      return writers;
     }
 
     @Override
@@ -157,16 +158,11 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
 
     @Override
     @SuppressWarnings("unchecked")
-    public void addValue(int rowId, Record data, ColumnVector output) {
-      if (data == null) {
-        output.noNulls = false;
-        output.isNull[rowId] = true;
-      } else {
-        output.isNull[rowId] = false;
-        StructColumnVector cv = (StructColumnVector) output;
-        for (int c = 0; c < orcValueWriters.size(); ++c) {
-          orcValueWriters.get(c).addValue(rowId, data.get(c, orcValueWriters.get(c).getJavaClass()), cv.fields[c]);
-        }
+    public void nonNullWrite(int rowId, Record data, ColumnVector output) {
+      StructColumnVector cv = (StructColumnVector) output;
+      for (int c = 0; c < writers.size(); ++c) {
+        OrcValueWriter child = writers.get(c);
+        child.write(rowId, data.get(c, child.getJavaClass()), cv.fields[c]);
       }
     }
   }
