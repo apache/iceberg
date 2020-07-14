@@ -209,7 +209,7 @@ public class TestFilteredScan {
 
       case ORC:
         try (FileAppender<Record> writer = ORC.write(localOutput(testFile))
-            .createWriterFunc(GenericOrcWriter::buildWriter)
+            .createWriterFunc(typeDesc -> GenericOrcWriter.buildWriter(tableSchema, typeDesc))
             .schema(tableSchema)
             .build()) {
           writer.addAll(records);
