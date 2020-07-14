@@ -23,11 +23,11 @@ import java.util.List;
 import java.util.function.Predicate;
 import org.apache.orc.TypeDescription;
 
-public class HasIds extends OrcSchemaVisitor<Boolean> {
+class HasIds extends OrcSchemaVisitor<Boolean> {
 
   @Override
   public Boolean record(TypeDescription record, List<String> names, List<Boolean> fields) {
-    return fields.stream().anyMatch(Predicate.isEqual(true));
+    return ORCSchemaUtil.icebergID(record).isPresent() || fields.stream().anyMatch(Predicate.isEqual(true));
   }
 
   @Override

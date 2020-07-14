@@ -23,7 +23,7 @@ import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.orc.TypeDescription;
 
-public class RemoveIds extends OrcSchemaVisitor<TypeDescription> {
+class RemoveIds extends OrcSchemaVisitor<TypeDescription> {
 
   @Override
   public TypeDescription record(TypeDescription record, List<String> names, List<TypeDescription> fields) {

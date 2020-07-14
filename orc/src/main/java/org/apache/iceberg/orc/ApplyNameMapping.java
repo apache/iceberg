@@ -25,7 +25,7 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.orc.TypeDescription;
 
-public class ApplyNameMapping extends OrcSchemaVisitor<TypeDescription> {
+class ApplyNameMapping extends OrcSchemaVisitor<TypeDescription> {
   private final NameMapping nameMapping;
 
   ApplyNameMapping(NameMapping nameMapping) {
@@ -72,7 +72,7 @@ public class ApplyNameMapping extends OrcSchemaVisitor<TypeDescription> {
 
   @Override
   public TypeDescription list(TypeDescription array, TypeDescription element) {
-    Preconditions.checkArgument(element != null, "List type must have element field");
+    Preconditions.checkArgument(element != null, "List type must have element type");
 
     MappedField field = nameMapping.find(currentPath());
     TypeDescription listType = TypeDescription.createList(element);
@@ -81,7 +81,7 @@ public class ApplyNameMapping extends OrcSchemaVisitor<TypeDescription> {
 
   @Override
   public TypeDescription map(TypeDescription map, TypeDescription key, TypeDescription value) {
-    Preconditions.checkArgument(key != null && value != null, "Map type must have both key and value fields");
+    Preconditions.checkArgument(key != null && value != null, "Map type must have both key and value types");
 
     MappedField field = nameMapping.find(currentPath());
     TypeDescription mapType = TypeDescription.createMap(key, value);
@@ -91,6 +91,6 @@ public class ApplyNameMapping extends OrcSchemaVisitor<TypeDescription> {
   @Override
   public TypeDescription primitive(TypeDescription primitive) {
     MappedField field = nameMapping.find(currentPath());
-    return setId(primitive, field);
+    return setId(primitive.clone(), field);
   }
 }

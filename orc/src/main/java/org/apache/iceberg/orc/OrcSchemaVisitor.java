@@ -50,9 +50,10 @@ public abstract class OrcSchemaVisitor<T> {
         throw new UnsupportedOperationException("Cannot handle " + schema);
 
       case LIST:
+        final T elementResult;
+
         TypeDescription element = schema.getChildren().get(0);
         visitor.beforeElementField(element);
-        final T elementResult;
         try {
           elementResult = visit(element, visitor);
         } finally {

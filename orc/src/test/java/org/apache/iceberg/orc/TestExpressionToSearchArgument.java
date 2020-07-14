@@ -311,8 +311,8 @@ public class TestExpressionToSearchArgument {
         .equals("`int`", Type.LONG, 1L)
         .build();
 
-    SearchArgument actual2 = ExpressionToSearchArgument.convert(boundFilter, readSchema);
-    Assert.assertEquals(expected.toString(), actual2.toString());
+    SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, readSchema);
+    Assert.assertEquals(expected.toString(), actual.toString());
 
     // for columns not in the file, buildOrcProjection will append field names with _r<ID>
     // this will be passed down to ORC, but ORC will handle such cases and return a TruthValue during evaluation
@@ -322,7 +322,7 @@ public class TestExpressionToSearchArgument {
         .equals("`new_float_field_r3`", Type.FLOAT, 1.0)
         .build();
 
-    actual2 = ExpressionToSearchArgument.convert(boundFilter, readSchema);
-    Assert.assertEquals(expected.toString(), actual2.toString());
+    actual = ExpressionToSearchArgument.convert(boundFilter, readSchema);
+    Assert.assertEquals(expected.toString(), actual.toString());
   }
 }
