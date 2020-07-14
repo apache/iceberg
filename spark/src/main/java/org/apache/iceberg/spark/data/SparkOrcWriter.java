@@ -20,7 +20,7 @@
 package org.apache.iceberg.spark.data;
 
 import java.util.List;
-import org.apache.iceberg.orc.OrcValueWriter;
+import org.apache.iceberg.orc.OrcRowWriter;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.common.type.HiveDecimal;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
@@ -42,7 +42,7 @@ import org.apache.spark.sql.catalyst.util.MapData;
  * This class acts as an adaptor from an OrcFileAppender to a
  * FileAppender&lt;InternalRow&gt;.
  */
-public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
+public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
 
   private final Converter[] converters;
 
@@ -65,9 +65,10 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
   interface Converter {
     /**
      * Take a value from the Spark data value and add it to the ORC output.
-     * @param rowId the row in the ColumnVector
+     *
+     * @param rowId  the row in the ColumnVector
      * @param column either the column number or element number
-     * @param data either an InternalRow or ArrayData
+     * @param data   either an InternalRow or ArrayData
      * @param output the ColumnVector to put the value into
      */
     void addValue(int rowId, int column, SpecializedGetters data,

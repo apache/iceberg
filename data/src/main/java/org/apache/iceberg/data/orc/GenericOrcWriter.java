@@ -20,83 +20,95 @@
 package org.apache.iceberg.data.orc;
 
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcSchemaWithTypeVisitor;
+import org.apache.iceberg.orc.OrcRowWriter;
 import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
+import org.apache.orc.storage.ql.exec.vector.ColumnVector;
+import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
-public class GenericOrcWriter implements OrcValueWriter<Record> {
-  private final GenericOrcWriters.Converter converter;
+public class GenericOrcWriter implements OrcRowWriter<Record> {
+  private final OrcValueWriter orcValueWriter;
 
   private GenericOrcWriter(Schema expectedSchema, TypeDescription orcSchema) {
     Preconditions.checkArgument(orcSchema.getCategory() == TypeDescription.Category.STRUCT,
         "Top level must be a struct " + orcSchema);
 
-    converter = OrcSchemaWithTypeVisitor.visit(expectedSchema, orcSchema, new WriteBuilder());
+    orcValueWriter = OrcSchemaWithTypeVisitor.visit(expectedSchema, orcSchema, new WriteBuilder());
   }
 
-  public static OrcValueWriter<Record> buildWriter(Schema expectedSchema, TypeDescription fileSchema) {
+  public static OrcRowWriter<Record> buildWriter(Schema expectedSchema, TypeDescription fileSchema) {
     return new GenericOrcWriter(expectedSchema, fileSchema);
   }
 
-  private static class WriteBuilder extends OrcSchemaWithTypeVisitor<GenericOrcWriters.Converter> {
+  private static class WriteBuilder extends OrcSchemaWithTypeVisitor<OrcValueWriter> {
     private WriteBuilder() {
     }
 
-    public GenericOrcWriters.Converter record(Types.StructType iStruct, TypeDescription record,
-                                              List<String> names, List<GenericOrcWriters.Converter> fields) {
-      return new GenericOrcWriters.RecordConverter(fields);
+    @Override
+    public OrcValueWriter<Record> record(Types.StructType iStruct, TypeDescription record,
+                                         List<String> names, List<OrcValueWriter> fields) {
+      return new RecordOrcValueWriter(fields);
     }
 
-    public GenericOrcWriters.Converter list(Types.ListType iList, TypeDescription array,
-                                            GenericOrcWriters.Converter element) {
-      return new GenericOrcWriters.ListConverter(element);
+    @Override
+    public OrcValueWriter<List> list(Types.ListType iList, TypeDescription array,
+                                     OrcValueWriter element) {
+      return GenericOrcWriters.list(element);
     }
 
-    public GenericOrcWriters.Converter map(Types.MapType iMap, TypeDescription map,
-                                           GenericOrcWriters.Converter key, GenericOrcWriters.Converter value) {
-      return new GenericOrcWriters.MapConverter(key, value);
+    @Override
+    public OrcValueWriter<Map> map(Types.MapType iMap, TypeDescription map,
+                                   OrcValueWriter key, OrcValueWriter value) {
+      return GenericOrcWriters.map(key, value);
     }
 
-    public GenericOrcWriters.Converter primitive(Type.PrimitiveType iPrimitive, TypeDescription schema) {
-      switch (schema.getCategory()) {
+    @Override
+    public OrcValueWriter primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
+      switch (primitive.getCategory()) {
         case BOOLEAN:
           return GenericOrcWriters.booleans();
         case BYTE:
-          return GenericOrcWriters.bytes();
+          throw new IllegalArgumentException("Iceberg does not have a byte type");
         case SHORT:
-          return GenericOrcWriters.shorts();
-        case DATE:
-          return GenericOrcWriters.dates();
+          throw new IllegalArgumentException("Iceberg does not have a short type.");
         case INT:
           return GenericOrcWriters.ints();
         case LONG:
-          String longAttributeValue = schema.getAttributeValue(ORCSchemaUtil.ICEBERG_LONG_TYPE_ATTRIBUTE);
-          ORCSchemaUtil.LongType longType = longAttributeValue == null ? ORCSchemaUtil.LongType.LONG :
-              ORCSchemaUtil.LongType.valueOf(longAttributeValue);
-          switch (longType) {
+          switch (iPrimitive.typeId()) {
             case TIME:
               return GenericOrcWriters.times();
             case LONG:
               return GenericOrcWriters.longs();
             default:
-              throw new IllegalStateException("Unhandled Long type found in ORC type attribute: " + longType);
+              throw new IllegalStateException(
+                  String.format("Invalid iceberg type %s corresponding to ORC type %s", iPrimitive, primitive));
           }
         case FLOAT:
           return GenericOrcWriters.floats();
         case DOUBLE:
           return GenericOrcWriters.doubles();
+        case DATE:
+          return GenericOrcWriters.dates();
+        case TIMESTAMP:
+          return GenericOrcWriters.timestamp();
+        case TIMESTAMP_INSTANT:
+          return GenericOrcWriters.timestampTz();
+        case DECIMAL:
+          return GenericOrcWriters.decimal(primitive.getScale(), primitive.getPrecision());
+        case CHAR:
+        case VARCHAR:
+        case STRING:
+          return GenericOrcWriters.strings();
         case BINARY:
-          String binaryAttributeValue = schema.getAttributeValue(ORCSchemaUtil.ICEBERG_BINARY_TYPE_ATTRIBUTE);
-          ORCSchemaUtil.BinaryType binaryType = binaryAttributeValue == null ? ORCSchemaUtil.BinaryType.BINARY :
-              ORCSchemaUtil.BinaryType.valueOf(binaryAttributeValue);
-          switch (binaryType) {
+          switch (iPrimitive.typeId()) {
             case UUID:
               return GenericOrcWriters.uuids();
             case FIXED:
@@ -104,34 +116,58 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
             case BINARY:
               return GenericOrcWriters.binary();
             default:
-              throw new IllegalStateException("Unhandled Binary type found in ORC type attribute: " + binaryType);
+              throw new IllegalStateException(
+                  String.format("Invalid iceberg type %s corresponding to ORC type %s", iPrimitive, primitive));
           }
-        case STRING:
-        case CHAR:
-        case VARCHAR:
-          return GenericOrcWriters.strings();
-        case DECIMAL:
-          return schema.getPrecision() <= 18 ? GenericOrcWriters.decimal18(schema) :
-              GenericOrcWriters.decimal38(schema);
-        case TIMESTAMP:
-          return GenericOrcWriters.timestamp();
-        case TIMESTAMP_INSTANT:
-          return GenericOrcWriters.timestampTz();
+        default:
+          throw new IllegalArgumentException("Unhandled type " + primitive);
       }
-      throw new IllegalArgumentException("Unhandled type " + schema);
     }
   }
 
   @SuppressWarnings("unchecked")
   @Override
   public void write(Record value, VectorizedRowBatch output) {
-    Preconditions.checkArgument(converter instanceof GenericOrcWriters.RecordConverter,
+    Preconditions.checkArgument(orcValueWriter instanceof RecordOrcValueWriter,
         "Converter must be a RecordConverter.");
 
-    int row = output.size++;
-    List<GenericOrcWriters.Converter> converters = ((GenericOrcWriters.RecordConverter) converter).converters();
-    for (int c = 0; c < converters.size(); ++c) {
-      converters.get(c).addValue(row, value.get(c, converters.get(c).getJavaClass()), output.cols[c]);
+    int row = output.size;
+    output.size += 1;
+    List<OrcValueWriter> orcValueWriters = ((RecordOrcValueWriter) orcValueWriter).converters();
+    for (int c = 0; c < orcValueWriters.size(); ++c) {
+      orcValueWriters.get(c).addValue(row, value.get(c, orcValueWriters.get(c).getJavaClass()), output.cols[c]);
+    }
+  }
+
+  private static class RecordOrcValueWriter implements OrcValueWriter<Record> {
+    private final List<OrcValueWriter> orcValueWriters;
+
+    RecordOrcValueWriter(List<OrcValueWriter> orcValueWriters) {
+      this.orcValueWriters = orcValueWriters;
+    }
+
+    List<OrcValueWriter> converters() {
+      return orcValueWriters;
+    }
+
+    @Override
+    public Class<Record> getJavaClass() {
+      return Record.class;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public void addValue(int rowId, Record data, ColumnVector output) {
+      if (data == null) {
+        output.noNulls = false;
+        output.isNull[rowId] = true;
+      } else {
+        output.isNull[rowId] = false;
+        StructColumnVector cv = (StructColumnVector) output;
+        for (int c = 0; c < orcValueWriters.size(); ++c) {
+          orcValueWriters.get(c).addValue(rowId, data.get(c, orcValueWriters.get(c).getJavaClass()), cv.fields[c]);
+        }
+      }
     }
   }
 }

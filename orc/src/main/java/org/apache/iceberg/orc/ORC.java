@@ -59,7 +59,7 @@ public class ORC {
     private final OutputFile file;
     private final Configuration conf;
     private Schema schema = null;
-    private Function<TypeDescription, OrcValueWriter<?>>  createWriterFunc;
+    private Function<TypeDescription, OrcRowWriter<?>>  createWriterFunc;
     private Map<String, byte[]> metadata = new HashMap<>();
 
     private WriteBuilder(OutputFile file) {
@@ -81,7 +81,7 @@ public class ORC {
       return this;
     }
 
-    public WriteBuilder createWriterFunc(Function<TypeDescription, OrcValueWriter<?>> writerFunction) {
+    public WriteBuilder createWriterFunc(Function<TypeDescription, OrcRowWriter<?>> writerFunction) {
       this.createWriterFunc = writerFunction;
       return this;
     }

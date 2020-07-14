@@ -32,7 +32,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.apache.iceberg.data.Record;
+import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.common.type.HiveDecimal;
@@ -43,7 +43,6 @@ import org.apache.orc.storage.ql.exec.vector.DoubleColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ListColumnVector;
 import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
 import org.apache.orc.storage.ql.exec.vector.MapColumnVector;
-import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
 
 public class GenericOrcWriters {
@@ -53,94 +52,84 @@ public class GenericOrcWriters {
   private GenericOrcWriters() {
   }
 
-  /**
-   * The interface for the conversion from Spark's SpecializedGetters to
-   * ORC's ColumnVectors.
-   */
-  interface Converter<T> {
-
-    Class<T> getJavaClass();
-
-    /**
-     * Take a value from the Spark data value and add it to the ORC output.
-     *
-     * @param rowId  the row in the ColumnVector
-     * @param data   either an InternalRow or ArrayData
-     * @param output the ColumnVector to put the value into
-     */
-    void addValue(int rowId, T data, ColumnVector output);
+  public static OrcValueWriter<Boolean> booleans() {
+    return BooleanOrcValueWriter.INSTANCE;
   }
 
-  public static Converter<Boolean> booleans() {
-    return BooleanConverter.INSTANCE;
+  public static OrcValueWriter<Byte> bytes() {
+    return ByteOrcValueWriter.INSTANCE;
   }
 
-  public static Converter<Byte> bytes() {
-    return ByteConverter.INSTANCE;
+  public static OrcValueWriter<Short> shorts() {
+    return ShortOrcValueWriter.INSTANCE;
   }
 
-  public static Converter<Short> shorts() {
-    return ShortConverter.INSTANCE;
+  public static OrcValueWriter<Integer> ints() {
+    return IntOrcValueWriter.INSTANCE;
   }
 
-  public static Converter<Integer> ints() {
-    return IntConverter.INSTANCE;
+  public static OrcValueWriter<LocalTime> times() {
+    return TimeOrcValueWriter.INSTANCE;
   }
 
-  public static Converter<LocalTime> times() {
-    return TimeConverter.INSTANCE;
+  public static OrcValueWriter<Long> longs() {
+    return LongOrcValueWriter.INSTANCE;
   }
 
-  public static Converter<Long> longs() {
-    return LongConverter.INSTANCE;
+  public static OrcValueWriter<Float> floats() {
+    return FloatOrcValueWriter.INSTANCE;
   }
 
-  public static Converter<Float> floats() {
-    return FloatConverter.INSTANCE;
+  public static OrcValueWriter<Double> doubles() {
+    return DoubleOrcValueWriter.INSTANCE;
   }
 
-  public static Converter<Double> doubles() {
-    return DoubleConverter.INSTANCE;
+  public static OrcValueWriter<String> strings() {
+    return StringOrcValueWriter.INSTANCE;
   }
 
-  public static Converter<String> strings() {
-    return StringConverter.INSTANCE;
+  public static OrcValueWriter<ByteBuffer> binary() {
+    return BytesOrcValueWriter.INSTANCE;
   }
 
-  public static Converter<ByteBuffer> binary() {
-    return BytesConverter.INSTANCE;
+  public static OrcValueWriter<UUID> uuids() {
+    return UUIDOrcValueWriter.INSTANCE;
   }
 
-  public static Converter<UUID> uuids() {
-    return UUIDConverter.INSTANCE;
+  public static OrcValueWriter<byte[]> fixed() {
+    return FixedOrcValueWriter.INSTANCE;
   }
 
-  public static Converter<byte[]> fixed() {
-    return FixedConverter.INSTANCE;
+  public static OrcValueWriter<LocalDate> dates() {
+    return DateOrcValueWriter.INSTANCE;
   }
 
-  public static Converter<LocalDate> dates() {
-    return DateConverter.INSTANCE;
+  public static OrcValueWriter<OffsetDateTime> timestampTz() {
+    return TimestampTzOrcValueWriter.INSTANCE;
   }
 
-  public static Converter<OffsetDateTime> timestampTz() {
-    return TimestampTzConverter.INSTANCE;
+  public static OrcValueWriter<LocalDateTime> timestamp() {
+    return TimestampOrcValueWriter.INSTANCE;
   }
 
-  public static Converter<LocalDateTime> timestamp() {
-    return TimestampConverter.INSTANCE;
+  public static OrcValueWriter<BigDecimal> decimal(int scala, int precision) {
+    if (precision <= 18) {
+      return new Decimal18OrcValueWriter(scala);
+    } else {
+      return Decimal38OrcValueWriter.INSTANCE;
+    }
   }
 
-  public static Converter<BigDecimal> decimal18(TypeDescription schema) {
-    return new Decimal18Converter(schema);
+  public static OrcValueWriter<List> list(OrcValueWriter element) {
+    return new ListOrcValueWriter(element);
   }
 
-  public static Converter<BigDecimal> decimal38(TypeDescription schema) {
-    return Decimal38Converter.INSTANCE;
+  public static OrcValueWriter<Map> map(OrcValueWriter key, OrcValueWriter value) {
+    return new MapOrcValueWriter(key, value);
   }
 
-  private static class BooleanConverter implements Converter<Boolean> {
-    private static final Converter<Boolean> INSTANCE = new BooleanConverter();
+  private static class BooleanOrcValueWriter implements OrcValueWriter<Boolean> {
+    private static final OrcValueWriter<Boolean> INSTANCE = new BooleanOrcValueWriter();
 
     @Override
     public Class<Boolean> getJavaClass() {
@@ -159,8 +148,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class ByteConverter implements Converter<Byte> {
-    private static final Converter<Byte> INSTANCE = new ByteConverter();
+  private static class ByteOrcValueWriter implements OrcValueWriter<Byte> {
+    private static final OrcValueWriter<Byte> INSTANCE = new ByteOrcValueWriter();
 
     @Override
     public Class<Byte> getJavaClass() {
@@ -179,8 +168,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class ShortConverter implements Converter<Short> {
-    private static final Converter<Short> INSTANCE = new ShortConverter();
+  private static class ShortOrcValueWriter implements OrcValueWriter<Short> {
+    private static final OrcValueWriter<Short> INSTANCE = new ShortOrcValueWriter();
 
     @Override
     public Class<Short> getJavaClass() {
@@ -199,8 +188,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class IntConverter implements Converter<Integer> {
-    private static final Converter<Integer> INSTANCE = new IntConverter();
+  private static class IntOrcValueWriter implements OrcValueWriter<Integer> {
+    private static final OrcValueWriter<Integer> INSTANCE = new IntOrcValueWriter();
 
     @Override
     public Class<Integer> getJavaClass() {
@@ -219,8 +208,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class TimeConverter implements Converter<LocalTime> {
-    private static final Converter<LocalTime> INSTANCE = new TimeConverter();
+  private static class TimeOrcValueWriter implements OrcValueWriter<LocalTime> {
+    private static final OrcValueWriter<LocalTime> INSTANCE = new TimeOrcValueWriter();
 
     @Override
     public Class<LocalTime> getJavaClass() {
@@ -239,8 +228,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class LongConverter implements Converter<Long> {
-    private static final Converter<Long> INSTANCE = new LongConverter();
+  private static class LongOrcValueWriter implements OrcValueWriter<Long> {
+    private static final OrcValueWriter<Long> INSTANCE = new LongOrcValueWriter();
 
     @Override
     public Class<Long> getJavaClass() {
@@ -259,8 +248,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class FloatConverter implements Converter<Float> {
-    private static final Converter<Float> INSTANCE = new FloatConverter();
+  private static class FloatOrcValueWriter implements OrcValueWriter<Float> {
+    private static final OrcValueWriter<Float> INSTANCE = new FloatOrcValueWriter();
 
     @Override
     public Class<Float> getJavaClass() {
@@ -279,8 +268,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class DoubleConverter implements Converter<Double> {
-    private static final Converter<Double> INSTANCE = new DoubleConverter();
+  private static class DoubleOrcValueWriter implements OrcValueWriter<Double> {
+    private static final OrcValueWriter<Double> INSTANCE = new DoubleOrcValueWriter();
 
     @Override
     public Class<Double> getJavaClass() {
@@ -299,8 +288,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class StringConverter implements Converter<String> {
-    private static final Converter<String> INSTANCE = new StringConverter();
+  private static class StringOrcValueWriter implements OrcValueWriter<String> {
+    private static final OrcValueWriter<String> INSTANCE = new StringOrcValueWriter();
 
     @Override
     public Class<String> getJavaClass() {
@@ -320,8 +309,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class BytesConverter implements Converter<ByteBuffer> {
-    private static final Converter<ByteBuffer> INSTANCE = new BytesConverter();
+  private static class BytesOrcValueWriter implements OrcValueWriter<ByteBuffer> {
+    private static final OrcValueWriter<ByteBuffer> INSTANCE = new BytesOrcValueWriter();
 
     @Override
     public Class<ByteBuffer> getJavaClass() {
@@ -340,8 +329,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class UUIDConverter implements Converter<UUID> {
-    private static final Converter<UUID> INSTANCE = new UUIDConverter();
+  private static class UUIDOrcValueWriter implements OrcValueWriter<UUID> {
+    private static final OrcValueWriter<UUID> INSTANCE = new UUIDOrcValueWriter();
 
     @Override
     public Class<UUID> getJavaClass() {
@@ -363,8 +352,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class FixedConverter implements Converter<byte[]> {
-    private static final Converter<byte[]> INSTANCE = new FixedConverter();
+  private static class FixedOrcValueWriter implements OrcValueWriter<byte[]> {
+    private static final OrcValueWriter<byte[]> INSTANCE = new FixedOrcValueWriter();
 
     @Override
     public Class<byte[]> getJavaClass() {
@@ -383,8 +372,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class DateConverter implements Converter<LocalDate> {
-    private static final Converter<LocalDate> INSTANCE = new DateConverter();
+  private static class DateOrcValueWriter implements OrcValueWriter<LocalDate> {
+    private static final OrcValueWriter<LocalDate> INSTANCE = new DateOrcValueWriter();
 
     @Override
     public Class<LocalDate> getJavaClass() {
@@ -403,8 +392,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class TimestampTzConverter implements Converter<OffsetDateTime> {
-    private static final Converter<OffsetDateTime> INSTANCE = new TimestampTzConverter();
+  private static class TimestampTzOrcValueWriter implements OrcValueWriter<OffsetDateTime> {
+    private static final OrcValueWriter<OffsetDateTime> INSTANCE = new TimestampTzOrcValueWriter();
 
     @Override
     public Class<OffsetDateTime> getJavaClass() {
@@ -425,8 +414,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class TimestampConverter implements Converter<LocalDateTime> {
-    private static final Converter<LocalDateTime> INSTANCE = new TimestampConverter();
+  private static class TimestampOrcValueWriter implements OrcValueWriter<LocalDateTime> {
+    private static final OrcValueWriter<LocalDateTime> INSTANCE = new TimestampOrcValueWriter();
 
     @Override
     public Class<LocalDateTime> getJavaClass() {
@@ -448,11 +437,11 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class Decimal18Converter implements Converter<BigDecimal> {
+  private static class Decimal18OrcValueWriter implements OrcValueWriter<BigDecimal> {
     private final int scale;
 
-    Decimal18Converter(TypeDescription schema) {
-      this.scale = schema.getScale();
+    Decimal18OrcValueWriter(int scale) {
+      this.scale = scale;
     }
 
     @Override
@@ -474,8 +463,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class Decimal38Converter implements Converter<BigDecimal> {
-    private static final Converter<BigDecimal> INSTANCE = new Decimal38Converter();
+  private static class Decimal38OrcValueWriter implements OrcValueWriter<BigDecimal> {
+    private static final OrcValueWriter<BigDecimal> INSTANCE = new Decimal38OrcValueWriter();
 
     @Override
     public Class<BigDecimal> getJavaClass() {
@@ -495,43 +484,11 @@ public class GenericOrcWriters {
     }
   }
 
-  public static class RecordConverter implements Converter<Record> {
-    private final List<Converter> converters;
+  private static class ListOrcValueWriter implements OrcValueWriter<List> {
+    private final OrcValueWriter element;
 
-    RecordConverter(List<Converter> converters) {
-      this.converters = converters;
-    }
-
-    public List<Converter> converters() {
-      return converters;
-    }
-
-    @Override
-    public Class<Record> getJavaClass() {
-      return Record.class;
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public void addValue(int rowId, Record data, ColumnVector output) {
-      if (data == null) {
-        output.noNulls = false;
-        output.isNull[rowId] = true;
-      } else {
-        output.isNull[rowId] = false;
-        StructColumnVector cv = (StructColumnVector) output;
-        for (int c = 0; c < converters.size(); ++c) {
-          converters.get(c).addValue(rowId, data.get(c, converters.get(c).getJavaClass()), cv.fields[c]);
-        }
-      }
-    }
-  }
-
-  public static class ListConverter implements Converter<List> {
-    private final Converter children;
-
-    ListConverter(Converter children) {
-      this.children = children;
+    ListOrcValueWriter(OrcValueWriter element) {
+      this.element = element;
     }
 
     @Override
@@ -557,19 +514,19 @@ public class GenericOrcWriters {
         cv.child.ensureSize(cv.childCount, true);
         // Add each element
         for (int e = 0; e < cv.lengths[rowId]; ++e) {
-          children.addValue((int) (e + cv.offsets[rowId]), value.get(e), cv.child);
+          element.addValue((int) (e + cv.offsets[rowId]), value.get(e), cv.child);
         }
       }
     }
   }
 
-  public static class MapConverter implements Converter<Map> {
-    private final Converter keyConverter;
-    private final Converter valueConverter;
+  private static class MapOrcValueWriter implements OrcValueWriter<Map> {
+    private final OrcValueWriter keyWriter;
+    private final OrcValueWriter valueWriter;
 
-    MapConverter(Converter keyConverter, Converter valueConverter) {
-      this.keyConverter = keyConverter;
-      this.valueConverter = valueConverter;
+    MapOrcValueWriter(OrcValueWriter keyWriter, OrcValueWriter valueWriter) {
+      this.keyWriter = keyWriter;
+      this.valueWriter = valueWriter;
     }
 
     @Override
@@ -603,8 +560,8 @@ public class GenericOrcWriters {
         // Add each element
         for (int e = 0; e < cv.lengths[rowId]; ++e) {
           int pos = (int) (e + cv.offsets[rowId]);
-          keyConverter.addValue(pos, keys.get(e), cv.keys);
-          valueConverter.addValue(pos, values.get(e), cv.values);
+          keyWriter.addValue(pos, keys.get(e), cv.keys);
+          valueWriter.addValue(pos, values.get(e), cv.values);
         }
       }
     }

@@ -51,12 +51,12 @@ class OrcFileAppender<D> implements FileAppender<D> {
   private final OutputFile file;
   private final Writer writer;
   private final VectorizedRowBatch batch;
-  private final OrcValueWriter<D> valueWriter;
+  private final OrcRowWriter<D> valueWriter;
   private boolean isClosed = false;
   private final Configuration conf;
 
   OrcFileAppender(Schema schema, OutputFile file,
-                  Function<TypeDescription, OrcValueWriter<?>> createWriterFunc,
+                  Function<TypeDescription, OrcRowWriter<?>> createWriterFunc,
                   Configuration conf, Map<String, byte[]> metadata,
                   int batchSize) {
     this.conf = conf;
@@ -146,8 +146,8 @@ class OrcFileAppender<D> implements FileAppender<D> {
   }
 
   @SuppressWarnings("unchecked")
-  private static <D> OrcValueWriter<D> newOrcValueWriter(
-      TypeDescription schema, Function<TypeDescription, OrcValueWriter<?>> createWriterFunc) {
-    return (OrcValueWriter<D>) createWriterFunc.apply(schema);
+  private static <D> OrcRowWriter<D> newOrcValueWriter(
+      TypeDescription schema, Function<TypeDescription, OrcRowWriter<?>> createWriterFunc) {
+    return (OrcRowWriter<D>) createWriterFunc.apply(schema);
   }
 }
