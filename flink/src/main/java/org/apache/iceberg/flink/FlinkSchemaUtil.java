@@ -32,6 +32,17 @@ import org.apache.iceberg.types.TypeUtil;
  * Converter between Flink types and Iceberg type.
  * The conversion is not a 1:1 mapping that not allows back-and-forth conversion. So some information might get lost
  * during the back-and-forth conversion.
+ * <p>
+ * This inconsistent types:
+ * <ul>
+ *   <li>map Iceberg UUID type to Flink BinaryType(16)</li>
+ *   <li>map Flink VarCharType and CharType to Iceberg String type (lost precision)</li>
+ *   <li>map Flink VarBinaryType to Iceberg Binary type (lost precision)</li>
+ *   <li>map Flink TimeType to Iceberg Time type (lost precision)</li>
+ *   <li>map Flink TimestampType to Iceberg Timestamp without zone type (lost precision)</li>
+ *   <li>map Flink LocalZonedTimestampType to Iceberg Timestamp with zone type (lost precision)</li>
+ * </ul>
+ * <p>
  */
 public class FlinkSchemaUtil {
 

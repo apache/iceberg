@@ -21,10 +21,17 @@ package org.apache.iceberg.flink;
 
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.types.logical.BinaryType;
 import org.apache.flink.table.types.logical.CharType;
+import org.apache.flink.table.types.logical.LocalZonedTimestampType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.table.types.logical.TimeType;
+import org.apache.flink.table.types.logical.TimestampType;
+import org.apache.flink.table.types.logical.VarBinaryType;
+import org.apache.flink.table.types.logical.VarCharType;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
@@ -234,12 +241,33 @@ public class TestFlinkSchemaUtil {
   }
 
   @Test
-  public void testUUID() {
-    LogicalType flinkUUID = FlinkSchemaUtil.convert(Types.UUIDType.get());
-    Assert.assertEquals(new CharType(16), flinkUUID);
+  public void testInconsistentTypes() {
+    checkInconsistentType(
+        Types.UUIDType.get(), new BinaryType(16),
+        new BinaryType(16), Types.FixedType.ofLength(16));
+    checkInconsistentType(
+        Types.StringType.get(), new VarCharType(VarCharType.MAX_LENGTH),
+        new CharType(100), Types.StringType.get());
+    checkInconsistentType(
+        Types.BinaryType.get(), new VarBinaryType(VarBinaryType.MAX_LENGTH),
+        new VarBinaryType(100), Types.BinaryType.get());
+    checkInconsistentType(
+        Types.TimeType.get(), new TimeType(6),
+        new TimeType(3), Types.TimeType.get());
+    checkInconsistentType(
+        Types.TimestampType.withoutZone(), new TimestampType(6),
+        new TimestampType(3), Types.TimestampType.withoutZone());
+    checkInconsistentType(
+        Types.TimestampType.withZone(), new LocalZonedTimestampType(6),
+        new LocalZonedTimestampType(3), Types.TimestampType.withZone());
+  }
 
+  private void checkInconsistentType(
+      Type icebergType, LogicalType flinkExpectedType,
+      LogicalType flinkType, Type icebergExpectedType) {
+    Assert.assertEquals(flinkExpectedType, FlinkSchemaUtil.convert(icebergType));
     Assert.assertEquals(
-        Types.StructType.of(Types.NestedField.optional(0, "f0", Types.StringType.get())),
-        FlinkSchemaUtil.convert(FlinkSchemaUtil.toSchema(RowType.of(flinkUUID))).asStruct());
+        Types.StructType.of(Types.NestedField.optional(0, "f0", icebergExpectedType)),
+        FlinkSchemaUtil.convert(FlinkSchemaUtil.toSchema(RowType.of(flinkType))).asStruct());
   }
 }

@@ -24,7 +24,6 @@ import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.BigIntType;
 import org.apache.flink.table.types.logical.BinaryType;
 import org.apache.flink.table.types.logical.BooleanType;
-import org.apache.flink.table.types.logical.CharType;
 import org.apache.flink.table.types.logical.DateType;
 import org.apache.flink.table.types.logical.DecimalType;
 import org.apache.flink.table.types.logical.DoubleType;
@@ -116,7 +115,7 @@ class TypeToFlinkType extends TypeUtil.SchemaVisitor<LogicalType> {
         return new VarCharType(VarCharType.MAX_LENGTH);
       case UUID:
         // UUID length is 16
-        return new CharType(16);
+        return new BinaryType(16);
       case FIXED:
         Types.FixedType fixedType = (Types.FixedType) primitive;
         return new BinaryType(fixedType.length());
