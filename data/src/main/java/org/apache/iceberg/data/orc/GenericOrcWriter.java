@@ -106,7 +106,8 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
           Types.DecimalType decimalType = (Types.DecimalType) iPrimitive;
           return GenericOrcWriters.decimal(decimalType.scale(), decimalType.precision());
         default:
-          throw new IllegalArgumentException(String.format("Invalid iceberg type %s corresponding to ORC type %s", iPrimitive, primitive));
+          throw new IllegalArgumentException(String.format("Invalid iceberg type %s corresponding to ORC type %s",
+              iPrimitive, primitive));
       }
     }
   }
