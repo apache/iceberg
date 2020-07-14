@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.orc;
 
+import java.util.Deque;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -28,6 +29,8 @@ import org.apache.orc.TypeDescription;
  * Generic visitor of an ORC Schema.
  */
 public abstract class OrcSchemaVisitor<T> {
+
+  private final Deque<String> fieldNames = Lists.newLinkedList();
 
   public static <T> List<T> visitSchema(TypeDescription schema, OrcSchemaVisitor<T> visitor) {
     Preconditions.checkArgument(schema.getId() == 0, "TypeDescription must be root schema.");
@@ -120,9 +123,17 @@ public abstract class OrcSchemaVisitor<T> {
     return "_value";
   }
 
-  public void beforeField(String name, TypeDescription type) {}
+  public String currentFieldName() {
+    return fieldNames.peek();
+  }
 
-  public void afterField(String name, TypeDescription type) {}
+  public void beforeField(String name, TypeDescription type) {
+    fieldNames.push(name);
+  }
+
+  public void afterField(String name, TypeDescription type) {
+    fieldNames.pop();
+  }
 
   public void beforeElementField(TypeDescription element) {
     beforeField(elementName(), element);
@@ -162,5 +173,15 @@ public abstract class OrcSchemaVisitor<T> {
 
   public T primitive(TypeDescription primitive) {
     return null;
+  }
+
+  protected String[] currentPath() {
+    return Lists.newArrayList(fieldNames.descendingIterator()).toArray(new String[0]);
+  }
+
+  protected String[] path(String name) {
+    List<String> list = Lists.newArrayList(fieldNames.descendingIterator());
+    list.add(name);
+    return list.toArray(new String[0]);
   }
 }

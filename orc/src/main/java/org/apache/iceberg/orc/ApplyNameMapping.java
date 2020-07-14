@@ -19,32 +19,17 @@
 
 package org.apache.iceberg.orc;
 
-import java.util.Deque;
 import java.util.List;
 import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.orc.TypeDescription;
 
 public class ApplyNameMapping extends OrcSchemaVisitor<TypeDescription> {
-  private final Deque<String> fieldNames;
   private final NameMapping nameMapping;
 
   ApplyNameMapping(NameMapping nameMapping) {
-    this.fieldNames = Lists.newLinkedList();
     this.nameMapping = nameMapping;
-  }
-
-  @Override
-  public void beforeField(String name, TypeDescription type) {
-    fieldNames.push(name);
-  }
-
-  @Override
-  public void afterField(String name, TypeDescription type) {
-    fieldNames.pop();
   }
 
   @Override
@@ -60,17 +45,6 @@ public class ApplyNameMapping extends OrcSchemaVisitor<TypeDescription> {
   @Override
   public String valueName() {
     return "value";
-  }
-
-  protected String[] currentPath() {
-    return Lists.newArrayList(fieldNames.descendingIterator()).toArray(new String[0]);
-  }
-
-  protected String[] path(String name) {
-    return ImmutableList.<String>builder()
-        .addAll(fieldNames.descendingIterator())
-        .add(name)
-        .build().toArray(new String[0]);
   }
 
   TypeDescription setId(TypeDescription type, MappedField mappedField) {
