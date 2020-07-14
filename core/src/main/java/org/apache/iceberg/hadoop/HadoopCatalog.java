@@ -277,7 +277,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     }
 
     try {
-      if (fs.listStatus(nsPath).length != 0) {
+      if (fs.listStatusIterator(nsPath).hasNext()) {
         throw new NamespaceNotEmptyException("Namespace " + namespace + " is not empty.");
       }
 
