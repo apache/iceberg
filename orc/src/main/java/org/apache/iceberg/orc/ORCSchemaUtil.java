@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.NameMapping;
@@ -397,9 +396,12 @@ public final class ORCSchemaUtil {
     return true;
   }
 
+  static TypeDescription removeIds(TypeDescription type) {
+    return OrcSchemaVisitor.visit(type, new RemoveIds());
+  }
+
   static boolean hasIds(TypeDescription orcSchema) {
-    List<Boolean> result = OrcSchemaVisitor.visitSchema(orcSchema, new HasIds());
-    return result.stream().anyMatch(Predicate.isEqual(true));
+    return OrcSchemaVisitor.visit(orcSchema, new HasIds());
   }
 
   static TypeDescription applyNameMapping(TypeDescription orcSchema, NameMapping nameMapping) {

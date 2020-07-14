@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.apache.avro.SchemaBuilder;
 import org.apache.avro.file.DataFileWriter;
@@ -29,6 +30,7 @@ import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.DatumWriter;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -41,6 +43,11 @@ import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.types.Types;
+import org.apache.orc.OrcFile;
+import org.apache.orc.TypeDescription;
+import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
+import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
+import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.junit.AfterClass;
@@ -84,6 +91,47 @@ public class TestNameMappingProjection extends HiveTableBaseTest {
   }
 
   @Test
+  public void testOrcReaderWithNameMapping() throws IOException {
+    File orcFile = temp.newFolder();
+    TypeDescription orcSchema = TypeDescription.createStruct();
+    orcSchema.addField("id", TypeDescription.createInt());
+    orcSchema.addField("name", TypeDescription.createString());
+
+    Path dataFilePath = new Path(orcFile.toString(), "name-mapping-data.orc");
+    try (org.apache.orc.Writer writer = OrcFile.createWriter(dataFilePath,
+        OrcFile.writerOptions(new Configuration()).setSchema(orcSchema))) {
+      VectorizedRowBatch batch = orcSchema.createRowBatch();
+      byte[] aliceVal = "Alice".getBytes(StandardCharsets.UTF_8);
+      byte[] bobVal = "Bob".getBytes(StandardCharsets.UTF_8);
+
+      int rowId = batch.size++;
+      batch.cols[0].isNull[rowId] = false;
+      ((LongColumnVector) batch.cols[0]).vector[rowId] = 1;
+      batch.cols[1].isNull[rowId] = false;
+      ((BytesColumnVector) batch.cols[1]).setRef(rowId, bobVal, 0, bobVal.length);
+
+      rowId = batch.size++;
+      batch.cols[0].isNull[rowId] = false;
+      ((LongColumnVector) batch.cols[0]).vector[rowId] = 2;
+      batch.cols[1].isNull[rowId] = false;
+      ((BytesColumnVector) batch.cols[1]).setRef(rowId, aliceVal, 0, aliceVal.length);
+
+      writer.addRowBatch(batch);
+      batch.reset();
+    }
+
+    File fileWithData = new File(dataFilePath.toString());
+    DataFile orcDataFile = DataFiles.builder(PartitionSpec.unpartitioned())
+        .withFormat("orc")
+        .withFileSizeInBytes(fileWithData.length())
+        .withPath(fileWithData.getAbsolutePath())
+        .withRecordCount(2)
+        .build();
+
+    assertNameMappingProjection(orcDataFile, "orc_table");
+  }
+
+  @Test
   public void testAvroReaderWithNameMapping() throws IOException {
     File avroFile = temp.newFile();
     org.apache.avro.Schema avroSchema = SchemaBuilder.record("TestRecord")
@@ -118,6 +166,10 @@ public class TestNameMappingProjection extends HiveTableBaseTest {
         .withRecordCount(2)
         .build();
 
+    assertNameMappingProjection(avroDataFile, "avro_table");
+  }
+
+  private void assertNameMappingProjection(DataFile dataFile, String tableName) {
     Schema filteredSchema = new Schema(
         required(1, "name", Types.StringType.get())
     );
@@ -129,7 +181,7 @@ public class TestNameMappingProjection extends HiveTableBaseTest {
     );
 
     Table table = catalog.createTable(
-        org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "avro_table"),
+        org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, tableName),
         tableSchema,
         PartitionSpec.unpartitioned());
 
@@ -137,10 +189,10 @@ public class TestNameMappingProjection extends HiveTableBaseTest {
         .set(DEFAULT_NAME_MAPPING, NameMappingParser.toJson(nameMapping))
         .commit();
 
-    table.newFastAppend().appendFile(avroDataFile).commit();
+    table.newFastAppend().appendFile(dataFile).commit();
 
     List<Row> actual = spark.read().format("iceberg")
-        .load(DB_NAME + ".avro_table")
+        .load(String.format("%s.%s", DB_NAME, tableName))
         .filter("name='Alice'")
         .collectAsList();
 

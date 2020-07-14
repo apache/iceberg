@@ -23,8 +23,6 @@ import java.util.List;
 import java.util.function.Predicate;
 import org.apache.orc.TypeDescription;
 
-/**
- */
 public class HasIds extends OrcSchemaVisitor<Boolean> {
 
   @Override

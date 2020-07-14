@@ -33,6 +33,8 @@ import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.mapping.MappingUtil;
+import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.io.sarg.PredicateLeaf.Type;
@@ -261,5 +263,66 @@ public class TestExpressionToSearchArgument {
 
     actual = ExpressionToSearchArgument.convert(boundFilter, readSchema);
     Assert.assertEquals(expected.toString(), actual.toString());
+  }
+
+  @Test
+  public void testOriginalSchemaNameMapping() {
+    Schema originalSchema = new Schema(
+        required(1, "int", Types.IntegerType.get()),
+        optional(2, "long", Types.LongType.get())
+    );
+
+    TypeDescription orcSchemaWithoutIds = ORCSchemaUtil.removeIds(ORCSchemaUtil.convert(originalSchema));
+    NameMapping nameMapping = MappingUtil.create(originalSchema);
+
+    TypeDescription readSchema = ORCSchemaUtil.buildOrcProjection(originalSchema,
+        ORCSchemaUtil.applyNameMapping(orcSchemaWithoutIds, nameMapping));
+
+    Expression expr = and(equal("int", 1), equal("long", 1));
+    Expression boundFilter = Binder.bind(originalSchema.asStruct(), expr, true);
+    SearchArgument expected = SearchArgumentFactory.newBuilder()
+        .equals("`int`", Type.LONG, 1L)
+        .equals("`long`", Type.LONG, 1L)
+        .build();
+
+    SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, readSchema);
+    Assert.assertEquals(expected.toString(), actual.toString());
+  }
+
+  @Test
+  public void testModifiedSchemaNameMapping() {
+    Schema originalSchema = new Schema(
+        required(1, "int", Types.IntegerType.get()),
+        optional(2, "long_to_be_dropped", Types.LongType.get())
+    );
+    Schema mappingSchema = new Schema(
+        required(1, "int", Types.IntegerType.get()),
+        optional(3, "new_float_field", Types.FloatType.get())
+    );
+    TypeDescription orcSchemaWithoutIds = ORCSchemaUtil.removeIds(ORCSchemaUtil.convert(originalSchema));
+    NameMapping nameMapping = MappingUtil.create(mappingSchema);
+
+    TypeDescription readSchema = ORCSchemaUtil.buildOrcProjection(mappingSchema,
+        ORCSchemaUtil.applyNameMapping(orcSchemaWithoutIds, nameMapping));
+
+    Expression expr = equal("int", 1);
+    Expression boundFilter = Binder.bind(mappingSchema.asStruct(), expr, true);
+    SearchArgument expected = SearchArgumentFactory.newBuilder()
+        .equals("`int`", Type.LONG, 1L)
+        .build();
+
+    SearchArgument actual2 = ExpressionToSearchArgument.convert(boundFilter, readSchema);
+    Assert.assertEquals(expected.toString(), actual2.toString());
+
+    // for columns not in the file, buildOrcProjection will append field names with _r<ID>
+    // this will be passed down to ORC, but ORC will handle such cases and return a TruthValue during evaluation
+    expr = equal("new_float_field", 1);
+    boundFilter = Binder.bind(mappingSchema.asStruct(), expr, true);
+    expected = SearchArgumentFactory.newBuilder()
+        .equals("`new_float_field_r3`", Type.FLOAT, 1.0)
+        .build();
+
+    actual2 = ExpressionToSearchArgument.convert(boundFilter, readSchema);
+    Assert.assertEquals(expected.toString(), actual2.toString());
   }
 }
