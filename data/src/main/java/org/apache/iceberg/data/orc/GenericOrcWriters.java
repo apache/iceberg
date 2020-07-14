@@ -79,8 +79,8 @@ public class GenericOrcWriters {
     return StringWriter.INSTANCE;
   }
 
-  public static OrcValueWriter<ByteBuffer> binary() {
-    return BytesWriter.INSTANCE;
+  public static OrcValueWriter<ByteBuffer> byteBuffers() {
+    return ByteBufferWriter.INSTANCE;
   }
 
   public static OrcValueWriter<UUID> uuids() {
@@ -100,12 +100,12 @@ public class GenericOrcWriters {
   }
 
   public static OrcValueWriter<LocalDateTime> timestamp() {
-    return TimestampOrcValueWriter.INSTANCE;
+    return TimestampWriter.INSTANCE;
   }
 
   public static OrcValueWriter<BigDecimal> decimal(int scala, int precision) {
     if (precision <= 18) {
-      return new DecimalWriter(scala);
+      return new Decimal18Writer(scala);
     } else {
       return Decimal38Writer.INSTANCE;
     }
@@ -218,8 +218,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class BytesWriter implements OrcValueWriter<ByteBuffer> {
-    private static final OrcValueWriter<ByteBuffer> INSTANCE = new BytesWriter();
+  private static class ByteBufferWriter implements OrcValueWriter<ByteBuffer> {
+    private static final OrcValueWriter<ByteBuffer> INSTANCE = new ByteBufferWriter();
 
     @Override
     public Class<ByteBuffer> getJavaClass() {
@@ -293,8 +293,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class TimestampOrcValueWriter implements OrcValueWriter<LocalDateTime> {
-    private static final OrcValueWriter<LocalDateTime> INSTANCE = new TimestampOrcValueWriter();
+  private static class TimestampWriter implements OrcValueWriter<LocalDateTime> {
+    private static final OrcValueWriter<LocalDateTime> INSTANCE = new TimestampWriter();
 
     @Override
     public Class<LocalDateTime> getJavaClass() {
@@ -310,10 +310,10 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class DecimalWriter implements OrcValueWriter<BigDecimal> {
+  private static class Decimal18Writer implements OrcValueWriter<BigDecimal> {
     private final int scale;
 
-    DecimalWriter(int scale) {
+    Decimal18Writer(int scale) {
       this.scale = scale;
     }
 

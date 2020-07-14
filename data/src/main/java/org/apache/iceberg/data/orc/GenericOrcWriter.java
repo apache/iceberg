@@ -55,7 +55,7 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
     @Override
     public OrcValueWriter<Record> record(Types.StructType iStruct, TypeDescription record,
                                          List<String> names, List<OrcValueWriter> fields) {
-      return new RecordOrcValueWriter(fields);
+      return new RecordWriter(fields);
     }
 
     @Override
@@ -72,55 +72,41 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
 
     @Override
     public OrcValueWriter primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
-      switch (primitive.getCategory()) {
+      switch (iPrimitive.typeId()) {
         case BOOLEAN:
           return GenericOrcWriters.booleans();
-        case BYTE:
-          throw new IllegalArgumentException("Iceberg does not have a byte type");
-        case SHORT:
-          throw new IllegalArgumentException("Iceberg does not have a short type.");
-        case INT:
+        case INTEGER:
           return GenericOrcWriters.ints();
         case LONG:
-          switch (iPrimitive.typeId()) {
-            case TIME:
-              return GenericOrcWriters.times();
-            case LONG:
-              return GenericOrcWriters.longs();
-            default:
-              throw new IllegalArgumentException(
-                  String.format("Invalid iceberg type %s corresponding to ORC type %s", iPrimitive, primitive));
-          }
+          return GenericOrcWriters.longs();
         case FLOAT:
           return GenericOrcWriters.floats();
         case DOUBLE:
           return GenericOrcWriters.doubles();
         case DATE:
           return GenericOrcWriters.dates();
+        case TIME:
+          return GenericOrcWriters.times();
         case TIMESTAMP:
-          return GenericOrcWriters.timestamp();
-        case TIMESTAMP_INSTANT:
-          return GenericOrcWriters.timestampTz();
-        case DECIMAL:
-          return GenericOrcWriters.decimal(primitive.getScale(), primitive.getPrecision());
-        case CHAR:
-        case VARCHAR:
+          Types.TimestampType timestampType = (Types.TimestampType) iPrimitive;
+          if (timestampType.shouldAdjustToUTC()) {
+            return GenericOrcWriters.timestampTz();
+          } else {
+            return GenericOrcWriters.timestamp();
+          }
         case STRING:
           return GenericOrcWriters.strings();
+        case UUID:
+          return GenericOrcWriters.uuids();
+        case FIXED:
+          return GenericOrcWriters.fixed();
         case BINARY:
-          switch (iPrimitive.typeId()) {
-            case UUID:
-              return GenericOrcWriters.uuids();
-            case FIXED:
-              return GenericOrcWriters.fixed();
-            case BINARY:
-              return GenericOrcWriters.binary();
-            default:
-              throw new IllegalArgumentException(
-                  String.format("Invalid iceberg type %s corresponding to ORC type %s", iPrimitive, primitive));
-          }
+          return GenericOrcWriters.byteBuffers();
+        case DECIMAL:
+          Types.DecimalType decimalType = (Types.DecimalType) iPrimitive;
+          return GenericOrcWriters.decimal(decimalType.scale(), decimalType.precision());
         default:
-          throw new IllegalArgumentException("Unhandled type " + primitive);
+          throw new IllegalArgumentException(String.format("Invalid iceberg type %s corresponding to ORC type %s", iPrimitive, primitive));
       }
     }
   }
@@ -128,22 +114,22 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
   @SuppressWarnings("unchecked")
   @Override
   public void write(Record value, VectorizedRowBatch output) {
-    Preconditions.checkArgument(writer instanceof RecordOrcValueWriter,
+    Preconditions.checkArgument(writer instanceof RecordWriter,
         "Converter must be a RecordConverter.");
 
     int row = output.size;
     output.size += 1;
-    List<OrcValueWriter> writers = ((RecordOrcValueWriter) writer).writers();
+    List<OrcValueWriter> writers = ((RecordWriter) writer).writers();
     for (int c = 0; c < writers.size(); ++c) {
       OrcValueWriter child = writers.get(c);
       child.write(row, value.get(c, child.getJavaClass()), output.cols[c]);
     }
   }
 
-  private static class RecordOrcValueWriter implements OrcValueWriter<Record> {
+  private static class RecordWriter implements OrcValueWriter<Record> {
     private final List<OrcValueWriter> writers;
 
-    RecordOrcValueWriter(List<OrcValueWriter> writers) {
+    RecordWriter(List<OrcValueWriter> writers) {
       this.writers = writers;
     }
 
