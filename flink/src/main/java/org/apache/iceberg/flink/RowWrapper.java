@@ -45,8 +45,8 @@ public class RowWrapper implements StructLike {
     }
   }
 
-  RowWrapper wrap(Row row) {
-    this.row = row;
+  RowWrapper wrap(Row data) {
+    this.row = data;
     return this;
   }
 
