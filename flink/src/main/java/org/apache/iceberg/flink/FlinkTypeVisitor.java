@@ -19,65 +19,63 @@
 
 package org.apache.iceberg.flink;
 
-import java.util.List;
-import java.util.Map;
-import org.apache.flink.table.types.AtomicDataType;
-import org.apache.flink.table.types.CollectionDataType;
-import org.apache.flink.table.types.DataType;
-import org.apache.flink.table.types.FieldsDataType;
-import org.apache.flink.table.types.KeyValueDataType;
-import org.apache.flink.table.types.logical.RowType;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.flink.table.types.logical.DayTimeIntervalType;
+import org.apache.flink.table.types.logical.DistinctType;
+import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.LogicalTypeVisitor;
+import org.apache.flink.table.types.logical.NullType;
+import org.apache.flink.table.types.logical.RawType;
+import org.apache.flink.table.types.logical.StructuredType;
+import org.apache.flink.table.types.logical.SymbolType;
+import org.apache.flink.table.types.logical.YearMonthIntervalType;
+import org.apache.flink.table.types.logical.ZonedTimestampType;
 
-public class FlinkTypeVisitor<T> {
+abstract class FlinkTypeVisitor<T> implements LogicalTypeVisitor<T> {
 
-  static <T> T visit(DataType dataType, FlinkTypeVisitor<T> visitor) {
-    if (dataType instanceof FieldsDataType) {
-      FieldsDataType fieldsType = (FieldsDataType) dataType;
-      Map<String, DataType> fields = fieldsType.getFieldDataTypes();
-      List<T> fieldResults = Lists.newArrayList();
+  // ------------------------- Unsupported types ------------------------------
 
-      Preconditions.checkArgument(dataType.getLogicalType() instanceof RowType, "The logical type must be RowType");
-      List<RowType.RowField> rowFields = ((RowType) dataType.getLogicalType()).getFields();
-      // Make sure that we're traveling in the same order as the RowFields because the implementation of
-      // FlinkTypeVisitor#fields may depends on the visit order, please see FlinkTypeToType#fields.
-      for (RowType.RowField rowField : rowFields) {
-        String name = rowField.getName();
-        fieldResults.add(visit(fields.get(name), visitor));
-      }
-
-      return visitor.fields(fieldsType, fieldResults);
-    } else if (dataType instanceof CollectionDataType) {
-      CollectionDataType collectionType = (CollectionDataType) dataType;
-      return visitor.collection(collectionType,
-          visit(collectionType.getElementDataType(), visitor));
-    } else if (dataType instanceof KeyValueDataType) {
-      KeyValueDataType mapType = (KeyValueDataType) dataType;
-      return visitor.map(mapType,
-          visit(mapType.getKeyDataType(), visitor),
-          visit(mapType.getValueDataType(), visitor));
-    } else if (dataType instanceof AtomicDataType) {
-      AtomicDataType atomic = (AtomicDataType) dataType;
-      return visitor.atomic(atomic);
-    } else {
-      throw new UnsupportedOperationException("Unsupported data type: " + dataType);
-    }
+  @Override
+  public T visit(ZonedTimestampType zonedTimestampType) {
+    throw new UnsupportedOperationException("Unsupported ZonedTimestampType.");
   }
 
-  public T fields(FieldsDataType type, List<T> fieldResults) {
-    return null;
+  @Override
+  public T visit(YearMonthIntervalType yearMonthIntervalType) {
+    throw new UnsupportedOperationException("Unsupported YearMonthIntervalType.");
   }
 
-  public T collection(CollectionDataType type, T elementResult) {
-    return null;
+  @Override
+  public T visit(DayTimeIntervalType dayTimeIntervalType) {
+    throw new UnsupportedOperationException("Unsupported DayTimeIntervalType.");
   }
 
-  public T map(KeyValueDataType type, T keyResult, T valueResult) {
-    return null;
+  @Override
+  public T visit(DistinctType distinctType) {
+    throw new UnsupportedOperationException("Unsupported DistinctType.");
   }
 
-  public T atomic(AtomicDataType type) {
-    return null;
+  @Override
+  public T visit(StructuredType structuredType) {
+    throw new UnsupportedOperationException("Unsupported StructuredType.");
+  }
+
+  @Override
+  public T visit(NullType nullType) {
+    throw new UnsupportedOperationException("Unsupported NullType.");
+  }
+
+  @Override
+  public T visit(RawType<?> rawType) {
+    throw new UnsupportedOperationException("Unsupported RawType.");
+  }
+
+  @Override
+  public T visit(SymbolType<?> symbolType) {
+    throw new UnsupportedOperationException("Unsupported SymbolType.");
+  }
+
+  @Override
+  public T visit(LogicalType other) {
+    throw new UnsupportedOperationException("Unsupported type: " + other);
   }
 }

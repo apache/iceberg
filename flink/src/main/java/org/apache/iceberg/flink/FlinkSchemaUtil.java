@@ -20,7 +20,8 @@
 package org.apache.iceberg.flink;
 
 import org.apache.flink.table.api.TableSchema;
-import org.apache.flink.table.types.FieldsDataType;
+import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
@@ -34,10 +35,11 @@ public class FlinkSchemaUtil {
    * Convert the flink table schema to apache iceberg schema.
    */
   public static Schema convert(TableSchema schema) {
-    Preconditions.checkArgument(schema.toRowDataType() instanceof FieldsDataType, "Should be FieldsDataType");
+    LogicalType schemaType = schema.toRowDataType().getLogicalType();
+    Preconditions.checkArgument(schemaType instanceof RowType, "Schema logical type should be RowType.");
 
-    FieldsDataType root = (FieldsDataType) schema.toRowDataType();
-    Type converted = FlinkTypeVisitor.visit(root, new FlinkTypeToType(root));
+    RowType root = (RowType) schemaType;
+    Type converted = root.accept(new FlinkTypeToType(root));
 
     return new Schema(converted.asStructType().fields());
   }
