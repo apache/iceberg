@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -36,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
@@ -55,6 +55,9 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFA
 class RemoveSnapshots implements ExpireSnapshots {
   private static final Logger LOG = LoggerFactory.getLogger(RemoveSnapshots.class);
 
+  // Creates an executor service that runs each task in the thread that invokes execute/submit.
+  private static final ExecutorService DEFAULT_DELETE_EXECUTOR_SERVICE = MoreExecutors.newDirectExecutorService();
+
   private final Consumer<String> defaultDelete = new Consumer<String>() {
     @Override
     public void accept(String file) {
@@ -62,19 +65,13 @@ class RemoveSnapshots implements ExpireSnapshots {
     }
   };
 
-  private final ExecutorService defaultDeleteExecutorService = Executors.newSingleThreadExecutor(runnable -> {
-    Thread thread = new Thread(runnable);
-    thread.setDaemon(true); // daemon threads will be terminated abruptly when the JVM exits
-    return thread;
-  });
-
   private final TableOperations ops;
   private final Set<Long> idsToRemove = Sets.newHashSet();
   private final Set<Long> idsToRetain = Sets.newHashSet();
   private TableMetadata base;
   private Long expireOlderThan = null;
   private Consumer<String> deleteFunc = defaultDelete;
-  private ExecutorService deleteExecutorService = defaultDeleteExecutorService;
+  private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
 
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
@@ -117,7 +114,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   @Override
-  public ExpireSnapshots deleteWith(ExecutorService executorService) {
+  public ExpireSnapshots executeWith(ExecutorService executorService) {
     this.deleteExecutorService = executorService;
     return this;
   }

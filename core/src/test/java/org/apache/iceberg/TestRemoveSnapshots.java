@@ -24,7 +24,9 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -443,16 +445,26 @@ public class TestRemoveSnapshots extends TableTestBase {
     rewriteManifests.commit();
 
     Set<String> deletedFiles = Sets.newHashSet();
+    Set<String> deleteThreads = ConcurrentHashMap.newKeySet();
+    AtomicInteger deleteThreadsIndex = new AtomicInteger(0);
 
     table.expireSnapshots()
-        .deleteWith(Executors.newFixedThreadPool(8, runnable -> {
+        .executeWith(Executors.newFixedThreadPool(4, runnable -> {
           Thread thread = new Thread(runnable);
-          thread.setDaemon(true);
+          thread.setName("remove-snapshot-" + deleteThreadsIndex.getAndIncrement());
+          thread.setDaemon(true); // daemon threads will be terminated abruptly when the JVM exits
           return thread;
         }))
         .expireOlderThan(t4)
-        .deleteWith(deletedFiles::add)
+        .deleteWith(s -> {
+          deleteThreads.add(Thread.currentThread().getName());
+          deletedFiles.add(s);
+        })
         .commit();
+
+    // Verifies that the delete methods ran in the threads created by the provided ExecutorService ThreadFactory
+    Assert.assertEquals(deleteThreads,
+            Sets.newHashSet("remove-snapshot-0", "remove-snapshot-1", "remove-snapshot-2", "remove-snapshot-3"));
 
     Assert.assertTrue("FILE_A should be deleted", deletedFiles.contains(FILE_A.path().toString()));
     Assert.assertTrue("FILE_B should be deleted", deletedFiles.contains(FILE_B.path().toString()));
