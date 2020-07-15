@@ -31,13 +31,13 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 
-public class RowWrapper implements StructLike {
+class RowWrapper implements StructLike {
 
   private final Type[] types;
   private final PositionalGetter[] getters;
   private Row row = null;
 
-  public RowWrapper(Types.StructType type) {
+  RowWrapper(Types.StructType type) {
     int size = type.fields().size();
 
     types = (Type[]) Array.newInstance(Type.class, size);
