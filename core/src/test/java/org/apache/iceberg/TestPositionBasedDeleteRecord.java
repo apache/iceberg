@@ -40,7 +40,7 @@ public class TestPositionBasedDeleteRecord {
 
   @Test
   public void testRecordRead() throws IOException {
-    Schema deleteSchema = PositionBasedDeleteRecord.schema();
+    Schema deleteSchema = PositionBasedDeleteRecord.SCHEMA;
     List<PositionBasedDeleteRecord> expected = new ArrayList<>();
     expected.add(new PositionBasedDeleteRecord("path/to/a.data", 1L));
     expected.add(new PositionBasedDeleteRecord("path/to/b.data", 2L));

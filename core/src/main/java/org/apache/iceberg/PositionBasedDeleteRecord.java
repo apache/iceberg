@@ -19,10 +19,10 @@
 
 package org.apache.iceberg;
 
+import java.util.StringJoiner;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.types.Types;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -33,11 +33,10 @@ class PositionBasedDeleteRecord implements IndexedRecord, SpecificData.SchemaCon
   private String filePath = null;
   private Long position = null;
 
-  static org.apache.iceberg.Schema schema() {
-    return new org.apache.iceberg.Schema(
-        required(1, "file_path", Types.StringType.get()),
-        required(2, "position", Types.LongType.get()));
-  }
+  static final org.apache.iceberg.Schema SCHEMA = new org.apache.iceberg.Schema(
+      required(1, "file_path", Types.StringType.get()),
+      required(2, "position", Types.LongType.get())
+  );
 
   /**
    * Used by Avro reflection to instantiate this class when reading manifest files.
@@ -85,9 +84,10 @@ class PositionBasedDeleteRecord implements IndexedRecord, SpecificData.SchemaCon
 
   @Override
   public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("file_path", filePath)
-        .add("position", position)
-        .toString();
+    StringJoiner joiner = new StringJoiner(",", "{", "}");
+    joiner.add(String.format("file_path=%s", filePath));
+    joiner.add(String.format("position=%d", position));
+
+    return this.getClass().getSimpleName() + joiner.toString();
   }
 }
