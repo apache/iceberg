@@ -82,4 +82,16 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
    * @return this for method chaining
    */
   ExpireSnapshots deleteWith(Consumer<String> deleteFunc);
+
+
+  /**
+   * Allows expiration of snapshots without any cleanup of underlying manifest or data files.
+   * <p>
+   * Allows control in removing data and manifest files which may be more efficiently removed non-locally using
+   * an action in a distributed framework such as RemoveOrphanFilesAction.
+   * </p>
+   * @param clean setting this to false will skip deleting expired manifests and files
+   * @return this for method chaining
+   */
+  ExpireSnapshots cleanUpFiles(boolean clean);
 }

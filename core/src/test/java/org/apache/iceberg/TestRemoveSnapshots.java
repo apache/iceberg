@@ -404,6 +404,55 @@ public class TestRemoveSnapshots extends TableTestBase {
     Assert.assertTrue("FILE_B should be deleted", deletedFiles.contains(FILE_B.path().toString()));
   }
 
+  @Test
+  public void noDataFileCleanup() throws IOException {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    table.newFastAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    table.newRewrite()
+        .rewriteFiles(ImmutableSet.of(FILE_B), ImmutableSet.of(FILE_D))
+        .commit();
+    long thirdSnapshotId = table.currentSnapshot().snapshotId();
+
+    table.newRewrite()
+        .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_C))
+        .commit();
+    long fourthSnapshotId = table.currentSnapshot().snapshotId();
+
+    long t4 = System.currentTimeMillis();
+    while (t4 <= table.currentSnapshot().timestampMillis()) {
+      t4 = System.currentTimeMillis();
+    }
+
+    List<ManifestFile> manifests = table.currentSnapshot().dataManifests();
+
+    ManifestFile newManifest = writeManifest(
+        "manifest-file-1.avro",
+        manifestEntry(Status.EXISTING, thirdSnapshotId, FILE_C),
+        manifestEntry(Status.EXISTING, fourthSnapshotId, FILE_D));
+
+    RewriteManifests rewriteManifests = table.rewriteManifests();
+    manifests.forEach(rewriteManifests::deleteManifest);
+    rewriteManifests.addManifest(newManifest);
+    rewriteManifests.commit();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    table.expireSnapshots()
+        .cleanUpFiles(false)
+        .expireOlderThan(t4)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    Assert.assertFalse("FILE_A should not be deleted", deletedFiles.contains(FILE_A.path().toString()));
+    Assert.assertFalse("FILE_B should not be deleted", deletedFiles.contains(FILE_B.path().toString()));
+  }
+
   /**
    * Test on table below, and expiring the staged commit `B` using `expireOlderThan` API.
    * Table: A - C

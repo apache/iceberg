@@ -51,4 +51,8 @@ public class Actions {
   public RewriteDataFilesAction rewriteDataFiles() {
     return new RewriteDataFilesAction(spark, table);
   }
+
+  public ExpireSnapshotsAction expireSnapshots() {
+    return new ExpireSnapshotsAction(spark, table);
+  }
 }
