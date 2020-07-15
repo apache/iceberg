@@ -31,6 +31,7 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.util.Pair;
 import org.apache.orc.Reader;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
@@ -84,7 +85,10 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
         sarg, recordsPerBatch);
     if (batchReaderFunction != null) {
       OrcBatchReader<T> batchReader = (OrcBatchReader<T>) batchReaderFunction.apply(readOrcSchema);
-      return CloseableIterator.transform(rowBatchIterator, batchReader::read);
+      return CloseableIterator.transform(rowBatchIterator, pair -> {
+        batchReader.setBatchContext(pair.second());
+        return batchReader.read(pair.first());
+      });
     } else {
       return new OrcRowIterator<>(rowBatchIterator, (OrcRowReader<T>) readerFunction.apply(readOrcSchema));
     }
@@ -133,8 +137,10 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
     @Override
     public T next() {
       if (current == null || nextRow >= current.size) {
-        current = batchIter.next();
+        Pair<VectorizedRowBatch, Long> nextBatch = batchIter.next();
+        current = nextBatch.first();
         nextRow = 0;
+        this.reader.setBatchContext(nextBatch.second());
       }
 
       return this.reader.read(current, nextRow++);

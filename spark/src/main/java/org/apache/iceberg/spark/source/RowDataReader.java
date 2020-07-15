@@ -26,6 +26,7 @@ import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataTask;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
@@ -41,6 +42,7 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkAvroReader;
 import org.apache.iceberg.spark.data.SparkOrcReader;
@@ -170,9 +172,10 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       FileScanTask task,
       Schema readSchema,
       Map<Integer, ?> idToConstant) {
-    Schema readSchemaWithoutConstants = TypeUtil.selectNot(readSchema, idToConstant.keySet());
+    Schema readSchemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(readSchema,
+        Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
     return ORC.read(location)
-        .project(readSchemaWithoutConstants)
+        .project(readSchemaWithoutConstantAndMetadataFields)
         .split(task.start(), task.length())
         .createReaderFunc(readOrcSchema -> new SparkOrcReader(readSchema, readOrcSchema, idToConstant))
         .filter(task.residual())

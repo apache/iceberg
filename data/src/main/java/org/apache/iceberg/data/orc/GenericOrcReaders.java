@@ -248,6 +248,12 @@ public class GenericOrcReaders {
       }
       return map;
     }
+
+    @Override
+    public void setBatchContext(long batchOffsetInFile) {
+      keyReader.setBatchContext(batchOffsetInFile);
+      valueReader.setBatchContext(batchOffsetInFile);
+    }
   }
 
   private static class ListReader implements OrcValueReader<List<?>> {
@@ -267,6 +273,11 @@ public class GenericOrcReaders {
         elements.add(elementReader.read(listVector.child, offset + c));
       }
       return elements;
+    }
+
+    @Override
+    public void setBatchContext(long batchOffsetInFile) {
+      elementReader.setBatchContext(batchOffsetInFile);
     }
   }
 }

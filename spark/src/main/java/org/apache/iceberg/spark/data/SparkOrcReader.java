@@ -57,6 +57,11 @@ public class SparkOrcReader implements OrcRowReader<InternalRow> {
     return (InternalRow) reader.read(new StructColumnVector(batch.size, batch.cols), row);
   }
 
+  @Override
+  public void setBatchContext(long batchOffsetInFile) {
+    reader.setBatchContext(batchOffsetInFile);
+  }
+
   private static class ReadBuilder extends OrcSchemaWithTypeVisitor<OrcValueReader<?>> {
     private final Map<Integer, ?> idToConstant;
 
