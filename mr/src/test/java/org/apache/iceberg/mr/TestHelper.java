@@ -21,6 +21,8 @@ package org.apache.iceberg.mr;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
@@ -38,6 +40,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataWriter;
@@ -106,9 +109,14 @@ public class TestHelper {
     return createTable(schema, PartitionSpec.unpartitioned());
   }
 
+
   public List<Record> generateRandomRecords(int num, long seed) {
     Preconditions.checkNotNull(table, "table not set");
-    return RandomGenericData.generate(table.schema(), num, seed);
+    return generateRandomRecords(table.schema(), num, seed);
+  }
+
+  public static List<Record> generateRandomRecords(Schema schema, int num, long seed) {
+    return RandomGenericData.generate(schema, num, seed);
   }
 
   public void appendToTable(DataFile... dataFiles) {
@@ -183,5 +191,36 @@ public class TestHelper {
     }
 
     return builder.build();
+  }
+
+  public static class RecordsBuilder {
+
+    private final List<Record> records = new ArrayList<Record>();
+    private final Schema schema;
+
+    private RecordsBuilder(Schema schema) {
+      this.schema = schema;
+    }
+
+    public RecordsBuilder add(Object... values) {
+      Preconditions.checkArgument(schema.columns().size() == values.length);
+
+      GenericRecord record = GenericRecord.create(schema);
+
+      for (int i = 0; i < values.length; i++) {
+        record.set(i, values[i]);
+      }
+
+      records.add(record);
+      return this;
+    }
+
+    public List<Record> build() {
+      return Collections.unmodifiableList(records);
+    }
+
+    public static RecordsBuilder newInstance(Schema schema) {
+      return new RecordsBuilder(schema);
+    }
   }
 }

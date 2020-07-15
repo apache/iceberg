@@ -79,6 +79,7 @@ subprojects {
     all {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.mortbay.jetty'
+      exclude group: 'org.pentaho', module: 'pentaho-aggdesigner-algorithm'
 
       resolutionStrategy {
         force 'com.fasterxml.jackson.module:jackson-module-scala_2.11:2.10.2'
@@ -349,6 +350,17 @@ project(':iceberg-mr') {
     testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
+
+    testCompile("org.apache.avro:avro:1.9.2")
+    testCompile("org.apache.calcite:calcite-core")
+    testCompile("com.esotericsoftware:kryo-shaded:4.0.2")
+    testCompile("com.fasterxml.jackson.core:jackson-annotations:2.6.5")
+    testCompile("com.klarna:hiverunner:5.2.1") {
+      exclude group: 'javax.jms', module: 'jms'
+      exclude group: 'org.apache.hive', module: 'hive-exec'
+      exclude group: 'org.codehaus.jettison', module: 'jettison'
+      exclude group: 'org.apache.calcite.avatica'
+    }
   }
 }
 
