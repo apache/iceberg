@@ -20,10 +20,16 @@
 package org.apache.iceberg.flink;
 
 import java.lang.reflect.Array;
+import java.nio.ByteBuffer;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 
 public class RowWrapper implements StructLike {
 
@@ -76,10 +82,24 @@ public class RowWrapper implements StructLike {
   }
 
   private static PositionalGetter buildGetter(Type type) {
-    if (type instanceof Types.StructType) {
-      RowWrapper nestedWrapper = new RowWrapper((Types.StructType) type);
-      return (r, pos) -> nestedWrapper.wrap((Row) r.getField(pos));
+    switch (type.typeId()) {
+      case DATE:
+        return (r, pos) -> DateTimeUtil.daysFromDate((LocalDate) r.getField(pos));
+      case TIME:
+        return (r, pos) -> DateTimeUtil.microsFromTime((LocalTime) r.getField(pos));
+      case TIMESTAMP:
+        if (((Types.TimestampType) type).shouldAdjustToUTC()) {
+          return (r, pos) -> DateTimeUtil.microsFromTimestamptz((OffsetDateTime) r.getField(pos));
+        } else {
+          return (r, pos) -> DateTimeUtil.microsFromTimestamp((LocalDateTime) r.getField(pos));
+        }
+      case FIXED:
+        return (r, pos) -> ByteBuffer.wrap((byte[]) r.getField(pos));
+      case STRUCT:
+        RowWrapper nestedWrapper = new RowWrapper((Types.StructType) type);
+        return (r, pos) -> nestedWrapper.wrap((Row) r.getField(pos));
+      default:
+        return null;
     }
-    return null;
   }
 }

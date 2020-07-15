@@ -36,7 +36,7 @@ import org.apache.iceberg.util.RandomUtil;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-class RandomData {
+public class RandomData {
   private RandomData() {
   }
 
@@ -88,15 +88,15 @@ class RandomData {
     };
   }
 
-  static Iterable<Row> generate(Schema schema, int numRecords, long seed) {
+  public static Iterable<Row> generate(Schema schema, int numRecords, long seed) {
     return generateData(schema, numRecords, () -> new RandomRowGenerator(seed));
   }
 
-  static Iterable<Row> generateFallbackData(Schema schema, int numRecords, long seed, long numDictRows) {
+  public static Iterable<Row> generateFallbackData(Schema schema, int numRecords, long seed, long numDictRows) {
     return generateData(schema, numRecords, () -> new FallbackGenerator(seed, numDictRows));
   }
 
-  static Iterable<Row> generateDictionaryEncodableData(Schema schema, int numRecords, long seed) {
+  public static Iterable<Row> generateDictionaryEncodableData(Schema schema, int numRecords, long seed) {
     return generateData(schema, numRecords, () -> new DictionaryEncodedGenerator(seed));
   }
 
