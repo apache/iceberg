@@ -93,7 +93,7 @@ This configuration can use same Hive Metastore for both Iceberg and non-Iceberg 
 ## DDL commands
 
 !!! Note
-    Spark 2.4 can't create Iceberg tables with DDL, instead use the [Iceberg API](../api-quickstart).
+    Spark 2.4 can't create Iceberg tables with DDL, instead use the [Iceberg API](../java-api-quickstart).
 
 ### `CREATE TABLE`
 
