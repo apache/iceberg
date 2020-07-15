@@ -36,11 +36,12 @@ import org.apache.iceberg.types.TypeUtil;
  * This inconsistent types:
  * <ul>
  *   <li>map Iceberg UUID type to Flink BinaryType(16)</li>
- *   <li>map Flink VarCharType and CharType to Iceberg String type (lost precision)</li>
- *   <li>map Flink VarBinaryType to Iceberg Binary type (lost precision)</li>
- *   <li>map Flink TimeType to Iceberg Time type (lost precision)</li>
- *   <li>map Flink TimestampType to Iceberg Timestamp without zone type (lost precision)</li>
- *   <li>map Flink LocalZonedTimestampType to Iceberg Timestamp with zone type (lost precision)</li>
+ *   <li>map Flink VarCharType(_) and CharType(_) to Iceberg String type</li>
+ *   <li>map Flink VarBinaryType(_) to Iceberg Binary type</li>
+ *   <li>map Flink TimeType(_) to Iceberg Time type (microseconds)</li>
+ *   <li>map Flink TimestampType(_) to Iceberg Timestamp without zone type (microseconds)</li>
+ *   <li>map Flink LocalZonedTimestampType(_) to Iceberg Timestamp with zone type (microseconds)</li>
+ *   <li>map Flink MultiSetType to Iceberg Map type(element, int)</li>
  * </ul>
  * <p>
  */
