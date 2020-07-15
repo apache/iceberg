@@ -37,7 +37,7 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 
 ## Configuring catalogs
 
-Spark 3.0 adds an API to plug in table catalogs that are used to load, create, and manage Iceberg tables. Spark catalogs are configured by setting Spark properties under `spark.sql.catalog`.
+Spark 3.0 adds an API to plug in table catalogs that are used to load, create, and manage Iceberg tables. Spark catalogs are configured by setting [Spark properties](../configuration#catalogs) under `spark.sql.catalog`.
 
 This creates an Iceberg catalog named `hive_prod` that loads tables from a Hive metastore:
 
@@ -93,7 +93,7 @@ This configuration can use same Hive Metastore for both Iceberg and non-Iceberg 
 ## DDL commands
 
 !!! Note
-    Spark 2.4 can't create Iceberg tables with DDL, instead use the [Iceberg API](../api-quickstart).
+    Spark 2.4 can't create Iceberg tables with DDL, instead use the [Iceberg API](../java-api-quickstart).
 
 ### `CREATE TABLE`
 
@@ -286,6 +286,11 @@ val df = spark.read
     .table("prod.db.table")
 ```
 
+!!! Warning
+    When reading with DataFrames in Spark 3, use `table` to load a table by name from a catalog.
+    Using `format("iceberg")` loads an isolated table reference that is not refreshed when other queries update the table.
+
+
 ### Time travel
 
 To select a specific table snapshot or the snapshot at some time, Iceberg supports two Spark read options:
@@ -352,6 +357,13 @@ INSERT INTO prod.db.table SELECT ...
 To replace data in the table with the result of a query, use `INSERT OVERWRITE`. Overwrites are atomic operations for Iceberg tables.
 
 The partitions that will be replaced by `INSERT OVERWRITE` depends on Spark's partition overwrite mode and the partitioning of a table.
+
+!!! Warning
+    Spark 3.0.0 has a correctness bug that affects dynamic `INSERT OVERWRITE` with hidden partitioning, [SPARK-32168][spark-32168].
+    For tables with [hidden partitions](../partitioning), wait for Spark 3.0.1.
+
+[spark-32168]: https://issues.apache.org/jira/browse/SPARK-32168
+
 
 #### Overwrite behavior
 
@@ -431,6 +443,13 @@ Spark 3 introduced the new `DataFrameWriterV2` API for writing to tables using d
     - `df.writeTo(t).replace()` is equivalent to `REPLACE TABLE AS SELECT`
     - `df.writeTo(t).append()` is equivalent to `INSERT INTO`
     - `df.writeTo(t).overwritePartitions()` is equivalent to dynamic `INSERT OVERWRITE`
+
+The v1 DataFrame `write` API is still supported, but is not recommended.
+
+!!! Warning
+    When writing with the v1 DataFrame API in Spark 3, use `saveAsTable` or `insertInto` to load tables with a catalog.
+    Using `format("iceberg")` loads an isolated table reference that will not automatically refresh tables used by queries.
+
 
 ### Appending data
 

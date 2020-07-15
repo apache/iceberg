@@ -67,14 +67,36 @@ Iceberg tables support table properties to configure table behavior, like the de
 | --------------------------------------------- | -------- | ------------------------------------------------------------- |
 | compatibility.snapshot-id-inheritance.enabled | false    | Enables committing snapshots without explicit snapshot IDs    |
 
-## Hadoop options
+## Hadoop configuration
+
+The following properties from the Hadoop configuration are used by the Hive Metastore connector.
 
 | Property                           | Default          | Description                                                   |
 | ---------------------------------- | ---------------- | ------------------------------------------------------------- |
 | iceberg.hive.client-pool-size      | 5                | The size of the Hive client pool when tracking tables in HMS  |
 | iceberg.hive.lock-timeout-ms       | 180000 (3 min)   | Maximum time in milliseconds to acquire a lock                |
 
-## Spark options
+## Spark configuration
+
+### Catalogs
+
+[Spark catalogs](../spark#configuring-catalogs) are configured using Spark session properties.
+
+A catalog is created and named by adding a property `spark.sql.catalog.(catalog-name)` with an implementation class for its value.
+
+Iceberg supplies two implementations:
+
+* `org.apache.iceberg.spark.SparkCatalog` supports a Hive Metastore or a Hadoop warehouse as a catalog
+* `org.apache.iceberg.spark.SparkSessionCatalog` adds support for Iceberg tables to Spark's built-in catalog, and delegates to the built-in catalog for non-Iceberg tables
+
+Both catalogs are configured using properties nested under the catalog name:
+
+| Property                                           | Values                        | Description                                                          |
+| -------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------- |
+| spark.sql.catalog._catalog-name_.type              | hive or hadoop                | The underlying Iceberg catalog implementation                        |
+| spark.sql.catalog._catalog-name_.default-namespace | default                       | The default current namespace for the catalog                        |
+| spark.sql.catalog._catalog-name_.uri               | thrift://host:port            | URI for the Hive Metastore; default from `hive-site.xml` (Hive only) |
+| spark.sql.catalog._catalog-name_.warehouse         | hdfs://nn:8020/warehouse/path | Base path for the warehouse directory (Hadoop only)                  |
 
 ### Read options
 
@@ -83,9 +105,8 @@ Spark read options are passed when configuring the DataFrameReader, like this:
 ```scala
 // time travel
 spark.read
-    .format("iceberg")
     .option("snapshot-id", 10963874102873L)
-    .load("db.table")
+    .table("catalog.db.table")
 ```
 
 | Spark option    | Default               | Description                                                                               |
@@ -103,14 +124,13 @@ Spark write options are passed when configuring the DataFrameWriter, like this:
 ```scala
 // write with Avro instead of Parquet
 df.write
-    .format("iceberg")
     .option("write-format", "avro")
-    .save("db.table")
+    .insertInto("catalog.db.table")
 ```
 
-| Spark option | Default                    | Description                                                  |
-| ------------ | -------------------------- | ------------------------------------------------------------ |
-| write-format | Table write.format.default | File format to use for this write operation; parquet or avro |
-| target-file-size-bytes | As per table property | Overrides this table's write.target-file-size-bytes     |
-| check-nullability | true         | Sets the nullable check on fields                        |
+| Spark option           | Default                    | Description                                                  |
+| ---------------------- | -------------------------- | ------------------------------------------------------------ |
+| write-format           | Table write.format.default | File format to use for this write operation; parquet or avro |
+| target-file-size-bytes | As per table property      | Overrides this table's write.target-file-size-bytes          |
+| check-nullability      | true                       | Sets the nullable check on fields                            |
 
