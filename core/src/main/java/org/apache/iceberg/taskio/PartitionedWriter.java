@@ -28,32 +28,31 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class PartitionedWriter<T> extends BaseTaskWriter<T> {
   private static final Logger LOG = LoggerFactory.getLogger(PartitionedWriter.class);
 
-  private PartitionKey currentKey = null;
-  private WrappedFileAppender currentAppender = null;
-  private final Function<T, PartitionKey> partitionKeyGetter;
+  private final Function<T, PartitionKey> keyGetter;
   private final Set<PartitionKey> completedPartitions = Sets.newHashSet();
 
+  private PartitionKey currentKey = null;
+  private WrappedFileAppender currentAppender = null;
 
   public PartitionedWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
                            OutputFileFactory fileFactory, FileIO io, long targetFileSize,
-                           Function<T, PartitionKey> partitionKeyGetter) {
+                           Function<T, PartitionKey> keyGetter) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
-    this.partitionKeyGetter = partitionKeyGetter;
+    this.keyGetter = keyGetter;
   }
 
   @Override
   public void write(T row) throws IOException {
-    PartitionKey key = partitionKeyGetter.apply(row);
+    PartitionKey key = keyGetter.apply(row);
 
     if (!key.equals(currentKey)) {
-      closeCurrentWriter();
+      closeCurrent();
       completedPartitions.add(currentKey);
 
       if (completedPartitions.contains(key)) {
@@ -64,34 +63,28 @@ public class PartitionedWriter<T> extends BaseTaskWriter<T> {
       }
 
       currentKey = key.copy();
+    }
 
-      createWrappedFileAppender(currentKey, () -> outputFileFactory().newOutputFile(currentKey));
+    if (currentAppender == null) {
+      currentAppender = createWrappedFileAppender(currentKey, () -> outputFileFactory().newOutputFile(currentKey));
     }
 
     currentAppender.add(row);
-  }
-
-  @Override
-  public void abort() throws IOException {
-    closeCurrentWriter();
-
-    // clean up files created by this writer
-    Tasks.foreach(pollCompleteFiles())
-        .throwFailureWhenFinished()
-        .noRetry()
-        .run(file -> io().deleteFile(file.path().toString()));
+    if (currentAppender.shouldRollToNewFile()) {
+      closeCurrent();
+    }
   }
 
   @Override
   public void close() throws IOException {
-    closeCurrentWriter();
+    closeCurrent();
   }
 
-  private void closeCurrentWriter() throws IOException {
+  private void closeCurrent() throws IOException {
     if (currentAppender != null) {
 
       // Close the current file appender and put the generated DataFile to completeDataFiles.
-      closeWrappedFileAppender(currentAppender);
+      currentAppender.close();
 
       // Reset the current appender to be null.
       currentAppender = null;

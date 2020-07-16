@@ -19,9 +19,7 @@
 
 package org.apache.iceberg.spark.source;
 
-import java.util.List;
 import java.util.function.Function;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -40,9 +38,5 @@ class WriterUtil {
       key.partition(wrapper.wrap(row));
       return key;
     };
-  }
-
-  static TaskResult createTaskResult(List<DataFile> dataFiles) {
-    return new TaskResult(dataFiles);
   }
 }

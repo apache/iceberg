@@ -34,8 +34,9 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.Tasks;
 
-public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
+abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   protected static final int ROWS_DIVISOR = 1000;
 
   private final List<DataFile> completedFiles = Lists.newArrayList();
@@ -46,8 +47,8 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   private final FileIO io;
   private final long targetFileSize;
 
-  BaseTaskWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
-                 OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
+  protected BaseTaskWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
+                           OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
     this.spec = spec;
     this.format = format;
     this.appenderFactory = appenderFactory;
@@ -56,6 +57,19 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     this.targetFileSize = targetFileSize;
   }
 
+
+  @Override
+  public void abort() throws IOException {
+    close();
+
+    // clean up files created by this writer
+    Tasks.foreach(completedFiles)
+        .throwFailureWhenFinished()
+        .noRetry()
+        .run(file -> io.deleteFile(file.path().toString()));
+  }
+
+  @Override
   public List<DataFile> pollCompleteFiles() {
     if (completedFiles.size() > 0) {
       List<DataFile> dataFiles = ImmutableList.copyOf(completedFiles);
@@ -64,10 +78,6 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     } else {
       return Collections.emptyList();
     }
-  }
-
-  protected FileIO io() {
-    return this.io;
   }
 
   protected OutputFileFactory outputFileFactory() {
@@ -81,15 +91,11 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     return new WrappedFileAppender(partitionKey, outputFile, appender);
   }
 
-  void closeWrappedFileAppender(WrappedFileAppender appender) throws IOException {
-    DataFile dataFile = appender.closeAndBuildDataFile();
-    completedFiles.add(dataFile);
-  }
-
   class WrappedFileAppender {
     private final PartitionKey partitionKey;
     private final EncryptedOutputFile encryptedOutputFile;
     private final FileAppender<T> appender;
+
     private boolean closed = false;
     private long currentRows = 0;
 
@@ -110,29 +116,27 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
           currentRows % ROWS_DIVISOR == 0 && appender.length() >= targetFileSize;
     }
 
-    private void close() throws IOException {
+    void close() throws IOException {
+      // Close the file appender firstly.
       if (!closed) {
         appender.close();
         closed = true;
       }
-    }
-
-    private DataFile closeAndBuildDataFile() throws IOException {
-      // Close the file appender firstly.
-      this.close();
 
       // metrics are only valid after the appender is closed.
       Metrics metrics = appender.metrics();
       long fileSizeInBytes = appender.length();
       List<Long> splitOffsets = appender.splitOffsets();
 
-      return DataFiles.builder(spec)
+      DataFile dataFile = DataFiles.builder(spec)
           .withEncryptedOutputFile(encryptedOutputFile)
           .withFileSizeInBytes(fileSizeInBytes)
           .withPartition(partitionKey)
           .withMetrics(metrics)
           .withSplitOffsets(splitOffsets)
           .build();
+
+      completedFiles.add(dataFile);
     }
   }
 }

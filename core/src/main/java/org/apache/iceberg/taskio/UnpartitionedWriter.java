@@ -23,7 +23,6 @@ import java.io.IOException;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.util.Tasks;
 
 public class UnpartitionedWriter<T> extends BaseTaskWriter<T> {
 
@@ -42,30 +41,20 @@ public class UnpartitionedWriter<T> extends BaseTaskWriter<T> {
 
     // Roll the writer if reach the target file size.
     if (currentAppender.shouldRollToNewFile()) {
-      closeCurrentWriter();
+      closeCurrent();
     }
   }
 
   @Override
-  public void abort() throws IOException {
-    closeCurrentWriter();
-
-    // clean up files created by this writer
-    Tasks.foreach(pollCompleteFiles())
-        .throwFailureWhenFinished()
-        .noRetry()
-        .run(file -> io().deleteFile(file.path().toString()));
-  }
-
   public void close() throws IOException {
-    closeCurrentWriter();
+    closeCurrent();
   }
 
-  private void closeCurrentWriter() throws IOException {
+  private void closeCurrent() throws IOException {
     if (currentAppender != null) {
 
       // Close the current file appender and put the generated DataFile to completeDataFiles.
-      closeWrappedFileAppender(currentAppender);
+      currentAppender.close();
 
       // Reset the current appender to be null.
       currentAppender = null;

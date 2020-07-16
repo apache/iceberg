@@ -287,8 +287,7 @@ class Writer implements DataSourceWriter {
       this.close();
 
       List<DataFile> dataFiles = pollCompleteFiles();
-      TaskResult taskResult = new TaskResult(dataFiles);
-      return new TaskCommit(taskResult);
+      return new TaskCommit(new TaskResult(dataFiles));
     }
   }
 
@@ -304,8 +303,7 @@ class Writer implements DataSourceWriter {
       this.close();
 
       List<DataFile> dataFiles = pollCompleteFiles();
-      TaskResult taskResult = new TaskResult(dataFiles);
-      return new TaskCommit(taskResult);
+      return new TaskCommit(new TaskResult(dataFiles));
     }
   }
 }
