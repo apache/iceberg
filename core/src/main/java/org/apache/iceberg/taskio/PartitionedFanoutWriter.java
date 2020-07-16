@@ -63,11 +63,9 @@ public class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
   @Override
   public void internalClose() throws IOException {
     if (!writers.isEmpty()) {
-
-      Iterator<Map.Entry<PartitionKey, WrappedFileAppender>> iterator = writers.entrySet().iterator();
+      Iterator<WrappedFileAppender> iterator = writers.values().iterator();
       while (iterator.hasNext()) {
-        Map.Entry<PartitionKey, WrappedFileAppender> entry = iterator.next();
-        entry.getValue().close();
+        iterator.next().close();
         // Remove from the writers after closed.
         iterator.remove();
       }

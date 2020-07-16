@@ -101,13 +101,7 @@ public class TestTaskWriters {
       Assert.assertNotNull(dataFiles);
       Assert.assertEquals(0, dataFiles.size());
 
-      boolean encounterError = false;
-      try {
-        taskWriter.write(Row.of(1, "foo"));
-      } catch (IOException e) {
-        encounterError = true;
-      }
-      Assert.assertTrue("Forbid to write closed writer.", encounterError);
+      assertWriteDisabled(taskWriter, Row.of(1, "ping"));
     }
   }
 
@@ -127,6 +121,8 @@ public class TestTaskWriters {
       for (DataFile dataFile : dataFiles) {
         Assert.assertFalse(fs.exists(new Path(dataFile.path().toString())));
       }
+
+      assertWriteDisabled(taskWriter, Row.of(1, "ping"));
     }
   }
 
@@ -168,6 +164,28 @@ public class TestTaskWriters {
   }
 
   @Test
+  public void testCopiedCompleteFiles() throws IOException {
+    try (TaskWriter<Row> taskWriter = createTaskWriter(4)) {
+      List<Row> rows = Lists.newArrayListWithCapacity(1000);
+      for (int i = 0; i < 1000; i++) {
+        rows.add(Row.of(i, "a"));
+      }
+
+      for (Row row : rows) {
+        taskWriter.write(row);
+      }
+
+      List<DataFile> dataFiles = taskWriter.pollCompleteFiles();
+      Assert.assertEquals(1, dataFiles.size());
+
+      Assert.assertEquals(0, taskWriter.pollCompleteFiles().size());
+      dataFiles.add(null);
+      Assert.assertEquals("The copied data files should not effect the complete file cache",
+          0, taskWriter.pollCompleteFiles().size());
+    }
+  }
+
+  @Test
   public void testRollingWithTargetFileSize() throws IOException {
     try (TaskWriter<Row> taskWriter = createTaskWriter(4)) {
       List<Row> rows = Lists.newArrayListWithCapacity(8000);
@@ -193,6 +211,17 @@ public class TestTaskWriters {
       // Assert the data rows.
       SimpleDataUtil.assertTableRecords(path, records);
     }
+  }
+
+  private void assertWriteDisabled(TaskWriter<Row> taskWriter, Row row) {
+    String errorMessage = null;
+    try {
+      taskWriter.write(row);
+    } catch (IOException e) {
+      errorMessage = e.getMessage();
+    }
+    Assert.assertTrue("Forbid to write a closed writer",
+        errorMessage != null && errorMessage.contains("The writer has been closed."));
   }
 
   private TaskWriter<Row> createTaskWriter(long targetFileSize) {
