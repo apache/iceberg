@@ -33,10 +33,11 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.data.SparkAvroWriter;
 import org.apache.iceberg.spark.data.SparkOrcWriter;
 import org.apache.iceberg.spark.data.SparkParquetWriters;
+import org.apache.iceberg.taskio.FileAppenderFactory;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.StructType;
 
-class SparkAppenderFactory {
+class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   private final Map<String, String> properties;
   private final Schema writeSchema;
   private final StructType dsSchema;

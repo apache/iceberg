@@ -17,24 +17,18 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.source;
+package org.apache.iceberg.taskio;
 
+import java.io.Closeable;
 import java.io.IOException;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.io.FileIO;
-import org.apache.spark.sql.catalyst.InternalRow;
+import java.util.List;
+import org.apache.iceberg.DataFile;
 
-class UnpartitionedWriter extends BaseWriter {
-  UnpartitionedWriter(PartitionSpec spec, FileFormat format, SparkAppenderFactory appenderFactory,
-                      OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
-    super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+public interface TaskWriter<T> extends Closeable {
 
-    openCurrent();
-  }
+  void write(T row) throws IOException;
 
-  @Override
-  public void write(InternalRow row) throws IOException {
-    writeInternal(row);
-  }
+  void abort() throws IOException;
+
+  List<DataFile> pollCompleteFiles();
 }

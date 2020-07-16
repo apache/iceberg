@@ -36,6 +36,10 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.taskio.OutputFileFactory;
+import org.apache.iceberg.taskio.PartitionedWriter;
+import org.apache.iceberg.taskio.TaskWriter;
+import org.apache.iceberg.taskio.UnpartitionedWriter;
 import org.apache.spark.TaskContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.broadcast.Broadcast;
@@ -97,11 +101,12 @@ public class RowDataRewriter implements Serializable {
     OutputFileFactory fileFactory = new OutputFileFactory(
         spec, format, locations, io.value(), encryptionManager.value(), partitionId, taskId);
 
-    BaseWriter writer;
+    TaskWriter<InternalRow> writer;
     if (spec.fields().isEmpty()) {
-      writer = new UnpartitionedWriter(spec, format, appenderFactory, fileFactory, io.value(), Long.MAX_VALUE);
+      writer = new UnpartitionedWriter<>(spec, format, appenderFactory, fileFactory, io.value(), Long.MAX_VALUE);
     } else {
-      writer = new PartitionedWriter(spec, format, appenderFactory, fileFactory, io.value(), Long.MAX_VALUE, schema);
+      writer = new PartitionedWriter<>(spec, format, appenderFactory, fileFactory, io.value(), Long.MAX_VALUE,
+          WriterUtil.buildKeyGetter(spec, schema));
     }
 
     try {
@@ -112,7 +117,7 @@ public class RowDataRewriter implements Serializable {
 
       dataReader.close();
       dataReader = null;
-      return writer.complete();
+      return WriterUtil.createTaskResult(writer.pollCompleteFiles());
 
     } catch (Throwable originalThrowable) {
       try {

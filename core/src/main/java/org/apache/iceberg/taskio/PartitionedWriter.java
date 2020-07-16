@@ -17,43 +17,43 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.source;
+package org.apache.iceberg.taskio;
 
 import java.io.IOException;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class PartitionedWriter extends BaseWriter {
+public class PartitionedWriter<T> extends BaseTaskWriter<T> {
   private static final Logger LOG = LoggerFactory.getLogger(PartitionedWriter.class);
 
-  private final PartitionKey key;
-  private final InternalRowWrapper wrapper;
+  private PartitionKey currentKey = null;
+  private WrappedFileAppender currentAppender = null;
+  private final Function<T, PartitionKey> partitionKeyGetter;
   private final Set<PartitionKey> completedPartitions = Sets.newHashSet();
 
-  PartitionedWriter(PartitionSpec spec, FileFormat format, SparkAppenderFactory appenderFactory,
-                    OutputFileFactory fileFactory, FileIO io, long targetFileSize, Schema writeSchema) {
+
+  public PartitionedWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
+                           OutputFileFactory fileFactory, FileIO io, long targetFileSize,
+                           Function<T, PartitionKey> partitionKeyGetter) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
-    this.key = new PartitionKey(spec, writeSchema);
-    this.wrapper = new InternalRowWrapper(SparkSchemaUtil.convert(writeSchema));
+    this.partitionKeyGetter = partitionKeyGetter;
   }
 
   @Override
-  public void write(InternalRow row) throws IOException {
-    key.partition(wrapper.wrap(row));
+  public void write(T row) throws IOException {
+    PartitionKey key = partitionKeyGetter.apply(row);
 
-    PartitionKey currentKey = getCurrentKey();
     if (!key.equals(currentKey)) {
-      closeCurrent();
+      closeCurrentWriter();
       completedPartitions.add(currentKey);
 
       if (completedPartitions.contains(key)) {
@@ -63,10 +63,38 @@ class PartitionedWriter extends BaseWriter {
         throw new IllegalStateException("Already closed files for partition: " + key.toPath());
       }
 
-      setCurrentKey(key.copy());
-      openCurrent();
+      currentKey = key.copy();
+
+      createWrappedFileAppender(currentKey, () -> outputFileFactory().newOutputFile(currentKey));
     }
 
-    writeInternal(row);
+    currentAppender.add(row);
+  }
+
+  @Override
+  public void abort() throws IOException {
+    closeCurrentWriter();
+
+    // clean up files created by this writer
+    Tasks.foreach(pollCompleteFiles())
+        .throwFailureWhenFinished()
+        .noRetry()
+        .run(file -> io().deleteFile(file.path().toString()));
+  }
+
+  @Override
+  public void close() throws IOException {
+    closeCurrentWriter();
+  }
+
+  private void closeCurrentWriter() throws IOException {
+    if (currentAppender != null) {
+
+      // Close the current file appender and put the generated DataFile to completeDataFiles.
+      closeWrappedFileAppender(currentAppender);
+
+      // Reset the current appender to be null.
+      currentAppender = null;
+    }
   }
 }
