@@ -41,14 +41,15 @@ public class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
   }
 
   @Override
-  public void write(T row) throws IOException {
+  public void internalWrite(T row) throws IOException {
     PartitionKey partitionKey = keyGetter.apply(row);
 
     WrappedFileAppender writer = writers.get(partitionKey);
     if (writer == null) {
-      writer = createWrappedFileAppender(partitionKey, () -> outputFileFactory().newOutputFile(partitionKey));
       // NOTICE: we need to copy a new partition key here, in case of messing up the keys in writers.
-      writers.put(partitionKey.copy(), writer);
+      PartitionKey copiedKey = partitionKey.copy();
+      writer = createWrappedFileAppender(copiedKey, () -> outputFileFactory().newOutputFile(partitionKey));
+      writers.put(copiedKey, writer);
     }
     writer.add(row);
 
@@ -60,7 +61,7 @@ public class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
   }
 
   @Override
-  public void close() throws IOException {
+  public void internalClose() throws IOException {
     if (!writers.isEmpty()) {
 
       Iterator<Map.Entry<PartitionKey, WrappedFileAppender>> iterator = writers.entrySet().iterator();

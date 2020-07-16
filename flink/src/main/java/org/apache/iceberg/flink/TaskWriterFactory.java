@@ -19,12 +19,23 @@
 
 package org.apache.iceberg.flink;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Map;
 import java.util.function.Function;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.flink.data.FlinkAvroWriter;
+import org.apache.iceberg.flink.data.FlinkParquetWriters;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.taskio.FileAppenderFactory;
 import org.apache.iceberg.taskio.OutputFileFactory;
 import org.apache.iceberg.taskio.PartitionedFanoutWriter;
@@ -45,17 +56,60 @@ public class TaskWriterFactory {
     };
   }
 
-  public static TaskWriter<Row> createTaskWriter(Schema schema, PartitionSpec spec,
-                                                 FileAppenderFactory<Row> fileAppenderFactory,
-                                                 OutputFileFactory outputFileFactory,
-                                                 long targetFileSizeBytes,
-                                                 FileFormat fileFormat) {
+  public static TaskWriter<Row> createTaskWriter(Schema schema,
+                                                 PartitionSpec spec,
+                                                 FileFormat format,
+                                                 FileAppenderFactory<Row> appenderFactory,
+                                                 OutputFileFactory fileFactory,
+                                                 FileIO io,
+                                                 long targetFileSizeBytes) {
     if (spec.fields().isEmpty()) {
-      return new UnpartitionedWriter<>(fileAppenderFactory, outputFileFactory, targetFileSizeBytes, fileFormat);
+      return new UnpartitionedWriter<>(spec, format, appenderFactory, fileFactory, io, targetFileSizeBytes);
     } else {
       Function<Row, PartitionKey> keyGetter = buildKeyGetter(spec, schema);
-      return new PartitionedFanoutWriter<>(spec, fileAppenderFactory, outputFileFactory,
-          keyGetter, targetFileSizeBytes, fileFormat);
+      return new PartitionedFanoutWriter<>(spec, format, appenderFactory, fileFactory, io,
+          targetFileSizeBytes, keyGetter);
+    }
+  }
+
+  static class FlinkFileAppenderFactory implements FileAppenderFactory<Row> {
+    private final Schema schema;
+    private final Map<String, String> props;
+
+    FlinkFileAppenderFactory(Schema schema, Map<String, String> props) {
+      this.schema = schema;
+      this.props = props;
+    }
+
+    @Override
+    public FileAppender<Row> newAppender(OutputFile outputFile, FileFormat format) {
+      MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
+      try {
+        switch (format) {
+          case PARQUET:
+            return Parquet.write(outputFile)
+                .createWriterFunc(FlinkParquetWriters::buildWriter)
+                .setAll(props)
+                .metricsConfig(metricsConfig)
+                .schema(schema)
+                .overwrite()
+                .build();
+
+          case AVRO:
+            return Avro.write(outputFile)
+                .createWriterFunc(FlinkAvroWriter::new)
+                .setAll(props)
+                .schema(schema)
+                .overwrite()
+                .build();
+
+          case ORC:
+          default:
+            throw new UnsupportedOperationException("Cannot write unknown file format: " + format);
+        }
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
     }
   }
 }
