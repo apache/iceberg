@@ -81,8 +81,6 @@ import org.slf4j.LoggerFactory;
 public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergInputFormat.class);
 
-  private transient List<InputSplit> splits;
-
   /**
    * Configures the {@code Job} to use the {@code IcebergInputFormat} and
    * returns a helper to add further configuration.
@@ -96,11 +94,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
   @Override
   public List<InputSplit> getSplits(JobContext context) {
-    if (splits != null) {
-      LOG.info("Returning cached splits: {}", splits.size());
-      return splits;
-    }
-
     Configuration conf = context.getConfiguration();
     Table table = findTable(conf);
     TableScan scan = table.newScan()
@@ -128,7 +121,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       scan = scan.filter(filter);
     }
 
-    splits = Lists.newArrayList();
+    List<InputSplit> splits = Lists.newArrayList();
     boolean applyResidual = !conf.getBoolean(InputFormatConfig.SKIP_RESIDUAL_FILTERING, false);
     InputFormatConfig.InMemoryDataModel model = conf.getEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL,
         InputFormatConfig.InMemoryDataModel.GENERIC);
