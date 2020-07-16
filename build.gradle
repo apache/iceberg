@@ -117,7 +117,11 @@ subprojects {
 
   test {
     testLogging {
-      events "failed", "passed"
+      if ("true".equalsIgnoreCase(System.getenv('CI'))) {
+        events "failed", "passed"
+      } else {
+        events "failed"
+      }
       exceptionFormat "full"
     }
   }
