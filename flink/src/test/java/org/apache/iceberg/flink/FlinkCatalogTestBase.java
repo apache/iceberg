@@ -21,15 +21,22 @@ package org.apache.iceberg.flink;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.IntStream;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
+import org.apache.flink.table.api.TableResult;
+import org.apache.flink.types.Row;
 import org.apache.flink.util.ArrayUtils;
+import org.apache.flink.util.CloseableIterator;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -110,7 +117,21 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
     this.icebergNamespace = Namespace.of(ArrayUtils.concat(baseNamespace, new String[] { DATABASE }));
   }
 
-  public void sql(String query, Object... args) {
-    tEnv.sqlUpdate(String.format(query, args));
+  public List<Object[]> sql(String query, Object... args) {
+    TableResult tableResult = tEnv.executeSql(String.format(query, args));
+    tableResult.getJobClient().ifPresent(c -> {
+      try {
+        c.getJobExecutionResult(Thread.currentThread().getContextClassLoader()).get();
+      } catch (InterruptedException | ExecutionException e) {
+        throw new RuntimeException(e);
+      }
+    });
+    CloseableIterator<Row> iter = tableResult.collect();
+    List<Object[]> results = Lists.newArrayList();
+    while (iter.hasNext()) {
+      Row row = iter.next();
+      results.add(IntStream.range(0, row.getArity()).mapToObj(row::getField).toArray(Object[]::new));
+    }
+    return results;
   }
 }

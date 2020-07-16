@@ -20,7 +20,7 @@
 package org.apache.iceberg.flink;
 
 import java.io.File;
-import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import org.apache.flink.table.catalog.exceptions.DatabaseNotEmptyException;
 import org.apache.iceberg.AssertHelpers;
@@ -119,14 +119,15 @@ public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
 
     Assert.assertTrue("Namespace should exist", validationNamespaceCatalog.namespaceExists(icebergNamespace));
 
-    Assert.assertEquals("Should not list any tables", 0, tEnv.listTables().length);
+    Assert.assertEquals("Should not list any tables", 0, sql("SHOW TABLES").size());
 
     validationCatalog.createTable(
         TableIdentifier.of(icebergNamespace, "tl"),
         new Schema(Types.NestedField.optional(0, "id", Types.LongType.get())));
 
-    Assert.assertEquals("Only 1 table", 1, tEnv.listTables().length);
-    Assert.assertEquals("Table name should match", "tl", tEnv.listTables()[0]);
+    List<Object[]> tables = sql("SHOW TABLES");
+    Assert.assertEquals("Only 1 table", 1, tables.size());
+    Assert.assertEquals("Table name should match", "tl", tables.get(0)[0]);
   }
 
   @Test
@@ -140,23 +141,23 @@ public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
 
     Assert.assertTrue("Namespace should exist", validationNamespaceCatalog.namespaceExists(icebergNamespace));
 
-    String[] databases = tEnv.listDatabases();
+    List<Object[]> databases = sql("SHOW DATABASES");
 
     if (isHadoopCatalog) {
-      Assert.assertEquals("Should have 1 database", 1, databases.length);
-      Assert.assertEquals("Should have only db database", "db", databases[0]);
+      Assert.assertEquals("Should have 1 database", 1, databases.size());
+      Assert.assertEquals("Should have only db database", "db", databases.get(0)[0]);
 
       if (baseNamespace.length > 0) {
         // test namespace not belongs to this catalog
         validationNamespaceCatalog.createNamespace(Namespace.of(baseNamespace[0], "UNKNOWN_NAMESPACE"));
-        databases = tEnv.listDatabases();
-        Assert.assertEquals("Should have 1 database", 1, databases.length);
-        Assert.assertEquals("Should have only db database", "db", databases[0]);
+        databases = sql("SHOW DATABASES");
+        Assert.assertEquals("Should have 1 database", 1, databases.size());
+        Assert.assertEquals("Should have only db database", "db", databases.get(0)[0]);
       }
     } else {
       // If there are multiple classes extends FlinkTestBase, TestHiveMetastore may loose the creation for default
       // database. See HiveMetaStore.HMSHandler.init.
-      Assert.assertTrue("Should have db database", Arrays.asList(databases).contains("db"));
+      Assert.assertTrue("Should have db database", databases.stream().anyMatch(d -> d[0].equals("db")));
     }
   }
 
