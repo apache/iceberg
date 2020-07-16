@@ -65,10 +65,9 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
   interface Converter {
     /**
      * Take a value from the Spark data value and add it to the ORC output.
-     *
-     * @param rowId  the row in the ColumnVector
+     * @param rowId the row in the ColumnVector
      * @param column either the column number or element number
-     * @param data   either an InternalRow or ArrayData
+     * @param data either an InternalRow or ArrayData
      * @param output the ColumnVector to put the value into
      */
     void addValue(int rowId, int column, SpecializedGetters data,
