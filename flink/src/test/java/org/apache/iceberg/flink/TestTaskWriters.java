@@ -29,6 +29,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
@@ -177,11 +178,13 @@ public class TestTaskWriters {
 
       List<DataFile> dataFiles = taskWriter.pollCompleteFiles();
       Assert.assertEquals(1, dataFiles.size());
+      AssertHelpers.assertThrows("Complete file list are immutable", UnsupportedOperationException.class,
+          () -> dataFiles.add(null));
 
-      Assert.assertEquals(0, taskWriter.pollCompleteFiles().size());
-      dataFiles.add(null);
-      Assert.assertEquals("The copied data files should not effect the complete file cache",
-          0, taskWriter.pollCompleteFiles().size());
+      List<DataFile> emptyList = taskWriter.pollCompleteFiles();
+      Assert.assertEquals(0, emptyList.size());
+      AssertHelpers.assertThrows("Empty complete file list are immutable", UnsupportedOperationException.class,
+          () -> emptyList.add(null));
     }
   }
 
