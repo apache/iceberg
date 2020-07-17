@@ -82,7 +82,7 @@ public class TestTaskWriters {
     File folder = tempFolder.newFolder();
     path = folder.getAbsolutePath();
 
-    // Construct the iceberg table.
+    // Construct the iceberg table with the specified file format.
     Map<String, String> props = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name());
     table = SimpleDataUtil.createTable(path, props, partitioned);
   }
@@ -185,6 +185,10 @@ public class TestTaskWriters {
       Assert.assertEquals(0, emptyList.size());
       AssertHelpers.assertThrows("Empty complete file list are immutable", UnsupportedOperationException.class,
           () -> emptyList.add(null));
+
+      // It should not open any new file when closed a writer without writing new record.
+      taskWriter.close();
+      Assert.assertEquals(0, taskWriter.pollCompleteFiles().size());
     }
   }
 

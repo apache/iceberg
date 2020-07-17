@@ -53,7 +53,7 @@ public class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
     }
     writer.add(row);
 
-    // Roll the writer if reach the target file size.
+    // Close the writer if reach the target file size.
     if (writer.shouldRollToNewFile()) {
       writer.close();
       writers.remove(partitionKey);

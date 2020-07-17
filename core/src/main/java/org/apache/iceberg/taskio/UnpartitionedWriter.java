@@ -40,7 +40,7 @@ public class UnpartitionedWriter<T> extends BaseTaskWriter<T> {
     }
     currentAppender.add(record);
 
-    // Roll the writer if reach the target file size.
+    // Close the writer if reach the target file size.
     if (currentAppender.shouldRollToNewFile()) {
       closeCurrent();
     }

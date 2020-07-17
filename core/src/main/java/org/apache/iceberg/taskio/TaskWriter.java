@@ -24,11 +24,30 @@ import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.DataFile;
 
+/**
+ * The writer interface could accept records and provide the generated data files.
+ *
+ * @param <T> to indicate the record data type.
+ */
 public interface TaskWriter<T> extends Closeable {
 
+  /**
+   * Write the row into the data files.
+   */
   void write(T row) throws IOException;
 
+  /**
+   * Close the writer and delete the completed files if possible when aborting.
+   *
+   * @throws IOException if any IO error happen.
+   */
   void abort() throws IOException;
 
+  /**
+   * Get the completed data files and clear them from the cache. NOTICE: if call this method without
+   * {@link TaskWriter#close()} then the current opening data file won't be seen in the result list.
+   *
+   * @return the cached completed data files of this task writer.
+   */
   List<DataFile> pollCompleteFiles();
 }
