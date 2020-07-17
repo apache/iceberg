@@ -78,7 +78,7 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotResults> {
     this.table = table;
     this.ops = ((HasTableOperations) table).operations();
     this.base = ops.current();
-    this.localExpireSnapshots = table.expireSnapshots().cleanUpFiles(false);
+    this.localExpireSnapshots = table.expireSnapshots().deleteExpiredFiles(false);
   }
 
   public ExpireSnapshotsAction expireSnapshotId(long expireSnapshotId) {
@@ -117,18 +117,17 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotResults> {
   public ExpireSnapshotResults execute() {
     localExpireSnapshots.commit();
 
+    TableMetadata currentMetadata = ops.refresh();
+
     //Locally determine which snapshots have been expired
     SnapshotExpirationChanges expiredSnapshotChanges =
-        ExpireSnapshotUtil.getExpiredSnapshots(ops, base);
+        ExpireSnapshotUtil.getExpiredSnapshots(currentMetadata, base);
 
     //Locally determine which manifests will need to be scanned, reverted, deleted
     ManifestExpirationChanges manifestExpirationChanges =
-        ExpireSnapshotUtil
-            .determineManifestChangesFromSnapshotExpiration(
-                expiredSnapshotChanges.getCurrentSnapshots(),
-                expiredSnapshotChanges.getValidSnapshotIds(),
-                expiredSnapshotChanges.getExpiredSnapshotIds(),
-                base, ops);
+        ExpireSnapshotUtil.determineManifestChangesFromSnapshotExpiration(
+            expiredSnapshotChanges.validSnapshotIds(), expiredSnapshotChanges.expiredSnapshotIds(),
+            currentMetadata, base, ops.io());
 
     FileIO io = SparkUtil.serializableFileIO(table);
 
@@ -137,11 +136,11 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotResults> {
 
     JavaRDD<ManifestFile> manifestsToScan =
         javaSparkContext
-            .parallelize(new LinkedList<>(manifestExpirationChanges.getManifestsToScan()));
+            .parallelize(new LinkedList<>(manifestExpirationChanges.manifestsToScan()));
 
     JavaRDD<ManifestFile> manifestsToRevert =
         javaSparkContext
-            .parallelize(new LinkedList<>(manifestExpirationChanges.getManifestsToRevert()));
+            .parallelize(new LinkedList<>(manifestExpirationChanges.manifestsToRevert()));
 
     FileIO serializableIO = SparkUtil.serializableFileIO(table);
 
@@ -149,7 +148,7 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotResults> {
         javaSparkContext.broadcast(ops.current().specsById());
 
     Broadcast<Set<Long>> broadcastValidIDs =
-        javaSparkContext.broadcast(expiredSnapshotChanges.getValidSnapshotIds());
+        javaSparkContext.broadcast(expiredSnapshotChanges.validSnapshotIds());
 
     JavaRDD<String> filesToDeleteFromScan = manifestsToScan.mapPartitions(manifests -> {
       Map<Integer, PartitionSpec> specLookup = broadcastedSpecLookup.getValue();
@@ -186,8 +185,7 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotResults> {
       Tasks.foreach(ImmutableList.copyOf(manifests))
           .retry(3).suppressFailureWhenFinished()
           .executeWith(ThreadPools.getWorkerPool())
-          .onFailure((item, exc) -> LOG
-              .warn("Failed to get deleted files: this may cause orphaned data files", exc))
+          .onFailure((item, exc) -> LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
           .run(manifest -> {
             // the manifest has deletes, scan it to find files to delete
             try (ManifestReader<?> reader = ManifestFiles
@@ -213,8 +211,8 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotResults> {
     LOG.warn("Deleting {} data files", dataFilesToDelete.size());
 
     return new ExpireSnapshotResults(
-        deleteManifestFiles(manifestExpirationChanges.getManifestsToDelete()),
-        deleteManifestLists(manifestExpirationChanges.getManifestListsToDelete()),
+        deleteManifestFiles(manifestExpirationChanges.manifestsToDelete()),
+        deleteManifestLists(manifestExpirationChanges.manifestListsToDelete()),
         deleteDataFiles(dataFilesToDelete));
   }
 

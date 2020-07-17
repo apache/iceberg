@@ -33,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.ExpireSnapshotUtil;
+import org.apache.iceberg.util.ExpireSnapshotUtil.ManifestExpirationChanges;
 import org.apache.iceberg.util.ExpireSnapshotUtil.SnapshotExpirationChanges;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
@@ -74,7 +75,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   @Override
-  public ExpireSnapshots cleanUpFiles(boolean clean) {
+  public ExpireSnapshots deleteExpiredFiles(boolean clean) {
     this.cleanExpiredFiles = clean;
     return this;
   }
@@ -96,7 +97,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   @Override
   public ExpireSnapshots retainLast(int numSnapshots) {
     Preconditions.checkArgument(1 <= numSnapshots,
-        "Number of snapshots to retain must be at least 1, cannot be: %s", numSnapshots);
+            "Number of snapshots to retain must be at least 1, cannot be: %s", numSnapshots);
     idsToRetain.clear();
     List<Long> ancestorIds = SnapshotUtil.ancestorIds(base.currentSnapshot(), base::snapshot);
     if (numSnapshots >= ancestorIds.size()) {
@@ -128,8 +129,8 @@ class RemoveSnapshots implements ExpireSnapshots {
 
     return base.removeSnapshotsIf(snapshot ->
         idsToRemove.contains(snapshot.snapshotId()) ||
-            (expireOlderThan != null && snapshot.timestampMillis() < expireOlderThan &&
-                !idsToRetain.contains(snapshot.snapshotId())));
+        (expireOlderThan != null && snapshot.timestampMillis() < expireOlderThan &&
+            !idsToRetain.contains(snapshot.snapshotId())));
   }
 
   @Override
@@ -164,33 +165,23 @@ class RemoveSnapshots implements ExpireSnapshots {
     // 2. Delete any data files that were deleted by those snapshots and are not in the table
     // 3. Delete any manifests that are no longer used by current snapshots
     // 4. Delete the manifest lists
-    SnapshotExpirationChanges snapshotExpirationChanges =
-        ExpireSnapshotUtil.getExpiredSnapshots(ops, base);
+    TableMetadata currentMetadata = ops.refresh();
+    SnapshotExpirationChanges snapshotChanges = ExpireSnapshotUtil.getExpiredSnapshots(currentMetadata, base);
 
-    if (snapshotExpirationChanges.getExpiredSnapshotIds().isEmpty()) {
+    if (snapshotChanges.expiredSnapshotIds().isEmpty()) {
       // if no snapshots were expired, skip cleanup
       return;
     }
 
     LOG.info("Cleaning up expired manifests and data files locally.");
-    cleanExpiredFiles(
-        snapshotExpirationChanges.getCurrentSnapshots(),
-        snapshotExpirationChanges.getValidSnapshotIds(),
-        snapshotExpirationChanges.getExpiredSnapshotIds());
-  }
 
-  private void cleanExpiredFiles(
-      List<Snapshot> currentTableSnapshots, Set<Long> validIds, Set<Long> expiredIds) {
     // Reads and deletes are done using Tasks.foreach(...).suppressFailureWhenFinished to complete
     // as much of the delete work as possible and avoid orphaned data or manifest files.
-    ExpireSnapshotUtil.ManifestExpirationChanges manifestExpirationChanges =
-        ExpireSnapshotUtil.determineManifestChangesFromSnapshotExpiration(
-            currentTableSnapshots, validIds, expiredIds, base, ops);
+    ManifestExpirationChanges changes = ExpireSnapshotUtil.determineManifestChangesFromSnapshotExpiration(
+        snapshotChanges.validSnapshotIds(), snapshotChanges.expiredSnapshotIds(), currentMetadata, base, ops.io());
 
-    deleteDataFiles(manifestExpirationChanges.getManifestsToScan(),
-        manifestExpirationChanges.getManifestsToRevert(), validIds);
-    deleteMetadataFiles(manifestExpirationChanges.getManifestsToDelete(),
-        manifestExpirationChanges.getManifestListsToDelete());
+    deleteDataFiles(changes.manifestsToScan(), changes.manifestsToRevert(), snapshotChanges.validSnapshotIds());
+    deleteMetadataFiles(changes.manifestsToDelete(), changes.manifestListsToDelete());
   }
 
   private void deleteMetadataFiles(Set<String> manifestsToDelete, Set<String> manifestListsToDelete) {

@@ -444,7 +444,7 @@ public class TestRemoveSnapshots extends TableTestBase {
     Set<String> deletedFiles = Sets.newHashSet();
 
     table.expireSnapshots()
-        .cleanUpFiles(false)
+        .deleteExpiredFiles(false)
         .expireOlderThan(t4)
         .deleteWith(deletedFiles::add)
         .commit();

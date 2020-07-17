@@ -30,9 +30,9 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,21 +40,86 @@ import org.slf4j.LoggerFactory;
 
 public class ExpireSnapshotUtil {
 
+  /**
+   * Determines the manifest files which need to be inspected because they refer to data files which
+   * can be removed after a Snapshot Expiration.
+   *
+   * Our goal is to determine which manifest files we actually need to read through because they
+   * may refer to files which are no longer accessible from any valid snapshot and do not effect
+   * the current table.
+   *
+   * For this we need to look through
+   *   1. Snapshots which have not expired but contain manifests from expired snapshots
+   *   2. Snapshots which have expired and contain manifests referring to now orphaned files
+   *
+   * @param validIds              The Ids of the Snapshots which have not been expired
+   * @param expiredIds            The Ids of the Snapshots which have been expired
+   * @param currentMetadata       The table metadata from after the snapshot expiration
+   * @param originalMetadata      The table metadata from before the snapshot expiration
+   * @param io                    FileIO for reading manifest info
+   * @return
+   */
+  public static ManifestExpirationChanges determineManifestChangesFromSnapshotExpiration(Set<Long> validIds,
+      Set<Long> expiredIds, TableMetadata currentMetadata, TableMetadata originalMetadata, FileIO io) {
+
+    List<Snapshot> currentSnapshots = currentMetadata.snapshots();
+
+    //Snapshots which are not expired but refer to manifests from expired snapshots
+    Set<ManifestFile> validManifests = getValidManifests(currentSnapshots, io);
+    Set<ManifestFile> manifestsToScan = validManifestsInExpiredSnapshots(validManifests,
+        originalMetadata, validIds);
+
+    //Snapshots which are expired and do not effect the current table
+    List<Snapshot> snapshotsNotChangingTableState = snapshotsNotInTableState(validIds, originalMetadata);
+    ManifestExpirationChanges manifestExpirationChanges =
+        findExpiredManifestsInUnusedSnapshots(snapshotsNotChangingTableState, validManifests,
+            originalMetadata, expiredIds, io);
+
+    manifestExpirationChanges.manifestsToScan().addAll(manifestsToScan);
+    return manifestExpirationChanges;
+  }
+
+  /**
+   * Compares the Snapshots from the two TableMetadata objects and identifies the snapshots
+   * still in use and those no longer in use
+   * @param currentMetadata Metadata from a table after an expiration of snapshots
+   * @param originalMetadata Metada from the table before expiration of snapshots
+   * @return
+   */
+  public static SnapshotExpirationChanges getExpiredSnapshots(
+      TableMetadata currentMetadata, TableMetadata originalMetadata) {
+
+    Set<Long> validIds = Sets.newHashSet();
+    for (Snapshot snapshot : currentMetadata.snapshots()) {
+      validIds.add(snapshot.snapshotId());
+    }
+
+    Set<Long> expiredIds = Sets.newHashSet();
+    for (Snapshot snapshot : originalMetadata.snapshots()) {
+      long snapshotId = snapshot.snapshotId();
+      if (!validIds.contains(snapshotId)) {
+        // This snapshot is no longer in the updated metadata
+        LOG.info("Expired snapshot: {}", snapshot);
+        expiredIds.add(snapshotId);
+      }
+    }
+
+    return new SnapshotExpirationChanges(validIds, expiredIds);
+  }
+
   //Utility Class No Instantiation Allowed
   private ExpireSnapshotUtil() {}
 
   private static final Logger LOG = LoggerFactory.getLogger(ExpireSnapshotUtil.class);
 
-  private static AncestorIds getAncestorIds(TableMetadata currentTableMetadata) {
+  private static Set<Long> getPickedAncestorIds(TableMetadata currentMetadata, Set<Long> ancestorIds) {
     // this is the set of ancestors of the current table state. when removing snapshots, this must
     // only remove files that were deleted in an ancestor of the current table state to avoid
     // physically deleting files that were logically deleted in a commit that was rolled back.
-    Set<Long> ancestorIds = Sets.newHashSet(SnapshotUtil
-        .ancestorIds(currentTableMetadata.currentSnapshot(), currentTableMetadata::snapshot));
 
     Set<Long> pickedAncestorSnapshotIds = Sets.newHashSet();
     for (long snapshotId : ancestorIds) {
-      String sourceSnapshotId = currentTableMetadata.snapshot(snapshotId).summary()
+      String sourceSnapshotId = currentMetadata.snapshot(snapshotId).summary()
           .get(SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP);
       if (sourceSnapshotId != null) {
         // protect any snapshot that was cherry-picked into the current table state
@@ -62,28 +127,27 @@ public class ExpireSnapshotUtil {
       }
     }
 
-    return new AncestorIds(ancestorIds, pickedAncestorSnapshotIds);
+    return pickedAncestorSnapshotIds;
   }
 
   /**
-   * Given a list of currently valid snapshots, extract all the manifests from those snapshots if
+   * Given a list of currently valid snapshots, extract all the manifests from those snapshots. If
    * there is an error while reading manifest lists an incomplete list of manifests will be
    * produced.
    *
-   * @param currentTableSnapshots a list of currently valid non-expired snapshots
+   * @param currentSnapshots a list of currently valid non-expired snapshots
    * @return all of the manifests of those snapshots
    */
-  private static Set<ManifestFile> getValidManifests(
-      List<Snapshot> currentTableSnapshots, TableOperations ops) {
+  private static Set<ManifestFile> getValidManifests(List<Snapshot> currentSnapshots, FileIO io) {
 
     Set<ManifestFile> validManifests = Sets.newHashSet();
-    Tasks.foreach(currentTableSnapshots).retry(3).suppressFailureWhenFinished()
+    Tasks.foreach(currentSnapshots).retry(3).suppressFailureWhenFinished()
         .onFailure((snapshot, exc) ->
             LOG.warn("Failed on snapshot {} while reading manifest list: {}", snapshot.snapshotId(),
                 snapshot.manifestListLocation(), exc))
         .run(
             snapshot -> {
-              try (CloseableIterable<ManifestFile> manifests = readManifestFiles(snapshot, ops)) {
+              try (CloseableIterable<ManifestFile> manifests = readManifestFiles(snapshot, io)) {
                 for (ManifestFile manifest : manifests) {
                   validManifests.add(manifest);
                 }
@@ -102,18 +166,18 @@ public class ExpireSnapshotUtil {
    * expired snapshot.
    *
    * @param validSnapshotIds     A list of the snapshots which are not expired
-   * @param currentTableMetadata A reference to the table containing the snapshots
+   * @param originalMeta A reference to the table before expiration
    * @return MetadataFiles which must be scanned to look for files to delete
    */
   private static Set<ManifestFile> validManifestsInExpiredSnapshots(
-      Set<Long> validSnapshotIds, TableMetadata currentTableMetadata) {
+      Set<ManifestFile> validManfiests, TableMetadata originalMeta, Set<Long> validSnapshotIds) {
 
-    AncestorIds ids = getAncestorIds(currentTableMetadata);
-    Set<Long> ancestorIds = ids.getAncestorIds();
-    Set<Long> pickedAncestorSnapshotIds = ids.getPickedAncestorIds();
+    Set<Long> ancestorIds = SnapshotUtil.ancestorIds(originalMeta.currentSnapshot(), originalMeta::snapshot)
+        .stream().collect(Collectors.toSet());
+    Set<Long> pickedAncestorSnapshotIds = getPickedAncestorIds(originalMeta, ancestorIds);
 
     Set<ManifestFile> manifestsToScan = Sets.newHashSet();
-    manifestsToScan.forEach(manifest -> {
+    validManfiests.forEach(manifest -> {
       long snapshotId = manifest.snapshotId();
       // whether the manifest was created by a valid snapshot (true) or an expired snapshot (false)
       boolean fromValidSnapshots = validSnapshotIds.contains(snapshotId);
@@ -135,19 +199,18 @@ public class ExpireSnapshotUtil {
    * Removes snapshots whose changes impact the current table state leaving only those which may
    * have files that could potentially need to be deleted.
    *
-   * @param currentTableMetadata TableMetadata for the table we are expiring from
-   * @param validSnapshotIds     Snapshots which are not expired
+   * @param originalMeta TableMetadata for the table we are expiring from
+   * @param validSnapshotIds Snapshots which are not expired
    * @return A list of those snapshots which may have files that need to be deleted
    */
-  private static List<Snapshot> filterOutSnapshotsInTableState(
-      Set<Long> validSnapshotIds, TableMetadata currentTableMetadata) {
+  private static List<Snapshot> snapshotsNotInTableState(Set<Long> validSnapshotIds, TableMetadata originalMeta) {
 
-    AncestorIds ids = getAncestorIds(currentTableMetadata);
-    Set<Long> ancestorIds = ids.getAncestorIds();
-    Set<Long> pickedAncestorSnapshotIds = ids.getPickedAncestorIds();
+    Set<Long> ancestorIds = SnapshotUtil.ancestorIds(originalMeta.currentSnapshot(), originalMeta::snapshot)
+        .stream().collect(Collectors.toSet());
+    Set<Long> pickedAncestorSnapshotIds = getPickedAncestorIds(originalMeta, ancestorIds);
 
-    List<Snapshot> currentSnapshots = currentTableMetadata.snapshots();
-    return currentSnapshots.stream().filter(snapshot -> {
+    List<Snapshot> originalSnapshots = originalMeta.snapshots();
+    return originalSnapshots.stream().filter(snapshot -> {
       long snapshotId = snapshot.snapshotId();
       if (!validSnapshotIds.contains(snapshotId)) {
         // determine whether the changes in this snapshot are in the current table state
@@ -164,33 +227,45 @@ public class ExpireSnapshotUtil {
           // this commit was cherry-picked from a commit that is in the current table state. do not clean up its
           // changes because it would revert data file additions that are in the current table.
           // A -- B -- C
-              //  `- D (source=B) <-- this commit
-              return false;
-            }
-
-            if (pickedAncestorSnapshotIds.contains(sourceSnapshotId)) {
-              // this commit was cherry-picked from a commit that is in the current table state. do not clean up its
-              // changes because it would revert data file additions that are in the current table.
-              // A -- C -- E (source=B)
-              //  `- B `- D (source=B) <-- this commit
-              return false;
-            }
-            return true;
-          }
+          //  `- D (source=B) <-- this commit
           return false;
         }
-    ).collect(Collectors.toList());
+
+        if (pickedAncestorSnapshotIds.contains(sourceSnapshotId)) {
+          // this commit was cherry-picked from a commit that is in the current table state. do not clean up its
+          // changes because it would revert data file additions that are in the current table.
+          // A -- C -- E (source=B)
+          //  `- B `- D (source=B) <-- this commit
+          return false;
+        }
+
+        return true;
+      }
+      return false;
+    }).collect(Collectors.toList());
   }
 
+  /**
+   *
+   * @param snapshotsNotInTableState Snapshots which may contain manifests that must be scanned because
+   *                                 their contents may not be needed
+   * @param validManifests Manifests which must be kept
+   * @param originalMeta Pre-expiration Table Metadata
+   * @param expiredSnapshotIds Snapshots which are no longer needed
+   * @param io For inspecting Manifests
+   * @return
+   */
   private static ManifestExpirationChanges findExpiredManifestsInUnusedSnapshots(
       List<Snapshot> snapshotsNotInTableState, Set<ManifestFile> validManifests,
-      TableMetadata oldMetadata, Set<Long> expiredSnapshotIds, TableOperations ops) {
+      TableMetadata originalMeta, Set<Long> expiredSnapshotIds, FileIO io) {
 
     Set<String> manifestListsToDelete = Sets.newHashSet();
     Set<String> manifestsToDelete = Sets.newHashSet();
     Set<ManifestFile> manifestsToRevert = Sets.newHashSet();
     Set<ManifestFile> manifestsToScan = Sets.newHashSet();
-    Set<Long> ancestorIds = getAncestorIds(oldMetadata).getAncestorIds();
+
+    Set<Long> ancestorIds = SnapshotUtil.ancestorIds(originalMeta.currentSnapshot(), originalMeta::snapshot)
+        .stream().collect(Collectors.toSet());
 
     Tasks.foreach(snapshotsNotInTableState).retry(3).suppressFailureWhenFinished()
         .onFailure((snapshot, exc) ->
@@ -198,7 +273,7 @@ public class ExpireSnapshotUtil {
                 snapshot.snapshotId(), snapshot.manifestListLocation(), exc))
         .run(snapshot -> {
           // find any manifests that are no longer needed
-          try (CloseableIterable<ManifestFile> manifests = readManifestFiles(snapshot, ops)) {
+          try (CloseableIterable<ManifestFile> manifests = readManifestFiles(snapshot, io)) {
             for (ManifestFile manifest : manifests) {
               if (!validManifests.contains(manifest)) {
                 manifestsToDelete.add(manifest.path());
@@ -243,11 +318,10 @@ public class ExpireSnapshotUtil {
   private static final Schema MANIFEST_PROJECTION = ManifestFile.schema()
       .select("manifest_path", "added_snapshot_id", "deleted_data_files_count");
 
-  private static CloseableIterable<ManifestFile> readManifestFiles(
-      Snapshot snapshot, TableOperations ops) {
+  private static CloseableIterable<ManifestFile> readManifestFiles(Snapshot snapshot, FileIO io) {
 
     if (snapshot.manifestListLocation() != null) {
-      return Avro.read(ops.io().newInputFile(snapshot.manifestListLocation()))
+      return Avro.read(io.newInputFile(snapshot.manifestListLocation()))
           .rename("manifest_file", GenericManifestFile.class.getName())
           .classLoader(GenericManifestFile.class.getClassLoader())
           .project(MANIFEST_PROJECTION)
@@ -259,84 +333,21 @@ public class ExpireSnapshotUtil {
     }
   }
 
-  /**
-   * Determines the manifest files which need to be inspected because they refer to data files which
-   * can be removed after a Snapshot Expiration.
-   *
-   * @param currentTableSnapshots A list of Snapshots Currently used by the Table
-   * @param validIds              The Ids of the Snapshots which have not been expired
-   * @param expiredIds            The Ids of the Snapshots which have been expired
-   * @param currentTableMetadata  The metadata of the table being expired
-   * @param ops                   The Table Operations module for the table in question, required
-   *                              for several IO operations
-   * @return
-   */
-  public static ManifestExpirationChanges determineManifestChangesFromSnapshotExpiration(
-      List<Snapshot> currentTableSnapshots, Set<Long> validIds, Set<Long> expiredIds,
-      TableMetadata currentTableMetadata, TableOperations ops) {
-
-    Set<ManifestFile> validManifests = getValidManifests(currentTableSnapshots, ops);
-    Set<ManifestFile> manifestsToScan = validManifestsInExpiredSnapshots(validIds,
-        currentTableMetadata);
-
-    List<Snapshot> snapshotsNotChangingTableState = filterOutSnapshotsInTableState(validIds,
-        currentTableMetadata);
-
-    // find manifests to clean up that were only referenced by snapshots that have expired
-    ManifestExpirationChanges manifestExpirationChanges =
-        findExpiredManifestsInUnusedSnapshots(snapshotsNotChangingTableState, validManifests,
-            currentTableMetadata, expiredIds, ops);
-
-    manifestExpirationChanges.getManifestsToScan().addAll(manifestsToScan);
-    return manifestExpirationChanges;
-  }
-
-  public static SnapshotExpirationChanges getExpiredSnapshots(
-      TableOperations ops, TableMetadata originalMetadata) {
-
-    TableMetadata current = ops.refresh();
-
-    Set<Long> validIds = Sets.newHashSet();
-    for (Snapshot snapshot : current.snapshots()) {
-      validIds.add(snapshot.snapshotId());
-    }
-
-    Set<Long> expiredIds = Sets.newHashSet();
-    for (Snapshot snapshot : originalMetadata.snapshots()) {
-      long snapshotId = snapshot.snapshotId();
-      if (!validIds.contains(snapshotId)) {
-        // the snapshot was expired
-        LOG.info("Expired snapshot: {}", snapshot);
-        expiredIds.add(snapshotId);
-      }
-    }
-
-    return new SnapshotExpirationChanges(current.snapshots(), validIds, expiredIds);
-  }
-
   public static class SnapshotExpirationChanges {
 
-    private final List<Snapshot> currentSnapshots;
     private final Set<Long> validSnapshotIds;
     private final Set<Long> expiredSnapshotIds;
 
-    public SnapshotExpirationChanges(
-        List<Snapshot> currentSnapshots, Set<Long> validSnapshotIds, Set<Long> expiredSnapshotIds) {
-
-      this.currentSnapshots = currentSnapshots;
+    public SnapshotExpirationChanges(Set<Long> validSnapshotIds, Set<Long> expiredSnapshotIds) {
       this.validSnapshotIds = validSnapshotIds;
       this.expiredSnapshotIds = expiredSnapshotIds;
     }
 
-    public List<Snapshot> getCurrentSnapshots() {
-      return currentSnapshots;
-    }
-
-    public Set<Long> getValidSnapshotIds() {
+    public Set<Long> validSnapshotIds() {
       return validSnapshotIds;
     }
 
-    public Set<Long> getExpiredSnapshotIds() {
+    public Set<Long> expiredSnapshotIds() {
       return expiredSnapshotIds;
     }
   }
@@ -358,40 +369,20 @@ public class ExpireSnapshotUtil {
       this.manifestListsToDelete = manifestListsToDelete;
     }
 
-
-    public Set<ManifestFile> getManifestsToScan() {
+    public Set<ManifestFile> manifestsToScan() {
       return manifestsToScan;
     }
 
-    public Set<ManifestFile> getManifestsToRevert() {
+    public Set<ManifestFile> manifestsToRevert() {
       return manifestsToRevert;
     }
 
-    public Set<String> getManifestsToDelete() {
+    public Set<String> manifestsToDelete() {
       return manifestsToDelete;
     }
 
-    public Set<String> getManifestListsToDelete() {
+    public Set<String> manifestListsToDelete() {
       return manifestListsToDelete;
-    }
-  }
-
-  private static class AncestorIds {
-
-    private final Set<Long> ancestorIds;
-    private final Set<Long> pickedAncestorIds;
-
-    private AncestorIds(Set<Long> ancestorIds, Set<Long> pickedAncestorIds) {
-      this.ancestorIds = ancestorIds;
-      this.pickedAncestorIds = pickedAncestorIds;
-    }
-
-    public Set<Long> getPickedAncestorIds() {
-      return pickedAncestorIds;
-    }
-
-    public Set<Long> getAncestorIds() {
-      return ancestorIds;
     }
   }
 }
