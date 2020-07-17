@@ -48,6 +48,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
     this.dsSchema = dsSchema;
   }
 
+  @Override
   public FileAppender<InternalRow> newAppender(OutputFile file, FileFormat fileFormat) {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(properties);
     try {

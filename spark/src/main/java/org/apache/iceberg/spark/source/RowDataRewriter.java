@@ -117,6 +117,8 @@ public class RowDataRewriter implements Serializable {
 
       dataReader.close();
       dataReader = null;
+
+      writer.close();
       return new TaskResult(writer.pollCompleteFiles());
 
     } catch (Throwable originalThrowable) {
