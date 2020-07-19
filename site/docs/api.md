@@ -99,6 +99,8 @@ Available operations to update a table are:
 
 ### Transactions
 
+`Table` also enables to commit multiple table operations at once.
+
 ## Types
 
 Iceberg data types are located in the [`org.apache.iceberg.types` package](/javadoc/master/index.html?org/apache/iceberg/types/package-summary.html).
