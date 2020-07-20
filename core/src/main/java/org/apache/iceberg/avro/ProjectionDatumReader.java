@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import org.apache.avro.Schema;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
@@ -30,7 +31,7 @@ import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.types.TypeUtil;
 
-public class ProjectionDatumReader<D> implements DatumReader<D> {
+public class ProjectionDatumReader<D> implements DatumReader<D>, SupportsRowPosition {
   private final Function<Schema, DatumReader<?>> getReader;
   private final org.apache.iceberg.Schema expectedSchema;
   private final Map<String, String> renames;
@@ -47,6 +48,13 @@ public class ProjectionDatumReader<D> implements DatumReader<D> {
     this.expectedSchema = expectedSchema;
     this.renames = renames;
     this.nameMapping = nameMapping;
+  }
+
+  @Override
+  public void setRowPositionSupplier(Supplier<Long> posSupplier) {
+    if (wrapped instanceof SupportsRowPosition) {
+      ((SupportsRowPosition) wrapped).setRowPositionSupplier(posSupplier);
+    }
   }
 
   @Override

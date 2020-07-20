@@ -31,12 +31,14 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.Decoder;
 import org.apache.avro.io.ResolvingDecoder;
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -560,10 +562,11 @@ public class ValueReaders {
     }
   }
 
-  public abstract static class StructReader<S> implements ValueReader<S> {
+  public abstract static class StructReader<S> implements ValueReader<S>, SupportsRowPosition {
     private final ValueReader<?>[] readers;
     private final int[] positions;
     private final Object[] constants;
+    private int posField = -1;
 
     protected StructReader(List<ValueReader<?>> readers) {
       this.readers = readers.toArray(new ValueReader[0]);
@@ -582,11 +585,35 @@ public class ValueReaders {
         if (idToConstant.containsKey(field.fieldId())) {
           positionList.add(pos);
           constantList.add(idToConstant.get(field.fieldId()));
+        } else if (field.fieldId() == MetadataColumns.ROW_POSITION.fieldId()) {
+          // replace the _pos field reader with a position reader
+          // only if the position reader is set and this is a top-level field
+          this.posField = pos;
         }
       }
 
       this.positions = positionList.stream().mapToInt(Integer::intValue).toArray();
       this.constants = constantList.toArray();
+    }
+
+    @Override
+    public void setRowPositionSupplier(Supplier<Long> posSupplier) {
+      if (posField > 0) {
+        long startingPos = posSupplier.get();
+        this.readers[posField] = new PositionReader(startingPos);
+        for (ValueReader<?> reader : readers) {
+          if (reader instanceof SupportsRowPosition) {
+            ((SupportsRowPosition) reader).setRowPositionSupplier(() -> startingPos);
+          }
+        }
+
+      } else {
+        for (ValueReader<?> reader : readers) {
+          if (reader instanceof SupportsRowPosition) {
+            ((SupportsRowPosition) reader).setRowPositionSupplier(posSupplier);
+          }
+        }
+      }
     }
 
     protected abstract S reuseOrCreate(Object reuse);
@@ -685,6 +712,20 @@ public class ValueReaders {
     @Override
     protected void set(R struct, int pos, Object value) {
       struct.put(pos, value);
+    }
+  }
+
+  static class PositionReader implements ValueReader<Long> {
+    private long currentPosition;
+
+    PositionReader(long rowPosition) {
+      this.currentPosition = rowPosition - 1;
+    }
+
+    @Override
+    public Long read(Decoder ignored, Object reuse) throws IOException {
+      currentPosition += 1;
+      return currentPosition;
     }
   }
 }

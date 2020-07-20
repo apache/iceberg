@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
@@ -32,6 +33,7 @@ import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.ResolvingDecoder;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.avro.AvroSchemaWithTypeVisitor;
+import org.apache.iceberg.avro.SupportsRowPosition;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -40,7 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-public class DataReader<T> implements DatumReader<T> {
+public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
 
   private static final ThreadLocal<Map<Schema, Map<Schema, ResolvingDecoder>>> DECODER_CACHES =
       ThreadLocal.withInitial(() -> new MapMaker().weakKeys().makeMap());
@@ -76,6 +78,13 @@ public class DataReader<T> implements DatumReader<T> {
     T value = reader.read(resolver, reuse);
     resolver.drain();
     return value;
+  }
+
+  @Override
+  public void setRowPositionSupplier(Supplier<Long> posSupplier) {
+    if (reader instanceof SupportsRowPosition) {
+      ((SupportsRowPosition) reader).setRowPositionSupplier(posSupplier);
+    }
   }
 
   private ResolvingDecoder resolve(Decoder decoder) throws IOException {
@@ -117,6 +126,7 @@ public class DataReader<T> implements DatumReader<T> {
     @Override
     public ValueReader<?> record(Types.StructType struct, Schema record,
                                  List<String> names, List<ValueReader<?>> fields) {
+
       return createStructReader(struct, fields, idToConstant);
     }
 
