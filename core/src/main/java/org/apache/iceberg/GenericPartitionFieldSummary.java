@@ -22,22 +22,25 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.apache.avro.Schema;
-import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData.SchemaConstructable;
 import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 
 public class GenericPartitionFieldSummary
-    implements PartitionFieldSummary, StructLike, IndexedRecord, SchemaConstructable, Serializable {
+    implements PartitionFieldSummary, StructLike, Record, SchemaConstructable, Serializable {
   private static final Schema AVRO_SCHEMA = AvroSchemaUtil.convert(PartitionFieldSummary.getType());
 
   private transient Schema avroSchema; // not final for Java serialization
   private int[] fromProjectionPos;
+  private Map<String, Integer> nameToProjectedPos;
 
   // data fields
   private boolean containsNull = false;
@@ -55,7 +58,7 @@ public class GenericPartitionFieldSummary
         .asStructType()
         .fields();
     List<Types.NestedField> allFields = PartitionFieldSummary.getType().fields();
-
+    this.nameToProjectedPos = new HashMap<>();
     this.fromProjectionPos = new int[fields.size()];
     for (int i = 0; i < fromProjectionPos.length; i += 1) {
       boolean found = false;
@@ -63,6 +66,7 @@ public class GenericPartitionFieldSummary
         if (fields.get(i).fieldId() == allFields.get(j).fieldId()) {
           found = true;
           fromProjectionPos[i] = j;
+          nameToProjectedPos.put(fields.get(i).name(), i);
         }
       }
 
@@ -145,6 +149,31 @@ public class GenericPartitionFieldSummary
   }
 
   @Override
+  public Types.StructType struct() {
+    return PartitionFieldSummary.getType();
+  }
+
+  @Override
+  public Object getField(String name) {
+    return get(nameToProjectedPos.get(name));
+  }
+
+  @Override
+  public void setField(String name, Object value) {
+    int pos = nameToProjectedPos.get(name);
+    set(pos, value);
+  }
+  @Override
+  public Record copyRecord() {
+    return null;
+  }
+
+  @Override
+  public Record copyRecord(Map<String, Object> overwriteValues) {
+    return null;
+  }
+
+  @Override
   @SuppressWarnings("unchecked")
   public <T> void set(int i, T value) {
     int pos = i;
@@ -168,18 +197,8 @@ public class GenericPartitionFieldSummary
   }
 
   @Override
-  public void put(int i, Object v) {
-    set(i, v);
-  }
-
-  @Override
   public PartitionFieldSummary copy() {
     return new GenericPartitionFieldSummary(this);
-  }
-
-  @Override
-  public Schema getSchema() {
-    return avroSchema;
   }
 
   @Override
