@@ -99,7 +99,20 @@ Available operations to update a table are:
 
 ### Transactions
 
-`Table` also enables to commit multiple table operations at once.
+Transactions are used to commit multiple table changes in a single atomic operation. A transaction is used to create individual operations using factory methods, like `newAppend`, just like working with a `Table`.
+Operations created by a transaction are committed as a group when `commitTransaction` is called.
+
+For example, deleting and appending a file in the same transaction:
+```java
+Transaction t = table.newTrasaction();
+
+// commit operations to the transaction
+t.newDelete().deleteFromRowFilter(filter).commit();
+t.newAppend().appendFile(data).commit();
+
+// commit all the changes to the table
+t.commitTransaction();
+```
 
 ## Types
 
