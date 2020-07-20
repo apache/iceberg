@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -395,6 +396,7 @@ class RemoveSnapshots implements ExpireSnapshots {
           .classLoader(GenericManifestFile.class.getClassLoader())
           .project(MANIFEST_PROJECTION)
           .reuseContainers(true)
+          .createReaderFunc(avroSchema -> DataReader.create(MANIFEST_PROJECTION, avroSchema))
           .build();
 
     } else {

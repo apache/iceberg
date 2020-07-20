@@ -34,6 +34,8 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.avro.AvroSchemaWithTypeVisitor;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
+import org.apache.iceberg.common.DynClasses;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
@@ -107,7 +109,14 @@ public class DataReader<T> implements DatumReader<T> {
     return GenericReaders.struct(struct, fields, idToConstant);
   }
 
+  protected <R extends Record> ValueReader<R> createStructReader(Schema schema, Class<R> recordClass,
+                                                                 List<ValueReader<?>> fields,
+                                                                 Map<Integer, ?> idToConstant) {
+    return GenericReaders.struct(schema, recordClass, fields, idToConstant);
+  }
+
   private class ReadBuilder extends AvroSchemaWithTypeVisitor<ValueReader<?>> {
+    private final ClassLoader loader = Thread.currentThread().getContextClassLoader();
     private final Map<Integer, ?> idToConstant;
 
     private ReadBuilder(Map<Integer, ?> idToConstant) {
@@ -115,9 +124,23 @@ public class DataReader<T> implements DatumReader<T> {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public ValueReader<?> record(Types.StructType struct, Schema record,
                                  List<String> names, List<ValueReader<?>> fields) {
-      return createStructReader(struct, fields, idToConstant);
+      try {
+        Class<?> recordClass = DynClasses.builder()
+            .loader(loader)
+            .impl(record.getFullName())
+            .buildChecked();
+        if (Record.class.isAssignableFrom(recordClass)) {
+          return createStructReader(record, (Class<? extends Record>) recordClass, fields, idToConstant);
+        }
+
+        return createStructReader(struct, fields, idToConstant);
+
+      } catch (ClassNotFoundException e) {
+        return ValueReaders.record(fields, record);
+      }
     }
 
     @Override

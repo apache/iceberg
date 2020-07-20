@@ -130,12 +130,12 @@ public class GenericRecord implements Record, StructLike {
   }
 
   @Override
-  public GenericRecord copy() {
+  public GenericRecord copyRecord() {
     return new GenericRecord(this);
   }
 
   @Override
-  public GenericRecord copy(Map<String, Object> overwriteValues) {
+  public GenericRecord copyRecord(Map<String, Object> overwriteValues) {
     return new GenericRecord(this, overwriteValues);
   }
 

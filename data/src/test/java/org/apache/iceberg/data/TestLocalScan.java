@@ -118,23 +118,23 @@ public class TestLocalScan {
     Record record = GenericRecord.create(SCHEMA);
 
     this.file1FirstSnapshotRecords = Lists.newArrayList(
-        record.copy(ImmutableMap.of("id", 4L, "data", "obscure")),
-        record.copy(ImmutableMap.of("id", 5L, "data", "secure")),
-        record.copy(ImmutableMap.of("id", 6L, "data", "fetta"))
+        record.copyRecord(ImmutableMap.of("id", 4L, "data", "obscure")),
+        record.copyRecord(ImmutableMap.of("id", 5L, "data", "secure")),
+        record.copyRecord(ImmutableMap.of("id", 6L, "data", "fetta"))
     );
     DataFile file11 = writeFile(sharedTableLocation, format.addExtension("file-11"), file1FirstSnapshotRecords);
 
     this.file2FirstSnapshotRecords = Lists.newArrayList(
-        record.copy(ImmutableMap.of("id", 14L, "data", "radical")),
-        record.copy(ImmutableMap.of("id", 15L, "data", "collocation")),
-        record.copy(ImmutableMap.of("id", 16L, "data", "book"))
+        record.copyRecord(ImmutableMap.of("id", 14L, "data", "radical")),
+        record.copyRecord(ImmutableMap.of("id", 15L, "data", "collocation")),
+        record.copyRecord(ImmutableMap.of("id", 16L, "data", "book"))
     );
     DataFile file21 = writeFile(sharedTableLocation, format.addExtension("file-21"), file2FirstSnapshotRecords);
 
     this.file3FirstSnapshotRecords = Lists.newArrayList(
-        record.copy(ImmutableMap.of("id", 24L, "data", "cloud")),
-        record.copy(ImmutableMap.of("id", 25L, "data", "zen")),
-        record.copy(ImmutableMap.of("id", 26L, "data", "sky"))
+        record.copyRecord(ImmutableMap.of("id", 24L, "data", "cloud")),
+        record.copyRecord(ImmutableMap.of("id", 25L, "data", "zen")),
+        record.copyRecord(ImmutableMap.of("id", 26L, "data", "sky"))
     );
     DataFile file31 = writeFile(sharedTableLocation, format.addExtension("file-31"), file3FirstSnapshotRecords);
 
@@ -146,23 +146,23 @@ public class TestLocalScan {
         .commit();
 
     this.file1SecondSnapshotRecords = Lists.newArrayList(
-        record.copy(ImmutableMap.of("id", 6L, "data", "brainy")),
-        record.copy(ImmutableMap.of("id", 7L, "data", "film")),
-        record.copy(ImmutableMap.of("id", 8L, "data", "fetta"))
+        record.copyRecord(ImmutableMap.of("id", 6L, "data", "brainy")),
+        record.copyRecord(ImmutableMap.of("id", 7L, "data", "film")),
+        record.copyRecord(ImmutableMap.of("id", 8L, "data", "fetta"))
     );
     DataFile file12 = writeFile(sharedTableLocation, format.addExtension("file-12"), file1SecondSnapshotRecords);
 
     this.file2SecondSnapshotRecords = Lists.newArrayList(
-        record.copy(ImmutableMap.of("id", 16L, "data", "cake")),
-        record.copy(ImmutableMap.of("id", 17L, "data", "intrinsic")),
-        record.copy(ImmutableMap.of("id", 18L, "data", "paper"))
+        record.copyRecord(ImmutableMap.of("id", 16L, "data", "cake")),
+        record.copyRecord(ImmutableMap.of("id", 17L, "data", "intrinsic")),
+        record.copyRecord(ImmutableMap.of("id", 18L, "data", "paper"))
     );
     DataFile file22 = writeFile(sharedTableLocation, format.addExtension("file-22"), file2SecondSnapshotRecords);
 
     this.file3SecondSnapshotRecords = Lists.newArrayList(
-        record.copy(ImmutableMap.of("id", 26L, "data", "belleview")),
-        record.copy(ImmutableMap.of("id", 27L, "data", "overview")),
-        record.copy(ImmutableMap.of("id", 28L, "data", "tender"))
+        record.copyRecord(ImmutableMap.of("id", 26L, "data", "belleview")),
+        record.copyRecord(ImmutableMap.of("id", 27L, "data", "overview")),
+        record.copyRecord(ImmutableMap.of("id", 28L, "data", "tender"))
     );
     DataFile file32 = writeFile(sharedTableLocation, format.addExtension("file-32"), file3SecondSnapshotRecords);
 
@@ -187,27 +187,27 @@ public class TestLocalScan {
     Record record = GenericRecord.create(SCHEMA);
 
     this.file1Records = Lists.newArrayList(
-        record.copy(ImmutableMap.of("id", 0L, "data", "clarification")),
-        record.copy(ImmutableMap.of("id", 1L, "data", "risky")),
-        record.copy(ImmutableMap.of("id", 2L, "data", "falafel"))
+        record.copyRecord(ImmutableMap.of("id", 0L, "data", "clarification")),
+        record.copyRecord(ImmutableMap.of("id", 1L, "data", "risky")),
+        record.copyRecord(ImmutableMap.of("id", 2L, "data", "falafel"))
     );
     DataFile file1 = writeFile(sharedTableLocation, format.addExtension("file-1"), file1Records);
 
-    Record nullData = record.copy();
+    Record nullData = record.copyRecord();
     nullData.setField("id", 11L);
     nullData.setField("data", null);
 
     this.file2Records = Lists.newArrayList(
-        record.copy(ImmutableMap.of("id", 10L, "data", "clammy")),
-        record.copy(ImmutableMap.of("id", 11L, "data", "evacuate")),
-        record.copy(ImmutableMap.of("id", 12L, "data", "tissue"))
+        record.copyRecord(ImmutableMap.of("id", 10L, "data", "clammy")),
+        record.copyRecord(ImmutableMap.of("id", 11L, "data", "evacuate")),
+        record.copyRecord(ImmutableMap.of("id", 12L, "data", "tissue"))
     );
     DataFile file2 = writeFile(sharedTableLocation, format.addExtension("file-2"), file2Records);
 
     this.file3Records = Lists.newArrayList(
-        record.copy(ImmutableMap.of("id", 20L, "data", "ocean")),
-        record.copy(ImmutableMap.of("id", 21L, "data", "holistic")),
-        record.copy(ImmutableMap.of("id", 22L, "data", "preventative"))
+        record.copyRecord(ImmutableMap.of("id", 20L, "data", "ocean")),
+        record.copyRecord(ImmutableMap.of("id", 21L, "data", "holistic")),
+        record.copyRecord(ImmutableMap.of("id", 22L, "data", "preventative"))
     );
     DataFile file3 = writeFile(sharedTableLocation, format.addExtension("file-3"), file3Records);
 

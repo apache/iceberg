@@ -20,10 +20,12 @@
 package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 
@@ -56,85 +58,29 @@ class V2Metadata {
    * This is used to maintain compatibility with v2 by writing manifest list files with the old schema, instead of
    * writing a sequence number into metadata files in v2 tables.
    */
-  static class IndexedManifestFile implements ManifestFile, IndexedRecord {
+  static class IndexedManifestFile implements ManifestFile, Record {
     private static final org.apache.avro.Schema AVRO_SCHEMA =
         AvroSchemaUtil.convert(MANIFEST_LIST_SCHEMA, "manifest_file");
 
     private final long commitSnapshotId;
     private final long sequenceNumber;
     private ManifestFile wrapped = null;
+    private final Map<String, Integer> nameToPos = new HashMap<>();
 
     IndexedManifestFile(long commitSnapshotId, long sequenceNumber) {
       this.commitSnapshotId = commitSnapshotId;
       this.sequenceNumber = sequenceNumber;
+
+      int pos = 0;
+      for (Types.NestedField field : MANIFEST_LIST_SCHEMA.columns()) {
+        nameToPos.put(field.name(), pos);
+        pos += 1;
+      }
     }
 
     public ManifestFile wrap(ManifestFile file) {
       this.wrapped = file;
       return this;
-    }
-
-    @Override
-    public org.apache.avro.Schema getSchema() {
-      return AVRO_SCHEMA;
-    }
-
-    @Override
-    public void put(int i, Object v) {
-      throw new UnsupportedOperationException("Cannot read using IndexedManifestFile");
-    }
-
-    @Override
-    public Object get(int pos) {
-      switch (pos) {
-        case 0:
-          return wrapped.path();
-        case 1:
-          return wrapped.length();
-        case 2:
-          return wrapped.partitionSpecId();
-        case 3:
-          return wrapped.content().id();
-        case 4:
-          if (wrapped.sequenceNumber() == ManifestWriter.UNASSIGNED_SEQ) {
-            // if the sequence number is being assigned here, then the manifest must be created by the current
-            // operation. to validate this, check that the snapshot id matches the current commit
-            Preconditions.checkState(commitSnapshotId == wrapped.snapshotId(),
-                "Found unassigned sequence number for a manifest from snapshot: %s", wrapped.snapshotId());
-            return sequenceNumber;
-          } else {
-            return wrapped.sequenceNumber();
-          }
-        case 5:
-          if (wrapped.minSequenceNumber() == ManifestWriter.UNASSIGNED_SEQ) {
-            // same sanity check as above
-            Preconditions.checkState(commitSnapshotId == wrapped.snapshotId(),
-                "Found unassigned sequence number for a manifest from snapshot: %s", wrapped.snapshotId());
-            // if the min sequence number is not determined, then there was no assigned sequence number for any file
-            // written to the wrapped manifest. replace the unassigned sequence number with the one for this commit
-            return sequenceNumber;
-          } else {
-            return wrapped.minSequenceNumber();
-          }
-        case 6:
-          return wrapped.snapshotId();
-        case 7:
-          return wrapped.addedFilesCount();
-        case 8:
-          return wrapped.existingFilesCount();
-        case 9:
-          return wrapped.deletedFilesCount();
-        case 10:
-          return wrapped.addedRowsCount();
-        case 11:
-          return wrapped.existingRowsCount();
-        case 12:
-          return wrapped.deletedRowsCount();
-        case 13:
-          return wrapped.partitions();
-        default:
-          throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
-      }
     }
 
     @Override
@@ -225,6 +171,108 @@ class V2Metadata {
     @Override
     public ManifestFile copy() {
       return wrapped.copy();
+    }
+
+    @Override
+    public Types.StructType struct() {
+      return MANIFEST_LIST_SCHEMA.asStruct();
+    }
+
+    @Override
+    public Object getField(String name) {
+      return get(nameToPos.get(name));
+    }
+
+    @Override
+    public void setField(String name, Object value) {
+      throw new UnsupportedOperationException("Cannot read using IndexedManifestFile");
+    }
+
+    @Override
+    public Object get(int pos) {
+      switch (pos) {
+        case 0:
+          return wrapped.path();
+        case 1:
+          return wrapped.length();
+        case 2:
+          return wrapped.partitionSpecId();
+        case 3:
+          return wrapped.content().id();
+        case 4:
+          if (wrapped.sequenceNumber() == ManifestWriter.UNASSIGNED_SEQ) {
+            // if the sequence number is being assigned here, then the manifest must be created by the current
+            // operation. to validate this, check that the snapshot id matches the current commit
+            Preconditions.checkState(commitSnapshotId == wrapped.snapshotId(),
+                "Found unassigned sequence number for a manifest from snapshot: %s", wrapped.snapshotId());
+            return sequenceNumber;
+          } else {
+            return wrapped.sequenceNumber();
+          }
+        case 5:
+          if (wrapped.minSequenceNumber() == ManifestWriter.UNASSIGNED_SEQ) {
+            // same sanity check as above
+            Preconditions.checkState(commitSnapshotId == wrapped.snapshotId(),
+                "Found unassigned sequence number for a manifest from snapshot: %s", wrapped.snapshotId());
+            // if the min sequence number is not determined, then there was no assigned sequence number for any file
+            // written to the wrapped manifest. replace the unassigned sequence number with the one for this commit
+            return sequenceNumber;
+          } else {
+            return wrapped.minSequenceNumber();
+          }
+        case 6:
+          return wrapped.snapshotId();
+        case 7:
+          return wrapped.addedFilesCount();
+        case 8:
+          return wrapped.existingFilesCount();
+        case 9:
+          return wrapped.deletedFilesCount();
+        case 10:
+          return wrapped.addedRowsCount();
+        case 11:
+          return wrapped.existingRowsCount();
+        case 12:
+          return wrapped.deletedRowsCount();
+        case 13:
+          return wrapped.partitions();
+        default:
+          throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+      }
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return null;
+    }
+
+    @Override
+    public Record copyRecord() {
+      V1Metadata.IndexedManifestFile record = new V1Metadata.IndexedManifestFile();
+      record.wrap(wrapped);
+      return record;
+    }
+
+    @Override
+    public Record copyRecord(Map<String, Object> overwriteValues) {
+      V1Metadata.IndexedManifestFile record = new V1Metadata.IndexedManifestFile();
+      record.wrap(wrapped);
+
+      for (Map.Entry<String, Object> entry : overwriteValues.entrySet()) {
+        setField(entry.getKey(), entry.getValue());
+      }
+
+      return record;
+    }
+
+    @Override
+    public int size() {
+      return 0;
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("Cannot read using Record");
     }
   }
 
