@@ -32,6 +32,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
@@ -276,6 +277,12 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
   @Override
   public Statistics estimateStatistics() {
+    if (filterExpressions == null || filterExpressions == Expressions.alwaysTrue()) {
+      long totalRecords = PropertyUtil.propertyAsLong(table.currentSnapshot().summary(),
+          SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
+      return new Stats(SparkSchemaUtil.estimateSize(lazyType(), totalRecords), totalRecords);
+    }
+
     long sizeInBytes = 0L;
     long numRows = 0L;
 
