@@ -28,6 +28,7 @@ import java.util.NoSuchElementException;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
@@ -47,6 +48,7 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
 
@@ -107,9 +109,10 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
         return parquet.build();
 
       case ORC:
-        Schema projectionWithoutConstants = TypeUtil.selectNot(projection, partition.keySet());
+        Schema projectionWithoutConstantAndMetadataFields = TypeUtil.selectNot(projection,
+            Sets.union(partition.keySet(), MetadataColumns.metadataFieldIds()));
         ORC.ReadBuilder orc = ORC.read(input)
-                .project(projectionWithoutConstants)
+                .project(projectionWithoutConstantAndMetadataFields)
                 .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(projection, fileSchema, partition))
                 .split(task.start(), task.length())
                 .filter(task.residual());

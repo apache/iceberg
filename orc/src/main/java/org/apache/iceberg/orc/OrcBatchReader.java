@@ -24,7 +24,6 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 /**
  * Used for implementing ORC batch readers.
  */
-@FunctionalInterface
 public interface OrcBatchReader<T> {
 
   /**
@@ -32,4 +31,5 @@ public interface OrcBatchReader<T> {
    */
   T read(VectorizedRowBatch batch);
 
+  void setBatchContext(long batchOffsetInFile);
 }

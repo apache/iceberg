@@ -22,6 +22,7 @@ package org.apache.iceberg.orc;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
@@ -139,17 +140,20 @@ public class OrcValueReaders {
 
   public abstract static class StructReader<T> implements OrcValueReader<T> {
     private final OrcValueReader<?>[] readers;
-    private final boolean[] isConstantField;
+    private final boolean[] isConstantOrMetadataField;
 
     protected StructReader(List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
       List<Types.NestedField> fields = struct.fields();
       this.readers = new OrcValueReader[fields.size()];
-      this.isConstantField = new boolean[fields.size()];
+      this.isConstantOrMetadataField = new boolean[fields.size()];
       for (int pos = 0, readerIndex = 0; pos < fields.size(); pos += 1) {
         Types.NestedField field = fields.get(pos);
         if (idToConstant.containsKey(field.fieldId())) {
-          this.isConstantField[pos] = true;
+          this.isConstantOrMetadataField[pos] = true;
           this.readers[pos] = constants(idToConstant.get(field.fieldId()));
+        } else if (field.equals(MetadataColumns.ROW_POSITION)) {
+          this.isConstantOrMetadataField[pos] = true;
+          this.readers[pos] = new RowPositionReader();
         } else {
           this.readers[pos] = readers.get(readerIndex);
           readerIndex++;
@@ -174,7 +178,7 @@ public class OrcValueReaders {
     private T readInternal(T struct, ColumnVector[] columnVectors, int row) {
       for (int c = 0, vectorIndex = 0; c < readers.length; ++c) {
         ColumnVector vector;
-        if (isConstantField[c]) {
+        if (isConstantOrMetadataField[c]) {
           vector = null;
         } else {
           vector = columnVectors[vectorIndex];
@@ -183,6 +187,13 @@ public class OrcValueReaders {
         set(struct, c, reader(c).read(vector, row));
       }
       return struct;
+    }
+
+    @Override
+    public void setBatchContext(long batchOffsetInFile) {
+      for (OrcValueReader<?> reader : readers) {
+        reader.setBatchContext(batchOffsetInFile);
+      }
     }
   }
 
@@ -201,6 +212,25 @@ public class OrcValueReaders {
     @Override
     public C nonNullRead(ColumnVector ignored, int ignoredRow) {
       return constant;
+    }
+  }
+
+  private static class RowPositionReader implements OrcValueReader<Long> {
+    private long batchOffsetInFile;
+
+    @Override
+    public Long read(ColumnVector ignored, int row) {
+      return batchOffsetInFile + row;
+    }
+
+    @Override
+    public Long nonNullRead(ColumnVector ignored, int row) {
+      throw new UnsupportedOperationException("Use RowPositionReader.read()");
+    }
+
+    @Override
+    public void setBatchContext(long newBatchOffsetInFile) {
+      this.batchOffsetInFile = newBatchOffsetInFile;
     }
   }
 }

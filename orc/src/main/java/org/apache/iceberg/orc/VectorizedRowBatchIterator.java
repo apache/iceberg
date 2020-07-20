@@ -22,6 +22,7 @@ package org.apache.iceberg.orc;
 import java.io.IOException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.util.Pair;
 import org.apache.orc.RecordReader;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
@@ -31,11 +32,12 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
  * Because the same VectorizedRowBatch is reused on each call to next,
  * it gets changed when hasNext or next is called.
  */
-public class VectorizedRowBatchIterator implements CloseableIterator<VectorizedRowBatch> {
+public class VectorizedRowBatchIterator implements CloseableIterator<Pair<VectorizedRowBatch, Long>> {
   private final String fileLocation;
   private final RecordReader rows;
   private final VectorizedRowBatch batch;
   private boolean advanced = false;
+  private long batchOffsetInFile = 0;
 
   VectorizedRowBatchIterator(String fileLocation, TypeDescription schema, RecordReader rows, int recordsPerBatch) {
     this.fileLocation = fileLocation;
@@ -51,6 +53,7 @@ public class VectorizedRowBatchIterator implements CloseableIterator<VectorizedR
   private void advance() {
     if (!advanced) {
       try {
+        batchOffsetInFile = rows.getRowNumber();
         rows.nextBatch(batch);
       } catch (IOException ioe) {
         throw new RuntimeIOException(ioe, "Problem reading ORC file " + fileLocation);
@@ -66,11 +69,11 @@ public class VectorizedRowBatchIterator implements CloseableIterator<VectorizedR
   }
 
   @Override
-  public VectorizedRowBatch next() {
+  public Pair<VectorizedRowBatch, Long> next() {
     // make sure we have the next batch
     advance();
     // mark it as used
     advanced = false;
-    return batch;
+    return Pair.of(batch, batchOffsetInFile);
   }
 }

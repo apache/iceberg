@@ -33,4 +33,7 @@ public interface OrcValueReader<T> {
   }
 
   T nonNullRead(ColumnVector vector, int row);
+
+  default void setBatchContext(long batchOffsetInFile) {
+  }
 }

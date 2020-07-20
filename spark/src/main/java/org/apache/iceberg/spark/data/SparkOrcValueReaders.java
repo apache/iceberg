@@ -93,6 +93,11 @@ public class SparkOrcValueReaders {
       }
       return new GenericArrayData(elements.toArray());
     }
+
+    @Override
+    public void setBatchContext(long batchOffsetInFile) {
+      elementReader.setBatchContext(batchOffsetInFile);
+    }
   }
 
   private static class MapReader implements OrcValueReader<MapData> {
@@ -119,6 +124,12 @@ public class SparkOrcValueReaders {
       return new ArrayBasedMapData(
           new GenericArrayData(keys.toArray()),
           new GenericArrayData(values.toArray()));
+    }
+
+    @Override
+    public void setBatchContext(long batchOffsetInFile) {
+      keyReader.setBatchContext(batchOffsetInFile);
+      valueReader.setBatchContext(batchOffsetInFile);
     }
   }
 
