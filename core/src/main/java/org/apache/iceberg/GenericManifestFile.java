@@ -36,7 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 
 public class GenericManifestFile
-    implements ManifestFile, StructLike, Record, SchemaConstructable, Serializable {
+    implements ManifestFile, Record, SchemaConstructable, Serializable {
   private static final Schema AVRO_SCHEMA = AvroSchemaUtil.convert(
       ManifestFile.schema(), "manifest_file");
 
