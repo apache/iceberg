@@ -115,8 +115,7 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
   @Override
   @SuppressWarnings("unchecked")
   public void write(Record value, VectorizedRowBatch output) {
-    Preconditions.checkArgument(writer instanceof RecordWriter,
-        "Converter must be a RecordConverter.");
+    Preconditions.checkArgument(writer instanceof RecordWriter, "writer must be a RecordWriter.");
 
     int row = output.size;
     output.size += 1;
