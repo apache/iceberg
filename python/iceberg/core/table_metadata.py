@@ -17,8 +17,9 @@
 
 import time
 
-from iceberg.api import PartitionSpec
+from iceberg.api import PartitionSpec, Schema
 from iceberg.api.types import assign_fresh_ids
+from iceberg.core.table_operations import TableOperations
 from iceberg.core.util import AtomicInteger
 from iceberg.exceptions import ValidationException
 
@@ -28,14 +29,16 @@ class TableMetadata(object):
     TABLE_FORMAT_VERSION = 1
 
     @staticmethod
-    def new_table_metadata(ops, schema, spec, location, properties=None):
+    def new_table_metadata(ops: TableOperations, schema: Schema, spec: PartitionSpec, location: str,
+                           properties: dict = None) -> "TableMetadata":
         last_column_id = AtomicInteger(0)
         fresh_schema = assign_fresh_ids(schema, last_column_id.increment_and_get)
 
         spec_builder = PartitionSpec.builder_for(fresh_schema)
         for field in spec.fields:
             src_name = schema.find_column_name(field.source_id)
-            spec_builder.add(fresh_schema.find_field(src_name).field_id,
+            spec_builder.add(field.source_id,
+                             fresh_schema.find_field(src_name).field_id,
                              field.name,
                              str(field.transform))
 

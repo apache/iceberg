@@ -93,7 +93,7 @@ class TestHelpers(object):
                 raise AssertionError("Predicate should be a BoundPredicate")
 
 
-class TestDataFile(DataFile):
+class MockDataFile(DataFile):
 
     def __init__(self, path, partition, record_count, value_counts=None, null_value_counts=None,
                  lower_bounds=None, upper_bounds=None):
@@ -202,7 +202,7 @@ def strict_schema():
 
 @pytest.fixture(scope="session")
 def file():
-    return TestDataFile("file.avro", TestHelpers.Row.of(), 50,
+    return MockDataFile("file.avro", TestHelpers.Row.of(), 50,
                         # value counts
                         {4: 50, 5: 50, 6: 50},
                         # null value counts
@@ -215,7 +215,7 @@ def file():
 
 @pytest.fixture(scope="session")
 def strict_file():
-    return TestDataFile("file.avro",
+    return MockDataFile("file.avro",
                         TestHelpers.Row.of(),
                         50,
                         {4: 50, 5: 50, 6: 50},
@@ -229,12 +229,12 @@ def strict_file():
 
 @pytest.fixture(scope="session")
 def missing_stats():
-    return TestDataFile("file.parquet", TestHelpers.Row.of(), 50)
+    return MockDataFile("file.parquet", TestHelpers.Row.of(), 50)
 
 
 @pytest.fixture(scope="session")
 def empty():
-    return TestDataFile("file.parquet", TestHelpers.Row.of(), record_count=0)
+    return MockDataFile("file.parquet", TestHelpers.Row.of(), record_count=0)
 
 
 @pytest.fixture(scope="session")
