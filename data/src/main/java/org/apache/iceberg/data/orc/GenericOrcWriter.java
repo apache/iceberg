@@ -48,13 +48,13 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
     return new GenericOrcWriter(expectedSchema, fileSchema);
   }
 
-  private static class WriteBuilder extends OrcSchemaWithTypeVisitor<OrcValueWriter> {
+  private static class WriteBuilder extends OrcSchemaWithTypeVisitor<OrcValueWriter<?>> {
     private WriteBuilder() {
     }
 
     @Override
     public OrcValueWriter<Record> record(Types.StructType iStruct, TypeDescription record,
-                                         List<String> names, List<OrcValueWriter> fields) {
+                                         List<String> names, List<OrcValueWriter<?>> fields) {
       return new RecordWriter(fields);
     }
 
@@ -71,7 +71,7 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
     }
 
     @Override
-    public OrcValueWriter primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
+    public OrcValueWriter<?> primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
       switch (iPrimitive.typeId()) {
         case BOOLEAN:
           return GenericOrcWriters.booleans();
@@ -112,15 +112,15 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
     }
   }
 
-  @SuppressWarnings("unchecked")
   @Override
+  @SuppressWarnings("unchecked")
   public void write(Record value, VectorizedRowBatch output) {
     Preconditions.checkArgument(writer instanceof RecordWriter,
         "Converter must be a RecordConverter.");
 
     int row = output.size;
     output.size += 1;
-    List<OrcValueWriter> writers = ((RecordWriter) writer).writers();
+    List<OrcValueWriter<?>> writers = ((RecordWriter) writer).writers();
     for (int c = 0; c < writers.size(); ++c) {
       OrcValueWriter child = writers.get(c);
       child.write(row, value.get(c, child.getJavaClass()), output.cols[c]);
@@ -128,13 +128,13 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
   }
 
   private static class RecordWriter implements OrcValueWriter<Record> {
-    private final List<OrcValueWriter> writers;
+    private final List<OrcValueWriter<?>> writers;
 
-    RecordWriter(List<OrcValueWriter> writers) {
+    RecordWriter(List<OrcValueWriter<?>> writers) {
       this.writers = writers;
     }
 
-    List<OrcValueWriter> writers() {
+    List<OrcValueWriter<?>> writers() {
       return writers;
     }
 
