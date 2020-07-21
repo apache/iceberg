@@ -297,4 +297,34 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
 
     Assert.assertEquals(expected.stream().map(SimpleRecord::getData).collect(Collectors.toList()), actual);
   }
+
+  @Test
+  public void testImportFilesWithWhitespace() throws Exception {
+    String partitionCol = "dAtA sPaced";
+    String spacedTableName = "whitespacetable";
+    String whiteSpaceKey = "some key value";
+
+    List<SimpleRecord> spacedRecords = Lists.newArrayList(new SimpleRecord(1, whiteSpaceKey));
+
+    File location = temp.newFolder("partitioned_table");
+
+    spark.createDataFrame(spacedRecords, SimpleRecord.class)
+        .withColumnRenamed("data", partitionCol)
+        .write().mode("overwrite").partitionBy(partitionCol).format("parquet")
+        .saveAsTable(spacedTableName);
+
+    TableIdentifier source = spark.sessionState().sqlParser()
+        .parseTableIdentifier(spacedTableName);
+    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
+    Table table = tables.create(SparkSchemaUtil.schemaForTable(spark, spacedTableName),
+        SparkSchemaUtil.specForTable(spark, spacedTableName),
+        ImmutableMap.of(),
+        location.getCanonicalPath());
+    File stagingDir = temp.newFolder("staging-dir");
+    SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
+    List<Row> results = spark.read().format("iceberg").load(location.toString()).collectAsList();
+
+    Assert.assertEquals("One row", 1, results.size());
+    Assert.assertEquals("Data should match", whiteSpaceKey, results.get(0).get(1));
+  }
 }

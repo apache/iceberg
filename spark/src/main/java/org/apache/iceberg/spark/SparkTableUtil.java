@@ -271,7 +271,7 @@ public class SparkTableUtil {
    * @param metricsConfig a metrics conf
    * @return a List of DataFile
    */
-  public static List<DataFile> listPartition(Map<String, String> partition, String uri, String format,
+  public static List<DataFile> listPartition(Map<String, String> partition, URI uri, String format,
                                              PartitionSpec spec, Configuration conf, MetricsConfig metricsConfig) {
     if (format.contains("avro")) {
       return listAvroPartition(partition, uri, spec, conf);
@@ -286,7 +286,7 @@ public class SparkTableUtil {
   }
 
   private static List<DataFile> listAvroPartition(
-      Map<String, String> partitionPath, String partitionUri, PartitionSpec spec, Configuration conf) {
+      Map<String, String> partitionPath, URI partitionUri, PartitionSpec spec, Configuration conf) {
     try {
       Path partition = new Path(partitionUri);
       FileSystem fs = partition.getFileSystem(conf);
@@ -313,7 +313,7 @@ public class SparkTableUtil {
     }
   }
 
-  private static List<DataFile> listParquetPartition(Map<String, String> partitionPath, String partitionUri,
+  private static List<DataFile> listParquetPartition(Map<String, String> partitionPath, URI partitionUri,
                                                      PartitionSpec spec, Configuration conf,
                                                      MetricsConfig metricsSpec) {
     try {
@@ -350,7 +350,7 @@ public class SparkTableUtil {
   }
 
   private static List<DataFile> listOrcPartition(
-      Map<String, String> partitionPath, String partitionUri, PartitionSpec spec, Configuration conf) {
+      Map<String, String> partitionPath, URI partitionUri, PartitionSpec spec, Configuration conf) {
     try {
       Path partition = new Path(partitionUri);
       FileSystem fs = partition.getFileSystem(conf);
@@ -386,7 +386,7 @@ public class SparkTableUtil {
     Preconditions.checkArgument(serde.nonEmpty() || table.provider().nonEmpty(),
         "Partition format should be defined");
 
-    String uri = String.valueOf(locationUri.get());
+    URI uri = locationUri.get();
     String format = serde.nonEmpty() ? serde.get() : table.provider().get();
 
     Map<String, String> partitionSpec = JavaConverters.mapAsJavaMapConverter(partition.spec()).asJava();
@@ -495,7 +495,7 @@ public class SparkTableUtil {
       MetricsConfig metricsConfig = MetricsConfig.fromProperties(targetTable.properties());
 
       List<DataFile> files = listPartition(
-          partition, sourceTable.location().toString(), format.get(), spec, conf, metricsConfig);
+          partition, sourceTable.location(), format.get(), spec, conf, metricsConfig);
 
       AppendFiles append = targetTable.newAppend();
       files.forEach(append::appendFile);
@@ -580,10 +580,10 @@ public class SparkTableUtil {
    */
   public static class SparkPartition implements Serializable {
     private final Map<String, String> values;
-    private final String uri;
+    private final URI uri;
     private final String format;
 
-    public SparkPartition(Map<String, String> values, String uri, String format) {
+    public SparkPartition(Map<String, String> values, URI uri, String format) {
       this.values = ImmutableMap.copyOf(values);
       this.uri = uri;
       this.format = format;
@@ -593,7 +593,7 @@ public class SparkTableUtil {
       return values;
     }
 
-    public String getUri() {
+    public URI getUri() {
       return uri;
     }
 
