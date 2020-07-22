@@ -48,7 +48,7 @@ public class PartitionedWriter<T> extends BaseTaskWriter<T> {
   }
 
   @Override
-  public void internalWrite(T row) throws IOException {
+  public void write(T row) throws IOException {
     PartitionKey key = keyGetter.apply(row);
 
     if (!key.equals(currentKey)) {
@@ -76,7 +76,7 @@ public class PartitionedWriter<T> extends BaseTaskWriter<T> {
   }
 
   @Override
-  public void internalClose() throws IOException {
+  public void close() throws IOException {
     closeCurrent();
   }
 

@@ -101,8 +101,6 @@ public class TestTaskWriters {
       dataFiles = taskWriter.pollCompleteFiles();
       Assert.assertNotNull(dataFiles);
       Assert.assertEquals(0, dataFiles.size());
-
-      assertWriteDisabled(taskWriter, Row.of(1, "ping"));
     }
   }
 
@@ -122,8 +120,6 @@ public class TestTaskWriters {
       for (DataFile dataFile : dataFiles) {
         Assert.assertFalse(fs.exists(new Path(dataFile.path().toString())));
       }
-
-      assertWriteDisabled(taskWriter, Row.of(1, "ping"));
     }
   }
 
@@ -218,17 +214,6 @@ public class TestTaskWriters {
       // Assert the data rows.
       SimpleDataUtil.assertTableRecords(path, records);
     }
-  }
-
-  private void assertWriteDisabled(TaskWriter<Row> taskWriter, Row row) {
-    String errorMessage = null;
-    try {
-      taskWriter.write(row);
-    } catch (IOException e) {
-      errorMessage = e.getMessage();
-    }
-    Assert.assertTrue("Forbid to write a closed writer",
-        errorMessage != null && errorMessage.contains("The writer has been closed."));
   }
 
   private TaskWriter<Row> createTaskWriter(long targetFileSize) {

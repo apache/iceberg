@@ -34,7 +34,7 @@ public class UnpartitionedWriter<T> extends BaseTaskWriter<T> {
   }
 
   @Override
-  public void internalWrite(T record) throws IOException {
+  public void write(T record) throws IOException {
     if (currentAppender == null) {
       currentAppender = createWrappedFileAppender(null, outputFileFactory()::newOutputFile);
     }
@@ -47,7 +47,7 @@ public class UnpartitionedWriter<T> extends BaseTaskWriter<T> {
   }
 
   @Override
-  public void internalClose() throws IOException {
+  public void close() throws IOException {
     closeCurrent();
   }
 

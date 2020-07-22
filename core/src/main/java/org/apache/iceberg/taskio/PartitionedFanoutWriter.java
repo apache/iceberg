@@ -41,7 +41,7 @@ public class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
   }
 
   @Override
-  public void internalWrite(T row) throws IOException {
+  public void write(T row) throws IOException {
     PartitionKey partitionKey = keyGetter.apply(row);
 
     WrappedFileAppender writer = writers.get(partitionKey);
@@ -61,7 +61,7 @@ public class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
   }
 
   @Override
-  public void internalClose() throws IOException {
+  public void close() throws IOException {
     if (!writers.isEmpty()) {
       Iterator<WrappedFileAppender> iterator = writers.values().iterator();
       while (iterator.hasNext()) {

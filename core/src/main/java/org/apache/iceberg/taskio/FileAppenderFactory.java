@@ -23,7 +23,19 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 
+/**
+ * Factory to create a new {@link FileAppender} to write records.
+ *
+ * @param <T> data type of the rows to append.
+ */
 public interface FileAppenderFactory<T> {
 
+  /**
+   * Create a new {@link FileAppender}.
+   *
+   * @param outputFile indicate the file location to write.
+   * @param fileFormat File format.
+   * @return a newly created {@link FileAppender}
+   */
   FileAppender<T> newAppender(OutputFile outputFile, FileFormat fileFormat);
 }
