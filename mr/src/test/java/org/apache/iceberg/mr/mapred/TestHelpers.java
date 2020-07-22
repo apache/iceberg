@@ -74,7 +74,7 @@ public class TestHelpers {
       case ORC:
         appender = ORC.write(Files.localOutput(targetFile))
             .schema(table.schema())
-            .createWriterFunc(typeDesc -> GenericOrcWriter.buildWriter(table.schema(), typeDesc))
+            .createWriterFunc(GenericOrcWriter::buildWriter)
             .build();
         break;
       default:

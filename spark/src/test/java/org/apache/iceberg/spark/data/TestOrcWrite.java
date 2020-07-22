@@ -50,7 +50,7 @@ public class TestOrcWrite {
 
     Iterable<InternalRow> rows = RandomData.generateSpark(SCHEMA, 1, 0L);
     FileAppender<InternalRow> writer = ORC.write(Files.localOutput(testFile))
-        .createWriterFunc(SparkOrcWriter::new)
+        .createWriterFunc((schema, typeDesc) -> new SparkOrcWriter(typeDesc))
         .schema(SCHEMA)
         .build();
 

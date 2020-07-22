@@ -531,7 +531,7 @@ public class TestIcebergInputFormat {
       case ORC:
         appender = ORC.write(Files.localOutput(file))
             .schema(table.schema())
-            .createWriterFunc(typeDesc -> GenericOrcWriter.buildWriter(table.schema(), typeDesc))
+            .createWriterFunc(GenericOrcWriter::buildWriter)
             .build();
         break;
       default:

@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -59,7 +60,7 @@ public class ORC {
     private final OutputFile file;
     private final Configuration conf;
     private Schema schema = null;
-    private Function<TypeDescription, OrcRowWriter<?>>  createWriterFunc;
+    private BiFunction<Schema, TypeDescription, OrcRowWriter<?>> createWriterFunc;
     private Map<String, byte[]> metadata = new HashMap<>();
 
     private WriteBuilder(OutputFile file) {
@@ -81,7 +82,7 @@ public class ORC {
       return this;
     }
 
-    public WriteBuilder createWriterFunc(Function<TypeDescription, OrcRowWriter<?>> writerFunction) {
+    public WriteBuilder createWriterFunc(BiFunction<Schema, TypeDescription, OrcRowWriter<?>> writerFunction) {
       this.createWriterFunc = writerFunction;
       return this;
     }
@@ -143,7 +144,7 @@ public class ORC {
     /**
      * Restricts the read to the given range: [start, start + length).
      *
-     * @param newStart the start position for this read
+     * @param newStart  the start position for this read
      * @param newLength the length of the range this read should scan
      * @return this builder for method chaining
      */

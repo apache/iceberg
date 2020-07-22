@@ -436,7 +436,7 @@ public class TestLocalScan {
       case ORC:
         FileAppender<Record> orcAppender = ORC.write(fromPath(path, CONF))
             .schema(schema)
-            .createWriterFunc(typeDesc -> GenericOrcWriter.buildWriter(schema, typeDesc))
+            .createWriterFunc(GenericOrcWriter::buildWriter)
             .build();
         try {
           orcAppender.addAll(records);
