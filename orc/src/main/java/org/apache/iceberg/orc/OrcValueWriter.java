@@ -23,7 +23,7 @@ import org.apache.orc.storage.ql.exec.vector.ColumnVector;
 
 public interface OrcValueWriter<T> {
 
-  Class<T> getJavaClass();
+  Class<?> getJavaClass();
 
   /**
    * Take a value from the data value and add it to the ORC output.

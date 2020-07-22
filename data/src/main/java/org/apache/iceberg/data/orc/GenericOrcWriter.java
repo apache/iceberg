@@ -20,7 +20,6 @@
 package org.apache.iceberg.data.orc;
 
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.orc.OrcRowWriter;
@@ -59,14 +58,14 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
     }
 
     @Override
-    public OrcValueWriter<List> list(Types.ListType iList, TypeDescription array,
-                                     OrcValueWriter element) {
+    public OrcValueWriter<?> list(Types.ListType iList, TypeDescription array,
+                                  OrcValueWriter<?> element) {
       return GenericOrcWriters.list(element);
     }
 
     @Override
-    public OrcValueWriter<Map> map(Types.MapType iMap, TypeDescription map,
-                                   OrcValueWriter key, OrcValueWriter value) {
+    public OrcValueWriter<?> map(Types.MapType iMap, TypeDescription map,
+                                 OrcValueWriter<?> key, OrcValueWriter<?> value) {
       return GenericOrcWriters.map(key, value);
     }
 

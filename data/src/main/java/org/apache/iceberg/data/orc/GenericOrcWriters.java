@@ -111,12 +111,12 @@ public class GenericOrcWriters {
     }
   }
 
-  public static OrcValueWriter<List> list(OrcValueWriter element) {
-    return new ListWriter(element);
+  public static <T> OrcValueWriter<List<T>> list(OrcValueWriter<T> element) {
+    return new ListWriter<>(element);
   }
 
-  public static OrcValueWriter<Map> map(OrcValueWriter key, OrcValueWriter value) {
-    return new MapWriter(key, value);
+  public static <K, V> OrcValueWriter<Map<K, V>> map(OrcValueWriter<K> key, OrcValueWriter<V> value) {
+    return new MapWriter<>(key, value);
   }
 
   private static class BooleanWriter implements OrcValueWriter<Boolean> {
@@ -345,22 +345,20 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class ListWriter implements OrcValueWriter<List> {
-    private final OrcValueWriter element;
+  private static class ListWriter<T> implements OrcValueWriter<List<T>> {
+    private final OrcValueWriter<T> element;
 
-    ListWriter(OrcValueWriter element) {
+    ListWriter(OrcValueWriter<T> element) {
       this.element = element;
     }
 
     @Override
-    public Class<List> getJavaClass() {
+    public Class<?> getJavaClass() {
       return List.class;
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public void nonNullWrite(int rowId, List data, ColumnVector output) {
-      List<Object> value = (List<Object>) data;
+    public void nonNullWrite(int rowId, List<T> value, ColumnVector output) {
       ListColumnVector cv = (ListColumnVector) output;
       // record the length and start of the list elements
       cv.lengths[rowId] = value.size();
@@ -375,27 +373,25 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class MapWriter implements OrcValueWriter<Map> {
-    private final OrcValueWriter keyWriter;
-    private final OrcValueWriter valueWriter;
+  private static class MapWriter<K, V> implements OrcValueWriter<Map<K, V>> {
+    private final OrcValueWriter<K> keyWriter;
+    private final OrcValueWriter<V> valueWriter;
 
-    MapWriter(OrcValueWriter keyWriter, OrcValueWriter valueWriter) {
+    MapWriter(OrcValueWriter<K> keyWriter, OrcValueWriter<V> valueWriter) {
       this.keyWriter = keyWriter;
       this.valueWriter = valueWriter;
     }
 
     @Override
-    public Class<Map> getJavaClass() {
+    public Class<?> getJavaClass() {
       return Map.class;
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public void nonNullWrite(int rowId, Map data, ColumnVector output) {
-      Map<Object, Object> map = (Map<Object, Object>) data;
-      List<Object> keys = Lists.newArrayListWithExpectedSize(map.size());
-      List<Object> values = Lists.newArrayListWithExpectedSize(map.size());
-      for (Map.Entry<?, ?> entry : map.entrySet()) {
+    public void nonNullWrite(int rowId, Map<K, V> map, ColumnVector output) {
+      List<K> keys = Lists.newArrayListWithExpectedSize(map.size());
+      List<V> values = Lists.newArrayListWithExpectedSize(map.size());
+      for (Map.Entry<K, V> entry : map.entrySet()) {
         keys.add(entry.getKey());
         values.add(entry.getValue());
       }
