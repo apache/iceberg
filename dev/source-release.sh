@@ -66,7 +66,11 @@ tarball=$tag.tar.gz
 
 # be conservative and use the release hash, even though git produces the same
 # archive (identical hashes) using the scm tag
-git archive $release_hash --prefix $tag/ -o $tarball .baseline api arrow bundled-guava common core data dev flink gradle gradlew hive mr orc parquet pig spark spark2 spark-runtime spark3 spark3-runtime LICENSE NOTICE README.md build.gradle baseline.gradle deploy.gradle tasks.gradle jmh.gradle gradle.properties settings.gradle versions.lock versions.props version.txt
+adds=" .baseline"  # prefixed with a blank space for each file name including the first one
+excludes="build|examples|jitpack.yml|python|site"
+archives=$(ls | grep -vE ${excludes})${adds}
+echo git archive list: ${archives}
+git archive $release_hash --prefix $tag/ -o $tarball ${archives}
 
 # sign the archive
 gpg --armor --output ${tarball}.asc --detach-sig $tarball
