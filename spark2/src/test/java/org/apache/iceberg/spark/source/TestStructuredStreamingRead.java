@@ -27,9 +27,9 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.MicroBatches.MicroBatch;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Snapshots;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -100,45 +100,45 @@ public class TestStructuredStreamingRead {
     long initialSnapshotId = snapshotIds.get(0);
 
     // Getting all appends from initial snapshot.
-    List<Snapshots.MicroBatch> pendingBatches = streamingReader.getChangesWithRateLimit(
+    List<MicroBatch> pendingBatches = streamingReader.getChangesWithRateLimit(
         initialSnapshotId, 0, true, false, Long.MAX_VALUE);
     Assert.assertEquals(pendingBatches.size(), 4);
 
     List<Long> batchSnapshotIds = pendingBatches.stream()
-        .map(Snapshots.MicroBatch::snapshotId)
+        .map(MicroBatch::snapshotId)
         .collect(Collectors.toList());
     Assert.assertEquals(batchSnapshotIds, snapshotIds);
 
     // Getting appends from initial snapshot with index, 1st snapshot will be filtered out.
-    List<Snapshots.MicroBatch> pendingBatches1 = streamingReader.getChangesWithRateLimit(
+    List<MicroBatch> pendingBatches1 = streamingReader.getChangesWithRateLimit(
         initialSnapshotId, 1, true, false, Long.MAX_VALUE);
 
     Assert.assertEquals(pendingBatches1.size(), 4);
-    Snapshots.MicroBatch batch = pendingBatches1.get(0);
+    MicroBatch batch = pendingBatches1.get(0);
     Assert.assertEquals(batch.sizeInBytes(), 0L);
-    Assert.assertEquals(batch.endFileIndex(), 2);
+    Assert.assertEquals(batch.endFileIndex(), 1);
     Assert.assertTrue(Iterables.isEmpty(batch.tasks()));
 
     // Getting appends from 2nd snapshot, 1st snapshot should be filtered out.
     long snapshotId2 = snapshotIds.get(1);
-    List<Snapshots.MicroBatch> pendingBatches2 = streamingReader.getChangesWithRateLimit(
+    List<MicroBatch> pendingBatches2 = streamingReader.getChangesWithRateLimit(
         snapshotId2, 0, false, false, Long.MAX_VALUE);
 
     Assert.assertEquals(pendingBatches2.size(), 3);
     List<Long> batchSnapshotIds1 = pendingBatches2.stream()
-        .map(Snapshots.MicroBatch::snapshotId)
+        .map(MicroBatch::snapshotId)
         .collect(Collectors.toList());
     Assert.assertEquals(batchSnapshotIds1.indexOf(initialSnapshotId), -1);
 
     // Getting appends from last snapshot with index, should have no task included.
     long lastSnapshotId = snapshotIds.get(3);
-    List<Snapshots.MicroBatch> pendingBatches3 = streamingReader.getChangesWithRateLimit(
+    List<MicroBatch> pendingBatches3 = streamingReader.getChangesWithRateLimit(
         lastSnapshotId, 1, false, false, Long.MAX_VALUE);
 
     Assert.assertEquals(pendingBatches3.size(), 1);
-    Snapshots.MicroBatch batch1 = pendingBatches3.get(0);
+    MicroBatch batch1 = pendingBatches3.get(0);
     Assert.assertEquals(batch1.sizeInBytes(), 0L);
-    Assert.assertEquals(batch1.endFileIndex(), 2);
+    Assert.assertEquals(batch1.endFileIndex(), 1);
     Assert.assertTrue(Iterables.isEmpty(batch.tasks()));
   }
 
@@ -163,39 +163,43 @@ public class TestStructuredStreamingRead {
 
     // the size of each data file is around 600 bytes.
     // max size set to 1000
-    List<Snapshots.MicroBatch> rateLimitedBatches = streamingReader.getChangesWithRateLimit(
+    List<MicroBatch> rateLimitedBatches = streamingReader.getChangesWithRateLimit(
         initialSnapshotId, 0, true, false, 1000);
 
     Assert.assertEquals(rateLimitedBatches.size(), 2);
-    Snapshots.MicroBatch batch = rateLimitedBatches.get(0);
-    Assert.assertEquals(batch.endFileIndex(), 2);
+    MicroBatch batch = rateLimitedBatches.get(0);
+    Assert.assertEquals(batch.endFileIndex(), 1);
     Assert.assertTrue(batch.lastIndexOfSnapshot());
-    Assert.assertTrue(batch.sizeInBytes() < 1000);
+    Assert.assertTrue(batch.tasks().size() == 1);
+    Assert.assertTrue(batch.sizeInBytes() < 1000 && batch.sizeInBytes() > 0);
 
-    Snapshots.MicroBatch batch1 = rateLimitedBatches.get(1);
-    Assert.assertEquals(batch1.endFileIndex(), 0);
-    Assert.assertFalse(batch1.lastIndexOfSnapshot());
-    Assert.assertEquals(batch1.sizeInBytes(), 0L);
+    MicroBatch batch1 = rateLimitedBatches.get(1);
+    Assert.assertEquals(batch1.endFileIndex(), 1);
+    Assert.assertTrue(batch1.lastIndexOfSnapshot());
+    Assert.assertTrue(batch1.tasks().size() == 1);
+    Assert.assertTrue(batch1.sizeInBytes() < 1000 && batch1.sizeInBytes() > 0);
 
     // max size less than file size
-    List<Snapshots.MicroBatch> rateLimitedBatches1 = streamingReader.getChangesWithRateLimit(
-        batch1.snapshotId(), batch1.endFileIndex(), false, false, 100);
+    List<MicroBatch> rateLimitedBatches1 = streamingReader.getChangesWithRateLimit(
+        batch1.snapshotId(), batch1.endFileIndex(), false, batch1.lastIndexOfSnapshot(), 100);
 
     Assert.assertEquals(rateLimitedBatches1.size(), 1);
-    Snapshots.MicroBatch batch2 = rateLimitedBatches1.get(0);
-    Assert.assertEquals(batch2.endFileIndex(), 0);
-    Assert.assertFalse(batch2.lastIndexOfSnapshot());
-    Assert.assertEquals(batch2.sizeInBytes(), 0L);
+    MicroBatch batch2 = rateLimitedBatches1.get(0);
+    Assert.assertEquals(batch2.endFileIndex(), 1);
+    Assert.assertTrue(batch2.lastIndexOfSnapshot());
+    Assert.assertTrue(batch2.tasks().size() == 1);
+    Assert.assertTrue(batch2.sizeInBytes() < 1000 && batch2.sizeInBytes() > 0);
 
     // max size set to 10000
-    List<Snapshots.MicroBatch> rateLimitedBatches2 = streamingReader.getChangesWithRateLimit(
-        batch2.snapshotId(), batch2.endFileIndex(), false, false, 10000);
+    List<MicroBatch> rateLimitedBatches2 = streamingReader.getChangesWithRateLimit(
+        batch2.snapshotId(), batch2.endFileIndex(), false, batch2.lastIndexOfSnapshot(), 10000);
 
-    Assert.assertEquals(rateLimitedBatches2.size(), 3);
-    Snapshots.MicroBatch batch3 = rateLimitedBatches2.get(2);
-    Assert.assertEquals(batch3.endFileIndex(), 2);
+    Assert.assertEquals(rateLimitedBatches2.size(), 1);
+    MicroBatch batch3 = rateLimitedBatches2.get(0);
+    Assert.assertEquals(batch3.endFileIndex(), 1);
+    Assert.assertTrue(batch3.tasks().size() == 1);
     Assert.assertTrue(batch3.lastIndexOfSnapshot());
-    Assert.assertTrue(batch3.sizeInBytes() > 0);
+    Assert.assertTrue(batch3.sizeInBytes() < 1000 && batch3.sizeInBytes() > 0);
   }
 
   @SuppressWarnings("unchecked")
@@ -226,7 +230,7 @@ public class TestStructuredStreamingRead {
 
     StreamingOffset end = (StreamingOffset) streamingReader.getEndOffset();
     Assert.assertEquals(end.snapshotId(), snapshotIds.get(3).longValue());
-    Assert.assertEquals(end.index(), 2);
+    Assert.assertEquals(end.index(), 1);
     Assert.assertFalse(end.isStartingSnapshotId());
     Assert.assertTrue(end.isLastIndexOfSnapshot());
 
@@ -251,30 +255,20 @@ public class TestStructuredStreamingRead {
 
     StreamingOffset end2 = (StreamingOffset) streamingReader1.getEndOffset();
     Assert.assertEquals(end2.snapshotId(), snapshotIds.get(1).longValue());
-    Assert.assertEquals(end2.index(), 0);
+    Assert.assertEquals(end2.index(), 1);
     Assert.assertFalse(end2.isStartingSnapshotId());
-    Assert.assertFalse(end2.isLastIndexOfSnapshot());
+    Assert.assertTrue(end2.isLastIndexOfSnapshot());
 
     streamingReader1.setOffsetRange(Optional.of(end2), Optional.empty());
     StreamingOffset end3 = (StreamingOffset) streamingReader1.getEndOffset();
-    Assert.assertEquals(end3.snapshotId(), snapshotIds.get(2).longValue());
-    Assert.assertEquals(end3.index(), 0);
+    Assert.assertEquals(end3.snapshotId(), snapshotIds.get(3).longValue());
+    Assert.assertEquals(end3.index(), 1);
     Assert.assertFalse(end3.isStartingSnapshotId());
-    Assert.assertFalse(end3.isLastIndexOfSnapshot());
+    Assert.assertTrue(end3.isLastIndexOfSnapshot());
 
     streamingReader1.setOffsetRange(Optional.of(end3), Optional.empty());
     StreamingOffset end4 = (StreamingOffset) streamingReader1.getEndOffset();
-    Assert.assertEquals(end4.snapshotId(), snapshotIds.get(3).longValue());
-    Assert.assertEquals(end4.index(), 0);
-    Assert.assertFalse(end4.isStartingSnapshotId());
-    Assert.assertFalse(end4.isLastIndexOfSnapshot());
-
-    streamingReader1.setOffsetRange(Optional.of(end4), Optional.empty());
-    StreamingOffset end5 = (StreamingOffset) streamingReader1.getEndOffset();
-    Assert.assertEquals(end5.snapshotId(), snapshotIds.get(3).longValue());
-    Assert.assertEquals(end5.index(), 2);
-    Assert.assertFalse(end5.isStartingSnapshotId());
-    Assert.assertTrue(end5.isLastIndexOfSnapshot());
+    Assert.assertEquals(end3, end4);
 
     // max size to 100
     DataSourceOptions options2 = new DataSourceOptions(ImmutableMap.of(
@@ -293,13 +287,16 @@ public class TestStructuredStreamingRead {
 
     StreamingOffset end6 = (StreamingOffset) streamingReader2.getEndOffset();
     Assert.assertEquals(end6.snapshotId(), snapshotIds.get(0).longValue());
-    Assert.assertEquals(end6.index(), 0);
+    Assert.assertEquals(end6.index(), 1);
     Assert.assertTrue(end6.isStartingSnapshotId());
-    Assert.assertFalse(end6.isLastIndexOfSnapshot());
+    Assert.assertTrue(end6.isLastIndexOfSnapshot());
 
     streamingReader2.setOffsetRange(Optional.of(end6), Optional.empty());
     StreamingOffset end7 = (StreamingOffset) streamingReader2.getEndOffset();
-    Assert.assertEquals(end6, end7);
+    Assert.assertEquals(end7.snapshotId(), snapshotIds.get(1).longValue());
+    Assert.assertEquals(end7.index(), 1);
+    Assert.assertFalse(end7.isStartingSnapshotId());
+    Assert.assertTrue(end7.isLastIndexOfSnapshot());
   }
 
   @SuppressWarnings("unchecked")
@@ -348,27 +345,20 @@ public class TestStructuredStreamingRead {
     streamingReader.setOffsetRange(Optional.of(end), Optional.empty());
     StreamingOffset end1 = (StreamingOffset) streamingReader.getEndOffset();
     Assert.assertEquals(end1.snapshotId(), snapshotIds.get(2).longValue());
-    Assert.assertEquals(end1.index(), 0);
+    Assert.assertEquals(end1.index(), 1);
     Assert.assertFalse(end1.isStartingSnapshotId());
-    Assert.assertFalse(end1.isLastIndexOfSnapshot());
+    Assert.assertTrue(end1.isLastIndexOfSnapshot());
 
     streamingReader.setOffsetRange(Optional.of(end1), Optional.empty());
     StreamingOffset end2 = (StreamingOffset) streamingReader.getEndOffset();
     Assert.assertEquals(end2.snapshotId(), snapshotIds.get(3).longValue());
-    Assert.assertEquals(end2.index(), 0);
+    Assert.assertEquals(end2.index(), 1);
     Assert.assertFalse(end2.isStartingSnapshotId());
-    Assert.assertFalse(end2.isLastIndexOfSnapshot());
+    Assert.assertTrue(end2.isLastIndexOfSnapshot());
 
     streamingReader.setOffsetRange(Optional.of(end2), Optional.empty());
     StreamingOffset end3 = (StreamingOffset) streamingReader.getEndOffset();
-    Assert.assertEquals(end3.snapshotId(), snapshotIds.get(3).longValue());
-    Assert.assertEquals(end3.index(), 2);
-    Assert.assertFalse(end3.isStartingSnapshotId());
-    Assert.assertTrue(end3.isLastIndexOfSnapshot());
-
-    streamingReader.setOffsetRange(Optional.of(end3), Optional.empty());
-    StreamingOffset end4 = (StreamingOffset) streamingReader.getEndOffset();
-    Assert.assertEquals(end3, end4);
+    Assert.assertEquals(end3, end2);
   }
 
   private Table createTable(String location) {

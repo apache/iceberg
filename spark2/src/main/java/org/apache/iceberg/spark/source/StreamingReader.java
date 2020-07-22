@@ -26,12 +26,11 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.MicroBatches;
+import org.apache.iceberg.MicroBatches.MicroBatch;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.Snapshots;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -65,7 +64,7 @@ class StreamingReader extends Reader implements MicroBatchReader {
   private final Long startSnapshotId;
 
   // Used to cache the pending batches for this streaming batch interval.
-  private Pair<StreamingOffset, List<Snapshots.MicroBatch>> cachedPendingBatches;
+  private Pair<StreamingOffset, List<MicroBatch>> cachedPendingBatches;
 
   StreamingReader(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
                   boolean caseSensitive, DataSourceOptions options) {
@@ -134,6 +133,12 @@ class StreamingReader extends Reader implements MicroBatchReader {
   public void stop() {}
 
   @Override
+  public String toString() {
+    return String.format(
+        "IcebergStreamScan(table=%s, type=%s)", table, table.schema().asStruct());
+  }
+
+  @Override
   @SuppressWarnings("unchecked")
   protected List<CombinedScanTask> tasks() {
     if (startOffset.equals(endOffset)) {
@@ -144,21 +149,23 @@ class StreamingReader extends Reader implements MicroBatchReader {
     Preconditions.checkState(cachedPendingBatches != null,
         "pendingBatches is null, which is unexpected as it will be set when calculating end offset");
 
-    List<Snapshots.MicroBatch> pendingBatches = cachedPendingBatches.second();
+    List<MicroBatch> pendingBatches = cachedPendingBatches.second();
     if (pendingBatches.isEmpty()) {
       LOG.info("There's no task to process in this batch");
       return Collections.emptyList();
     }
 
-    Snapshots.MicroBatch lastBatch = pendingBatches.get(pendingBatches.size() - 1);
+    MicroBatch lastBatch = pendingBatches.get(pendingBatches.size() - 1);
     if (lastBatch.snapshotId() != endOffset.snapshotId() || lastBatch.endFileIndex() != endOffset.index()) {
       throw new IllegalStateException("The cached pendingBatches doesn't match the current end offset " + endOffset);
     }
 
     LOG.info("Processing data from {} to {}", startOffset, endOffset);
-    CloseableIterable<FileScanTask> tasks = CloseableIterable.concat(
-        pendingBatches.stream().map(Snapshots.MicroBatch::tasks).collect(Collectors.toList()));
-    CloseableIterable<FileScanTask> splitTasks = TableScanUtil.splitFiles(tasks, splitSize());
+    List<FileScanTask> tasks = pendingBatches.stream()
+        .flatMap(batch -> batch.tasks().stream())
+        .collect(Collectors.toList());
+    CloseableIterable<FileScanTask> splitTasks = TableScanUtil.splitFiles(CloseableIterable.withNoopClose(tasks),
+        splitSize());
     return Lists.newArrayList(
         TableScanUtil.planTasks(splitTasks, splitSize(), splitLookback(), splitOpenFileCost()));
   }
@@ -192,8 +199,8 @@ class StreamingReader extends Reader implements MicroBatchReader {
           start.isStartingSnapshotId(), start.isLastIndexOfSnapshot(), maxSizePerBatch));
     }
 
-    List<Snapshots.MicroBatch> batches = cachedPendingBatches.second();
-    Snapshots.MicroBatch lastBatch = batches.isEmpty() ? null : batches.get(batches.size() - 1);
+    List<MicroBatch> batches = cachedPendingBatches.second();
+    MicroBatch lastBatch = batches.isEmpty() ? null : batches.get(batches.size() - 1);
 
     if (lastBatch == null) {
       return start;
@@ -206,19 +213,15 @@ class StreamingReader extends Reader implements MicroBatchReader {
 
   @VisibleForTesting
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  List<Snapshots.MicroBatch> getChangesWithRateLimit(long snapshotId, int index, boolean isStarting,
-                                                     boolean isLastIndexOfSnapshot, long maxSize) {
-    List<Snapshots.MicroBatch> batches = Lists.newArrayList();
+  List<MicroBatch> getChangesWithRateLimit(long snapshotId, int index, boolean isStarting,
+                                           boolean isLastIndexOfSnapshot, long maxSize) {
+    List<MicroBatch> batches = Lists.newArrayList();
     long currentLeftSize = maxSize;
-    Snapshots.MicroBatch lastBatch = null;
-    Expression rowFilter = filterExpressions() != null ?
-        filterExpressions().stream().reduce(Expressions.alwaysTrue(), Expressions::and) :
-        Expressions.alwaysTrue();
+    MicroBatch lastBatch = null;
 
     if (!isLastIndexOfSnapshot && (isStarting || isValidSnapshot(table.snapshot(snapshotId)))) {
-      Snapshots.MicroBatch batch = Snapshots.from(table.snapshot(snapshotId), table.io())
+      MicroBatch batch = MicroBatches.from(table.snapshot(snapshotId), table.io())
           .caseSensitive(super.caseSensitive())
-          .filter(rowFilter)
           .specsById(table.specs())
           .generate(index, currentLeftSize, isStarting);
 
@@ -252,9 +255,8 @@ class StreamingReader extends Reader implements MicroBatchReader {
       }
 
       int startIndex = lastBatch == null || lastBatch.lastIndexOfSnapshot() ? 0 : lastBatch.endFileIndex();
-      Snapshots.MicroBatch batch = Snapshots.from(table.snapshot(id), table.io())
+      MicroBatch batch = MicroBatches.from(table.snapshot(id), table.io())
           .caseSensitive(super.caseSensitive())
-          .filter(rowFilter)
           .specsById(table.specs())
           .generate(startIndex, currentLeftSize, false);
 
