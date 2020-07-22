@@ -120,22 +120,22 @@ abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       if (!closed) {
         appender.close();
         closed = true;
+
+        // metrics are only valid after the appender is closed.
+        Metrics metrics = appender.metrics();
+        long fileSizeInBytes = appender.length();
+        List<Long> splitOffsets = appender.splitOffsets();
+
+        DataFile dataFile = DataFiles.builder(spec)
+            .withEncryptedOutputFile(encryptedOutputFile)
+            .withFileSizeInBytes(fileSizeInBytes)
+            .withPartition(partitionKey)
+            .withMetrics(metrics)
+            .withSplitOffsets(splitOffsets)
+            .build();
+
+        completedFiles.add(dataFile);
       }
-
-      // metrics are only valid after the appender is closed.
-      Metrics metrics = appender.metrics();
-      long fileSizeInBytes = appender.length();
-      List<Long> splitOffsets = appender.splitOffsets();
-
-      DataFile dataFile = DataFiles.builder(spec)
-          .withEncryptedOutputFile(encryptedOutputFile)
-          .withFileSizeInBytes(fileSizeInBytes)
-          .withPartition(partitionKey)
-          .withMetrics(metrics)
-          .withSplitOffsets(splitOffsets)
-          .build();
-
-      completedFiles.add(dataFile);
     }
   }
 }

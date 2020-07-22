@@ -20,9 +20,10 @@
 package org.apache.iceberg.flink;
 
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import org.apache.flink.types.Row;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -32,8 +33,8 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 
@@ -49,14 +50,6 @@ public class SimpleDataUtil {
 
   static final Record RECORD = GenericRecord.create(SCHEMA);
 
-  static final Comparator<Record> COMPARATOR = (r1, r2) -> {
-    int ret = Integer.compare((Integer) r1.getField("id"), (Integer) r2.getField("id"));
-    if (ret != 0) {
-      return ret;
-    }
-    return ((String) r1.getField("data")).compareTo((String) r2.getField("data"));
-  };
-
   static Table createTable(String path, Map<String, String> properties, boolean partitioned) {
     PartitionSpec spec;
     if (partitioned) {
@@ -67,19 +60,28 @@ public class SimpleDataUtil {
     return new HadoopTables().create(SCHEMA, spec, properties, path);
   }
 
-  static Record createRecord(int id, String data) {
-    return RECORD.copy(ImmutableMap.of("id", id, "data", data));
+  static Record createRecord(Integer id, String data) {
+    Record record = RECORD.copy();
+    record.setField("id", id);
+    record.setField("data", data);
+    return record;
+  }
+
+  static void assertTableRows(String tablePath, List<Row> rows) throws IOException {
+    List<Record> records = Lists.newArrayList();
+    for (Row row : rows) {
+      records.add(createRecord((Integer) row.getField(0), (String) row.getField(1)));
+    }
+    assertTableRecords(tablePath, records);
   }
 
   static void assertTableRecords(String tablePath, List<Record> expected) throws IOException {
     Preconditions.checkArgument(expected != null, "expected records shouldn't be null");
     Table newTable = new HadoopTables().load(tablePath);
-    List<Record> results;
+    Set<Record> resultSet;
     try (CloseableIterable<Record> iterable = (CloseableIterable<Record>) IcebergGenerics.read(newTable).build()) {
-      results = Lists.newArrayList(iterable);
+      resultSet = Sets.newHashSet(iterable);
     }
-    expected.sort(COMPARATOR);
-    results.sort(COMPARATOR);
-    Assert.assertEquals("Should produce the expected record", expected, results);
+    Assert.assertEquals("Should produce the expected record", resultSet, Sets.newHashSet(expected));
   }
 }

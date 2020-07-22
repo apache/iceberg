@@ -35,6 +35,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.flink.data.RandomData;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.taskio.OutputFileFactory;
@@ -101,6 +102,25 @@ public class TestTaskWriters {
       dataFiles = taskWriter.pollCompleteFiles();
       Assert.assertNotNull(dataFiles);
       Assert.assertEquals(0, dataFiles.size());
+    }
+  }
+
+  @Test
+  public void testCloseTwice() throws IOException {
+    try (TaskWriter<Row> taskWriter = createTaskWriter(TARGET_FILE_SIZE)) {
+      taskWriter.write(Row.of(1, "hello"));
+      taskWriter.write(Row.of(2, "world"));
+      taskWriter.close(); // The first close
+      taskWriter.close(); // The second close
+
+      int expectedFiles = partitioned ? 2 : 1;
+      List<DataFile> dataFiles = taskWriter.pollCompleteFiles();
+      Assert.assertEquals(expectedFiles, dataFiles.size());
+
+      FileSystem fs = FileSystem.get(CONF);
+      for (DataFile dataFile : dataFiles) {
+        Assert.assertTrue(fs.exists(new Path(dataFile.path().toString())));
+      }
     }
   }
 
@@ -213,6 +233,25 @@ public class TestTaskWriters {
 
       // Assert the data rows.
       SimpleDataUtil.assertTableRecords(path, records);
+    }
+  }
+
+  @Test
+  public void testRandomData() throws IOException {
+    try (TaskWriter<Row> taskWriter = createTaskWriter(TARGET_FILE_SIZE)) {
+      Iterable<Row> rows = RandomData.generate(SimpleDataUtil.SCHEMA, 100, 1996);
+      for (Row row : rows) {
+        taskWriter.write(row);
+      }
+
+      taskWriter.close();
+      List<DataFile> dataFiles = taskWriter.pollCompleteFiles();
+      AppendFiles appendFiles = table.newAppend();
+      dataFiles.forEach(appendFiles::appendFile);
+      appendFiles.commit();
+
+      // Assert the data rows.
+      SimpleDataUtil.assertTableRows(path, Lists.newArrayList(rows));
     }
   }
 
