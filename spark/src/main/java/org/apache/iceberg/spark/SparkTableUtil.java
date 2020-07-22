@@ -49,6 +49,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
+import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.orc.OrcMetrics;
@@ -103,20 +104,6 @@ public class SparkTableUtil {
       p -> !p.getName().startsWith("_") && !p.getName().startsWith(".");
 
   private SparkTableUtil() {
-  }
-
-  /**
-   * From Apache Spark
-   *
-   * Convert URI to String.
-   * Since URI.toString does not decode the uri, e.g. change '%25' to '%'.
-   * Here we create a hadoop Path with the given URI, and rely on Path.toString
-   * to decode the uri
-   * @param uri the URI of the path
-   * @return the String of the path
-   */
-  public static String uriToString(URI uri) {
-    return new Path(uri).toString();
   }
 
   /**
@@ -400,7 +387,7 @@ public class SparkTableUtil {
     Preconditions.checkArgument(serde.nonEmpty() || table.provider().nonEmpty(),
         "Partition format should be defined");
 
-    String uri = uriToString(locationUri.get());
+    String uri = Util.uriToString(locationUri.get());
     String format = serde.nonEmpty() ? serde.get() : table.provider().get();
 
     Map<String, String> partitionSpec = JavaConverters.mapAsJavaMapConverter(partition.spec()).asJava();
@@ -509,7 +496,7 @@ public class SparkTableUtil {
       MetricsConfig metricsConfig = MetricsConfig.fromProperties(targetTable.properties());
 
       List<DataFile> files = listPartition(
-          partition, uriToString(sourceTable.location()), format.get(), spec, conf, metricsConfig);
+          partition, Util.uriToString(sourceTable.location()), format.get(), spec, conf, metricsConfig);
 
       AppendFiles append = targetTable.newAppend();
       files.forEach(append::appendFile);

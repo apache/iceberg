@@ -20,6 +20,7 @@
 package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
@@ -77,5 +78,19 @@ public class Util {
     }
 
     return locations.toArray(HadoopInputFile.NO_LOCATION_PREFERENCE);
+  }
+
+  /**
+   * From Apache Spark
+   *
+   * Convert URI to String.
+   * Since URI.toString does not decode the uri, e.g. change '%25' to '%'.
+   * Here we create a hadoop Path with the given URI, and rely on Path.toString
+   * to decode the uri
+   * @param uri the URI of the path
+   * @return the String of the path
+   */
+  public static String uriToString(URI uri) {
+    return new Path(uri).toString();
   }
 }
