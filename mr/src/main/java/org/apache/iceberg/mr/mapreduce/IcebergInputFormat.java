@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.mr.mapreduce;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
@@ -31,7 +29,6 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.Job;
@@ -62,7 +59,6 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
@@ -87,8 +83,6 @@ import org.slf4j.LoggerFactory;
 public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergInputFormat.class);
 
-  private transient List<InputSplit> splits;
-
   /**
    * Configures the {@code Job} to use the {@code IcebergInputFormat} and
    * returns a helper to add further configuration.
@@ -102,11 +96,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
   @Override
   public List<InputSplit> getSplits(JobContext context) {
-    if (splits != null) {
-      LOG.info("Returning cached splits: {}", splits.size());
-      return splits;
-    }
-
     Configuration conf = context.getConfiguration();
     Table table = findTable(conf);
     TableScan scan = table.newScan()
@@ -134,7 +123,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       scan = scan.filter(filter);
     }
 
-    splits = Lists.newArrayList();
+    List<InputSplit> splits = Lists.newArrayList();
     boolean applyResidual = !conf.getBoolean(InputFormatConfig.SKIP_RESIDUAL_FILTERING, false);
     InputFormatConfig.InMemoryDataModel model = conf.getEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL,
         InputFormatConfig.InMemoryDataModel.GENERIC);
@@ -186,7 +175,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     public void initialize(InputSplit split, TaskAttemptContext newContext) {
       Configuration conf = newContext.getConfiguration();
       // For now IcebergInputFormat does its own split planning and does not accept FileSplit instances
-      CombinedScanTask task = ((IcebergSplit) split).task;
+      CombinedScanTask task = ((IcebergSplit) split).task();
       this.context = newContext;
       this.tasks = task.files().iterator();
       this.tableSchema = SchemaParser.fromJson(conf.get(InputFormatConfig.TABLE_SCHEMA));
@@ -382,47 +371,4 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
   }
 
-  static class IcebergSplit extends InputSplit implements Writable {
-    static final String[] ANYWHERE = new String[]{"*"};
-    private CombinedScanTask task;
-    private transient String[] locations;
-    private transient Configuration conf;
-
-    IcebergSplit(Configuration conf, CombinedScanTask task) {
-      this.task = task;
-      this.conf = conf;
-    }
-
-    @Override
-    public long getLength() {
-      return task.files().stream().mapToLong(FileScanTask::length).sum();
-    }
-
-    @Override
-    public String[] getLocations() {
-      boolean localityPreferred = conf.getBoolean(InputFormatConfig.LOCALITY, false);
-      if (!localityPreferred) {
-        return ANYWHERE;
-      }
-      if (locations != null) {
-        return locations;
-      }
-      locations = Util.blockLocations(task, conf);
-      return locations;
-    }
-
-    @Override
-    public void write(DataOutput out) throws IOException {
-      byte[] data = SerializationUtil.serializeToBytes(this.task);
-      out.writeInt(data.length);
-      out.write(data);
-    }
-
-    @Override
-    public void readFields(DataInput in) throws IOException {
-      byte[] data = new byte[in.readInt()];
-      in.readFully(data);
-      this.task = SerializationUtil.deserializeFromBytes(data);
-    }
-  }
 }

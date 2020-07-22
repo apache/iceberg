@@ -29,7 +29,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-final class TableResolver {
+public final class TableResolver {
 
   private TableResolver() {
   }
@@ -42,7 +42,7 @@ final class TableResolver {
     return resolveTableFromConfiguration(configuration);
   }
 
-  static Table resolveTableFromConfiguration(Configuration conf) throws IOException {
+  public static Table resolveTableFromConfiguration(Configuration conf) throws IOException {
     //Default to HadoopTables
     String catalogName = conf.get(InputFormatConfig.CATALOG_NAME, InputFormatConfig.HADOOP_TABLES);
 
