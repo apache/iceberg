@@ -49,6 +49,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
+import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.orc.OrcMetrics;
@@ -386,7 +387,7 @@ public class SparkTableUtil {
     Preconditions.checkArgument(serde.nonEmpty() || table.provider().nonEmpty(),
         "Partition format should be defined");
 
-    String uri = String.valueOf(locationUri.get());
+    String uri = Util.uriToString(locationUri.get());
     String format = serde.nonEmpty() ? serde.get() : table.provider().get();
 
     Map<String, String> partitionSpec = JavaConverters.mapAsJavaMapConverter(partition.spec()).asJava();
@@ -495,7 +496,7 @@ public class SparkTableUtil {
       MetricsConfig metricsConfig = MetricsConfig.fromProperties(targetTable.properties());
 
       List<DataFile> files = listPartition(
-          partition, sourceTable.location().toString(), format.get(), spec, conf, metricsConfig);
+          partition, Util.uriToString(sourceTable.location()), format.get(), spec, conf, metricsConfig);
 
       AppendFiles append = targetTable.newAppend();
       files.forEach(append::appendFile);
