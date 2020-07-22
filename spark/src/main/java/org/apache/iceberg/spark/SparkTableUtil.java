@@ -106,6 +106,20 @@ public class SparkTableUtil {
   }
 
   /**
+   * From Apache Spark
+   *
+   * Convert URI to String.
+   * Since URI.toString does not decode the uri, e.g. change '%25' to '%'.
+   * Here we create a hadoop Path with the given URI, and rely on Path.toString
+   * to decode the uri
+   * @param uri the URI of the path
+   * @return the String of the path
+   */
+  public static String uriToString(URI uri) {
+    return new Path(uri).toString();
+  }
+
+  /**
    * Returns a DataFrame with a row for each partition in the table.
    *
    * The DataFrame has 3 columns, partition key (a=1/b=2), partition location, and format
@@ -271,7 +285,7 @@ public class SparkTableUtil {
    * @param metricsConfig a metrics conf
    * @return a List of DataFile
    */
-  public static List<DataFile> listPartition(Map<String, String> partition, URI uri, String format,
+  public static List<DataFile> listPartition(Map<String, String> partition, String uri, String format,
                                              PartitionSpec spec, Configuration conf, MetricsConfig metricsConfig) {
     if (format.contains("avro")) {
       return listAvroPartition(partition, uri, spec, conf);
@@ -286,7 +300,7 @@ public class SparkTableUtil {
   }
 
   private static List<DataFile> listAvroPartition(
-      Map<String, String> partitionPath, URI partitionUri, PartitionSpec spec, Configuration conf) {
+      Map<String, String> partitionPath, String partitionUri, PartitionSpec spec, Configuration conf) {
     try {
       Path partition = new Path(partitionUri);
       FileSystem fs = partition.getFileSystem(conf);
@@ -313,7 +327,7 @@ public class SparkTableUtil {
     }
   }
 
-  private static List<DataFile> listParquetPartition(Map<String, String> partitionPath, URI partitionUri,
+  private static List<DataFile> listParquetPartition(Map<String, String> partitionPath, String partitionUri,
                                                      PartitionSpec spec, Configuration conf,
                                                      MetricsConfig metricsSpec) {
     try {
@@ -350,7 +364,7 @@ public class SparkTableUtil {
   }
 
   private static List<DataFile> listOrcPartition(
-      Map<String, String> partitionPath, URI partitionUri, PartitionSpec spec, Configuration conf) {
+      Map<String, String> partitionPath, String partitionUri, PartitionSpec spec, Configuration conf) {
     try {
       Path partition = new Path(partitionUri);
       FileSystem fs = partition.getFileSystem(conf);
@@ -386,7 +400,7 @@ public class SparkTableUtil {
     Preconditions.checkArgument(serde.nonEmpty() || table.provider().nonEmpty(),
         "Partition format should be defined");
 
-    URI uri = locationUri.get();
+    String uri = uriToString(locationUri.get());
     String format = serde.nonEmpty() ? serde.get() : table.provider().get();
 
     Map<String, String> partitionSpec = JavaConverters.mapAsJavaMapConverter(partition.spec()).asJava();
@@ -495,7 +509,7 @@ public class SparkTableUtil {
       MetricsConfig metricsConfig = MetricsConfig.fromProperties(targetTable.properties());
 
       List<DataFile> files = listPartition(
-          partition, sourceTable.location(), format.get(), spec, conf, metricsConfig);
+          partition, uriToString(sourceTable.location()), format.get(), spec, conf, metricsConfig);
 
       AppendFiles append = targetTable.newAppend();
       files.forEach(append::appendFile);
@@ -580,10 +594,10 @@ public class SparkTableUtil {
    */
   public static class SparkPartition implements Serializable {
     private final Map<String, String> values;
-    private final URI uri;
+    private final String uri;
     private final String format;
 
-    public SparkPartition(Map<String, String> values, URI uri, String format) {
+    public SparkPartition(Map<String, String> values, String uri, String format) {
       this.values = ImmutableMap.copyOf(values);
       this.uri = uri;
       this.format = format;
@@ -593,7 +607,7 @@ public class SparkTableUtil {
       return values;
     }
 
-    public URI getUri() {
+    public String getUri() {
       return uri;
     }
 

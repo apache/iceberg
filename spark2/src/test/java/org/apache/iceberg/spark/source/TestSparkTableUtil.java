@@ -40,6 +40,7 @@ import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.SparkSession;
@@ -299,14 +300,14 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
   }
 
   @Test
-  public void testImportFilesWithWhitespace() throws Exception {
+  public void testImportPartitionedWithWhitespace() throws Exception {
     String partitionCol = "dAtA sPaced";
     String spacedTableName = "whitespacetable";
     String whiteSpaceKey = "some key value";
 
     List<SimpleRecord> spacedRecords = Lists.newArrayList(new SimpleRecord(1, whiteSpaceKey));
 
-    File location = temp.newFolder("partitioned_table");
+    File icebergLocation = temp.newFolder("partitioned_table");
 
     spark.createDataFrame(spacedRecords, SimpleRecord.class)
         .withColumnRenamed("data", partitionCol)
@@ -319,12 +320,44 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
     Table table = tables.create(SparkSchemaUtil.schemaForTable(spark, spacedTableName),
         SparkSchemaUtil.specForTable(spark, spacedTableName),
         ImmutableMap.of(),
-        location.getCanonicalPath());
+        icebergLocation.getCanonicalPath());
     File stagingDir = temp.newFolder("staging-dir");
     SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
-    List<Row> results = spark.read().format("iceberg").load(location.toString()).collectAsList();
+    List<SimpleRecord> results = spark.read().format("iceberg").load(icebergLocation.toString())
+        .withColumnRenamed(partitionCol, "data")
+        .as(Encoders.bean(SimpleRecord.class))
+        .collectAsList();
 
-    Assert.assertEquals("One row", 1, results.size());
-    Assert.assertEquals("Data should match", whiteSpaceKey, results.get(0).get(1));
+    Assert.assertEquals("Data should match", spacedRecords, results);
+  }
+
+  @Test
+  public void testImportUnpartitionedWithWhitespace() throws Exception {
+    String spacedTableName = "whitespacetable";
+    String whiteSpaceKey = "some key value";
+
+    List<SimpleRecord> spacedRecords = Lists.newArrayList(new SimpleRecord(1, whiteSpaceKey));
+
+    File whiteSpaceOldLocation = temp.newFolder("white space location");
+    File icebergLocation = temp.newFolder("partitioned_table");
+
+    spark.createDataFrame(spacedRecords, SimpleRecord.class)
+        .write().mode("overwrite").parquet(whiteSpaceOldLocation.getPath());
+
+    spark.catalog().createExternalTable(spacedTableName, whiteSpaceOldLocation.getPath());
+
+    TableIdentifier source = spark.sessionState().sqlParser()
+        .parseTableIdentifier(spacedTableName);
+    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
+    Table table = tables.create(SparkSchemaUtil.schemaForTable(spark, spacedTableName),
+        SparkSchemaUtil.specForTable(spark, spacedTableName),
+        ImmutableMap.of(),
+        icebergLocation.getCanonicalPath());
+    File stagingDir = temp.newFolder("staging-dir");
+    SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
+    List<SimpleRecord> results = spark.read().format("iceberg").load(icebergLocation.toString())
+        .as(Encoders.bean(SimpleRecord.class)).collectAsList();
+
+    Assert.assertEquals("Data should match", spacedRecords, results);
   }
 }
