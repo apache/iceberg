@@ -384,6 +384,7 @@ project(':iceberg-mr') {
       exclude group: 'org.pentaho' // missing dependency
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
+    compileOnly("org.apache.hive:hive-metastore")
     compileOnly("org.apache.hive:hive-serde")
 
     testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')

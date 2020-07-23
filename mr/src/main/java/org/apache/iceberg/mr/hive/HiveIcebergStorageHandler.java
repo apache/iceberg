@@ -35,10 +35,9 @@ import org.apache.hadoop.hive.serde2.Deserializer;
 import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.OutputFormat;
-import org.apache.iceberg.mr.hive.HiveIcebergInputFormat;
 import org.apache.iceberg.mr.mapred.IcebergSerDe;
 
-public class IcebergStorageHandler implements HiveStoragePredicateHandler, HiveStorageHandler {
+public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, HiveStorageHandler {
 
   private Configuration conf;
 

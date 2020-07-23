@@ -34,7 +34,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.mr.TestHelper;
-import org.apache.iceberg.mr.mapred.IcebergSerDe;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Before;
@@ -159,11 +158,8 @@ public class TestHiveIcebergInputFormat {
   private void createHiveTable(String table, String location) {
     shell.execute(String.format(
             "CREATE TABLE default.%s " +
-            "ROW FORMAT SERDE '%s' " +
-            "STORED AS " +
-                "INPUTFORMAT '%s' " +
-                "OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.IgnoreKeyTextOutputFormat' " +
+            "STORED BY '%s' " +
             "LOCATION '%s'",
-            table, IcebergSerDe.class.getName(), HiveIcebergInputFormat.class.getName(), location));
+            table, HiveIcebergStorageHandler.class.getName(), location));
   }
 }
