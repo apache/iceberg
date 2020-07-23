@@ -28,7 +28,7 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 public interface OrcRowWriter<T> {
 
   /**
-   * Writes the row data.
+   * Writes or appends a row to ORC's VectorizedRowBatch.
    *
    * @param row    the row data value to write.
    * @param output the VectorizedRowBatch to which the output will be written.

@@ -144,7 +144,7 @@ public class ORC {
     /**
      * Restricts the read to the given range: [start, start + length).
      *
-     * @param newStart  the start position for this read
+     * @param newStart the start position for this read
      * @param newLength the length of the range this read should scan
      * @return this builder for method chaining
      */

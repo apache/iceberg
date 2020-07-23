@@ -103,9 +103,9 @@ public class GenericOrcWriters {
     return TimestampWriter.INSTANCE;
   }
 
-  public static OrcValueWriter<BigDecimal> decimal(int scala, int precision) {
+  public static OrcValueWriter<BigDecimal> decimal(int scale, int precision) {
     if (precision <= 18) {
-      return new Decimal18Writer(scala);
+      return new Decimal18Writer(scale);
     } else {
       return Decimal38Writer.INSTANCE;
     }
