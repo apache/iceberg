@@ -41,17 +41,17 @@ import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.parquet.Parquet;
 
-public class TaskWriterFactory {
+class TaskWriterFactory {
   private TaskWriterFactory() {
   }
 
-  public static TaskWriter<Row> createTaskWriter(Schema schema,
-                                                 PartitionSpec spec,
-                                                 FileFormat format,
-                                                 FileAppenderFactory<Row> appenderFactory,
-                                                 OutputFileFactory fileFactory,
-                                                 FileIO io,
-                                                 long targetFileSizeBytes) {
+  static TaskWriter<Row> createTaskWriter(Schema schema,
+                                          PartitionSpec spec,
+                                          FileFormat format,
+                                          FileAppenderFactory<Row> appenderFactory,
+                                          OutputFileFactory fileFactory,
+                                          FileIO io,
+                                          long targetFileSizeBytes) {
     if (spec.fields().isEmpty()) {
       return new UnpartitionedWriter<>(spec, format, appenderFactory, fileFactory, io, targetFileSizeBytes);
     } else {
@@ -60,7 +60,7 @@ public class TaskWriterFactory {
     }
   }
 
-  static class RowPartitionedFanoutWriter extends PartitionedFanoutWriter<Row> {
+  private static class RowPartitionedFanoutWriter extends PartitionedFanoutWriter<Row> {
 
     private final PartitionKey partitionKey;
     private final RowWrapper rowWrapper;
