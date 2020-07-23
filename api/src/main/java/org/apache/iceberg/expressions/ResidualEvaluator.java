@@ -92,14 +92,6 @@ public class ResidualEvaluator implements Serializable {
   private final PartitionSpec spec;
   private final Expression expr;
   private final boolean caseSensitive;
-  private transient ThreadLocal<ResidualVisitor> visitors = null;
-
-  private ResidualVisitor visitor() {
-    if (visitors == null) {
-      this.visitors = ThreadLocal.withInitial(ResidualVisitor::new);
-    }
-    return visitors.get();
-  }
 
   private ResidualEvaluator(PartitionSpec spec, Expression expr, boolean caseSensitive) {
     this.spec = spec;
@@ -114,7 +106,7 @@ public class ResidualEvaluator implements Serializable {
    * @return the residual of this evaluator's expression from the partition values
    */
   public Expression residualFor(StructLike partitionData) {
-    return visitor().eval(partitionData);
+    return new ResidualVisitor().eval(partitionData);
   }
 
   private class ResidualVisitor extends BoundExpressionVisitor<Expression> {

@@ -505,14 +505,14 @@ class CheckCompatibility(CustomOrderSchemaVisitor):
 
         if curr_field is None:
             if not field.is_optional:
-                errors.add("{} is required, but is missing".format(field.name))
+                errors.append("{} is required, but is missing".format(field.name))
             return self.NO_ERRORS
 
         self.current_type = curr_field.type
 
         try:
             if not field.is_optional and curr_field.is_optional:
-                errors.add(field.name + " should be required, but is optional")
+                errors.append(field.name + " should be required, but is optional")
 
             for error in field_result:
                 if error.startswith(":"):
@@ -525,6 +525,7 @@ class CheckCompatibility(CustomOrderSchemaVisitor):
             pass
         finally:
             self.current_type = struct
+        return errors
 
     def list(self, list_var, element_result):
         raise NotImplementedError()

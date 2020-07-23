@@ -22,7 +22,7 @@ import mock
 from pytest import raises
 
 
-class TestHMSTable(object):
+class MockHMSTable(object):
     def __init__(self, params):
         self.parameters = params
 
@@ -35,7 +35,7 @@ def test_load_tables_check_valid_props(client, current_call, refresh_call):
                   "partition_spec": [],
                   "metadata_location": "s3://path/to/iceberg.metadata.json"}
 
-    client.return_value.__enter__.return_value.get_table.return_value = TestHMSTable(parameters)
+    client.return_value.__enter__.return_value.get_table.return_value = MockHMSTable(parameters)
 
     conf = {"hive.metastore.uris": 'thrift://hms:port'}
     tables = HiveTables(conf)
@@ -49,7 +49,7 @@ def test_load_tables_check_missing_iceberg_type(client, current_call, refresh_ca
     parameters = {"partition_spec": [],
                   "metadata_location": "s3://path/to/iceberg.metdata.json"}
 
-    client.return_value.__enter__.return_value.get_table.return_value = TestHMSTable(parameters)
+    client.return_value.__enter__.return_value.get_table.return_value = MockHMSTable(parameters)
 
     conf = {"hive.metastore.uris": 'thrift://hms:port'}
     tables = HiveTables(conf)
@@ -65,7 +65,7 @@ def test_load_tables_check_non_iceberg_type(client, current_call, refresh_call):
                   "partition_spec": [],
                   "metadata_location": "s3://path/to/iceberg.metdata.json"}
 
-    client.return_value.__enter__.return_value.get_table.return_value = TestHMSTable(parameters)
+    client.return_value.__enter__.return_value.get_table.return_value = MockHMSTable(parameters)
 
     conf = {"hive.metastore.uris": 'thrift://hms:port'}
     tables = HiveTables(conf)
@@ -81,7 +81,7 @@ def test_load_tables_check_none_table_type(client, current_call, refresh_call):
                   "partition_spec": [],
                   "metadata_location": "s3://path/to/iceberg.metdata.json"}
 
-    client.return_value.__enter__.return_value.get_table.return_value = TestHMSTable(parameters)
+    client.return_value.__enter__.return_value.get_table.return_value = MockHMSTable(parameters)
 
     conf = {"hive.metastore.uris": 'thrift://hms:port'}
     tables = HiveTables(conf)
@@ -96,7 +96,7 @@ def test_load_tables_check_no_location(client, current_call, refresh_call):
     parameters = {"table_type": "ICEBERG",
                   "partition_spec": []}
 
-    client.return_value.__enter__.return_value.get_table.return_value = TestHMSTable(parameters)
+    client.return_value.__enter__.return_value.get_table.return_value = MockHMSTable(parameters)
 
     conf = {"hive.metastore.uris": 'thrift://hms:port'}
     tables = HiveTables(conf)
@@ -112,7 +112,7 @@ def test_load_tables_check_none_location(client, current_call, refresh_call):
                   "partition_spec": [],
                   "metadata_location": None}
 
-    client.return_value.__enter__.return_value.get_table.return_value = TestHMSTable(parameters)
+    client.return_value.__enter__.return_value.get_table.return_value = MockHMSTable(parameters)
 
     conf = {"hive.metastore.uris": 'thrift://hms:port'}
     tables = HiveTables(conf)

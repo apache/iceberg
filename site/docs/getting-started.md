@@ -17,82 +17,102 @@
 
 # Getting Started
 
-## Using Iceberg in Spark
+## Using Iceberg in Spark 3
 
-The latest version of Iceberg is [0.8.0-incubating](../releases).
+The latest version of Iceberg is [0.9.0](../releases).
 
 To use Iceberg in a Spark shell, use the `--packages` option:
 
 ```sh
-spark-shell --packages org.apache.iceberg:iceberg-spark-runtime:0.8.0-incubating
+spark-shell --packages org.apache.iceberg:iceberg-spark3-runtime:0.9.0
 ```
 
-You can also build Iceberg locally, and add the jar using `--jars`. This can be helpful to test unreleased features or while developing something new:
+!!! Note
+    If you want to include Iceberg in your Spark installation, add the [`iceberg-spark3-runtime` Jar][spark-runtime-jar] to Spark's `jars` folder.
+
+[spark-runtime-jar]: https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark3-runtime/0.9.0/iceberg-spark3-runtime-0.9.0.jar
+
+### Adding catalogs
+
+Iceberg comes with [catalogs](../spark#configuring-catalogs) that enable SQL commands to manage tables and load them by name. Catalogs are configured using properties under `spark.sql.catalog.(catalog_name)`.
+
+This command creates a path-based catalog named `local` for tables under `$PWD/warehouse` and adds support for Iceberg tables to Spark's built-in catalog:
 
 ```sh
-./gradlew assemble
-spark-shell --jars spark-runtime/build/libs/iceberg-spark-runtime-8c05a2f.jar
+spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:0.9.0 \
+    --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog \
+    --conf spark.sql.catalog.spark_catalog.type=hive \
+    --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.local.type=hadoop \
+    --conf spark.sql.catalog.local.uri=$PWD/warehouse
 ```
 
-## Installing with Spark
+### Creating a table
 
-If you want to include Iceberg in your Spark installation, add the [`iceberg-spark-runtime` Jar][spark-runtime-jar] to Spark's `jars` folder.
+To create your first Iceberg table in Spark, use the `spark-sql` shell or `spark.sql(...)` to run a [`CREATE TABLE`](../spark#create-table) command:
 
-Where you have to replace `8c05a2f` with the git hash that you're using.
-
-[spark-runtime-jar]: https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime/0.8.0-incubating/iceberg-spark-runtime-0.8.0-incubating.jar
-
-## Creating a table
-
-Spark 2.4 is limited to reading and writing existing Iceberg tables. Use the [Iceberg API](../api) to create Iceberg tables.
-
-Here's how to create your first Iceberg table in Spark, using a source Dataset
-
-First, import Iceberg classes and create a catalog client:
-
-```scala
-import org.apache.iceberg.hive.HiveCatalog
-import org.apache.iceberg.catalog.TableIdentifier
-import org.apache.iceberg.spark.SparkSchemaUtil
-
-val catalog = new HiveCatalog(spark.sparkContext.hadoopConfiguration)
+```sql
+-- local is the path-based catalog defined above
+CREATE TABLE local.db.table (id bigint, data string) USING iceberg
 ```
 
-Next, create a dataset to write into your table and get an Iceberg schema for it:
+Iceberg catalogs support the full range of SQL DDL commands, including:
 
-```scala
-val data = Seq((1, "a"), (2, "b"), (3, "c")).toDF("id", "data")
-val schema = SparkSchemaUtil.convert(data.schema)
+* [`CREATE TABLE ... PARTITIONED BY`](../spark#create-table)
+* [`CREATE TABLE ... AS SELECT`](../spark#create-table-as-select)
+* [`ALTER TABLE`](../spark#alter-table)
+* [`DROP TABLE`](../spark#drop-table)
+
+### Writing
+
+Once your table is created, insert data using [`INSERT INTO`](../spark#insert-into):
+
+```sql
+INSERT INTO local.db.table VALUES (1, 'a'), (2, 'b'), (3, 'c');
+INSERT INTO local.db.table SELECT id, data FROM source WHERE length(data) = 1;
 ```
 
-Finally, create a table using the schema:
+Iceberg supports writing DataFrames using the new [v2 DataFrame write API](../spark#writing-with-dataframes):
 
 ```scala
-val name = TableIdentifier.of("default", "test_table")
-val table = catalog.createTable(name, schema)
+spark.table("source").select("id", "data")
+     .writeTo("local.db.table").append()
 ```
 
-### Reading and writing
+The old `write` API is supported, but _not_ recommended.
 
-Once your table is created, you can use it in `load` and `save` in Spark 2.4:
+### Reading
 
-```scala
-// write the dataset to the table
-data.write.format("iceberg").mode("append").save("default.test_table")
+To read with SQL, use the an Iceberg table name in a `SELECT` query:
 
-// read the table
-spark.read.format("iceberg").load("default.test_table")
+```sql
+SELECT count(1) as count, data
+FROM local.db.table
+GROUP BY data
 ```
 
-### Reading with SQL
+SQL is also the recommended way to [inspect tables](../spark#inspecting-tables). To view all of the snapshots in a table, use the `snapshots` metadata table:
+```sql
+SELECT * FROM local.db.table.snapshots
+```
+```
++-------------------------+----------------+-----------+-----------+----------------------------------------------------+-----+
+| committed_at            | snapshot_id    | parent_id | operation | manifest_list                                      | ... |
++-------------------------+----------------+-----------+-----------+----------------------------------------------------+-----+
+| 2019-02-08 03:29:51.215 | 57897183625154 | null      | append    | s3://.../table/metadata/snap-57897183625154-1.avro | ... |
+|                         |                |           |           |                                                    | ... |
+|                         |                |           |           |                                                    | ... |
+| ...                     | ...            | ...       | ...       | ...                                                | ... |
++-------------------------+----------------+-----------+-----------+----------------------------------------------------+-----+
+```
 
-You can also create a temporary view to use the table in SQL:
+[DataFrame reads](../spark#querying-with-dataframes) are supported and can now reference tables by name using `spark.table`:
 
 ```scala
-spark.read.format("iceberg").load("default.test_table").createOrReplaceTempView("test_table")
-spark.sql("""SELECT count(1) FROM test_table""")
+val df = spark.table("local.db.table")
+df.count()
 ```
 
 ### Next steps
 
-Next, you can learn more about the [Iceberg Table API](../api), or about [Iceberg tables in Spark](../spark)
+Next, you can learn more about [Iceberg tables in Spark](../spark), or about the [Iceberg Table API](../api).

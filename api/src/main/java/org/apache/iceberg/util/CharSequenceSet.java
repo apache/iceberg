@@ -23,17 +23,24 @@ import java.io.Serializable;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 public class CharSequenceSet implements Set<CharSequence>, Serializable {
+  private static final ThreadLocal<CharSequenceWrapper> wrappers = ThreadLocal.withInitial(
+      () -> CharSequenceWrapper.wrap(null));
+
   public static Set<CharSequence> of(Iterable<CharSequence> charSequences) {
     return new CharSequenceSet(charSequences);
   }
 
+  public static Set<CharSequence> empty() {
+    return new CharSequenceSet(ImmutableList.of());
+  }
+
   private final Set<CharSequenceWrapper> wrapperSet;
-  private final CharSequenceWrapper containsWrapper = CharSequenceWrapper.wrap(null);
 
   private CharSequenceSet(Iterable<CharSequence> charSequences) {
     this.wrapperSet = Sets.newHashSet(Iterables.transform(charSequences, CharSequenceWrapper::wrap));
@@ -52,7 +59,10 @@ public class CharSequenceSet implements Set<CharSequence>, Serializable {
   @Override
   public boolean contains(Object obj) {
     if (obj instanceof CharSequence) {
-      return wrapperSet.contains(containsWrapper.set((CharSequence) obj));
+      CharSequenceWrapper wrapper = wrappers.get();
+      boolean result = wrapperSet.contains(wrapper.set((CharSequence) obj));
+      wrapper.set(null); // don't hold a reference to the value
+      return result;
     }
     return false;
   }
@@ -97,7 +107,10 @@ public class CharSequenceSet implements Set<CharSequence>, Serializable {
   @Override
   public boolean remove(Object obj) {
     if (obj instanceof CharSequence) {
-      return wrapperSet.remove(containsWrapper.set((CharSequence) obj));
+      CharSequenceWrapper wrapper = wrappers.get();
+      boolean result = wrapperSet.remove(wrapper.set((CharSequence) obj));
+      wrapper.set(null); // don't hold a reference to the value
+      return result;
     }
     return false;
   }

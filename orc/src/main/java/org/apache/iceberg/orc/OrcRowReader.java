@@ -31,4 +31,5 @@ public interface OrcRowReader<T> {
    */
   T read(VectorizedRowBatch batch, int row);
 
+  void setBatchContext(long batchOffsetInFile);
 }

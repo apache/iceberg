@@ -29,13 +29,16 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.arrow.vector.ValueVector;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.data.vectorized.IcebergArrowColumnVector;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.storage.serde2.io.DateWritable;
@@ -53,6 +56,8 @@ import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.vectorized.ColumnVector;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.Assert;
 import scala.collection.Seq;
@@ -77,6 +82,28 @@ public class TestHelpers {
       assertEqualsSafe(fieldType, expectedValue, actualValue);
     }
   }
+
+  public static void assertEqualsBatch(Types.StructType struct, Iterator<Record> expected, ColumnarBatch batch,
+                                       boolean checkArrowValidityVector) {
+    for (int rowId = 0; rowId < batch.numRows(); rowId++) {
+      List<Types.NestedField> fields = struct.fields();
+      InternalRow row = batch.getRow(rowId);
+      Record rec = expected.next();
+      for (int i = 0; i < fields.size(); i += 1) {
+        Type fieldType = fields.get(i).type();
+        Object expectedValue = rec.get(i);
+        Object actualValue = row.isNullAt(i) ? null : row.get(i, convert(fieldType));
+        assertEqualsUnsafe(fieldType, expectedValue, actualValue);
+
+        if (checkArrowValidityVector) {
+          ColumnVector columnVector = batch.column(i);
+          ValueVector arrowVector = ((IcebergArrowColumnVector) columnVector).vectorAccessor().getVector();
+          Assert.assertEquals("Nullability doesn't match", expectedValue == null, arrowVector.isNull(rowId));
+        }
+      }
+    }
+  }
+
 
   private static void assertEqualsSafe(Types.ListType list, Collection<?> expected, List actual) {
     Type elementType = list.elementType();
@@ -199,7 +226,7 @@ public class TestHelpers {
       Type fieldType = fields.get(i).type();
 
       Object expectedValue = rec.get(i);
-      Object actualValue = row.get(i, convert(fieldType));
+      Object actualValue = row.isNullAt(i) ? null : row.get(i, convert(fieldType));
 
       assertEqualsUnsafe(fieldType, expectedValue, actualValue);
     }
@@ -611,7 +638,9 @@ public class TestHelpers {
     for (int i = 0; i < actual.numFields(); i += 1) {
       StructField field = struct.fields()[i];
       DataType type = field.dataType();
-      assertEquals(context + "." + field.name(), type, expected.get(i, type), actual.get(i, type));
+      assertEquals(context + "." + field.name(), type,
+          expected.isNullAt(i) ? null : expected.get(i, type),
+          actual.isNullAt(i) ? null : actual.get(i, type));
     }
   }
 
@@ -620,7 +649,9 @@ public class TestHelpers {
         expected.numElements(), actual.numElements());
     DataType type = array.elementType();
     for (int i = 0; i < actual.numElements(); i += 1) {
-      assertEquals(context + ".element", type, expected.get(i, type), actual.get(i, type));
+      assertEquals(context + ".element", type,
+          expected.isNullAt(i) ? null : expected.get(i, type),
+          actual.isNullAt(i) ? null : actual.get(i, type));
     }
   }
 
@@ -638,9 +669,11 @@ public class TestHelpers {
 
     for (int i = 0; i < actual.numElements(); i += 1) {
       assertEquals(context + ".key", keyType,
-          expectedKeys.get(i, keyType), actualKeys.get(i, keyType));
+          expectedKeys.isNullAt(i) ? null : expectedKeys.get(i, keyType),
+          actualKeys.isNullAt(i) ? null : actualKeys.get(i, keyType));
       assertEquals(context + ".value", valueType,
-          expectedValues.get(i, valueType), actualValues.get(i, valueType));
+          expectedValues.isNullAt(i) ? null : expectedValues.get(i, valueType),
+          actualValues.isNullAt(i) ? null : actualValues.get(i, valueType));
     }
   }
 }

@@ -47,4 +47,8 @@ public class Actions {
   public RewriteManifestsAction rewriteManifests() {
     return new RewriteManifestsAction(spark, table);
   }
+
+  public RewriteDataFilesAction rewriteDataFiles() {
+    return new RewriteDataFilesAction(spark, table);
+  }
 }

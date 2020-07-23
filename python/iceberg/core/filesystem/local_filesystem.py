@@ -18,6 +18,7 @@
 import errno
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 from .file_status import FileStatus
 from .file_system import FileSystem
@@ -58,10 +59,8 @@ class LocalFileSystem(FileSystem):
                           permission=st.st_mode, owner=st.st_uid, group=st.st_gid)
 
     @staticmethod
-    def fix_path(path):
-        if path.startswith("file://"):
-            path = str(path[7:])
-        return path
+    def fix_path(path: str) -> str:
+        return urlparse(path).path
 
     def create(self, path, overwrite=False):
         if os.path.exists(path) and not overwrite:

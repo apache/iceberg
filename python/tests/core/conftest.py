@@ -20,7 +20,7 @@ import random
 import tempfile
 import time
 
-from iceberg.api import Files, PartitionSpec, Schema
+from iceberg.api import Files, PartitionSpec, PartitionSpecBuilder, Schema
 from iceberg.api.types import BooleanType, IntegerType, LongType, NestedField, StringType
 from iceberg.core import (BaseSnapshot,
                           BaseTable,
@@ -99,7 +99,7 @@ class TestTableOperations(TableOperations):
         self._current = None
         self.refresh()
         if self._current is not None:
-            for snap in self.current.snapshots:
+            for snap in self.current().snapshots:
                 self.last_snapshot_id = max(self.last_snapshot_id, snap.snapshot_id)
 
     def current(self):
@@ -284,11 +284,14 @@ def base_scan_schema():
                    NestedField.required(2, "data", StringType.get())])
 
 
-@pytest.fixture(scope="session")
-def ts_table(base_scan_schema):
+@pytest.fixture(scope="session", params=["none", "one"])
+def ts_table(base_scan_schema, request):
     with tempfile.TemporaryDirectory() as td:
-        spec = PartitionSpec.unpartitioned()
-        return TestTables.create(td, "test", base_scan_schema, spec)
+        if request.param == "none":
+            spec = PartitionSpec.unpartitioned()
+        else:
+            spec = PartitionSpecBuilder(base_scan_schema).add(1, 1000, "id", "identity").build()
+        return TestTables.create(td, "test-" + request.param, base_scan_schema, spec)
 
 
 @pytest.fixture(scope="session")

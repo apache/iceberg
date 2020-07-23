@@ -20,7 +20,6 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionSpec;
@@ -31,8 +30,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.execution.streaming.MemoryStream;
 import org.apache.spark.sql.streaming.DataStreamWriter;
@@ -45,11 +46,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
-import scala.collection.JavaConversions;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public class TestStructuredStreaming {
+public abstract class TestStructuredStreaming {
 
   private static final Configuration CONF = new Configuration();
   private static final Schema SCHEMA = new Schema(
@@ -78,8 +78,12 @@ public class TestStructuredStreaming {
     currentSpark.stop();
   }
 
+  protected abstract <T> MemoryStream<T> newMemoryStream(int id, SQLContext sqlContext, Encoder<T> encoder);
+
+  protected abstract <T> void send(List<T> records, MemoryStream<T> stream);
+
   @Test
-  public void testStreamingWriteAppendMode() throws IOException {
+  public void testStreamingWriteAppendMode() throws Exception {
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test-table");
     File checkpoint = new File(parent, "checkpoint");
@@ -95,7 +99,7 @@ public class TestStructuredStreaming {
         new SimpleRecord(4, "4")
     );
 
-    MemoryStream<Integer> inputStream = new MemoryStream<>(1, spark.sqlContext(), Encoders.INT());
+    MemoryStream<Integer> inputStream = newMemoryStream(1, spark.sqlContext(), Encoders.INT());
     DataStreamWriter<Row> streamWriter = inputStream.toDF()
         .selectExpr("value AS id", "CAST (value AS STRING) AS data")
         .writeStream()
@@ -108,10 +112,10 @@ public class TestStructuredStreaming {
       // start the original query with checkpointing
       StreamingQuery query = streamWriter.start();
       List<Integer> batch1 = Lists.newArrayList(1, 2);
-      inputStream.addData(JavaConversions.asScalaBuffer(batch1));
+      send(batch1, inputStream);
       query.processAllAvailable();
       List<Integer> batch2 = Lists.newArrayList(3, 4);
-      inputStream.addData(JavaConversions.asScalaBuffer(batch2));
+      send(batch2, inputStream);
       query.processAllAvailable();
       query.stop();
 
@@ -139,7 +143,7 @@ public class TestStructuredStreaming {
   }
 
   @Test
-  public void testStreamingWriteCompleteMode() throws IOException {
+  public void testStreamingWriteCompleteMode() throws Exception {
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test-table");
     File checkpoint = new File(parent, "checkpoint");
@@ -154,7 +158,7 @@ public class TestStructuredStreaming {
         new SimpleRecord(1, "3")
     );
 
-    MemoryStream<Integer> inputStream = new MemoryStream<>(1, spark.sqlContext(), Encoders.INT());
+    MemoryStream<Integer> inputStream = newMemoryStream(1, spark.sqlContext(), Encoders.INT());
     DataStreamWriter<Row> streamWriter = inputStream.toDF()
         .groupBy("value")
         .count()
@@ -169,10 +173,10 @@ public class TestStructuredStreaming {
       // start the original query with checkpointing
       StreamingQuery query = streamWriter.start();
       List<Integer> batch1 = Lists.newArrayList(1, 2);
-      inputStream.addData(JavaConversions.asScalaBuffer(batch1));
+      send(batch1, inputStream);
       query.processAllAvailable();
       List<Integer> batch2 = Lists.newArrayList(1, 2, 2, 3);
-      inputStream.addData(JavaConversions.asScalaBuffer(batch2));
+      send(batch2, inputStream);
       query.processAllAvailable();
       query.stop();
 
@@ -200,7 +204,7 @@ public class TestStructuredStreaming {
   }
 
   @Test
-  public void testStreamingWriteCompleteModeWithProjection() throws IOException {
+  public void testStreamingWriteCompleteModeWithProjection() throws Exception {
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test-table");
     File checkpoint = new File(parent, "checkpoint");
@@ -215,7 +219,7 @@ public class TestStructuredStreaming {
         new SimpleRecord(3, null)
     );
 
-    MemoryStream<Integer> inputStream = new MemoryStream<>(1, spark.sqlContext(), Encoders.INT());
+    MemoryStream<Integer> inputStream = newMemoryStream(1, spark.sqlContext(), Encoders.INT());
     DataStreamWriter<Row> streamWriter = inputStream.toDF()
         .groupBy("value")
         .count()
@@ -230,10 +234,10 @@ public class TestStructuredStreaming {
       // start the original query with checkpointing
       StreamingQuery query = streamWriter.start();
       List<Integer> batch1 = Lists.newArrayList(1, 2);
-      inputStream.addData(JavaConversions.asScalaBuffer(batch1));
+      send(batch1, inputStream);
       query.processAllAvailable();
       List<Integer> batch2 = Lists.newArrayList(1, 2, 2, 3);
-      inputStream.addData(JavaConversions.asScalaBuffer(batch2));
+      send(batch2, inputStream);
       query.processAllAvailable();
       query.stop();
 
@@ -261,9 +265,8 @@ public class TestStructuredStreaming {
   }
 
   @Test
-  public void testStreamingWriteUpdateMode() throws IOException {
+  public void testStreamingWriteUpdateMode() throws Exception {
     exceptionRule.expect(StreamingQueryException.class);
-    exceptionRule.expectMessage("Output mode Update is not supported");
 
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test-table");
@@ -273,7 +276,7 @@ public class TestStructuredStreaming {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
     tables.create(SCHEMA, spec, location.toString());
 
-    MemoryStream<Integer> inputStream = new MemoryStream<>(1, spark.sqlContext(), Encoders.INT());
+    MemoryStream<Integer> inputStream = newMemoryStream(1, spark.sqlContext(), Encoders.INT());
     DataStreamWriter<Row> streamWriter = inputStream.toDF()
         .selectExpr("value AS id", "CAST (value AS STRING) AS data")
         .writeStream()
@@ -285,7 +288,7 @@ public class TestStructuredStreaming {
     try {
       StreamingQuery query = streamWriter.start();
       List<Integer> batch1 = Lists.newArrayList(1, 2);
-      inputStream.addData(JavaConversions.asScalaBuffer(batch1));
+      send(batch1, inputStream);
       query.processAllAvailable();
     } finally {
       for (StreamingQuery query : spark.streams().active()) {

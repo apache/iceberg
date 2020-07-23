@@ -357,6 +357,74 @@ public class TestRemoveSnapshots extends TableTestBase {
   }
 
   @Test
+  public void testScanExpiredManifestInValidSnapshotAppend() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    table.newOverwrite()
+        .addFile(FILE_C)
+        .deleteFile(FILE_A)
+        .commit();
+
+    table.newAppend()
+        .appendFile(FILE_D)
+        .commit();
+
+    long t3 = System.currentTimeMillis();
+    while (t3 <= table.currentSnapshot().timestampMillis()) {
+      t3 = System.currentTimeMillis();
+    }
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    table.expireSnapshots()
+        .expireOlderThan(t3)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    Assert.assertTrue("FILE_A should be deleted", deletedFiles.contains(FILE_A.path().toString()));
+
+  }
+
+  @Test
+  public void testScanExpiredManifestInValidSnapshotFastAppend() {
+    table.updateProperties()
+        .set(TableProperties.MANIFEST_MERGE_ENABLED, "true")
+        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1")
+        .commit();
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    table.newOverwrite()
+        .addFile(FILE_C)
+        .deleteFile(FILE_A)
+        .commit();
+
+    table.newFastAppend()
+        .appendFile(FILE_D)
+        .commit();
+
+    long t3 = System.currentTimeMillis();
+    while (t3 <= table.currentSnapshot().timestampMillis()) {
+      t3 = System.currentTimeMillis();
+    }
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    table.expireSnapshots()
+        .expireOlderThan(t3)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    Assert.assertTrue("FILE_A should be deleted", deletedFiles.contains(FILE_A.path().toString()));
+  }
+
+  @Test
   public void dataFilesCleanup() throws IOException {
     table.newFastAppend()
         .appendFile(FILE_A)

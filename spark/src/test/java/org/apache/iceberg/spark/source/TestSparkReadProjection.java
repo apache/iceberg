@@ -59,21 +59,28 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
-public class TestSparkReadProjection extends TestReadProjection {
+public abstract class TestSparkReadProjection extends TestReadProjection {
 
   private static SparkSession spark = null;
 
   @Parameterized.Parameters
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] { "parquet" },
-        new Object[] { "avro" },
-        new Object[] { "orc" }
+        new Object[] { "parquet", false },
+        new Object[] { "parquet", true },
+        new Object[] { "avro", false },
+        new Object[] { "orc", false },
+        new Object[] { "orc", true }
     };
   }
 
-  public TestSparkReadProjection(String format) {
+  private final FileFormat format;
+  private final boolean vectorized;
+
+  public TestSparkReadProjection(String format, boolean vectorized) {
     super(format);
+    this.format = FileFormat.valueOf(format.toUpperCase(Locale.ROOT));
+    this.vectorized = vectorized;
   }
 
   @BeforeClass
@@ -96,9 +103,7 @@ public class TestSparkReadProjection extends TestReadProjection {
     File dataFolder = new File(location, "data");
     Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
 
-    FileFormat fileFormat = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
-
-    File testFile = new File(dataFolder, fileFormat.addExtension(UUID.randomUUID().toString()));
+    File testFile = new File(dataFolder, format.addExtension(UUID.randomUUID().toString()));
 
     Table table = TestTables.create(location, desc, writeSchema, PartitionSpec.unpartitioned());
     try {
@@ -106,7 +111,7 @@ public class TestSparkReadProjection extends TestReadProjection {
       // When tables are created, the column ids are reassigned.
       Schema tableSchema = table.schema();
 
-      switch (fileFormat) {
+      switch (format) {
         case AVRO:
           try (FileAppender<Record> writer = Avro.write(localOutput(testFile))
               .createWriterFunc(DataWriter::create)
@@ -159,6 +164,7 @@ public class TestSparkReadProjection extends TestReadProjection {
       Dataset<Row> df = spark.read()
           .format("org.apache.iceberg.spark.source.TestIcebergSource")
           .option("iceberg.table.name", desc)
+          .option("vectorization-enabled", String.valueOf(vectorized))
           .load();
 
       return SparkValueConverter.convert(readSchema, df.collectAsList().get(0));

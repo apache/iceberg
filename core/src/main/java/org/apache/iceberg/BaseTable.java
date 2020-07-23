@@ -140,6 +140,11 @@ public class BaseTable implements Table, HasTableOperations {
   }
 
   @Override
+  public RowDelta newRowDelta() {
+    return new BaseRowDelta(name, ops);
+  }
+
+  @Override
   public ReplacePartitions newReplacePartitions() {
     return new BaseReplacePartitions(name, ops);
   }

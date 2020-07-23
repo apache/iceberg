@@ -23,7 +23,6 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -40,10 +39,7 @@ public class CachingCatalog implements Catalog {
     return new CachingCatalog(catalog, caseSensitive);
   }
 
-  private final Cache<TableIdentifier, Table> tableCache = Caffeine.newBuilder()
-      .softValues()
-      .expireAfterAccess(1, TimeUnit.MINUTES)
-      .build();
+  private final Cache<TableIdentifier, Table> tableCache = Caffeine.newBuilder().softValues().build();
   private final Catalog catalog;
   private final boolean caseSensitive;
 

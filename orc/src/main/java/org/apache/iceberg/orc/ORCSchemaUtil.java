@@ -19,17 +19,14 @@
 
 package org.apache.iceberg.orc;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -67,8 +64,8 @@ public final class ORCSchemaUtil {
     }
   }
 
-  private static final String ICEBERG_ID_ATTRIBUTE = "iceberg.id";
-  private static final String ICEBERG_REQUIRED_ATTRIBUTE = "iceberg.required";
+  static final String ICEBERG_ID_ATTRIBUTE = "iceberg.id";
+  static final String ICEBERG_REQUIRED_ATTRIBUTE = "iceberg.required";
 
   /**
    * The name of the ORC {@link TypeDescription} attribute indicating the Iceberg type corresponding to an
@@ -80,7 +77,7 @@ public final class ORCSchemaUtil {
    * ORC long type. The values for this attribute are denoted in {@code LongType}.
    */
   public static final String ICEBERG_LONG_TYPE_ATTRIBUTE = "iceberg.long-type";
-  private static final String ICEBERG_FIELD_LENGTH = "iceberg.length";
+  static final String ICEBERG_FIELD_LENGTH = "iceberg.length";
 
   private static final ImmutableMap<Type.TypeID, TypeDescription.Category> TYPE_MAPPING =
       ImmutableMap.<Type.TypeID, TypeDescription.Category>builder()
@@ -202,10 +199,11 @@ public final class ORCSchemaUtil {
 
   /**
    * Convert an ORC schema to an Iceberg schema. This method handles the convertion from the original
-   * Iceberg column mapping IDs if present in the ORC column attributes, otherwise, ORC column IDs
-   * will be assigned following ORCs pre-order ID assignment.
+   * Iceberg column mapping IDs if present in the ORC column attributes, otherwise, ORC columns with no
+   * Iceberg IDs will be ignored and skipped in the conversion.
    *
    * @return the Iceberg schema
+   * @throws IllegalArgumentException if ORC schema has no columns with Iceberg ID attributes
    */
   public static Schema convert(TypeDescription orcSchema) {
     List<TypeDescription> children = orcSchema.getChildren();
@@ -213,14 +211,15 @@ public final class ORCSchemaUtil {
     Preconditions.checkState(children.size() == childrenNames.size(),
         "Error in ORC file, children fields and names do not match.");
 
-    List<Types.NestedField> icebergFields = Lists.newArrayListWithExpectedSize(children.size());
-    AtomicInteger lastColumnId = new AtomicInteger(getMaxIcebergId(orcSchema));
-    for (int i = 0; i < children.size(); i++) {
-      icebergFields.add(convertOrcToIceberg(children.get(i), childrenNames.get(i),
-          lastColumnId::incrementAndGet));
+    OrcToIcebergVisitor schemaConverter = new OrcToIcebergVisitor();
+    List<Types.NestedField> fields = OrcToIcebergVisitor.visitSchema(orcSchema, schemaConverter).stream()
+        .filter(Optional::isPresent).map(Optional::get).collect(Collectors.toList());
+
+    if (fields.size() == 0) {
+      throw new IllegalArgumentException("ORC schema does not contain Iceberg IDs");
     }
 
-    return new Schema(icebergFields);
+    return new Schema(fields);
   }
 
   /**
@@ -388,129 +387,12 @@ public final class ORCSchemaUtil {
     return Integer.parseInt(idStr);
   }
 
-  private static boolean isRequired(TypeDescription orcType) {
+  static boolean isOptional(TypeDescription orcType) {
     String isRequiredStr = orcType.getAttributeValue(ICEBERG_REQUIRED_ATTRIBUTE);
     if (isRequiredStr != null) {
-      return Boolean.parseBoolean(isRequiredStr);
+      return !Boolean.parseBoolean(isRequiredStr);
     }
-    return false;
-  }
-
-  private static Types.NestedField getIcebergType(int icebergID, String name, Type type,
-                                                  boolean isRequired) {
-    return isRequired ?
-        Types.NestedField.required(icebergID, name, type) :
-        Types.NestedField.optional(icebergID, name, type);
-  }
-
-  private static Types.NestedField convertOrcToIceberg(TypeDescription orcType, String name,
-                                                       TypeUtil.NextID nextID) {
-
-    final int icebergID = icebergID(orcType).orElseGet(nextID::get);
-    final boolean isRequired = isRequired(orcType);
-
-    switch (orcType.getCategory()) {
-      case BOOLEAN:
-        return getIcebergType(icebergID, name, Types.BooleanType.get(), isRequired);
-      case BYTE:
-      case SHORT:
-      case INT:
-        return getIcebergType(icebergID, name, Types.IntegerType.get(), isRequired);
-      case LONG:
-        String longAttributeValue = orcType.getAttributeValue(ICEBERG_LONG_TYPE_ATTRIBUTE);
-        LongType longType = longAttributeValue == null ? LongType.LONG : LongType.valueOf(longAttributeValue);
-        switch (longType) {
-          case TIME:
-            return getIcebergType(icebergID, name, Types.TimeType.get(), isRequired);
-          case LONG:
-            return getIcebergType(icebergID, name, Types.LongType.get(), isRequired);
-          default:
-            throw new IllegalStateException("Invalid Long type found in ORC type attribute");
-        }
-      case FLOAT:
-        return getIcebergType(icebergID, name, Types.FloatType.get(), isRequired);
-      case DOUBLE:
-        return getIcebergType(icebergID, name, Types.DoubleType.get(), isRequired);
-      case STRING:
-      case CHAR:
-      case VARCHAR:
-        return getIcebergType(icebergID, name, Types.StringType.get(), isRequired);
-      case BINARY:
-        String binaryAttributeValue = orcType.getAttributeValue(ICEBERG_BINARY_TYPE_ATTRIBUTE);
-        BinaryType binaryType = binaryAttributeValue == null ? BinaryType.BINARY :
-            BinaryType.valueOf(binaryAttributeValue);
-        switch (binaryType) {
-          case UUID:
-            return getIcebergType(icebergID, name, Types.UUIDType.get(), isRequired);
-          case FIXED:
-            int fixedLength = Integer.parseInt(orcType.getAttributeValue(ICEBERG_FIELD_LENGTH));
-            return getIcebergType(icebergID, name, Types.FixedType.ofLength(fixedLength), isRequired);
-          case BINARY:
-            return getIcebergType(icebergID, name, Types.BinaryType.get(), isRequired);
-          default:
-            throw new IllegalStateException("Invalid Binary type found in ORC type attribute");
-        }
-      case DATE:
-        return getIcebergType(icebergID, name, Types.DateType.get(), isRequired);
-      case TIMESTAMP:
-        return getIcebergType(icebergID, name, Types.TimestampType.withoutZone(), isRequired);
-      case TIMESTAMP_INSTANT:
-        return getIcebergType(icebergID, name, Types.TimestampType.withZone(), isRequired);
-      case DECIMAL:
-        return getIcebergType(icebergID, name,
-            Types.DecimalType.of(orcType.getPrecision(), orcType.getScale()),
-            isRequired);
-      case STRUCT: {
-        List<String> fieldNames = orcType.getFieldNames();
-        List<TypeDescription> fieldTypes = orcType.getChildren();
-        List<Types.NestedField> fields = new ArrayList<>(fieldNames.size());
-        for (int c = 0; c < fieldNames.size(); ++c) {
-          String childName = fieldNames.get(c);
-          TypeDescription type = fieldTypes.get(c);
-          Types.NestedField field = convertOrcToIceberg(type, childName, nextID);
-          fields.add(field);
-        }
-
-        return getIcebergType(icebergID, name, Types.StructType.of(fields), isRequired);
-      }
-      case LIST: {
-        TypeDescription elementType = orcType.getChildren().get(0);
-        Types.NestedField element = convertOrcToIceberg(elementType, "element", nextID);
-
-        Types.ListType listTypeWithElem = isRequired(elementType) ?
-            Types.ListType.ofRequired(element.fieldId(), element.type()) :
-            Types.ListType.ofOptional(element.fieldId(), element.type());
-        return isRequired ?
-            Types.NestedField.required(icebergID, name, listTypeWithElem) :
-            Types.NestedField.optional(icebergID, name, listTypeWithElem);
-      }
-      case MAP: {
-        TypeDescription keyType = orcType.getChildren().get(0);
-        Types.NestedField key = convertOrcToIceberg(keyType, "key", nextID);
-        TypeDescription valueType = orcType.getChildren().get(1);
-        Types.NestedField value = convertOrcToIceberg(valueType, "value", nextID);
-
-        Types.MapType mapTypeWithKV = isRequired(valueType) ?
-            Types.MapType.ofRequired(key.fieldId(), value.fieldId(), key.type(), value.type()) :
-            Types.MapType.ofOptional(key.fieldId(), value.fieldId(), key.type(), value.type());
-
-        return getIcebergType(icebergID, name, mapTypeWithKV, isRequired);
-      }
-      default:
-        // We don't have an answer for union types.
-        throw new IllegalArgumentException("Can't handle " + orcType);
-    }
-  }
-
-  private static int getMaxIcebergId(TypeDescription originalOrcSchema) {
-    int maxId = icebergID(originalOrcSchema).orElse(0);
-    final List<TypeDescription> children = Optional.ofNullable(originalOrcSchema.getChildren())
-        .orElse(Collections.emptyList());
-    for (TypeDescription child : children) {
-      maxId = Math.max(maxId, getMaxIcebergId(child));
-    }
-
-    return maxId;
+    return true;
   }
 
   /**

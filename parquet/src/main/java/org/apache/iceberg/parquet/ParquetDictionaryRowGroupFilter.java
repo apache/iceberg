@@ -48,14 +48,6 @@ import org.apache.parquet.schema.PrimitiveType;
 
 public class ParquetDictionaryRowGroupFilter {
   private final Expression expr;
-  private transient ThreadLocal<EvalVisitor> visitors = null;
-
-  private EvalVisitor visitor() {
-    if (visitors == null) {
-      this.visitors = ThreadLocal.withInitial(EvalVisitor::new);
-    }
-    return visitors.get();
-  }
 
   public ParquetDictionaryRowGroupFilter(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -75,7 +67,7 @@ public class ParquetDictionaryRowGroupFilter {
    */
   public boolean shouldRead(MessageType fileSchema, BlockMetaData rowGroup,
                             DictionaryPageReadStore dictionaries) {
-    return visitor().eval(fileSchema, rowGroup, dictionaries);
+    return new EvalVisitor().eval(fileSchema, rowGroup, dictionaries);
   }
 
   private static final boolean ROWS_MIGHT_MATCH = true;

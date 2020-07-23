@@ -44,7 +44,7 @@ public abstract class OrcSchemaWithTypeVisitor<T> {
         Types.ListType list = iType != null ? iType.asListType() : null;
         return visitor.list(
             list, schema,
-            visit(list.elementType(), schema.getChildren().get(0), visitor));
+            visit(list != null ? list.elementType() : null, schema.getChildren().get(0), visitor));
 
       case MAP:
         Types.MapType map = iType != null ? iType.asMapType() : null;

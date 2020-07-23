@@ -99,6 +99,20 @@ Available operations to update a table are:
 
 ### Transactions
 
+Transactions are used to commit multiple table changes in a single atomic operation. A transaction is used to create individual operations using factory methods, like `newAppend`, just like working with a `Table`. Operations created by a transaction are committed as a group when `commitTransaction` is called.
+
+For example, deleting and appending a file in the same transaction:
+```java
+Transaction t = table.newTrasaction();
+
+// commit operations to the transaction
+t.newDelete().deleteFromRowFilter(filter).commit();
+t.newAppend().appendFile(data).commit();
+
+// commit all the changes to the table
+t.commitTransaction();
+```
+
 ## Types
 
 Iceberg data types are located in the [`org.apache.iceberg.types` package](/javadoc/master/index.html?org/apache/iceberg/types/package-summary.html).
@@ -200,7 +214,8 @@ Iceberg table support is organized in library modules:
 
 This project Iceberg also has modules for adding Iceberg support to processing engines:
 
-* `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg (use iceberg-runtime for a shaded version)
+* `iceberg-spark2` is an implementation of Spark's Datasource V2 API in 2.4 for Iceberg (use iceberg-spark-runtime for a shaded version)
+* `iceberg-spark3` is an implementation of Spark's Datasource V2 API in 3.0 for Iceberg (use iceberg-spark3-runtime for a shaded version)
 * `iceberg-data` is a client library used to read Iceberg tables from JVM applications
 * `iceberg-pig` is an implementation of Pig's LoadFunc API for Iceberg
 * `iceberg-runtime` generates a shaded runtime jar for Spark to integrate with iceberg tables

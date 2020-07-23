@@ -45,8 +45,10 @@ import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.execution.streaming.MemoryStream;
 import org.apache.spark.sql.streaming.StreamingQuery;
@@ -57,12 +59,11 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import scala.collection.JavaConversions;
 
 import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.Files.localOutput;
 
-public class TestForwardCompatibility {
+public abstract class TestForwardCompatibility {
   private static final Configuration CONF = new Configuration();
 
   private static final Schema SCHEMA = new Schema(
@@ -92,6 +93,10 @@ public class TestForwardCompatibility {
     TestForwardCompatibility.spark = null;
     currentSpark.stop();
   }
+
+  protected abstract <T> MemoryStream<T> newMemoryStream(int id, SQLContext sqlContext, Encoder<T> encoder);
+
+  protected abstract <T> void send(List<T> records, MemoryStream<T> stream);
 
   @Test
   public void testSparkWriteFailsUnknownTransform() throws IOException {
@@ -131,7 +136,7 @@ public class TestForwardCompatibility {
     HadoopTables tables = new HadoopTables(CONF);
     tables.create(SCHEMA, UNKNOWN_SPEC, location.toString());
 
-    MemoryStream<Integer> inputStream = new MemoryStream<>(1, spark.sqlContext(), Encoders.INT());
+    MemoryStream<Integer> inputStream = newMemoryStream(1, spark.sqlContext(), Encoders.INT());
     StreamingQuery query = inputStream.toDF()
         .selectExpr("value AS id", "CAST (value AS STRING) AS data")
         .writeStream()
@@ -142,7 +147,7 @@ public class TestForwardCompatibility {
         .start();
 
     List<Integer> batch1 = Lists.newArrayList(1, 2);
-    inputStream.addData(JavaConversions.asScalaBuffer(batch1));
+    send(batch1, inputStream);
 
     AssertHelpers.assertThrows("Should reject streaming write with unsupported transform",
         StreamingQueryException.class, "Cannot write using unsupported transforms: zero",

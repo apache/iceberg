@@ -78,6 +78,11 @@ class CommitCallbackTransaction implements Transaction {
   }
 
   @Override
+  public RowDelta newRowDelta() {
+    return wrapped.newRowDelta();
+  }
+
+  @Override
   public ReplacePartitions newReplacePartitions() {
     return wrapped.newReplacePartitions();
   }

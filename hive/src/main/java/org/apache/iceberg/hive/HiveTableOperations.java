@@ -51,6 +51,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
@@ -77,6 +78,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       .build();
 
   private final HiveClientPool metaClients;
+  private final String fullName;
   private final String database;
   private final String tableName;
   private final Configuration conf;
@@ -84,9 +86,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
   private FileIO fileIO;
 
-  protected HiveTableOperations(Configuration conf, HiveClientPool metaClients, String database, String table) {
+  protected HiveTableOperations(Configuration conf, HiveClientPool metaClients,
+                                String catalogName, String database, String table) {
     this.conf = conf;
     this.metaClients = metaClients;
+    this.fullName = catalogName + "." + database + "." + table;
     this.database = database;
     this.tableName = table;
     this.lockAcquireTimeout =
@@ -106,20 +110,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   protected void doRefresh() {
     String metadataLocation = null;
     try {
-      final Table table = metaClients.run(client -> client.getTable(database, tableName));
-      String tableType = table.getParameters().get(TABLE_TYPE_PROP);
-
-      if (tableType == null || !tableType.equalsIgnoreCase(ICEBERG_TABLE_TYPE_VALUE)) {
-        throw new IllegalArgumentException(String.format("Type of %s.%s is %s, not %s",
-            database, tableName,
-            tableType /* actual type */, ICEBERG_TABLE_TYPE_VALUE /* expected type */));
-      }
+      Table table = metaClients.run(client -> client.getTable(database, tableName));
+      validateTableIsIceberg(table, fullName);
 
       metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
-      if (metadataLocation == null) {
-        String errMsg = String.format("%s.%s is missing %s property", database, tableName, METADATA_LOCATION_PROP);
-        throw new IllegalArgumentException(errMsg);
-      }
 
     } catch (NoSuchObjectException e) {
       if (currentMetadataLocation() != null) {
@@ -169,7 +163,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
       tbl.setSd(storageDescriptor(metadata)); // set to pickup any schema changes
       String metadataLocation = tbl.getParameters().get(METADATA_LOCATION_PROP);
-      String baseMetadataLocation = base != null ? base.file().location() : null;
+      String baseMetadataLocation = base != null ? base.metadataFileLocation() : null;
       if (!Objects.equals(baseMetadataLocation, metadataLocation)) {
         throw new CommitFailedException(
             "Base metadata location '%s' is not same as the current table metadata location '%s' for %s.%s",
@@ -309,5 +303,13 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       client.unlock(lockId);
       return null;
     });
+  }
+
+  static void validateTableIsIceberg(Table table, String fullName) {
+    String tableType = table.getParameters().get(TABLE_TYPE_PROP);
+    NoSuchIcebergTableException.check(tableType != null && tableType.equalsIgnoreCase(ICEBERG_TABLE_TYPE_VALUE),
+        "Not an iceberg table: %s (type=%s)", fullName, tableType);
+    NoSuchIcebergTableException.check(table.getParameters().get(METADATA_LOCATION_PROP) != null,
+        "Not an iceberg table: %s missing %s", fullName, METADATA_LOCATION_PROP);
   }
 }

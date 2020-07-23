@@ -78,7 +78,7 @@ public class TestTables {
 
     TableMetadata metadata;
     if (current != null) {
-      metadata = current.buildReplacement(schema, spec, properties);
+      metadata = current.buildReplacement(schema, spec, current.location(), properties);
       return Transactions.replaceTableTransaction(name, ops, metadata);
     } else {
       metadata = newTableMetadata(schema, spec, temp.toString(), properties);

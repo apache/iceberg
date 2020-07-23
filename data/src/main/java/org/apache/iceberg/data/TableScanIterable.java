@@ -25,10 +25,10 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
@@ -48,9 +48,8 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
 
 class TableScanIterable extends CloseableGroup implements CloseableIterable<Record> {
@@ -81,7 +80,7 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
 
   private CloseableIterable<Record> open(FileScanTask task) {
     InputFile input = ops.io().newInputFile(task.file().path().toString());
-    Map<Integer, ?> partition = PartitionUtil.constantsMap(task, TableScanIterable::convertConstant);
+    Map<Integer, ?> partition = PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
 
     switch (task.file().format()) {
       case AVRO:
@@ -110,8 +109,10 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
         return parquet.build();
 
       case ORC:
+        Schema projectionWithoutConstantAndMetadataFields = TypeUtil.selectNot(projection,
+            Sets.union(partition.keySet(), MetadataColumns.metadataFieldIds()));
         ORC.ReadBuilder orc = ORC.read(input)
-                .project(projection)
+                .project(projectionWithoutConstantAndMetadataFields)
                 .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(projection, fileSchema, partition))
                 .split(task.start(), task.length())
                 .filter(task.residual());
@@ -192,36 +193,5 @@ class TableScanIterable extends CloseableGroup implements CloseableIterable<Reco
         currentCloseable.close();
       }
     }
-  }
-
-  /**
-   * Conversions from generic Avro values to Iceberg generic values.
-   */
-  private static Object convertConstant(Type type, Object value) {
-    if (value == null) {
-      return null;
-    }
-
-    switch (type.typeId()) {
-      case STRING:
-        return value.toString();
-      case TIME:
-        return DateTimeUtil.timeFromMicros((Long) value);
-      case DATE:
-        return DateTimeUtil.dateFromDays((Integer) value);
-      case TIMESTAMP:
-        if (((Types.TimestampType) type).shouldAdjustToUTC()) {
-          return DateTimeUtil.timestamptzFromMicros((Long) value);
-        } else {
-          return DateTimeUtil.timestampFromMicros((Long) value);
-        }
-      case FIXED:
-        if (value instanceof GenericData.Fixed) {
-          return ((GenericData.Fixed) value).bytes();
-        }
-        return value;
-      default:
-    }
-    return value;
   }
 }

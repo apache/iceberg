@@ -1,5 +1,10 @@
+*.swp
+.DS_Store
+.cache
+
 # intellij files
 .idea
+.idea_modules/
 *.ipr
 *.iws
 *.iml
@@ -7,6 +12,8 @@
 # gradle build
 .gradle
 build
+dependencies.lock
+**/dependencies.lock
 gradle/
 out
 gradle/wrapper/gradle-wrapper.jar
@@ -29,6 +36,9 @@ sdist/
 coverage.xml
 .pytest_cache/
 spark/tmp/
+spark/spark-warehouse/
+spark2/spark-warehouse/
+spark3/spark-warehouse/
 
 # vscode/eclipse files
 .classpath

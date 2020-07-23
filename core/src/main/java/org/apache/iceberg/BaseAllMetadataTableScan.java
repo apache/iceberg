@@ -19,12 +19,9 @@
 
 package org.apache.iceberg;
 
-import java.util.Collection;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
-import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,11 +32,8 @@ abstract class BaseAllMetadataTableScan extends BaseTableScan {
     super(ops, table, fileSchema);
   }
 
-  BaseAllMetadataTableScan(
-      TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-      boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
-      ImmutableMap<String, String> options) {
-    super(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, options);
+  BaseAllMetadataTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+    super(ops, table, schema, context);
   }
 
   @Override
@@ -47,6 +41,6 @@ abstract class BaseAllMetadataTableScan extends BaseTableScan {
     LOG.info("Scanning metadata table {} with filter {}.", table(), filter());
     Listeners.notifyAll(new ScanEvent(table().toString(), 0L, filter(), schema()));
 
-    return planFiles(tableOps(), snapshot(), filter(), isCaseSensitive(), colStats());
+    return planFiles(tableOps(), snapshot(), filter(), shouldIgnoreResiduals(), isCaseSensitive(), colStats());
   }
 }

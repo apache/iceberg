@@ -50,7 +50,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public class TestDataSourceOptions {
+public abstract class TestDataSourceOptions {
 
   private static final Configuration CONF = new Configuration();
   private static final Schema SCHEMA = new Schema(
@@ -236,7 +236,7 @@ public class TestDataSourceOptions {
               .format("iceberg")
               .option("snapshot-id", snapshotIds.get(3).toString())
               .option("start-snapshot-id", snapshotIds.get(3).toString())
-              .load(tableLocation);
+              .load(tableLocation).explain();
         });
 
     // end-snapshot-id and as-of-timestamp are both configured.
@@ -249,7 +249,7 @@ public class TestDataSourceOptions {
               .format("iceberg")
               .option("as-of-timestamp", Long.toString(table.snapshot(snapshotIds.get(3)).timestampMillis()))
               .option("end-snapshot-id", snapshotIds.get(2).toString())
-              .load(tableLocation);
+              .load(tableLocation).explain();
         });
 
     // only end-snapshot-id is configured.
@@ -261,7 +261,7 @@ public class TestDataSourceOptions {
           spark.read()
               .format("iceberg")
               .option("end-snapshot-id", snapshotIds.get(2).toString())
-              .load(tableLocation);
+              .load(tableLocation).explain();
         });
 
     // test (1st snapshot, current snapshot] incremental scan.

@@ -23,7 +23,7 @@ Hive tables track data files using both a central metastore for partitions and a
 
 Iceberg tracks the complete list of data files in each [snapshot](../terms#snapshot) using a persistent tree structure. Every write or delete produces a new snapshot that reuses as much of the previous snapshot's metadata tree as possible to avoid high write volumes.
 
-Valid snapshots in an Iceberg table are stored the table metadata file, along with a reference to the current snapshot. Commits replace the path of the current table metadata file using an atomic operation. This ensures that all updates to table data and metadata are atomic, and is the basis for [serializable isolation](https://en.wikipedia.org/wiki/Isolation_(database_systems)#Serializable).
+Valid snapshots in an Iceberg table are stored in the table metadata file, along with a reference to the current snapshot. Commits replace the path of the current table metadata file using an atomic operation. This ensures that all updates to table data and metadata are atomic, and is the basis for [serializable isolation](https://en.wikipedia.org/wiki/Isolation_(database_systems)#Serializable).
 
 This results in improved reliability guarantees:
 

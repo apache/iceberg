@@ -29,6 +29,7 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mapping.NameMapping;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -42,9 +43,10 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   private final Expression filter;
   private final boolean reuseContainers;
   private final boolean caseSensitive;
+  private final NameMapping nameMapping;
 
   public ParquetReader(InputFile input, Schema expectedSchema, ParquetReadOptions options,
-                       Function<MessageType, ParquetValueReader<?>> readerFunc,
+                       Function<MessageType, ParquetValueReader<?>> readerFunc, NameMapping nameMapping,
                        Expression filter, boolean reuseContainers, boolean caseSensitive) {
     this.input = input;
     this.expectedSchema = expectedSchema;
@@ -54,6 +56,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     this.filter = filter == Expressions.alwaysTrue() ? null : filter;
     this.reuseContainers = reuseContainers;
     this.caseSensitive = caseSensitive;
+    this.nameMapping = nameMapping;
   }
 
   private ReadConf<T> conf = null;
@@ -61,7 +64,8 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   private ReadConf<T> init() {
     if (conf == null) {
       ReadConf<T> readConf = new ReadConf<>(
-          input, options, expectedSchema, filter, readerFunc, null, reuseContainers, caseSensitive, null);
+          input, options, expectedSchema, filter, readerFunc, null, nameMapping, reuseContainers,
+          caseSensitive, null);
       this.conf = readConf.copy();
       return readConf;
     }

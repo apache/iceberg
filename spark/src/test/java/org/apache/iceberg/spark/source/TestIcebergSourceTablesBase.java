@@ -42,25 +42,29 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkTableUtil;
+import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
-import org.apache.spark.sql.SparkSession;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public abstract class TestIcebergSourceTablesBase {
+public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
-  protected static SparkSession spark;
   private static final Schema SCHEMA = new Schema(
       optional(1, "id", Types.IntegerType.get()),
       optional(2, "data", Types.StringType.get())
   );
+
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
 
   public abstract Table createTable(TableIdentifier ident, Schema schema, PartitionSpec spec);
 
@@ -194,6 +198,30 @@ public abstract class TestIcebergSourceTablesBase {
   }
 
   @Test
+  public void testCountEntriesTable() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "count_entries_test");
+    createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
+
+    // init load
+    List<SimpleRecord> records = Lists.newArrayList(new SimpleRecord(1, "1"));
+    Dataset<Row> inputDf = spark.createDataFrame(records, SimpleRecord.class);
+    inputDf.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    final int expectedEntryCount = 1;
+
+    // count entries
+    Assert.assertEquals("Count should return " + expectedEntryCount,
+        expectedEntryCount, spark.read().format("iceberg").load(loadLocation(tableIdentifier, "entries")).count());
+
+    // count all_entries
+    Assert.assertEquals("Count should return " + expectedEntryCount,
+        expectedEntryCount, spark.read().format("iceberg").load(loadLocation(tableIdentifier, "all_entries")).count());
+  }
+
+  @Test
   public void testFilesTable() throws Exception {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "files_test");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
@@ -243,6 +271,8 @@ public abstract class TestIcebergSourceTablesBase {
 
   @Test
   public void testFilesTableWithSnapshotIdInheritance() throws Exception {
+    spark.sql("DROP TABLE IF EXISTS parquet_table");
+
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "files_inheritance_test");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
     table.updateProperties()
@@ -251,17 +281,20 @@ public abstract class TestIcebergSourceTablesBase {
     Table entriesTable = loadTable(tableIdentifier, "entries");
     Table filesTable = loadTable(tableIdentifier, "files");
 
+    spark.sql(String.format(
+        "CREATE TABLE parquet_table (data string, id int) " +
+            "USING parquet PARTITIONED BY (id) LOCATION '%s'",
+        temp.newFolder()));
+
     List<SimpleRecord> records = Lists.newArrayList(
         new SimpleRecord(1, "a"),
         new SimpleRecord(2, "b")
      );
 
     Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
-    inputDF.select("id", "data").write()
-        .format("parquet")
+    inputDF.select("data", "id").write()
         .mode("overwrite")
-        .partitionBy("id")
-        .saveAsTable("parquet_table");
+        .insertInto("parquet_table");
 
     try {
       String stagingLocation = table.location() + "/metadata";
@@ -297,7 +330,9 @@ public abstract class TestIcebergSourceTablesBase {
   }
 
   @Test
-  public void testEntriesTableWithSnapshotIdInheritance() {
+  public void testEntriesTableWithSnapshotIdInheritance() throws Exception {
+    spark.sql("DROP TABLE IF EXISTS parquet_table");
+
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_inheritance_test");
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
     Table table = createTable(tableIdentifier, SCHEMA, spec);
@@ -306,17 +341,20 @@ public abstract class TestIcebergSourceTablesBase {
         .set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true")
         .commit();
 
+    spark.sql(String.format(
+        "CREATE TABLE parquet_table (data string, id int) " +
+            "USING parquet PARTITIONED BY (id) LOCATION '%s'",
+        temp.newFolder()));
+
     List<SimpleRecord> records = Lists.newArrayList(
         new SimpleRecord(1, "a"),
         new SimpleRecord(2, "b")
     );
 
     Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
-    inputDF.select("id", "data").write()
-        .format("parquet")
+    inputDF.select("data", "id").write()
         .mode("overwrite")
-        .partitionBy("id")
-        .saveAsTable("parquet_table");
+        .insertInto("parquet_table");
 
     try {
       String stagingLocation = table.location() + "/metadata";

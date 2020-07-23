@@ -20,7 +20,9 @@
 package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
@@ -29,6 +31,8 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,5 +66,31 @@ public class Util {
     }
 
     return locationSets.toArray(new String[0]);
+  }
+
+  public static String[] blockLocations(FileIO io, CombinedScanTask task) {
+    Set<String> locations = Sets.newHashSet();
+    for (FileScanTask f : task.files()) {
+      InputFile in = io.newInputFile(f.file().path().toString());
+      if (in instanceof HadoopInputFile) {
+        Collections.addAll(locations, ((HadoopInputFile) in).getBlockLocations(f.start(), f.length()));
+      }
+    }
+
+    return locations.toArray(HadoopInputFile.NO_LOCATION_PREFERENCE);
+  }
+
+  /**
+   * From Apache Spark
+   *
+   * Convert URI to String.
+   * Since URI.toString does not decode the uri, e.g. change '%25' to '%'.
+   * Here we create a hadoop Path with the given URI, and rely on Path.toString
+   * to decode the uri
+   * @param uri the URI of the path
+   * @return the String of the path
+   */
+  public static String uriToString(URI uri) {
+    return new Path(uri).toString();
   }
 }

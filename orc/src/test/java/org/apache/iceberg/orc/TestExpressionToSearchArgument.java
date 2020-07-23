@@ -105,34 +105,38 @@ public class TestExpressionToSearchArgument {
 
   @Test
   public void testTimezoneSensitiveTypes() {
-    for (String timezone : new String[]{"America/New_York", "Asia/Kolkata", "UTC/Greenwich"}) {
-      TimeZone.setDefault(TimeZone.getTimeZone(timezone));
-      OffsetDateTime tsTzPredicate = OffsetDateTime.parse("2019-10-02T00:47:28.207366Z");
-      OffsetDateTime tsPredicate = OffsetDateTime.parse("1968-01-16T13:07:59.048625Z");
-      OffsetDateTime epoch = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
+    TimeZone currentTz = TimeZone.getDefault();
+    try {
+      for (String timezone : new String[]{"America/New_York", "Asia/Kolkata", "UTC/Greenwich"}) {
+        TimeZone.setDefault(TimeZone.getTimeZone(timezone));
+        OffsetDateTime tsTzPredicate = OffsetDateTime.parse("2019-10-02T00:47:28.207366Z");
+        OffsetDateTime tsPredicate = OffsetDateTime.parse("1968-01-16T13:07:59.048625Z");
+        OffsetDateTime epoch = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
 
-      Schema schema = new Schema(
-          required(1, "date", Types.DateType.get()),
-          required(2, "tsTz", Types.TimestampType.withZone()),
-          required(3, "ts", Types.TimestampType.withoutZone())
-      );
+        Schema schema = new Schema(
+            required(1, "date", Types.DateType.get()),
+            required(2, "tsTz", Types.TimestampType.withZone()),
+            required(3, "ts", Types.TimestampType.withoutZone())
+        );
 
-      Expression expr = and(
-          and(equal("date", 10L), equal("tsTz", ChronoUnit.MICROS.between(epoch, tsTzPredicate))),
-          equal("ts", ChronoUnit.MICROS.between(epoch, tsPredicate))
-      );
-      Expression boundFilter = Binder.bind(schema.asStruct(), expr, true);
-      SearchArgument expected = SearchArgumentFactory.newBuilder()
-          .startAnd()
-          .equals("`date`", Type.DATE, Date.valueOf(LocalDate.parse("1970-01-11", DateTimeFormatter.ISO_LOCAL_DATE)))
-          // Temporarily disable filters on Timestamp columns due to ORC-611
-          // .equals("`tsTz`", Type.TIMESTAMP, Timestamp.from(tsTzPredicate.toInstant()))
-          // .equals("`ts`", Type.TIMESTAMP, Timestamp.from(tsPredicate.toInstant()))
-          .end()
-          .build();
+        Expression expr = and(
+            and(equal("date", 10L), equal("tsTz", ChronoUnit.MICROS.between(epoch, tsTzPredicate))),
+            equal("ts", ChronoUnit.MICROS.between(epoch, tsPredicate))
+        );
+        Expression boundFilter = Binder.bind(schema.asStruct(), expr, true);
+        SearchArgument expected = SearchArgumentFactory.newBuilder()
+            .startAnd()
+            .equals("`date`", Type.DATE, Date.valueOf(LocalDate.parse("1970-01-11", DateTimeFormatter.ISO_LOCAL_DATE)))
+            // .equals("`tsTz`", Type.TIMESTAMP, Timestamp.from(tsTzPredicate.toInstant()))
+            // .equals("`ts`", Type.TIMESTAMP, Timestamp.from(tsPredicate.toInstant()))
+            .end()
+            .build();
 
-      SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
-      Assert.assertEquals(expected.toString(), actual.toString());
+        SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));
+        Assert.assertEquals(expected.toString(), actual.toString());
+      }
+    } finally {
+      TimeZone.setDefault(currentTz);
     }
   }
 

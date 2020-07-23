@@ -26,7 +26,6 @@ import java.util.Map;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -41,16 +40,16 @@ class BaseSnapshot implements Snapshot {
   private final Long parentId;
   private final long sequenceNumber;
   private final long timestampMillis;
-  private final InputFile manifestList;
+  private final String manifestListLocation;
   private final String operation;
   private final Map<String, String> summary;
 
   // lazily initialized
-  private List<ManifestFile> allManifests = null;
-  private List<ManifestFile> dataManifests = null;
-  private List<ManifestFile> deleteManifests = null;
-  private List<DataFile> cachedAdds = null;
-  private List<DataFile> cachedDeletes = null;
+  private transient List<ManifestFile> allManifests = null;
+  private transient List<ManifestFile> dataManifests = null;
+  private transient List<ManifestFile> deleteManifests = null;
+  private transient List<DataFile> cachedAdds = null;
+  private transient List<DataFile> cachedDeletes = null;
 
   /**
    * For testing only.
@@ -70,7 +69,7 @@ class BaseSnapshot implements Snapshot {
                long timestampMillis,
                String operation,
                Map<String, String> summary,
-               InputFile manifestList) {
+               String manifestList) {
     this.io = io;
     this.sequenceNumber = sequenceNumber;
     this.snapshotId = snapshotId;
@@ -78,7 +77,7 @@ class BaseSnapshot implements Snapshot {
     this.timestampMillis = timestampMillis;
     this.operation = operation;
     this.summary = summary;
-    this.manifestList = manifestList;
+    this.manifestListLocation = manifestList;
   }
 
   BaseSnapshot(FileIO io,
@@ -88,7 +87,7 @@ class BaseSnapshot implements Snapshot {
                String operation,
                Map<String, String> summary,
                List<ManifestFile> dataManifests) {
-    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, (InputFile) null);
+    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, null);
     this.allManifests = dataManifests;
   }
 
@@ -125,10 +124,10 @@ class BaseSnapshot implements Snapshot {
   private void cacheManifests() {
     if (allManifests == null) {
       // if manifests isn't set, then the snapshotFile is set and should be read to get the list
-      this.allManifests = ManifestLists.read(manifestList);
+      this.allManifests = ManifestLists.read(io.newInputFile(manifestListLocation));
     }
 
-    if (dataManifests == null) {
+    if (dataManifests == null || deleteManifests == null) {
       this.dataManifests = ImmutableList.copyOf(Iterables.filter(allManifests,
           manifest -> manifest.content() == ManifestContent.DATA));
       this.deleteManifests = ImmutableList.copyOf(Iterables.filter(allManifests,
@@ -178,7 +177,7 @@ class BaseSnapshot implements Snapshot {
 
   @Override
   public String manifestListLocation() {
-    return manifestList != null ? manifestList.location() : null;
+    return manifestListLocation;
   }
 
   private void cacheChanges() {
@@ -219,7 +218,7 @@ class BaseSnapshot implements Snapshot {
         .add("timestamp_ms", timestampMillis)
         .add("operation", operation)
         .add("summary", summary)
-        .add("manifest-list", manifestList.location())
+        .add("manifest-list", manifestListLocation)
         .toString();
   }
 }

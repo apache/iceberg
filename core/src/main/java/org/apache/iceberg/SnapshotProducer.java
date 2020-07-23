@@ -173,7 +173,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
       return new BaseSnapshot(ops.io(),
           sequenceNumber, snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
-          ops.io().newInputFile(manifestList.location()));
+          manifestList.location());
 
     } else {
       return new BaseSnapshot(ops.io(),
@@ -206,7 +206,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       // if there was no previous snapshot, default the summary to start totals at 0
       previousSummary = ImmutableMap.of(
           SnapshotSummary.TOTAL_RECORDS_PROP, "0",
-          SnapshotSummary.TOTAL_FILES_PROP, "0");
+          SnapshotSummary.TOTAL_DATA_FILES_PROP, "0",
+          SnapshotSummary.TOTAL_DELETE_FILES_PROP, "0",
+          SnapshotSummary.TOTAL_POS_DELETES_PROP, "0",
+          SnapshotSummary.TOTAL_EQ_DELETES_PROP, "0");
     }
 
     ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
@@ -218,8 +221,17 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         builder, previousSummary, SnapshotSummary.TOTAL_RECORDS_PROP,
         summary, SnapshotSummary.ADDED_RECORDS_PROP, SnapshotSummary.DELETED_RECORDS_PROP);
     updateTotal(
-        builder, previousSummary, SnapshotSummary.TOTAL_FILES_PROP,
+        builder, previousSummary, SnapshotSummary.TOTAL_DATA_FILES_PROP,
         summary, SnapshotSummary.ADDED_FILES_PROP, SnapshotSummary.DELETED_FILES_PROP);
+    updateTotal(
+        builder, previousSummary, SnapshotSummary.TOTAL_DELETE_FILES_PROP,
+        summary, SnapshotSummary.ADDED_DELETE_FILES_PROP, SnapshotSummary.REMOVED_DELETE_FILES_PROP);
+    updateTotal(
+        builder, previousSummary, SnapshotSummary.TOTAL_POS_DELETES_PROP,
+        summary, SnapshotSummary.ADDED_POS_DELETES_PROP, SnapshotSummary.REMOVED_POS_DELETES_PROP);
+    updateTotal(
+        builder, previousSummary, SnapshotSummary.TOTAL_EQ_DELETES_PROP,
+        summary, SnapshotSummary.ADDED_EQ_DELETES_PROP, SnapshotSummary.REMOVED_EQ_DELETES_PROP);
 
     return builder.build();
   }
@@ -335,6 +347,18 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return ManifestFiles.write(ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
   }
 
+  protected ManifestWriter<DeleteFile> newDeleteManifestWriter(PartitionSpec spec) {
+    return ManifestFiles.writeDeleteManifest(ops.current().formatVersion(), spec, newManifestOutput(), snapshotId());
+  }
+
+  protected ManifestReader<DataFile> newManifestReader(ManifestFile manifest) {
+    return ManifestFiles.read(manifest, ops.io(), ops.current().specsById());
+  }
+
+  protected ManifestReader<DeleteFile> newDeleteManifestReader(ManifestFile manifest) {
+    return ManifestFiles.readDeleteManifest(manifest, ops.io(), ops.current().specsById());
+  }
+
   protected long snapshotId() {
     if (snapshotId == null) {
       synchronized (this) {
@@ -347,7 +371,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   private static ManifestFile addMetadata(TableOperations ops, ManifestFile manifest) {
-    try (ManifestReader reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
       PartitionSummary stats = new PartitionSummary(ops.current().spec(manifest.partitionSpecId()));
       int addedFiles = 0;
       long addedRows = 0L;

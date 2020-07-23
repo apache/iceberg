@@ -41,35 +41,58 @@ public class TypeUtil {
 
   public static Schema select(Schema schema, Set<Integer> fieldIds) {
     Preconditions.checkNotNull(schema, "Schema cannot be null");
-    Preconditions.checkNotNull(fieldIds, "Field ids cannot be null");
 
-    Type result = visit(schema, new PruneColumns(fieldIds));
+    Types.StructType result = select(schema.asStruct(), fieldIds);
     if (schema.asStruct() == result) {
       return schema;
     } else if (result != null) {
       if (schema.getAliases() != null) {
-        return new Schema(result.asNestedType().fields(), schema.getAliases());
+        return new Schema(result.fields(), schema.getAliases());
       } else {
-        return new Schema(result.asNestedType().fields());
+        return new Schema(result.fields());
       }
     }
 
     return new Schema(ImmutableList.of(), schema.getAliases());
   }
 
-  public static Set<Integer> getProjectedIds(Schema schema) {
-    return visit(schema, new GetProjectedIds());
+  public static Types.StructType select(Types.StructType struct, Set<Integer> fieldIds) {
+    Preconditions.checkNotNull(struct, "Struct cannot be null");
+    Preconditions.checkNotNull(fieldIds, "Field ids cannot be null");
+
+    Type result = visit(struct, new PruneColumns(fieldIds));
+    if (struct == result) {
+      return struct;
+    } else if (result != null) {
+      return result.asStructType();
+    }
+
+    return Types.StructType.of();
   }
 
-  public static Set<Integer> getProjectedIds(Type schema) {
-    if (schema.isPrimitiveType()) {
+  public static Set<Integer> getProjectedIds(Schema schema) {
+    return ImmutableSet.copyOf(getIdsInternal(schema.asStruct()));
+  }
+
+  public static Set<Integer> getProjectedIds(Type type) {
+    if (type.isPrimitiveType()) {
       return ImmutableSet.of();
     }
-    return ImmutableSet.copyOf(visit(schema, new GetProjectedIds()));
+    return ImmutableSet.copyOf(getIdsInternal(type));
+  }
+
+  private static Set<Integer> getIdsInternal(Type type) {
+    return visit(type, new GetProjectedIds());
+  }
+
+  public static Types.StructType selectNot(Types.StructType struct, Set<Integer> fieldIds) {
+    Set<Integer> projectedIds = getIdsInternal(struct);
+    projectedIds.removeAll(fieldIds);
+    return select(struct, projectedIds);
   }
 
   public static Schema selectNot(Schema schema, Set<Integer> fieldIds) {
-    Set<Integer> projectedIds = getProjectedIds(schema);
+    Set<Integer> projectedIds = getIdsInternal(schema.asStruct());
     projectedIds.removeAll(fieldIds);
     return select(schema, projectedIds);
   }
@@ -184,6 +207,37 @@ public class TypeUtil {
     }
 
     return false;
+  }
+
+  /**
+   * Check whether we could write the iceberg table with the user-provided write schema.
+   *
+   * @param tableSchema      the table schema written in iceberg meta data.
+   * @param writeSchema      the user-provided write schema.
+   * @param checkNullability If true, not allow to write optional values to a required field.
+   * @param checkOrdering    If true, not allow input schema to have different ordering than table schema.
+   */
+  public static void validateWriteSchema(Schema tableSchema, Schema writeSchema,
+                                         Boolean checkNullability, Boolean checkOrdering) {
+    List<String> errors;
+    if (checkNullability) {
+      errors = CheckCompatibility.writeCompatibilityErrors(tableSchema, writeSchema, checkOrdering);
+    } else {
+      errors = CheckCompatibility.typeCompatibilityErrors(tableSchema, writeSchema, checkOrdering);
+    }
+
+    if (!errors.isEmpty()) {
+      StringBuilder sb = new StringBuilder();
+      sb.append("Cannot write incompatible dataset to table with schema:\n")
+          .append(tableSchema)
+          .append("\nwrite schema:")
+          .append(writeSchema)
+          .append("\nProblems:");
+      for (String error : errors) {
+        sb.append("\n* ").append(error);
+      }
+      throw new IllegalArgumentException(sb.toString());
+    }
   }
 
   /**

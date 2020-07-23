@@ -110,9 +110,17 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       throw new NoSuchTableException("No such table: " + identifier);
     }
 
-    String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
     Map<String, String> tableProperties = properties != null ? properties : Maps.newHashMap();
-    TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, baseLocation, tableProperties);
+
+    TableMetadata metadata;
+    if (ops.current() != null) {
+      String baseLocation = location != null ? location : ops.current().location();
+      metadata = ops.current().buildReplacement(schema, spec, baseLocation, tableProperties);
+    } else {
+      String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
+      metadata = TableMetadata.newTableMetadata(schema, spec, baseLocation, tableProperties);
+    }
+
     if (orCreate) {
       return Transactions.createOrReplaceTableTransaction(identifier.toString(), ops, metadata);
     } else {
@@ -244,7 +252,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         .onFailure((list, exc) -> LOG.warn("Delete failed for manifest list: {}", list, exc))
         .run(io::deleteFile);
 
-    Tasks.foreach(metadata.file().location())
+    Tasks.foreach(metadata.metadataFileLocation())
         .noRetry().suppressFailureWhenFinished()
         .onFailure((list, exc) -> LOG.warn("Delete failed for metadata file: {}", list, exc))
         .run(io::deleteFile);
@@ -262,7 +270,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         .executeWith(ThreadPools.getWorkerPool())
         .onFailure((item, exc) -> LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
         .run(manifest -> {
-          try (ManifestReader reader = ManifestFiles.read(manifest, io)) {
+          try (ManifestReader<?> reader = ManifestFiles.open(manifest, io)) {
             for (ManifestEntry<?> entry : reader.entries()) {
               // intern the file path because the weak key map uses identity (==) instead of equals
               String path = entry.file().path().toString().intern();
@@ -282,7 +290,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         });
   }
 
-  private static String fullTableName(String catalogName, TableIdentifier identifier) {
+  protected static String fullTableName(String catalogName, TableIdentifier identifier) {
     StringBuilder sb = new StringBuilder();
 
     if (catalogName.contains("/") || catalogName.contains(":")) {

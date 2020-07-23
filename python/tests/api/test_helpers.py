@@ -74,7 +74,7 @@ class TestHelpers(object):
             return None
 
 
-class TestDataFile(DataFile):
+class MockDataFile(DataFile):
 
     def __init__(self, path, partition, record_count, value_counts=None, null_value_counts=None,
                  lower_bounds=None, upper_bounds=None):

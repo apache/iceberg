@@ -20,7 +20,7 @@
 ![](site/docs/img/Iceberg-logo.png)
 
 [![](https://travis-ci.org/apache/iceberg.svg?branch=master)](https://travis-ci.org/apache/iceberg)
-[![](https://badges.gitter.im/iceberg-tables/Lobby.svg)](https://gitter.im/iceberg-tables/Lobby)
+[![Slack](https://img.shields.io/badge/chat-on%20Slack-brightgreen.svg)](https://the-asf.slack.com/archives/CF01LKV9S)
 
 Apache Iceberg is a new table format for storing large, slow-moving tabular data. It is designed to improve on the de-facto standard table layout built into Hive, Presto, and Spark.
 
@@ -31,7 +31,7 @@ Background and documentation is available at <https://iceberg.apache.org>
 
 Iceberg is under active development at the Apache Software Foundation.
 
-The core Java library that tracks table snapshots and metadata is complete, but still evolving. Current work is focused on integrating Iceberg into Spark and Presto.
+The core Java library that tracks table snapshots and metadata is complete, but still evolving. Current work is focused on adding row-level deletes and upserts, and integration work with new engines like Flink and Hive.
 
 The [Iceberg format specification][iceberg-spec] is being actively updated and is open for comment. Until the specification is complete and released, it carries no compatibility guarantees. The spec is currently evolving as the Java reference implementation changes.
 
@@ -52,7 +52,7 @@ Community discussions happen primarily on the [dev mailing list][dev-list] or on
 
 ### Building
 
-Iceberg is built using Gradle 5.4.1 with Java 1.8.
+Iceberg is built using Gradle 5.4.1 with Java 1.8 or Java 11.
 
 * To invoke a build and run tests: `./gradlew build`
 * To skip tests: `./gradlew build -x test`
@@ -63,24 +63,26 @@ Iceberg table support is organized in library modules:
 * `iceberg-api` contains the public Iceberg API
 * `iceberg-core` contains implementations of the Iceberg API and support for Avro data files, **this is what processing engines should depend on**
 * `iceberg-parquet` is an optional module for working with tables backed by Parquet files
-* `iceberg-orc` is an optional module for working with tables backed by ORC files (*experimental*)
+* `iceberg-arrow` is an optional module for reading Parquet into Arrow memory
+* `iceberg-orc` is an optional module for working with tables backed by ORC files
 * `iceberg-hive` is an implementation of iceberg tables backed by hive metastore thrift client
+* `iceberg-data` is an optional module for working with tables directly from JVM applications
 
 This project Iceberg also has modules for adding Iceberg support to processing engines:
 
-* `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg (use iceberg-runtime for a shaded version)
-* `iceberg-data` is a client library used to read Iceberg tables from JVM applications
+* `iceberg-spark2` is an implementation of Spark's Datasource V2 API in 2.4 for Iceberg (use iceberg-spark-runtime for a shaded version)
+* `iceberg-spark3` is an implementation of Spark's Datasource V2 API in 3.0 for Iceberg (use iceberg-spark3-runtime for a shaded version)
+* `iceberg-flink` contains classes for integrating with Apache Flink
+* `iceberg-mr` contains an InputFormat and other classes for integrating with Apache Hive
 * `iceberg-pig` is an implementation of Pig's LoadFunc API for Iceberg
 
 ### Compatibility
 
-Iceberg's Spark integration is compatible with the following Spark versions:
+Iceberg's Spark integration is compatible with Spark 2.4 and Spark 3.0 using the modules in the following table:
 
-| Iceberg version | Spark version |
-| --------------- | ------------- |
-| 0.2.0+ *        | 2.3.0         |
-| 0.3.0+ *        | 2.3.2         |
-| master branch   | 2.4.x         |
-
-An asterisk (*) refers to releases under the now deprecated [Netflix/iceberg](https://github.com/Netflix/iceberg) repo.
+| Iceberg version | Spark 2.4.x   | Spark 3.0.x    |
+| --------------- | ------------- | -------------- |
+| master branch   | spark-runtime | spark3-runtime |
+| 0.9.0           | spark-runtime | spark3-runtime |
+| 0.8.0           | spark-runtime |                |
 

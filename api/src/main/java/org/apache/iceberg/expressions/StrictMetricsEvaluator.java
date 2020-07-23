@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
@@ -41,21 +42,13 @@ import static org.apache.iceberg.expressions.Expressions.rewriteNot;
  * example, if a file's ts column has min X and max Y, this evaluator will return true for ts &lt; Y+1
  * but not for ts &lt; Y-1.
  * <p>
- * Files are passed to {@link #eval(DataFile)}, which returns true if all rows in the file must
+ * Files are passed to {@link #eval(ContentFile)}, which returns true if all rows in the file must
  * contain matching rows and false if the file may contain rows that do not match.
  */
 public class StrictMetricsEvaluator {
   private final Schema schema;
   private final StructType struct;
   private final Expression expr;
-  private transient ThreadLocal<MetricsEvalVisitor> visitors = null;
-
-  private MetricsEvalVisitor visitor() {
-    if (visitors == null) {
-      this.visitors = ThreadLocal.withInitial(MetricsEvalVisitor::new);
-    }
-    return visitors.get();
-  }
 
   public StrictMetricsEvaluator(Schema schema, Expression unbound) {
     this.schema = schema;
@@ -69,9 +62,9 @@ public class StrictMetricsEvaluator {
    * @param file a data file
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
-  public boolean eval(DataFile file) {
+  public boolean eval(ContentFile<?> file) {
     // TODO: detect the case where a column is missing from the file using file's max field id.
-    return visitor().eval(file);
+    return new MetricsEvalVisitor().eval(file);
   }
 
   private static final boolean ROWS_MUST_MATCH = true;
@@ -83,7 +76,7 @@ public class StrictMetricsEvaluator {
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
 
-    private boolean eval(DataFile file) {
+    private boolean eval(ContentFile<?> file) {
       if (file.recordCount() <= 0) {
         return ROWS_MUST_MATCH;
       }

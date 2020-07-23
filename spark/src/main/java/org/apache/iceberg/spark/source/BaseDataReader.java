@@ -19,9 +19,14 @@
 
 package org.apache.iceberg.spark.source;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Map;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.util.Utf8;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.encryption.EncryptedFiles;
@@ -32,16 +37,18 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.spark.rdd.InputFileBlockHolder;
-import org.apache.spark.sql.sources.v2.reader.InputPartitionReader;
+import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.unsafe.types.UTF8String;
 
 /**
- * Base class of readers of type {@link InputPartitionReader} to read data as objects of type @param &lt;T&gt;
+ * Base class of Spark readers.
  *
  * @param <T> is the Java class returned by this reader whose objects contain one or more rows.
  */
-@SuppressWarnings("checkstyle:VisibilityModifier")
-abstract class BaseDataReader<T> implements InputPartitionReader<T> {
+abstract class BaseDataReader<T> implements Closeable {
   private final Iterator<FileScanTask> tasks;
   private final FileIO fileIo;
   private final Map<String, InputFile> inputFiles;
@@ -64,7 +71,6 @@ abstract class BaseDataReader<T> implements InputPartitionReader<T> {
     this.currentIterator = CloseableIterator.empty();
   }
 
-  @Override
   public boolean next() throws IOException {
     while (true) {
       if (currentIterator.hasNext()) {
@@ -79,14 +85,12 @@ abstract class BaseDataReader<T> implements InputPartitionReader<T> {
     }
   }
 
-  @Override
   public T get() {
     return current;
   }
 
   abstract CloseableIterator<T> open(FileScanTask task);
 
-  @Override
   public void close() throws IOException {
     InputFileBlockHolder.unset();
 
@@ -102,5 +106,33 @@ abstract class BaseDataReader<T> implements InputPartitionReader<T> {
   InputFile getInputFile(FileScanTask task) {
     Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
     return inputFiles.get(task.file().path().toString());
+  }
+
+  protected static Object convertConstant(Type type, Object value) {
+    if (value == null) {
+      return null;
+    }
+
+    switch (type.typeId()) {
+      case DECIMAL:
+        return Decimal.apply((BigDecimal) value);
+      case STRING:
+        if (value instanceof Utf8) {
+          Utf8 utf8 = (Utf8) value;
+          return UTF8String.fromBytes(utf8.getBytes(), 0, utf8.getByteLength());
+        }
+        return UTF8String.fromString(value.toString());
+      case FIXED:
+        if (value instanceof byte[]) {
+          return value;
+        } else if (value instanceof GenericData.Fixed) {
+          return ((GenericData.Fixed) value).bytes();
+        }
+        return ByteBuffers.toByteArray((ByteBuffer) value);
+      case BINARY:
+        return ByteBuffers.toByteArray((ByteBuffer) value);
+      default:
+    }
+    return value;
   }
 }

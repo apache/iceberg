@@ -23,6 +23,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.io.StringWriter;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -33,7 +34,6 @@ import java.util.SortedSet;
 import java.util.UUID;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -138,43 +138,6 @@ public class TestTableMetadata {
   }
 
   @Test
-  public void testFromJsonSortsSnapshotLog() throws Exception {
-    long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
-    Snapshot previousSnapshot = new BaseSnapshot(
-        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
-    long currentSnapshotId = System.currentTimeMillis();
-    Snapshot currentSnapshot = new BaseSnapshot(
-        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
-        new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
-
-    List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
-
-    TableMetadata expected = new TableMetadata(null, 1, UUID.randomUUID().toString(), TEST_LOCATION,
-        0, System.currentTimeMillis(), 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5),
-        ImmutableMap.of("property", "value"), currentSnapshotId,
-        Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog, ImmutableList.of());
-
-    // add the entries after creating TableMetadata to avoid the sorted check
-    reversedSnapshotLog.add(
-        new SnapshotLogEntry(currentSnapshot.timestampMillis(), currentSnapshot.snapshotId()));
-    reversedSnapshotLog.add(
-        new SnapshotLogEntry(previousSnapshot.timestampMillis(), previousSnapshot.snapshotId()));
-
-    String asJson = TableMetadataParser.toJson(expected);
-    TableMetadata metadata = TableMetadataParser.fromJson(ops.io(), null,
-        JsonUtil.mapper().readValue(asJson, JsonNode.class));
-
-    List<SnapshotLogEntry> expectedSnapshotLog = ImmutableList.<SnapshotLogEntry>builder()
-        .add(new SnapshotLogEntry(previousSnapshot.timestampMillis(), previousSnapshot.snapshotId()))
-        .add(new SnapshotLogEntry(currentSnapshot.timestampMillis(), currentSnapshot.snapshotId()))
-        .build();
-
-    Assert.assertEquals("Snapshot logs should match",
-        expectedSnapshotLog, metadata.snapshotLog());
-  }
-
-  @Test
   public void testBackwardCompat() throws Exception {
     PartitionSpec spec = PartitionSpec.builderFor(TEST_SCHEMA).identity("x").withSpecId(6).build();
 
@@ -275,7 +238,7 @@ public class TestTableMetadata {
 
       generator.flush();
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write json for: %s", metadata);
+      throw new UncheckedIOException(String.format("Failed to write json for: %s", metadata), e);
     }
     return writer.toString();
   }
@@ -531,7 +494,7 @@ public class TestTableMetadata {
 
       generator.flush();
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write json for: %s", metadata);
+      throw new UncheckedIOException(String.format("Failed to write json for: %s", metadata), e);
     }
     return writer.toString();
   }

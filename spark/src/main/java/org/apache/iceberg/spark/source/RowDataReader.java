@@ -19,17 +19,14 @@
 
 package org.apache.iceberg.spark.source;
 
-import java.math.BigDecimal;
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.avro.generic.GenericData;
-import org.apache.avro.util.Utf8;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataTask;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
@@ -39,28 +36,26 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkAvroReader;
 import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.iceberg.spark.data.SparkParquetReaders;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
-import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.unsafe.types.UTF8String;
 import scala.collection.JavaConverters;
 
 class RowDataReader extends BaseDataReader<InternalRow> {
@@ -71,14 +66,16 @@ class RowDataReader extends BaseDataReader<InternalRow> {
 
   private final Schema tableSchema;
   private final Schema expectedSchema;
+  private final String nameMapping;
   private final boolean caseSensitive;
 
   RowDataReader(
-      CombinedScanTask task, Schema tableSchema, Schema expectedSchema, FileIO fileIo,
+      CombinedScanTask task, Schema tableSchema, Schema expectedSchema, String nameMapping, FileIO fileIo,
       EncryptionManager encryptionManager, boolean caseSensitive) {
     super(task, fileIo, encryptionManager);
     this.tableSchema = tableSchema;
     this.expectedSchema = expectedSchema;
+    this.nameMapping = nameMapping;
     this.caseSensitive = caseSensitive;
   }
 
@@ -138,12 +135,17 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       FileScanTask task,
       Schema projection,
       Map<Integer, ?> idToConstant) {
-    return Avro.read(location)
+    Avro.ReadBuilder builder = Avro.read(location)
         .reuseContainers()
         .project(projection)
         .split(task.start(), task.length())
-        .createReaderFunc(readSchema -> new SparkAvroReader(projection, readSchema, idToConstant))
-        .build();
+        .createReaderFunc(readSchema -> new SparkAvroReader(projection, readSchema, idToConstant));
+
+    if (nameMapping != null) {
+      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+    }
+
+    return builder.build();
   }
 
   private CloseableIterable<InternalRow> newParquetIterable(
@@ -151,13 +153,18 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       FileScanTask task,
       Schema readSchema,
       Map<Integer, ?> idToConstant) {
-    return Parquet.read(location)
-        .project(readSchema)
+    Parquet.ReadBuilder builder = Parquet.read(location)
         .split(task.start(), task.length())
+        .project(readSchema)
         .createReaderFunc(fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema, idToConstant))
         .filter(task.residual())
-        .caseSensitive(caseSensitive)
-        .build();
+        .caseSensitive(caseSensitive);
+
+    if (nameMapping != null) {
+      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+    }
+
+    return builder.build();
   }
 
   private CloseableIterable<InternalRow> newOrcIterable(
@@ -165,8 +172,10 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       FileScanTask task,
       Schema readSchema,
       Map<Integer, ?> idToConstant) {
+    Schema readSchemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(readSchema,
+        Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
     return ORC.read(location)
-        .project(readSchema)
+        .project(readSchemaWithoutConstantAndMetadataFields)
         .split(task.start(), task.length())
         .createReaderFunc(readOrcSchema -> new SparkOrcReader(readSchema, readOrcSchema, idToConstant))
         .filter(task.residual())
@@ -202,33 +211,5 @@ class RowDataReader extends BaseDataReader<InternalRow> {
     return UnsafeProjection.create(
         JavaConverters.asScalaBufferConverter(exprs).asScala().toSeq(),
         JavaConverters.asScalaBufferConverter(attrs).asScala().toSeq());
-  }
-
-  private static Object convertConstant(Type type, Object value) {
-    if (value == null) {
-      return null;
-    }
-
-    switch (type.typeId()) {
-      case DECIMAL:
-        return Decimal.apply((BigDecimal) value);
-      case STRING:
-        if (value instanceof Utf8) {
-          Utf8 utf8 = (Utf8) value;
-          return UTF8String.fromBytes(utf8.getBytes(), 0, utf8.getByteLength());
-        }
-        return UTF8String.fromString(value.toString());
-      case FIXED:
-        if (value instanceof byte[]) {
-          return value;
-        } else if (value instanceof GenericData.Fixed) {
-          return ((GenericData.Fixed) value).bytes();
-        }
-        return ByteBuffers.toByteArray((ByteBuffer) value);
-      case BINARY:
-        return ByteBuffers.toByteArray((ByteBuffer) value);
-      default:
-    }
-    return value;
   }
 }

@@ -46,9 +46,37 @@ Table table = catalog.createTable(name, schema, spec);
 The logs [schema](#create-a-schema) and [partition spec](#create-a-partition-spec) are created below.
 
 
+### Using a Hadoop catalog
+
+A Hadoop catalog doesn't need to connect to a Hive MetaStore, but can only be used with HDFS or similar file systems that support atomic rename. Concurrent writes with a Hadoop catalog are not safe with a local FS or S3. To create a Hadoop catalog:
+
+```java
+import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.hadoop.HadoopCatalog;
+
+Configuration conf = new Configuration();
+String warehousePath = "hdfs://host:8020/warehouse_path";
+HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+```
+
+Like the Hive catalog, `HadoopCatalog` implements `Catalog`, so it also has methods for working with tables, like `createTable`, `loadTable`, and `dropTable`.
+                                                                                       
+This example creates a table with Hadoop catalog:
+
+```java
+import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
+
+TableIdentifier name = TableIdentifier.of("logging", "logs");
+Table table = catalog.createTable(name, schema, spec);
+```
+
+The logs [schema](#create-a-schema) and [partition spec](#create-a-partition-spec) are created below.
+
+
 ### Using Hadoop tables
 
-Iceberg also supports tables that are stored in a directory in HDFS or the local file system. Directory tables don't support all catalog operations, like rename, so they use the `Tables` interface instead of `Catalog`.
+Iceberg also supports tables that are stored in a directory in HDFS. Concurrent writes with a Hadoop tables are not safe when stored in the local FS or S3. Directory tables don't support all catalog operations, like rename, so they use the `Tables` interface instead of `Catalog`.
 
 To create a table in HDFS, use `HadoopTables`:
 

@@ -58,13 +58,15 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
-public class TestPartitionValues {
+public abstract class TestPartitionValues {
   @Parameterized.Parameters
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] { "parquet" },
-        new Object[] { "avro" },
-        new Object[] { "orc" }
+        new Object[] { "parquet", false },
+        new Object[] { "parquet", true },
+        new Object[] { "avro", false },
+        new Object[] { "orc", false },
+        new Object[] { "orc", true }
     };
   }
 
@@ -111,9 +113,11 @@ public class TestPartitionValues {
   public TemporaryFolder temp = new TemporaryFolder();
 
   private final String format;
+  private final boolean vectorized;
 
-  public TestPartitionValues(String format) {
+  public TestPartitionValues(String format, boolean vectorized) {
     this.format = format;
+    this.vectorized = vectorized;
   }
 
   @Test
@@ -137,27 +141,23 @@ public class TestPartitionValues {
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
-    try {
-      df.select("id", "data").write()
-          .format("iceberg")
-          .mode("append")
-          .save(location.toString());
+    df.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(location.toString());
 
-      Dataset<Row> result = spark.read()
-          .format("iceberg")
-          .load(location.toString());
+    Dataset<Row> result = spark.read()
+        .format("iceberg")
+        .option("vectorization-enabled", String.valueOf(vectorized))
+        .load(location.toString());
 
-      List<SimpleRecord> actual = result
-          .orderBy("id")
-          .as(Encoders.bean(SimpleRecord.class))
-          .collectAsList();
+    List<SimpleRecord> actual = result
+        .orderBy("id")
+        .as(Encoders.bean(SimpleRecord.class))
+        .collectAsList();
 
-      Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
-      Assert.assertEquals("Result rows should match", expected, actual);
-
-    } finally {
-      TestTables.clearTables();
-    }
+    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
+    Assert.assertEquals("Result rows should match", expected, actual);
   }
 
   @Test
@@ -180,28 +180,24 @@ public class TestPartitionValues {
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
-    try {
-      df.select("data", "id").write()
-              .format("iceberg")
-              .mode("append")
-              .option("check-ordering", "false")
-              .save(location.toString());
+    df.select("data", "id").write()
+            .format("iceberg")
+            .mode("append")
+            .option("check-ordering", "false")
+            .save(location.toString());
 
-      Dataset<Row> result = spark.read()
-              .format("iceberg")
-              .load(location.toString());
+    Dataset<Row> result = spark.read()
+            .format("iceberg")
+            .option("vectorization-enabled", String.valueOf(vectorized))
+            .load(location.toString());
 
-      List<SimpleRecord> actual = result
-              .orderBy("id")
-              .as(Encoders.bean(SimpleRecord.class))
-              .collectAsList();
+    List<SimpleRecord> actual = result
+            .orderBy("id")
+            .as(Encoders.bean(SimpleRecord.class))
+            .collectAsList();
 
-      Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
-      Assert.assertEquals("Result rows should match", expected, actual);
-
-    } finally {
-      TestTables.clearTables();
-    }
+    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
+    Assert.assertEquals("Result rows should match", expected, actual);
   }
 
   @Test
@@ -224,29 +220,25 @@ public class TestPartitionValues {
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
-    try {
-      df.select("data", "id").write()
-              .format("iceberg")
-              .mode("append")
-              .option("check-ordering", "false")
-              .option("check-nullability", "false")
-              .save(location.toString());
+    df.select("data", "id").write()
+            .format("iceberg")
+            .mode("append")
+            .option("check-ordering", "false")
+            .option("check-nullability", "false")
+            .save(location.toString());
 
-      Dataset<Row> result = spark.read()
-              .format("iceberg")
-              .load(location.toString());
+    Dataset<Row> result = spark.read()
+            .format("iceberg")
+            .option("vectorization-enabled", String.valueOf(vectorized))
+            .load(location.toString());
 
-      List<SimpleRecord> actual = result
-              .orderBy("id")
-              .as(Encoders.bean(SimpleRecord.class))
-              .collectAsList();
+    List<SimpleRecord> actual = result
+            .orderBy("id")
+            .as(Encoders.bean(SimpleRecord.class))
+            .collectAsList();
 
-      Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
-      Assert.assertEquals("Result rows should match", expected, actual);
-
-    } finally {
-      TestTables.clearTables();
-    }
+    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
+    Assert.assertEquals("Result rows should match", expected, actual);
   }
 
   @Test
@@ -276,41 +268,40 @@ public class TestPartitionValues {
         .appendFile(DataFiles.fromInputFile(Files.localInput(avroData), 10))
         .commit();
 
-    Dataset<Row> sourceDF = spark.read().format("iceberg").load(sourceLocation);
+    Dataset<Row> sourceDF = spark.read().format("iceberg")
+        .option("vectorization-enabled", String.valueOf(vectorized))
+        .load(sourceLocation);
 
-    try {
-      for (String column : columnNames) {
-        String desc = "partition_by_" + SUPPORTED_PRIMITIVES.findType(column).toString();
+    for (String column : columnNames) {
+      String desc = "partition_by_" + SUPPORTED_PRIMITIVES.findType(column).toString();
 
-        File parent = temp.newFolder(desc);
-        File location = new File(parent, "test");
-        File dataFolder = new File(location, "data");
-        Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
+      File parent = temp.newFolder(desc);
+      File location = new File(parent, "test");
+      File dataFolder = new File(location, "data");
+      Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
 
-        PartitionSpec spec = PartitionSpec.builderFor(SUPPORTED_PRIMITIVES).identity(column).build();
+      PartitionSpec spec = PartitionSpec.builderFor(SUPPORTED_PRIMITIVES).identity(column).build();
 
-        Table table = tables.create(SUPPORTED_PRIMITIVES, spec, location.toString());
-        table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
+      Table table = tables.create(SUPPORTED_PRIMITIVES, spec, location.toString());
+      table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
 
-        sourceDF.write()
-            .format("iceberg")
-            .mode("append")
-            .save(location.toString());
+      sourceDF.write()
+          .format("iceberg")
+          .mode("append")
+          .save(location.toString());
 
-        List<Row> actual = spark.read()
-            .format("iceberg")
-            .load(location.toString())
-            .collectAsList();
+      List<Row> actual = spark.read()
+          .format("iceberg")
+          .option("vectorization-enabled", String.valueOf(vectorized))
+          .load(location.toString())
+          .collectAsList();
 
-        Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
+      Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
 
-        for (int i = 0; i < expected.size(); i += 1) {
-          TestHelpers.assertEqualsSafe(
-              SUPPORTED_PRIMITIVES.asStruct(), expected.get(i), actual.get(i));
-        }
+      for (int i = 0; i < expected.size(); i += 1) {
+        TestHelpers.assertEqualsSafe(
+            SUPPORTED_PRIMITIVES.asStruct(), expected.get(i), actual.get(i));
       }
-    } finally {
-      TestTables.clearTables();
     }
   }
 
@@ -342,41 +333,40 @@ public class TestPartitionValues {
         .appendFile(DataFiles.fromInputFile(Files.localInput(avroData), 10))
         .commit();
 
-    Dataset<Row> sourceDF = spark.read().format("iceberg").load(sourceLocation);
+    Dataset<Row> sourceDF = spark.read().format("iceberg")
+        .option("vectorization-enabled", String.valueOf(vectorized))
+        .load(sourceLocation);
 
-    try {
-      for (String column : columnNames) {
-        String desc = "partition_by_" + SUPPORTED_PRIMITIVES.findType(column).toString();
+    for (String column : columnNames) {
+      String desc = "partition_by_" + SUPPORTED_PRIMITIVES.findType(column).toString();
 
-        File parent = temp.newFolder(desc);
-        File location = new File(parent, "test");
-        File dataFolder = new File(location, "data");
-        Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
+      File parent = temp.newFolder(desc);
+      File location = new File(parent, "test");
+      File dataFolder = new File(location, "data");
+      Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
 
-        PartitionSpec spec = PartitionSpec.builderFor(nestedSchema).identity("nested." + column).build();
+      PartitionSpec spec = PartitionSpec.builderFor(nestedSchema).identity("nested." + column).build();
 
-        Table table = tables.create(nestedSchema, spec, location.toString());
-        table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
+      Table table = tables.create(nestedSchema, spec, location.toString());
+      table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
 
-        sourceDF.write()
-            .format("iceberg")
-            .mode("append")
-            .save(location.toString());
+      sourceDF.write()
+          .format("iceberg")
+          .mode("append")
+          .save(location.toString());
 
-        List<Row> actual = spark.read()
-            .format("iceberg")
-            .load(location.toString())
-            .collectAsList();
+      List<Row> actual = spark.read()
+          .format("iceberg")
+          .option("vectorization-enabled", String.valueOf(vectorized))
+          .load(location.toString())
+          .collectAsList();
 
-        Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
+      Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
 
-        for (int i = 0; i < expected.size(); i += 1) {
-          TestHelpers.assertEqualsSafe(
-              nestedSchema.asStruct(), expected.get(i), actual.get(i));
-        }
+      for (int i = 0; i < expected.size(); i += 1) {
+        TestHelpers.assertEqualsSafe(
+            nestedSchema.asStruct(), expected.get(i), actual.get(i));
       }
-    } finally {
-      TestTables.clearTables();
     }
   }
 
@@ -426,6 +416,7 @@ public class TestPartitionValues {
     // verify
     List<Row> actual = spark.read()
         .format("iceberg")
+        .option("vectorization-enabled", String.valueOf(vectorized))
         .load(baseLocation)
         .collectAsList();
 

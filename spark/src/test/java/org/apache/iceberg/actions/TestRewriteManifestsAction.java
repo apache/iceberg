@@ -34,17 +34,15 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTableUtil;
+import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
-import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -54,7 +52,7 @@ import org.junit.runners.Parameterized;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 @RunWith(Parameterized.class)
-public class TestRewriteManifestsAction {
+public abstract class TestRewriteManifestsAction extends SparkTestBase {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA = new Schema(
@@ -63,28 +61,12 @@ public class TestRewriteManifestsAction {
       optional(3, "c3", Types.StringType.get())
   );
 
-  private static SparkSession spark;
-
   @Parameterized.Parameters
   public static Object[][] parameters() {
     return new Object[][] {
         new Object[] { "true" },
         new Object[] { "false" }
     };
-  }
-
-  @BeforeClass
-  public static void startSpark() {
-    TestRewriteManifestsAction.spark = SparkSession.builder()
-        .master("local[2]")
-        .getOrCreate();
-  }
-
-  @AfterClass
-  public static void stopSpark() {
-    SparkSession currentSpark = TestRewriteManifestsAction.spark;
-    TestRewriteManifestsAction.spark = null;
-    currentSpark.stop();
   }
 
   @Rule
@@ -123,7 +105,7 @@ public class TestRewriteManifestsAction {
   }
 
   @Test
-  public void testRewriteSmallManifestsNonPartitionedTable() throws IOException {
+  public void testRewriteSmallManifestsNonPartitionedTable() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
     options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
@@ -177,7 +159,7 @@ public class TestRewriteManifestsAction {
   }
 
   @Test
-  public void testRewriteSmallManifestsPartitionedTable() throws IOException {
+  public void testRewriteSmallManifestsPartitionedTable() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
         .identity("c1")
         .truncate("c2", 2)

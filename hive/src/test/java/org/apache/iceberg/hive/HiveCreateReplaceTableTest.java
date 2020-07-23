@@ -155,7 +155,7 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
     txn.commitTransaction();
 
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
-    Assert.assertEquals("Partition spec should match", PartitionSpec.unpartitioned(), table.spec());
+    Assert.assertEquals("Partition spec should be unpartitioned", 0, table.spec().fields().size());
   }
 
   @Test
@@ -233,7 +233,7 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
     txn.commitTransaction();
 
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
-    Assert.assertEquals("Partition spec should match", PartitionSpec.unpartitioned(), table.spec());
+    Assert.assertEquals("Partition spec should be unpartitioned", 0, table.spec().fields().size());
   }
 
   @Test
