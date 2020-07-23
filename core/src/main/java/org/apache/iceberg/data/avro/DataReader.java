@@ -126,7 +126,6 @@ public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
     @Override
     public ValueReader<?> record(Types.StructType struct, Schema record,
                                  List<String> names, List<ValueReader<?>> fields) {
-
       return createStructReader(struct, fields, idToConstant);
     }
 
