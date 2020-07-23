@@ -89,9 +89,9 @@ public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
     }
 
     @Override
-    public ValueReader<?> record(Types.StructType struct, Schema record,
+    public ValueReader<?> record(Type struct, Schema record,
                                  List<String> names, List<ValueReader<?>> fields) {
-      return createStructReader(struct, fields, idToConstant);
+      return createStructReader(struct.asStructType(), fields, idToConstant);
     }
 
     @Override
@@ -100,22 +100,22 @@ public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
     }
 
     @Override
-    public ValueReader<?> array(Types.ListType ignored, Schema array, ValueReader<?> elementReader) {
+    public ValueReader<?> array(Type ignored, Schema array, ValueReader<?> elementReader) {
       return ValueReaders.array(elementReader);
     }
 
     @Override
-    public ValueReader<?> map(Types.MapType iMap, Schema map, ValueReader<?> keyReader, ValueReader<?> valueReader) {
+    public ValueReader<?> map(Type iMap, Schema map, ValueReader<?> keyReader, ValueReader<?> valueReader) {
       return ValueReaders.arrayMap(keyReader, valueReader);
     }
 
     @Override
-    public ValueReader<?> map(Types.MapType ignored, Schema map, ValueReader<?> valueReader) {
+    public ValueReader<?> map(Type ignored, Schema map, ValueReader<?> valueReader) {
       return ValueReaders.map(ValueReaders.strings(), valueReader);
     }
 
     @Override
-    public ValueReader<?> primitive(Type.PrimitiveType ignored, Schema primitive) {
+    public ValueReader<?> primitive(Type ignored, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
         switch (logicalType.getName()) {

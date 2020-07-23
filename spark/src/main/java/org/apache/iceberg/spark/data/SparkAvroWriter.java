@@ -20,9 +20,8 @@
 package org.apache.iceberg.spark.data;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
@@ -32,12 +31,9 @@ import org.apache.iceberg.avro.ValueWriter;
 import org.apache.iceberg.avro.ValueWriters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
-import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.ShortType;
-import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
 public class SparkAvroWriter implements DatumWriter<InternalRow> {
@@ -62,9 +58,8 @@ public class SparkAvroWriter implements DatumWriter<InternalRow> {
 
   private static class WriteBuilder extends AvroWithSparkSchemaVisitor<ValueWriter<?>> {
     @Override
-    public ValueWriter<?> record(StructType struct, Schema record, List<String> names, List<ValueWriter<?>> fields) {
-      List<DataType> types = Stream.of(struct.fields()).map(StructField::dataType).collect(Collectors.toList());
-      return SparkValueWriters.struct(fields, types);
+    public ValueWriter<?> record(DataType struct, Schema record, List<String> names, List<ValueWriter<?>> fields) {
+      return SparkValueWriters.struct(fields, Arrays.asList(structFieldTypes(struct)));
     }
 
     @Override
@@ -81,18 +76,18 @@ public class SparkAvroWriter implements DatumWriter<InternalRow> {
     }
 
     @Override
-    public ValueWriter<?> array(ArrayType sArray, Schema array, ValueWriter<?> elementWriter) {
-      return SparkValueWriters.array(elementWriter, sArray.elementType());
+    public ValueWriter<?> array(DataType sArray, Schema array, ValueWriter<?> elementWriter) {
+      return SparkValueWriters.array(elementWriter, arrayElementType(sArray));
     }
 
     @Override
-    public ValueWriter<?> map(MapType sMap, Schema map, ValueWriter<?> valueReader) {
-      return SparkValueWriters.map(SparkValueWriters.strings(), sMap.keyType(), valueReader, sMap.valueType());
+    public ValueWriter<?> map(DataType sMap, Schema map, ValueWriter<?> valueReader) {
+      return SparkValueWriters.map(SparkValueWriters.strings(), mapKeyType(sMap), valueReader, mapValueType(sMap));
     }
 
     @Override
-    public ValueWriter<?> map(MapType sMap, Schema map, ValueWriter<?> keyWriter, ValueWriter<?> valueWriter) {
-      return SparkValueWriters.arrayMap(keyWriter, sMap.keyType(), valueWriter, sMap.valueType());
+    public ValueWriter<?> map(DataType sMap, Schema map, ValueWriter<?> keyWriter, ValueWriter<?> valueWriter) {
+      return SparkValueWriters.arrayMap(keyWriter, mapKeyType(sMap), valueWriter, mapValueType(sMap));
     }
 
     @Override
