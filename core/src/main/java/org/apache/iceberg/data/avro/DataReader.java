@@ -158,21 +158,9 @@ public class DataReader<T> implements DatumReader<T> {
             return GenericReaders.timestamps();
 
           case "decimal":
-            ValueReader<byte[]> inner;
-            switch (primitive.getType()) {
-              case FIXED:
-                inner = ValueReaders.fixed(primitive.getFixedSize());
-                break;
-              case BYTES:
-                inner = ValueReaders.bytes();
-                break;
-              default:
-                throw new IllegalArgumentException(
-                    "Invalid primitive type for decimal: " + primitive.getType());
-            }
-
-            LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
-            return ValueReaders.decimal(inner, decimal.getScale());
+            return ValueReaders.decimal(
+                ValueReaders.decimalBytesReader(primitive),
+                ((LogicalTypes.Decimal) logicalType).getScale());
 
           case "uuid":
             return ValueReaders.uuids();
