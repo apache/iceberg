@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.avro;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
@@ -146,6 +147,7 @@ class AvroIO {
   }
 
   static long findStartingRowPos(Supplier<SeekableInputStream> open, long start) {
+    long totalRows = 0;
     try (SeekableInputStream in = open.get()) {
       // use a direct decoder that will not buffer so the position of the input stream is accurate
       BinaryDecoder decoder = DecoderFactory.get().directBinaryDecoder(in, null);
@@ -169,7 +171,6 @@ class AvroIO {
       // the while loop reads row counts and seeks past the block bytes until the next sync pos is >= start, which
       // indicates that the next sync is the start of the split.
       byte[] blockSync = new byte[16];
-      long totalRows = 0;
       long nextSyncPos = in.getPos();
 
       while (nextSyncPos < start) {
@@ -189,6 +190,9 @@ class AvroIO {
         nextSyncPos = in.getPos() + compressedBlockSize;
       }
 
+      return totalRows;
+
+    } catch (EOFException e) {
       return totalRows;
 
     } catch (IOException e) {

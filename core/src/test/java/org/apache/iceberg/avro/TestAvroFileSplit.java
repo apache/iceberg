@@ -162,6 +162,19 @@ public class TestAvroFileSplit {
     }
   }
 
+  @Test
+  public void testPosWithEOFSplit() throws IOException {
+    Schema projection = new Schema(
+        SCHEMA.columns().get(0),
+        MetadataColumns.ROW_POSITION,
+        SCHEMA.columns().get(1));
+
+    long end = file.getLength();
+
+    List<Record> records = readAvro(file, projection, end - 10, 10);
+    Assert.assertEquals("Should not read any records", 0, records.size());
+  }
+
   public List<Record> readAvro(InputFile in, Schema projection, long start, long length) throws IOException {
     try (AvroIterable<Record> reader = Avro.read(in)
         .createReaderFunc(DataReader::create)
