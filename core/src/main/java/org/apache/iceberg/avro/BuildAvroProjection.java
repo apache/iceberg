@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.Schema;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -48,6 +49,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
   }
 
   @Override
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Schema record(Schema record, List<String> names, Iterable<Schema.Field> schemaIterable) {
     Preconditions.checkArgument(
         current.isNestedType() && current.asNestedType().isStructType(),
@@ -93,7 +95,9 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
         updatedFields.add(avroField);
 
       } else {
-        Preconditions.checkArgument(field.isOptional(), "Missing required field: %s", field.name());
+        Preconditions.checkArgument(
+            field.isOptional() || field.fieldId() == MetadataColumns.ROW_POSITION.fieldId(),
+            "Missing required field: %s", field.name());
         // Create a field that will be defaulted to null. We assign a unique suffix to the field
         // to make sure that even if records in the file have the field it is not projected.
         Schema.Field newField = new Schema.Field(

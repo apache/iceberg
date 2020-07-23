@@ -19,15 +19,29 @@
 
 package org.apache.iceberg.avro;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.function.Supplier;
+import org.apache.avro.InvalidAvroMagicException;
 import org.apache.avro.file.SeekableInput;
+import org.apache.avro.io.BinaryDecoder;
+import org.apache.avro.io.DecoderFactory;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.DelegatingInputStream;
 import org.apache.iceberg.io.SeekableInputStream;
 
 class AvroIO {
+  private static final byte[] AVRO_MAGIC = new byte[] { 'O', 'b', 'j', 1 };
+  private static final ValueReader<byte[]> MAGIC_READER = ValueReaders.fixed(AVRO_MAGIC.length);
+  private static final ValueReader<Map<String, String>> META_READER = ValueReaders.map(
+      ValueReaders.strings(), ValueReaders.strings());
+  private static final ValueReader<byte[]> SYNC_READER = ValueReaders.fixed(16);
+
   private AvroIO() {
   }
 
@@ -129,6 +143,60 @@ class AvroIO {
     @Override
     public boolean markSupported() {
       return stream.markSupported();
+    }
+  }
+
+  static long findStartingRowPos(Supplier<SeekableInputStream> open, long start) {
+    long totalRows = 0;
+    try (SeekableInputStream in = open.get()) {
+      // use a direct decoder that will not buffer so the position of the input stream is accurate
+      BinaryDecoder decoder = DecoderFactory.get().directBinaryDecoder(in, null);
+
+      // an Avro file's layout looks like this:
+      //   header|block|block|...
+      // the header contains:
+      //   magic|string-map|sync
+      // each block consists of:
+      //   row-count|compressed-size-in-bytes|block-bytes|sync
+
+      // it is necessary to read the header here because this is the only way to get the expected file sync bytes
+      byte[] magic = MAGIC_READER.read(decoder, null);
+      if (!Arrays.equals(AVRO_MAGIC, magic)) {
+        throw new InvalidAvroMagicException("Not an Avro file");
+      }
+
+      META_READER.read(decoder, null); // ignore the file metadata, it isn't needed
+      byte[] fileSync = SYNC_READER.read(decoder, null);
+
+      // the while loop reads row counts and seeks past the block bytes until the next sync pos is >= start, which
+      // indicates that the next sync is the start of the split.
+      byte[] blockSync = new byte[16];
+      long nextSyncPos = in.getPos();
+
+      while (nextSyncPos < start) {
+        if (nextSyncPos != in.getPos()) {
+          in.seek(nextSyncPos);
+          SYNC_READER.read(decoder, blockSync);
+
+          if (!Arrays.equals(fileSync, blockSync)) {
+            throw new RuntimeIOException("Invalid sync at %s", nextSyncPos);
+          }
+        }
+
+        long rowCount = decoder.readLong();
+        long compressedBlockSize = decoder.readLong();
+
+        totalRows += rowCount;
+        nextSyncPos = in.getPos() + compressedBlockSize;
+      }
+
+      return totalRows;
+
+    } catch (EOFException e) {
+      return totalRows;
+
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to read stream while finding starting row position");
     }
   }
 }
