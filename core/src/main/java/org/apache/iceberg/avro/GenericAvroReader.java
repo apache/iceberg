@@ -20,9 +20,7 @@
 package org.apache.iceberg.avro;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
@@ -32,13 +30,10 @@ import org.apache.avro.io.Decoder;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.ResolvingDecoder;
 import org.apache.iceberg.common.DynClasses;
+import org.apache.iceberg.data.avro.DecoderResolver;
 import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 
 class GenericAvroReader<T> implements DatumReader<T> {
-
-  private static final ThreadLocal<Map<Schema, Map<Schema, ResolvingDecoder>>> DECODER_CACHES =
-      ThreadLocal.withInitial(() -> new MapMaker().weakKeys().makeMap());
 
   private final Schema readSchema;
   private ClassLoader loader = Thread.currentThread().getContextClassLoader();
@@ -66,26 +61,10 @@ class GenericAvroReader<T> implements DatumReader<T> {
 
   @Override
   public T read(T reuse, Decoder decoder) throws IOException {
-    ResolvingDecoder resolver = resolve(decoder);
+    ResolvingDecoder resolver = DecoderResolver.resolve(decoder, readSchema, fileSchema);
     T value = reader.read(resolver, reuse);
     resolver.drain();
     return value;
-  }
-
-  private ResolvingDecoder resolve(Decoder decoder) throws IOException {
-    Map<Schema, Map<Schema, ResolvingDecoder>> cache = DECODER_CACHES.get();
-    Map<Schema, ResolvingDecoder> fileSchemaToResolver = cache
-        .computeIfAbsent(readSchema, k -> new HashMap<>());
-
-    ResolvingDecoder resolver = fileSchemaToResolver.get(fileSchema);
-    if (resolver == null) {
-      resolver = newResolver();
-      fileSchemaToResolver.put(fileSchema, resolver);
-    }
-
-    resolver.configure(decoder);
-
-    return resolver;
   }
 
   private ResolvingDecoder newResolver() {
