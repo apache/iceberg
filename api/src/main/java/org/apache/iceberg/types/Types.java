@@ -208,8 +208,9 @@ public class Types {
   }
 
   public static class TimestampType extends PrimitiveType {
-    private static final TimestampType INSTANCE_WITH_ZONE = new TimestampType(true);
-    private static final TimestampType INSTANCE_WITHOUT_ZONE = new TimestampType(false);
+    private static final TimestampType INSTANCE_WITH_ZONE = new TimestampType(true, false);
+    private static final TimestampType INSTANCE_WITHOUT_ZONE = new TimestampType(false, false);
+    private static final TimestampType INSTANCE_SPARK_INT96 = new TimestampType(true, true);
 
     public static TimestampType withZone() {
       return INSTANCE_WITH_ZONE;
@@ -219,14 +220,28 @@ public class Types {
       return INSTANCE_WITHOUT_ZONE;
     }
 
-    private final boolean adjustToUTC;
+    /**
+     * @return Timestamp type (with timezone) represented as INT96. This is only added for compatibility reasons
+     * and can only be written using a Spark's ParquetWriteSupport. Writing this type should be avoided.
+     */
+    public static TimestampType asSparkInt96() {
+      return INSTANCE_SPARK_INT96;
+    }
 
-    private TimestampType(boolean adjustToUTC) {
+    private final boolean adjustToUTC;
+    private final boolean asSparkInt96;
+
+    private TimestampType(boolean adjustToUTC, boolean asSparkInt96) {
       this.adjustToUTC = adjustToUTC;
+      this.asSparkInt96 = asSparkInt96;
     }
 
     public boolean shouldAdjustToUTC() {
       return adjustToUTC;
+    }
+
+    public boolean shouldRepresentAsInt96() {
+      return asSparkInt96;
     }
 
     @Override
