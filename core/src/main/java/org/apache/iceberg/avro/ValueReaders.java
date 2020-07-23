@@ -586,8 +586,7 @@ public class ValueReaders {
           positionList.add(pos);
           constantList.add(idToConstant.get(field.fieldId()));
         } else if (field.fieldId() == MetadataColumns.ROW_POSITION.fieldId()) {
-          // replace the _pos field reader with a position reader
-          // only if the position reader is set and this is a top-level field
+          // track where the _pos field is located for setRowPositionSupplier
           this.posField = pos;
         }
       }
