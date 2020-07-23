@@ -17,53 +17,52 @@
  * under the License.
  */
 
-package org.apache.iceberg.tasks;
+package org.apache.iceberg.io;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.function.Function;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-public class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
-  private final Function<T, PartitionKey> keyGetter;
-  private final Map<PartitionKey, WrappedFileAppender> writers = Maps.newHashMap();
+public abstract class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
+  private final Map<PartitionKey, RollingFileAppender> writers = Maps.newHashMap();
 
   public PartitionedFanoutWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
-                                 OutputFileFactory fileFactory, FileIO io, long targetFileSize,
-                                 Function<T, PartitionKey> keyGetter) {
+                                 OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
-    this.keyGetter = keyGetter;
   }
+
+  /**
+   * Create a PartitionKey from the values in row.
+   * <p>
+   * Any PartitionKey returned by this method can be reused by the implementation.
+   *
+   * @param row a data row
+   */
+  protected abstract PartitionKey partition(T row);
 
   @Override
   public void write(T row) throws IOException {
-    PartitionKey partitionKey = keyGetter.apply(row);
+    PartitionKey partitionKey = partition(row);
 
-    WrappedFileAppender writer = writers.get(partitionKey);
+    RollingFileAppender writer = writers.get(partitionKey);
     if (writer == null) {
       // NOTICE: we need to copy a new partition key here, in case of messing up the keys in writers.
       PartitionKey copiedKey = partitionKey.copy();
-      writer = createWrappedFileAppender(copiedKey, () -> outputFileFactory().newOutputFile(partitionKey));
+      writer = new RollingFileAppender(copiedKey);
       writers.put(copiedKey, writer);
     }
-    writer.add(row);
 
-    // Close the writer if reach the target file size.
-    if (writer.shouldRollToNewFile()) {
-      writer.close();
-      writers.remove(partitionKey);
-    }
+    writer.add(row);
   }
 
   @Override
   public void close() throws IOException {
     if (!writers.isEmpty()) {
-      Iterator<WrappedFileAppender> iterator = writers.values().iterator();
+      Iterator<RollingFileAppender> iterator = writers.values().iterator();
       while (iterator.hasNext()) {
         iterator.next().close();
         // Remove from the writers after closed.

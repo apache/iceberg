@@ -35,15 +35,15 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.io.TaskWriter;
+import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.tasks.OutputFileFactory;
-import org.apache.iceberg.tasks.PartitionedWriter;
-import org.apache.iceberg.tasks.TaskWriter;
-import org.apache.iceberg.tasks.UnpartitionedWriter;
 import org.apache.spark.TaskContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -96,8 +96,8 @@ public class RowDataRewriter implements Serializable {
     RowDataReader dataReader = new RowDataReader(
         task, schema, schema, nameMapping, io.value(), encryptionManager.value(), caseSensitive);
 
-    SparkAppenderFactory appenderFactory = new SparkAppenderFactory(
-        properties, schema, SparkSchemaUtil.convert(schema));
+    StructType structType = SparkSchemaUtil.convert(schema);
+    SparkAppenderFactory appenderFactory = new SparkAppenderFactory(properties, schema, structType);
     OutputFileFactory fileFactory = new OutputFileFactory(
         spec, format, locations, io.value(), encryptionManager.value(), partitionId, taskId);
 
@@ -105,8 +105,8 @@ public class RowDataRewriter implements Serializable {
     if (spec.fields().isEmpty()) {
       writer = new UnpartitionedWriter<>(spec, format, appenderFactory, fileFactory, io.value(), Long.MAX_VALUE);
     } else {
-      writer = new PartitionedWriter<>(spec, format, appenderFactory, fileFactory, io.value(), Long.MAX_VALUE,
-          WriterUtil.buildKeyGetter(spec, schema));
+      writer = new SparkPartitionedWriter(spec, format, appenderFactory, fileFactory, io.value(), Long.MAX_VALUE,
+          schema, structType);
     }
 
     try {

@@ -22,7 +22,6 @@ package org.apache.iceberg.flink;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
-import java.util.function.Function;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
@@ -33,27 +32,17 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.flink.data.FlinkAvroWriter;
 import org.apache.iceberg.flink.data.FlinkParquetWriters;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.io.PartitionedFanoutWriter;
+import org.apache.iceberg.io.TaskWriter;
+import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.tasks.FileAppenderFactory;
-import org.apache.iceberg.tasks.OutputFileFactory;
-import org.apache.iceberg.tasks.PartitionedFanoutWriter;
-import org.apache.iceberg.tasks.TaskWriter;
-import org.apache.iceberg.tasks.UnpartitionedWriter;
 
 public class TaskWriterFactory {
   private TaskWriterFactory() {
-  }
-
-  private static Function<Row, PartitionKey> buildKeyGetter(PartitionSpec spec, Schema schema) {
-    PartitionKey partitionKey = new PartitionKey(spec, schema);
-    RowWrapper rowWrapper = new RowWrapper(schema.asStruct());
-
-    return row -> {
-      partitionKey.partition(rowWrapper.wrap(row));
-      return partitionKey;
-    };
   }
 
   public static TaskWriter<Row> createTaskWriter(Schema schema,
@@ -66,9 +55,27 @@ public class TaskWriterFactory {
     if (spec.fields().isEmpty()) {
       return new UnpartitionedWriter<>(spec, format, appenderFactory, fileFactory, io, targetFileSizeBytes);
     } else {
-      Function<Row, PartitionKey> keyGetter = buildKeyGetter(spec, schema);
-      return new PartitionedFanoutWriter<>(spec, format, appenderFactory, fileFactory, io,
-          targetFileSizeBytes, keyGetter);
+      return new RowPartitionedFanoutWriter(spec, format, appenderFactory, fileFactory,
+          io, targetFileSizeBytes, schema);
+    }
+  }
+
+  static class RowPartitionedFanoutWriter extends PartitionedFanoutWriter<Row> {
+
+    private final PartitionKey partitionKey;
+    private final RowWrapper rowWrapper;
+
+    RowPartitionedFanoutWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<Row> appenderFactory,
+                               OutputFileFactory fileFactory, FileIO io, long targetFileSize, Schema schema) {
+      super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+      this.partitionKey = new PartitionKey(spec, schema);
+      this.rowWrapper = new RowWrapper(schema.asStruct());
+    }
+
+    @Override
+    protected PartitionKey partition(Row row) {
+      partitionKey.partition(rowWrapper.wrap(row));
+      return partitionKey;
     }
   }
 

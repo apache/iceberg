@@ -17,16 +17,15 @@
  * under the License.
  */
 
-package org.apache.iceberg.tasks;
+package org.apache.iceberg.io;
 
 import java.io.IOException;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.io.FileIO;
 
 public class UnpartitionedWriter<T> extends BaseTaskWriter<T> {
 
-  private WrappedFileAppender currentAppender = null;
+  private RollingFileAppender currentAppender = null;
 
   public UnpartitionedWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
                              OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
@@ -36,14 +35,9 @@ public class UnpartitionedWriter<T> extends BaseTaskWriter<T> {
   @Override
   public void write(T record) throws IOException {
     if (currentAppender == null) {
-      currentAppender = createWrappedFileAppender(null, outputFileFactory()::newOutputFile);
+      currentAppender = new RollingFileAppender(null);
     }
     currentAppender.add(record);
-
-    // Close the writer if reach the target file size.
-    if (currentAppender.shouldRollToNewFile()) {
-      closeCurrent();
-    }
   }
 
   @Override

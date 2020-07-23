@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.tasks;
+package org.apache.iceberg.io;
 
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -26,9 +26,6 @@ import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.LocationProvider;
-import org.apache.iceberg.io.OutputFile;
 
 public class OutputFileFactory {
   private final PartitionSpec spec;

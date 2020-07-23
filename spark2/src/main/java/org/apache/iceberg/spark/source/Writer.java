@@ -25,11 +25,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.Schema;
@@ -40,6 +38,8 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -270,7 +270,7 @@ class Writer implements DataSourceWriter {
         return new Unpartitioned24Writer(spec, format, appenderFactory, fileFactory, io.value(), targetFileSize);
       } else {
         return new Partitioned24Writer(spec, format, appenderFactory, fileFactory, io.value(),
-            targetFileSize, WriterUtil.buildKeyGetter(spec, writeSchema));
+            targetFileSize, writeSchema, dsSchema);
       }
     }
   }
@@ -291,11 +291,12 @@ class Writer implements DataSourceWriter {
     }
   }
 
-  private static class Partitioned24Writer extends PartitionedWriter<InternalRow> implements DataWriter<InternalRow> {
+  private static class Partitioned24Writer extends SparkPartitionedWriter implements DataWriter<InternalRow> {
+
     Partitioned24Writer(PartitionSpec spec, FileFormat format, SparkAppenderFactory appenderFactory,
                         OutputFileFactory fileFactory, FileIO fileIo, long targetFileSize,
-                        Function<InternalRow, PartitionKey> keyGetter) {
-      super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize, keyGetter);
+                        Schema schema, StructType sparkSchema) {
+      super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize, schema, sparkSchema);
     }
 
     @Override

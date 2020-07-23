@@ -25,12 +25,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.OverwriteFiles;
-import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.Schema;
@@ -42,6 +40,8 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -291,8 +291,7 @@ class SparkBatchWrite implements BatchWrite {
         return new Unpartitioned3Writer(spec, format, appenderFactory, fileFactory, io.value(), targetFileSize);
       } else {
         return new Partitioned3Writer(
-            spec, format, appenderFactory, fileFactory, io.value(), targetFileSize,
-            WriterUtil.buildKeyGetter(spec, writeSchema));
+            spec, format, appenderFactory, fileFactory, io.value(), targetFileSize, writeSchema, dsSchema);
       }
     }
   }
@@ -313,12 +312,11 @@ class SparkBatchWrite implements BatchWrite {
     }
   }
 
-  private static class Partitioned3Writer extends PartitionedWriter<InternalRow>
-      implements DataWriter<InternalRow> {
+  private static class Partitioned3Writer extends SparkPartitionedWriter implements DataWriter<InternalRow> {
     Partitioned3Writer(PartitionSpec spec, FileFormat format, SparkAppenderFactory appenderFactory,
                        OutputFileFactory fileFactory, FileIO io, long targetFileSize,
-                       Function<InternalRow, PartitionKey> keyGetter) {
-      super(spec, format, appenderFactory, fileFactory, io, targetFileSize, keyGetter);
+                       Schema schema, StructType sparkSchema) {
+      super(spec, format, appenderFactory, fileFactory, io, targetFileSize, schema, sparkSchema);
     }
 
     @Override

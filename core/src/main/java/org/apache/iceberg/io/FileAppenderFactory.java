@@ -17,11 +17,9 @@
  * under the License.
  */
 
-package org.apache.iceberg.tasks;
+package org.apache.iceberg.io;
 
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.io.OutputFile;
 
 /**
  * Factory to create a new {@link FileAppender} to write records.

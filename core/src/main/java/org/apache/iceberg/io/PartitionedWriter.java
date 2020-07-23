@@ -17,39 +17,43 @@
  * under the License.
  */
 
-package org.apache.iceberg.tasks;
+package org.apache.iceberg.io;
 
 import java.io.IOException;
 import java.util.Set;
-import java.util.function.Function;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class PartitionedWriter<T> extends BaseTaskWriter<T> {
+public abstract class PartitionedWriter<T> extends BaseTaskWriter<T> {
   private static final Logger LOG = LoggerFactory.getLogger(PartitionedWriter.class);
 
-  private final Function<T, PartitionKey> keyGetter;
   private final Set<PartitionKey> completedPartitions = Sets.newHashSet();
 
   private PartitionKey currentKey = null;
-  private WrappedFileAppender currentAppender = null;
+  private RollingFileAppender currentAppender = null;
 
   public PartitionedWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
-                           OutputFileFactory fileFactory, FileIO io, long targetFileSize,
-                           Function<T, PartitionKey> keyGetter) {
+                           OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
-    this.keyGetter = keyGetter;
   }
+
+  /**
+   * Create a PartitionKey from the values in row.
+   * <p>
+   * Any PartitionKey returned by this method can be reused by the implementation.
+   *
+   * @param row a data row
+   */
+  protected abstract PartitionKey partition(T row);
 
   @Override
   public void write(T row) throws IOException {
-    PartitionKey key = keyGetter.apply(row);
+    PartitionKey key = partition(row);
 
     if (!key.equals(currentKey)) {
       closeCurrent();
@@ -66,13 +70,10 @@ public class PartitionedWriter<T> extends BaseTaskWriter<T> {
     }
 
     if (currentAppender == null) {
-      currentAppender = createWrappedFileAppender(currentKey, () -> outputFileFactory().newOutputFile(currentKey));
+      currentAppender = new RollingFileAppender(currentKey);
     }
 
     currentAppender.add(row);
-    if (currentAppender.shouldRollToNewFile()) {
-      closeCurrent();
-    }
   }
 
   @Override
@@ -83,7 +84,7 @@ public class PartitionedWriter<T> extends BaseTaskWriter<T> {
   private void closeCurrent() throws IOException {
     if (currentAppender != null) {
 
-      // Close the current file appender and put the generated DataFile to completeDataFiles.
+      // Close the current file appender.
       currentAppender.close();
 
       // Reset the current appender to be null.

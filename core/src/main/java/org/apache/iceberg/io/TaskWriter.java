@@ -17,26 +17,36 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.source;
+package org.apache.iceberg.io;
 
-import java.util.function.Function;
-import org.apache.iceberg.PartitionKey;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.spark.sql.catalyst.InternalRow;
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.List;
+import org.apache.iceberg.DataFile;
 
-class WriterUtil {
-  private WriterUtil() {
-  }
+/**
+ * The writer interface could accept records and provide the generated data files.
+ *
+ * @param <T> to indicate the record data type.
+ */
+public interface TaskWriter<T> extends Closeable {
 
-  static Function<InternalRow, PartitionKey> buildKeyGetter(PartitionSpec spec, Schema schema) {
-    PartitionKey key = new PartitionKey(spec, schema);
-    InternalRowWrapper wrapper = new InternalRowWrapper(SparkSchemaUtil.convert(schema));
+  /**
+   * Write the row into the data files.
+   */
+  void write(T row) throws IOException;
 
-    return row -> {
-      key.partition(wrapper.wrap(row));
-      return key;
-    };
-  }
+  /**
+   * Close the writer and delete the completed files if possible when aborting.
+   *
+   * @throws IOException if any IO error happen.
+   */
+  void abort() throws IOException;
+
+  /**
+   * Close the writer and get the completed data files.
+   *
+   * @return the completed data files of this task writer.
+   */
+  List<DataFile> complete() throws IOException;
 }
