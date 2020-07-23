@@ -103,7 +103,7 @@ class TaskWriterFactory {
 
           case AVRO:
             return Avro.write(outputFile)
-                .createWriterFunc(FlinkAvroWriter::new)
+                .createWriterFunc(ignore -> new FlinkAvroWriter(FlinkSchemaUtil.convert(schema)))
                 .setAll(props)
                 .schema(schema)
                 .overwrite()

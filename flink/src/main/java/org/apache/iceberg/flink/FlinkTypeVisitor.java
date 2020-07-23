@@ -30,7 +30,7 @@ import org.apache.flink.table.types.logical.SymbolType;
 import org.apache.flink.table.types.logical.YearMonthIntervalType;
 import org.apache.flink.table.types.logical.ZonedTimestampType;
 
-abstract class FlinkTypeVisitor<T> implements LogicalTypeVisitor<T> {
+public abstract class FlinkTypeVisitor<T> implements LogicalTypeVisitor<T> {
 
   // ------------------------- Unsupported types ------------------------------
 
