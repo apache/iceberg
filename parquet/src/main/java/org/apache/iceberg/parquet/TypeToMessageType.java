@@ -137,7 +137,7 @@ public class TypeToMessageType {
       case TIME:
         return Types.primitive(INT64, repetition).as(TIME_MICROS).id(id).named(name);
       case TIMESTAMP:
-        final TimestampType timestampType = (TimestampType)primitive;
+        final TimestampType timestampType = (TimestampType) primitive;
         if (timestampType.shouldRepresentAsInt96()) {
           return Types.primitive(INT96, repetition).id(id).named(name);
         } else if (timestampType.shouldAdjustToUTC()) {
