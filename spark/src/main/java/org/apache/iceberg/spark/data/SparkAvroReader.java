@@ -27,7 +27,6 @@ import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
-import org.apache.avro.io.ResolvingDecoder;
 import org.apache.iceberg.avro.AvroSchemaWithTypeVisitor;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
@@ -62,10 +61,7 @@ public class SparkAvroReader implements DatumReader<InternalRow> {
 
   @Override
   public InternalRow read(InternalRow reuse, Decoder decoder) throws IOException {
-    ResolvingDecoder resolver = DecoderResolver.resolve(decoder, readSchema, fileSchema);
-    InternalRow row = reader.read(resolver, reuse);
-    resolver.drain();
-    return row;
+    return DecoderResolver.resolveAndRead(reader, reuse, decoder, readSchema, fileSchema);
   }
 
   private static class ReadBuilder extends AvroSchemaWithTypeVisitor<ValueReader<?>> {

@@ -27,11 +27,8 @@ import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
-import org.apache.avro.io.DecoderFactory;
-import org.apache.avro.io.ResolvingDecoder;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.data.avro.DecoderResolver;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 
 class GenericAvroReader<T> implements DatumReader<T> {
 
@@ -61,18 +58,7 @@ class GenericAvroReader<T> implements DatumReader<T> {
 
   @Override
   public T read(T reuse, Decoder decoder) throws IOException {
-    ResolvingDecoder resolver = DecoderResolver.resolve(decoder, readSchema, fileSchema);
-    T value = reader.read(resolver, reuse);
-    resolver.drain();
-    return value;
-  }
-
-  private ResolvingDecoder newResolver() {
-    try {
-      return DecoderFactory.get().resolvingDecoder(fileSchema, readSchema, null);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
+    return DecoderResolver.resolveAndRead(reader, reuse, decoder, readSchema, fileSchema);
   }
 
   private static class ReadBuilder extends AvroSchemaVisitor<ValueReader<?>> {

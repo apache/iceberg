@@ -26,30 +26,37 @@ import org.apache.avro.Schema;
 import org.apache.avro.io.Decoder;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.ResolvingDecoder;
+import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 
 /**
- * Resolver to resolve {@link Decoder} to a {@link ResolvingDecoder}.
- * This class uses a {@link ThreadLocal} for caching {@link ResolvingDecoder}.
+ * Resolver to resolve {@link Decoder} to a {@link ResolvingDecoder}. This class uses a {@link ThreadLocal} for caching
+ * {@link ResolvingDecoder}.
  */
 public class DecoderResolver {
-
-  private DecoderResolver() {}
 
   private static final ThreadLocal<Map<Schema, Map<Schema, ResolvingDecoder>>> DECODER_CACHES =
       ThreadLocal.withInitial(() -> new MapMaker().weakKeys().makeMap());
 
-  public static ResolvingDecoder resolve(Decoder decoder, Schema readSchema, Schema fileSchema) throws IOException {
+  private DecoderResolver() {}
+
+  public static <T> T resolveAndRead(ValueReader<T> reader, T reuse, Decoder decoder, Schema readSchema,
+      Schema fileSchema) throws IOException {
+    ResolvingDecoder resolver = DecoderResolver.resolve(decoder, readSchema, fileSchema);
+    T value = reader.read(resolver, reuse);
+    resolver.drain();
+    return value;
+  }
+
+  private static ResolvingDecoder resolve(Decoder decoder, Schema readSchema, Schema fileSchema) throws IOException {
     Map<Schema, Map<Schema, ResolvingDecoder>> cache = DECODER_CACHES.get();
     Map<Schema, ResolvingDecoder> fileSchemaToResolver = cache
         .computeIfAbsent(readSchema, k -> new HashMap<>());
 
-    ResolvingDecoder resolver = fileSchemaToResolver.get(fileSchema);
-    if (resolver == null) {
-      resolver = newResolver(readSchema, fileSchema);
-      fileSchemaToResolver.put(fileSchema, resolver);
-    }
+    ResolvingDecoder resolver = fileSchemaToResolver.computeIfAbsent(
+        fileSchema,
+        schema -> newResolver(readSchema, schema));
 
     resolver.configure(decoder);
 

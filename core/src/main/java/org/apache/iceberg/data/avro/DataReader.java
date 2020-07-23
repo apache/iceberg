@@ -28,7 +28,6 @@ import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
-import org.apache.avro.io.ResolvingDecoder;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.avro.AvroSchemaWithTypeVisitor;
 import org.apache.iceberg.avro.SupportsRowPosition;
@@ -67,10 +66,7 @@ public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
 
   @Override
   public T read(T reuse, Decoder decoder) throws IOException {
-    ResolvingDecoder resolver = DecoderResolver.resolve(decoder, readSchema, fileSchema);
-    T value = reader.read(resolver, reuse);
-    resolver.drain();
-    return value;
+    return DecoderResolver.resolveAndRead(reader, reuse, decoder, readSchema, fileSchema);
   }
 
   @Override
