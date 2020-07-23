@@ -70,7 +70,7 @@ class SparkAppenderFactory {
 
         case ORC:
           return ORC.write(file)
-              .createWriterFunc((schema, typeDesc) -> new SparkOrcWriter(typeDesc))
+              .createWriterFunc(SparkOrcWriter::new)
               .setAll(properties)
               .schema(writeSchema)
               .overwrite()
