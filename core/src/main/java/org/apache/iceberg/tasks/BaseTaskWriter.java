@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.taskio;
+package org.apache.iceberg.tasks;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -69,11 +69,11 @@ abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   }
 
   @Override
-  public List<DataFile> pollCompleteFiles() {
+  public List<DataFile> complete() throws IOException {
+    close();
+
     if (completedFiles.size() > 0) {
-      List<DataFile> dataFiles = ImmutableList.copyOf(completedFiles);
-      completedFiles.clear();
-      return dataFiles;
+      return ImmutableList.copyOf(completedFiles);
     } else {
       return Collections.emptyList();
     }

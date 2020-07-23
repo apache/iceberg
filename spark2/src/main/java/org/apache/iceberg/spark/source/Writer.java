@@ -43,9 +43,9 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.taskio.OutputFileFactory;
-import org.apache.iceberg.taskio.PartitionedWriter;
-import org.apache.iceberg.taskio.UnpartitionedWriter;
+import org.apache.iceberg.tasks.OutputFileFactory;
+import org.apache.iceberg.tasks.PartitionedWriter;
+import org.apache.iceberg.tasks.UnpartitionedWriter;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.broadcast.Broadcast;
@@ -286,7 +286,7 @@ class Writer implements DataSourceWriter {
     public WriterCommitMessage commit() throws IOException {
       this.close();
 
-      List<DataFile> dataFiles = pollCompleteFiles();
+      List<DataFile> dataFiles = complete();
       return new TaskCommit(new TaskResult(dataFiles));
     }
   }
@@ -302,7 +302,7 @@ class Writer implements DataSourceWriter {
     public WriterCommitMessage commit() throws IOException {
       this.close();
 
-      List<DataFile> dataFiles = pollCompleteFiles();
+      List<DataFile> dataFiles = complete();
       return new TaskCommit(new TaskResult(dataFiles));
     }
   }

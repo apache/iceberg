@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.taskio;
+package org.apache.iceberg.tasks;
 
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.io.FileAppender;
@@ -33,7 +33,7 @@ public interface FileAppenderFactory<T> {
   /**
    * Create a new {@link FileAppender}.
    *
-   * @param outputFile indicate the file location to write.
+   * @param outputFile an OutputFile used to create an output stream.
    * @param fileFormat File format.
    * @return a newly created {@link FileAppender}
    */

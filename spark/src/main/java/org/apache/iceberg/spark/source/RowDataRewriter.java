@@ -36,10 +36,10 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.taskio.OutputFileFactory;
-import org.apache.iceberg.taskio.PartitionedWriter;
-import org.apache.iceberg.taskio.TaskWriter;
-import org.apache.iceberg.taskio.UnpartitionedWriter;
+import org.apache.iceberg.tasks.OutputFileFactory;
+import org.apache.iceberg.tasks.PartitionedWriter;
+import org.apache.iceberg.tasks.TaskWriter;
+import org.apache.iceberg.tasks.UnpartitionedWriter;
 import org.apache.spark.TaskContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.broadcast.Broadcast;
@@ -119,7 +119,7 @@ public class RowDataRewriter implements Serializable {
       dataReader = null;
 
       writer.close();
-      return new TaskResult(writer.pollCompleteFiles());
+      return new TaskResult(writer.complete());
 
     } catch (Throwable originalThrowable) {
       try {

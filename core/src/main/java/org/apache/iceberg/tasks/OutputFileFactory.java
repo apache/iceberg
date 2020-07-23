@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.taskio;
+package org.apache.iceberg.tasks;
 
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;

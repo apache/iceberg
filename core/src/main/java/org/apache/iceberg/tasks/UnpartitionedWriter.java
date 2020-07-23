@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.taskio;
+package org.apache.iceberg.tasks;
 
 import java.io.IOException;
 import org.apache.iceberg.FileFormat;

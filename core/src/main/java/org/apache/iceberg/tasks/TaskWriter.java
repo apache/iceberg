@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.taskio;
+package org.apache.iceberg.tasks;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -44,10 +44,9 @@ public interface TaskWriter<T> extends Closeable {
   void abort() throws IOException;
 
   /**
-   * Get the completed data files and clear them from the cache. NOTICE: if call this method without
-   * {@link TaskWriter#close()} then the current opening data file won't be seen in the result list.
+   * Get the completed data files and clear them from the cache.
    *
-   * @return the cached completed data files of this task writer.
+   * @return the completed data files of this task writer.
    */
-  List<DataFile> pollCompleteFiles();
+  List<DataFile> complete() throws IOException;
 }

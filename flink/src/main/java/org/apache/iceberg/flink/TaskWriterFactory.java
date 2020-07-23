@@ -36,11 +36,11 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.taskio.FileAppenderFactory;
-import org.apache.iceberg.taskio.OutputFileFactory;
-import org.apache.iceberg.taskio.PartitionedFanoutWriter;
-import org.apache.iceberg.taskio.TaskWriter;
-import org.apache.iceberg.taskio.UnpartitionedWriter;
+import org.apache.iceberg.tasks.FileAppenderFactory;
+import org.apache.iceberg.tasks.OutputFileFactory;
+import org.apache.iceberg.tasks.PartitionedFanoutWriter;
+import org.apache.iceberg.tasks.TaskWriter;
+import org.apache.iceberg.tasks.UnpartitionedWriter;
 
 public class TaskWriterFactory {
   private TaskWriterFactory() {
