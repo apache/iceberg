@@ -58,7 +58,7 @@ class GenericAvroReader<T> implements DatumReader<T> {
 
   @Override
   public T read(T reuse, Decoder decoder) throws IOException {
-    return DecoderResolver.resolveAndRead(reader, reuse, decoder, readSchema, fileSchema);
+    return DecoderResolver.resolveAndRead(decoder, readSchema, fileSchema, reader, reuse);
   }
 
   private static class ReadBuilder extends AvroSchemaVisitor<ValueReader<?>> {

@@ -41,8 +41,8 @@ public class DecoderResolver {
 
   private DecoderResolver() {}
 
-  public static <T> T resolveAndRead(ValueReader<T> reader, T reuse, Decoder decoder, Schema readSchema,
-      Schema fileSchema) throws IOException {
+  public static <T> T resolveAndRead(
+      Decoder decoder, Schema readSchema, Schema fileSchema, ValueReader<T> reader, T reuse) throws IOException {
     ResolvingDecoder resolver = DecoderResolver.resolve(decoder, readSchema, fileSchema);
     T value = reader.read(resolver, reuse);
     resolver.drain();

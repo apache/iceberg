@@ -66,7 +66,7 @@ public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
 
   @Override
   public T read(T reuse, Decoder decoder) throws IOException {
-    return DecoderResolver.resolveAndRead(reader, reuse, decoder, readSchema, fileSchema);
+    return DecoderResolver.resolveAndRead(decoder, readSchema, fileSchema, reader, reuse);
   }
 
   @Override

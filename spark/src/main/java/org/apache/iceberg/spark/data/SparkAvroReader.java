@@ -61,7 +61,7 @@ public class SparkAvroReader implements DatumReader<InternalRow> {
 
   @Override
   public InternalRow read(InternalRow reuse, Decoder decoder) throws IOException {
-    return DecoderResolver.resolveAndRead(reader, reuse, decoder, readSchema, fileSchema);
+    return DecoderResolver.resolveAndRead(decoder, readSchema, fileSchema, reader, reuse);
   }
 
   private static class ReadBuilder extends AvroSchemaWithTypeVisitor<ValueReader<?>> {
