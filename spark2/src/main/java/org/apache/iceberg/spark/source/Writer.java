@@ -20,8 +20,10 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
-import java.util.*;
-
+import java.util.Arrays;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
