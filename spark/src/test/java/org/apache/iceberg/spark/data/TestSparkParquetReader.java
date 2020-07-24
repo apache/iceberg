@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
 import org.apache.avro.generic.GenericData;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Files;
@@ -106,7 +105,7 @@ public class TestSparkParquetReader extends AvroDataTest {
     StructType sparkSchema =
         new StructType(
             new StructField[] {
-              new StructField("ts", DataTypes.TimestampType, true, Metadata.empty())
+                new StructField("ts", DataTypes.TimestampType, true, Metadata.empty())
             });
     List<InternalRow> rows = Lists.newArrayList(RandomData.generateSpark(schema, 10, 0L));
 
@@ -134,7 +133,7 @@ public class TestSparkParquetReader extends AvroDataTest {
       extends ParquetWriter.Builder<InternalRow, NativeSparkWriterBuilder> {
     private final Map<String, String> config = Maps.newHashMap();
 
-    public NativeSparkWriterBuilder(org.apache.parquet.io.OutputFile path) {
+    NativeSparkWriterBuilder(org.apache.parquet.io.OutputFile path) {
       super(path);
     }
 
