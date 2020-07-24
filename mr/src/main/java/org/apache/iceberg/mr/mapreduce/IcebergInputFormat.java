@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.InputSplit;
@@ -47,9 +46,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.data.IdentityPartitionConverters;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
@@ -58,15 +54,14 @@ import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopInputFile;
-import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.SerializationUtil;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
@@ -97,7 +92,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   @Override
   public List<InputSplit> getSplits(JobContext context) {
     Configuration conf = context.getConfiguration();
-    Table table = findTable(conf);
+    Table table = Catalogs.loadTable(conf);
     TableScan scan = table.newScan()
             .caseSensitive(conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, true));
     long snapshotId = conf.getLong(InputFormatConfig.SNAPSHOT_ID, -1);
@@ -345,29 +340,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       } else {
         return Collections.emptyMap();
       }
-    }
-  }
-
-  private static Table findTable(Configuration conf) {
-    String path = conf.get(InputFormatConfig.TABLE_PATH);
-    Preconditions.checkArgument(path != null, "Table path should not be null");
-    if (path.contains("/")) {
-      HadoopTables tables = new HadoopTables(conf);
-      return tables.load(path);
-    }
-
-    String catalogFuncClass = conf.get(InputFormatConfig.CATALOG);
-    if (catalogFuncClass != null) {
-      Function<Configuration, Catalog> catalogFunc = (Function<Configuration, Catalog>)
-          DynConstructors.builder(Function.class)
-                         .impl(catalogFuncClass)
-                         .build()
-                         .newInstance();
-      Catalog catalog = catalogFunc.apply(conf);
-      TableIdentifier tableIdentifier = TableIdentifier.parse(path);
-      return catalog.loadTable(tableIdentifier);
-    } else {
-      throw new IllegalArgumentException("No custom catalog specified to load table " + path);
     }
   }
 

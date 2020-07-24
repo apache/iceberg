@@ -32,6 +32,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.mapred.Container;
 import org.apache.iceberg.mr.mapred.MapredIcebergInputFormat;
@@ -46,7 +47,7 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
 
   @Override
   public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
-    table = TableResolver.resolveTableFromConfiguration(job);
+    table = Catalogs.loadTable(job);
     schema = table.schema();
 
     forwardConfigSettings(job);
@@ -76,9 +77,6 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
     Preconditions.checkNotNull(table, "Table cannot be null");
     Preconditions.checkNotNull(schema, "Schema cannot be null");
 
-    // Once mapred.TableResolver and mapreduce.TableResolver use the same property for the location of the table
-    // (TABLE_LOCATION vs. TABLE_PATH), this line can be removed: see https://github.com/apache/iceberg/issues/1155.
-    job.set(InputFormatConfig.TABLE_PATH, table.location());
     job.set(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(schema));
   }
 }
