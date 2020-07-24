@@ -364,4 +364,28 @@ public abstract class TestDataSourceOptions {
     int partitionNum = metadataDf.javaRDD().getNumPartitions();
     Assert.assertEquals("Spark partitions should match", expectedSplits, partitionNum);
   }
+
+  @Test
+  public void testExtraSnapshotMetadata() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+    HadoopTables tables = new HadoopTables(CONF);
+    tables.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
+
+    List<SimpleRecord> expectedRecords = Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b")
+    );
+    Dataset<Row> originalDf = spark.createDataFrame(expectedRecords, SimpleRecord.class);
+    originalDf.select("id", "data").write()
+            .format("iceberg")
+            .mode("append")
+            .option("extra-metadata.extra-key", "someValue")
+            .option("extra-metadata.another-key", "anotherValue")
+            .save(tableLocation);
+
+    Table table = tables.load(tableLocation);
+
+    Assert.assertTrue(table.currentSnapshot().summary().get("extra-key").equals("someValue"));
+    Assert.assertTrue(table.currentSnapshot().summary().get("another-key").equals("anotherValue"));
+  }
 }
