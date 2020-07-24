@@ -22,9 +22,11 @@ package org.apache.iceberg.spark.data;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
@@ -277,6 +279,10 @@ public class SparkParquetReaders {
         case INT64:
         case DOUBLE:
           return new UnboxedReader<>(desc);
+        case INT96:
+          // Impala & Spark used to write timestamps as INT96 without a logical type. For backwards
+          // compatibility we try to read INT96 as timestamps.
+          return new TimestampInt96Reader(desc);
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
@@ -347,6 +353,29 @@ public class SparkParquetReaders {
     @Override
     public long readLong() {
       return 1000 * column.nextLong();
+    }
+  }
+
+  private static class TimestampInt96Reader extends UnboxedReader<Long> {
+    private static final long UNIX_EPOCH_JULIAN = 2_440_588L;
+
+    TimestampInt96Reader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Long read(Long ignored) {
+      return readLong();
+    }
+
+    @Override
+    public long readLong() {
+      final ByteBuffer byteBuffer = column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+      final long timeOfDayNanos = byteBuffer.getLong();
+      final int julianDay = byteBuffer.getInt();
+
+      return TimeUnit.DAYS.toMicros(julianDay - UNIX_EPOCH_JULIAN) +
+              TimeUnit.NANOSECONDS.toMicros(timeOfDayNanos);
     }
   }
 

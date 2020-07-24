@@ -681,6 +681,7 @@ public class ParquetValueReaders {
             return (record, pos, ignored) -> setFloat(record, pos, unboxed.readFloat());
           case DOUBLE:
             return (record, pos, ignored) -> setDouble(record, pos, unboxed.readDouble());
+          case INT96:
           case FIXED_LEN_BYTE_ARRAY:
           case BINARY:
             return (record, pos, ignored) -> set(record, pos, unboxed.readBinary());
