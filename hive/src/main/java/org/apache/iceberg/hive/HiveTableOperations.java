@@ -144,6 +144,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       Table tbl;
       if (base != null) {
         tbl = metaClients.run(client -> client.getTable(database, tableName));
+        tbl.setSd(storageDescriptor(metadata)); // set to pickup any schema changes
       } else {
         final long currentTimeMillis = System.currentTimeMillis();
         tbl = new Table(tableName,
@@ -161,7 +162,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         tbl.getParameters().put("EXTERNAL", "TRUE"); // using the external table type also requires this
       }
 
-      tbl.setSd(storageDescriptor(metadata)); // set to pickup any schema changes
       String metadataLocation = tbl.getParameters().get(METADATA_LOCATION_PROP);
       String baseMetadataLocation = base != null ? base.metadataFileLocation() : null;
       if (!Objects.equals(baseMetadataLocation, metadataLocation)) {

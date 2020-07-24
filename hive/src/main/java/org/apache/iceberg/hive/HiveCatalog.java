@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
+import org.apache.hadoop.hive.metastore.MetaStoreUtils;
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.InvalidOperationException;
@@ -376,6 +377,28 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
   @Override
   protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
+    // This is a little edgy since we basically duplicate the HMS location generation logic.
+    // Sadly I do not see a good way around this if we want to keep the order of events, like:
+    // - Create meta files
+    // - Create the metadata in HMS, and thous commit the changes
+
+    // Create a new location based on the namespace / database if it is set on database level
+    try {
+      Database databaseData = clients.run(client -> client.getDatabase(tableIdentifier.namespace().levels()[0]));
+      if (databaseData.getLocationUri() != null) {
+        // If the database location is set use it as a base.
+        return String.format("%s/%s", databaseData.getLocationUri(), tableIdentifier.name());
+      }
+
+    } catch (TException e) {
+      throw new RuntimeException(String.format("Metastore operation failed for %s", tableIdentifier), e);
+
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException("Interrupted during commit", e);
+    }
+
+    // Otherwise stick to the {WAREHOUSE_DIR}/{DB_NAME}.db/{TABLE_NAME} path
     String warehouseLocation = conf.get("hive.metastore.warehouse.dir");
     Preconditions.checkNotNull(
         warehouseLocation,

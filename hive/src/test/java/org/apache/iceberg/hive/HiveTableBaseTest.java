@@ -66,6 +66,7 @@ public class HiveTableBaseTest extends HiveMetastoreTest {
     tableLocation.getFileSystem(hiveConf).delete(tableLocation, true);
     catalog.dropTable(TABLE_IDENTIFIER, false /* metadata only, location was already deleted */);
   }
+
   private static String getTableBasePath(String tableName) {
     String databasePath = metastore.getDatabasePath(DB_NAME);
     return Paths.get(databasePath, tableName).toAbsolutePath().toString();
