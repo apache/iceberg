@@ -133,4 +133,5 @@ df.write
 | write-format           | Table write.format.default | File format to use for this write operation; parquet or avro |
 | target-file-size-bytes | As per table property      | Overrides this table's write.target-file-size-bytes          |
 | check-nullability      | true                       | Sets the nullable check on fields                            |
+| snapshot-property.<custom-key>    | null            | Adds an entry with custom-key and corresponding value in the snapshot summary  |
 

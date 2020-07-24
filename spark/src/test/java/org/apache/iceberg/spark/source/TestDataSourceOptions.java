@@ -379,8 +379,8 @@ public abstract class TestDataSourceOptions {
     originalDf.select("id", "data").write()
             .format("iceberg")
             .mode("append")
-            .option("snapshot.property.extra-key", "someValue")
-            .option("snapshot.property.another-key", "anotherValue")
+            .option("snapshot-property.extra-key", "someValue")
+            .option("snapshot-property.another-key", "anotherValue")
             .save(tableLocation);
 
     Table table = tables.load(tableLocation);
