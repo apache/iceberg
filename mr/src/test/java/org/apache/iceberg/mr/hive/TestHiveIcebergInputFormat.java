@@ -134,7 +134,7 @@ public class TestHiveIcebergInputFormat {
     // Adding the ORDER BY clause will cause Hive to spawn a local MR job this time.
     List<Object[]> descRows = shell.executeStatement("SELECT * FROM default.customers ORDER BY customer_id DESC");
 
-    Assert.assertEquals(3, rows.size());
+    Assert.assertEquals(3, descRows.size());
     Assert.assertArrayEquals(new Object[] {2L, "Trudy"}, descRows.get(0));
     Assert.assertArrayEquals(new Object[] {1L, "Bob"}, descRows.get(1));
     Assert.assertArrayEquals(new Object[] {0L, "Alice"}, descRows.get(2));
