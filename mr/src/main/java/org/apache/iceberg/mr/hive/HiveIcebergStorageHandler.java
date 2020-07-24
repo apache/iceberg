@@ -22,7 +22,6 @@ package org.apache.iceberg.mr.hive;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.HiveMetaHook;
-import org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.HiveStorageHandler;
 import org.apache.hadoop.hive.ql.metadata.HiveStoragePredicateHandler;
@@ -48,7 +47,7 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
 
   @Override
   public Class<? extends OutputFormat> getOutputFormatClass() {
-    return HiveIgnoreKeyTextOutputFormat.class;
+    return HiveIcebergOutputFormat.class;
   }
 
   @Override
