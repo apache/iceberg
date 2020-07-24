@@ -25,7 +25,7 @@ import org.apache.iceberg.types.Types.StructType;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-public interface ManifestEntry<F extends ContentFile<F>> {
+interface ManifestEntry<F extends ContentFile<F>> {
   enum Status {
     EXISTING(0),
     ADDED(1),

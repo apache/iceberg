@@ -19,13 +19,13 @@
 
 package org.apache.iceberg.actions;
 
-public class ExpireSnapshotResults {
+public class ExpireSnapshotActionResult {
 
   private final Long manifestFilesDeleted;
   private final Long manifestListFilesDeleted;
   private final Long dataFilesDeleted;
 
-  public ExpireSnapshotResults(Long manifestFilesDeleted, Long manifestListFilesDeleted,
+  public ExpireSnapshotActionResult(Long manifestFilesDeleted, Long manifestListFilesDeleted,
       Long dataFilesDeleted) {
     this.manifestFilesDeleted = manifestFilesDeleted;
     this.manifestListFilesDeleted = manifestListFilesDeleted;

@@ -19,20 +19,15 @@
 
 package org.apache.iceberg.actions;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.apache.iceberg.ExpireSnapshots;
 import org.apache.iceberg.HasTableOperations;
-import org.apache.iceberg.ManifestEntry;
+import org.apache.iceberg.ManifestExpirationManager;
 import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.ManifestFiles;
-import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -40,13 +35,13 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.util.ExpireSnapshotUtil;
 import org.apache.iceberg.util.ExpireSnapshotUtil.ManifestExpirationChanges;
 import org.apache.iceberg.util.ExpireSnapshotUtil.SnapshotExpirationChanges;
 import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
@@ -54,15 +49,15 @@ import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotResults> {
-
+public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotActionResult> {
   private static final Logger LOG = LoggerFactory.getLogger(ExpireSnapshotsAction.class);
 
+  private final SparkSession spark;
+  private final JavaSparkContext sparkContext;
   private final Table table;
   private final TableOperations ops;
   private final ExpireSnapshots localExpireSnapshots;
   private final TableMetadata base;
-  private SparkSession session;
 
   private final Consumer<String> defaultDelete = new Consumer<String>() {
     @Override
@@ -73,8 +68,9 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotResults> {
   private Consumer<String> deleteFunc = defaultDelete;
 
 
-  ExpireSnapshotsAction(SparkSession session, Table table) {
-    this.session = session;
+  ExpireSnapshotsAction(SparkSession spark, Table table) {
+    this.spark = spark;
+    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.ops = ((HasTableOperations) table).operations();
     this.base = ops.current();
@@ -114,7 +110,7 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotResults> {
    * @return nothing
    */
   @Override
-  public ExpireSnapshotResults execute() {
+  public ExpireSnapshotActionResult execute() {
     localExpireSnapshots.commit();
 
     TableMetadata currentMetadata = ops.refresh();
@@ -124,105 +120,55 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotResults> {
         ExpireSnapshotUtil.getExpiredSnapshots(currentMetadata, base);
 
     //Locally determine which manifests will need to be scanned, reverted, deleted
-    ManifestExpirationChanges manifestExpirationChanges =
+    ManifestExpirationChanges manifestChanges =
         ExpireSnapshotUtil.determineManifestChangesFromSnapshotExpiration(
-            expiredSnapshotChanges.validSnapshotIds(), expiredSnapshotChanges.expiredSnapshotIds(),
-            currentMetadata, base, ops.io());
-
-    FileIO io = SparkUtil.serializableFileIO(table);
-
-    //Going the RDD Route because our reader functions all work with full Manifest Files
-    JavaSparkContext javaSparkContext = JavaSparkContext.fromSparkContext(session.sparkContext());
+            expiredSnapshotChanges.validSnapshotIds(), expiredSnapshotChanges.expiredSnapshotIds(), currentMetadata,
+            base, ops.io());
 
     JavaRDD<ManifestFile> manifestsToScan =
-        javaSparkContext
-            .parallelize(new LinkedList<>(manifestExpirationChanges.manifestsToScan()));
+        sparkContext.parallelize(Lists.newLinkedList(manifestChanges.manifestsToScan()));
 
     JavaRDD<ManifestFile> manifestsToRevert =
-        javaSparkContext
-            .parallelize(new LinkedList<>(manifestExpirationChanges.manifestsToRevert()));
+        sparkContext.parallelize(Lists.newLinkedList(manifestChanges.manifestsToRevert()));
 
-    FileIO serializableIO = SparkUtil.serializableFileIO(table);
+    Map<Integer, PartitionSpec> specLookup = ops.current().specsById();
 
-    Broadcast<Map<Integer, PartitionSpec>> broadcastedSpecLookup =
-        javaSparkContext.broadcast(ops.current().specsById());
+    Broadcast<Set<Long>> broadcastValidIDs = sparkContext.broadcast(expiredSnapshotChanges.validSnapshotIds());
 
-    Broadcast<Set<Long>> broadcastValidIDs =
-        javaSparkContext.broadcast(expiredSnapshotChanges.validSnapshotIds());
+    Broadcast<FileIO> io = sparkContext.broadcast(SparkUtil.serializableFileIO(table));
 
     JavaRDD<String> filesToDeleteFromScan = manifestsToScan.mapPartitions(manifests -> {
-      Map<Integer, PartitionSpec> specLookup = broadcastedSpecLookup.getValue();
       Set<Long> validIds = broadcastValidIDs.getValue();
       Set<String> filesToDelete = new HashSet<>();
-      Tasks.foreach(ImmutableList.copyOf(manifests))
-          .retry(3).suppressFailureWhenFinished()
-          .executeWith(ThreadPools.getWorkerPool())
-          .onFailure((item, exc) -> LOG
-              .warn("Failed to get deleted files: this may cause orphaned data files", exc))
-          .run(manifest -> {
-            // the manifest has deletes, scan it to find files to delete
-            try (ManifestReader<?> reader = ManifestFiles
-                .open(manifest, serializableIO, specLookup)) {
-              for (ManifestEntry<?> entry : reader.entries()) {
-                // if the snapshot ID of the DELETE entry is no longer valid, the data can be deleted
-                if (entry.status() == ManifestEntry.Status.DELETED &&
-                    !validIds.contains(entry.snapshotId())) {
-                  // use toString to ensure the path will not change (Utf8 is reused)
-                  filesToDelete.add(entry.file().path().toString());
-                }
-              }
-            } catch (IOException e) {
-              throw new UncheckedIOException(
-                  String.format("Failed to read manifest file: %s", manifest), e);
-            }
-          });
+      filesToDelete.addAll(ManifestExpirationManager
+          .scanManifestsForAbandonedDeletedFiles(Sets.newHashSet(manifests), validIds, specLookup, io.getValue()));
       return filesToDelete.iterator();
     });
 
     JavaRDD<String> filesToDeleteFromRevert = manifestsToRevert.mapPartitions(manifests -> {
-      Map<Integer, PartitionSpec> specLookup = broadcastedSpecLookup.getValue();
       Set<String> filesToDelete = new HashSet<>();
-      Tasks.foreach(ImmutableList.copyOf(manifests))
-          .retry(3).suppressFailureWhenFinished()
-          .executeWith(ThreadPools.getWorkerPool())
-          .onFailure((item, exc) -> LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
-          .run(manifest -> {
-            // the manifest has deletes, scan it to find files to delete
-            try (ManifestReader<?> reader = ManifestFiles
-                .open(manifest, serializableIO, specLookup)) {
-              for (ManifestEntry<?> entry : reader.entries()) {
-                // delete any ADDED file from manifests that were reverted
-                if (entry.status() == ManifestEntry.Status.ADDED) {
-                  // use toString to ensure the path will not change (Utf8 is reused)
-                  filesToDelete.add(entry.file().path().toString());
-                }
-              }
-            } catch (IOException e) {
-              throw new UncheckedIOException(
-                  String.format("Failed to read manifest file: %s", manifest), e);
-            }
-          });
+      filesToDelete.addAll(ManifestExpirationManager
+          .scanManifestsForRevertingAddedFiles(Sets.newHashSet(manifests), specLookup, io.getValue()));
       return filesToDelete.iterator();
     });
 
-    Set<String> dataFilesToDelete = new HashSet<>(
-        filesToDeleteFromRevert.union(filesToDeleteFromScan).collect());
+    Set<String> dataFilesToDelete = new HashSet<>(filesToDeleteFromRevert.union(filesToDeleteFromScan).collect());
 
     LOG.warn("Deleting {} data files", dataFilesToDelete.size());
 
-    return new ExpireSnapshotResults(
-        deleteManifestFiles(manifestExpirationChanges.manifestsToDelete()),
-        deleteManifestLists(manifestExpirationChanges.manifestListsToDelete()),
-        deleteDataFiles(dataFilesToDelete));
+    return new ExpireSnapshotActionResult(
+        deleteFiles(manifestChanges.manifestsToDelete(), "Manifest"),
+        deleteFiles(manifestChanges.manifestListsToDelete(), "ManifestList"),
+        deleteFiles(dataFilesToDelete, "Data File"));
   }
 
-  private Long deleteManifestFiles(Set<String> manifestsToDelete) {
-    LOG.warn("Manifests to delete: {}", Joiner.on(", ").join(manifestsToDelete));
+  private Long deleteFiles(Set<String> paths, String fileType) {
+    LOG.warn("{}s to delete: {}", fileType, Joiner.on(", ").join(paths));
     AtomicReference<Long> deleteCount = new AtomicReference<>(0L);
 
-    Tasks.foreach(manifestsToDelete)
+    Tasks.foreach(paths)
         .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
-        .onFailure((manifest, exc) -> LOG.warn("Delete failed for manifest: {}", manifest, exc))
+        .onFailure((manifest, exc) -> LOG.warn("Delete failed for {}: {}", fileType, manifest, exc))
         .run(file -> {
           deleteFunc.accept(file);
           deleteCount.updateAndGet(v -> v + 1);
@@ -230,31 +176,4 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotResults> {
     return deleteCount.get();
   }
 
-  private Long deleteManifestLists(Set<String> manifestListsToDelete) {
-    LOG.warn("Manifests Lists to delete: {}", Joiner.on(", ").join(manifestListsToDelete));
-    AtomicReference<Long> deleteCount = new AtomicReference<>(0L);
-
-    Tasks.foreach(manifestListsToDelete)
-        .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
-        .onFailure((list, exc) -> LOG.warn("Delete failed for manifest list: {}", list, exc))
-        .run(file -> {
-          deleteFunc.accept(file);
-          deleteCount.updateAndGet(v -> v + 1);
-        });
-    return deleteCount.get();
-  }
-
-  private Long deleteDataFiles(Set<String> dataFilesToDelete) {
-    LOG.warn("Data Files to delete: {}", Joiner.on(", ").join(dataFilesToDelete));
-    AtomicReference<Long> deleteCount = new AtomicReference<>(0L);
-
-    Tasks.foreach(dataFilesToDelete)
-        .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
-        .onFailure((file, exc) -> LOG.warn("Delete failed for data file: {}", file, exc))
-        .run(file -> {
-          deleteFunc.accept(file);
-          deleteCount.updateAndGet(v -> v + 1);
-        });
-    return deleteCount.get();
-  }
 }

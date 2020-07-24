@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.io.IOException;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
@@ -27,7 +26,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NotFoundException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -37,7 +35,6 @@ import org.apache.iceberg.util.ExpireSnapshotUtil.ManifestExpirationChanges;
 import org.apache.iceberg.util.ExpireSnapshotUtil.SnapshotExpirationChanges;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,7 +48,6 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 class RemoveSnapshots implements ExpireSnapshots {
-
   private static final Logger LOG = LoggerFactory.getLogger(RemoveSnapshots.class);
 
   private final Consumer<String> defaultDelete = new Consumer<String>() {
@@ -175,8 +171,7 @@ class RemoveSnapshots implements ExpireSnapshots {
 
     LOG.info("Cleaning up expired manifests and data files locally.");
 
-    // Reads and deletes are done using Tasks.foreach(...).suppressFailureWhenFinished to complete
-    // as much of the delete work as possible and avoid orphaned data or manifest files.
+    //All Read and Delete Failures are Ignored
     ManifestExpirationChanges changes = ExpireSnapshotUtil.determineManifestChangesFromSnapshotExpiration(
         snapshotChanges.validSnapshotIds(), snapshotChanges.expiredSnapshotIds(), currentMetadata, base, ops.io());
 
@@ -211,44 +206,11 @@ class RemoveSnapshots implements ExpireSnapshots {
   private Set<String> findFilesToDelete(Set<ManifestFile> manifestsToScan, Set<ManifestFile> manifestsToRevert,
                                         Set<Long> validIds) {
     Set<String> filesToDelete = ConcurrentHashMap.newKeySet();
-    Tasks.foreach(manifestsToScan)
-        .retry(3).suppressFailureWhenFinished()
-        .executeWith(ThreadPools.getWorkerPool())
-        .onFailure((item, exc) -> LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
-        .run(manifest -> {
-          // the manifest has deletes, scan it to find files to delete
-          try (ManifestReader<?> reader = ManifestFiles.open(manifest, ops.io(), ops.current().specsById())) {
-            for (ManifestEntry<?> entry : reader.entries()) {
-              // if the snapshot ID of the DELETE entry is no longer valid, the data can be deleted
-              if (entry.status() == ManifestEntry.Status.DELETED &&
-                  !validIds.contains(entry.snapshotId())) {
-                // use toString to ensure the path will not change (Utf8 is reused)
-                filesToDelete.add(entry.file().path().toString());
-              }
-            }
-          } catch (IOException e) {
-            throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);
-          }
-        });
+    filesToDelete.addAll(ManifestExpirationManager
+        .scanManifestsForAbandonedDeletedFiles(manifestsToScan, validIds, ops.current().specsById(), ops.io()));
 
-    Tasks.foreach(manifestsToRevert)
-        .retry(3).suppressFailureWhenFinished()
-        .executeWith(ThreadPools.getWorkerPool())
-        .onFailure((item, exc) -> LOG.warn("Failed to get added files: this may cause orphaned data files", exc))
-        .run(manifest -> {
-          // the manifest has deletes, scan it to find files to delete
-          try (ManifestReader<?> reader = ManifestFiles.open(manifest, ops.io(), ops.current().specsById())) {
-            for (ManifestEntry<?> entry : reader.entries()) {
-              // delete any ADDED file from manifests that were reverted
-              if (entry.status() == ManifestEntry.Status.ADDED) {
-                // use toString to ensure the path will not change (Utf8 is reused)
-                filesToDelete.add(entry.file().path().toString());
-              }
-            }
-          } catch (IOException e) {
-            throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);
-          }
-        });
+    filesToDelete.addAll(ManifestExpirationManager
+        .scanManifestsForRevertingAddedFiles(manifestsToRevert, ops.current().specsById(), ops.io()));
 
     return filesToDelete;
   }

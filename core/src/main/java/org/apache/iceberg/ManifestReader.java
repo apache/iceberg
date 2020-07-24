@@ -165,7 +165,7 @@ public class ManifestReader<F extends ContentFile<F>>
     return this;
   }
 
-  public CloseableIterable<ManifestEntry<F>> entries() {
+  CloseableIterable<ManifestEntry<F>> entries() {
     if ((rowFilter != null && rowFilter != Expressions.alwaysTrue()) ||
         (partFilter != null && partFilter != Expressions.alwaysTrue())) {
       Evaluator evaluator = evaluator();

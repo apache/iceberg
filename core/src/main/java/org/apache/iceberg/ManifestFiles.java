@@ -138,8 +138,8 @@ public class ManifestFiles {
     return open(manifest, io, null);
   }
 
-  public static ManifestReader<?> open(
-      ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+  static ManifestReader<?> open(ManifestFile manifest, FileIO io,
+                                Map<Integer, PartitionSpec> specsById) {
     switch (manifest.content()) {
       case DATA:
         return ManifestFiles.read(manifest, io, specsById);

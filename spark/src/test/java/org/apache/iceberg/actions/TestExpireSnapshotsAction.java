@@ -67,7 +67,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
   }
 
   private void checkExpirationResults(
-      ExpireSnapshotResults results, Long expectedManifestLists, Long expectedManifests,
+      ExpireSnapshotActionResult results, Long expectedManifestLists, Long expectedManifests,
       Long expectedDatafiles) {
 
     Assert.assertEquals("Incorrect number of manifestlists deleted",
@@ -123,7 +123,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
       end = System.currentTimeMillis();
     }
 
-    ExpireSnapshotResults results =
+    ExpireSnapshotActionResult results =
         Actions.forTable(table).expireSnapshots().expireOlderThan(end).execute();
 
     table.refresh();
@@ -159,7 +159,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         .mode("append")
         .save(tableLocation);
 
-    ExpireSnapshotResults results =
+    ExpireSnapshotActionResult results =
         Actions.forTable(table).expireSnapshots().execute();
 
     checkExpirationResults(results, 0L, 0L, 0L);
@@ -198,7 +198,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
       end = System.currentTimeMillis();
     }
 
-    ExpireSnapshotResults results =
+    ExpireSnapshotActionResult results =
         Actions.forTable(table).expireSnapshots().expireOlderThan(end).execute();
 
     table.refresh();
