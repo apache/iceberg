@@ -19,6 +19,9 @@
 
 package org.apache.iceberg.orc;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.MappingUtil;
@@ -339,7 +342,43 @@ public class TestORCSchemaUtil {
     TypeDescription typeDescriptionWithIdsFromNameMapping = ORCSchemaUtil
         .applyNameMapping(ORCSchemaUtil.removeIds(typeDescriptionWithIds), nameMapping);
 
-    assertTrue("TypeDescription schemas should be equal, not comparing Attributes",
-        typeDescriptionWithIds.equals(typeDescriptionWithIdsFromNameMapping, false /* checkAttributes */));
+    assertTrue("TypeDescription schemas should be equal, including IDs",
+        equalsWithIds(typeDescriptionWithIds, typeDescriptionWithIdsFromNameMapping));
+  }
+
+  private static boolean equalsWithIds(TypeDescription first, TypeDescription second) {
+    if (second == first) {
+      return true;
+    }
+
+    if (!first.equals(second, false)) {
+      return false;
+    }
+
+    // check the ID attribute on non-root TypeDescriptions
+    if (first.getId() > 0 && second.getId() > 0) {
+      if (first.getAttributeValue(ICEBERG_ID_ATTRIBUTE) == null ||
+          second.getAttributeValue(ICEBERG_ID_ATTRIBUTE) == null) {
+        return false;
+      }
+
+      if (!first.getAttributeValue(ICEBERG_ID_ATTRIBUTE).equals(second.getAttributeValue(ICEBERG_ID_ATTRIBUTE))) {
+        return false;
+      }
+    }
+
+    // check the children
+    List<TypeDescription> firstChildren = Optional.ofNullable(first.getChildren()).orElse(Collections.emptyList());
+    List<TypeDescription> secondChildren = Optional.ofNullable(second.getChildren()).orElse(Collections.emptyList());
+    if (firstChildren.size() != secondChildren.size()) {
+      return false;
+    }
+    for (int i = 0; i < firstChildren.size(); ++i) {
+      if (!equalsWithIds(firstChildren.get(i), secondChildren.get(i))) {
+        return false;
+      }
+    }
+
+    return true;
   }
 }
