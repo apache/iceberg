@@ -21,22 +21,31 @@ package org.apache.iceberg.spark.data;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+
 import org.apache.avro.generic.GenericData;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.parquet.ParquetWriteAdapter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.parquet.hadoop.ParquetWriter;
+import org.apache.parquet.hadoop.api.WriteSupport;
+import org.apache.parquet.hadoop.util.HadoopOutputFile;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.Metadata;
+import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
@@ -89,28 +98,63 @@ public class TestSparkParquetReader extends AvroDataTest {
 
   @Test
   public void testInt96TimestampProducedBySparkIsReadCorrectly() throws IOException {
-    final Schema schema = new Schema(required(1, "ts", Types.TimestampType.asSparkInt96()));
-    final StructType sparkSchema = SparkSchemaUtil.convert(schema);
-    final Path parquetFile = Paths.get(temp.getRoot().getAbsolutePath(), "parquet_int96.parquet");
-    final List<InternalRow> rows = Lists.newArrayList(RandomData.generateSpark(schema, 10, 0L));
+    String outputFilePath = String.format("%s/%s", temp.getRoot().getAbsolutePath(), "parquet_int96.parquet");
+    HadoopOutputFile outputFile =
+        HadoopOutputFile.fromPath(
+            new org.apache.hadoop.fs.Path(outputFilePath), new Configuration());
+    Schema schema = new Schema(required(1, "ts", Types.TimestampType.withZone()));
+    StructType sparkSchema =
+        new StructType(
+            new StructField[] {
+              new StructField("ts", DataTypes.TimestampType, true, Metadata.empty())
+            });
+    List<InternalRow> rows = Lists.newArrayList(RandomData.generateSpark(schema, 10, 0L));
 
     try (FileAppender<InternalRow> writer =
-        Parquet.write(Files.localOutput(parquetFile.toString()))
-            .writeSupport(
-                new org.apache.spark.sql.execution.datasources.parquet.ParquetWriteSupport())
-            .set("org.apache.spark.sql.parquet.row.attributes", sparkSchema.json())
-            .set("org.apache.spark.legacyDateTime", "false")
-            .set("spark.sql.parquet.int96AsTimestamp", "true")
-            .set("spark.sql.parquet.writeLegacyFormat", "false")
-            .set("spark.sql.parquet.outputTimestampType", "INT96")
-            .schema(schema)
-            .build()) {
+        new ParquetWriteAdapter<>(
+            new NativeSparkWriterBuilder(outputFile)
+                .set("org.apache.spark.sql.parquet.row.attributes", sparkSchema.json())
+                .set("spark.sql.parquet.writeLegacyFormat", "false")
+                .set("spark.sql.parquet.outputTimestampType", "INT96")
+                .build(),
+            MetricsConfig.getDefault())) {
       writer.addAll(rows);
     }
 
-    final List<InternalRow> readRows =
-        rowsFromFile(Files.localInput(parquetFile.toString()), schema);
+    List<InternalRow> readRows = rowsFromFile(Files.localInput(outputFilePath), schema);
     Assert.assertEquals(rows.size(), readRows.size());
     Assert.assertThat(readRows, CoreMatchers.is(rows));
+  }
+
+  /**
+   * Native Spark ParquetWriter.Builder implementation so that we can write timestamps using Spark's native
+   * ParquetWriteSupport.
+   */
+  private static class NativeSparkWriterBuilder
+      extends ParquetWriter.Builder<InternalRow, NativeSparkWriterBuilder> {
+    private final Map<String, String> config = Maps.newHashMap();
+
+    public NativeSparkWriterBuilder(org.apache.parquet.io.OutputFile path) {
+      super(path);
+    }
+
+    public NativeSparkWriterBuilder set(String property, String value) {
+      this.config.put(property, value);
+      return self();
+    }
+
+    @Override
+    protected NativeSparkWriterBuilder self() {
+      return this;
+    }
+
+    @Override
+    protected WriteSupport<InternalRow> getWriteSupport(Configuration configuration) {
+      for (Map.Entry<String, String> entry : config.entrySet()) {
+        configuration.set(entry.getKey(), entry.getValue());
+      }
+
+      return new org.apache.spark.sql.execution.datasources.parquet.ParquetWriteSupport();
+    }
   }
 }

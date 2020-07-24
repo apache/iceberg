@@ -45,7 +45,6 @@ import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FIXED_LE
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FLOAT;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
-import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT96;
 
 public class TypeToMessageType {
   public static final int DECIMAL_INT32_MAX_DIGITS = 9;
@@ -137,10 +136,7 @@ public class TypeToMessageType {
       case TIME:
         return Types.primitive(INT64, repetition).as(TIME_MICROS).id(id).named(name);
       case TIMESTAMP:
-        final TimestampType timestampType = (TimestampType) primitive;
-        if (timestampType.shouldRepresentAsInt96()) {
-          return Types.primitive(INT96, repetition).id(id).named(name);
-        } else if (timestampType.shouldAdjustToUTC()) {
+        if (((TimestampType) primitive).shouldAdjustToUTC()) {
           return Types.primitive(INT64, repetition).as(TIMESTAMPTZ_MICROS).id(id).named(name);
         } else {
           return Types.primitive(INT64, repetition).as(TIMESTAMP_MICROS).id(id).named(name);
