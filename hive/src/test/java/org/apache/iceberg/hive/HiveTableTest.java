@@ -306,7 +306,8 @@ public class HiveTableTest extends HiveTableBaseTest {
   @Test
   public void testNonDefaultDatabaseLocation() throws IOException, TException {
     // Create a new location and a non-default database / namespace for it
-    File nonDefaultLocation = createTempDirectory(NON_DEFAULT_DATABASE, asFileAttribute(fromString("rwxrwxrwx"))).toFile();
+    File nonDefaultLocation = createTempDirectory(NON_DEFAULT_DATABASE,
+        asFileAttribute(fromString("rwxrwxrwx"))).toFile();
     Database database = new Database();
 
     database.setName(NON_DEFAULT_DATABASE);
