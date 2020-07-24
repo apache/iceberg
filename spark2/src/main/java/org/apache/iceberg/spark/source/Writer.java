@@ -39,6 +39,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.broadcast.Broadcast;
@@ -79,6 +80,7 @@ class Writer implements DataSourceWriter {
   private final long targetFileSize;
   private final Schema writeSchema;
   private final StructType dsSchema;
+  private final Map<String, String> extraSnapshotMetadata;
 
   Writer(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
          DataSourceOptions options, boolean replacePartitions, String applicationId, Schema writeSchema,
@@ -98,6 +100,13 @@ class Writer implements DataSourceWriter {
     this.wapId = wapId;
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
+    this.extraSnapshotMetadata = Maps.newHashMap();
+
+    options.asMap().forEach((key, value) -> {
+      if (key.startsWith(SnapshotSummary.EXTRA_METADATA_PREFIX)) {
+        extraSnapshotMetadata.put(key.substring(SnapshotSummary.EXTRA_METADATA_PREFIX.length()), value);
+      }
+    });
 
     long tableTargetFileSize = PropertyUtil.propertyAsLong(
         table.properties(), WRITE_TARGET_FILE_SIZE_BYTES, WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
@@ -136,6 +145,10 @@ class Writer implements DataSourceWriter {
     LOG.info("Committing {} with {} files to table {}", description, numFiles, table);
     if (applicationId != null) {
       operation.set("spark.app.id", applicationId);
+    }
+
+    if (!extraSnapshotMetadata.isEmpty()) {
+      extraSnapshotMetadata.forEach((key, value) -> operation.set(key, value));
     }
 
     if (isWapTable() && wapId != null) {
