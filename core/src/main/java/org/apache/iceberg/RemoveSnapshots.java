@@ -68,6 +68,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   private final TableOperations ops;
   private final Set<Long> idsToRemove = Sets.newHashSet();
   private final Set<Long> idsToRetain = Sets.newHashSet();
+  private boolean cleanExpiredFiles = true;
   private TableMetadata base;
   private Long expireOlderThan = null;
   private Consumer<String> deleteFunc = defaultDelete;
@@ -76,6 +77,12 @@ class RemoveSnapshots implements ExpireSnapshots {
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
     this.base = ops.current();
+  }
+
+  @Override
+  public ExpireSnapshots deleteExpiredFiles(boolean clean) {
+    this.cleanExpiredFiles = clean;
+    return this;
   }
 
   @Override
@@ -154,8 +161,13 @@ class RemoveSnapshots implements ExpireSnapshots {
             ops.commit(base, updated);
           }
         });
+    LOG.info("Committed snapshot changes");
 
-    cleanExpiredSnapshots();
+    if (cleanExpiredFiles) {
+      cleanExpiredSnapshots();
+    } else {
+      LOG.info("Cleaning up manifest and data files disabled, leaving them in place");
+    }
   }
 
   private void cleanExpiredSnapshots() {
