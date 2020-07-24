@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.mr.mapred;
+package org.apache.iceberg.mr.hive;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -30,9 +30,10 @@ import org.apache.hadoop.hive.serde2.SerDeStats;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.io.Writable;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.mr.mapred.serde.objectinspector.IcebergObjectInspector;
+import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
+import org.apache.iceberg.mr.mapred.Container;
 
-public class IcebergSerDe extends AbstractSerDe {
+public class HiveIcebergSerDe extends AbstractSerDe {
 
   private ObjectInspector inspector;
 

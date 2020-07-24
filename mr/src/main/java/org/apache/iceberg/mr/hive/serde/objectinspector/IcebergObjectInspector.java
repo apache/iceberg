@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.mr.mapred.serde.objectinspector;
+package org.apache.iceberg.mr.hive.serde.objectinspector;
 
 import java.util.List;
 import javax.annotation.Nullable;
