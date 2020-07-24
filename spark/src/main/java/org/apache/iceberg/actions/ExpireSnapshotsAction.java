@@ -59,6 +59,8 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotActionResult
   private final ExpireSnapshots localExpireSnapshots;
   private final TableMetadata base;
 
+  private int numTasks;
+
   private final Consumer<String> defaultDelete = new Consumer<String>() {
     @Override
     public void accept(String file) {
@@ -71,6 +73,7 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotActionResult
   ExpireSnapshotsAction(SparkSession spark, Table table) {
     this.spark = spark;
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
+    this.numTasks = sparkContext.defaultParallelism();
     this.table = table;
     this.ops = ((HasTableOperations) table).operations();
     this.base = ops.current();
@@ -84,6 +87,21 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotActionResult
 
   public ExpireSnapshotsAction expireOlderThan(long timestampMillis) {
     localExpireSnapshots.expireOlderThan(timestampMillis);
+    return this;
+  }
+
+  /**
+   * Sets the target number of Spark Tasks to generate from the collection of manifests to Scan. This value is
+   * used as a guide and cannot generate more tasks than there are manifests to scan. We use this value for both
+   * manifests we are scanning for reversions as well as deletions so the max number of tasks will be twice this
+   * parameter.
+   *
+   * By Default will use the context's default parallelism.
+   * @param numTasks target number of Spark tasks
+   * @return this object for method chaining
+   */
+  public ExpireSnapshotsAction withParallelism(int numTasks) {
+    this.numTasks = numTasks;
     return this;
   }
 
@@ -103,12 +121,6 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotActionResult
     return table;
   }
 
-  /**
-   * Execute is a synonym for commit in this implementation. Calling either commit or execute will
-   * launch the Spark equivalent of RemoveSnapshots.
-   *
-   * @return nothing
-   */
   @Override
   public ExpireSnapshotActionResult execute() {
     localExpireSnapshots.commit();
@@ -126,10 +138,10 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotActionResult
             base, ops.io());
 
     JavaRDD<ManifestFile> manifestsToScan =
-        sparkContext.parallelize(Lists.newLinkedList(manifestChanges.manifestsToScan()));
+        sparkContext.parallelize(Lists.newLinkedList(manifestChanges.manifestsToScan()), numTasks);
 
     JavaRDD<ManifestFile> manifestsToRevert =
-        sparkContext.parallelize(Lists.newLinkedList(manifestChanges.manifestsToRevert()));
+        sparkContext.parallelize(Lists.newLinkedList(manifestChanges.manifestsToRevert()), numTasks);
 
     Map<Integer, PartitionSpec> specLookup = ops.current().specsById();
 
