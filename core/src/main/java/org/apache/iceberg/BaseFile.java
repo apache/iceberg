@@ -295,54 +295,67 @@ abstract class BaseFile<F>
     return DataFile.getType(EMPTY_STRUCT_TYPE).fields().size();
   }
 
+  @Override
   public FileContent content() {
     return content;
   }
 
+  @Override
   public CharSequence path() {
     return filePath;
   }
 
+  @Override
   public FileFormat format() {
     return format;
   }
 
+  @Override
   public StructLike partition() {
     return partitionData;
   }
 
+  @Override
   public long recordCount() {
     return recordCount;
   }
 
+  @Override
   public long fileSizeInBytes() {
     return fileSizeInBytes;
   }
 
+  @Override
   public Map<Integer, Long> columnSizes() {
     return columnSizes;
   }
 
+  @Override
   public Map<Integer, Long> valueCounts() {
     return valueCounts;
   }
 
+  @Override
   public Map<Integer, Long> nullValueCounts() {
     return nullValueCounts;
   }
 
+  @Override
   public Map<Integer, ByteBuffer> lowerBounds() {
     return lowerBounds;
   }
 
+  @Override
   public Map<Integer, ByteBuffer> upperBounds() {
     return upperBounds;
   }
 
+  @Override
   public ByteBuffer keyMetadata() {
     return keyMetadata != null ? ByteBuffer.wrap(keyMetadata) : null;
   }
 
+  @Override
   public List<Long> splitOffsets() {
     return splitOffsets;
   }
