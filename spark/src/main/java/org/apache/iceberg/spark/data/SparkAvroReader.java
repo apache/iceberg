@@ -20,7 +20,6 @@
 package org.apache.iceberg.spark.data;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.LogicalType;
@@ -28,23 +27,17 @@ import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
-import org.apache.avro.io.DecoderFactory;
-import org.apache.avro.io.ResolvingDecoder;
 import org.apache.iceberg.avro.AvroSchemaWithTypeVisitor;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
-import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.data.avro.DecoderResolver;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 
 public class SparkAvroReader implements DatumReader<InternalRow> {
-
-  private static final ThreadLocal<Map<Schema, Map<Schema, ResolvingDecoder>>> DECODER_CACHES =
-      ThreadLocal.withInitial(() -> new MapMaker().weakKeys().makeMap());
 
   private final Schema readSchema;
   private final ValueReader<InternalRow> reader;
@@ -68,34 +61,7 @@ public class SparkAvroReader implements DatumReader<InternalRow> {
 
   @Override
   public InternalRow read(InternalRow reuse, Decoder decoder) throws IOException {
-    ResolvingDecoder resolver = resolve(decoder);
-    InternalRow row = reader.read(resolver, reuse);
-    resolver.drain();
-    return row;
-  }
-
-  private ResolvingDecoder resolve(Decoder decoder) throws IOException {
-    Map<Schema, Map<Schema, ResolvingDecoder>> cache = DECODER_CACHES.get();
-    Map<Schema, ResolvingDecoder> fileSchemaToResolver = cache
-        .computeIfAbsent(readSchema, k -> new HashMap<>());
-
-    ResolvingDecoder resolver = fileSchemaToResolver.get(fileSchema);
-    if (resolver == null) {
-      resolver = newResolver();
-      fileSchemaToResolver.put(fileSchema, resolver);
-    }
-
-    resolver.configure(decoder);
-
-    return resolver;
-  }
-
-  private ResolvingDecoder newResolver() {
-    try {
-      return DecoderFactory.get().resolvingDecoder(fileSchema, readSchema, null);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
+    return DecoderResolver.resolveAndRead(decoder, readSchema, fileSchema, reader, reuse);
   }
 
   private static class ReadBuilder extends AvroSchemaWithTypeVisitor<ValueReader<?>> {
