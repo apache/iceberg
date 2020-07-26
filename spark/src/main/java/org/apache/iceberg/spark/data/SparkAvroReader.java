@@ -151,21 +151,9 @@ public class SparkAvroReader implements DatumReader<InternalRow> {
             return ValueReaders.longs();
 
           case "decimal":
-            ValueReader<byte[]> inner;
-            switch (primitive.getType()) {
-              case FIXED:
-                inner = ValueReaders.fixed(primitive.getFixedSize());
-                break;
-              case BYTES:
-                inner = ValueReaders.bytes();
-                break;
-              default:
-                throw new IllegalArgumentException(
-                    "Invalid primitive type for decimal: " + primitive.getType());
-            }
-
-            LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
-            return SparkValueReaders.decimal(inner, decimal.getScale());
+            return SparkValueReaders.decimal(
+                ValueReaders.decimalBytesReader(primitive),
+                ((LogicalTypes.Decimal) logicalType).getScale());
 
           case "uuid":
             return SparkValueReaders.uuids();

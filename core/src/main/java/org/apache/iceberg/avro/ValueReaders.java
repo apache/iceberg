@@ -110,6 +110,18 @@ public class ValueReaders {
     return new DecimalReader(unscaledReader, scale);
   }
 
+  public static ValueReader<byte[]> decimalBytesReader(Schema schema) {
+    switch (schema.getType()) {
+      case FIXED:
+        return ValueReaders.fixed(schema.getFixedSize());
+      case BYTES:
+        return ValueReaders.bytes();
+      default:
+        throw new IllegalArgumentException(
+            "Invalid primitive type for decimal: " + schema.getType());
+    }
+  }
+
   public static ValueReader<Object> union(List<ValueReader<?>> readers) {
     return new UnionReader(readers);
   }
