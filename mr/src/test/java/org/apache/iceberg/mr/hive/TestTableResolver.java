@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.mr.mapred;
+package org.apache.iceberg.mr.hive;
 
 import java.io.File;
 import java.io.IOException;

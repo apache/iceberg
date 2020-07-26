@@ -34,7 +34,6 @@ import org.apache.hadoop.hive.serde2.Deserializer;
 import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.OutputFormat;
-import org.apache.iceberg.mr.mapred.IcebergSerDe;
 
 public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, HiveStorageHandler {
 
@@ -52,7 +51,7 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
 
   @Override
   public Class<? extends AbstractSerDe> getSerDeClass() {
-    return IcebergSerDe.class;
+    return HiveIcebergSerDe.class;
   }
 
   @Override

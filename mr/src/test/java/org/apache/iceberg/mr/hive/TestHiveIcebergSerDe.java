@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.mr.mapred;
+package org.apache.iceberg.mr.hive;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,7 +31,8 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.mr.InputFormatConfig;
-import org.apache.iceberg.mr.mapred.serde.objectinspector.IcebergObjectInspector;
+import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
+import org.apache.iceberg.mr.mapred.Container;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -40,7 +41,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-public class TestIcebergSerDe {
+public class TestHiveIcebergSerDe {
 
   private static final Schema schema = new Schema(required(1, "string_field", Types.StringType.get()));
 
@@ -61,7 +62,7 @@ public class TestIcebergSerDe {
     HadoopTables tables = new HadoopTables(conf);
     tables.create(schema, PartitionSpec.unpartitioned(), Collections.emptyMap(), location.toString());
 
-    IcebergSerDe serDe = new IcebergSerDe();
+    HiveIcebergSerDe serDe = new HiveIcebergSerDe();
     serDe.initialize(conf, properties);
 
     Assert.assertEquals(IcebergObjectInspector.create(schema), serDe.getObjectInspector());
@@ -69,7 +70,7 @@ public class TestIcebergSerDe {
 
   @Test
   public void testDeserialize() {
-    IcebergSerDe serDe = new IcebergSerDe();
+    HiveIcebergSerDe serDe = new HiveIcebergSerDe();
 
     Record record = RandomGenericData.generate(schema, 1, 0).get(0);
     Container<Record> container = new Container<>();

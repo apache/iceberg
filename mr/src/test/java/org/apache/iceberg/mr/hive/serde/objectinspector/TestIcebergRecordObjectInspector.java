@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.mr.mapred.serde.objectinspector;
+package org.apache.iceberg.mr.hive.serde.objectinspector;
 
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;

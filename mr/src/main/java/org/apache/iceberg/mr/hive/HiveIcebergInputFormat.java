@@ -35,7 +35,6 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.mapred.Container;
 import org.apache.iceberg.mr.mapred.MapredIcebergInputFormat;
-import org.apache.iceberg.mr.mapred.TableResolver;
 import org.apache.iceberg.mr.mapreduce.IcebergSplit;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
