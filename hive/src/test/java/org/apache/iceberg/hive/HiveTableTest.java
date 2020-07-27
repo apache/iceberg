@@ -21,12 +21,12 @@ package org.apache.iceberg.hive;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
-import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -305,22 +305,20 @@ public class HiveTableTest extends HiveTableBaseTest {
 
   @Test
   public void testNonDefaultDatabaseLocation() throws IOException, TException {
+    Namespace namespace = Namespace.of(NON_DEFAULT_DATABASE);
     // Create a new location and a non-default database / namespace for it
     File nonDefaultLocation = createTempDirectory(NON_DEFAULT_DATABASE,
         asFileAttribute(fromString("rwxrwxrwx"))).toFile();
-    Database database = new Database();
+    catalog.createNamespace(namespace, Collections.singletonMap("location", nonDefaultLocation.getPath()));
+    Map<String, String> namespaceMeta = catalog.loadNamespaceMetadata(namespace);
+    // Make sure that we are testing a namespace with a non default location :)
+    Assert.assertEquals(namespaceMeta.get("location"), "file:" + nonDefaultLocation.getPath());
 
-    database.setName(NON_DEFAULT_DATABASE);
-    database.setLocationUri(nonDefaultLocation.getPath());
-    metastoreClient.createDatabase(database);
-
-    Namespace namespace = Namespace.of(NON_DEFAULT_DATABASE);
     TableIdentifier tableIdentifier = TableIdentifier.of(namespace, TABLE_NAME);
     catalog.createTable(tableIdentifier, schema);
 
-    // Let's check the data loaded through the catalog
+    // Let's check the location loaded through the catalog
     Table table = catalog.loadTable(tableIdentifier);
-    Map<String, String> namespaceMeta = catalog.loadNamespaceMetadata(namespace);
     Assert.assertEquals(namespaceMeta.get("location") + "/" + TABLE_NAME, table.location());
 
     // Drop the database and purge the files

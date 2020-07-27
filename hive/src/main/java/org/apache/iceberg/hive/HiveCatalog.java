@@ -379,7 +379,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     // This is a little edgy since we basically duplicate the HMS location generation logic.
     // Sadly I do not see a good way around this if we want to keep the order of events, like:
     // - Create meta files
-    // - Create the metadata in HMS, and thous commit the changes
+    // - Create the metadata in HMS, and this way committing the changes
 
     // Create a new location based on the namespace / database if it is set on database level
     try {
