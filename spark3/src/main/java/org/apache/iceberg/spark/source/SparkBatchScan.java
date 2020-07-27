@@ -186,7 +186,9 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
       long totalRecords = PropertyUtil.propertyAsLong(table.currentSnapshot().summary(),
           SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
       Schema projectedSchema = expectedSchema != null ? expectedSchema : table.schema();
-      return new Stats(SparkSchemaUtil.estimateSize(SparkSchemaUtil.convert(projectedSchema), totalRecords), totalRecords);
+      return new Stats(
+          SparkSchemaUtil.estimateSize(SparkSchemaUtil.convert(projectedSchema), totalRecords),
+          totalRecords);
     }
 
     long sizeInBytes = 0L;
