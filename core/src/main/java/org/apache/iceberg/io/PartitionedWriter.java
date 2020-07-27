@@ -35,7 +35,7 @@ public abstract class PartitionedWriter<T> extends BaseTaskWriter<T> {
   private final Set<PartitionKey> completedPartitions = Sets.newHashSet();
 
   private PartitionKey currentKey = null;
-  private RollingFileAppender currentAppender = null;
+  private RollingFileWriter currentWriter = null;
 
   public PartitionedWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
                            OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
@@ -57,7 +57,11 @@ public abstract class PartitionedWriter<T> extends BaseTaskWriter<T> {
 
     if (!key.equals(currentKey)) {
       closeCurrent();
-      completedPartitions.add(currentKey);
+
+      if (currentKey != null) {
+        // if the key is null, there was no previous current key
+        completedPartitions.add(currentKey);
+      }
 
       if (completedPartitions.contains(key)) {
         // if rows are not correctly grouped, detect and fail the write
@@ -69,11 +73,11 @@ public abstract class PartitionedWriter<T> extends BaseTaskWriter<T> {
       currentKey = key.copy();
     }
 
-    if (currentAppender == null) {
-      currentAppender = new RollingFileAppender(currentKey);
+    if (currentWriter == null) {
+      currentWriter = new RollingFileWriter(currentKey);
     }
 
-    currentAppender.add(row);
+    currentWriter.add(row);
   }
 
   @Override
@@ -82,13 +86,13 @@ public abstract class PartitionedWriter<T> extends BaseTaskWriter<T> {
   }
 
   private void closeCurrent() throws IOException {
-    if (currentAppender != null) {
+    if (currentWriter != null) {
 
       // Close the current file appender.
-      currentAppender.close();
+      currentWriter.close();
 
       // Reset the current appender to be null.
-      currentAppender = null;
+      currentWriter = null;
     }
   }
 }

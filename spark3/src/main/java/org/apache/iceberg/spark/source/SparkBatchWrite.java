@@ -245,9 +245,15 @@ class SparkBatchWrite implements BatchWrite {
     return String.format("IcebergWrite(table=%s, format=%s)", table, format);
   }
 
-  public static class TaskCommit extends TaskResult implements WriterCommitMessage {
-    TaskCommit(TaskResult result) {
-      super(result.files());
+  public static class TaskCommit implements WriterCommitMessage {
+    private final List<DataFile> taskFiles;
+
+    TaskCommit(List<DataFile> taskFiles) {
+      this.taskFiles = taskFiles;
+    }
+
+    public List<DataFile> files() {
+      return taskFiles;
     }
   }
 
@@ -307,8 +313,7 @@ class SparkBatchWrite implements BatchWrite {
     public WriterCommitMessage commit() throws IOException {
       this.close();
 
-      List<DataFile> dataFiles = complete();
-      return new TaskCommit(new TaskResult(dataFiles));
+      return new TaskCommit(complete());
     }
   }
 
@@ -323,8 +328,7 @@ class SparkBatchWrite implements BatchWrite {
     public WriterCommitMessage commit() throws IOException {
       this.close();
 
-      List<DataFile> dataFiles = complete();
-      return new TaskCommit(new TaskResult(dataFiles));
+      return new TaskCommit(complete());
     }
   }
 }

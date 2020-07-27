@@ -34,7 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Tasks;
 
-abstract class BaseTaskWriter<T> implements TaskWriter<T> {
+public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   private final List<DataFile> completedFiles = Lists.newArrayList();
   private final PartitionSpec spec;
   private final FileFormat format;
@@ -75,7 +75,7 @@ abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
   }
 
-  class RollingFileAppender implements Closeable {
+  protected class RollingFileWriter implements Closeable {
     private static final int ROWS_DIVISOR = 1000;
     private final PartitionKey partitionKey;
 
@@ -83,11 +83,11 @@ abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     private FileAppender<T> currentAppender = null;
     private long currentRows = 0;
 
-    RollingFileAppender(PartitionKey partitionKey) {
+    public RollingFileWriter(PartitionKey partitionKey) {
       this.partitionKey = partitionKey;
     }
 
-    void add(T record) throws IOException {
+    public void add(T record) throws IOException {
       if (currentAppender == null) {
         openCurrent();
       }

@@ -20,7 +20,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.Serializable;
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -81,14 +81,14 @@ public class RowDataRewriter implements Serializable {
   }
 
   public List<DataFile> rewriteDataForTasks(JavaRDD<CombinedScanTask> taskRDD) {
-    JavaRDD<TaskResult> taskCommitRDD = taskRDD.map(this::rewriteDataForTask);
+    JavaRDD<List<DataFile>> dataFilesRDD = taskRDD.map(this::rewriteDataForTask);
 
-    return taskCommitRDD.collect().stream()
-        .flatMap(taskCommit -> Arrays.stream(taskCommit.files()))
+    return dataFilesRDD.collect().stream()
+        .flatMap(Collection::stream)
         .collect(Collectors.toList());
   }
 
-  private TaskResult rewriteDataForTask(CombinedScanTask task) throws Exception {
+  private List<DataFile> rewriteDataForTask(CombinedScanTask task) throws Exception {
     TaskContext context = TaskContext.get();
     int partitionId = context.partitionId();
     long taskId = context.taskAttemptId();
@@ -119,7 +119,7 @@ public class RowDataRewriter implements Serializable {
       dataReader = null;
 
       writer.close();
-      return new TaskResult(writer.complete());
+      return writer.complete();
 
     } catch (Throwable originalThrowable) {
       try {

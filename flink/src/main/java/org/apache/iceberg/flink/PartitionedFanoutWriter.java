@@ -17,18 +17,21 @@
  * under the License.
  */
 
-package org.apache.iceberg.io;
+package org.apache.iceberg.flink;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.io.BaseTaskWriter;
+import org.apache.iceberg.io.FileAppenderFactory;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public abstract class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
-  private final Map<PartitionKey, RollingFileAppender> writers = Maps.newHashMap();
+  private final Map<PartitionKey, RollingFileWriter> writers = Maps.newHashMap();
 
   public PartitionedFanoutWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
                                  OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
@@ -48,11 +51,11 @@ public abstract class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
   public void write(T row) throws IOException {
     PartitionKey partitionKey = partition(row);
 
-    RollingFileAppender writer = writers.get(partitionKey);
+    RollingFileWriter writer = writers.get(partitionKey);
     if (writer == null) {
       // NOTICE: we need to copy a new partition key here, in case of messing up the keys in writers.
       PartitionKey copiedKey = partitionKey.copy();
-      writer = new RollingFileAppender(copiedKey);
+      writer = new RollingFileWriter(copiedKey);
       writers.put(copiedKey, writer);
     }
 
@@ -62,12 +65,10 @@ public abstract class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
   @Override
   public void close() throws IOException {
     if (!writers.isEmpty()) {
-      Iterator<RollingFileAppender> iterator = writers.values().iterator();
-      while (iterator.hasNext()) {
-        iterator.next().close();
-        // Remove from the writers after closed.
-        iterator.remove();
+      for (PartitionKey key : writers.keySet()) {
+        writers.get(key).close();
       }
+      writers.clear();
     }
   }
 }

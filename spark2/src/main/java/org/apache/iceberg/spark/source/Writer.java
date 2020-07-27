@@ -217,7 +217,7 @@ class Writer implements DataSourceWriter {
   protected Iterable<DataFile> files(WriterCommitMessage[] messages) {
     if (messages.length > 0) {
       return Iterables.concat(Iterables.transform(Arrays.asList(messages), message -> message != null ?
-          ImmutableList.copyOf(((TaskResult) message).files()) :
+          ImmutableList.copyOf(((TaskCommit) message).files()) :
           ImmutableList.of()));
     }
     return ImmutableList.of();
@@ -228,9 +228,15 @@ class Writer implements DataSourceWriter {
     return String.format("IcebergWrite(table=%s, format=%s)", table, format);
   }
 
-  private static class TaskCommit extends TaskResult implements WriterCommitMessage {
-    TaskCommit(TaskResult toCopy) {
-      super(toCopy.files());
+  private static class TaskCommit implements WriterCommitMessage {
+    private final List<DataFile> taskFiles;
+
+    TaskCommit(List<DataFile> files) {
+      this.taskFiles = files;
+    }
+
+    List<DataFile> files() {
+      return this.taskFiles;
     }
   }
 
@@ -286,8 +292,7 @@ class Writer implements DataSourceWriter {
     public WriterCommitMessage commit() throws IOException {
       this.close();
 
-      List<DataFile> dataFiles = complete();
-      return new TaskCommit(new TaskResult(dataFiles));
+      return new TaskCommit(complete());
     }
   }
 
@@ -303,8 +308,7 @@ class Writer implements DataSourceWriter {
     public WriterCommitMessage commit() throws IOException {
       this.close();
 
-      List<DataFile> dataFiles = complete();
-      return new TaskCommit(new TaskResult(dataFiles));
+      return new TaskCommit(complete());
     }
   }
 }
