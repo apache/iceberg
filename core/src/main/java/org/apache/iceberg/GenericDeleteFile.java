@@ -67,6 +67,7 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
     return new GenericDeleteFile(this, true /* full copy */);
   }
 
+  @Override
   protected Schema getAvroSchema(Types.StructType partitionStruct) {
     Types.StructType type = DataFile.getType(partitionStruct);
     return AvroSchemaUtil.convert(type, ImmutableMap.of(

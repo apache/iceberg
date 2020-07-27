@@ -91,6 +91,7 @@ abstract class BaseDataReader<T> implements Closeable {
 
   abstract CloseableIterator<T> open(FileScanTask task);
 
+  @Override
   public void close() throws IOException {
     InputFileBlockHolder.unset();
 

@@ -271,10 +271,12 @@ class SparkBatchWrite implements BatchWrite {
       this.dsSchema = dsSchema;
     }
 
+    @Override
     public DataWriter<InternalRow> createWriter(int partitionId, long taskId) {
       return createWriter(partitionId, taskId, 0);
     }
 
+    @Override
     public DataWriter<InternalRow> createWriter(int partitionId, long taskId, long epochId) {
       OutputFileFactory fileFactory = new OutputFileFactory(
           spec, format, locations, io.value(), encryptionManager.value(), partitionId, taskId);

@@ -61,6 +61,7 @@ abstract class PageIterator<T> extends BasePageIterator implements TripleIterato
         };
       case INT96:
         return (PageIterator<T>) new PageIterator<Binary>(desc, writerVersion) {
+          @Override
           public Binary next() {
             return nextBinary();
           }
