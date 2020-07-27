@@ -137,6 +137,41 @@ public class ParquetValueReaders {
     }
   }
 
+  static class PositionReader implements ParquetValueReader<Long> {
+    private long rowOffsetInCurrentRowGroup = -1;
+    private long rowGroupRowOffsetInfile;
+
+    @Override
+    public Long read(Long reuse) {
+      rowOffsetInCurrentRowGroup = rowOffsetInCurrentRowGroup + 1;
+      return rowGroupRowOffsetInfile + rowOffsetInCurrentRowGroup;
+    }
+
+    @Override
+    public TripleIterator<?> column() {
+      return NullReader.NULL_COLUMN;
+    }
+
+    @Override
+    public List<TripleIterator<?>> columns() {
+      return NullReader.COLUMNS;
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
+    }
+
+    @Override
+    public void setRowOffsetForRowGroup(long rowGroupStartPos) {
+      this.rowGroupRowOffsetInfile = rowGroupStartPos;
+      this.rowOffsetInCurrentRowGroup = -1;
+    }
+  }
+
+  public static ParquetValueReader<Long> position() {
+    return new PositionReader();
+  }
+
   public abstract static class PrimitiveReader<T> implements ParquetValueReader<T> {
     private final ColumnDescriptor desc;
     @SuppressWarnings("checkstyle:VisibilityModifier")
@@ -664,6 +699,13 @@ public class ParquetValueReaders {
     @Override
     public List<TripleIterator<?>> columns() {
       return children;
+    }
+
+    @Override
+    public void setRowOffsetForRowGroup(long rowOffsetInFile) {
+      for (ParquetValueReader<?> reader : readers) {
+        reader.setRowOffsetForRowGroup(rowOffsetInFile);
+      }
     }
 
     @SuppressWarnings("unchecked")
