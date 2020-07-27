@@ -21,6 +21,7 @@ package org.apache.iceberg.hive;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -36,6 +37,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.io.FileAppender;
@@ -45,6 +47,9 @@ import org.apache.thrift.TException;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static java.nio.file.Files.createTempDirectory;
+import static java.nio.file.attribute.PosixFilePermissions.asFileAttribute;
+import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.apache.iceberg.BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE;
 import static org.apache.iceberg.BaseMetastoreTableOperations.METADATA_LOCATION_PROP;
 import static org.apache.iceberg.BaseMetastoreTableOperations.TABLE_TYPE_PROP;
@@ -52,6 +57,8 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class HiveTableTest extends HiveTableBaseTest {
+  static final String NON_DEFAULT_DATABASE =  "nondefault";
+
   @Test
   public void testCreate() throws TException {
     // Table should be created in hive metastore
@@ -295,4 +302,27 @@ public class HiveTableTest extends HiveTableBaseTest {
     Assert.assertEquals(1, expectedIdents.size());
     Assert.assertTrue(catalog.tableExists(TABLE_IDENTIFIER));
   }
+
+  @Test
+  public void testNonDefaultDatabaseLocation() throws IOException, TException {
+    Namespace namespace = Namespace.of(NON_DEFAULT_DATABASE);
+    // Create a new location and a non-default database / namespace for it
+    File nonDefaultLocation = createTempDirectory(NON_DEFAULT_DATABASE,
+        asFileAttribute(fromString("rwxrwxrwx"))).toFile();
+    catalog.createNamespace(namespace, Collections.singletonMap("location", nonDefaultLocation.getPath()));
+    Map<String, String> namespaceMeta = catalog.loadNamespaceMetadata(namespace);
+    // Make sure that we are testing a namespace with a non default location :)
+    Assert.assertEquals(namespaceMeta.get("location"), "file:" + nonDefaultLocation.getPath());
+
+    TableIdentifier tableIdentifier = TableIdentifier.of(namespace, TABLE_NAME);
+    catalog.createTable(tableIdentifier, schema);
+
+    // Let's check the location loaded through the catalog
+    Table table = catalog.loadTable(tableIdentifier);
+    Assert.assertEquals(namespaceMeta.get("location") + "/" + TABLE_NAME, table.location());
+
+    // Drop the database and purge the files
+    metastoreClient.dropDatabase(NON_DEFAULT_DATABASE, true, true, true);
+  }
+
 }
