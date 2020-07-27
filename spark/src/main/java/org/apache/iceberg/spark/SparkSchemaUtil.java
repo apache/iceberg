@@ -272,7 +272,8 @@ public class SparkSchemaUtil {
     for (StructField sparkField : tableSchema.fields()) {
       approximateSize += sparkField.dataType().defaultSize();
     }
-    Long result = approximateSize * totalRecords;
+
+    long result = approximateSize * totalRecords;
     return result > 0 ? result : Long.MAX_VALUE;
   }
 }
