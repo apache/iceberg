@@ -24,6 +24,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -34,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
@@ -53,6 +55,9 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFA
 class RemoveSnapshots implements ExpireSnapshots {
   private static final Logger LOG = LoggerFactory.getLogger(RemoveSnapshots.class);
 
+  // Creates an executor service that runs each task in the thread that invokes execute/submit.
+  private static final ExecutorService DEFAULT_DELETE_EXECUTOR_SERVICE = MoreExecutors.newDirectExecutorService();
+
   private final Consumer<String> defaultDelete = new Consumer<String>() {
     @Override
     public void accept(String file) {
@@ -66,6 +71,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   private TableMetadata base;
   private Long expireOlderThan = null;
   private Consumer<String> deleteFunc = defaultDelete;
+  private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
 
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
@@ -104,6 +110,12 @@ class RemoveSnapshots implements ExpireSnapshots {
   @Override
   public ExpireSnapshots deleteWith(Consumer<String> newDeleteFunc) {
     this.deleteFunc = newDeleteFunc;
+    return this;
+  }
+
+  @Override
+  public ExpireSnapshots executeWith(ExecutorService executorService) {
+    this.deleteExecutorService = executorService;
     return this;
   }
 
@@ -321,11 +333,13 @@ class RemoveSnapshots implements ExpireSnapshots {
     LOG.warn("Manifests Lists to delete: {}", Joiner.on(", ").join(manifestListsToDelete));
 
     Tasks.foreach(manifestsToDelete)
+        .executeWith(deleteExecutorService)
         .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
         .onFailure((manifest, exc) -> LOG.warn("Delete failed for manifest: {}", manifest, exc))
         .run(deleteFunc::accept);
 
     Tasks.foreach(manifestListsToDelete)
+        .executeWith(deleteExecutorService)
         .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
         .onFailure((list, exc) -> LOG.warn("Delete failed for manifest list: {}", list, exc))
         .run(deleteFunc::accept);
@@ -335,6 +349,7 @@ class RemoveSnapshots implements ExpireSnapshots {
                                Set<Long> validIds) {
     Set<String> filesToDelete = findFilesToDelete(manifestsToScan, manifestsToRevert, validIds);
     Tasks.foreach(filesToDelete)
+        .executeWith(deleteExecutorService)
         .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
         .onFailure((file, exc) -> LOG.warn("Delete failed for data file: {}", file, exc))
         .run(file -> deleteFunc.accept(file));
