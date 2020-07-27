@@ -28,7 +28,7 @@ import org.junit.Test;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TestSparkSchemaUtil {
-  Schema testSchema = new Schema(
+  private static final Schema TEST_SCHEMA = new Schema(
       optional(1, "id", Types.IntegerType.get()),
       optional(2, "data", Types.StringType.get())
   );
@@ -43,13 +43,13 @@ public class TestSparkSchemaUtil {
 
   @Test
   public void testEstiamteSizeWithOverflow() throws IOException {
-    long tableSize = SparkSchemaUtil.estimateSize(SparkSchemaUtil.convert(testSchema), Long.MAX_VALUE - 1);
+    long tableSize = SparkSchemaUtil.estimateSize(SparkSchemaUtil.convert(TEST_SCHEMA), Long.MAX_VALUE - 1);
     Assert.assertEquals("estimateSize handles overflow", Long.MAX_VALUE, tableSize);
   }
 
   @Test
   public void testEstiamteSize() throws IOException {
-    long tableSize = SparkSchemaUtil.estimateSize(SparkSchemaUtil.convert(testSchema), 1);
+    long tableSize = SparkSchemaUtil.estimateSize(SparkSchemaUtil.convert(TEST_SCHEMA), 1);
     Assert.assertEquals("estimateSize matches with expected approximation", 24, tableSize);
   }
 }
