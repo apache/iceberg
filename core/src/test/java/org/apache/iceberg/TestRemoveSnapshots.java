@@ -551,12 +551,10 @@ public class TestRemoveSnapshots extends TableTestBase {
     table.newRewrite()
         .rewriteFiles(ImmutableSet.of(FILE_B), ImmutableSet.of(FILE_D))
         .commit();
-    long thirdSnapshotId = table.currentSnapshot().snapshotId();
 
     table.newRewrite()
         .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_C))
         .commit();
-    long fourthSnapshotId = table.currentSnapshot().snapshotId();
 
     long t4 = System.currentTimeMillis();
     while (t4 <= table.currentSnapshot().timestampMillis()) {
@@ -566,13 +564,12 @@ public class TestRemoveSnapshots extends TableTestBase {
     Set<String> deletedFiles = Sets.newHashSet();
 
     table.expireSnapshots()
-        .deleteExpiredFiles(false)
+        .cleanExpiredFiles(false)
         .expireOlderThan(t4)
         .deleteWith(deletedFiles::add)
         .commit();
 
-    Assert.assertFalse("FILE_A should not be deleted", deletedFiles.contains(FILE_A.path().toString()));
-    Assert.assertFalse("FILE_B should not be deleted", deletedFiles.contains(FILE_B.path().toString()));
+    Assert.assertTrue("No files should have been deleted", deletedFiles.isEmpty());
   }
 
   /**

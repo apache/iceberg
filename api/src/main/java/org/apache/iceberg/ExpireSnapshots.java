@@ -103,10 +103,9 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
    * <p>
    * Allows control in removing data and manifest files which may be more efficiently removed using
    * a distributed framework through the actions API.
-   * </p>
    *
    * @param clean setting this to false will skip deleting expired manifests and files
    * @return this for method chaining
    */
-  ExpireSnapshots deleteExpiredFiles(boolean clean);
+  ExpireSnapshots cleanExpiredFiles(boolean clean);
 }

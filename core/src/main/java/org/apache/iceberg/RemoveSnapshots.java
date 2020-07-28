@@ -80,7 +80,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   @Override
-  public ExpireSnapshots deleteExpiredFiles(boolean clean) {
+  public ExpireSnapshots cleanExpiredFiles(boolean clean) {
     this.cleanExpiredFiles = clean;
     return this;
   }
@@ -201,11 +201,11 @@ class RemoveSnapshots implements ExpireSnapshots {
 
     LOG.info("Committed snapshot changes; cleaning up expired manifests and data files.");
 
-    cleanExpiredFiles(current.snapshots(), validIds, expiredIds);
+    removeExpiredFiles(current.snapshots(), validIds, expiredIds);
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  private void cleanExpiredFiles(List<Snapshot> snapshots, Set<Long> validIds, Set<Long> expiredIds) {
+  private void removeExpiredFiles(List<Snapshot> snapshots, Set<Long> validIds, Set<Long> expiredIds) {
     // Reads and deletes are done using Tasks.foreach(...).suppressFailureWhenFinished to complete
     // as much of the delete work as possible and avoid orphaned data or manifest files.
 
