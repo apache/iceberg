@@ -533,7 +533,7 @@ data.writeStream
     .start()
 ```
 
-The table should be created in prior to start the streaming query.
+`append` and `complete` modes are supported. The table should be created in prior to start the streaming query.
  
 !!! Note
     To avoid metadata growing too huge, there're several guides you may want to follow: 
