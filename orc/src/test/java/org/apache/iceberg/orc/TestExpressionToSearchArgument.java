@@ -290,7 +290,7 @@ public class TestExpressionToSearchArgument {
   }
 
   @Test
-  public void testModifiedSchemaNameMapping() {
+  public void testModifiedSimpleSchemaNameMapping() {
     Schema originalSchema = new Schema(
         required(1, "int", Types.IntegerType.get()),
         optional(2, "long_to_be_dropped", Types.LongType.get())
@@ -323,6 +323,73 @@ public class TestExpressionToSearchArgument {
         .build();
 
     actual = ExpressionToSearchArgument.convert(boundFilter, readSchema);
+    Assert.assertEquals(expected.toString(), actual.toString());
+  }
+
+  @Test
+  public void testModifiedComplexSchemaNameMapping() {
+    Schema originalSchema = new Schema(
+        optional(1, "struct", Types.StructType.of(
+            required(2, "long", Types.LongType.get())
+        )),
+        optional(3, "list", Types.ListType.ofRequired(4, Types.LongType.get())),
+        optional(5, "map", Types.MapType.ofRequired(6, 7, Types.LongType.get(), Types.LongType.get())),
+        optional(8, "listOfStruct", Types.ListType.ofRequired(9, Types.StructType.of(
+            required(10, "long", Types.LongType.get())))),
+        optional(11, "listOfPeople", Types.ListType.ofRequired(12, Types.StructType.of(
+            required(13, "name", Types.StringType.get()),
+            required(14, "birth_date", Types.DateType.get()))))
+    );
+    Schema mappingSchema = new Schema(
+        optional(1, "struct", Types.StructType.of(
+            required(2, "int", Types.LongType.get())
+        )),
+        optional(3, "list", Types.ListType.ofRequired(4, Types.LongType.get())),
+        optional(5, "newMap", Types.MapType.ofRequired(6, 7, Types.StringType.get(), Types.LongType.get())),
+        optional(8, "listOfStruct", Types.ListType.ofRequired(9, Types.StructType.of(
+            required(10, "newLong", Types.LongType.get())))),
+        optional(11, "listOfPeople", Types.ListType.ofRequired(12, Types.StructType.of(
+            required(13, "name", Types.StringType.get()),
+            required(14, "age", Types.IntegerType.get()))))
+    );
+    TypeDescription orcSchemaWithoutIds = ORCSchemaUtil.removeIds(ORCSchemaUtil.convert(originalSchema));
+    NameMapping nameMapping = MappingUtil.create(mappingSchema);
+
+    TypeDescription readSchema = ORCSchemaUtil.buildOrcProjection(mappingSchema,
+        ORCSchemaUtil.applyNameMapping(orcSchemaWithoutIds, nameMapping));
+
+    Expression expr = and(
+        and(
+            equal("struct.int", 1), and(
+                lessThanOrEqual("list.element", 5),
+                equal("newMap.key", "country")
+            ),
+            and(
+                equal("listOfStruct.newLong", 100L),
+                notEqual("listOfPeople.name", "Bob")
+            )
+
+        ),
+        lessThan("listOfPeople.age", 30)
+    );
+    Expression boundFilter = Binder.bind(mappingSchema.asStruct(), expr, true);
+    SearchArgument expected = SearchArgumentFactory.newBuilder()
+        .startAnd()
+        // Drops strict.long
+        .equals("`struct`.`int_r2`", Type.LONG, 1L)
+        .lessThanEquals("`list`.`_elem`", Type.LONG, 5L)
+        // Drops map
+        .equals("`newMap_r5`.`_key`", Type.STRING, "country")
+        // Drops listOfStruct.long
+        .equals("`listOfStruct`.`_elem`.`newLong_r10`", Type.LONG, 100L)
+        .startNot()
+        .equals("`listOfPeople`.`_elem`.`name`", Type.STRING, "Bob")
+        .end()
+        .lessThan("`listOfPeople`.`_elem`.`age_r14`", Type.LONG, 30L)
+        .end()
+        .build();
+
+    SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, readSchema);
     Assert.assertEquals(expected.toString(), actual.toString());
   }
 }

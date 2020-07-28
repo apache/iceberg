@@ -303,7 +303,7 @@ public class TestORCSchemaUtil {
   }
 
   @Test
-  public void tetsAssignIdsByNameMapping() {
+  public void testAssignIdsByNameMapping() {
     Types.StructType structType = Types.StructType.of(
         required(0, "id", Types.LongType.get()),
         optional(1, "list_of_maps",
@@ -344,6 +344,104 @@ public class TestORCSchemaUtil {
 
     assertTrue("TypeDescription schemas should be equal, including IDs",
         equalsWithIds(typeDescriptionWithIds, typeDescriptionWithIdsFromNameMapping));
+  }
+
+  @Test
+  public void testAssignIdsByNameMappingAndProject() {
+    Types.StructType structType = Types.StructType.of(
+        required(1, "id", Types.LongType.get()),
+        optional(2, "list_of_structs",
+            Types.ListType.ofOptional(3, Types.StructType.of(
+                required(4, "entry", Types.LongType.get()),
+                required(5, "data", Types.BinaryType.get())
+            ))
+        ),
+        optional(6, "map",
+            Types.MapType.ofOptional(7, 8, Types.StringType.get(), Types.DoubleType.get())
+        ),
+        optional(12, "map_of_structs",
+            Types.MapType.ofOptional(13, 14, Types.StringType.get(), Types.StructType.of(
+                required(20, "field", Types.LongType.get())))
+        ),
+        required(30, "struct", Types.StructType.of(
+                required(31, "lat", Types.DoubleType.get()),
+                required(32, "long", Types.DoubleType.get())
+            )
+        )
+    );
+
+    TypeDescription fileSchema = ORCSchemaUtil.removeIds(
+        ORCSchemaUtil.convert(new Schema(structType.asStructType().fields())));
+
+    Schema mappingSchema = new Schema(Types.StructType.of(
+        optional(1, "new_id", Types.LongType.get()),
+        optional(2, "list_of_structs",
+            Types.ListType.ofOptional(3, Types.StructType.of(
+                required(5, "data", Types.BinaryType.get())
+            ))
+        ),
+        optional(6, "map",
+            Types.MapType.ofOptional(7, 8, Types.StringType.get(), Types.DoubleType.get())
+        ),
+        optional(30, "struct",
+            Types.StructType.of(
+                optional(31, "latitude", Types.DoubleType.get()),
+                optional(32, "longitude", Types.DoubleType.get())
+            )
+        ),
+        optional(40, "long", Types.LongType.get())
+    ).asStructType().fields());
+
+    NameMapping nameMapping = MappingUtil.create(mappingSchema);
+    TypeDescription typeDescriptionWithIdsFromNameMapping = ORCSchemaUtil
+        .applyNameMapping(fileSchema, nameMapping);
+
+    TypeDescription expected = TypeDescription.createStruct();
+    // new field
+    TypeDescription newId = TypeDescription.createLong();
+    newId.setAttribute(ICEBERG_ID_ATTRIBUTE, "1");
+    expected.addField("new_id_r1", newId);
+
+    // list_of_structs
+    TypeDescription structElem = TypeDescription.createStruct();
+    structElem.setAttribute(ICEBERG_ID_ATTRIBUTE, "3");
+    TypeDescription dataInStruct = TypeDescription.createBinary();
+    dataInStruct.setAttribute(ICEBERG_ID_ATTRIBUTE, "5");
+    structElem.addField("data", dataInStruct);
+    TypeDescription list = TypeDescription.createList(structElem);
+    list.setAttribute(ICEBERG_ID_ATTRIBUTE, "2");
+
+    // map
+    TypeDescription mapKey = TypeDescription.createString();
+    mapKey.setAttribute(ICEBERG_ID_ATTRIBUTE, "7");
+    TypeDescription mapValue = TypeDescription.createDouble();
+    mapValue.setAttribute(ICEBERG_ID_ATTRIBUTE, "8");
+    TypeDescription map = TypeDescription.createMap(mapKey, mapValue);
+    map.setAttribute(ICEBERG_ID_ATTRIBUTE, "6");
+
+    expected.addField("list_of_structs", list);
+    expected.addField("map", map);
+
+    TypeDescription struct = TypeDescription.createStruct();
+    struct.setAttribute(ICEBERG_ID_ATTRIBUTE, "30");
+    TypeDescription latitude = TypeDescription.createDouble();
+    latitude.setAttribute(ICEBERG_ID_ATTRIBUTE, "31");
+    TypeDescription longitude = TypeDescription.createDouble();
+    longitude.setAttribute(ICEBERG_ID_ATTRIBUTE, "32");
+    struct.addField("latitude_r31", latitude);
+    struct.addField("longitude_r32", longitude);
+    expected.addField("struct", struct);
+    TypeDescription longField = TypeDescription.createLong();
+    longField.setAttribute(ICEBERG_ID_ATTRIBUTE, "40");
+    expected.addField("long_r40", longField);
+
+    assertTrue("ORC Schema must have the same structure, but one has Iceberg IDs",
+        typeDescriptionWithIdsFromNameMapping.equals(fileSchema, false));
+
+    TypeDescription projectedOrcSchema = ORCSchemaUtil.buildOrcProjection(mappingSchema,
+        typeDescriptionWithIdsFromNameMapping);
+    assertTrue("Schema should be the prunned by projection",
+        equalsWithIds(expected, projectedOrcSchema));
   }
 
   private static boolean equalsWithIds(TypeDescription first, TypeDescription second) {
