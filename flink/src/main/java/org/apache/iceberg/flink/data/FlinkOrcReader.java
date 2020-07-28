@@ -24,6 +24,7 @@ import java.util.Map;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.MapData;
 import org.apache.flink.table.data.RowData;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.orc.GenericOrcReaders;
 import org.apache.iceberg.orc.OrcRowReader;
 import org.apache.iceberg.orc.OrcSchemaWithTypeVisitor;
@@ -39,14 +40,16 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 public class FlinkOrcReader implements OrcRowReader<RowData> {
   private final OrcValueReader<?> reader;
 
-  public FlinkOrcReader(org.apache.iceberg.Schema iSchema, TypeDescription readSchema) {
+  private FlinkOrcReader(Schema iSchema, TypeDescription readSchema) {
     this(iSchema, readSchema, ImmutableMap.of());
   }
 
-  public FlinkOrcReader(org.apache.iceberg.Schema iSchema,
-                        TypeDescription readOrcSchema,
-                        Map<Integer, ?> idToConstant) {
+  private FlinkOrcReader(Schema iSchema, TypeDescription readOrcSchema, Map<Integer, ?> idToConstant) {
     this.reader = OrcSchemaWithTypeVisitor.visit(iSchema, readOrcSchema, new ReadBuilder(idToConstant));
+  }
+
+  public static OrcRowReader<RowData> buildReader(Schema schema, TypeDescription readSchema) {
+    return new FlinkOrcReader(schema, readSchema);
   }
 
   @Override

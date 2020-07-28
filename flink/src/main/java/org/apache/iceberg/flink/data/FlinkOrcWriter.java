@@ -46,6 +46,10 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
     }
   }
 
+  public static OrcRowWriter<RowData> buildWriter(RowType rowType, Schema iSchema) {
+    return new FlinkOrcWriter(rowType, iSchema);
+  }
+
   @Override
   @SuppressWarnings("unchecked")
   public void write(RowData row, VectorizedRowBatch output) {
