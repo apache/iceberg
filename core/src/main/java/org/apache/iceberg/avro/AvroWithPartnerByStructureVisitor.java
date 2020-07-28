@@ -24,18 +24,18 @@ import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.Pair;
 
 /**
- * A abstract avro schema visitor with partner type. This class is for both reading and writing:
- * - For reading, the avro schema could evolve into the partner type. (schema evolution)
- * - For writing, the avro schema should be consistent with partner type.
+ * A abstract avro schema visitor with partner type. The visitor rely on the structure matching exactly and are
+ * guaranteed that because both schemas are derived from the same Iceberg schema.
  *
  * @param <P> Partner type.
  * @param <T> Return T.
  */
-public abstract class AvroWithPartnerSchemaVisitor<P, T> {
+public abstract class AvroWithPartnerByStructureVisitor<P, T> {
 
-  public static <P, T> T visit(P partner, Schema schema, AvroWithPartnerSchemaVisitor<P, T> visitor) {
+  public static <P, T> T visit(P partner, Schema schema, AvroWithPartnerByStructureVisitor<P, T> visitor) {
     switch (schema.getType()) {
       case RECORD:
         return visitRecord(partner, schema, visitor);
@@ -49,7 +49,7 @@ public abstract class AvroWithPartnerSchemaVisitor<P, T> {
       case MAP:
         P keyType = visitor.mapKeyType(partner);
         Preconditions.checkArgument(
-            visitor.isValidMapKey(keyType),
+            visitor.isStringType(keyType),
             "Invalid map: %s is not a string", keyType);
         return visitor.map(partner, schema, visit(visitor.mapValueType(partner), schema.getValueType(), visitor));
 
@@ -60,35 +60,25 @@ public abstract class AvroWithPartnerSchemaVisitor<P, T> {
 
   // ---------------------------------- Static helpers ---------------------------------------------
 
-  private static <P, T> T visitRecord(P struct, Schema record, AvroWithPartnerSchemaVisitor<P, T> visitor) {
+  private static <P, T> T visitRecord(P struct, Schema record, AvroWithPartnerByStructureVisitor<P, T> visitor) {
     // check to make sure this hasn't been visited before
     String name = record.getFullName();
     Preconditions.checkState(!visitor.recordLevels.contains(name),
         "Cannot process recursive Avro record %s", name);
     List<Schema.Field> fields = record.getFields();
+
     visitor.recordLevels.push(name);
 
     List<String> names = Lists.newArrayListWithExpectedSize(fields.size());
     List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
-
-    if (visitor.schemaEvolution()) {
-      for (Schema.Field field : fields) {
-        int fieldId = AvroSchemaUtil.getFieldId(field);
-        names.add(field.name());
-        results.add(visit(visitor.structFieldTypeById(struct, fieldId), field.schema(), visitor));
-      }
-    } else {
-      String[] fieldNames = visitor.structFieldNames(struct);
-      P[] fieldTypes = visitor.structFieldTypes(struct);
-      Preconditions.checkArgument(fieldTypes.length == fields.size(),
-          "Structs do not match: %s != %s", struct, record);
-      for (int i = 0; i < fieldTypes.length; i += 1) {
-        String fieldName = fieldNames[i];
-        Schema.Field field = fields.get(i);
-        Preconditions.checkArgument(AvroSchemaUtil.makeCompatibleName(fieldName).equals(field.name()),
-            "Structs do not match: field %s != %s", fieldName, field.name());
-        results.add(visit(fieldTypes[i], field.schema(), visitor));
-      }
+    for (int i = 0; i < fields.size(); i += 1) {
+      Pair<String, P> nameAndType = visitor.fieldNameAndType(struct, i);
+      String fieldName = nameAndType.first();
+      Schema.Field field = fields.get(i);
+      Preconditions.checkArgument(AvroSchemaUtil.makeCompatibleName(fieldName).equals(field.name()),
+          "Structs do not match: field %s != %s", fieldName, field.name());
+      results.add(visit(nameAndType.second(), field.schema(), visitor));
+      names.add(fieldName);
     }
 
     visitor.recordLevels.pop();
@@ -96,7 +86,7 @@ public abstract class AvroWithPartnerSchemaVisitor<P, T> {
     return visitor.record(struct, record, names, results);
   }
 
-  private static <P, T> T visitUnion(P type, Schema union, AvroWithPartnerSchemaVisitor<P, T> visitor) {
+  private static <P, T> T visitUnion(P type, Schema union, AvroWithPartnerByStructureVisitor<P, T> visitor) {
     List<Schema> types = union.getTypes();
     Preconditions.checkArgument(AvroSchemaUtil.isOptionSchema(union),
         "Cannot visit non-option union: %s", union);
@@ -111,7 +101,7 @@ public abstract class AvroWithPartnerSchemaVisitor<P, T> {
     return visitor.union(type, union, options);
   }
 
-  private static <P, T> T visitArray(P type, Schema array, AvroWithPartnerSchemaVisitor<P, T> visitor) {
+  private static <P, T> T visitArray(P type, Schema array, AvroWithPartnerByStructureVisitor<P, T> visitor) {
     if (array.getLogicalType() instanceof LogicalMap || visitor.isMapType(type)) {
       Preconditions.checkState(
           AvroSchemaUtil.isKeyValueSchema(array.getElementType()),
@@ -133,32 +123,18 @@ public abstract class AvroWithPartnerSchemaVisitor<P, T> {
 
   // ---------------------------------- Partner type methods ---------------------------------------------
 
-  public boolean schemaEvolution() {
-    return false;
-  }
+  protected abstract boolean isMapType(P type);
 
-  public abstract boolean isMapType(P type);
+  protected abstract boolean isStringType(P type);
 
-  public abstract boolean isValidMapKey(P type);
+  protected abstract P arrayElementType(P arrayType);
 
-  public abstract P arrayElementType(P arrayType);
+  protected abstract P mapKeyType(P mapType);
+  protected abstract P mapValueType(P mapType);
 
-  public abstract P mapKeyType(P mapType);
-  public abstract P mapValueType(P mapType);
+  protected abstract Pair<String, P> fieldNameAndType(P structType, int pos);
 
-  public String[] structFieldNames(P structType) {
-    throw new UnsupportedOperationException();
-  }
-
-  public P[] structFieldTypes(P structType) {
-    throw new UnsupportedOperationException();
-  }
-
-  public P structFieldTypeById(P structType, int id) {
-    throw new UnsupportedOperationException();
-  }
-
-  public abstract P nullType();
+  protected abstract P nullType();
 
   // ---------------------------------- Type visitors ---------------------------------------------
 

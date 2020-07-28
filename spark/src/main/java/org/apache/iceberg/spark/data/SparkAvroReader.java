@@ -33,6 +33,7 @@ import org.apache.iceberg.avro.ValueReaders;
 import org.apache.iceberg.data.avro.DecoderResolver;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 
@@ -71,9 +72,9 @@ public class SparkAvroReader implements DatumReader<InternalRow> {
     }
 
     @Override
-    public ValueReader<?> record(Type expected, Schema record, List<String> names,
+    public ValueReader<?> record(Types.StructType expected, Schema record, List<String> names,
                                  List<ValueReader<?>> fields) {
-      return SparkValueReaders.struct(fields, expected.asStructType(), idToConstant);
+      return SparkValueReaders.struct(fields, expected, idToConstant);
     }
 
     @Override
@@ -82,23 +83,23 @@ public class SparkAvroReader implements DatumReader<InternalRow> {
     }
 
     @Override
-    public ValueReader<?> array(Type expected, Schema array, ValueReader<?> elementReader) {
+    public ValueReader<?> array(Types.ListType expected, Schema array, ValueReader<?> elementReader) {
       return SparkValueReaders.array(elementReader);
     }
 
     @Override
-    public ValueReader<?> map(Type expected, Schema map,
+    public ValueReader<?> map(Types.MapType expected, Schema map,
                               ValueReader<?> keyReader, ValueReader<?> valueReader) {
       return SparkValueReaders.arrayMap(keyReader, valueReader);
     }
 
     @Override
-    public ValueReader<?> map(Type expected, Schema map, ValueReader<?> valueReader) {
+    public ValueReader<?> map(Types.MapType expected, Schema map, ValueReader<?> valueReader) {
       return SparkValueReaders.map(SparkValueReaders.strings(), valueReader);
     }
 
     @Override
-    public ValueReader<?> primitive(Type expected, Schema primitive) {
+    public ValueReader<?> primitive(Type.PrimitiveType expected, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
         switch (logicalType.getName()) {

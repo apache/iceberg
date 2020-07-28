@@ -19,10 +19,9 @@
 
 package org.apache.iceberg.spark.data;
 
-import java.util.Arrays;
-import org.apache.avro.Schema;
-import org.apache.iceberg.avro.AvroWithPartnerSchemaVisitor;
+import org.apache.iceberg.avro.AvroWithPartnerByStructureVisitor;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
@@ -31,54 +30,45 @@ import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
-/**
- * Avro {@link Schema} with Spark {@link DataType} visitor. This class is for writing. The avro schema should be
- * consistent with the spark data type.
- */
-public abstract class AvroWithSparkSchemaVisitor<T> extends AvroWithPartnerSchemaVisitor<DataType, T> {
+public abstract class AvroWithSparkSchemaVisitor<T> extends AvroWithPartnerByStructureVisitor<DataType, T> {
 
   @Override
-  public boolean isValidMapKey(DataType dataType) {
+  protected boolean isStringType(DataType dataType) {
     return dataType instanceof StringType;
   }
 
   @Override
-  public boolean isMapType(DataType dataType) {
+  protected boolean isMapType(DataType dataType) {
     return dataType instanceof MapType;
   }
 
   @Override
-  public DataType arrayElementType(DataType arrayType) {
+  protected DataType arrayElementType(DataType arrayType) {
     Preconditions.checkArgument(arrayType instanceof ArrayType, "Invalid array: %s is not an array", arrayType);
     return ((ArrayType) arrayType).elementType();
   }
 
   @Override
-  public DataType mapKeyType(DataType mapType) {
-    Preconditions.checkArgument(mapType instanceof MapType, "Invalid map: %s is not a map", mapType);
+  protected DataType mapKeyType(DataType mapType) {
+    Preconditions.checkArgument(isMapType(mapType), "Invalid map: %s is not a map", mapType);
     return ((MapType) mapType).keyType();
   }
 
   @Override
-  public DataType mapValueType(DataType mapType) {
-    Preconditions.checkArgument(mapType instanceof MapType, "Invalid map: %s is not a map", mapType);
+  protected DataType mapValueType(DataType mapType) {
+    Preconditions.checkArgument(isMapType(mapType), "Invalid map: %s is not a map", mapType);
     return ((MapType) mapType).valueType();
   }
 
   @Override
-  public String[] structFieldNames(DataType structType) {
+  protected Pair<String, DataType> fieldNameAndType(DataType structType, int pos) {
     Preconditions.checkArgument(structType instanceof StructType, "Invalid struct: %s is not a struct", structType);
-    return ((StructType) structType).fieldNames();
+    StructField field = ((StructType) structType).apply(pos);
+    return Pair.of(field.name(), field.dataType());
   }
 
   @Override
-  public DataType[] structFieldTypes(DataType structType) {
-    Preconditions.checkArgument(structType instanceof StructType, "Invalid struct: %s is not a struct", structType);
-    return Arrays.stream(((StructType) structType).fields()).map(StructField::dataType).toArray(DataType[]::new);
-  }
-
-  @Override
-  public DataType nullType() {
+  protected DataType nullType() {
     return DataTypes.NullType;
   }
 }

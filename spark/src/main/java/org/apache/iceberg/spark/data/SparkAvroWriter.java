@@ -20,8 +20,9 @@
 package org.apache.iceberg.spark.data;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
@@ -59,7 +60,8 @@ public class SparkAvroWriter implements DatumWriter<InternalRow> {
   private static class WriteBuilder extends AvroWithSparkSchemaVisitor<ValueWriter<?>> {
     @Override
     public ValueWriter<?> record(DataType struct, Schema record, List<String> names, List<ValueWriter<?>> fields) {
-      return SparkValueWriters.struct(fields, Arrays.asList(structFieldTypes(struct)));
+      return SparkValueWriters.struct(fields, IntStream.range(0, names.size())
+          .mapToObj(i -> fieldNameAndType(struct, i).second()).collect(Collectors.toList()));
     }
 
     @Override
