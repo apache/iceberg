@@ -220,6 +220,7 @@ public class FlinkParquetReaders {
               return new ParquetValueReaders.UnboxedReader<>(desc);
             }
           case INT_64:
+            return new ParquetValueReaders.UnboxedReader<>(desc);
           case TIMESTAMP_MICROS:
             return new TimestampMicroReader(desc);
           case DECIMAL:
@@ -329,7 +330,8 @@ public class FlinkParquetReaders {
 
     @Override
     public TimestampData read(TimestampData ignored) {
-      return TimestampData.fromEpochMillis(readLong() / 1000);
+      long value = readLong();
+      return TimestampData.fromEpochMillis(value / 1000, (int) ((value % 1000) * 1000));
     }
 
     @Override

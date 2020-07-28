@@ -78,7 +78,8 @@ public class RandomData {
           ))),
       optional(2, "slide", Types.StringType.get()),
       optional(25, "binary", Types.BinaryType.get()),
-      optional(26, "decimal", Types.DecimalType.of(10, 2))
+      optional(26, "decimal", Types.DecimalType.of(10, 2)),
+      optional(27, "time micro", Types.TimeType.get())
   );
 
   private static Iterable<Row> generateData(Schema schema, int numRecords, Supplier<RandomRowGenerator> supplier) {
@@ -236,6 +237,8 @@ public class RandomData {
               ((BigDecimal) obj).scale());
         case TIMESTAMP:
           return TimestampData.fromEpochMillis((Long) obj);
+        case TIME:
+          return ((Long) obj).intValue();
         default:
           return obj;
       }

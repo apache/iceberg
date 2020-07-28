@@ -135,9 +135,11 @@ public class FlinkParquetWriters {
           case INT_8:
           case INT_16:
           case INT_32:
-          case TIME_MICROS:
             return ints(sType, desc);
+          case TIME_MICROS:
+            return timeMicros(desc);
           case INT_64:
+            return ParquetValueWriters.longs(desc);
           case TIMESTAMP_MICROS:
             return timestamps(desc);
           case DECIMAL:
@@ -195,6 +197,23 @@ public class FlinkParquetWriters {
     return new StringDataWriter(desc);
   }
 
+  private static ParquetValueWriters.PrimitiveWriter<Integer> timeMicros(ColumnDescriptor desc) {
+    return new TimeMicrosWriter(desc);
+  }
+
+  private static class TimeMicrosWriter extends ParquetValueWriters.PrimitiveWriter<Integer> {
+
+    protected TimeMicrosWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, Integer value) {
+      column.writeLong(repetitionLevel, value * 1000);
+    }
+  }
+
+
   private static ParquetValueWriters.PrimitiveWriter<DecimalData> decimalAsInteger(ColumnDescriptor desc,
                                                                                    int precision, int scale) {
     return new IntegerDecimalWriter(desc, precision, scale);
@@ -210,7 +229,7 @@ public class FlinkParquetWriters {
   }
 
   private static ParquetValueWriters.PrimitiveWriter<TimestampData> timestamps(ColumnDescriptor desc) {
-    return new TimeStampDataWriter(desc);
+    return new TimestampDataWriter(desc);
   }
 
   private static ParquetValueWriters.PrimitiveWriter<byte[]> byteArrays(ColumnDescriptor desc) {
@@ -310,14 +329,14 @@ public class FlinkParquetWriters {
     }
   }
 
-  private static class TimeStampDataWriter extends ParquetValueWriters.PrimitiveWriter<TimestampData> {
-    private TimeStampDataWriter(ColumnDescriptor desc) {
+  private static class TimestampDataWriter extends ParquetValueWriters.PrimitiveWriter<TimestampData> {
+    private TimestampDataWriter(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
     public void write(int repetitionLevel, TimestampData value) {
-      column.writeLong(repetitionLevel, value.getMillisecond() * 1000);
+      column.writeLong(repetitionLevel, value.getMillisecond() * 1000 + value.getNanoOfMillisecond() / 1000);
     }
   }
 
