@@ -364,6 +364,10 @@ project(':iceberg-hive') {
 }
 
 project(':iceberg-mr') {
+  apply plugin: 'com.github.johnrengelman.shadow'
+
+  tasks.jar.dependsOn tasks.shadowJar
+
   dependencies {
     compile project(':iceberg-api')
     compile project(':iceberg-core')
@@ -403,6 +407,23 @@ project(':iceberg-mr') {
       exclude group: 'org.codehaus.jettison', module: 'jettison'
       exclude group: 'org.apache.calcite.avatica'
     }
+  }
+
+  shadowJar {
+    configurations = [project.configurations.compile]
+
+    zip64 true
+
+    // include the LICENSE and NOTICE files for the shaded Jar
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
+    dependencies {
+      include(dependency('org.apache.iceberg::'))
+    }
+
   }
 }
 
