@@ -20,7 +20,6 @@
 package org.apache.iceberg.orc;
 
 import java.io.IOException;
-import java.util.Optional;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;

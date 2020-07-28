@@ -53,10 +53,6 @@ class RemoveIds extends OrcSchemaVisitor<TypeDescription> {
 
   private static TypeDescription removeIcebergAttributes(TypeDescription orcType) {
     orcType.removeAttribute(ORCSchemaUtil.ICEBERG_ID_ATTRIBUTE);
-    orcType.removeAttribute(ORCSchemaUtil.ICEBERG_REQUIRED_ATTRIBUTE);
-    orcType.removeAttribute(ORCSchemaUtil.ICEBERG_BINARY_TYPE_ATTRIBUTE);
-    orcType.removeAttribute(ORCSchemaUtil.ICEBERG_LONG_TYPE_ATTRIBUTE);
-    orcType.removeAttribute(ORCSchemaUtil.ICEBERG_FIELD_LENGTH);
     return orcType;
   }
 }
