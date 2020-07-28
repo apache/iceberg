@@ -73,7 +73,8 @@ public class FlinkOrcReader implements OrcRowReader<RowData> {
     }
 
     @Override
-    public OrcValueReader<ArrayData> list(Types.ListType iList, TypeDescription array, OrcValueReader<?> elementReader) {
+    public OrcValueReader<ArrayData> list(Types.ListType iList, TypeDescription array,
+                                          OrcValueReader<?> elementReader) {
       return FlinkOrcReaders.array(elementReader);
     }
 

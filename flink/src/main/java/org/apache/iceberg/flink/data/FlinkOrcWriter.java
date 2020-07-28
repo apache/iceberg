@@ -19,5 +19,107 @@
 
 package org.apache.iceberg.flink.data;
 
-public class FlinkOrcWriter {
+import java.util.List;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.RowType;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.orc.GenericOrcWriters;
+import org.apache.iceberg.orc.OrcRowWriter;
+import org.apache.iceberg.orc.OrcValueWriter;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
+
+public class FlinkOrcWriter implements OrcRowWriter<RowData> {
+  private final FlinkOrcWriters.StructWriter writer;
+  private final List<RowData.FieldGetter> fieldGetters;
+
+  private FlinkOrcWriter(RowType rowType, Schema iSchema) {
+    this.writer = (FlinkOrcWriters.StructWriter) FlinkOrcSchemaVisitor.visit(rowType, iSchema, new WriteBuilder());
+
+    List<LogicalType> fieldTypes = rowType.getChildren();
+    this.fieldGetters = Lists.newArrayListWithExpectedSize(fieldTypes.size());
+    for (int i = 0; i < fieldTypes.size(); i++) {
+      fieldGetters.add(RowData.createFieldGetter(fieldTypes.get(i), i));
+    }
+  }
+
+  @Override
+  @SuppressWarnings("unchecked")
+  public void write(RowData row, VectorizedRowBatch output) {
+    int rowId = output.size;
+    output.size += 1;
+
+    List<OrcValueWriter<?>> writers = writer.writers();
+    for (int c = 0; c < writers.size(); ++c) {
+      OrcValueWriter child = writers.get(c);
+      child.write(rowId, fieldGetters.get(c).getFieldOrNull(row), output.cols[c]);
+    }
+  }
+
+  private static class WriteBuilder extends FlinkOrcSchemaVisitor<OrcValueWriter<?>> {
+    private WriteBuilder() {
+    }
+
+    @Override
+    public OrcValueWriter<RowData> record(Types.StructType iStruct,
+                                          List<OrcValueWriter<?>> results,
+                                          List<LogicalType> fieldType) {
+      return FlinkOrcWriters.struct(results, fieldType);
+    }
+
+    @Override
+    public OrcValueWriter<?> map(Types.MapType iMap, OrcValueWriter<?> key, OrcValueWriter<?> value,
+                                 LogicalType keyType, LogicalType valueType) {
+      return FlinkOrcWriters.map(key, value, keyType, valueType);
+    }
+
+    @Override
+    public OrcValueWriter<?> list(Types.ListType iList, OrcValueWriter<?> element, LogicalType elementType) {
+      return FlinkOrcWriters.list(element, elementType);
+    }
+
+    @Override
+    public OrcValueWriter<?> primitive(Type.PrimitiveType iPrimitive, LogicalType flinkPrimitive) {
+      switch (iPrimitive.typeId()) {
+        case BOOLEAN:
+          return GenericOrcWriters.booleans();
+        case INTEGER:
+          return GenericOrcWriters.ints();
+        case LONG:
+          return GenericOrcWriters.longs();
+        case FLOAT:
+          return GenericOrcWriters.floats();
+        case DOUBLE:
+          return GenericOrcWriters.doubles();
+        case DATE:
+          return GenericOrcWriters.dates();
+        case TIME:
+          return FlinkOrcWriters.times();
+        case TIMESTAMP:
+          Types.TimestampType timestampType = (Types.TimestampType) iPrimitive;
+          if (timestampType.shouldAdjustToUTC()) {
+            return FlinkOrcWriters.timestampTzs();
+          } else {
+            return FlinkOrcWriters.timestamps();
+          }
+        case STRING:
+          return FlinkOrcWriters.strings();
+        case UUID:
+          return GenericOrcWriters.uuids();
+        case FIXED:
+          return GenericOrcWriters.fixed();
+        case BINARY:
+          return GenericOrcWriters.byteBuffers();
+        case DECIMAL:
+          Types.DecimalType decimalType = (Types.DecimalType) iPrimitive;
+          return FlinkOrcWriters.decimals(decimalType.scale(), decimalType.precision());
+        default:
+          throw new IllegalArgumentException(String.format(
+              "Invalid iceberg type %s corresponding to Flink logical type %s", iPrimitive, flinkPrimitive));
+      }
+    }
+  }
 }
