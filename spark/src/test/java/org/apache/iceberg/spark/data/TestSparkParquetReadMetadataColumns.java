@@ -39,7 +39,6 @@ import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -81,17 +80,25 @@ public class TestSparkParquetReadMetadataColumns {
 
   static {
     DATA_ROWS = Lists.newArrayListWithCapacity(NUM_ROWS);
-    for (long i = 0; i < NUM_ROWS; i++) {
+    for (long i = 0; i < NUM_ROWS; i += 1) {
       InternalRow row = new GenericInternalRow(DATA_SCHEMA.columns().size());
-      row.update(0, i);
+      if (i >= 500) {
+        row.update(0, 2 * i);
+      } else {
+        row.update(0, i);
+      }
       row.update(1, UTF8String.fromString("str" + i));
       DATA_ROWS.add(row);
     }
 
     EXPECTED_ROWS = Lists.newArrayListWithCapacity(NUM_ROWS);
-    for (long i = 0; i < NUM_ROWS; i++) {
+    for (long i = 0; i < NUM_ROWS; i += 1) {
       InternalRow row = new GenericInternalRow(PROJECTION_SCHEMA.columns().size());
-      row.update(0, i);
+      if (i >= 500) {
+        row.update(0, 2 * i);
+      } else {
+        row.update(0, i);
+      }
       row.update(1, UTF8String.fromString("str" + i));
       row.update(2, i);
       EXPECTED_ROWS.add(row);
@@ -155,10 +162,14 @@ public class TestSparkParquetReadMetadataColumns {
 
   @Test
   public void testReadRowNumbersWithFilter() throws IOException {
-    // current iceberg support row group filter.
-    for (int i = 0; i < NUM_ROW_GROUPS; i += 1) {
-      readAndValidate(Expressions.greaterThanOrEqual("id", i * ROWS_PER_SPLIT), null, null,
-          EXPECTED_ROWS.subList(i * ROWS_PER_SPLIT, 1000));
+    // current iceberg supports row group filter.
+    for (int i = 1; i < 5; i += 1) {
+      readAndValidate(
+          Expressions.and(Expressions.lessThan("id", 500),
+              Expressions.greaterThanOrEqual("id", i * ROWS_PER_SPLIT)),
+          null,
+          null,
+          EXPECTED_ROWS.subList(i * ROWS_PER_SPLIT, 500));
     }
   }
 
@@ -170,7 +181,7 @@ public class TestSparkParquetReadMetadataColumns {
     List<BlockMetaData> rowGroups = fileReader.getRowGroups();
     for (int i = 0; i < NUM_ROW_GROUPS; i += 1) {
       readAndValidate(null,
-          rowGroups.get(i).getColumns().get(1).getStartingPos(),
+          rowGroups.get(i).getColumns().get(0).getStartingPos(),
           rowGroups.get(i).getCompressedSize(),
           EXPECTED_ROWS.subList(i * ROWS_PER_SPLIT, (i + 1) * ROWS_PER_SPLIT));
     }
@@ -178,11 +189,10 @@ public class TestSparkParquetReadMetadataColumns {
 
   private void readAndValidate(Expression filter, Long splitStart, Long splitLength, List<InternalRow> expected)
       throws IOException {
-    Schema projectionWithoutMetadataFields = TypeUtil.selectNot(PROJECTION_SCHEMA, MetadataColumns.metadataFieldIds());
     CloseableIterable<InternalRow> reader = null;
     try {
       Parquet.ReadBuilder builder = Parquet.read(Files.localInput(testFile))
-          .project(projectionWithoutMetadataFields);
+          .project(PROJECTION_SCHEMA);
 
       if (vectorized) {
         builder.createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(PROJECTION_SCHEMA,
@@ -214,5 +224,4 @@ public class TestSparkParquetReadMetadataColumns {
       }
     }
   }
-
 }

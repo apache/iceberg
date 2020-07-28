@@ -139,12 +139,12 @@ public class ParquetValueReaders {
 
   static class PositionReader implements ParquetValueReader<Long> {
     private long rowOffsetInCurrentRowGroup = -1;
-    private long rowGroupRowOffsetInfile;
+    private long rowGroupRowOffsetInFile;
 
     @Override
     public Long read(Long reuse) {
       rowOffsetInCurrentRowGroup = rowOffsetInCurrentRowGroup + 1;
-      return rowGroupRowOffsetInfile + rowOffsetInCurrentRowGroup;
+      return rowGroupRowOffsetInFile + rowOffsetInCurrentRowGroup;
     }
 
     @Override
@@ -163,7 +163,7 @@ public class ParquetValueReaders {
 
     @Override
     public void setRowOffsetForRowGroup(long rowGroupStartPos) {
-      this.rowGroupRowOffsetInfile = rowGroupStartPos;
+      this.rowGroupRowOffsetInFile = rowGroupStartPos;
       this.rowOffsetInCurrentRowGroup = -1;
     }
   }
