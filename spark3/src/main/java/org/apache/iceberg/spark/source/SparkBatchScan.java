@@ -29,6 +29,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
@@ -44,6 +45,7 @@ import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.read.Batch;
@@ -179,6 +181,16 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
   @Override
   public Statistics estimateStatistics() {
+    if (filterExpressions == null || filterExpressions.isEmpty()) {
+      LOG.debug("using table metadata to estimate table statistics");
+      long totalRecords = PropertyUtil.propertyAsLong(table.currentSnapshot().summary(),
+          SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
+      Schema projectedSchema = expectedSchema != null ? expectedSchema : table.schema();
+      return new Stats(
+          SparkSchemaUtil.estimateSize(SparkSchemaUtil.convert(projectedSchema), totalRecords),
+          totalRecords);
+    }
+
     long sizeInBytes = 0L;
     long numRows = 0L;
 
