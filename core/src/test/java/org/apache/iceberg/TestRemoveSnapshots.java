@@ -538,6 +538,40 @@ public class TestRemoveSnapshots extends TableTestBase {
     Assert.assertTrue("FILE_B should be deleted", deletedFiles.contains(FILE_B.path().toString()));
   }
 
+  @Test
+  public void noDataFileCleanup() throws IOException {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    table.newFastAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    table.newRewrite()
+        .rewriteFiles(ImmutableSet.of(FILE_B), ImmutableSet.of(FILE_D))
+        .commit();
+
+    table.newRewrite()
+        .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_C))
+        .commit();
+
+    long t4 = System.currentTimeMillis();
+    while (t4 <= table.currentSnapshot().timestampMillis()) {
+      t4 = System.currentTimeMillis();
+    }
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    table.expireSnapshots()
+        .cleanExpiredFiles(false)
+        .expireOlderThan(t4)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    Assert.assertTrue("No files should have been deleted", deletedFiles.isEmpty());
+  }
+
   /**
    * Test on table below, and expiring the staged commit `B` using `expireOlderThan` API.
    * Table: A - C
