@@ -520,28 +520,6 @@ data.writeTo("prod.db.table")
     .createOrReplace()
 ```
 
-### Writing from streaming query (Structured Streaming)
-
-To write values from streaming query to Iceberg table, use `writeStream`:
-
-```scala
-data.writeStream
-    .format("iceberg")
-    .outputMode("append")
-    .option("path", pathToTable)
-    .option("checkpointLocation", checkpointPath)
-    .start()
-```
-
-`append` and `complete` modes are supported. The table should be created in prior to start the streaming query.
- 
-!!! Note
-    To avoid metadata growing too huge, there're several guides you may want to follow: 
-
-    * You may want to enable `write.metadata.delete-after-commit.enabled` in the table properties, and reduce `write.metadata.previous-versions-max` as well (if necessary).
-    * You may also want to run [expireSnapshots()](/javadoc/master/org/apache/iceberg/Table.html#expireSnapshots--) periodically to prune the old version of snapshots,
-      which reduces the number of snapshots in metadata file, leads to retain the size of metadata file be reasonable. Please keep in mind that expiring old version of snapshots
-      means you no longer be able to do time travel before the time on condition for expiration.
 
 ## Inspecting tables
 
