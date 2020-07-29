@@ -30,6 +30,7 @@ import org.apache.avro.util.Utf8;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.DecimalUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.io.api.Binary;
@@ -229,38 +230,19 @@ public class ParquetValueWriters {
   private static class FixedDecimalWriter extends PrimitiveWriter<BigDecimal> {
     private final int precision;
     private final int scale;
-    private final int length;
     private final ThreadLocal<byte[]> bytes;
 
     private FixedDecimalWriter(ColumnDescriptor desc, int precision, int scale) {
       super(desc);
       this.precision = precision;
       this.scale = scale;
-      this.length = TypeUtil.decimalRequiredBytes(precision);
-      this.bytes = ThreadLocal.withInitial(() -> new byte[length]);
+      this.bytes = ThreadLocal.withInitial(() -> new byte[TypeUtil.decimalRequiredBytes(precision)]);
     }
 
     @Override
     public void write(int repetitionLevel, BigDecimal decimal) {
-      Preconditions.checkArgument(decimal.scale() == scale,
-          "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, decimal);
-      Preconditions.checkArgument(decimal.precision() <= precision,
-          "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, decimal);
-
-      byte fillByte = (byte) (decimal.signum() < 0 ? 0xFF : 0x00);
-      byte[] unscaled = decimal.unscaledValue().toByteArray();
-      byte[] buf = bytes.get();
-      int offset = length - unscaled.length;
-
-      for (int i = 0; i < length; i += 1) {
-        if (i < offset) {
-          buf[i] = fillByte;
-        } else {
-          buf[i] = unscaled[i - offset];
-        }
-      }
-
-      column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(buf));
+      byte[] binary = DecimalUtil.toReusedFixLengthBytes(precision, scale, decimal, bytes.get());
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(binary));
     }
   }
 
