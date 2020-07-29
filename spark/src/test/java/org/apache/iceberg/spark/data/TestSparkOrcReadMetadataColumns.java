@@ -119,7 +119,7 @@ public class TestSparkOrcReadMetadataColumns {
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
     try (FileAppender<InternalRow> writer = ORC.write(Files.localOutput(testFile))
-        .createWriterFunc(SparkOrcWriter::new)
+        .createWriterFunc((icebergSchema, typeDesc) -> new SparkOrcWriter(typeDesc))
         .schema(DATA_SCHEMA)
         // write in such a way that the file contains 10 stripes each with 100 rows
         .config("iceberg.orc.vectorbatch.size", "100")

@@ -24,7 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Metrics;
@@ -47,24 +47,22 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
  */
 class OrcFileAppender<D> implements FileAppender<D> {
   private final int batchSize;
-  private final Schema schema;
   private final OutputFile file;
   private final Writer writer;
   private final VectorizedRowBatch batch;
-  private final OrcValueWriter<D> valueWriter;
+  private final OrcRowWriter<D> valueWriter;
   private boolean isClosed = false;
   private final Configuration conf;
 
   OrcFileAppender(Schema schema, OutputFile file,
-                  Function<TypeDescription, OrcValueWriter<?>> createWriterFunc,
+                  BiFunction<Schema, TypeDescription, OrcRowWriter<?>> createWriterFunc,
                   Configuration conf, Map<String, byte[]> metadata,
                   int batchSize) {
     this.conf = conf;
     this.file = file;
     this.batchSize = batchSize;
-    this.schema = schema;
 
-    TypeDescription orcSchema = ORCSchemaUtil.convert(this.schema);
+    TypeDescription orcSchema = ORCSchemaUtil.convert(schema);
     this.batch = orcSchema.createRowBatch(this.batchSize);
 
     OrcFile.WriterOptions options = OrcFile.writerOptions(conf).useUTCTimestamp(true);
@@ -73,7 +71,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
     }
     options.setSchema(orcSchema);
     this.writer = newOrcWriter(file, options, metadata);
-    this.valueWriter = newOrcValueWriter(orcSchema, createWriterFunc);
+    this.valueWriter = newOrcRowWriter(schema, orcSchema, createWriterFunc);
   }
 
   @Override
@@ -146,8 +144,10 @@ class OrcFileAppender<D> implements FileAppender<D> {
   }
 
   @SuppressWarnings("unchecked")
-  private static <D> OrcValueWriter<D> newOrcValueWriter(
-      TypeDescription schema, Function<TypeDescription, OrcValueWriter<?>> createWriterFunc) {
-    return (OrcValueWriter<D>) createWriterFunc.apply(schema);
+  private static <D> OrcRowWriter<D> newOrcRowWriter(Schema schema,
+                                                     TypeDescription orcSchema,
+                                                     BiFunction<Schema, TypeDescription, OrcRowWriter<?>>
+                                                         createWriterFunc) {
+    return (OrcRowWriter<D>) createWriterFunc.apply(schema, orcSchema);
   }
 }

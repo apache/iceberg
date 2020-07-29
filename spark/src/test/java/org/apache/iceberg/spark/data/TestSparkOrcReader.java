@@ -67,7 +67,7 @@ public class TestSparkOrcReader extends AvroDataTest {
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
     try (FileAppender<InternalRow> writer = ORC.write(Files.localOutput(testFile))
-        .createWriterFunc(SparkOrcWriter::new)
+        .createWriterFunc((icebergSchema, typeDesc) -> new SparkOrcWriter(typeDesc))
         .schema(schema)
         .build()) {
       writer.addAll(expected);
