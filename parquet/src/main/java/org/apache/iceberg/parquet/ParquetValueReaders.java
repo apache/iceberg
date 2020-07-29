@@ -57,6 +57,10 @@ public class ParquetValueReaders {
     return new ConstantReader<>(value);
   }
 
+  public static ParquetValueReader<Long> position() {
+    return new PositionReader();
+  }
+
   private static class NullReader<T> implements ParquetValueReader<T> {
     private static final NullReader<Void> INSTANCE = new NullReader<>();
     private static final ImmutableList<TripleIterator<?>> COLUMNS = ImmutableList.of();
@@ -106,7 +110,7 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore) {
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {
     }
   }
 
@@ -133,18 +137,18 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore) {
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {
     }
   }
 
   static class PositionReader implements ParquetValueReader<Long> {
-    private long rowOffsetInCurrentRowGroup = -1;
-    private long rowGroupRowOffsetInFile;
+    private long rowOffset = -1;
+    private long rowGroupStart;
 
     @Override
     public Long read(Long reuse) {
-      rowOffsetInCurrentRowGroup = rowOffsetInCurrentRowGroup + 1;
-      return rowGroupRowOffsetInFile + rowOffsetInCurrentRowGroup;
+      rowOffset = rowOffset + 1;
+      return rowGroupStart + rowOffset;
     }
 
     @Override
@@ -158,18 +162,10 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore) {
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {
+      this.rowGroupStart = rowPosition;
+      this.rowOffset = -1;
     }
-
-    @Override
-    public void setRowOffsetForRowGroup(long rowGroupStartPos) {
-      this.rowGroupRowOffsetInFile = rowGroupStartPos;
-      this.rowOffsetInCurrentRowGroup = -1;
-    }
-  }
-
-  public static ParquetValueReader<Long> position() {
-    return new PositionReader();
   }
 
   public abstract static class PrimitiveReader<T> implements ParquetValueReader<T> {
@@ -185,8 +181,9 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore) {
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {
       column.setPageSource(pageStore.getPageReader(desc));
+      column.setRowPosition(rowPosition);
     }
 
     @Override
@@ -358,8 +355,8 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore) {
-      reader.setPageSource(pageStore);
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {
+      reader.setPageSource(pageStore, rowPosition);
     }
 
     @Override
@@ -402,8 +399,8 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore) {
-      reader.setPageSource(pageStore);
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {
+      reader.setPageSource(pageStore, rowPosition);
     }
 
     @Override
@@ -518,9 +515,9 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore) {
-      keyReader.setPageSource(pageStore);
-      valueReader.setPageSource(pageStore);
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {
+      keyReader.setPageSource(pageStore, rowPosition);
+      valueReader.setPageSource(pageStore, rowPosition);
     }
 
     @Override
@@ -673,9 +670,9 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public final void setPageSource(PageReadStore pageStore) {
+    public final void setPageSource(PageReadStore pageStore, long rowPosition) {
       for (int i = 0; i < readers.length; i += 1) {
-        readers[i].setPageSource(pageStore);
+        readers[i].setPageSource(pageStore, rowPosition);
       }
     }
 
@@ -699,13 +696,6 @@ public class ParquetValueReaders {
     @Override
     public List<TripleIterator<?>> columns() {
       return children;
-    }
-
-    @Override
-    public void setRowOffsetForRowGroup(long rowOffsetInFile) {
-      for (ParquetValueReader<?> reader : readers) {
-        reader.setRowOffsetForRowGroup(rowOffsetInFile);
-      }
     }
 
     @SuppressWarnings("unchecked")

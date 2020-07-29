@@ -189,39 +189,32 @@ public class TestSparkParquetReadMetadataColumns {
 
   private void readAndValidate(Expression filter, Long splitStart, Long splitLength, List<InternalRow> expected)
       throws IOException {
-    CloseableIterable<InternalRow> reader = null;
-    try {
-      Parquet.ReadBuilder builder = Parquet.read(Files.localInput(testFile))
-          .project(PROJECTION_SCHEMA);
+    Parquet.ReadBuilder builder = Parquet.read(Files.localInput(testFile)).project(PROJECTION_SCHEMA);
 
-      if (vectorized) {
-        builder.createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(PROJECTION_SCHEMA,
-            fileSchema, NullCheckingForGet.NULL_CHECKING_ENABLED));
-      } else {
-        builder = builder.createReaderFunc(msgType -> SparkParquetReaders.buildReader(PROJECTION_SCHEMA, msgType));
-      }
+    if (vectorized) {
+      builder.createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(PROJECTION_SCHEMA,
+          fileSchema, NullCheckingForGet.NULL_CHECKING_ENABLED));
+    } else {
+      builder = builder.createReaderFunc(msgType -> SparkParquetReaders.buildReader(PROJECTION_SCHEMA, msgType));
+    }
 
-      if (filter != null) {
-        builder = builder.filter(filter);
-      }
+    if (filter != null) {
+      builder = builder.filter(filter);
+    }
 
-      if (splitStart != null && splitLength != null) {
-        builder = builder.split(splitStart, splitLength);
-      }
+    if (splitStart != null && splitLength != null) {
+      builder = builder.split(splitStart, splitLength);
+    }
 
-      reader = builder.build();
-
+    try (CloseableIterable<InternalRow> reader = builder.build()) {
       final Iterator<InternalRow> actualRows = reader.iterator();
 
       for (InternalRow internalRow : expected) {
         Assert.assertTrue("Should have expected number of rows", actualRows.hasNext());
         TestHelpers.assertEquals(PROJECTION_SCHEMA, internalRow, actualRows.next());
       }
+
       Assert.assertFalse("Should not have extra rows", actualRows.hasNext());
-    } finally {
-      if (reader != null) {
-        reader.close();
-      }
     }
   }
 }

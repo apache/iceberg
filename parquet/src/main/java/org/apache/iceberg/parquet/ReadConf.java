@@ -177,7 +177,7 @@ class ReadConf<T> {
     return offsetToStartRowPosMap;
   }
 
-  long[] getRowGroupsStartRowPos() {
+  long[] startRowPositions() {
     return rowGroupsStartRowPos;
   }
 
