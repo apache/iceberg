@@ -55,8 +55,8 @@ public class RandomGenericData {
     return records;
   }
 
-  private static class RandomRecordGenerator extends RandomDataGenerator<Record> {
-    private RandomRecordGenerator(long seed) {
+  public static class RandomRecordGenerator extends RandomDataGenerator<Record> {
+    public RandomRecordGenerator(long seed) {
       super(seed);
     }
 
