@@ -421,8 +421,14 @@ project(':iceberg-mr') {
     }
 
     dependencies {
+      include(dependency('com.github.ben-manes.caffeine:caffeine:'))
+      include(dependency('org.apache.avro:avro:'))
       include(dependency('org.apache.iceberg::'))
+      include(dependency('org.apache.parquet::'))
     }
+    
+    relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
+    relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
 
   }
 }
