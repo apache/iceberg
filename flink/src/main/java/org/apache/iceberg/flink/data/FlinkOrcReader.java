@@ -102,7 +102,7 @@ public class FlinkOrcReader implements OrcRowReader<RowData> {
         case DOUBLE:
           return OrcValueReaders.doubles();
         case DATE:
-          return GenericOrcReaders.dates();
+          return FlinkOrcReaders.dates();
         case TIME:
           return FlinkOrcReaders.times();
         case TIMESTAMP:
@@ -118,7 +118,7 @@ public class FlinkOrcReader implements OrcRowReader<RowData> {
           return GenericOrcReaders.uuids();
         case FIXED:
         case BINARY:
-          return GenericOrcReaders.bytes();
+          return OrcValueReaders.bytes();
         case DECIMAL:
           Types.DecimalType decimalType = (Types.DecimalType) iPrimitive;
           return FlinkOrcReaders.decimals(decimalType.precision(), decimalType.scale());

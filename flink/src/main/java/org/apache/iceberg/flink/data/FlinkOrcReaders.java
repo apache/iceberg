@@ -36,7 +36,6 @@ import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.iceberg.orc.OrcValueReader;
 import org.apache.iceberg.orc.OrcValueReaders;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
@@ -49,15 +48,19 @@ import org.apache.orc.storage.ql.exec.vector.MapColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
 import org.apache.orc.storage.serde2.io.HiveDecimalWritable;
 
-public class FlinkOrcReaders {
+class FlinkOrcReaders {
   private FlinkOrcReaders() {
   }
 
-  public static OrcValueReader<StringData> strings() {
+  static OrcValueReader<StringData> strings() {
     return StringReader.INSTANCE;
   }
 
-  public static OrcValueReader<DecimalData> decimals(int precision, int scale) {
+  static OrcValueReader<Integer> dates() {
+    return DateReader.INSTANCE;
+  }
+
+  static OrcValueReader<DecimalData> decimals(int precision, int scale) {
     if (precision <= 18) {
       return new Decimal18Reader(precision, scale);
     } else {
@@ -65,19 +68,19 @@ public class FlinkOrcReaders {
     }
   }
 
-  public static OrcValueReader<Integer> times() {
+  static OrcValueReader<Integer> times() {
     return TimeReader.INSTANCE;
   }
 
-  public static OrcValueReader<TimestampData> timestamps() {
+  static OrcValueReader<TimestampData> timestamps() {
     return TimestampReader.INSTANCE;
   }
 
-  public static OrcValueReader<TimestampData> timestampTzs() {
+  static OrcValueReader<TimestampData> timestampTzs() {
     return TimestampTzReader.INSTANCE;
   }
 
-  public static <T> OrcValueReader<ArrayData> array(OrcValueReader<T> elementReader) {
+  static <T> OrcValueReader<ArrayData> array(OrcValueReader<T> elementReader) {
     return new ArrayReader<>(elementReader);
   }
 
@@ -101,6 +104,15 @@ public class FlinkOrcReaders {
     }
   }
 
+  private static class DateReader implements OrcValueReader<Integer> {
+    private static final DateReader INSTANCE = new DateReader();
+
+    @Override
+    public Integer nonNullRead(ColumnVector vector, int row) {
+      return (int) ((LongColumnVector) vector).vector[row];
+    }
+  }
+
   private static class Decimal18Reader implements OrcValueReader<DecimalData> {
     private final int precision;
     private final int scale;
@@ -113,8 +125,6 @@ public class FlinkOrcReaders {
     @Override
     public DecimalData nonNullRead(ColumnVector vector, int row) {
       HiveDecimalWritable value = ((DecimalColumnVector) vector).vector[row];
-      Preconditions.checkArgument(precision == value.precision(), "Precision mismatched.");
-      Preconditions.checkArgument(scale == value.scale(), "Scale mismatched.");
       return DecimalData.fromUnscaledLong(value.serialize64(value.scale()), value.precision(), value.scale());
     }
   }
@@ -140,8 +150,8 @@ public class FlinkOrcReaders {
 
     @Override
     public Integer nonNullRead(ColumnVector vector, int row) {
-      // Flink only support time mills, just erase micros.
       long micros = ((LongColumnVector) vector).vector[row];
+      // Flink only support time mills, just erase micros.
       return (int) (micros / 1000);
     }
   }

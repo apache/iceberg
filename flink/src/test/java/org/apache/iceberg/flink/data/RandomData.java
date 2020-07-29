@@ -94,6 +94,8 @@ public class RandomData {
                                                    Supplier<RandomRowGenerator> supplier) {
     DataStructureConverter<Object, Object> converter =
         DataStructureConverters.getConverter(TypeConversions.fromLogicalToDataType(FlinkSchemaUtil.convert(schema)));
+    converter.open(RandomData.class.getClassLoader());
+
     return () -> new Iterator<RowData>() {
       private final RandomRowGenerator generator = supplier.get();
       private int count = 0;

@@ -88,7 +88,7 @@ public class GenericOrcWriters {
     return UUIDWriter.INSTANCE;
   }
 
-  public static OrcValueWriter<byte[]> fixed() {
+  public static OrcValueWriter<byte[]> bytes() {
     return FixedWriter.INSTANCE;
   }
 
@@ -337,7 +337,7 @@ public class GenericOrcWriters {
           "Cannot write value as decimal(%s,%s), invalid precision: %s", precision, scale, data);
 
       ((DecimalColumnVector) output).vector[rowId]
-          .setFromLongAndScale(data.unscaledValue().longValueExact(), scale);
+          .setFromLongAndScale(data.unscaledValue().longValueExact(), data.scale());
     }
   }
 

@@ -19,12 +19,12 @@
 
 package org.apache.iceberg.flink.data;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import org.apache.flink.table.data.ArrayData;
+import org.apache.flink.table.data.DecimalData;
 import org.apache.flink.table.data.MapData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
@@ -49,6 +49,10 @@ class FlinkOrcWriters {
 
   static OrcValueWriter<?> strings() {
     return StringWriter.INSTANCE;
+  }
+
+  static OrcValueWriter<?> dates() {
+    return DateWriter.INSTANCE;
   }
 
   static OrcValueWriter<?> times() {
@@ -99,6 +103,20 @@ class FlinkOrcWriters {
     }
   }
 
+  private static class DateWriter implements OrcValueWriter<Integer> {
+    private static final DateWriter INSTANCE = new DateWriter();
+
+    @Override
+    public Class<?> getJavaClass() {
+      return Integer.class;
+    }
+
+    @Override
+    public void nonNullWrite(int rowId, Integer data, ColumnVector output) {
+      ((LongColumnVector) output).vector[rowId] = data;
+    }
+  }
+
   private static class TimeWriter implements OrcValueWriter<Integer> {
     private static final TimeWriter INSTANCE = new TimeWriter();
 
@@ -108,8 +126,10 @@ class FlinkOrcWriters {
     }
 
     @Override
-    public void nonNullWrite(int rowId, Integer microSecond, ColumnVector output) {
-      ((LongColumnVector) output).vector[rowId] = microSecond;
+    public void nonNullWrite(int rowId, Integer millis, ColumnVector output) {
+      // The time in flink is in millisecond, while the standard time in iceberg is microsecond.
+      // So we need to transform it to microsecond.
+      ((LongColumnVector) output).vector[rowId] = millis * 1000;
     }
   }
 
@@ -152,7 +172,7 @@ class FlinkOrcWriters {
     }
   }
 
-  private static class Decimal18Writer implements OrcValueWriter<BigDecimal> {
+  private static class Decimal18Writer implements OrcValueWriter<DecimalData> {
     private final int scale;
     private final int precision;
 
@@ -163,16 +183,16 @@ class FlinkOrcWriters {
 
     @Override
     public Class<?> getJavaClass() {
-      return BigDecimal.class;
+      return DecimalData.class;
     }
 
     @Override
-    public void nonNullWrite(int rowId, BigDecimal data, ColumnVector output) {
-      ((DecimalColumnVector) output).vector[rowId].setFromLongAndScale(data.unscaledValue().longValueExact(), scale);
+    public void nonNullWrite(int rowId, DecimalData data, ColumnVector output) {
+      ((DecimalColumnVector) output).vector[rowId].setFromLongAndScale(data.toUnscaledLong(), data.scale());
     }
   }
 
-  private static class Decimal38Writer implements OrcValueWriter<BigDecimal> {
+  private static class Decimal38Writer implements OrcValueWriter<DecimalData> {
     private final int scale;
     private final int precision;
 
@@ -183,12 +203,12 @@ class FlinkOrcWriters {
 
     @Override
     public Class<?> getJavaClass() {
-      return BigDecimal.class;
+      return DecimalData.class;
     }
 
     @Override
-    public void nonNullWrite(int rowId, BigDecimal data, ColumnVector output) {
-      ((DecimalColumnVector) output).vector[rowId].set(HiveDecimal.create(data, false));
+    public void nonNullWrite(int rowId, DecimalData data, ColumnVector output) {
+      ((DecimalColumnVector) output).vector[rowId].set(HiveDecimal.create(data.toBigDecimal(), false));
     }
   }
 

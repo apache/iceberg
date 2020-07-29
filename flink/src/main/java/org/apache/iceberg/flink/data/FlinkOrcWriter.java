@@ -99,7 +99,7 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
         case DOUBLE:
           return GenericOrcWriters.doubles();
         case DATE:
-          return GenericOrcWriters.dates();
+          return FlinkOrcWriters.dates();
         case TIME:
           return FlinkOrcWriters.times();
         case TIMESTAMP:
@@ -114,9 +114,8 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
         case UUID:
           return GenericOrcWriters.uuids();
         case FIXED:
-          return GenericOrcWriters.fixed();
         case BINARY:
-          return GenericOrcWriters.byteBuffers();
+          return GenericOrcWriters.bytes();
         case DECIMAL:
           Types.DecimalType decimalType = (Types.DecimalType) iPrimitive;
           return FlinkOrcWriters.decimals(decimalType.scale(), decimalType.precision());
