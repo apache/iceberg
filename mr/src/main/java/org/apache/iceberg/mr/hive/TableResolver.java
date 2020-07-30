@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.mr.hive;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
@@ -34,7 +33,7 @@ public final class TableResolver {
   private TableResolver() {
   }
 
-  static Table resolveTableFromConfiguration(Configuration conf, Properties properties) throws IOException {
+  static Table resolveTableFromConfiguration(Configuration conf, Properties properties) {
     Configuration configuration = new Configuration(conf);
     for (Map.Entry<Object, Object> entry : properties.entrySet()) {
       configuration.set(entry.getKey().toString(), entry.getValue().toString());
@@ -42,7 +41,7 @@ public final class TableResolver {
     return resolveTableFromConfiguration(configuration);
   }
 
-  public static Table resolveTableFromConfiguration(Configuration conf) throws IOException {
+  public static Table resolveTableFromConfiguration(Configuration conf) {
     //Default to HadoopTables
     String catalogName = conf.get(InputFormatConfig.CATALOG_NAME, InputFormatConfig.HADOOP_TABLES);
 
