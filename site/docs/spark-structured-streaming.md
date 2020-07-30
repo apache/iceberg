@@ -90,10 +90,11 @@ see more.
 Please keep in mind that expiring old version of snapshots means you no longer be able to do time travel before the
 time on condition for expiration.
 
-### Rewriting manifests
+### Rewriting manifests (manifest compaction / rearrangement)
 
 To optimize write latency on streaming workload, Iceberg may write the new snapshot on fast append, which writes
-a new metadata per commit. This would lead lots of small manifest files, which is inefficient on reading the table.
+a new metadata per commit. This would lead lots of small manifest files, which affects badly on file system (e.g.
+"small files problem" in HDFS), and brings inefficient on reading the table.
 
 You may want to run this action periodically to cluster the manifest files and pack into smaller number of files.
 The action can be also used to optimize read performance for specific partition spec.
@@ -109,11 +110,17 @@ actions.rewriteManifests()
 the manifest files, and how to exclude the files on grouping. Please refer the javadoc of
 [RewriteManifestsAction](/javadoc/master/org/apache/iceberg/actions/RewriteManifestsAction.html) to see more.
 
-### Rewriting data files (data compaction)
+Please note that rewriting manifests creates a new snapshot with optimized manifests. It doesn't rewrite old snapshots,
+meaning it doesn't optimize querying against older snapshot (via time-travel), and old manifest files cannot be removed
+until we expire old snapshots referring these files.
 
-Lots of (small) data files may lead bigger manifest and bring inefficiency to read the table. The action of rewriting
-data files clusters the data files and pack into smaller number of files. The action can be also used to optimize read
-performance for specific partition spec.
+### Rewriting data files (data compaction / rearrangement)
+
+Lots of (small) data files may lead bigger manifest and bring inefficiency to read the table. As we mentioned problems
+in the previous section, you would not prefer to have small files in general.
+
+You may want to run this action periodically to clusters the data files and pack into smaller number of files.
+The action can be also used to optimize read performance for specific partition spec.
 
 ```scala
 // ... assuming there's a Table instance `table` ...
@@ -125,6 +132,34 @@ actions.rewriteDataFiles()
 `actions.rewriteDataFiles()` provides `RewriteDataFilesAction`, which provides various methods to control how to group
 the data files, and how to exclude the files on grouping. Please refer the javadoc of
 [RewriteDataFilesAction](/javadoc/master/org/apache/iceberg/actions/RewriteDataFilesAction.html) to see more.
+
+Please note that rewriting data files creates a new snapshot with optimized data files. It doesn't rewrite old
+snapshots, meaning it doesn't optimize querying against older snapshot (via time-travel), and old data files cannot be
+removed until we expire old snapshots referring these files.
+
+### Remove orphan files
+
+Expiring old snapshots may leave orphan data and manifest files. `expireSnapshots()` takes care of removing files
+which are no longer referenced, but there may be still some cases orphan files may exist. You can execute removing
+orphan files explicitly to clean up files.
+
+```scala
+// ... assuming there's a Table instance `table` ...
+val actions: Actions = Actions.forTable(table)
+actions.removeOrphanFiles()
+       .execute()
+```
+
+`actions.removeOrphanFiles()` provides `RemoveOrphanFilesAction`, which provides various methods to control how to
+clean up orphan files. Please refer the javadoc of
+[RemoveOrphanFilesAction](/javadoc/master/org/apache/iceberg/actions/RemoveOrphanFilesAction.html) to see more.
+
+This action may take huge time to finish if you have lots of files in data and metadata directories. It's recommended
+to execute this periodically, but you may not need to execute this often.
+
+It is dangerous to call this action with a short retention interval as it might corrupt the state of the table if
+another operation is writing at the same time. To prevent the case, the action will only remove files that are older
+than 3 days by default.
 
 ## Appendix
 
