@@ -174,6 +174,64 @@ public class TestLocalScan {
         .commit();
   }
 
+  private void appendData() throws IOException {
+    Record record = GenericRecord.create(SCHEMA);
+
+    this.file1FirstSnapshotRecords = Lists.newArrayList(
+        record.copy(ImmutableMap.of("id", 4L, "data", "obscure")),
+        record.copy(ImmutableMap.of("id", 5L, "data", "secure")),
+        record.copy(ImmutableMap.of("id", 6L, "data", "fetta"))
+    );
+    DataFile file11 = writeFile(sharedTableLocation, format.addExtension("file-11"), file1FirstSnapshotRecords);
+
+    this.file2FirstSnapshotRecords = Lists.newArrayList(
+        record.copy(ImmutableMap.of("id", 14L, "data", "radical")),
+        record.copy(ImmutableMap.of("id", 15L, "data", "collocation")),
+        record.copy(ImmutableMap.of("id", 16L, "data", "book"))
+    );
+    DataFile file21 = writeFile(sharedTableLocation, format.addExtension("file-21"), file2FirstSnapshotRecords);
+
+    this.file3FirstSnapshotRecords = Lists.newArrayList(
+        record.copy(ImmutableMap.of("id", 24L, "data", "cloud")),
+        record.copy(ImmutableMap.of("id", 25L, "data", "zen")),
+        record.copy(ImmutableMap.of("id", 26L, "data", "sky"))
+    );
+    DataFile file31 = writeFile(sharedTableLocation, format.addExtension("file-31"), file3FirstSnapshotRecords);
+
+    sharedTable.newFastAppend()
+        .appendFile(file11)
+        .appendFile(file21)
+        .appendFile(file31)
+        .commit();
+
+    this.file1SecondSnapshotRecords = Lists.newArrayList(
+        record.copy(ImmutableMap.of("id", 6L, "data", "brainy")),
+        record.copy(ImmutableMap.of("id", 7L, "data", "film")),
+        record.copy(ImmutableMap.of("id", 8L, "data", "fetta"))
+    );
+    DataFile file12 = writeFile(sharedTableLocation, format.addExtension("file-12"), file1SecondSnapshotRecords);
+
+    this.file2SecondSnapshotRecords = Lists.newArrayList(
+        record.copy(ImmutableMap.of("id", 16L, "data", "cake")),
+        record.copy(ImmutableMap.of("id", 17L, "data", "intrinsic")),
+        record.copy(ImmutableMap.of("id", 18L, "data", "paper"))
+    );
+    DataFile file22 = writeFile(sharedTableLocation, format.addExtension("file-22"), file2SecondSnapshotRecords);
+
+    this.file3SecondSnapshotRecords = Lists.newArrayList(
+        record.copy(ImmutableMap.of("id", 26L, "data", "belleview")),
+        record.copy(ImmutableMap.of("id", 27L, "data", "overview")),
+        record.copy(ImmutableMap.of("id", 28L, "data", "tender"))
+    );
+    DataFile file32 = writeFile(sharedTableLocation, format.addExtension("file-32"), file3SecondSnapshotRecords);
+
+    sharedTable.newFastAppend()
+        .appendFile(file12)
+        .appendFile(file22)
+        .appendFile(file32)
+        .commit();
+  }
+
   @Before
   public void createTables() throws IOException {
     File location = temp.newFolder("shared");
@@ -356,6 +414,51 @@ public class TestLocalScan {
         .build();
 
     Set<Record> expected = Sets.newHashSet();
+    expected.addAll(file1SecondSnapshotRecords);
+    expected.addAll(file2SecondSnapshotRecords);
+    expected.addAll(file3SecondSnapshotRecords);
+
+    Set<Record> records = Sets.newHashSet(results);
+    Assert.assertEquals("Should produce correct number of records",
+        expected.size(), records.size());
+    Assert.assertEquals("Record set should match",
+        Sets.newHashSet(expected), records);
+    Assert.assertNotNull(Iterables.get(records, 0).getField("id"));
+    Assert.assertNotNull(Iterables.get(records, 0).getField("data"));
+  }
+
+  @Test
+  public void testAppendsBetween() throws IOException {
+    appendData();
+    Iterable<Record> results = IcebergGenerics.read(sharedTable)
+        .appendsBetween(sharedTable.history().get(1).snapshotId(), sharedTable.currentSnapshot().snapshotId())
+        .build();
+
+    Set<Record> expected = Sets.newHashSet();
+    expected.addAll(file1SecondSnapshotRecords);
+    expected.addAll(file2SecondSnapshotRecords);
+    expected.addAll(file3SecondSnapshotRecords);
+
+    Set<Record> records = Sets.newHashSet(results);
+    Assert.assertEquals("Should produce correct number of records",
+        expected.size(), records.size());
+    Assert.assertEquals("Record set should match",
+        Sets.newHashSet(expected), records);
+    Assert.assertNotNull(Iterables.get(records, 0).getField("id"));
+    Assert.assertNotNull(Iterables.get(records, 0).getField("data"));
+  }
+
+  @Test
+  public void testAppendsAfter() throws IOException {
+    appendData();
+    Iterable<Record> results = IcebergGenerics.read(sharedTable)
+        .appendsAfter(sharedTable.history().get(0).snapshotId())
+        .build();
+
+    Set<Record> expected = Sets.newHashSet();
+    expected.addAll(file1FirstSnapshotRecords);
+    expected.addAll(file2FirstSnapshotRecords);
+    expected.addAll(file3FirstSnapshotRecords);
     expected.addAll(file1SecondSnapshotRecords);
     expected.addAll(file2SecondSnapshotRecords);
     expected.addAll(file3SecondSnapshotRecords);
