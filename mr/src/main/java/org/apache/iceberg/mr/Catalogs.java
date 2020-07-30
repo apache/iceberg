@@ -22,7 +22,6 @@ package org.apache.iceberg.mr;
 import java.util.Optional;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -54,16 +53,10 @@ public final class Catalogs {
    * @return an Iceberg table
    */
   public static Table loadTable(Configuration conf) {
-    // A bit of a hack to make this function work transparently with Hive without having to remap the "name" and
-    // "location" properties.
-    if (HiveConf.getVar(conf, HiveConf.ConfVars.HIVEQUERYID).length() > 0) {
-      return loadTable(conf, conf.get(NAME), conf.get(LOCATION));
-    }
-
     return loadTable(conf, conf.get(InputFormatConfig.TABLE_IDENTIFIER), conf.get(InputFormatConfig.TABLE_LOCATION));
   }
 
-  // For use in IcebergSerDe
+  // For use in HiveIcebergSerDe and HiveIcebergStorageHandler
   public static Table loadTable(Configuration conf, Properties props) {
     return loadTable(conf, props.getProperty(NAME), props.getProperty(LOCATION));
   }
