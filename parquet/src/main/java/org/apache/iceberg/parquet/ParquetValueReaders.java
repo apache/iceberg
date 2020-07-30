@@ -183,7 +183,6 @@ public class ParquetValueReaders {
     @Override
     public void setPageSource(PageReadStore pageStore, long rowPosition) {
       column.setPageSource(pageStore.getPageReader(desc));
-      column.setRowPosition(rowPosition);
     }
 
     @Override

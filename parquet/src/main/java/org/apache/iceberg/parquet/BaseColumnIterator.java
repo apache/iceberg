@@ -34,7 +34,6 @@ public abstract class BaseColumnIterator {
   protected long triplesRead = 0L;
   protected long advanceNextPageCount = 0L;
   protected Dictionary dictionary;
-  protected long rowPosition;
 
   protected BaseColumnIterator(ColumnDescriptor descriptor) {
     this.desc = descriptor;
@@ -73,7 +72,4 @@ public abstract class BaseColumnIterator {
     return triplesRead < triplesCount;
   }
 
-  public void setRowPosition(long rowPosition) {
-    this.rowPosition = rowPosition;
-  }
 }

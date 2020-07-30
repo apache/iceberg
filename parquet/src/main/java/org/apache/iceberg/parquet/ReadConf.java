@@ -57,7 +57,7 @@ class ReadConf<T> {
   private final long totalValues;
   private final boolean reuseContainers;
   private final Integer batchSize;
-  private final long[] rowGroupsStartRowPos;
+  private final long[] startRowPositions;
 
   // List of column chunk metadata for each row group
   private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetaDataForRowGroups;
@@ -87,8 +87,9 @@ class ReadConf<T> {
     this.rowGroups = reader.getRowGroups();
     this.shouldSkip = new boolean[rowGroups.size()];
 
-    Map<Long, Long> offsetToStartRowPosMap = generateRowGroupsStartRowPos();
-    this.rowGroupsStartRowPos = new long[rowGroups.size()];
+    // Fetch all row groups starting positions to compute the row offsets of the filtered row groups
+    Map<Long, Long> offsetToStartPos = generateOffsetToStartPos();
+    this.startRowPositions = new long[rowGroups.size()];
 
     ParquetMetricsRowGroupFilter statsFilter = null;
     ParquetDictionaryRowGroupFilter dictFilter = null;
@@ -100,7 +101,7 @@ class ReadConf<T> {
     long computedTotalValues = 0L;
     for (int i = 0; i < shouldSkip.length; i += 1) {
       BlockMetaData rowGroup = rowGroups.get(i);
-      rowGroupsStartRowPos[i] = offsetToStartRowPosMap.get(rowGroup.getStartingPos());
+      startRowPositions[i] = offsetToStartPos.get(rowGroup.getStartingPos());
       boolean shouldRead = filter == null || (
           statsFilter.shouldRead(typeWithIds, rowGroup) &&
               dictFilter.shouldRead(typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup)));
@@ -138,7 +139,7 @@ class ReadConf<T> {
     this.batchSize = toCopy.batchSize;
     this.vectorizedModel = toCopy.vectorizedModel;
     this.columnChunkMetaDataForRowGroups = toCopy.columnChunkMetaDataForRowGroups;
-    this.rowGroupsStartRowPos = toCopy.rowGroupsStartRowPos;
+    this.startRowPositions = toCopy.startRowPositions;
   }
 
   ParquetFileReader reader() {
@@ -164,21 +165,21 @@ class ReadConf<T> {
     return shouldSkip;
   }
 
-  private Map<Long, Long> generateRowGroupsStartRowPos() {
+  private Map<Long, Long> generateOffsetToStartPos() {
     ParquetFileReader fileReader = newReader(this.file, ParquetReadOptions.builder().build());
-    Map<Long, Long> offsetToStartRowPosMap = new HashMap<>();
+    Map<Long, Long> offsetToStartPos = new HashMap<>();
     long curRowCount = 0;
     for (int i = 0; i < fileReader.getRowGroups().size(); i += 1) {
       BlockMetaData meta = fileReader.getRowGroups().get(i);
-      offsetToStartRowPosMap.put(meta.getStartingPos(), curRowCount);
+      offsetToStartPos.put(meta.getStartingPos(), curRowCount);
       curRowCount += meta.getRowCount();
     }
 
-    return offsetToStartRowPosMap;
+    return offsetToStartPos;
   }
 
   long[] startRowPositions() {
-    return rowGroupsStartRowPos;
+    return startRowPositions;
   }
 
   long totalValues() {
