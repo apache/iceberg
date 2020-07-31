@@ -364,6 +364,11 @@ project(':iceberg-hive') {
 }
 
 project(':iceberg-mr') {
+  configurations {
+    testCompile {
+      exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
+    }
+  }
   dependencies {
     compile project(':iceberg-api')
     compile project(':iceberg-core')

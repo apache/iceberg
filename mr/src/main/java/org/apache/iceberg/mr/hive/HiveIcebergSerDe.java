@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.mr.hive;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Properties;
 import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
@@ -39,13 +37,8 @@ public class HiveIcebergSerDe extends AbstractSerDe {
 
   @Override
   public void initialize(@Nullable Configuration configuration, Properties serDeProperties) throws SerDeException {
-    final Table table;
 
-    try {
-      table = TableResolver.resolveTableFromConfiguration(configuration, serDeProperties);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Unable to resolve table from configuration: ", e);
-    }
+    Table table = TableResolver.resolveTableFromConfiguration(configuration, serDeProperties);
 
     try {
       this.inspector = IcebergObjectInspector.create(table.schema());
