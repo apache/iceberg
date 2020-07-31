@@ -20,6 +20,9 @@
 package org.apache.iceberg.expressions;
 
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.types.Types.StructType;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -29,11 +32,20 @@ import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.expressions.Expressions.day;
 import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.greaterThan;
+import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.hour;
+import static org.apache.iceberg.expressions.Expressions.in;
+import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
+import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.month;
 import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notEqual;
+import static org.apache.iceberg.expressions.Expressions.notIn;
+import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.expressions.Expressions.year;
 
@@ -75,6 +87,51 @@ public class TestExpressionHelpers {
 
     Assert.assertEquals("not(not(pred)) => pred",
         pred, not(not(pred)));
+  }
+
+  @Test
+  public void testRewriteNot() {
+    StructType struct = StructType.of(NestedField.optional(1, "a", Types.IntegerType.get()));
+    Expression[][] expressions = new Expression[][] {
+        // (rewritten pred, original pred) pairs
+        { isNull("a"), isNull("a") },
+        { notNull("a"), not(isNull("a")) },
+        { notNull("a"), notNull("a") },
+        { isNull("a"), not(notNull("a")) },
+        { equal("a", 5), equal("a", 5) },
+        { notEqual("a", 5), not(equal("a", 5)) },
+        { notEqual("a", 5), notEqual("a", 5) },
+        { equal("a", 5), not(notEqual("a", 5)) },
+        { in("a", 5, 6), in("a", 5, 6) },
+        { notIn("a", 5, 6), not(in("a", 5, 6)) },
+        { notIn("a", 5, 6), notIn("a", 5, 6) },
+        { in("a", 5, 6), not(notIn("a", 5, 6)) },
+        { lessThan("a", 5), lessThan("a", 5) },
+        { greaterThanOrEqual("a", 5), not(lessThan("a", 5)) },
+        { greaterThanOrEqual("a", 5), greaterThanOrEqual("a", 5) },
+        { lessThan("a", 5), not(greaterThanOrEqual("a", 5)) },
+        { lessThanOrEqual("a", 5), lessThanOrEqual("a", 5) },
+        { greaterThan("a", 5), not(lessThanOrEqual("a", 5)) },
+        { greaterThan("a", 5), greaterThan("a", 5) },
+        { lessThanOrEqual("a", 5), not(greaterThan("a", 5)) },
+        { or(equal("a", 5), isNull("a")), or(equal("a", 5), isNull("a")) },
+        { and(notEqual("a", 5), notNull("a")), not(or(equal("a", 5), isNull("a"))) },
+        { and(notEqual("a", 5), notNull("a")), and(notEqual("a", 5), notNull("a")) },
+        { or(equal("a", 5), isNull("a")), not(and(notEqual("a", 5), notNull("a"))) },
+        { or(equal("a", 5), notNull("a")), or(equal("a", 5), not(isNull("a"))) },
+    };
+
+    for (Expression[] pair : expressions) {
+      // unbound rewrite
+      Assert.assertEquals(String.format("rewriteNot(%s) should be %s", pair[1], pair[0]),
+          pair[0].toString(), rewriteNot(pair[1]).toString());
+
+      // bound rewrite
+      Expression expectedBound = Binder.bind(struct, pair[0]);
+      Expression toRewriteBound = Binder.bind(struct, pair[1]);
+      Assert.assertEquals(String.format("rewriteNot(%s) should be %s", toRewriteBound, expectedBound),
+          expectedBound.toString(), rewriteNot(toRewriteBound).toString());
+    }
   }
 
   @Test

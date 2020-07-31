@@ -32,6 +32,11 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
     this.literal = lit;
   }
 
+  @Override
+  public Expression negate() {
+    return new BoundLiteralPredicate<>(op().negate(), term(), literal);
+  }
+
   public Literal<T> literal() {
     return literal;
   }
