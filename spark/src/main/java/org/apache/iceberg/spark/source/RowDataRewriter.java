@@ -38,6 +38,7 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.UnpartitionedWriter;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.TaskContext;
 import org.apache.spark.api.java.JavaRDD;
@@ -119,7 +120,7 @@ public class RowDataRewriter implements Serializable {
       dataReader = null;
 
       writer.close();
-      return writer.complete();
+      return Lists.newArrayList(writer.complete());
 
     } catch (Throwable originalThrowable) {
       try {

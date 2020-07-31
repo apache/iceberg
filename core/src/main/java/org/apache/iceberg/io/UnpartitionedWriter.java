@@ -25,34 +25,21 @@ import org.apache.iceberg.PartitionSpec;
 
 public class UnpartitionedWriter<T> extends BaseTaskWriter<T> {
 
-  private RollingFileWriter currentWriter = null;
+  private final RollingFileWriter currentWriter;
 
   public UnpartitionedWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
                              OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+    currentWriter = new RollingFileWriter(null);
   }
 
   @Override
   public void write(T record) throws IOException {
-    if (currentWriter == null) {
-      currentWriter = new RollingFileWriter(null);
-    }
     currentWriter.add(record);
   }
 
   @Override
   public void close() throws IOException {
-    closeCurrent();
-  }
-
-  private void closeCurrent() throws IOException {
-    if (currentWriter != null) {
-
-      // Close the current file appender and put the generated DataFile to completeDataFiles.
-      currentWriter.close();
-
-      // Reset the current appender to be null.
-      currentWriter = null;
-    }
+    currentWriter.close();
   }
 }

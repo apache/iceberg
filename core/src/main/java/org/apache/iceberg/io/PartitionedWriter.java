@@ -56,10 +56,9 @@ public abstract class PartitionedWriter<T> extends BaseTaskWriter<T> {
     PartitionKey key = partition(row);
 
     if (!key.equals(currentKey)) {
-      closeCurrent();
-
       if (currentKey != null) {
-        // if the key is null, there was no previous current key
+        // if the key is null, there was no previous current key and current writer.
+        currentWriter.close();
         completedPartitions.add(currentKey);
       }
 
@@ -71,9 +70,6 @@ public abstract class PartitionedWriter<T> extends BaseTaskWriter<T> {
       }
 
       currentKey = key.copy();
-    }
-
-    if (currentWriter == null) {
       currentWriter = new RollingFileWriter(currentKey);
     }
 
@@ -82,17 +78,6 @@ public abstract class PartitionedWriter<T> extends BaseTaskWriter<T> {
 
   @Override
   public void close() throws IOException {
-    closeCurrent();
-  }
-
-  private void closeCurrent() throws IOException {
-    if (currentWriter != null) {
-
-      // Close the current file appender.
-      currentWriter.close();
-
-      // Reset the current appender to be null.
-      currentWriter = null;
-    }
+    currentWriter.close();
   }
 }

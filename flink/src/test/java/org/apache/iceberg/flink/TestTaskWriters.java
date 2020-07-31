@@ -29,7 +29,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
@@ -93,15 +92,15 @@ public class TestTaskWriters {
     try (TaskWriter<Row> taskWriter = createTaskWriter(TARGET_FILE_SIZE)) {
       taskWriter.close();
 
-      List<DataFile> dataFiles = taskWriter.complete();
+      DataFile[] dataFiles = taskWriter.complete();
       Assert.assertNotNull(dataFiles);
-      Assert.assertEquals(0, dataFiles.size());
+      Assert.assertEquals(0, dataFiles.length);
 
       // Close again.
       taskWriter.close();
       dataFiles = taskWriter.complete();
       Assert.assertNotNull(dataFiles);
-      Assert.assertEquals(0, dataFiles.size());
+      Assert.assertEquals(0, dataFiles.length);
     }
   }
 
@@ -114,8 +113,8 @@ public class TestTaskWriters {
       taskWriter.close(); // The second close
 
       int expectedFiles = partitioned ? 2 : 1;
-      List<DataFile> dataFiles = taskWriter.complete();
-      Assert.assertEquals(expectedFiles, dataFiles.size());
+      DataFile[] dataFiles = taskWriter.complete();
+      Assert.assertEquals(expectedFiles, dataFiles.length);
 
       FileSystem fs = FileSystem.get(CONF);
       for (DataFile dataFile : dataFiles) {
@@ -131,10 +130,10 @@ public class TestTaskWriters {
       taskWriter.write(Row.of(2, "world"));
 
       taskWriter.abort();
-      List<DataFile> dataFiles = taskWriter.complete();
+      DataFile[] dataFiles = taskWriter.complete();
 
       int expectedFiles = partitioned ? 2 : 1;
-      Assert.assertEquals(expectedFiles, dataFiles.size());
+      Assert.assertEquals(expectedFiles, dataFiles.length);
 
       FileSystem fs = FileSystem.get(CONF);
       for (DataFile dataFile : dataFiles) {
@@ -151,17 +150,12 @@ public class TestTaskWriters {
       taskWriter.write(Row.of(3, "c"));
       taskWriter.write(Row.of(4, "d"));
 
-      List<DataFile> dataFiles = taskWriter.complete();
+      DataFile[] dataFiles = taskWriter.complete();
       int expectedFiles = partitioned ? 4 : 1;
-      Assert.assertEquals(expectedFiles, dataFiles.size());
+      Assert.assertEquals(expectedFiles, dataFiles.length);
 
       dataFiles = taskWriter.complete();
-      Assert.assertEquals(expectedFiles, dataFiles.size());
-
-      taskWriter.write(Row.of(5, "e"));
-      dataFiles = taskWriter.complete();
-      expectedFiles = partitioned ? 5 : 2;
-      Assert.assertEquals(expectedFiles, dataFiles.size());
+      Assert.assertEquals(expectedFiles, dataFiles.length);
 
       FileSystem fs = FileSystem.get(CONF);
       for (DataFile dataFile : dataFiles) {
@@ -169,7 +163,9 @@ public class TestTaskWriters {
       }
 
       AppendFiles appendFiles = table.newAppend();
-      dataFiles.forEach(appendFiles::appendFile);
+      for (DataFile dataFile : dataFiles) {
+        appendFiles.appendFile(dataFile);
+      }
       appendFiles.commit();
 
       // Assert the data rows.
@@ -177,33 +173,8 @@ public class TestTaskWriters {
           SimpleDataUtil.createRecord(1, "a"),
           SimpleDataUtil.createRecord(2, "b"),
           SimpleDataUtil.createRecord(3, "c"),
-          SimpleDataUtil.createRecord(4, "d"),
-          SimpleDataUtil.createRecord(5, "e")
+          SimpleDataUtil.createRecord(4, "d")
       ));
-    }
-  }
-
-  @Test
-  public void testImmutableCompleteFiles() throws IOException {
-    try (TaskWriter<Row> taskWriter = createTaskWriter(4)) {
-      List<Row> rows = Lists.newArrayListWithCapacity(1000);
-      for (int i = 0; i < 1000; i++) {
-        rows.add(Row.of(i, "a"));
-      }
-
-      for (Row row : rows) {
-        taskWriter.write(row);
-      }
-
-      List<DataFile> dataFiles = taskWriter.complete();
-      Assert.assertEquals(1, dataFiles.size());
-      AssertHelpers.assertThrows("Complete file list are immutable", UnsupportedOperationException.class,
-          () -> dataFiles.add(null));
-
-      List<DataFile> dataFilesAgain = taskWriter.complete();
-      Assert.assertEquals(1, dataFilesAgain.size());
-      AssertHelpers.assertThrows("Empty complete file list are immutable", UnsupportedOperationException.class,
-          () -> dataFilesAgain.add(null));
     }
   }
 
@@ -223,11 +194,13 @@ public class TestTaskWriters {
         taskWriter.write(row);
       }
 
-      List<DataFile> dataFiles = taskWriter.complete();
-      Assert.assertEquals(8, dataFiles.size());
+      DataFile[] dataFiles = taskWriter.complete();
+      Assert.assertEquals(8, dataFiles.length);
 
       AppendFiles appendFiles = table.newAppend();
-      dataFiles.forEach(appendFiles::appendFile);
+      for (DataFile dataFile : dataFiles) {
+        appendFiles.appendFile(dataFile);
+      }
       appendFiles.commit();
 
       // Assert the data rows.
@@ -244,9 +217,11 @@ public class TestTaskWriters {
       }
 
       taskWriter.close();
-      List<DataFile> dataFiles = taskWriter.complete();
+      DataFile[] dataFiles = taskWriter.complete();
       AppendFiles appendFiles = table.newAppend();
-      dataFiles.forEach(appendFiles::appendFile);
+      for (DataFile dataFile : dataFiles) {
+        appendFiles.appendFile(dataFile);
+      }
       appendFiles.commit();
 
       // Assert the data rows.

@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -226,13 +225,13 @@ class Writer implements DataSourceWriter {
   }
 
   private static class TaskCommit implements WriterCommitMessage {
-    private final List<DataFile> taskFiles;
+    private final DataFile[] taskFiles;
 
-    TaskCommit(List<DataFile> files) {
+    TaskCommit(DataFile[] files) {
       this.taskFiles = files;
     }
 
-    List<DataFile> files() {
+    DataFile[] files() {
       return this.taskFiles;
     }
   }
@@ -287,7 +286,7 @@ class Writer implements DataSourceWriter {
 
     @Override
     public WriterCommitMessage commit() throws IOException {
-      this.close();
+      close();
 
       return new TaskCommit(complete());
     }
@@ -303,7 +302,7 @@ class Writer implements DataSourceWriter {
 
     @Override
     public WriterCommitMessage commit() throws IOException {
-      this.close();
+      close();
 
       return new TaskCommit(complete());
     }

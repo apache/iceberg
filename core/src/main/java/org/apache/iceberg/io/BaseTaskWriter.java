@@ -21,7 +21,6 @@ package org.apache.iceberg.io;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -30,7 +29,6 @@ import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Tasks;
 
@@ -65,14 +63,10 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   }
 
   @Override
-  public List<DataFile> complete() throws IOException {
+  public DataFile[] complete() throws IOException {
     close();
 
-    if (completedFiles.size() > 0) {
-      return ImmutableList.copyOf(completedFiles);
-    } else {
-      return Collections.emptyList();
-    }
+    return completedFiles.toArray(new DataFile[0]);
   }
 
   protected class RollingFileWriter implements Closeable {
@@ -85,23 +79,21 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
     public RollingFileWriter(PartitionKey partitionKey) {
       this.partitionKey = partitionKey;
+      openCurrent();
     }
 
     public void add(T record) throws IOException {
-      if (currentAppender == null) {
-        openCurrent();
-      }
-
       this.currentAppender.add(record);
       this.currentRows++;
 
       if (shouldRollToNewFile()) {
         closeCurrent();
+        openCurrent();
       }
     }
 
     private void openCurrent() {
-      if (spec.fields().size() == 0) {
+      if (partitionKey == null) {
         // unpartitioned
         currentFile = fileFactory.newOutputFile();
       } else {
