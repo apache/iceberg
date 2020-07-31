@@ -17,32 +17,29 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.source;
+package org.apache.iceberg.io;
 
-import java.io.Serializable;
-import java.util.List;
-import org.apache.iceberg.DataFile;
+import java.io.IOException;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
 
-class TaskResult implements Serializable {
-  private final DataFile[] files;
+public class UnpartitionedWriter<T> extends BaseTaskWriter<T> {
 
-  TaskResult() {
-    this.files = new DataFile[0];
+  private final RollingFileWriter currentWriter;
+
+  public UnpartitionedWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
+                             OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
+    super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+    currentWriter = new RollingFileWriter(null);
   }
 
-  TaskResult(DataFile file) {
-    this.files = new DataFile[] { file };
+  @Override
+  public void write(T record) throws IOException {
+    currentWriter.add(record);
   }
 
-  TaskResult(List<DataFile> files) {
-    this.files = files.toArray(new DataFile[files.size()]);
-  }
-
-  TaskResult(DataFile[] files) {
-    this.files = files;
-  }
-
-  DataFile[] files() {
-    return files;
+  @Override
+  public void close() throws IOException {
+    currentWriter.close();
   }
 }

@@ -37,6 +37,8 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -211,7 +213,7 @@ class Writer implements DataSourceWriter {
   protected Iterable<DataFile> files(WriterCommitMessage[] messages) {
     if (messages.length > 0) {
       return Iterables.concat(Iterables.transform(Arrays.asList(messages), message -> message != null ?
-          ImmutableList.copyOf(((TaskResult) message).files()) :
+          ImmutableList.copyOf(((TaskCommit) message).files()) :
           ImmutableList.of()));
     }
     return ImmutableList.of();
@@ -222,9 +224,15 @@ class Writer implements DataSourceWriter {
     return String.format("IcebergWrite(table=%s, format=%s)", table, format);
   }
 
-  private static class TaskCommit extends TaskResult implements WriterCommitMessage {
-    TaskCommit(TaskResult toCopy) {
-      super(toCopy.files());
+  private static class TaskCommit implements WriterCommitMessage {
+    private final DataFile[] taskFiles;
+
+    TaskCommit(DataFile[] files) {
+      this.taskFiles = files;
+    }
+
+    DataFile[] files() {
+      return this.taskFiles;
     }
   }
 
@@ -263,13 +271,14 @@ class Writer implements DataSourceWriter {
       if (spec.fields().isEmpty()) {
         return new Unpartitioned24Writer(spec, format, appenderFactory, fileFactory, io.value(), targetFileSize);
       } else {
-        return new Partitioned24Writer(
-            spec, format, appenderFactory, fileFactory, io.value(), targetFileSize, writeSchema);
+        return new Partitioned24Writer(spec, format, appenderFactory, fileFactory, io.value(),
+            targetFileSize, writeSchema, dsSchema);
       }
     }
   }
 
-  private static class Unpartitioned24Writer extends UnpartitionedWriter implements DataWriter<InternalRow> {
+  private static class Unpartitioned24Writer extends UnpartitionedWriter<InternalRow>
+      implements DataWriter<InternalRow> {
     Unpartitioned24Writer(PartitionSpec spec, FileFormat format, SparkAppenderFactory appenderFactory,
                           OutputFileFactory fileFactory, FileIO fileIo, long targetFileSize) {
       super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize);
@@ -277,18 +286,24 @@ class Writer implements DataSourceWriter {
 
     @Override
     public WriterCommitMessage commit() throws IOException {
+      close();
+
       return new TaskCommit(complete());
     }
   }
 
-  private static class Partitioned24Writer extends PartitionedWriter implements DataWriter<InternalRow> {
+  private static class Partitioned24Writer extends SparkPartitionedWriter implements DataWriter<InternalRow> {
+
     Partitioned24Writer(PartitionSpec spec, FileFormat format, SparkAppenderFactory appenderFactory,
-                               OutputFileFactory fileFactory, FileIO fileIo, long targetFileSize, Schema writeSchema) {
-      super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize, writeSchema);
+                        OutputFileFactory fileFactory, FileIO fileIo, long targetFileSize,
+                        Schema schema, StructType sparkSchema) {
+      super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize, schema, sparkSchema);
     }
 
     @Override
     public WriterCommitMessage commit() throws IOException {
+      close();
+
       return new TaskCommit(complete());
     }
   }
