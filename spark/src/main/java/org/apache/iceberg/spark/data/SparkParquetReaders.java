@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
@@ -161,6 +162,9 @@ public class SparkParquetReaders {
         if (idToConstant.containsKey(id)) {
           // containsKey is used because the constant may be null
           reorderedFields.add(ParquetValueReaders.constant(idToConstant.get(id)));
+          types.add(null);
+        } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
+          reorderedFields.add(ParquetValueReaders.position());
           types.add(null);
         } else {
           ParquetValueReader<?> reader = readersById.get(id);
