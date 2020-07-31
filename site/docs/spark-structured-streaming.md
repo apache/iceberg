@@ -40,12 +40,20 @@ data.writeStream
     .start()
 ```
 
+The required value in `pathToTable` depends on the catalog:
+
+* Hadoop Catalog: the location of the table
+* Hive Catalog: the table identifier represented by String (`catalog.database.table`)
+
+Iceberg doesn't support "continuous processing", as it doesn't provide the interface to "commit" the output.
+
 Iceberg supports below output modes:
 
-* append
-* complete
+* append: appends the output of every micro-batch to the table
+* complete: replaces the table contents every micro-batch
 
-The table should be created in prior to start the streaming query.
+The table should be created in prior to start the streaming query. Please refer [SQL create table](/spark/#create-table)
+on Spark page to see how to create the Iceberg table.
 
 ## Maintenance
 
@@ -59,19 +67,14 @@ Having high rate of commits would produce lots of data files, manifests, and sna
 to maintain. We encourage having trigger interval 1 minute at minimum, and increase the interval if you encounter
 issues.
 
-### Retain recent metadata files in Hadoop catalog
-
-If you are using HadoopCatalog, you may want to enable `write.metadata.delete-after-commit.enabled` in the table
-properties, and reduce `write.metadata.previous-versions-max` as well (if necessary) to retain only specific number of
-metadata files.
-
-Please refer the [table write properties](/configuration/#write-properties) for more details.
+Please read through the [Structured Streaming Programming Guide](http://spark.apache.org/docs/latest/structured-streaming-programming-guide.html)
+if you're not familiar with configuring batch interval yet.
 
 ### Expire old snapshots
 
-You may want to run [expireSnapshots()](/javadoc/master/org/apache/iceberg/Table.html#expireSnapshots--) periodically
-to prune the old version of snapshots, which reduces the size of metadata file, as well as cleans up data files and
-manifest files which are no longer referenced.
+Run [expireSnapshots()](/javadoc/master/org/apache/iceberg/Table.html#expireSnapshots--) regularly to prune the old
+version of snapshots, which reduces the size of metadata file, as well as cleans up data files and manifest files which
+are no longer referenced.
 
 For example, below code executes expiring snapshots which are older than 1 day.
 
@@ -136,6 +139,14 @@ the data files, and how to exclude the files on grouping. Please refer the javad
 Please note that rewriting data files creates a new snapshot with optimized data files. It doesn't rewrite old
 snapshots, meaning it doesn't optimize querying against older snapshot (via time-travel), and old data files cannot be
 removed until we expire old snapshots referring these files.
+
+### Removed old metadata files in Hadoop Catalog
+
+If you are using HadoopCatalog, you may want to enable `write.metadata.delete-after-commit.enabled` in the table
+properties, and reduce `write.metadata.previous-versions-max` as well (if necessary) to retain only specific number of
+metadata files.
+
+Please refer the [table write properties](/configuration/#write-properties) for more details.
 
 ### Remove orphan files
 
