@@ -15,24 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import TYPE_CHECKING
+__all__ = ["ParquetReader"]
 
-if TYPE_CHECKING:
-    from iceberg.core.filesystem import FileSystem
-
-
-class InputFile(object):
-    fs: 'FileSystem'
-    path: str
-
-    def get_length(self):
-        raise NotImplementedError()
-
-    def new_stream(self):
-        raise NotImplementedError()
-
-    def location(self):
-        raise NotImplementedError()
-
-    def new_fo(self):
-        raise NotImplementedError()
+from .parquet_reader import ParquetReader

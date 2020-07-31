@@ -24,6 +24,14 @@ class CommitFailedException(RuntimeError):
     pass
 
 
+class FileSystemNotFound(Exception):
+    pass
+
+
+class InvalidCastException(ValueError):
+    pass
+
+
 class NoSuchTableException(RuntimeError):
     pass
 
