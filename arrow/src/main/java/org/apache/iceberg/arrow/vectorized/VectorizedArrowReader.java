@@ -356,5 +356,36 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     public void setBatchSize(int batchSize) {}
   }
 
+  /**
+   * A Dummy Vector Reader which doesn't actually read files, instead it returns a dummy
+   * VectorHolder which indicates the constant value which should be used for this column.
+   * @param <T> The constant value to use
+   */
+  public static class ConstantVectorReader<T> extends VectorizedArrowReader {
+    private final T value;
+
+    public ConstantVectorReader(T value) {
+      this.value = value;
+    }
+
+    @Override
+    public VectorHolder read(VectorHolder reuse, int numValsToRead) {
+      return VectorHolder.constantHolder(numValsToRead, value);
+    }
+
+    @Override
+    public void setRowGroupInfo(PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
+    }
+
+    @Override
+    public String toString() {
+      return String.format("ConstantReader: %s", value);
+    }
+
+    @Override
+    public void setBatchSize(int batchSize) {}
+
+  }
+
 }
 

@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.data.vectorized;
 
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.arrow.vectorized.VectorHolder;
+import org.apache.iceberg.arrow.vectorized.VectorHolder.DummyVectorHolder;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.types.Decimal;
@@ -144,7 +145,8 @@ public class IcebergArrowColumnVector extends ColumnVector {
   }
 
   static ColumnVector forHolder(VectorHolder holder, int numRows) {
-    return holder.isDummy() ? new ConstantColumnVector(Types.IntegerType.get(), numRows, null) :
+    return holder.isDummy() ?
+        new ConstantColumnVector(Types.IntegerType.get(), numRows, ((DummyVectorHolder) holder).getConstant()) :
         new IcebergArrowColumnVector(holder);
   }
 

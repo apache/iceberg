@@ -26,6 +26,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader;
+import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader.ConstantVectorReader;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -47,26 +48,36 @@ public class VectorizedSparkParquetReaders {
       Schema expectedSchema,
       MessageType fileSchema,
       boolean setArrowValidityVector) {
+    return buildReader(expectedSchema, fileSchema, setArrowValidityVector, Maps.newHashMap());
+  }
+
+  public static ColumnarBatchReader buildReader(
+      Schema expectedSchema,
+      MessageType fileSchema,
+      boolean setArrowValidityVector,
+      Map<Integer, ?> idToConstant) {
     return (ColumnarBatchReader)
         TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-            new VectorizedReaderBuilder(expectedSchema, fileSchema, setArrowValidityVector));
+            new VectorizedReaderBuilder(expectedSchema, fileSchema, setArrowValidityVector, idToConstant));
   }
 
   private static class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedReader<?>> {
     private final MessageType parquetSchema;
     private final Schema icebergSchema;
     private final BufferAllocator rootAllocator;
+    private final Map<Integer, ?> idToConstant;
     private final boolean setArrowValidityVector;
 
     VectorizedReaderBuilder(
         Schema expectedSchema,
         MessageType parquetSchema,
-        boolean setArrowValidityVector) {
+        boolean setArrowValidityVector, Map<Integer, ?> idToConstant) {
       this.parquetSchema = parquetSchema;
       this.icebergSchema = expectedSchema;
       this.rootAllocator = ArrowAllocation.rootAllocator()
           .newChildAllocator("VectorizedReadBuilder", 0, Long.MAX_VALUE);
       this.setArrowValidityVector = setArrowValidityVector;
+      this.idToConstant = idToConstant;
     }
 
     @Override
@@ -90,7 +101,9 @@ public class VectorizedSparkParquetReaders {
       for (Types.NestedField field : icebergFields) {
         int id = field.fieldId();
         VectorizedReader<?> reader = readersById.get(id);
-        if (reader != null) {
+        if (idToConstant.containsKey(id)) {
+          reorderedFields.add(new ConstantVectorReader(idToConstant.get(id)));
+        } else if (reader != null) {
           reorderedFields.add(reader);
         } else {
           reorderedFields.add(VectorizedArrowReader.nulls());
