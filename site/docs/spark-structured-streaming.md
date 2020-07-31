@@ -43,7 +43,7 @@ data.writeStream
 The required value in `pathToTable` depends on the catalog:
 
 * Hadoop Catalog: the location of the table
-* Hive Catalog: the table identifier represented by String (`catalog.database.table`)
+* Hive Catalog: the Iceberg table identifier represented by String (`database.table`)
 
 Iceberg doesn't support "continuous processing", as it doesn't provide the interface to "commit" the output.
 
@@ -187,9 +187,9 @@ val table = hadoopTables.load(s"$warehousePath/$dbName/$tableName")
 ### Retrieve Table instance in Hive catalog
 
 ```scala
-// ... assume tableName (with multi-part identifier) is present ...
+// ... assume dbName, tableName are present ...
 import org.apache.iceberg.hive.HiveCatalog;
 
 val catalog = new HiveCatalog(spark.sessionState.newHadoopConf)
-val table = catalog.loadTable(TableIdentifier.of(tableName))
+val table = catalog.loadTable(TableIdentifier.of(dbName, tableName))
 ```
