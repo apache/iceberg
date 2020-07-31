@@ -20,7 +20,6 @@
 package org.apache.iceberg.expressions;
 
 import org.apache.iceberg.AssertHelpers;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
