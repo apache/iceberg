@@ -37,9 +37,8 @@ public class HiveIcebergSerDe extends AbstractSerDe {
 
   @Override
   public void initialize(@Nullable Configuration configuration, Properties serDeProperties) throws SerDeException {
-    final Table table;
 
-    table = TableResolver.resolveTableFromConfiguration(configuration, serDeProperties);
+    Table table = TableResolver.resolveTableFromConfiguration(configuration, serDeProperties);
 
     try {
       this.inspector = IcebergObjectInspector.create(table.schema());
