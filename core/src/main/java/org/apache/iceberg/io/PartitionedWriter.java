@@ -78,6 +78,8 @@ public abstract class PartitionedWriter<T> extends BaseTaskWriter<T> {
 
   @Override
   public void close() throws IOException {
-    currentWriter.close();
+    if (currentWriter != null) {
+      currentWriter.close();
+    }
   }
 }
