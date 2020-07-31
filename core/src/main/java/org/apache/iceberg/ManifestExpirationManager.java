@@ -20,10 +20,12 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.io.UncheckedIOException;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import org.apache.commons.compress.utils.Sets;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.util.Tasks;
@@ -31,12 +33,28 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class ManifestExpirationManager {
-
-  //No public constructor for utility class
-  private ManifestExpirationManager(){}
-
+public class ManifestExpirationManager implements Serializable {
   private static final Logger LOG = LoggerFactory.getLogger(ManifestExpirationManager.class);
+
+  private final Set<Long> validSnapshotIds;
+  private final Map<Integer, PartitionSpec> specLookup;
+  private final FileIO io;
+
+  private ManifestExpirationManager(Set<Long> validSnapshotIds, Map<Integer, PartitionSpec> specLookup, FileIO io) {
+    this.validSnapshotIds = validSnapshotIds;
+    this.specLookup = specLookup;
+    this.io = io;
+  }
+
+  /**
+   * Creates a Manifest Scanner for analyzing manifests for files which are no longer needed
+   * after expiration.
+   * @param current metadata for the table being expired
+   * @param io FileIO for the table, for Serializable usecases make sure this is also serializable for the framework
+   */
+  public ManifestExpirationManager(TableMetadata current, FileIO io) {
+    this(current.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet()), current.specsById(), io);
+  }
 
   /**
    * Scans a set of manifest files for deleted data files which do not refer to a valid snapshot and can be actually
@@ -44,23 +62,17 @@ public class ManifestExpirationManager {
    * failed manifest reads.
    *
    * @param manifests        Manifests to scan, all of these files will be scanned
-   * @param validSnapshotIds Snapshot Ids currently considered valid in Table metadata
-   * @param specLookup       A mapping between partitionID and the spec describing that partition
-   * @param io               IO used for reading the files
    * @return The set of all files that can be safely deleted
    */
-  public static Set<String> scanManifestsForAbandonedDeletedFiles(
-      Set<ManifestFile> manifests, Set<Long> validSnapshotIds, Map<Integer, PartitionSpec> specLookup,
-      FileIO io) {
-
-    Set<String> filesToDelete = new HashSet<>();
+  public Set<String> scanManifestsForAbandonedDeletedFiles(Set<ManifestFile> manifests) {
+    Set<String> filesToDelete = ConcurrentHashMap.newKeySet();
     Tasks.foreach(manifests)
         .retry(3).suppressFailureWhenFinished()
         .executeWith(ThreadPools.getWorkerPool())
         .onFailure((item, exc) -> LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
         .run(manifest -> {
           try {
-            filesToDelete.addAll(scanManifestForAbandonedDeletedFiles(manifest, validSnapshotIds, specLookup, io));
+            filesToDelete.addAll(scanManifestForAbandonedDeletedFiles(manifest));
           } catch (IOException e) {
             throw new UncheckedIOException(String.format("Failed to read manifest file: %s", manifest), e);
           }
@@ -73,17 +85,10 @@ public class ManifestExpirationManager {
    * contribute to Table state and removed from the filesystem.
    *
    * @param manifest         Manifest to scan
-   * @param validSnapshotIds Snapshot Ids currently considered valid in Table metadata
-   * @param specLookup       A mapping between partitionID and the spec describing that partition
-   * @param io               IO used for reading the files
    * @return The set of all files that can be safely deleted
    */
-  public static Set<String> scanManifestForAbandonedDeletedFiles(
-      ManifestFile manifest, Set<Long> validSnapshotIds, Map<Integer, PartitionSpec> specLookup, FileIO io)
-      throws IOException {
-
-    Set<String> filesToDelete = new HashSet<>();
-
+  public Set<String> scanManifestForAbandonedDeletedFiles(ManifestFile manifest) throws IOException {
+    Set<String> filesToDelete = Sets.newHashSet();
     try (ManifestReader<?> reader = ManifestFiles.open(manifest, io, specLookup)) {
       for (ManifestEntry<?> entry : reader.entries()) {
         if (entry.status() == ManifestEntry.Status.DELETED &&
@@ -97,26 +102,22 @@ public class ManifestExpirationManager {
   }
 
   /**
-   * Uses {@link ManifestExpirationManager#scanManifestForRevertingAddedFiles(ManifestFile, Map, FileIO)}
+   * Uses {@link ManifestExpirationManager#scanManifestForRevertingAddedFiles(ManifestFile)}
    * on a List of manifests. This implementation will use a concurrent approach and will ignore any
    * failed manifest reads.
    *
    * @param manifests  A list of manifests which have expired
-   * @param io        IO used for reading the files
    * @return The set of all files that can be safely deleted
    */
-  public static Set<String> scanManifestsForRevertingAddedFiles(
-      Set<ManifestFile> manifests, Map<Integer, PartitionSpec> specLookup, FileIO io) {
-
-    Set<String> filesToDelete = Sets.newHashSet();
-
+  public Set<String> scanManifestsForRevertingAddedFiles(Set<ManifestFile> manifests) {
+    Set<String> filesToDelete = ConcurrentHashMap.newKeySet();
     Tasks.foreach(manifests)
         .retry(3).suppressFailureWhenFinished()
         .executeWith(ThreadPools.getWorkerPool())
         .onFailure((item, exc) -> LOG.warn("Failed to get deleted files: this may cause orphaned data files", exc))
         .run(manifest -> {
           try {
-            filesToDelete.addAll(scanManifestForRevertingAddedFiles(manifest, specLookup, io));
+            filesToDelete.addAll(scanManifestForRevertingAddedFiles(manifest));
           } catch (IOException e) {
             throw new UncheckedIOException(String.format("Failed to read manifest file: %s", manifest), e);
           }
@@ -129,12 +130,9 @@ public class ManifestExpirationManager {
    * expired manifests to this function.
    *
    * @param manifest  A manifests which has expired
-   * @param io        IO used for reading the files
    * @return The set of all files that can be safely deleted
    */
-  public static Set<String> scanManifestForRevertingAddedFiles(
-      ManifestFile manifest, Map<Integer, PartitionSpec> specLookup, FileIO io) throws IOException {
-
+  public Set<String> scanManifestForRevertingAddedFiles(ManifestFile manifest) throws IOException {
     Set<String> filesToDelete = Sets.newHashSet();
     try (ManifestReader<?> reader = ManifestFiles.open(manifest, io, specLookup)) {
       for (ManifestEntry<?> entry : reader.entries()) {

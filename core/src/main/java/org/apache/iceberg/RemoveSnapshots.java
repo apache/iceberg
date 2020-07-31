@@ -22,7 +22,6 @@ package org.apache.iceberg;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NotFoundException;
@@ -166,10 +165,9 @@ class RemoveSnapshots implements ExpireSnapshots {
 
       //All Read and Delete Failures are Ignored
       ManifestExpirationChanges changes = ExpireSnapshotUtil.determineManifestChangesFromSnapshotExpiration(
-          snapshotChanges.getValidSnapshotIds(), snapshotChanges.getExpiredSnapshotIds(), currentMetadata, base,
-          ops.io());
+          snapshotChanges, base, ops.io());
 
-      deleteDataFiles(changes.manifestsToScan(), changes.manifestsToRevert(), snapshotChanges.getValidSnapshotIds());
+      deleteDataFiles(changes.manifestsToScan(), changes.manifestsToRevert());
       deleteMetadataFiles(changes.manifestsToDelete(), changes.manifestListsToDelete());
     }
   }
@@ -189,24 +187,19 @@ class RemoveSnapshots implements ExpireSnapshots {
         .run(deleteFunc::accept);
   }
 
-  private void deleteDataFiles(Set<ManifestFile> manifestsToScan, Set<ManifestFile> manifestsToRevert,
-                               Set<Long> validIds) {
-    Set<String> filesToDelete = findFilesToDelete(manifestsToScan, manifestsToRevert, validIds);
+  private void deleteDataFiles(Set<ManifestFile> manifestsToScan, Set<ManifestFile> manifestsToRevert) {
+    Set<String> filesToDelete = findFilesToDelete(manifestsToScan, manifestsToRevert);
     Tasks.foreach(filesToDelete)
         .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
         .onFailure((file, exc) -> LOG.warn("Delete failed for data file: {}", file, exc))
         .run(file -> deleteFunc.accept(file));
   }
 
-  private Set<String> findFilesToDelete(Set<ManifestFile> manifestsToScan, Set<ManifestFile> manifestsToRevert,
-                                        Set<Long> validIds) {
-    Set<String> filesToDelete = ConcurrentHashMap.newKeySet();
-    filesToDelete.addAll(ManifestExpirationManager
-        .scanManifestsForAbandonedDeletedFiles(manifestsToScan, validIds, ops.current().specsById(), ops.io()));
-
-    filesToDelete.addAll(ManifestExpirationManager
-        .scanManifestsForRevertingAddedFiles(manifestsToRevert, ops.current().specsById(), ops.io()));
-
+  private Set<String> findFilesToDelete(Set<ManifestFile> manifestsToScan, Set<ManifestFile> manifestsToRevert) {
+    ManifestExpirationManager manager = new ManifestExpirationManager(ops.current(), ops.io());
+    Set<String> filesToDelete = Sets.newHashSet();
+    filesToDelete.addAll(manager.scanManifestsForAbandonedDeletedFiles(manifestsToScan));
+    filesToDelete.addAll(manager.scanManifestsForRevertingAddedFiles(manifestsToRevert));
     return filesToDelete;
   }
 

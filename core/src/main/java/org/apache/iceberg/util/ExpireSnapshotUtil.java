@@ -56,28 +56,28 @@ public class ExpireSnapshotUtil {
    *   1. Snapshots which have not expired but contain manifests from expired snapshots
    *   2. Snapshots which have expired and contain manifests referring to now orphaned files
    *
-   * @param validIds              The Ids of the Snapshots which have not been expired
-   * @param expiredIds            The Ids of the Snapshots which have been expired
-   * @param current       The table metadata from after the snapshot expiration
-   * @param original      The table metadata from before the snapshot expiration
+   * @param snapshotChanges       Information about which Snapshots are still valid and which have been expired
+   * @param original              The table metadata from before the snapshot expiration
    * @param io                    FileIO for reading manifest info
    * @return Wrapper around which manifests contain references to possibly abandoned files
    */
-  public static ManifestExpirationChanges determineManifestChangesFromSnapshotExpiration(Set<Long> validIds,
-      Set<Long> expiredIds, TableMetadata current, TableMetadata original, FileIO io) {
+  public static ManifestExpirationChanges determineManifestChangesFromSnapshotExpiration(
+      SnapshotExpirationChanges snapshotChanges, TableMetadata original, FileIO io) {
 
-    Set<Long> ancestorIds = Sets.newHashSet(SnapshotUtil.ancestorIds(original.currentSnapshot(), original::snapshot));
-    Set<Long> pickedAncestorIds = getPickedAncestorIds(original, ancestorIds);
+    AncestorInfo ancestorInfo = getAncestorInfo(original);
 
-    List<Snapshot> currentSnapshots = current.snapshots();
+    Set<Snapshot> currentSnapshots = snapshotChanges.getValidSnapshots();
+    Set<Snapshot> expiredSnapshots = snapshotChanges.getExpiredSnapshots();
+    Set<Long> validIds = snapshotChanges.getValidSnapshotIds();
+    Set<Long> expiredIds = snapshotChanges.getExpiredSnapshotIds();
+    Set<Long> ancestorIds = ancestorInfo.getAncestorIds();
 
     //Snapshots which are not expired but refer to manifests from expired snapshots
     Set<ManifestFile> validManifests = getValidManifests(currentSnapshots, io);
-    Set<ManifestFile> manifestsToScan = findValidManifestsInExpiredSnapshots(validManifests, ancestorIds,
-        pickedAncestorIds, validIds);
+    Set<ManifestFile> manifestsToScan = findValidManifestsInExpiredSnapshots(validManifests, ancestorInfo, validIds);
 
     //Snapshots which are expired and do not effect the current table
-    List<Snapshot> snapshotsNotInTableState = findSnapshotsNotInTableState(validIds, ancestorIds, original);
+    List<Snapshot> snapshotsNotInTableState = findSnapshotsNotInTableState(expiredSnapshots, ancestorInfo);
     ManifestExpirationChanges manifestExpirationChanges =
         findExpiredManifestsInUnusedSnapshots(snapshotsNotInTableState, validManifests, ancestorIds, expiredIds, io);
 
@@ -110,11 +110,11 @@ public class ExpireSnapshotUtil {
     return new SnapshotExpirationChanges(validSnapshots, expiredSnapshots);
   }
 
-  private static Set<Long> getPickedAncestorIds(TableMetadata original, Set<Long> ancestorIds) {
+  private static AncestorInfo getAncestorInfo(TableMetadata original) {
     // this is the set of ancestors of the current table state. when removing snapshots, this must
     // only remove files that were deleted in an ancestor of the current table state to avoid
     // physically deleting files that were logically deleted in a commit that was rolled back.
-
+    Set<Long> ancestorIds = Sets.newHashSet(SnapshotUtil.ancestorIds(original.currentSnapshot(), original::snapshot));
     Set<Long> pickedAncestorSnapshotIds = Sets.newHashSet();
     for (long snapshotId : ancestorIds) {
       String sourceSnapshotId = original.snapshot(snapshotId).summary().get(SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP);
@@ -124,7 +124,7 @@ public class ExpireSnapshotUtil {
       }
     }
 
-    return pickedAncestorSnapshotIds;
+    return new AncestorInfo(ancestorIds, pickedAncestorSnapshotIds);
   }
 
   /**
@@ -135,7 +135,7 @@ public class ExpireSnapshotUtil {
    * @param currentSnapshots a list of currently valid non-expired snapshots
    * @return all of the manifests of those snapshots
    */
-  private static Set<ManifestFile> getValidManifests(List<Snapshot> currentSnapshots, FileIO io) {
+  private static Set<ManifestFile> getValidManifests(Set<Snapshot> currentSnapshots, FileIO io) {
 
     Set<ManifestFile> validManifests = Sets.newHashSet();
     Tasks.foreach(currentSnapshots).retry(3).suppressFailureWhenFinished()
@@ -160,13 +160,14 @@ public class ExpireSnapshotUtil {
    * Find manifests to clean up that are still referenced by a valid snapshot, but written by an
    * expired snapshot.
    *
-   * @param validIds     A list of the snapshots which are not expired
-   * @param ancestorIds          The ancestor snapshots of the original table
-   * @param pickedAncestorIds    The cherry-picked ancestors of the original table
+   * @param validManifests Manfiests that are part of the current table state
+   * @param ancestors Information about snapshot ancestors both cherry picked and and normal
+   * @param validIds The ids of Snapshots that are currently valid
+   *
    * @return MetadataFiles which must be scanned to look for files to delete
    */
   private static Set<ManifestFile> findValidManifestsInExpiredSnapshots(
-      Set<ManifestFile> validManifests, Set<Long> ancestorIds, Set<Long> pickedAncestorIds, Set<Long> validIds) {
+      Set<ManifestFile> validManifests, AncestorInfo ancestors, Set<Long> validIds) {
 
     Set<ManifestFile> manifestsToScan = Sets.newHashSet();
     validManifests.forEach(manifest -> {
@@ -174,9 +175,9 @@ public class ExpireSnapshotUtil {
       // whether the manifest was created by a valid snapshot (true) or an expired snapshot (false)
       boolean fromValidSnapshots = validIds.contains(snapshotId);
       // whether the snapshot that created the manifest was an ancestor of the table state
-      boolean isFromAncestor = ancestorIds.contains(snapshotId);
+      boolean isFromAncestor = ancestors.getAncestorIds().contains(snapshotId);
       // whether the changes in this snapshot have been picked into the current table state
-      boolean isPicked = pickedAncestorIds.contains(snapshotId);
+      boolean isPicked = ancestors.getPickedAncestorIds().contains(snapshotId);
       // if the snapshot that wrote this manifest is no longer valid (has expired),
       // then delete its deleted files. note that this is only for expired snapshots that are in the
       // current table state
@@ -191,48 +192,39 @@ public class ExpireSnapshotUtil {
    * Removes snapshots whose changes impact the current table state leaving only those which may
    * have files that could potentially need to be deleted.
    *
-   * @param original TableMetadata for the table we are expiring from
-   * @param validSnapshotIds Snapshots which are not expired
+   * @param expiredSnapshots Snapshots which have been expired from the table
+   * @param ancestors Information about snapshot ancestors both cherry picked and and normal
    * @return A list of those snapshots which may have files that need to be deleted
    */
-  private static List<Snapshot> findSnapshotsNotInTableState(Set<Long> validSnapshotIds, Set<Long> ancestorIds,
-      TableMetadata original) {
-
-    Set<Long> pickedAncestorSnapshotIds = getPickedAncestorIds(original, ancestorIds);
-
-    List<Snapshot> originalSnapshots = original.snapshots();
-    return originalSnapshots.stream().filter(snapshot -> {
+  private static List<Snapshot> findSnapshotsNotInTableState(Set<Snapshot> expiredSnapshots, AncestorInfo ancestors) {
+    return expiredSnapshots.stream().filter(snapshot -> {
       long snapshotId = snapshot.snapshotId();
-      if (!validSnapshotIds.contains(snapshotId)) {
-        // determine whether the changes in this snapshot are in the current table state
-        if (pickedAncestorSnapshotIds.contains(snapshotId)) {
-          // this snapshot was cherry-picked into the current table state, so skip cleaning it up.
-          // its changes will expire when the picked snapshot expires.
-          // A -- C -- D (source=B)
-          //  `- B <-- this commit
-          return false;
-        }
-        long sourceSnapshotId = PropertyUtil.propertyAsLong(
-            snapshot.summary(), SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP, -1);
-        if (ancestorIds.contains(sourceSnapshotId)) {
-          // this commit was cherry-picked from a commit that is in the current table state. do not clean up its
-          // changes because it would revert data file additions that are in the current table.
-          // A -- B -- C
-          //  `- D (source=B) <-- this commit
-          return false;
-        }
-
-        if (pickedAncestorSnapshotIds.contains(sourceSnapshotId)) {
-          // this commit was cherry-picked from a commit that is in the current table state. do not clean up its
-          // changes because it would revert data file additions that are in the current table.
-          // A -- C -- E (source=B)
-          //  `- B `- D (source=B) <-- this commit
-          return false;
-        }
-
-        return true;
+      if (ancestors.getPickedAncestorIds().contains(snapshotId)) {
+        // this snapshot was cherry-picked into the current table state, so skip cleaning it up.
+        // its changes will expire when the picked snapshot expires.
+        // A -- C -- D (source=B)
+        //  `- B <-- this commit
+        return false;
       }
-      return false;
+
+      long sourceSnapshotId = PropertyUtil.propertyAsLong(
+          snapshot.summary(), SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP, -1);
+      if (ancestors.getAncestorIds().contains(sourceSnapshotId)) {
+        // this commit was cherry-picked from a commit that is in the current table state. do not clean up its
+        // changes because it would revert data file additions that are in the current table.
+        // A -- B -- C
+        //  `- D (source=B) <-- this commit
+        return false;
+      }
+
+      if (ancestors.getPickedAncestorIds().contains(sourceSnapshotId)) {
+        // this commit was cherry-picked from a commit that is in the current table state. do not clean up its
+        // changes because it would revert data file additions that are in the current table.
+        // A -- C -- E (source=B)
+        //  `- B `- D (source=B) <-- this commit
+        return false;
+      }
+      return true;
     }).collect(Collectors.toList());
   }
 
@@ -345,6 +337,24 @@ public class ExpireSnapshotUtil {
 
     public Set<Snapshot> getExpiredSnapshots() {
       return expiredSnapshots;
+    }
+  }
+
+  public static class AncestorInfo {
+    private final Set<Long> ancestorIds;
+    private final Set<Long> pickedAncestorIds;
+
+    public AncestorInfo(Set<Long> ancestorIds, Set<Long> pickedAncestorIds) {
+      this.ancestorIds = ancestorIds;
+      this.pickedAncestorIds = pickedAncestorIds;
+    }
+
+    public Set<Long> getAncestorIds() {
+      return ancestorIds;
+    }
+
+    public Set<Long> getPickedAncestorIds() {
+      return pickedAncestorIds;
     }
   }
 
