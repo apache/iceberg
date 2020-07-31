@@ -117,7 +117,7 @@ public class RandomData {
 
 
   public static Iterable<Record> generateRecords(Schema schema, int numRecords, long seed) {
-    return generateIcebergGenerics(schema, numRecords, () -> new RandomGenericData.RandomRecordGenerator(seed));
+    return RandomGenericData.generate(schema, numRecords, seed);
   }
 
   public static Iterable<Row> generate(Schema schema, int numRecords, long seed) {

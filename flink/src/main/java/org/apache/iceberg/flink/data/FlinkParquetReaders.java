@@ -52,7 +52,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
-public class FlinkParquetReaders {
+class FlinkParquetReaders {
   private FlinkParquetReaders() {
   }
 
@@ -94,7 +94,7 @@ public class FlinkParquetReaders {
     @Override
     public ParquetValueReader<?> struct(Types.StructType ignored, GroupType struct,
                                         List<ParquetValueReader<?>> fieldReaders) {
-      // the expected struct is ignored because nested fields are never found when the
+      // the expected struct is ignored because nested fields are never found when the IDs are missing
       List<ParquetValueReader<?>> newFields = Lists.newArrayListWithExpectedSize(
           fieldReaders.size());
       List<Type> types = Lists.newArrayListWithExpectedSize(fieldReaders.size());
@@ -274,10 +274,6 @@ public class FlinkParquetReaders {
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
-    }
-
-    protected MessageType type() {
-      return type;
     }
   }
 
