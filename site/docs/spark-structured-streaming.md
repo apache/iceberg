@@ -140,11 +140,10 @@ Please note that rewriting data files creates a new snapshot with optimized data
 snapshots, meaning it doesn't optimize querying against older snapshot (via time-travel), and old data files cannot be
 removed until we expire old snapshots referring these files.
 
-### Removed old metadata files in Hadoop Catalog
+### Removed old metadata files
 
-If you are using HadoopCatalog, you may want to enable `write.metadata.delete-after-commit.enabled` in the table
-properties, and reduce `write.metadata.previous-versions-max` as well (if necessary) to retain only specific number of
-metadata files.
+You may want to enable `write.metadata.delete-after-commit.enabled` in the table properties, and reduce
+`write.metadata.previous-versions-max` as well (if necessary) to retain only specific number of metadata files.
 
 Please refer the [table write properties](/configuration/#write-properties) for more details.
 
