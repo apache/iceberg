@@ -55,14 +55,13 @@ public class TestTaskWriters {
   @Rule
   public final TemporaryFolder tempFolder = new TemporaryFolder();
 
+  // TODO add AVRO unit test once the RowDataWrapper are ready.
   // TODO add ORC unit test once the readers and writers are ready.
   @Parameterized.Parameters(name = "format = {0}, partitioned = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
         new Object[] {"parquet", true},
-        new Object[] {"parquet", false},
-        new Object[] {"avro", true},
-        new Object[] {"avro", false},
+        new Object[] {"parquet", false}
     };
   }
 
