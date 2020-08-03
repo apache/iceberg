@@ -113,9 +113,9 @@ public abstract class TestIdentityPartitionData  {
   private Table table = null;
   private Dataset<Row> logs = null;
 
-  /*
-  Use the Hive Based table to make Identity Partition Columns with no duplication of the data in the underlying
-  parquet files. This makes sure that if the identity mapping fails, the test will also fail.
+  /**
+   * Use the Hive Based table to make Identity Partition Columns with no duplication of the data in the underlying
+   * parquet files. This makes sure that if the identity mapping fails, the test will also fail.
    */
   private void setupParquet() throws Exception {
     File location = temp.newFolder("logs");

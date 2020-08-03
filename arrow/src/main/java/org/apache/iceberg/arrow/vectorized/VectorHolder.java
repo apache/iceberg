@@ -91,12 +91,12 @@ public class VectorHolder {
     return vector.getValueCount();
   }
 
-  public static VectorHolder constantHolder(int numRows, Object constantValue) {
-    return new DummyVectorHolder(numRows, constantValue);
+  public static <T> VectorHolder constantHolder(int numRows, T constantValue) {
+    return new ConstantVectorHolder(numRows, constantValue);
   }
 
   public static VectorHolder dummyHolder(int numRows) {
-    return new DummyVectorHolder(numRows);
+    return new ConstantVectorHolder(numRows);
   }
 
   public boolean isDummy() {
@@ -107,16 +107,16 @@ public class VectorHolder {
    * A Vector Holder which does not actually produce values, consumers of this class should
    * use the constantValue to populate their ColumnVector implementation.
    */
-  public static class DummyVectorHolder extends VectorHolder {
-    private final Object constantValue;
+  public static class ConstantVectorHolder<T> extends VectorHolder {
+    private final T constantValue;
     private final int numRows;
 
-    public DummyVectorHolder(int numRows) {
+    public ConstantVectorHolder(int numRows) {
       this.numRows = numRows;
       this.constantValue = null;
     }
 
-    public DummyVectorHolder(int numRows, Object constantValue) {
+    public ConstantVectorHolder(int numRows, T constantValue) {
       this.numRows = numRows;
       this.constantValue = constantValue;
     }
