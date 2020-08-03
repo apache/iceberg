@@ -36,7 +36,6 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
@@ -65,69 +64,9 @@ class FlinkParquetReaders {
   public static ParquetValueReader<RowData> buildReader(Schema expectedSchema,
                                                         MessageType fileSchema,
                                                         Map<Integer, ?> idToConstant) {
-    ReadBuilder builder = new ReadBuilder(fileSchema, idToConstant);
-    if (ParquetSchemaUtil.hasIds(fileSchema)) {
-      return (ParquetValueReader<RowData>)
-          TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema, builder);
-    } else {
-      return (ParquetValueReader<RowData>)
-          TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-              new FallbackReadBuilder(builder));
-    }
-  }
-
-  private static class FallbackReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
-    private MessageType type;
-    private final TypeWithSchemaVisitor<ParquetValueReader<?>> builder;
-
-    FallbackReadBuilder(TypeWithSchemaVisitor<ParquetValueReader<?>> builder) {
-      this.builder = builder;
-    }
-
-    @Override
-    public ParquetValueReader<?> message(Types.StructType expected, MessageType message,
-                                         List<ParquetValueReader<?>> fieldReaders) {
-      // the top level matches by ID, but the remaining IDs are missing
-      this.type = message;
-      return struct(expected, message, fieldReaders);
-    }
-
-    @Override
-    public ParquetValueReader<?> struct(Types.StructType ignored, GroupType struct,
-                                        List<ParquetValueReader<?>> fieldReaders) {
-      // the expected struct is ignored because nested fields are never found when the IDs are missing
-      List<ParquetValueReader<?>> newFields = Lists.newArrayListWithExpectedSize(
-          fieldReaders.size());
-      List<Type> types = Lists.newArrayListWithExpectedSize(fieldReaders.size());
-      List<Type> fields = struct.getFields();
-      for (int i = 0; i < fields.size(); i += 1) {
-        Type fieldType = fields.get(i);
-        int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName())) - 1;
-        newFields.add(ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
-        types.add(fieldType);
-      }
-
-      return new RowDataReader(types, newFields);
-    }
-
-    @Override
-    public ParquetValueReader<?> list(Types.ListType expectedList, GroupType array,
-                                      ParquetValueReader<?> elementReader) {
-      return builder.list(expectedList, array, elementReader);
-    }
-
-    @Override
-    public ParquetValueReader<?> map(Types.MapType expectedMap, GroupType map,
-                                     ParquetValueReader<?> keyReader,
-                                     ParquetValueReader<?> valueReader) {
-      return builder.map(expectedMap, map, keyReader, valueReader);
-    }
-
-    @Override
-    public ParquetValueReader<?> primitive(org.apache.iceberg.types.Type.PrimitiveType expected,
-                                           PrimitiveType primitive) {
-      return builder.primitive(expected, primitive);
-    }
+    return (ParquetValueReader<RowData>) TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
+        new ReadBuilder(fileSchema, idToConstant)
+    );
   }
 
   private static class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
@@ -244,7 +183,7 @@ class FlinkParquetReaders {
               return new ParquetValueReaders.UnboxedReader<>(desc);
             }
           case TIME_MICROS:
-            return new TimeMillisReader(desc);
+            return new LossyMicrosToMillisTimeReader(desc);
           case INT_64:
             return new ParquetValueReaders.UnboxedReader<>(desc);
           case TIMESTAMP_MICROS:
@@ -405,14 +344,14 @@ class FlinkParquetReaders {
     }
   }
 
-  private static class TimeMillisReader extends ParquetValueReaders.PrimitiveReader<Integer> {
-    TimeMillisReader(ColumnDescriptor desc) {
+  private static class LossyMicrosToMillisTimeReader extends ParquetValueReaders.PrimitiveReader<Integer> {
+    LossyMicrosToMillisTimeReader(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
     public Integer read(Integer reuse) {
-      // Flink only supports millisecond, so we discard microseconds in millisecond
+      // Discard microseconds since Flink uses millisecond unit for TIME type.
       return (int) Math.floorDiv(column.nextLong(), 1000);
     }
   }
@@ -426,7 +365,6 @@ class FlinkParquetReaders {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     protected ReusableArrayData newListData(ArrayData reuse) {
       this.readPos = 0;
       this.writePos = 0;
