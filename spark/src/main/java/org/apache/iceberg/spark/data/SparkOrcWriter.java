@@ -102,7 +102,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
         case DOUBLE:
           return SparkOrcValueWriters.doubles();
         case BINARY:
-          return SparkOrcValueWriters.byteArray();
+          return SparkOrcValueWriters.byteArrays();
         case STRING:
         case CHAR:
         case VARCHAR:

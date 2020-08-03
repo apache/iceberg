@@ -36,47 +36,47 @@ class SparkOrcValueWriters {
   private SparkOrcValueWriters() {
   }
 
-  public static SparkOrcValueWriter booleans() {
+  static SparkOrcValueWriter booleans() {
     return BooleanWriter.INSTANCE;
   }
 
-  public static SparkOrcValueWriter bytes() {
+  static SparkOrcValueWriter bytes() {
     return ByteWriter.INSTANCE;
   }
 
-  public static SparkOrcValueWriter shorts() {
+  static SparkOrcValueWriter shorts() {
     return ShortWriter.INSTANCE;
   }
 
-  public static SparkOrcValueWriter ints() {
+  static SparkOrcValueWriter ints() {
     return IntWriter.INSTANCE;
   }
 
-  public static SparkOrcValueWriter longs() {
+  static SparkOrcValueWriter longs() {
     return LongWriter.INSTANCE;
   }
 
-  public static SparkOrcValueWriter floats() {
+  static SparkOrcValueWriter floats() {
     return FloatWriter.INSTANCE;
   }
 
-  public static SparkOrcValueWriter doubles() {
+  static SparkOrcValueWriter doubles() {
     return DoubleWriter.INSTANCE;
   }
 
-  public static SparkOrcValueWriter byteArray() {
+  static SparkOrcValueWriter byteArrays() {
     return BytesWriter.INSTANCE;
   }
 
-  public static SparkOrcValueWriter strings() {
+  static SparkOrcValueWriter strings() {
     return StringWriter.INSTANCE;
   }
 
-  public static SparkOrcValueWriter timestampTz() {
+  static SparkOrcValueWriter timestampTz() {
     return TimestampTzWriter.INSTANCE;
   }
 
-  public static SparkOrcValueWriter decimal(int precision, int scale) {
+  static SparkOrcValueWriter decimal(int precision, int scale) {
     if (precision <= 18) {
       return new Decimal18Writer(precision, scale);
     } else {
@@ -84,11 +84,11 @@ class SparkOrcValueWriters {
     }
   }
 
-  public static SparkOrcValueWriter list(SparkOrcValueWriter element) {
+  static SparkOrcValueWriter list(SparkOrcValueWriter element) {
     return new ListWriter(element);
   }
 
-  public static SparkOrcValueWriter map(SparkOrcValueWriter keyWriter, SparkOrcValueWriter valueWriter) {
+  static SparkOrcValueWriter map(SparkOrcValueWriter keyWriter, SparkOrcValueWriter valueWriter) {
     return new MapWriter(keyWriter, valueWriter);
   }
 
