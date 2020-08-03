@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -47,6 +48,11 @@ class StaticDataTask implements DataTask {
         .withFormat(FileFormat.METADATA)
         .build();
     this.rows = rows;
+  }
+
+  @Override
+  public List<DeleteFile> deletes() {
+    return ImmutableList.of();
   }
 
   @Override
