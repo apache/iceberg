@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.types.Row;
@@ -92,9 +93,6 @@ public class TestIcebergStreamWriter {
   public void testWritingTable() throws Exception {
     long checkpointId = 1L;
     try (OneInputStreamOperatorTestHarness<Row, DataFile> testHarness = createIcebergStreamWriter()) {
-      testHarness.setup();
-      testHarness.open();
-
       // The first checkpoint
       testHarness.processElement(Row.of(1, "hello"), 1);
       testHarness.processElement(Row.of(2, "world"), 1);
@@ -135,9 +133,6 @@ public class TestIcebergStreamWriter {
     long checkpointId = 1;
     long timestamp = 1;
     try (OneInputStreamOperatorTestHarness<Row, DataFile> testHarness = createIcebergStreamWriter()) {
-      testHarness.setup();
-      testHarness.open();
-
       testHarness.processElement(Row.of(1, "hello"), timestamp++);
       testHarness.processElement(Row.of(2, "world"), timestamp);
 
@@ -156,18 +151,12 @@ public class TestIcebergStreamWriter {
   @Test
   public void testTableWithoutSnapshot() throws Exception {
     try (OneInputStreamOperatorTestHarness<Row, DataFile> testHarness = createIcebergStreamWriter()) {
-      testHarness.setup();
-      testHarness.open();
-
       Assert.assertEquals(0, testHarness.extractOutputValues().size());
     }
     // Even if we closed the iceberg stream writer, there's no orphan data file.
     Assert.assertEquals(0, scanDataFiles().size());
 
     try (OneInputStreamOperatorTestHarness<Row, DataFile> testHarness = createIcebergStreamWriter()) {
-      testHarness.setup();
-      testHarness.open();
-
       testHarness.processElement(Row.of(1, "hello"), 1);
       // Still not emit the data file yet, because there is no checkpoint.
       Assert.assertEquals(0, testHarness.extractOutputValues().size());
@@ -200,9 +189,6 @@ public class TestIcebergStreamWriter {
   @Test
   public void testBoundedStreamCloseWithEmittingDataFiles() throws Exception {
     try (OneInputStreamOperatorTestHarness<Row, DataFile> testHarness = createIcebergStreamWriter()) {
-      testHarness.setup();
-      testHarness.open();
-
       testHarness.processElement(Row.of(1, "hello"), 1);
       testHarness.processElement(Row.of(2, "world"), 2);
 
@@ -235,9 +221,6 @@ public class TestIcebergStreamWriter {
     }
 
     try (OneInputStreamOperatorTestHarness<Row, DataFile> testHarness = createIcebergStreamWriter()) {
-      testHarness.setup();
-      testHarness.open();
-
       for (Row row : rows) {
         testHarness.processElement(row, 1);
       }
@@ -263,14 +246,14 @@ public class TestIcebergStreamWriter {
 
   private OneInputStreamOperatorTestHarness<Row, DataFile> createIcebergStreamWriter() throws Exception {
     IcebergStreamWriter<Row> streamWriter = IcebergSinkUtil.createStreamWriter(table, SimpleDataUtil.FLINK_SCHEMA);
-    return new OneInputStreamOperatorTestHarness<>(streamWriter, 1, 1, 0);
-  }
+    OneInputStreamOperatorTestHarness<Row, DataFile> harness = new OneInputStreamOperatorTestHarness<>(streamWriter,
+        1, 1, 0);
 
-  private static Set<String> toAbsolutePathSet(List<DataFile> dataFiles) {
-    Set<String> pathSet = Sets.newHashSet();
-    for (DataFile dataFile : dataFiles) {
-      pathSet.add(dataFile.path().toString());
-    }
-    return pathSet;
+    TypeSerializer<DataFile> serializer = DataFileTypeInfo.TYPE_INFO
+        .createSerializer(harness.getExecutionConfig());
+    harness.setup(serializer);
+    harness.open();
+
+    return harness;
   }
 }

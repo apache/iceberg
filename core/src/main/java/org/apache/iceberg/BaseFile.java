@@ -373,7 +373,7 @@ abstract class BaseFile<F>
     if (list != null) {
       List<E> copy = Lists.newArrayListWithExpectedSize(list.size());
       copy.addAll(list);
-      return copy;
+      return Collections.unmodifiableList(copy);
     }
     return null;
   }
