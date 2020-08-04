@@ -10,7 +10,6 @@
 INFRA:
   - ".baseline/"
   - ".github/"
-  - "/dev/"
   - ".asf.yaml"
   - ".gitattributes"
   - ".gitignore"
@@ -20,37 +19,30 @@ INFRA:
   - "site/mkdocs.yml"
   - "travis.yml"
 BUILD:
-  - "/dev/"
-  - "/project/"
-  - "/assembly/"
-  - "*pom.xml"
-  - "/bin/docker-image-tool.sh"
-  - "/bin/find-spark-home*"
+  - "dev/"
   - "gradle/"
-  - "**.gradle"
+  - "**gradle"
 BASH:
-  - "dev/check-license"
-  - "**.sh"
+  - "dev/"
 DOCS:
   - "site/"
   - "!/site/mkdocs.yml"
   - "**CHANGELOG.md"
+  - "**README.md"
+LICENSE:
   - "**LICENSE"
   - "**NOTICE"
-  - "**README.md"
 EXAMPLES:
   - "examples/"
 COMMON:
   - "common/"
 API:
   - "api/"
-  - "python/iceberg/api/"
-  - "python/tests/api/"
 CORE:
   - "**/core/"
   - "core/"
-  - "python/iceberg/core/"
-  - "python/tests/core/"
+PYTHON:
+  - "python/"
 PARQUET:
   - "**/parquet/"
   - "parquet/"
@@ -66,13 +58,11 @@ HIVE:
 DATA:
   - "**/data/"
   - "data/"
-SPARK2:
+SPARK:
   - "spark-runtime/"
   - "spark/"
   - "spark2/"
-SPARK3:
   - "spark3-runtime/"
-  - "spark/"
   - "spark3/"
 FLINK:
   - "**/flink/"
