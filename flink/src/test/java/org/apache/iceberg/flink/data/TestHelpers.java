@@ -97,7 +97,7 @@ public class TestHelpers {
           Assert.assertEquals("time millis should be equal", milliseconds, actual.getInt(i));
           break;
         case TIMESTAMP:
-          if (((Types.TimestampType) type.asPrimitiveType()).shouldAdjustToUTC()) {
+          if (((Types.TimestampType) types.get(i).asPrimitiveType()).shouldAdjustToUTC()) {
             Assert.assertTrue("Should expect a OffsetDataTime", value instanceof OffsetDateTime);
             OffsetDateTime ts = (OffsetDateTime) value;
             Assert.assertEquals("OffsetDataTime should be equal", ts.toLocalDateTime(),

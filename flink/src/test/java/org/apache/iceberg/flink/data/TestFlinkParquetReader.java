@@ -37,7 +37,7 @@ import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
 public class TestFlinkParquetReader extends DataTest {
-  private static final int NUM_RECORDS = 20_000;
+  private static final int NUM_RECORDS = 100;
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
