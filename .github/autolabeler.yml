@@ -27,7 +27,7 @@ BUILD:
   - "**.gradle"
 BASH:
   - "dev/check-license"
-  - "**.sh
+  - "**.sh"
 DOCS:
   - "site/"
   - "!/site/mkdocs.yml"
@@ -50,7 +50,7 @@ CORE:
   - "python/tests/core/"
 PARQUET:
   - "**/parquet/"
-  - "parquet/
+  - "parquet/"
 ARROW:
   - "**/arrow/"
   - "arrow/"
