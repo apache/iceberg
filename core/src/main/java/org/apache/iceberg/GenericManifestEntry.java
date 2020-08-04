@@ -45,6 +45,7 @@ class GenericManifestEntry<F extends ContentFile<F>>
     this.schema = toCopy.schema;
     this.status = toCopy.status;
     this.snapshotId = toCopy.snapshotId;
+    this.sequenceNumber = toCopy.sequenceNumber;
     if (fullCopy) {
       this.file = toCopy.file().copy();
     } else {
