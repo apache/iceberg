@@ -1,5 +1,5 @@
 
-# The following paragraph was taken from the Apache Spark project
+# The following paragraph was taken from the Apache Spark project.
 #   see: https://github.com/apache/spark/blob/master/.github/autolabeler.yml
 # Bot page: https://github.com/apps/probot-autolabeler
 # The matching patterns follow the .gitignore spec.
