@@ -80,13 +80,13 @@ class FlinkParquetReaders {
 
     @Override
     public ParquetValueReader<RowData> message(Types.StructType expected, MessageType message,
-                                         List<ParquetValueReader<?>> fieldReaders) {
+                                               List<ParquetValueReader<?>> fieldReaders) {
       return struct(expected, message.asGroupType(), fieldReaders);
     }
 
     @Override
     public ParquetValueReader<RowData> struct(Types.StructType expected, GroupType struct,
-                                        List<ParquetValueReader<?>> fieldReaders) {
+                                              List<ParquetValueReader<?>> fieldReaders) {
       // match the expected struct's order
       Map<Integer, ParquetValueReader<?>> readersById = Maps.newHashMap();
       Map<Integer, Type> typesById = Maps.newHashMap();

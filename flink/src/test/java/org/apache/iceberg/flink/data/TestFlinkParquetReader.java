@@ -24,6 +24,9 @@ import java.io.IOException;
 import java.util.Iterator;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.DataTest;
+import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.io.CloseableIterable;
@@ -31,54 +34,43 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.junit.Assert;
 import org.junit.Rule;
-import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.flink.data.RandomData.COMPLEX_SCHEMA;
-
-public class TestFlinkParquetReader {
+public class TestFlinkParquetReader extends DataTest {
   private static final int NUM_RECORDS = 20_000;
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
-  private void testReadCorrectness(Iterable<Record> iterable) throws IOException {
+  private void writeAndValidate(Iterable<Record> iterable, Schema schema) throws IOException {
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
     try (FileAppender<Record> writer = Parquet.write(Files.localOutput(testFile))
-        .schema(COMPLEX_SCHEMA)
+        .schema(schema)
         .createWriterFunc(GenericParquetWriter::buildWriter)
         .build()) {
       writer.addAll(iterable);
     }
 
     try (CloseableIterable<RowData> reader = Parquet.read(Files.localInput(testFile))
-        .project(COMPLEX_SCHEMA)
-        .createReaderFunc(type -> FlinkParquetReaders.buildReader(COMPLEX_SCHEMA, type))
+        .project(schema)
+        .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
         .build()) {
       Iterator<Record> expected = iterable.iterator();
       Iterator<RowData> rows = reader.iterator();
       for (int i = 0; i < NUM_RECORDS; i += 1) {
         Assert.assertTrue("Should have expected number of rows", rows.hasNext());
-        TestHelpers.assertRowData(COMPLEX_SCHEMA.asStruct(), expected.next(), rows.next());
+        TestHelpers.assertRowData(schema.asStruct(), expected.next(), rows.next());
       }
       Assert.assertFalse("Should not have extra rows", rows.hasNext());
     }
   }
 
-  @Test
-  public void testNormalRowData() throws IOException {
-    testReadCorrectness(RandomData.generateRecords(COMPLEX_SCHEMA, NUM_RECORDS, 19981));
-  }
-
-  @Test
-  public void testDictionaryEncodedData() throws IOException {
-    testReadCorrectness(RandomData.generateDictionaryEncodableRecords(COMPLEX_SCHEMA, NUM_RECORDS, 21124));
-  }
-
-  @Test
-  public void testFallbackData() throws IOException {
-    testReadCorrectness(RandomData.generateFallbackRecords(COMPLEX_SCHEMA, NUM_RECORDS, 21124, NUM_RECORDS / 20));
+  @Override
+  protected void writeAndValidate(Schema schema) throws IOException {
+    writeAndValidate(RandomGenericData.generate(schema, NUM_RECORDS, 19981), schema);
+    writeAndValidate(RandomGenericData.generateDictionaryEncodableRecords(schema, NUM_RECORDS, 21124), schema);
+    writeAndValidate(RandomGenericData.generateFallbackRecords(schema, NUM_RECORDS, 21124, NUM_RECORDS / 20), schema);
   }
 }

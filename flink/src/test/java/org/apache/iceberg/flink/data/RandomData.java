@@ -22,18 +22,13 @@ package org.apache.iceberg.flink.data;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Random;
 import java.util.function.Supplier;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.RandomGenericData;
-import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.RandomUtil;
-
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -65,11 +60,7 @@ public class RandomData {
               required(23, "koala", Types.IntegerType.get()),
               required(24, "couch rope", Types.IntegerType.get())
           ))),
-      optional(2, "slide", Types.StringType.get()),
-      optional(25, "binary", Types.BinaryType.get()),
-      optional(26, "decimal", Types.DecimalType.of(10, 2)),
-      optional(27, "time micro", Types.TimeType.get()),
-      optional(28, "fix len binary", Types.FixedType.ofLength(20))
+      optional(2, "slide", Types.StringType.get())
   );
 
   private static Iterable<Row> generateData(Schema schema, int numRecords, Supplier<RandomRowGenerator> supplier) {
@@ -93,43 +84,8 @@ public class RandomData {
     };
   }
 
-  private static Iterable<Record> generateIcebergGenerics(Schema schema, int numRecords,
-                                                   Supplier<RandomGenericData.RandomDataGenerator<Record>> supplier) {
-    return () -> new Iterator<Record>() {
-      private final RandomGenericData.RandomDataGenerator<Record> generator = supplier.get();
-      private int count = 0;
-
-      @Override
-      public boolean hasNext() {
-        return count < numRecords;
-      }
-
-      @Override
-      public Record next() {
-        if (!hasNext()) {
-          throw new NoSuchElementException();
-        }
-        ++count;
-        return (Record) TypeUtil.visit(schema, generator);
-      }
-    };
-  }
-
-
-  public static Iterable<Record> generateRecords(Schema schema, int numRecords, long seed) {
-    return RandomGenericData.generate(schema, numRecords, seed);
-  }
-
   public static Iterable<Row> generate(Schema schema, int numRecords, long seed) {
     return generateData(schema, numRecords, () -> new RandomRowGenerator(seed));
-  }
-
-  public static Iterable<Record> generateFallbackRecords(Schema schema, int numRecords, long seed, long numDictRows) {
-    return generateIcebergGenerics(schema, numRecords, () -> new FallbackGenerator(seed, numDictRows));
-  }
-
-  public static Iterable<Record> generateDictionaryEncodableRecords(Schema schema, int numRecords, long seed) {
-    return generateIcebergGenerics(schema, numRecords, () -> new DictionaryEncodedGenerator(seed));
   }
 
   private static class RandomRowGenerator extends RandomGenericData.RandomDataGenerator<Row> {
@@ -152,46 +108,6 @@ public class RandomData {
       }
 
       return row;
-    }
-  }
-
-  private static class DictionaryEncodedGenerator extends RandomGenericData.RandomRecordGenerator  {
-    DictionaryEncodedGenerator(long seed) {
-      super(seed);
-    }
-
-    @Override
-    protected int getMaxEntries() {
-      // Here we limited the max entries in LIST or MAP to be 3, because we have the mechanism to duplicate
-      // the keys in RandomDataGenerator#map while the dictionary encoder will generate a string with
-      // limited values("0","1","2"). It's impossible for us to request the generator to generate more than 3 keys,
-      // otherwise we will get in a infinite loop in RandomDataGenerator#map.
-      return 3;
-    }
-
-    @Override
-    protected Object randomValue(Type.PrimitiveType primitive, Random random) {
-      return RandomUtil.generateDictionaryEncodablePrimitive(primitive, random);
-    }
-  }
-
-  private static class FallbackGenerator extends RandomGenericData.RandomRecordGenerator {
-    private final long dictionaryEncodedRows;
-    private long rowCount = 0;
-
-    FallbackGenerator(long seed, long numDictionaryEncoded) {
-      super(seed);
-      this.dictionaryEncodedRows = numDictionaryEncoded;
-    }
-
-    @Override
-    protected Object randomValue(Type.PrimitiveType primitive, Random rand) {
-      this.rowCount += 1;
-      if (rowCount > dictionaryEncodedRows) {
-        return RandomUtil.generatePrimitive(primitive, rand);
-      } else {
-        return RandomUtil.generateDictionaryEncodablePrimitive(primitive, rand);
-      }
     }
   }
 }

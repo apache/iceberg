@@ -52,6 +52,8 @@ public class TestHelpers {
       return;
     }
 
+    Assert.assertTrue("expected and actual should be both null or not null", expected != null && actual != null);
+
     List<Type> types = new ArrayList<>();
     for (Types.NestedField field : type.asStructType().fields()) {
       types.add(field.type());

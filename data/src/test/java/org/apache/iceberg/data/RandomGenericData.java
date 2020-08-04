@@ -46,7 +46,11 @@ public class RandomGenericData {
   private RandomGenericData() {}
 
   public static List<Record> generate(Schema schema, int numRecords, long seed) {
-    RandomRecordGenerator generator = new RandomRecordGenerator(seed);
+    return generateRecords(schema, numRecords, new RandomRecordGenerator(seed));
+  }
+
+  public static List<Record> generateRecords(Schema schema, int numRecords,
+                                             RandomRecordGenerator generator) {
     List<Record> records = Lists.newArrayListWithExpectedSize(numRecords);
     for (int i = 0; i < numRecords; i += 1) {
       records.add((Record) TypeUtil.visit(schema, generator));
@@ -55,8 +59,16 @@ public class RandomGenericData {
     return records;
   }
 
-  public static class RandomRecordGenerator extends RandomDataGenerator<Record> {
-    public RandomRecordGenerator(long seed) {
+  public static Iterable<Record> generateFallbackRecords(Schema schema, int numRecords, long seed, long numDictRows) {
+    return generateRecords(schema, numRecords, new FallbackGenerator(seed, numDictRows));
+  }
+
+  public static Iterable<Record> generateDictionaryEncodableRecords(Schema schema, int numRecords, long seed) {
+    return generateRecords(schema, numRecords, new DictionaryEncodedGenerator(seed));
+  }
+
+  private static class RandomRecordGenerator extends RandomDataGenerator<Record> {
+    private RandomRecordGenerator(long seed) {
       super(seed);
     }
 
@@ -75,6 +87,46 @@ public class RandomGenericData {
       }
 
       return rec;
+    }
+  }
+
+  private static class DictionaryEncodedGenerator extends RandomRecordGenerator  {
+    DictionaryEncodedGenerator(long seed) {
+      super(seed);
+    }
+
+    @Override
+    protected int getMaxEntries() {
+      // Here we limited the max entries in LIST or MAP to be 3, because we have the mechanism to duplicate
+      // the keys in RandomDataGenerator#map while the dictionary encoder will generate a string with
+      // limited values("0","1","2"). It's impossible for us to request the generator to generate more than 3 keys,
+      // otherwise we will get in a infinite loop in RandomDataGenerator#map.
+      return 3;
+    }
+
+    @Override
+    protected Object randomValue(Type.PrimitiveType primitive, Random random) {
+      return RandomUtil.generateDictionaryEncodablePrimitive(primitive, random);
+    }
+  }
+
+  private static class FallbackGenerator extends RandomRecordGenerator {
+    private final long dictionaryEncodedRows;
+    private long rowCount = 0;
+
+    FallbackGenerator(long seed, long numDictionaryEncoded) {
+      super(seed);
+      this.dictionaryEncodedRows = numDictionaryEncoded;
+    }
+
+    @Override
+    protected Object randomValue(Type.PrimitiveType primitive, Random rand) {
+      this.rowCount += 1;
+      if (rowCount > dictionaryEncodedRows) {
+        return RandomUtil.generatePrimitive(primitive, rand);
+      } else {
+        return RandomUtil.generateDictionaryEncodablePrimitive(primitive, rand);
+      }
     }
   }
 
