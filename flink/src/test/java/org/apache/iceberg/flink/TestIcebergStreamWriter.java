@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.types.Row;
@@ -249,9 +248,7 @@ public class TestIcebergStreamWriter {
     OneInputStreamOperatorTestHarness<Row, DataFile> harness = new OneInputStreamOperatorTestHarness<>(streamWriter,
         1, 1, 0);
 
-    TypeSerializer<DataFile> serializer = DataFileTypeInfo.TYPE_INFO
-        .createSerializer(harness.getExecutionConfig());
-    harness.setup(serializer);
+    harness.setup();
     harness.open();
 
     return harness;

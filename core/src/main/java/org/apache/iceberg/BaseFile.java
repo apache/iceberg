@@ -66,7 +66,7 @@ abstract class BaseFile<F>
   private Map<Integer, Long> nullValueCounts = null;
   private Map<Integer, ByteBuffer> lowerBounds = null;
   private Map<Integer, ByteBuffer> upperBounds = null;
-  private List<Long> splitOffsets = null;
+  private Long[] splitOffsets = null;
   private byte[] keyMetadata = null;
 
   // cached schema
@@ -134,14 +134,14 @@ abstract class BaseFile<F>
     this.nullValueCounts = nullValueCounts;
     this.lowerBounds = SerializableByteBufferMap.wrap(lowerBounds);
     this.upperBounds = SerializableByteBufferMap.wrap(upperBounds);
-    this.splitOffsets = copy(splitOffsets);
+    this.splitOffsets = splitOffsets == null ? null : splitOffsets.toArray(new Long[0]);
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
   }
 
   /**
    * Copy constructor.
    *
-   * @param toCopy a generic data file to copy.
+   * @param toCopy   a generic data file to copy.
    * @param fullCopy whether to copy all fields or to drop column-level stats
    */
   BaseFile(BaseFile<F> toCopy, boolean fullCopy) {
@@ -168,7 +168,8 @@ abstract class BaseFile<F>
     }
     this.fromProjectionPos = toCopy.fromProjectionPos;
     this.keyMetadata = toCopy.keyMetadata == null ? null : Arrays.copyOf(toCopy.keyMetadata, toCopy.keyMetadata.length);
-    this.splitOffsets = copy(toCopy.splitOffsets);
+    this.splitOffsets = toCopy.splitOffsets == null ? null :
+        Arrays.copyOf(toCopy.splitOffsets, toCopy.splitOffsets.length);
   }
 
   /**
@@ -234,7 +235,7 @@ abstract class BaseFile<F>
         this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
         return;
       case 12:
-        this.splitOffsets = (List<Long>) value;
+        this.splitOffsets = value != null ? ((List<Long>) value).toArray(new Long[0]) : null;
         return;
       default:
         // ignore the object, it must be from a newer version of the format
@@ -357,7 +358,7 @@ abstract class BaseFile<F>
 
   @Override
   public List<Long> splitOffsets() {
-    return splitOffsets;
+    return splitOffsets != null ? Lists.newArrayList(splitOffsets) : null;
   }
 
   private static <K, V> Map<K, V> copy(Map<K, V> map) {
@@ -365,15 +366,6 @@ abstract class BaseFile<F>
       Map<K, V> copy = Maps.newHashMapWithExpectedSize(map.size());
       copy.putAll(map);
       return Collections.unmodifiableMap(copy);
-    }
-    return null;
-  }
-
-  private static <E> List<E> copy(List<E> list) {
-    if (list != null) {
-      List<E> copy = Lists.newArrayListWithExpectedSize(list.size());
-      copy.addAll(list);
-      return Collections.unmodifiableList(copy);
     }
     return null;
   }
