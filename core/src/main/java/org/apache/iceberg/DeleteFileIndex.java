@@ -61,15 +61,15 @@ class DeleteFileIndex {
 
   private final long[] globalSeqs;
   private final DeleteFile[] globalDeletes;
-  private final Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> index;
+  private final Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> sortedDeletesByPartition;
   private final ThreadLocal<StructLikeWrapper> lookupWrapper = ThreadLocal.withInitial(
       () -> StructLikeWrapper.wrap(null));
 
   DeleteFileIndex(long[] globalSeqs, DeleteFile[] globalDeletes,
-                  Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> index) {
+                  Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> sortedDeletesByPartition) {
     this.globalSeqs = globalSeqs;
     this.globalDeletes = globalDeletes;
-    this.index = index;
+    this.sortedDeletesByPartition = sortedDeletesByPartition;
   }
 
   DeleteFile[] forEntry(int specId, ManifestEntry<DataFile> entry) {
@@ -77,7 +77,9 @@ class DeleteFileIndex {
   }
 
   DeleteFile[] forDataFile(int specId, long sequenceNumber, DataFile file) {
-    Pair<long[], DeleteFile[]> partitionDeletes = index.get(Pair.of(specId, lookupWrapper.get().set(file.partition())));
+    Pair<long[], DeleteFile[]> partitionDeletes = sortedDeletesByPartition
+        .get(Pair.of(specId, lookupWrapper.get().set(file.partition())));
+
     if (partitionDeletes == null) {
       return limitBySequenceNumber(sequenceNumber, globalSeqs, globalDeletes);
     } else if (globalDeletes == null) {
@@ -161,6 +163,7 @@ class DeleteFileIndex {
     }
 
     DeleteFileIndex build() {
+      // read all of the matching delete manifests in parallel and accumulate the matching files in a queue
       Queue<Pair<Integer, ManifestEntry<DeleteFile>>> deleteEntries = new ConcurrentLinkedQueue<>();
       Tasks.foreach(deleteManifestReaders())
           .stopOnFailure().throwFailureWhenFinished()
@@ -176,6 +179,7 @@ class DeleteFileIndex {
             }
           });
 
+      // build a map from (specId, partition) to delete file entries
       ListMultimap<Pair<Integer, StructLikeWrapper>, ManifestEntry<DeleteFile>> deleteFilesByPartition =
           Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
       for (Pair<Integer, ManifestEntry<DeleteFile>> specIdAndEntry : deleteEntries) {
@@ -184,7 +188,9 @@ class DeleteFileIndex {
         deleteFilesByPartition.put(Pair.of(specId, StructLikeWrapper.wrap(entry.file().partition())), entry);
       }
 
-      Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> deletesByPartition = Maps.newHashMap();
+      // sort the entries in each map value by sequence number and split into sequence numbers and delete files lists
+      Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> sortedDeletesByPartition = Maps.newHashMap();
+      // also, separate out equality deletes in an unpartitioned spec that should be applied globally
       long[] globalApplySeqs = null;
       DeleteFile[] globalDeletes = null;
       for (Pair<Integer, StructLikeWrapper> partition : deleteFilesByPartition.keySet()) {
@@ -211,7 +217,7 @@ class DeleteFileIndex {
           long[] seqs = posFilesSortedBySeq.stream().mapToLong(Pair::first).toArray();
           DeleteFile[] files = posFilesSortedBySeq.stream().map(Pair::second).toArray(DeleteFile[]::new);
 
-          deletesByPartition.put(partition, Pair.of(seqs, files));
+          sortedDeletesByPartition.put(partition, Pair.of(seqs, files));
 
         } else {
           List<Pair<Long, DeleteFile>> filesSortedBySeq = deleteFilesByPartition.get(partition).stream()
@@ -227,11 +233,11 @@ class DeleteFileIndex {
           long[] seqs = filesSortedBySeq.stream().mapToLong(Pair::first).toArray();
           DeleteFile[] files = filesSortedBySeq.stream().map(Pair::second).toArray(DeleteFile[]::new);
 
-          deletesByPartition.put(partition, Pair.of(seqs, files));
+          sortedDeletesByPartition.put(partition, Pair.of(seqs, files));
         }
       }
 
-      return new DeleteFileIndex(globalApplySeqs, globalDeletes, deletesByPartition);
+      return new DeleteFileIndex(globalApplySeqs, globalDeletes, sortedDeletesByPartition);
     }
 
     private Iterable<Pair<Integer, CloseableIterable<ManifestEntry<DeleteFile>>>> deleteManifestReaders() {
