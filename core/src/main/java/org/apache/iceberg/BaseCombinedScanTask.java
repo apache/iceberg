@@ -19,27 +19,26 @@
 
 package org.apache.iceberg;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class BaseCombinedScanTask implements CombinedScanTask {
-  private final List<FileScanTask> tasks;
+  private final FileScanTask[] tasks;
 
   public BaseCombinedScanTask(FileScanTask... tasks) {
-    this.tasks = Arrays.asList(tasks);
+    this.tasks = tasks;
   }
 
   public BaseCombinedScanTask(List<FileScanTask> tasks) {
-    this.tasks = copyList(tasks);
+    this.tasks = tasks.stream().toArray(FileScanTask[]::new);
   }
 
   @Override
   public Collection<FileScanTask> files() {
-    return tasks;
+    return ImmutableList.copyOf(tasks);
   }
 
   @Override
@@ -47,12 +46,5 @@ public class BaseCombinedScanTask implements CombinedScanTask {
     return MoreObjects.toStringHelper(this)
         .add("tasks", Joiner.on(", ").join(tasks))
         .toString();
-  }
-
-  // TODO: deduplicate implementations among classes
-  private <E> List<E> copyList(List<E> toCopy) {
-    List<E> copy = Lists.newArrayListWithExpectedSize(toCopy.size());
-    copy.addAll(toCopy);
-    return copy;
   }
 }
