@@ -57,21 +57,21 @@ public class TestDeleteFileIndex extends TableTestBase {
   static final DeleteFile[] DELETE_FILES = new DeleteFile[] { FILE_A_POS_1, FILE_A_EQ_1, FILE_A_POS_2, FILE_A_EQ_2 };
 
   static final DataFile UNPARTITIONED_FILE = DataFiles.builder(PartitionSpec.unpartitioned())
-      .withPath("/path/to/data-a.parquet")
+      .withPath("/path/to/data-unpartitioned.parquet")
       .withFileSizeInBytes(10)
       .withRecordCount(1)
       .build();
 
-  static final DeleteFile UNPARTITIONED_POS_DELETES = FileMetadata.deleteFileBuilder(SPEC)
+  static final DeleteFile UNPARTITIONED_POS_DELETES = FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
       .ofPositionDeletes()
-      .withPath("/path/to/data-a-pos-deletes.parquet")
+      .withPath("/path/to/data-unpartitioned-pos-deletes.parquet")
       .withFileSizeInBytes(10)
       .withRecordCount(1)
       .build();
 
-  static final DeleteFile UNPARTITIONED_EQ_DELETES = FileMetadata.deleteFileBuilder(SPEC)
+  static final DeleteFile UNPARTITIONED_EQ_DELETES = FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
       .ofEqualityDeletes()
-      .withPath("/path/to/data-a-eq-deletes.parquet")
+      .withPath("/path/to/data-unpartitioned-eq-deletes.parquet")
       .withFileSizeInBytes(10)
       .withRecordCount(1)
       .build();
@@ -140,7 +140,7 @@ public class TestDeleteFileIndex extends TableTestBase {
     Table unpartitioned = TestTables.create(location, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), 2);
 
     unpartitioned.newAppend()
-        .appendFile(FILE_A)
+        .appendFile(UNPARTITIONED_FILE)
         .commit();
 
     // add a delete file
@@ -176,6 +176,171 @@ public class TestDeleteFileIndex extends TableTestBase {
   }
 
   @Test
+  public void testPartitionedTableWithPartitionPosDeletes() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    table.newRowDelta()
+        .addDeletes(FILE_A_POS_1)
+        .commit();
+
+    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
+    Assert.assertEquals("Should have one task", 1, tasks.size());
+
+    FileScanTask task = tasks.get(0);
+    Assert.assertEquals("Should have the correct data file path",
+        FILE_A.path(), task.file().path());
+    Assert.assertEquals("Should have one associated delete file",
+        1, task.deletes().size());
+    Assert.assertEquals("Should have only pos delete file",
+        FILE_A_POS_1.path(), task.deletes().get(0).path());
+  }
+
+  @Test
+  public void testPartitionedTableWithPartitionEqDeletes() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    table.newRowDelta()
+        .addDeletes(FILE_A_EQ_1)
+        .commit();
+
+    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
+    Assert.assertEquals("Should have one task", 1, tasks.size());
+
+    FileScanTask task = tasks.get(0);
+    Assert.assertEquals("Should have the correct data file path",
+        FILE_A.path(), task.file().path());
+    Assert.assertEquals("Should have one associated delete file",
+        1, task.deletes().size());
+    Assert.assertEquals("Should have only pos delete file",
+        FILE_A_EQ_1.path(), task.deletes().get(0).path());
+  }
+
+  @Test
+  public void testPartitionedTableWithUnrelatedPartitionDeletes() {
+    table.newAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    table.newRowDelta()
+        .addDeletes(FILE_A_POS_1)
+        .addDeletes(FILE_A_EQ_1)
+        .commit();
+
+    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
+    Assert.assertEquals("Should have one task", 1, tasks.size());
+
+    FileScanTask task = tasks.get(0);
+    Assert.assertEquals("Should have the correct data file path",
+        FILE_B.path(), task.file().path());
+    Assert.assertEquals("Should have one associated delete file",
+        0, task.deletes().size());
+  }
+
+  @Test
+  public void testPartitionedTableWithOlderPartitionDeletes() {
+    table.newRowDelta()
+        .addDeletes(FILE_A_POS_1)
+        .addDeletes(FILE_A_EQ_1)
+        .commit();
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
+    Assert.assertEquals("Should have one task", 1, tasks.size());
+
+    FileScanTask task = tasks.get(0);
+    Assert.assertEquals("Should have the correct data file path",
+        FILE_A.path(), task.file().path());
+    Assert.assertEquals("Should have no delete files to apply",
+        0, task.deletes().size());
+  }
+
+  @Test
+  public void testPartitionedTableScanWithGlobalDeletes() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    TableMetadata base = table.ops().current();
+    table.ops().commit(base, base.updatePartitionSpec(PartitionSpec.unpartitioned()));
+
+    // add unpartitioned equality and position deletes, but only equality deletes are global
+    table.newRowDelta()
+        .addDeletes(UNPARTITIONED_POS_DELETES)
+        .addDeletes(UNPARTITIONED_EQ_DELETES)
+        .commit();
+
+    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
+    Assert.assertEquals("Should have one task", 1, tasks.size());
+
+    FileScanTask task = tasks.get(0);
+    Assert.assertEquals("Should have the correct data file path",
+        FILE_A.path(), task.file().path());
+    Assert.assertEquals("Should have one associated delete file",
+        1, task.deletes().size());
+    Assert.assertEquals("Should have expected delete file",
+        UNPARTITIONED_EQ_DELETES.path(), task.deletes().get(0).path());
+  }
+
+  @Test
+  public void testPartitionedTableScanWithGlobalAndPartitionDeletes() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    table.newRowDelta()
+        .addDeletes(FILE_A_EQ_1)
+        .commit();
+
+    TableMetadata base = table.ops().current();
+    table.ops().commit(base, base.updatePartitionSpec(PartitionSpec.unpartitioned()));
+
+    // add unpartitioned equality and position deletes, but only equality deletes are global
+    table.newRowDelta()
+        .addDeletes(UNPARTITIONED_POS_DELETES)
+        .addDeletes(UNPARTITIONED_EQ_DELETES)
+        .commit();
+
+    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
+    Assert.assertEquals("Should have one task", 1, tasks.size());
+
+    FileScanTask task = tasks.get(0);
+    Assert.assertEquals("Should have the correct data file path",
+        FILE_A.path(), task.file().path());
+    Assert.assertEquals("Should have two associated delete files",
+        2, task.deletes().size());
+    Assert.assertEquals("Should have expected delete files",
+        Sets.newHashSet(UNPARTITIONED_EQ_DELETES.path(), FILE_A_EQ_1.path()),
+        Sets.newHashSet(Iterables.transform(task.deletes(), ContentFile::path)));
+  }
+
+  @Test
+  public void testPartitionedTableSequenceNumbers() {
+    table.newRowDelta()
+        .addRows(FILE_A)
+        .addDeletes(FILE_A_EQ_1)
+        .addDeletes(FILE_A_POS_1)
+        .commit();
+
+    List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
+    Assert.assertEquals("Should have one task", 1, tasks.size());
+
+    FileScanTask task = tasks.get(0);
+    Assert.assertEquals("Should have the correct data file path",
+        FILE_A.path(), task.file().path());
+    Assert.assertEquals("Should have one associated delete file",
+        1, task.deletes().size());
+    Assert.assertEquals("Should have only pos delete file",
+        FILE_A_POS_1.path(), task.deletes().get(0).path());
+  }
+
+  @Test
   public void testUnpartitionedTableSequenceNumbers() throws IOException {
     File location = temp.newFolder();
     Assert.assertTrue(location.delete());
@@ -185,7 +350,7 @@ public class TestDeleteFileIndex extends TableTestBase {
     // add data, pos deletes, and eq deletes in the same sequence number
     // the position deletes will be applied to the data file, but the equality deletes will not
     unpartitioned.newRowDelta()
-        .addRows(FILE_A)
+        .addRows(UNPARTITIONED_FILE)
         .addDeletes(UNPARTITIONED_POS_DELETES)
         .addDeletes(UNPARTITIONED_EQ_DELETES)
         .commit();
