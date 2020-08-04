@@ -44,7 +44,6 @@ import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
-import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.PrimitiveType;
 
 /**
