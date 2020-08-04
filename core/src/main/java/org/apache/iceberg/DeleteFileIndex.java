@@ -217,7 +217,8 @@ class DeleteFileIndex {
           List<Pair<Long, DeleteFile>> filesSortedBySeq = deleteFilesByPartition.get(partition).stream()
               .map(entry -> {
                 // a delete file is indexed by the sequence number it should be applied to
-                long applySeq = entry.sequenceNumber() - (entry.file().content() == FileContent.EQUALITY_DELETES ? 1 : 0);
+                long applySeq = entry.sequenceNumber() -
+                    (entry.file().content() == FileContent.EQUALITY_DELETES ? 1 : 0);
                 return Pair.of(applySeq, entry.file());
               })
               .sorted(Comparator.comparingLong(Pair::first))
@@ -234,13 +235,13 @@ class DeleteFileIndex {
     }
 
     private Iterable<Pair<Integer, CloseableIterable<ManifestEntry<DeleteFile>>>> deleteManifestReaders() {
-      LoadingCache<Integer, ManifestEvaluator> evalCache = specsById == null ?
-          null : Caffeine.newBuilder().build(specId -> {
-        PartitionSpec spec = specsById.get(specId);
-        return ManifestEvaluator.forPartitionFilter(
-            Expressions.and(partitionFilter, Projections.inclusive(spec, caseSensitive).project(dataFilter)),
-            spec, caseSensitive);
-      });
+      LoadingCache<Integer, ManifestEvaluator> evalCache = specsById == null ? null :
+          Caffeine.newBuilder().build(specId -> {
+            PartitionSpec spec = specsById.get(specId);
+            return ManifestEvaluator.forPartitionFilter(
+                Expressions.and(partitionFilter, Projections.inclusive(spec, caseSensitive).project(dataFilter)),
+                spec, caseSensitive);
+          });
 
       Iterable<ManifestFile> matchingManifests = evalCache == null ? deleteManifests :
           Iterables.filter(deleteManifests, manifest ->
