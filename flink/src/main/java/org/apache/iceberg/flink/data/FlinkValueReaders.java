@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.io.Decoder;
@@ -40,6 +39,7 @@ import org.apache.flink.table.data.TimestampData;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 
 public class FlinkValueReaders {
@@ -209,7 +209,7 @@ public class FlinkValueReaders {
   }
 
   private static MapData kvArrayToMap(List<Object> keyList, List<Object> valueList) {
-    Map<Object, Object> map = new HashMap<>();
+    Map<Object, Object> map = Maps.newHashMap();
     Object[] keys = keyList.toArray();
     Object[] values = valueList.toArray();
     for (int i = 0; i < keys.length; i++) {
