@@ -581,7 +581,7 @@ class FlinkParquetReaders {
         this.values = new Object[20];
       } else {
         Object[] old = values;
-        this.values = new Object[old.length << 2];
+        this.values = new Object[old.length << 1];
         // copy the old array in case it has values that can be reused
         System.arraycopy(old, 0, values, 0, old.length);
       }
