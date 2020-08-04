@@ -24,7 +24,6 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -72,9 +71,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
-import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK_DEFAULT;
-import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT;
-import static org.apache.iceberg.TableProperties.SPLIT_SIZE_DEFAULT;
 
 class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPushDownFilters,
     SupportsPushDownRequiredColumns, SupportsReportStatistics {
@@ -195,16 +191,16 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     return type;
   }
 
-  protected long splitSize() {
-    return Optional.ofNullable(splitSize).orElse(SPLIT_SIZE_DEFAULT);
+  protected Long splitSize() {
+    return splitSize;
   }
 
-  protected int splitLookback() {
-    return Optional.ofNullable(splitLookback).orElse(SPLIT_LOOKBACK_DEFAULT);
+  protected Integer splitLookback() {
+    return splitLookback;
   }
 
-  protected long splitOpenFileCost() {
-    return Optional.ofNullable(splitOpenFileCost).orElse(SPLIT_OPEN_FILE_COST_DEFAULT);
+  protected Long splitOpenFileCost() {
+    return splitOpenFileCost;
   }
 
   protected boolean caseSensitive() {
