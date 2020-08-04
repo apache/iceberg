@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -38,6 +39,7 @@ import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.ListMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -57,11 +59,16 @@ import org.apache.iceberg.util.Tasks;
 class DeleteFileIndex {
   private static final DeleteFile[] NO_DELETE_FILES = new DeleteFile[0];
 
+  private final long[] globalSeqs;
+  private final DeleteFile[] globalDeletes;
   private final Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> index;
   private final ThreadLocal<StructLikeWrapper> lookupWrapper = ThreadLocal.withInitial(
       () -> StructLikeWrapper.wrap(null));
 
-  DeleteFileIndex(Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> index) {
+  DeleteFileIndex(long[] globalSeqs, DeleteFile[] globalDeletes,
+                  Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> index) {
+    this.globalSeqs = globalSeqs;
+    this.globalDeletes = globalDeletes;
     this.index = index;
   }
 
@@ -72,11 +79,21 @@ class DeleteFileIndex {
   DeleteFile[] forDataFile(int specId, long sequenceNumber, DataFile file) {
     Pair<long[], DeleteFile[]> partitionDeletes = index.get(Pair.of(specId, lookupWrapper.get().set(file.partition())));
     if (partitionDeletes == null) {
+      return limitBySequenceNumber(sequenceNumber, globalSeqs, globalDeletes);
+    } else if (globalDeletes == null) {
+      return limitBySequenceNumber(sequenceNumber, partitionDeletes.first(), partitionDeletes.second());
+    } else {
+      return Stream.concat(
+          Stream.of(limitBySequenceNumber(sequenceNumber, globalSeqs, globalDeletes)),
+          Stream.of(limitBySequenceNumber(sequenceNumber, partitionDeletes.first(), partitionDeletes.second()))
+      ).toArray(DeleteFile[]::new);
+    }
+  }
+
+  private static DeleteFile[] limitBySequenceNumber(long sequenceNumber, long[] seqs, DeleteFile[] files) {
+    if (files == null) {
       return NO_DELETE_FILES;
     }
-
-    long[] seqs = partitionDeletes.first();
-    DeleteFile[] files = partitionDeletes.second();
 
     int pos = Arrays.binarySearch(seqs, sequenceNumber);
     int start;
@@ -168,23 +185,52 @@ class DeleteFileIndex {
       }
 
       Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> deletesByPartition = Maps.newHashMap();
+      long[] globalApplySeqs = null;
+      DeleteFile[] globalDeletes = null;
       for (Pair<Integer, StructLikeWrapper> partition : deleteFilesByPartition.keySet()) {
-        List<Pair<Long, DeleteFile>> filesSortedBySeq = deleteFilesByPartition.get(partition).stream()
-            .map(entry -> {
-              // a delete file is indexed by the sequence number it should be applied to
-              long applySeq = entry.sequenceNumber() - (entry.file().content() == FileContent.EQUALITY_DELETES ? 1 : 0);
-              return Pair.of(applySeq, entry.file());
-            })
-            .sorted(Comparator.comparingLong(Pair::first))
-            .collect(Collectors.toList());
+        if (specsById.get(partition.first()).isUnpartitioned()) {
+          Preconditions.checkState(globalDeletes == null, "Detected multiple partition specs with no partitions");
 
-        long[] seqs = filesSortedBySeq.stream().mapToLong(Pair::first).toArray();
-        DeleteFile[] files = filesSortedBySeq.stream().map(Pair::second).toArray(DeleteFile[]::new);
+          List<Pair<Long, DeleteFile>> eqFilesSortedBySeq = deleteFilesByPartition.get(partition).stream()
+              .filter(entry -> entry.file().content() == FileContent.EQUALITY_DELETES)
+              .map(entry ->
+                  // a delete file is indexed by the sequence number it should be applied to
+                  Pair.of(entry.sequenceNumber() - 1, entry.file()))
+              .sorted(Comparator.comparingLong(Pair::first))
+              .collect(Collectors.toList());
 
-        deletesByPartition.put(partition, Pair.of(seqs, files));
+          globalApplySeqs = eqFilesSortedBySeq.stream().mapToLong(Pair::first).toArray();
+          globalDeletes = eqFilesSortedBySeq.stream().map(Pair::second).toArray(DeleteFile[]::new);
+
+          List<Pair<Long, DeleteFile>> posFilesSortedBySeq = deleteFilesByPartition.get(partition).stream()
+              .filter(entry -> entry.file().content() == FileContent.POSITION_DELETES)
+              .map(entry -> Pair.of(entry.sequenceNumber(), entry.file()))
+              .sorted(Comparator.comparingLong(Pair::first))
+              .collect(Collectors.toList());
+
+          long[] seqs = posFilesSortedBySeq.stream().mapToLong(Pair::first).toArray();
+          DeleteFile[] files = posFilesSortedBySeq.stream().map(Pair::second).toArray(DeleteFile[]::new);
+
+          deletesByPartition.put(partition, Pair.of(seqs, files));
+
+        } else {
+          List<Pair<Long, DeleteFile>> filesSortedBySeq = deleteFilesByPartition.get(partition).stream()
+              .map(entry -> {
+                // a delete file is indexed by the sequence number it should be applied to
+                long applySeq = entry.sequenceNumber() - (entry.file().content() == FileContent.EQUALITY_DELETES ? 1 : 0);
+                return Pair.of(applySeq, entry.file());
+              })
+              .sorted(Comparator.comparingLong(Pair::first))
+              .collect(Collectors.toList());
+
+          long[] seqs = filesSortedBySeq.stream().mapToLong(Pair::first).toArray();
+          DeleteFile[] files = filesSortedBySeq.stream().map(Pair::second).toArray(DeleteFile[]::new);
+
+          deletesByPartition.put(partition, Pair.of(seqs, files));
+        }
       }
 
-      return new DeleteFileIndex(deletesByPartition);
+      return new DeleteFileIndex(globalApplySeqs, globalDeletes, deletesByPartition);
     }
 
     private Iterable<Pair<Integer, CloseableIterable<ManifestEntry<DeleteFile>>>> deleteManifestReaders() {
@@ -202,7 +248,7 @@ class DeleteFileIndex {
                   (manifest.hasAddedFiles() || manifest.hasDeletedFiles()) &&
                   evalCache.get(manifest.partitionSpecId()).eval(manifest));
 
-      Iterable<Pair<Integer, CloseableIterable<ManifestEntry<DeleteFile>>>> readers = Iterables.transform(
+      return Iterables.transform(
           matchingManifests,
           manifest -> Pair.of(
               manifest.partitionSpecId(),
@@ -212,8 +258,6 @@ class DeleteFileIndex {
                   .caseSensitive(caseSensitive)
                   .liveEntries())
       );
-
-      return readers;
     }
   }
 }
