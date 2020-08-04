@@ -51,26 +51,26 @@ import org.apache.iceberg.util.Tasks;
 /**
  * An index of {@link DeleteFile delete files} by sequence number.
  * <p>
- * Use {@link #builderFor(FileIO, Iterable)} to construct an index, and {@link #forDataFile(long, DataFile)} or
- * {@link #forEntry(ManifestEntry)} to get the the delete files to apply to a given data file.
+ * Use {@link #builderFor(FileIO, Iterable)} to construct an index, and {@link #forDataFile(int, long, DataFile)} or
+ * {@link #forEntry(int, ManifestEntry)} to get the the delete files to apply to a given data file.
  */
 class DeleteFileIndex {
   private static final DeleteFile[] NO_DELETE_FILES = new DeleteFile[0];
 
-  private final Map<StructLikeWrapper, Pair<long[], DeleteFile[]>> index;
+  private final Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> index;
   private final ThreadLocal<StructLikeWrapper> lookupWrapper = ThreadLocal.withInitial(
       () -> StructLikeWrapper.wrap(null));
 
-  DeleteFileIndex(Map<StructLikeWrapper, Pair<long[], DeleteFile[]>> index) {
+  DeleteFileIndex(Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> index) {
     this.index = index;
   }
 
-  DeleteFile[] forEntry(ManifestEntry<DataFile> entry) {
-    return forDataFile(entry.sequenceNumber(), entry.file());
+  DeleteFile[] forEntry(int specId, ManifestEntry<DataFile> entry) {
+    return forDataFile(specId, entry.sequenceNumber(), entry.file());
   }
 
-  DeleteFile[] forDataFile(long sequenceNumber, DataFile file) {
-    Pair<long[], DeleteFile[]> partitionDeletes = index.get(lookupWrapper.get().set(file.partition()));
+  DeleteFile[] forDataFile(int specId, long sequenceNumber, DataFile file) {
+    Pair<long[], DeleteFile[]> partitionDeletes = index.get(Pair.of(specId, lookupWrapper.get().set(file.partition())));
     if (partitionDeletes == null) {
       return NO_DELETE_FILES;
     }
@@ -144,29 +144,31 @@ class DeleteFileIndex {
     }
 
     DeleteFileIndex build() {
-      Queue<ManifestEntry<DeleteFile>> deleteEntries = new ConcurrentLinkedQueue<>();
+      Queue<Pair<Integer, ManifestEntry<DeleteFile>>> deleteEntries = new ConcurrentLinkedQueue<>();
       Tasks.foreach(deleteManifestReaders())
           .stopOnFailure().throwFailureWhenFinished()
           .executeWith(executorService)
-          .run(deleteManifest -> {
-            try (CloseableIterable<ManifestEntry<DeleteFile>> reader = deleteManifest) {
+          .run(specIdAndReader -> {
+            try (CloseableIterable<ManifestEntry<DeleteFile>> reader = specIdAndReader.second()) {
               for (ManifestEntry<DeleteFile> entry : reader) {
                 // copy with stats for better filtering against data file stats
-                deleteEntries.add(entry.copy());
+                deleteEntries.add(Pair.of(specIdAndReader.first(), entry.copy()));
               }
             } catch (IOException e) {
               throw new RuntimeIOException("Failed to close", e);
             }
           });
 
-      ListMultimap<StructLikeWrapper, ManifestEntry<DeleteFile>> deleteFilesByPartition = Multimaps.newListMultimap(
-          Maps.newHashMap(), Lists::newArrayList);
-      for (ManifestEntry<DeleteFile> deleteEntry : deleteEntries) {
-        deleteFilesByPartition.put(StructLikeWrapper.wrap(deleteEntry.file().partition()), deleteEntry);
+      ListMultimap<Pair<Integer, StructLikeWrapper>, ManifestEntry<DeleteFile>> deleteFilesByPartition =
+          Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
+      for (Pair<Integer, ManifestEntry<DeleteFile>> specIdAndEntry : deleteEntries) {
+        int specId = specIdAndEntry.first();
+        ManifestEntry<DeleteFile> entry = specIdAndEntry.second();
+        deleteFilesByPartition.put(Pair.of(specId, StructLikeWrapper.wrap(entry.file().partition())), entry);
       }
 
-      Map<StructLikeWrapper, Pair<long[], DeleteFile[]>> deletesByPartition = Maps.newHashMap();
-      for (StructLikeWrapper partition : deleteFilesByPartition.keySet()) {
+      Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> deletesByPartition = Maps.newHashMap();
+      for (Pair<Integer, StructLikeWrapper> partition : deleteFilesByPartition.keySet()) {
         List<Pair<Long, DeleteFile>> filesSortedBySeq = deleteFilesByPartition.get(partition).stream()
             .map(entry -> {
               // a delete file is indexed by the sequence number it should be applied to
@@ -185,7 +187,7 @@ class DeleteFileIndex {
       return new DeleteFileIndex(deletesByPartition);
     }
 
-    private Iterable<CloseableIterable<ManifestEntry<DeleteFile>>> deleteManifestReaders() {
+    private Iterable<Pair<Integer, CloseableIterable<ManifestEntry<DeleteFile>>>> deleteManifestReaders() {
       LoadingCache<Integer, ManifestEvaluator> evalCache = specsById == null ?
           null : Caffeine.newBuilder().build(specId -> {
         PartitionSpec spec = specsById.get(specId);
@@ -200,14 +202,15 @@ class DeleteFileIndex {
                   (manifest.hasAddedFiles() || manifest.hasDeletedFiles()) &&
                   evalCache.get(manifest.partitionSpecId()).eval(manifest));
 
-      Iterable<CloseableIterable<ManifestEntry<DeleteFile>>> readers = Iterables.transform(
+      Iterable<Pair<Integer, CloseableIterable<ManifestEntry<DeleteFile>>>> readers = Iterables.transform(
           matchingManifests,
-          manifest ->
+          manifest -> Pair.of(
+              manifest.partitionSpecId(),
               ManifestFiles.readDeleteManifest(manifest, io, specsById)
                   .filterRows(dataFilter)
                   .filterPartitions(partitionFilter)
                   .caseSensitive(caseSensitive)
-                  .liveEntries()
+                  .liveEntries())
       );
 
       return readers;

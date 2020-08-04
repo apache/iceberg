@@ -165,17 +165,17 @@ class ManifestGroup {
     boolean dropStats = ManifestReader.dropStats(dataFilter, columns);
 
     Iterable<CloseableIterable<FileScanTask>> tasks = entries((manifest, entries) -> {
-      int partitionSpecId = manifest.partitionSpecId();
-      PartitionSpec spec = specsById.get(partitionSpecId);
+      int specId = manifest.partitionSpecId();
+      PartitionSpec spec = specsById.get(specId);
       String schemaString = SchemaParser.toJson(spec.schema());
       String specString = PartitionSpecParser.toJson(spec);
-      ResidualEvaluator residuals = residualCache.get(partitionSpecId);
+      ResidualEvaluator residuals = residualCache.get(specId);
       if (dropStats) {
         return CloseableIterable.transform(entries, e -> new BaseFileScanTask(
-            e.file().copyWithoutStats(), deleteFiles.forEntry(e), schemaString, specString, residuals));
+            e.file().copyWithoutStats(), deleteFiles.forEntry(specId, e), schemaString, specString, residuals));
       } else {
         return CloseableIterable.transform(entries, e -> new BaseFileScanTask(
-            e.file().copy(), deleteFiles.forEntry(e), schemaString, specString, residuals));
+            e.file().copy(), deleteFiles.forEntry(specId, e), schemaString, specString, residuals));
       }
     });
 
