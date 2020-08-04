@@ -34,7 +34,7 @@ public class BaseCombinedScanTask implements CombinedScanTask {
   }
 
   public BaseCombinedScanTask(List<FileScanTask> tasks) {
-    Preconditions.checkNotNull(tasks, "tasks cannot be null.");
+    Preconditions.checkNotNull(tasks, "tasks cannot be null");
     this.tasks = tasks.stream().toArray(FileScanTask[]::new);
   }
 
