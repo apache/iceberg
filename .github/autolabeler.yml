@@ -39,7 +39,6 @@ INFRA:
   - "travis.yml"
 BUILD:
   - "dev/"
-  - "gradle/"
   - "**gradle**"
   - "versions.props"
 BASH:
