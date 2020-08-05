@@ -40,7 +40,8 @@ INFRA:
 BUILD:
   - "dev/"
   - "gradle/"
-  - "**gradle"
+  - "**gradle**"
+  - "versions.props"
 BASH:
   - "dev/"
 DOCS:
