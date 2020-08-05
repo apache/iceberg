@@ -89,7 +89,7 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
           .project(expectedSchema)
           .split(task.start(), task.length())
           .createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(expectedSchema,
-              fileSchema, /* setArrowValidityVector */ NullCheckingForGet.NULL_CHECKING_ENABLED))
+              fileSchema, /* setArrowValidityVector */ NullCheckingForGet.NULL_CHECKING_ENABLED, idToConstant))
           .recordsPerBatch(batchSize)
           .filter(task.residual())
           .caseSensitive(caseSensitive)
