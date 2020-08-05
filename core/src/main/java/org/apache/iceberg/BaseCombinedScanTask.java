@@ -23,22 +23,24 @@ import java.util.Collection;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class BaseCombinedScanTask implements CombinedScanTask {
-  private final List<FileScanTask> tasks;
+  private final FileScanTask[] tasks;
 
   public BaseCombinedScanTask(FileScanTask... tasks) {
-    this.tasks = ImmutableList.copyOf(tasks);
+    this.tasks = tasks;
   }
 
   public BaseCombinedScanTask(List<FileScanTask> tasks) {
-    this.tasks = ImmutableList.copyOf(tasks);
+    Preconditions.checkNotNull(tasks, "tasks cannot be null");
+    this.tasks = tasks.stream().toArray(FileScanTask[]::new);
   }
 
   @Override
   public Collection<FileScanTask> files() {
-    return tasks;
+    return ImmutableList.copyOf(tasks);
   }
 
   @Override
