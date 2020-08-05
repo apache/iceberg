@@ -57,24 +57,18 @@ COMMON:
 API:
   - "api/"
 CORE:
-  - "**/core/"
   - "core/"
 PYTHON:
   - "python/"
 PARQUET:
-  - "**/parquet/"
   - "parquet/"
 ARROW:
-  - "**/arrow/"
   - "arrow/"
 ORC:
-  - "**/orc/"
   - "orc/"
 HIVE:
-  - "**/hive/"
   - "hive/"
 DATA:
-  - "**/data/"
   - "data/"
 SPARK:
   - "spark-runtime/"
@@ -83,7 +77,6 @@ SPARK:
   - "spark3-runtime/"
   - "spark3/"
 FLINK:
-  - "**/flink/"
   - "flink/"
 MR:
   - "mr/"
