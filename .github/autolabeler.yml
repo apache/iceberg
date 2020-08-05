@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 #
+
 # The following paragraph was taken from the Apache Spark project.
 #   see: https://github.com/apache/spark/blob/master/.github/autolabeler.yml
 #
@@ -25,8 +26,9 @@
 # Also, note that the plugin uses 'ignore' package. See also
 # https://github.com/kaelzhang/node-ignore
 INFRA:
-  - ".baseline/"
-  - ".github/"
+  - "/.baseline"
+  - "/.github"
+  - "/dev"
   - ".asf.yaml"
   - ".gitattributes"
   - ".gitignore"
@@ -35,11 +37,8 @@ INFRA:
   - "jitpack.yml"
   - "travis.yml"
 BUILD:
-  - "/dev"
   - "**gradle**"
   - "versions.props"
-BASH:
-  - "/dev"
 DOCS:
   - "/site"
   - "**CHANGELOG.md"
@@ -69,9 +68,9 @@ DATA:
   - "/data"
 SPARK:
   - "/spark-runtime"
+  - "/spark3-runtime"
   - "/spark"
   - "/spark2"
-  - "/spark3-runtime"
   - "/spark3"
 FLINK:
   - "/flink"
