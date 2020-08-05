@@ -67,7 +67,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
   }
 
   private void checkExpirationResults(Long expectedDatafiles, Long expectedManifestsDeleted,
-      Long expectedManifestListsDeleted, ExpireSnapshotActionResult results, Long expectedOther) {
+      Long expectedManifestListsDeleted, ExpireSnapshotsActionResult results) {
 
     Assert.assertEquals("Incorrect number of manifest files deleted",
         expectedManifestsDeleted, results.getManifestFilesDeleted());
@@ -75,8 +75,6 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         expectedDatafiles, results.getDataFilesDeleted());
     Assert.assertEquals("Incorrect number of manifest lists deleted",
         expectedManifestListsDeleted, results.getManifestListsDeleted());
-    Assert.assertEquals("Incorrect number of other files deleted",
-        expectedOther, results.getOtherDeleted());
   }
 
 
@@ -124,7 +122,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
       end = System.currentTimeMillis();
     }
 
-    ExpireSnapshotActionResult results =
+    ExpireSnapshotsActionResult results =
         Actions.forTable(table).expireSnapshots().expireOlderThan(end).execute();
 
     table.refresh();
@@ -137,7 +135,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
           Files.exists(p));
     }
 
-    checkExpirationResults(1L, 2L, 2L, results, 0L);
+    checkExpirationResults(1L, 2L, 2L, results);
   }
 
   @Test
@@ -160,10 +158,10 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         .mode("append")
         .save(tableLocation);
 
-    ExpireSnapshotActionResult results =
+    ExpireSnapshotsActionResult results =
         Actions.forTable(table).expireSnapshots().execute();
 
-    checkExpirationResults(0L, 0L, 0L, results, 0L);
+    checkExpirationResults(0L, 0L, 0L, results);
   }
 
   @Test
@@ -199,11 +197,11 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
       end = System.currentTimeMillis();
     }
 
-    ExpireSnapshotActionResult results =
+    ExpireSnapshotsActionResult results =
         Actions.forTable(table).expireSnapshots().expireOlderThan(end).execute();
 
     table.refresh();
-    checkExpirationResults(10L, 19L, 10L, results, 0L);
+    checkExpirationResults(10L, 19L, 10L, results);
   }
 
 }

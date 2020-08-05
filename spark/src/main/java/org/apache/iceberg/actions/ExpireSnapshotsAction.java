@@ -19,21 +19,17 @@
 
 package org.apache.iceberg.actions;
 
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.Iterator;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import org.apache.iceberg.ExpireSnapshots;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.exceptions.NotFoundException;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.util.Tasks;
-import org.apache.iceberg.util.ThreadPools;
-import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -42,115 +38,141 @@ import org.apache.spark.sql.functions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotActionResult> {
+public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResult> {
   private static final Logger LOG = LoggerFactory.getLogger(ExpireSnapshotsAction.class);
 
+  private static final String DATA_FILE = "Data File";
+  private static final String MANIFEST = "Manifest";
+  private static final String MANIFEST_LIST = "Manifest List";
+
+  // Creates an executor service that runs each task in the thread that invokes execute/submit.
+  private static final ExecutorService DEFAULT_DELETE_EXECUTOR_SERVICE = MoreExecutors.newDirectExecutorService();
+
   private final SparkSession spark;
-  private final JavaSparkContext sparkContext;
   private final Table table;
   private final TableOperations ops;
-  private final ExpireSnapshots localExpireSnapshots;
-  private final TableMetadata base;
-  private static final String DATAFILE = "Data File";
-  private static final String MANIFEST = "Manifest";
-  private static final String MANIFESTLIST = "Manifest List";
-  private static final String OTHER = "Other";
-
   private final Consumer<String> defaultDelete = new Consumer<String>() {
     @Override
     public void accept(String file) {
       ops.io().deleteFile(file);
     }
   };
-  private Consumer<String> deleteFunc = defaultDelete;
 
+  private Long expireSnapshotIdValue = null;
+  private Long expireOlderThanValue = null;
+  private Integer retainLastValue = null;
+  private Consumer<String> deleteFunc = defaultDelete;
+  private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
 
   ExpireSnapshotsAction(SparkSession spark, Table table) {
     this.spark = spark;
-    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.ops = ((HasTableOperations) table).operations();
-    this.base = ops.current();
-    this.localExpireSnapshots = table.expireSnapshots().cleanExpiredFiles(false);
   }
-
-  public ExpireSnapshotsAction expireSnapshotId(long expireSnapshotId) {
-    localExpireSnapshots.expireSnapshotId(expireSnapshotId);
-    return this;
-  }
-
-  public ExpireSnapshotsAction expireOlderThan(long timestampMillis) {
-    localExpireSnapshots.expireOlderThan(timestampMillis);
-    return this;
-  }
-
-  public ExpireSnapshotsAction retainLast(int numSnapshots) {
-    localExpireSnapshots.retainLast(numSnapshots);
-    return this;
-  }
-
-  public ExpireSnapshotsAction deleteWith(Consumer<String> newDeleteFunc) {
-    deleteFunc = newDeleteFunc;
-    return this;
-  }
-
 
   @Override
   protected Table table() {
     return table;
   }
 
-  private Dataset<Row> appendTypeString(Dataset<Row> ds, String type) {
-    return ds.select(new Column("file_path"), functions.lit(type).as("DataFile"));
+  /**
+   * An executor service used when deleting files. Only used during the local delete phase of this Spark action
+   * @param executorService the service to use
+   * @return this for method chaining
+   */
+  public ExpireSnapshotsAction executeDeleteWith(ExecutorService executorService) {
+    this.deleteExecutorService = executorService;
+    return this;
   }
 
-  private Dataset<Row> getValidFileDF() {
-    return appendTypeString(buildValidDataFileDF(spark), DATAFILE)
-        .union(appendTypeString(buildManifestFileDF(spark), MANIFEST))
-        .union(appendTypeString(buildManifestListDF(spark, table), MANIFESTLIST))
-        .union(appendTypeString(buildOtherMetadataFileDF(spark, ops), OTHER));
+  public ExpireSnapshotsAction expireSnapshotId(long expireSnapshotId) {
+    this.expireSnapshotIdValue = expireSnapshotId;
+    return this;
   }
 
-  private Set<String> getFilesOfType(List<Row> files, String type) {
-    return files.stream()
-        .filter(row -> row.getString(1).equals(type))
-        .map(row -> row.getString(0))
-        .collect(Collectors.toSet());
+  public ExpireSnapshotsAction expireOlderThan(long timestampMillis) {
+    this.expireOlderThanValue = timestampMillis;
+    return this;
+  }
+
+  public ExpireSnapshotsAction retainLast(int numSnapshots) {
+    this.retainLastValue = numSnapshots;
+    return this;
+  }
+
+  public ExpireSnapshotsAction deleteWith(Consumer<String> newDeleteFunc) {
+    this.deleteFunc = newDeleteFunc;
+    return this;
   }
 
   @Override
-  public ExpireSnapshotActionResult execute() {
+  public ExpireSnapshotsActionResult execute() {
+    //Metadata before Expiration
+    Dataset<Row> originalFiles = buildValidFileDF().persist();
+    originalFiles.count(); // Action to trigger persist
 
-    Dataset<Row> originalFiles = getValidFileDF().persist();
-    originalFiles.count(); // Trigger Persist
+    //Perform Expiration
+    ExpireSnapshots expireSnaps = table.expireSnapshots().cleanExpiredFiles(false);
+    if (expireSnapshotIdValue != null) {
+      expireSnaps = expireSnaps.expireSnapshotId(expireSnapshotIdValue);
+    }
+    if (expireOlderThanValue != null) {
+      expireSnaps = expireSnaps.expireOlderThan(expireOlderThanValue);
+    }
+    if (retainLastValue != null) {
+      expireSnaps = expireSnaps.retainLast(retainLastValue);
+    }
+    expireSnaps.commit();
 
-    localExpireSnapshots.commit();
+    // Metadata after Expiration
+    Dataset<Row> validFiles = buildValidFileDF();
+    Dataset<Row> filesToDelete = originalFiles.except(validFiles);
 
-    Dataset<Row> validFiles = getValidFileDF();
-
-    List<Row> filesToDelete = originalFiles.except(validFiles).collectAsList();
-
-    LOG.warn("Deleting {} files", filesToDelete.size());
-    return new ExpireSnapshotActionResult(
-        deleteFiles(getFilesOfType(filesToDelete, DATAFILE), DATAFILE),
-        deleteFiles(getFilesOfType(filesToDelete, MANIFEST), MANIFEST),
-        deleteFiles(getFilesOfType(filesToDelete, MANIFESTLIST), MANIFESTLIST),
-        deleteFiles(getFilesOfType(filesToDelete, OTHER), OTHER));
+    ExpireSnapshotsActionResult result =  deleteFiles(filesToDelete.toLocalIterator());
+    originalFiles.unpersist();
+    return result;
   }
 
-  private Long deleteFiles(Set<String> paths, String fileType) {
-    LOG.warn("{}s to delete: {}", fileType, Joiner.on(", ").join(paths));
-    AtomicReference<Long> deleteCount = new AtomicReference<>(0L);
+  private Dataset<Row> appendTypeString(Dataset<Row> ds, String type) {
+    return ds.select(new Column("file_path"), functions.lit(type).as("file_type"));
+  }
+
+  private Dataset<Row> buildValidFileDF() {
+    return appendTypeString(buildValidDataFileDF(spark), DATA_FILE)
+        .union(appendTypeString(buildManifestFileDF(spark), MANIFEST))
+        .union(appendTypeString(buildManifestListDF(spark, table), MANIFEST_LIST));
+  }
+
+  private ExpireSnapshotsActionResult deleteFiles(Iterator<Row> paths) {
+    AtomicLong dataFileCount = new AtomicLong(0L);
+    AtomicLong manifestCount = new AtomicLong(0L);
+    AtomicLong manifestListCount = new AtomicLong(0L);
 
     Tasks.foreach(paths)
         .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
-        .executeWith(ThreadPools.getWorkerPool())
-        .onFailure((manifest, exc) -> LOG.warn("Delete failed for {}: {}", fileType, manifest, exc))
-        .run(file -> {
+        .executeWith(deleteExecutorService)
+        .onFailure((fileInfo, exc) ->
+            LOG.warn("Delete failed for {}: {}", fileInfo.getString(1), fileInfo.getString(0), exc))
+        .run(fileInfo -> {
+          String file = fileInfo.getString(0);
+          String type = fileInfo.getString(1);
           deleteFunc.accept(file);
-          deleteCount.updateAndGet(v -> v + 1);
+          switch (type) {
+            case DATA_FILE:
+              dataFileCount.incrementAndGet();
+              LOG.trace("Deleted Data File: {}", file);
+              break;
+            case MANIFEST:
+              manifestCount.incrementAndGet();
+              LOG.warn("Deleted Manifest: {}", file);
+              break;
+            case MANIFEST_LIST:
+              manifestListCount.incrementAndGet();
+              LOG.warn("Deleted Manifest List: {}", file);
+              break;
+          }
         });
-    return deleteCount.get();
+    LOG.warn("Deleted {} total files", dataFileCount.get() + manifestCount.get() + manifestListCount.get());
+    return new ExpireSnapshotsActionResult(dataFileCount.get(), manifestCount.get(), manifestListCount.get());
   }
-
 }
