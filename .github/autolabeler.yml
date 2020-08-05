@@ -41,9 +41,9 @@ BUILD:
   - "**gradle**"
   - "versions.props"
 BASH:
-  - "dev/"
+  - "/dev/"
 DOCS:
-  - "site/"
+  - "/site/"
   - "**CHANGELOG.md"
   - "**README.md"
 LICENSE:
@@ -74,9 +74,9 @@ SPARK:
   - "/spark/"
   - "/spark2/"
   - "/spark3-runtime/"
-  - "/spark3/"
+  - "/spark3/**"
 FLINK:
-  - "/flink/"
+  - "/flink/**"
 MR:
   - "/mr/"
 PIG:
