@@ -50,34 +50,34 @@ LICENSE:
   - "**LICENSE"
   - "**NOTICE"
 EXAMPLES:
-  - "examples/"
+  - "/examples/"
 COMMON:
-  - "common/"
+  - "/common/"
 API:
-  - "api/"
+  - "/api/"
 CORE:
-  - "core/"
+  - "/core/"
 PYTHON:
-  - "python/"
+  - "/python/"
 PARQUET:
-  - "parquet/"
+  - "/parquet/"
 ARROW:
-  - "arrow/"
+  - "/arrow/"
 ORC:
-  - "orc/"
+  - "/orc/"
 HIVE:
-  - "hive/"
+  - "/hive/"
 DATA:
-  - "data/"
+  - "/data/"
 SPARK:
-  - "spark-runtime/"
-  - "spark/"
-  - "spark2/"
-  - "spark3-runtime/"
-  - "spark3/"
+  - "/spark-runtime/"
+  - "/spark/"
+  - "/spark2/"
+  - "/spark3-runtime/"
+  - "/spark3/"
 FLINK:
-  - "flink/"
+  - "/flink/"
 MR:
-  - "mr/"
+  - "/mr/"
 PIG:
-  - "pig/"
+  - "/pig/"
