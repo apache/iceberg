@@ -56,7 +56,7 @@ class IcebergSinkUtil {
     TaskWriterFactory<Row> taskWriterFactory = new RowTaskWriterFactory(table.schema(), table.spec(),
         table.locationProvider(), table.io(), table.encryption(), targetFileSize, fileFormat, props);
 
-    return new IcebergStreamWriter<>(table.location(), taskWriterFactory);
+    return new IcebergStreamWriter<>(table.toString(), taskWriterFactory);
   }
 
   private static FileFormat getFileFormat(Map<String, String> properties) {

@@ -33,15 +33,15 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
 
   private static final long serialVersionUID = 1L;
 
-  private final String tablePath;
+  private final String fullTableName;
 
   private transient TaskWriterFactory<T> taskWriterFactory;
   private transient TaskWriter<T> writer;
   private transient int subTaskId;
   private transient int attemptId;
 
-  IcebergStreamWriter(String tablePath, TaskWriterFactory<T> taskWriterFactory) {
-    this.tablePath = tablePath;
+  IcebergStreamWriter(String fullTableName, TaskWriterFactory<T> taskWriterFactory) {
+    this.fullTableName = fullTableName;
     this.taskWriterFactory = taskWriterFactory;
   }
 
@@ -93,7 +93,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("table_path", tablePath)
+        .add("table_name", fullTableName)
         .add("subtask_id", subTaskId)
         .add("attempt_id", attemptId)
         .toString();

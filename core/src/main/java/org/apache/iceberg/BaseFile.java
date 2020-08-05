@@ -141,7 +141,7 @@ abstract class BaseFile<F>
   /**
    * Copy constructor.
    *
-   * @param toCopy   a generic data file to copy.
+   * @param toCopy a generic data file to copy.
    * @param fullCopy whether to copy all fields or to drop column-level stats
    */
   BaseFile(BaseFile<F> toCopy, boolean fullCopy) {
@@ -280,7 +280,7 @@ abstract class BaseFile<F>
       case 11:
         return keyMetadata != null ? ByteBuffer.wrap(keyMetadata) : null;
       case 12:
-        return splitOffsets;
+        return splitOffsets != null ? Lists.newArrayList(splitOffsets) : null;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
