@@ -26,14 +26,14 @@
 # Also, note that the plugin uses 'ignore' package. See also
 # https://github.com/kaelzhang/node-ignore
 INFRA:
-  - ".baseline/**"
-  - ".github/**"
+  - "/.baseline"
+  - "/.github"
+  - "/dev"
   - ".asf.yaml"
   - ".gitattributes"
   - ".gitignore"
   - "baseline.gradle"
   - "deploy.gradle"
-  - "/dev"
   - "jitpack.yml"
   - "travis.yml"
 BUILD:
