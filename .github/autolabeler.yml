@@ -36,7 +36,6 @@ INFRA:
   - "baseline.gradle"
   - "deploy.gradle"
   - "jitpack.yml"
-  - "site/mkdocs.yml"
   - "travis.yml"
 BUILD:
   - "dev/"
@@ -46,7 +45,6 @@ BASH:
   - "dev/"
 DOCS:
   - "site/"
-  - "!/site/mkdocs.yml"
   - "**CHANGELOG.md"
   - "**README.md"
 LICENSE:
