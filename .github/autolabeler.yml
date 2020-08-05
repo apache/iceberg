@@ -39,8 +39,6 @@ BUILD:
   - "/dev"
   - "**gradle**"
   - "versions.props"
-BASH:
-  - "/dev"
 DOCS:
   - "/site"
   - "**CHANGELOG.md"
