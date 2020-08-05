@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.arrow.vectorized.parquet;
 
-import io.netty.buffer.ArrowBuf;
 import java.nio.ByteBuffer;
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.BitVectorHelper;
@@ -749,15 +749,16 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
     // Calling setValueLengthSafe takes care of allocating a larger buffer if
     // running out of space.
     ((BaseVariableWidthVector) vector).setValueLengthSafe(bufferIdx, len);
+    int startOffset = ((BaseVariableWidthVector) vector).getStartOffset(bufferIdx);
     // It is possible that the data buffer was reallocated. So it is important to
     // not cache the data buffer reference but instead use vector.getDataBuffer().
-    vector.getDataBuffer().writeBytes(buffer.array(), buffer.position() + buffer.arrayOffset(),
+    vector.getDataBuffer().setBytes(startOffset, buffer.array(), buffer.position() + buffer.arrayOffset(),
         buffer.limit() - buffer.position());
     // Similarly, we need to get the latest reference to the validity buffer as well
     // since reallocation changes reference of the validity buffers as well.
     nullabilityHolder.setNotNull(bufferIdx);
     if (setArrowValidityVector) {
-      BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), bufferIdx);
+      BitVectorHelper.setBit(vector.getValidityBuffer(), bufferIdx);
     }
   }
 
@@ -850,7 +851,7 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
     vector.getDataBuffer().setBytes(bufferIdx * DecimalVector.TYPE_WIDTH, byteArray);
     nullabilityHolder.setNotNull(bufferIdx);
     if (setArrowValidityVector) {
-      BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), bufferIdx);
+      BitVectorHelper.setBit(vector.getValidityBuffer(), bufferIdx);
     }
   }
 

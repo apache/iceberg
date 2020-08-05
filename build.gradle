@@ -468,7 +468,7 @@ project(':iceberg-arrow') {
       exclude group: 'io.netty', module: 'netty-common'
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
-    compile("org.apache.arrow:arrow-memory") {
+    compile("org.apache.arrow:arrow-memory-netty") {
       exclude group: 'io.netty', module: 'netty-common'
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
