@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.util.List;
 import org.apache.iceberg.expressions.Expression;
 
 /**
@@ -31,6 +32,13 @@ public interface FileScanTask extends ScanTask {
    * @return the file to scan
    */
   DataFile file();
+
+  /**
+   * A list of {@link DeleteFile delete files} to apply when reading the task's data file.
+   *
+   * @return a list of delete files to apply
+   */
+  List<DeleteFile> deletes();
 
   /**
    * The {@link PartitionSpec spec} used to store this file.
