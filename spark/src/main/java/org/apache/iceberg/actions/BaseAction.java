@@ -19,8 +19,18 @@
 
 package org.apache.iceberg.actions;
 
+import java.util.List;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SparkSession;
+
 
 abstract class BaseAction<R> implements Action<R> {
 
@@ -40,5 +50,60 @@ abstract class BaseAction<R> implements Action<R> {
     } else {
       return tableName + "." + type;
     }
+  }
+
+  protected Dataset<Row> buildValidDataFileDF(SparkSession spark) {
+    String allDataFilesMetadataTable = metadataTableName(MetadataTableType.ALL_DATA_FILES);
+    return spark.read().format("iceberg")
+        .load(allDataFilesMetadataTable)
+        .select("file_path");
+  }
+
+  protected Dataset<Row> buildManifestFileDF(SparkSession spark) {
+    String allManifestsMetadataTable = metadataTableName(MetadataTableType.ALL_MANIFESTS);
+    Dataset<Row> manifestDF = spark.read().format("iceberg")
+        .load(allManifestsMetadataTable)
+        .selectExpr("path as file_path");
+    return manifestDF;
+  }
+
+  protected Dataset<Row> buildManifestListDF(SparkSession spark, Table table) {
+    List<String> manifestLists = Lists.newArrayList();
+
+    for (Snapshot snapshot : table.snapshots()) {
+      String manifestListLocation = snapshot.manifestListLocation();
+      if (manifestListLocation != null) {
+        manifestLists.add(manifestListLocation);
+      }
+    }
+
+    Dataset<Row> manifestListDF = spark
+        .createDataset(manifestLists, Encoders.STRING())
+        .toDF("file_path");
+
+    return manifestListDF;
+  }
+
+  protected Dataset<Row> buildOtherMetadataFileDF(SparkSession spark, TableOperations ops) {
+    List<String> otherMetadataFiles = Lists.newArrayList();
+    otherMetadataFiles.add(ops.metadataFileLocation("version-hint.text"));
+    TableMetadata metadata = ops.current();
+    otherMetadataFiles.add(metadata.metadataFileLocation());
+    for (TableMetadata.MetadataLogEntry previousMetadataFile : metadata.previousFiles()) {
+      otherMetadataFiles.add(previousMetadataFile.file());
+    }
+
+    Dataset<Row> otherMetadataFileDF = spark
+        .createDataset(otherMetadataFiles, Encoders.STRING())
+        .toDF("file_path");
+    return otherMetadataFileDF;
+  }
+
+  protected Dataset<Row> buildValidMetadataFileDF(SparkSession spark, Table table, TableOperations ops) {
+    Dataset<Row> manifestDF = buildManifestFileDF(spark);
+    Dataset<Row> manifestListDF = buildManifestListDF(spark, table);
+    Dataset<Row> otherMetadataFileDF = buildOtherMetadataFileDF(spark, ops);
+
+    return manifestDF.union(otherMetadataFileDF).union(manifestListDF);
   }
 }

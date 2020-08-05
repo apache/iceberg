@@ -31,10 +31,7 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.HasTableOperations;
-import org.apache.iceberg.MetadataTableType;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
@@ -148,8 +145,8 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
 
   @Override
   public List<String> execute() {
-    Dataset<Row> validDataFileDF = buildValidDataFileDF();
-    Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF();
+    Dataset<Row> validDataFileDF = buildValidDataFileDF(spark);
+    Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(spark, table, ops);
     Dataset<Row> validFileDF = validDataFileDF.union(validMetadataFileDF);
     Dataset<Row> actualFileDF = buildActualFileDF();
 
@@ -168,43 +165,6 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
         .run(deleteFunc::accept);
 
     return orphanFiles;
-  }
-
-  private Dataset<Row> buildValidDataFileDF() {
-    String allDataFilesMetadataTable = metadataTableName(MetadataTableType.ALL_DATA_FILES);
-    return spark.read().format("iceberg")
-        .load(allDataFilesMetadataTable)
-        .select("file_path");
-  }
-
-  private Dataset<Row> buildValidMetadataFileDF() {
-    String allManifestsMetadataTable = metadataTableName(MetadataTableType.ALL_MANIFESTS);
-    Dataset<Row> manifestDF = spark.read().format("iceberg")
-        .load(allManifestsMetadataTable)
-        .selectExpr("path as file_path");
-
-    List<String> otherMetadataFiles = Lists.newArrayList();
-
-    for (Snapshot snapshot : table.snapshots()) {
-      String manifestListLocation = snapshot.manifestListLocation();
-      if (manifestListLocation != null) {
-        otherMetadataFiles.add(manifestListLocation);
-      }
-    }
-
-    otherMetadataFiles.add(ops.metadataFileLocation("version-hint.text"));
-
-    TableMetadata metadata = ops.current();
-    otherMetadataFiles.add(metadata.metadataFileLocation());
-    for (TableMetadata.MetadataLogEntry previousMetadataFile : metadata.previousFiles()) {
-      otherMetadataFiles.add(previousMetadataFile.file());
-    }
-
-    Dataset<Row> otherMetadataFileDF = spark
-        .createDataset(otherMetadataFiles, Encoders.STRING())
-        .toDF("file_path");
-
-    return manifestDF.union(otherMetadataFileDF);
   }
 
   private Dataset<Row> buildActualFileDF() {
