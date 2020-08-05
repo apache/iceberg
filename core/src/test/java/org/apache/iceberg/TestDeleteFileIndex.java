@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Sets;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
@@ -27,6 +26,7 @@ import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.junit.Assert;
