@@ -118,7 +118,7 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
           return GenericOrcWriters.bytes();
         case DECIMAL:
           Types.DecimalType decimalType = (Types.DecimalType) iPrimitive;
-          return FlinkOrcWriters.decimals(decimalType.scale(), decimalType.precision());
+          return FlinkOrcWriters.decimals(decimalType.precision(), decimalType.scale());
         default:
           throw new IllegalArgumentException(String.format(
               "Invalid iceberg type %s corresponding to Flink logical type %s", iPrimitive, flinkPrimitive));

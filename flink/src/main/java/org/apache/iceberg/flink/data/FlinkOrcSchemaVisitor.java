@@ -25,13 +25,14 @@ import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 abstract class FlinkOrcSchemaVisitor<T> {
 
-  static <T> T visit(LogicalType flinkType, Schema schema, FlinkOrcSchemaVisitor<T> visitor) {
+  static <T> T visit(RowType flinkType, Schema schema, FlinkOrcSchemaVisitor<T> visitor) {
     return visit(flinkType, schema.asStruct(), visitor);
   }
 
@@ -48,6 +49,7 @@ abstract class FlinkOrcSchemaVisitor<T> {
         T value = visit(mapType.getValueType(), iMapType.valueType(), visitor);
 
         return visitor.map(iMapType, key, value, mapType.getKeyType(), mapType.getValueType());
+
       case LIST:
         ArrayType listType = (ArrayType) flinkType;
         Types.ListType iListType = iType.asListType();
@@ -63,7 +65,7 @@ abstract class FlinkOrcSchemaVisitor<T> {
 
   private static <T> T visitRecord(LogicalType flinkType, Types.StructType struct,
                                    FlinkOrcSchemaVisitor<T> visitor) {
-
+    Preconditions.checkArgument(flinkType instanceof RowType, "%s is not a RowType.", flinkType);
     RowType rowType = (RowType) flinkType;
 
     int fieldSize = struct.fields().size();
@@ -74,7 +76,10 @@ abstract class FlinkOrcSchemaVisitor<T> {
     for (int i = 0; i < fieldSize; i++) {
       Types.NestedField iField = nestedFields.get(i);
       int fieldIndex = rowType.getFieldIndex(iField.name());
-      LogicalType fieldFlinkType = fieldIndex >= 0 ? rowType.getTypeAt(fieldIndex) : null;
+      Preconditions.checkArgument(fieldIndex >= 0,
+          "NestedField: %s is not found in flink RowType: %s", iField, rowType);
+
+      LogicalType fieldFlinkType = rowType.getTypeAt(fieldIndex);
 
       fieldTypes.add(fieldFlinkType);
       results.add(visit(fieldFlinkType, iField.type(), visitor));

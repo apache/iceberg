@@ -63,8 +63,10 @@ class FlinkOrcReaders {
   static OrcValueReader<DecimalData> decimals(int precision, int scale) {
     if (precision <= 18) {
       return new Decimal18Reader(precision, scale);
-    } else {
+    } else if (precision <= 38) {
       return new Decimal38Reader(precision, scale);
+    } else {
+      throw new IllegalArgumentException("Invalid precision: " + precision);
     }
   }
 
@@ -125,7 +127,7 @@ class FlinkOrcReaders {
     @Override
     public DecimalData nonNullRead(ColumnVector vector, int row) {
       HiveDecimalWritable value = ((DecimalColumnVector) vector).vector[row];
-      return DecimalData.fromUnscaledLong(value.serialize64(value.scale()), value.precision(), value.scale());
+      return DecimalData.fromUnscaledLong(value.serialize64(scale), precision, scale);
     }
   }
 

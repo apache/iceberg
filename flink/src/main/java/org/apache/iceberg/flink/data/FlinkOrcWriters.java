@@ -31,6 +31,7 @@ import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.iceberg.orc.OrcValueWriter;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.orc.storage.common.type.HiveDecimal;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
@@ -47,31 +48,33 @@ class FlinkOrcWriters {
   private FlinkOrcWriters() {
   }
 
-  static OrcValueWriter<?> strings() {
+  static OrcValueWriter<StringData> strings() {
     return StringWriter.INSTANCE;
   }
 
-  static OrcValueWriter<?> dates() {
+  static OrcValueWriter<Integer> dates() {
     return DateWriter.INSTANCE;
   }
 
-  static OrcValueWriter<?> times() {
+  static OrcValueWriter<Integer> times() {
     return TimeWriter.INSTANCE;
   }
 
-  static OrcValueWriter<?> timestamps() {
+  static OrcValueWriter<TimestampData> timestamps() {
     return TimestampWriter.INSTANCE;
   }
 
-  static OrcValueWriter<?> timestampTzs() {
+  static OrcValueWriter<TimestampData> timestampTzs() {
     return TimestampTzWriter.INSTANCE;
   }
 
-  static OrcValueWriter<?> decimals(int scale, int precision) {
+  static OrcValueWriter<DecimalData> decimals(int precision, int scale) {
     if (precision <= 18) {
-      return new Decimal18Writer(scale, precision);
+      return new Decimal18Writer(precision, scale);
+    } else if (precision <= 38) {
+      return new Decimal38Writer(precision, scale);
     } else {
-      return new Decimal38Writer(scale, precision);
+      throw new IllegalArgumentException("Invalid precision: " + precision);
     }
   }
 
@@ -173,12 +176,12 @@ class FlinkOrcWriters {
   }
 
   private static class Decimal18Writer implements OrcValueWriter<DecimalData> {
-    private final int scale;
     private final int precision;
+    private final int scale;
 
-    Decimal18Writer(int scale, int precision) {
-      this.scale = scale;
+    Decimal18Writer(int precision, int scale) {
       this.precision = precision;
+      this.scale = scale;
     }
 
     @Override
@@ -188,17 +191,22 @@ class FlinkOrcWriters {
 
     @Override
     public void nonNullWrite(int rowId, DecimalData data, ColumnVector output) {
+      Preconditions.checkArgument(scale == data.scale(),
+          "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, data);
+      Preconditions.checkArgument(data.precision() <= precision,
+          "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, data);
+
       ((DecimalColumnVector) output).vector[rowId].setFromLongAndScale(data.toUnscaledLong(), data.scale());
     }
   }
 
   private static class Decimal38Writer implements OrcValueWriter<DecimalData> {
-    private final int scale;
     private final int precision;
+    private final int scale;
 
-    Decimal38Writer(int scale, int precision) {
-      this.scale = scale;
+    Decimal38Writer(int precision, int scale) {
       this.precision = precision;
+      this.scale = scale;
     }
 
     @Override
@@ -208,6 +216,11 @@ class FlinkOrcWriters {
 
     @Override
     public void nonNullWrite(int rowId, DecimalData data, ColumnVector output) {
+      Preconditions.checkArgument(scale == data.scale(),
+          "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, data);
+      Preconditions.checkArgument(data.precision() <= precision,
+          "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, data);
+
       ((DecimalColumnVector) output).vector[rowId].set(HiveDecimal.create(data.toBigDecimal(), false));
     }
   }

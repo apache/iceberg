@@ -23,14 +23,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.function.Supplier;
-import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.data.conversion.DataStructureConverter;
-import org.apache.flink.table.data.conversion.DataStructureConverters;
-import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.RandomGenericData;
-import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -88,36 +83,6 @@ public class RandomData {
         return (Row) TypeUtil.visit(schema, generator);
       }
     };
-  }
-
-  private static Iterable<RowData> generateRowData(Schema schema, int numRecords,
-                                                   Supplier<RandomRowGenerator> supplier) {
-    DataStructureConverter<Object, Object> converter =
-        DataStructureConverters.getConverter(TypeConversions.fromLogicalToDataType(FlinkSchemaUtil.convert(schema)));
-    converter.open(RandomData.class.getClassLoader());
-
-    return () -> new Iterator<RowData>() {
-      private final RandomRowGenerator generator = supplier.get();
-      private int count = 0;
-
-      @Override
-      public boolean hasNext() {
-        return count < numRecords;
-      }
-
-      @Override
-      public RowData next() {
-        if (!hasNext()) {
-          throw new NoSuchElementException();
-        }
-        ++count;
-        return (RowData) converter.toInternal(TypeUtil.visit(schema, generator));
-      }
-    };
-  }
-
-  public static Iterable<RowData> generateRowData(Schema schema, int numRecords, long seed) {
-    return generateRowData(schema, numRecords, () -> new RandomRowGenerator(seed));
   }
 
   public static Iterable<Row> generate(Schema schema, int numRecords, long seed) {
