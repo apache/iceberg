@@ -77,8 +77,8 @@ class DeleteFileIndex {
   }
 
   DeleteFile[] forDataFile(int specId, long sequenceNumber, DataFile file) {
-    Pair<long[], DeleteFile[]> partitionDeletes = sortedDeletesByPartition
-        .get(Pair.of(specId, lookupWrapper.get().set(file.partition())));
+    Pair<Integer, StructLikeWrapper> partition = Pair.of(specId, lookupWrapper.get().set(file.partition()));
+    Pair<long[], DeleteFile[]> partitionDeletes = sortedDeletesByPartition.get(partition);
 
     if (partitionDeletes == null) {
       return limitBySequenceNumber(sequenceNumber, globalSeqs, globalDeletes);
