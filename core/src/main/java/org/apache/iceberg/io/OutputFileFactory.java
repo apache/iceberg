@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.source;
+package org.apache.iceberg.io;
 
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -26,11 +26,8 @@ import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.LocationProvider;
-import org.apache.iceberg.io.OutputFile;
 
-class OutputFileFactory {
+public class OutputFileFactory {
   private final PartitionSpec spec;
   private final FileFormat format;
   private final LocationProvider locations;
@@ -44,8 +41,8 @@ class OutputFileFactory {
   private final String uuid = UUID.randomUUID().toString();
   private final AtomicInteger fileCount = new AtomicInteger(0);
 
-  OutputFileFactory(PartitionSpec spec, FileFormat format, LocationProvider locations, FileIO io,
-                    EncryptionManager encryptionManager, int partitionId, long taskId) {
+  public OutputFileFactory(PartitionSpec spec, FileFormat format, LocationProvider locations, FileIO io,
+                           EncryptionManager encryptionManager, int partitionId, long taskId) {
     this.spec = spec;
     this.format = format;
     this.locations = locations;

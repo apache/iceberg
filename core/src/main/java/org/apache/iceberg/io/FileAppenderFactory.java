@@ -17,17 +17,23 @@
  * under the License.
  */
 
-package org.apache.iceberg.parquet;
+package org.apache.iceberg.io;
 
-import java.util.List;
-import org.apache.parquet.column.page.PageReadStore;
+import org.apache.iceberg.FileFormat;
 
-public interface ParquetValueReader<T> {
-  T read(T reuse);
+/**
+ * Factory to create a new {@link FileAppender} to write records.
+ *
+ * @param <T> data type of the rows to append.
+ */
+public interface FileAppenderFactory<T> {
 
-  TripleIterator<?> column();
-
-  List<TripleIterator<?>> columns();
-
-  void setPageSource(PageReadStore pageStore, long rowPosition);
+  /**
+   * Create a new {@link FileAppender}.
+   *
+   * @param outputFile an OutputFile used to create an output stream.
+   * @param fileFormat File format.
+   * @return a newly created {@link FileAppender}
+   */
+  FileAppender<T> newAppender(OutputFile outputFile, FileFormat fileFormat);
 }

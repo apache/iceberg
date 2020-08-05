@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark;
 
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -77,38 +78,38 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
 
   @Override
   public String[][] listNamespaces() throws NoSuchNamespaceException {
-    return sessionCatalog.listNamespaces();
+    return getSessionCatalog().listNamespaces();
   }
 
   @Override
   public String[][] listNamespaces(String[] namespace) throws NoSuchNamespaceException {
-    return sessionCatalog.listNamespaces(namespace);
+    return getSessionCatalog().listNamespaces(namespace);
   }
 
   @Override
   public Map<String, String> loadNamespaceMetadata(String[] namespace) throws NoSuchNamespaceException {
-    return sessionCatalog.loadNamespaceMetadata(namespace);
+    return getSessionCatalog().loadNamespaceMetadata(namespace);
   }
 
   @Override
   public void createNamespace(String[] namespace, Map<String, String> metadata) throws NamespaceAlreadyExistsException {
-    sessionCatalog.createNamespace(namespace, metadata);
+    getSessionCatalog().createNamespace(namespace, metadata);
   }
 
   @Override
   public void alterNamespace(String[] namespace, NamespaceChange... changes) throws NoSuchNamespaceException {
-    sessionCatalog.alterNamespace(namespace, changes);
+    getSessionCatalog().alterNamespace(namespace, changes);
   }
 
   @Override
   public boolean dropNamespace(String[] namespace) throws NoSuchNamespaceException {
-    return sessionCatalog.dropNamespace(namespace);
+    return getSessionCatalog().dropNamespace(namespace);
   }
 
   @Override
   public Identifier[] listTables(String[] namespace) throws NoSuchNamespaceException {
     // delegate to the session catalog because all tables share the same namespace
-    return sessionCatalog.listTables(namespace);
+    return getSessionCatalog().listTables(namespace);
   }
 
   @Override
@@ -116,7 +117,7 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
     try {
       return icebergCatalog.loadTable(ident);
     } catch (NoSuchTableException e) {
-      return sessionCatalog.loadTable(ident);
+      return getSessionCatalog().loadTable(ident);
     }
   }
 
@@ -129,7 +130,7 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
       return icebergCatalog.createTable(ident, schema, partitions, properties);
     } else {
       // delegate to the session catalog
-      return sessionCatalog.createTable(ident, schema, partitions, properties);
+      return getSessionCatalog().createTable(ident, schema, partitions, properties);
     }
   }
 
@@ -145,7 +146,7 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
       }
       catalog = icebergCatalog;
     } else {
-      catalog = sessionCatalog;
+      catalog = getSessionCatalog();
     }
 
     // create the table with the session catalog, then wrap it in a staged table that will delete to roll back
@@ -165,7 +166,7 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
       }
       catalog = icebergCatalog;
     } else {
-      catalog = sessionCatalog;
+      catalog = getSessionCatalog();
     }
 
     // attempt to drop the table and fail if it doesn't exist
@@ -195,7 +196,7 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
       }
       catalog = icebergCatalog;
     } else {
-      catalog = sessionCatalog;
+      catalog = getSessionCatalog();
     }
 
     // drop the table if it exists
@@ -217,7 +218,7 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
     if (icebergCatalog.tableExists(ident)) {
       return icebergCatalog.alterTable(ident, changes);
     } else {
-      return sessionCatalog.alterTable(ident, changes);
+      return getSessionCatalog().alterTable(ident, changes);
     }
   }
 
@@ -225,7 +226,7 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
   public boolean dropTable(Identifier ident) {
     // no need to check table existence to determine which catalog to use. if a table doesn't exist then both are
     // required to return false.
-    return icebergCatalog.dropTable(ident) || sessionCatalog.dropTable(ident);
+    return icebergCatalog.dropTable(ident) || getSessionCatalog().dropTable(ident);
   }
 
   @Override
@@ -235,7 +236,7 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
     if (icebergCatalog.tableExists(from)) {
       icebergCatalog.renameTable(from, to);
     } else {
-      sessionCatalog.renameTable(from, to);
+      getSessionCatalog().renameTable(from, to);
     }
   }
 
@@ -279,5 +280,11 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
     }
 
     return false;
+  }
+
+  private T getSessionCatalog() {
+    Preconditions.checkNotNull(sessionCatalog, "Delegated SessionCatalog is missing. " +
+        "Please make sure your are replacing Spark's default catalog, named 'spark_catalog'.");
+    return sessionCatalog;
   }
 }

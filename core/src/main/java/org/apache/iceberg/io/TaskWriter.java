@@ -17,24 +17,35 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.source;
+package org.apache.iceberg.io;
 
+import java.io.Closeable;
 import java.io.IOException;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.io.FileIO;
-import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.iceberg.DataFile;
 
-class UnpartitionedWriter extends BaseWriter {
-  UnpartitionedWriter(PartitionSpec spec, FileFormat format, SparkAppenderFactory appenderFactory,
-                      OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
-    super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+/**
+ * The writer interface could accept records and provide the generated data files.
+ *
+ * @param <T> to indicate the record data type.
+ */
+public interface TaskWriter<T> extends Closeable {
 
-    openCurrent();
-  }
+  /**
+   * Write the row into the data files.
+   */
+  void write(T row) throws IOException;
 
-  @Override
-  public void write(InternalRow row) throws IOException {
-    writeInternal(row);
-  }
+  /**
+   * Close the writer and delete the completed files if possible when aborting.
+   *
+   * @throws IOException if any IO error happen.
+   */
+  void abort() throws IOException;
+
+  /**
+   * Close the writer and get the completed data files.
+   *
+   * @return the completed data files of this task writer.
+   */
+  DataFile[] complete() throws IOException;
 }

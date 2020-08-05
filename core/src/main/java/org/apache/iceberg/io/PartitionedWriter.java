@@ -17,44 +17,50 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.source;
+package org.apache.iceberg.io;
 
 import java.io.IOException;
 import java.util.Set;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.spark.sql.catalyst.InternalRow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class PartitionedWriter extends BaseWriter {
+public abstract class PartitionedWriter<T> extends BaseTaskWriter<T> {
   private static final Logger LOG = LoggerFactory.getLogger(PartitionedWriter.class);
 
-  private final PartitionKey key;
-  private final InternalRowWrapper wrapper;
   private final Set<PartitionKey> completedPartitions = Sets.newHashSet();
 
-  PartitionedWriter(PartitionSpec spec, FileFormat format, SparkAppenderFactory appenderFactory,
-                    OutputFileFactory fileFactory, FileIO io, long targetFileSize, Schema writeSchema) {
+  private PartitionKey currentKey = null;
+  private RollingFileWriter currentWriter = null;
+
+  public PartitionedWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
+                           OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
-    this.key = new PartitionKey(spec, writeSchema);
-    this.wrapper = new InternalRowWrapper(SparkSchemaUtil.convert(writeSchema));
   }
 
-  @Override
-  public void write(InternalRow row) throws IOException {
-    key.partition(wrapper.wrap(row));
+  /**
+   * Create a PartitionKey from the values in row.
+   * <p>
+   * Any PartitionKey returned by this method can be reused by the implementation.
+   *
+   * @param row a data row
+   */
+  protected abstract PartitionKey partition(T row);
 
-    PartitionKey currentKey = getCurrentKey();
+  @Override
+  public void write(T row) throws IOException {
+    PartitionKey key = partition(row);
+
     if (!key.equals(currentKey)) {
-      closeCurrent();
-      completedPartitions.add(currentKey);
+      if (currentKey != null) {
+        // if the key is null, there was no previous current key and current writer.
+        currentWriter.close();
+        completedPartitions.add(currentKey);
+      }
 
       if (completedPartitions.contains(key)) {
         // if rows are not correctly grouped, detect and fail the write
@@ -63,10 +69,17 @@ class PartitionedWriter extends BaseWriter {
         throw new IllegalStateException("Already closed files for partition: " + key.toPath());
       }
 
-      setCurrentKey(key.copy());
-      openCurrent();
+      currentKey = key.copy();
+      currentWriter = new RollingFileWriter(currentKey);
     }
 
-    writeInternal(row);
+    currentWriter.add(row);
+  }
+
+  @Override
+  public void close() throws IOException {
+    if (currentWriter != null) {
+      currentWriter.close();
+    }
   }
 }

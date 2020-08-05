@@ -20,7 +20,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.Serializable;
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -35,11 +35,16 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.io.TaskWriter;
+import org.apache.iceberg.io.UnpartitionedWriter;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.TaskContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -77,14 +82,14 @@ public class RowDataRewriter implements Serializable {
   }
 
   public List<DataFile> rewriteDataForTasks(JavaRDD<CombinedScanTask> taskRDD) {
-    JavaRDD<TaskResult> taskCommitRDD = taskRDD.map(this::rewriteDataForTask);
+    JavaRDD<List<DataFile>> dataFilesRDD = taskRDD.map(this::rewriteDataForTask);
 
-    return taskCommitRDD.collect().stream()
-        .flatMap(taskCommit -> Arrays.stream(taskCommit.files()))
+    return dataFilesRDD.collect().stream()
+        .flatMap(Collection::stream)
         .collect(Collectors.toList());
   }
 
-  private TaskResult rewriteDataForTask(CombinedScanTask task) throws Exception {
+  private List<DataFile> rewriteDataForTask(CombinedScanTask task) throws Exception {
     TaskContext context = TaskContext.get();
     int partitionId = context.partitionId();
     long taskId = context.taskAttemptId();
@@ -92,16 +97,17 @@ public class RowDataRewriter implements Serializable {
     RowDataReader dataReader = new RowDataReader(
         task, schema, schema, nameMapping, io.value(), encryptionManager.value(), caseSensitive);
 
-    SparkAppenderFactory appenderFactory = new SparkAppenderFactory(
-        properties, schema, SparkSchemaUtil.convert(schema));
+    StructType structType = SparkSchemaUtil.convert(schema);
+    SparkAppenderFactory appenderFactory = new SparkAppenderFactory(properties, schema, structType);
     OutputFileFactory fileFactory = new OutputFileFactory(
         spec, format, locations, io.value(), encryptionManager.value(), partitionId, taskId);
 
-    BaseWriter writer;
+    TaskWriter<InternalRow> writer;
     if (spec.fields().isEmpty()) {
-      writer = new UnpartitionedWriter(spec, format, appenderFactory, fileFactory, io.value(), Long.MAX_VALUE);
+      writer = new UnpartitionedWriter<>(spec, format, appenderFactory, fileFactory, io.value(), Long.MAX_VALUE);
     } else {
-      writer = new PartitionedWriter(spec, format, appenderFactory, fileFactory, io.value(), Long.MAX_VALUE, schema);
+      writer = new SparkPartitionedWriter(spec, format, appenderFactory, fileFactory, io.value(), Long.MAX_VALUE,
+          schema, structType);
     }
 
     try {
@@ -112,7 +118,9 @@ public class RowDataRewriter implements Serializable {
 
       dataReader.close();
       dataReader = null;
-      return writer.complete();
+
+      writer.close();
+      return Lists.newArrayList(writer.complete());
 
     } catch (Throwable originalThrowable) {
       try {
