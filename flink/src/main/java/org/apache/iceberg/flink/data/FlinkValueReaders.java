@@ -283,10 +283,10 @@ public class FlinkValueReaders {
     }
   }
 
-  static class StructReader extends ValueReaders.StructReader<RowData> {
+  private static class StructReader extends ValueReaders.StructReader<RowData> {
     private final int numFields;
 
-    protected StructReader(List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
+    private StructReader(List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
       super(readers, struct, idToConstant);
       this.numFields = readers.size();
     }
