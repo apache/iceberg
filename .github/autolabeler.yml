@@ -33,10 +33,10 @@ INFRA:
   - ".gitignore"
   - "baseline.gradle"
   - "deploy.gradle"
+  - "/dev"
   - "jitpack.yml"
   - "travis.yml"
 BUILD:
-  - "/dev"
   - "**gradle**"
   - "versions.props"
 DOCS:
