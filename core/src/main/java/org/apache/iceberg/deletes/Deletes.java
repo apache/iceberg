@@ -40,7 +40,7 @@ import org.apache.iceberg.util.SortedMerge;
 
 public class Deletes {
   private static final Schema POSITION_DELETE_SCHEMA = new Schema(
-      Types.NestedField.required(1, "filename", Types.StringType.get(), "Data file location of the deleted row"),
+      Types.NestedField.required(1, "file_path", Types.StringType.get(), "Data file location of the deleted row"),
       Types.NestedField.required(2, "pos", Types.LongType.get(), "Row position in the data file of the deleted row")
   );
 
