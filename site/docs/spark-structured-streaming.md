@@ -67,7 +67,7 @@ Having high rate of commits would produce lots of data files, manifests, and sna
 to maintain. We encourage having trigger interval 1 minute at minimum, and increase the interval if you encounter
 issues.
 
-Please read through the [Structured Streaming Programming Guide](http://spark.apache.org/docs/latest/structured-streaming-programming-guide.html)
+Please read through the triggers section in [Structured Streaming Programming Guide](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html#triggers)
 if you're not familiar with configuring batch interval yet.
 
 ### Expire old snapshots
