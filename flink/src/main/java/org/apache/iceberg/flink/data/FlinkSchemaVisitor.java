@@ -30,13 +30,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-abstract class FlinkOrcSchemaVisitor<T> {
+abstract class FlinkSchemaVisitor<T> {
 
-  static <T> T visit(RowType flinkType, Schema schema, FlinkOrcSchemaVisitor<T> visitor) {
+  static <T> T visit(RowType flinkType, Schema schema, FlinkSchemaVisitor<T> visitor) {
     return visit(flinkType, schema.asStruct(), visitor);
   }
 
-  private static <T> T visit(LogicalType flinkType, Type iType, FlinkOrcSchemaVisitor<T> visitor) {
+  private static <T> T visit(LogicalType flinkType, Type iType, FlinkSchemaVisitor<T> visitor) {
     switch (iType.typeId()) {
       case STRUCT:
         return visitRecord(flinkType, iType.asStructType(), visitor);
@@ -64,7 +64,7 @@ abstract class FlinkOrcSchemaVisitor<T> {
   }
 
   private static <T> T visitRecord(LogicalType flinkType, Types.StructType struct,
-                                   FlinkOrcSchemaVisitor<T> visitor) {
+                                   FlinkSchemaVisitor<T> visitor) {
     Preconditions.checkArgument(flinkType instanceof RowType, "%s is not a RowType.", flinkType);
     RowType rowType = (RowType) flinkType;
 

@@ -37,7 +37,7 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
   private final List<RowData.FieldGetter> fieldGetters;
 
   private FlinkOrcWriter(RowType rowType, Schema iSchema) {
-    this.writer = (FlinkOrcWriters.StructWriter) FlinkOrcSchemaVisitor.visit(rowType, iSchema, new WriteBuilder());
+    this.writer = (FlinkOrcWriters.StructWriter) FlinkSchemaVisitor.visit(rowType, iSchema, new WriteBuilder());
 
     List<LogicalType> fieldTypes = rowType.getChildren();
     this.fieldGetters = Lists.newArrayListWithExpectedSize(fieldTypes.size());
@@ -63,7 +63,7 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
     }
   }
 
-  private static class WriteBuilder extends FlinkOrcSchemaVisitor<OrcValueWriter<?>> {
+  private static class WriteBuilder extends FlinkSchemaVisitor<OrcValueWriter<?>> {
     private WriteBuilder() {
     }
 
@@ -112,7 +112,6 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
         case STRING:
           return FlinkOrcWriters.strings();
         case UUID:
-          return GenericOrcWriters.uuids();
         case FIXED:
         case BINARY:
           return GenericOrcWriters.bytes();
