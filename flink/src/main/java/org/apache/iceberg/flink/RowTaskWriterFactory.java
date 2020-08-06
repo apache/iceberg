@@ -28,9 +28,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.flink.data.FlinkAvroWriter;
 import org.apache.iceberg.flink.data.FlinkParquetWriters;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
@@ -134,13 +132,7 @@ class RowTaskWriterFactory implements TaskWriterFactory<Row> {
                 .build();
 
           case AVRO:
-            return Avro.write(outputFile)
-                .createWriterFunc(ignore -> new FlinkAvroWriter(FlinkSchemaUtil.convert(schema)))
-                .setAll(props)
-                .schema(schema)
-                .overwrite()
-                .build();
-
+            // TODO add the Avro writer building once RowDataWrapper is ready.
           case ORC:
           default:
             throw new UnsupportedOperationException("Cannot write unknown file format: " + format);
