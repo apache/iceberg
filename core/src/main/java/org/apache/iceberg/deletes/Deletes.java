@@ -73,7 +73,8 @@ public class Deletes {
     private final Function<T, Long> extractPos;
     private final CloseableIterable<Long> deletePositions;
 
-    private PositionDeleteFilter(CloseableIterable<T> rows, Function<T, Long> extractPos, CloseableIterable<Long> deletePositions) {
+    private PositionDeleteFilter(CloseableIterable<T> rows, Function<T, Long> extractPos,
+                                 CloseableIterable<Long> deletePositions) {
       this.rows = rows;
       this.extractPos = extractPos;
       this.deletePositions = deletePositions;
