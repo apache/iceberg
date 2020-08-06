@@ -96,8 +96,7 @@ public class TestMergeAppend extends TableTestBase {
     Assert.assertNotNull("Should create a snapshot", table.currentSnapshot());
     V1Assert.assertEquals("Last sequence number should be 0", 0, table.ops().current().lastSequenceNumber());
     V2Assert.assertEquals("Last sequence number should be 1", 1, table.ops().current().lastSequenceNumber());
-
-    validateSnapshot(base.currentSnapshot(), committedSnapshot, FILE_A, FILE_B);
+    Assert.assertEquals("Should create 1 manifest for initial write", 1, committedSnapshot.allManifests().size());
 
     long snapshotId = committedSnapshot.snapshotId();
     validateManifest(committedSnapshot.allManifests().get(0),
@@ -130,6 +129,8 @@ public class TestMergeAppend extends TableTestBase {
     Assert.assertNotNull("Should create a snapshot", table.currentSnapshot());
     V1Assert.assertEquals("Last sequence number should be 0", 0, table.ops().current().lastSequenceNumber());
     V2Assert.assertEquals("Last sequence number should be 1", 1, table.ops().current().lastSequenceNumber());
+    Assert.assertEquals("Should create 2 manifests for initial write",
+        2, committedSnapshot.allManifests().size());
 
     long snapshotId = committedSnapshot.snapshotId();
 
@@ -252,7 +253,6 @@ public class TestMergeAppend extends TableTestBase {
     ManifestFile manifest = writeManifest(FILE_A);
     ManifestFile manifest2 = writeManifestWithName("FILE_C", FILE_C);
     ManifestFile manifest3 = writeManifestWithName("FILE_D", FILE_D);
-    ManifestFile manifest4 = writeManifestWithName("FILE_B", FILE_B);
     table.newAppend()
         .appendManifest(manifest)
         .appendManifest(manifest2)
@@ -312,28 +312,93 @@ public class TestMergeAppend extends TableTestBase {
     // validate that the metadata summary is correct when using appendManifest
     Assert.assertEquals("Summary metadata should include 3 added files",
         "3", readMetadata().currentSnapshot().summary().get("added-data-files"));
+  }
 
-    table.updateProperties()
-        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1")
-        // ensure we only generate one manifest
-        .set(TableProperties.MANIFEST_TARGET_SIZE_BYTES, "163840")
+  @Test
+  public void testManifestsMergeIntoOne() throws IOException {
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot snap1 = table.currentSnapshot();
+    TableMetadata base = readMetadata();
+    V2Assert.assertEquals("Snapshot sequence number should be 1", 1, snap1.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 1", 1, base.lastSequenceNumber());
+    V1Assert.assertEquals("Table should end with last-sequence-number 0", 0, base.lastSequenceNumber());
+    long commitId1 = snap1.snapshotId();
+
+    Assert.assertEquals("Should contain 1 manifest", 1, snap1.allManifests().size());
+    validateManifest(snap1.allManifests().get(0), seqs(1), ids(commitId1), files(FILE_A), statuses(Status.ADDED));
+
+    table.newAppend().appendFile(FILE_B).commit();
+    Snapshot snap2 = table.currentSnapshot();
+    long commitId2 = snap2.snapshotId();
+    base = readMetadata();
+    V2Assert.assertEquals("Snapshot sequence number should be 2", 2, snap2.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 2", 2, base.lastSequenceNumber());
+    V1Assert.assertEquals("Table should end with last-sequence-number 0", 0, base.lastSequenceNumber());
+
+    Assert.assertEquals("Should contain 2 manifests", 2, snap2.allManifests().size());
+    validateManifest(snap2.allManifests().get(0),
+        seqs(2),
+        ids(commitId2),
+        files(FILE_B),
+        statuses(Status.ADDED));
+    validateManifest(snap2.allManifests().get(1),
+        seqs(1),
+        ids(commitId1),
+        files(FILE_A),
+        statuses(Status.ADDED));
+
+    table.newAppend()
+        .appendManifest(writeManifest("input-m0.avro",
+            manifestEntry(ManifestEntry.Status.ADDED, null, FILE_C)))
         .commit();
-    table.newAppend().appendManifest(manifest4).commit();
     Snapshot snap3 = table.currentSnapshot();
-    long commitId3 = snap3.snapshotId();
+
     base = readMetadata();
     V2Assert.assertEquals("Snapshot sequence number should be 3", 3, snap3.sequenceNumber());
     V2Assert.assertEquals("Last sequence number should be 3", 3, base.lastSequenceNumber());
     V1Assert.assertEquals("Table should end with last-sequence-number 0", 0, base.lastSequenceNumber());
 
-    Assert.assertEquals("Should only contains 1 manifest", 1, snap3.allManifests().size());
-    ManifestFile manifestFile = snap3.allManifests().get(0);
-    validateManifest(manifestFile,
-        seqs(3, 2, 2, 2, 1, 1, 1),
-        ids(commitId3, commitId2, commitId2, commitId2, commitId1, commitId1, commitId1),
-        files(FILE_B, FILE_A, FILE_C, FILE_D, FILE_A, FILE_C, FILE_D),
-        statuses(Status.ADDED, Status.EXISTING, Status.EXISTING, Status.EXISTING, Status.EXISTING, Status.EXISTING,
-            Status.EXISTING));
+    Assert.assertEquals("Should contain 3 manifests", 3, snap3.allManifests().size());
+    long commitId3 = snap3.snapshotId();
+    validateManifest(snap3.allManifests().get(0),
+        seqs(3),
+        ids(commitId3),
+        files(FILE_C),
+        statuses(Status.ADDED));
+    validateManifest(snap3.allManifests().get(1),
+        seqs(2),
+        ids(commitId2),
+        files(FILE_B),
+        statuses(Status.ADDED));
+    validateManifest(snap3.allManifests().get(2),
+        seqs(1),
+        ids(commitId1),
+        files(FILE_A),
+        statuses(Status.ADDED));
+
+    table.updateProperties()
+        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1")
+        .commit();
+
+    table.newAppend()
+        .appendManifest(writeManifest("input-m1.avro",
+            manifestEntry(ManifestEntry.Status.ADDED, null, FILE_D)))
+        .commit();
+    Snapshot snap4 = table.currentSnapshot();
+
+    base = readMetadata();
+    V2Assert.assertEquals("Snapshot sequence number should be 4", 4, snap4.sequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 4", 4, base.lastSequenceNumber());
+    V1Assert.assertEquals("Table should end with last-sequence-number 0", 0, base.lastSequenceNumber());
+
+    long commitId4 = snap4.snapshotId();
+    Assert.assertEquals("Should only contains 1 merged manifest", 1, snap4.allManifests().size());
+    validateManifest(snap4.allManifests().get(0),
+        seqs(4, 3, 2, 1),
+        ids(commitId4, commitId3, commitId2, commitId1),
+        files(FILE_D, FILE_C, FILE_B, FILE_A),
+        statuses(Status.ADDED, Status.EXISTING, Status.EXISTING, Status.EXISTING));
   }
 
   @Test
@@ -752,6 +817,8 @@ public class TestMergeAppend extends TableTestBase {
 
     V2Assert.assertEquals("Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
     V1Assert.assertEquals("Table should end with last-sequence-number 0", 0, readMetadata().lastSequenceNumber());
+    Assert.assertEquals("Should only contain 1 manifest file",
+        1, table.currentSnapshot().allManifests().size());
 
     validateManifest(table.currentSnapshot().allManifests().get(0),
         seqs(1),
@@ -830,6 +897,8 @@ public class TestMergeAppend extends TableTestBase {
     Assert.assertEquals("Should commit the same new manifest during retry",
         Lists.newArrayList(newManifest), metadata.currentSnapshot().allManifests());
 
+    Assert.assertEquals("Should only contain 1 merged manifest file",
+        1, table.currentSnapshot().allManifests().size());
     ManifestFile manifestFile = snapshot.allManifests().get(0);
     validateManifest(manifestFile,
         seqs(2, 1),
