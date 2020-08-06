@@ -77,7 +77,7 @@ class RowDataWrapper implements StructLike {
 
   @Override
   public <T> void set(int pos, T value) {
-    throw new UnsupportedOperationException("PartitionKey does not support setting a field.");
+    throw new UnsupportedOperationException("Could not set a field in the RowDataWrapper because rowData is read-only");
   }
 
   private interface PositionalGetter<T> {
