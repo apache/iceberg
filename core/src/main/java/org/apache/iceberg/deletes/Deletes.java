@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.Schema;
@@ -31,12 +32,15 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Filter;
 import org.apache.iceberg.util.FilterIterator;
 import org.apache.iceberg.util.SortedMerge;
+import org.apache.iceberg.util.StructLikeSet;
 
 public class Deletes {
   private static final Schema POSITION_DELETE_SCHEMA = new Schema(
@@ -50,13 +54,63 @@ public class Deletes {
   private Deletes() {
   }
 
-  public static <T> CloseableIterable<T> positionFilter(CloseableIterable<T> rows, Function<T, Long> rowToPosition,
-                                                        CloseableIterable<Long> posDeletes) {
-    return new PositionDeleteFilter<>(rows, rowToPosition, posDeletes);
+  public static <T> CloseableIterable<T> filter(CloseableIterable<T> rows, Function<T, StructLike> rowToDeleteKey,
+                                                StructLikeSet deleteSet) {
+    if (deleteSet.isEmpty()) {
+      return rows;
+    }
+
+    EqualitySetDeleteFilter<T> equalityFilter = new EqualitySetDeleteFilter<>(rowToDeleteKey, deleteSet);
+    return equalityFilter.filter(rows);
   }
 
-  public static CloseableIterable<Long> deletePositions(String dataLocation, CloseableIterable<StructLike> posDeletes) {
-    return deletePositions(dataLocation, ImmutableList.of(posDeletes));
+  public static <T> CloseableIterable<T> filter(CloseableIterable<T> rows, Function<T, Long> rowToPosition,
+                                                Set<Long> deleteSet) {
+    if (deleteSet.isEmpty()) {
+      return rows;
+    }
+
+    PositionSetDeleteFilter<T> filter = new PositionSetDeleteFilter<>(rowToPosition, deleteSet);
+    return filter.filter(rows);
+  }
+
+  public static StructLikeSet toEqualitySet(CloseableIterable<StructLike> eqDeletes, Types.StructType eqType) {
+    try (CloseableIterable<StructLike> deletes = eqDeletes) {
+      StructLikeSet deleteSet = StructLikeSet.create(eqType);
+      Iterables.addAll(deleteSet, deletes);
+      return deleteSet;
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to close equality delete source", e);
+    }
+  }
+
+  public static Set<Long> toPositionSet(String dataLocation, CloseableIterable<StructLike> deleteFile) {
+    return toPositionSet(dataLocation, ImmutableList.of(deleteFile));
+  }
+
+  public static Set<Long> toPositionSet(String dataLocation, List<CloseableIterable<StructLike>> deleteFiles) {
+    DataFileFilter locationFilter = new DataFileFilter(dataLocation);
+    List<CloseableIterable<Long>> positions = Lists.transform(deleteFiles, deletes ->
+        CloseableIterable.transform(locationFilter.filter(deletes), row -> (Long) POSITION_ACCESSOR.get(row)));
+    return toPositionSet(CloseableIterable.concat(positions));
+  }
+
+  public static Set<Long> toPositionSet(CloseableIterable<Long> posDeletes) {
+    try (CloseableIterable<Long> deletes = posDeletes) {
+      return Sets.newHashSet(deletes);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to close position delete source", e);
+    }
+  }
+
+  public static <T> CloseableIterable<T> streamingFilter(CloseableIterable<T> rows,
+                                                         Function<T, Long> rowToPosition,
+                                                         CloseableIterable<Long> posDeletes) {
+    return new PositionStreamDeleteFilter<>(rows, rowToPosition, posDeletes);
+  }
+
+  public static CloseableIterable<Long> deletePositions(String dataLocation, CloseableIterable<StructLike> deleteFile) {
+    return deletePositions(dataLocation, ImmutableList.of(deleteFile));
   }
 
   public static CloseableIterable<Long> deletePositions(String dataLocation,
@@ -68,13 +122,44 @@ public class Deletes {
     return new SortedMerge<>(Long::compare, positions);
   }
 
-  private static class PositionDeleteFilter<T> extends CloseableGroup implements CloseableIterable<T> {
+  private static class EqualitySetDeleteFilter<T> extends Filter<T> {
+    private final StructLikeSet deletes;
+    private final Function<T, StructLike> extractEqStruct;
+
+    protected EqualitySetDeleteFilter(Function<T, StructLike> extractEq,
+                                      StructLikeSet deletes) {
+      this.extractEqStruct = extractEq;
+      this.deletes = deletes;
+    }
+
+    @Override
+    protected boolean shouldKeep(T row) {
+      return !deletes.contains(extractEqStruct.apply(row));
+    }
+  }
+
+  private static class PositionSetDeleteFilter<T> extends Filter<T> {
+    private final Function<T, Long> rowToPosition;
+    private final Set<Long> deleteSet;
+
+    private PositionSetDeleteFilter(Function<T, Long> rowToPosition, Set<Long> deleteSet) {
+      this.rowToPosition = rowToPosition;
+      this.deleteSet = deleteSet;
+    }
+
+    @Override
+    protected boolean shouldKeep(T row) {
+      return !deleteSet.contains(rowToPosition.apply(row));
+    }
+  }
+
+  private static class PositionStreamDeleteFilter<T> extends CloseableGroup implements CloseableIterable<T> {
     private final CloseableIterable<T> rows;
     private final Function<T, Long> extractPos;
     private final CloseableIterable<Long> deletePositions;
 
-    private PositionDeleteFilter(CloseableIterable<T> rows, Function<T, Long> extractPos,
-                                 CloseableIterable<Long> deletePositions) {
+    private PositionStreamDeleteFilter(CloseableIterable<T> rows, Function<T, Long> extractPos,
+                                       CloseableIterable<Long> deletePositions) {
       this.rows = rows;
       this.extractPos = extractPos;
       this.deletePositions = deletePositions;

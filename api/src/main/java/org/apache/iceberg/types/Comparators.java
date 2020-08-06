@@ -104,7 +104,10 @@ public class Comparators {
 
     private StructLikeComparator(Types.StructType struct) {
       this.comparators = struct.fields().stream()
-          .map(field -> internal(field.type()))
+          .map(field -> field.isOptional() ?
+              Comparators.nullsFirst().thenComparing(internal(field.type())) :
+              internal(field.type())
+          )
           .toArray((IntFunction<Comparator<Object>[]>) Comparator[]::new);
       this.classes = struct.fields().stream()
           .map(field -> internalClass(field.type()))
@@ -129,7 +132,10 @@ public class Comparators {
     private final Comparator<T> elementComparator;
 
     private ListComparator(Types.ListType list) {
-      this.elementComparator = internal(list.elementType());
+      Comparator<T> elemComparator = internal(list.elementType());
+      this.elementComparator = list.isElementOptional() ?
+          Comparators.<T>nullsFirst().thenComparing(elemComparator) :
+          elemComparator;
     }
 
     @Override
