@@ -46,7 +46,7 @@ public abstract class TestIcebergSourceHiveTables extends TestIcebergSourceTable
   public void dropTable() throws IOException {
     Table table = catalog.loadTable(currentIdentifier);
     Path tablePath = new Path(table.location());
-    FileSystem fs = tablePath.getFileSystem(spark.sparkContext().hadoopConfiguration());
+    FileSystem fs = tablePath.getFileSystem(spark.sessionState().newHadoopConf());
     fs.delete(tablePath, true);
     catalog.dropTable(currentIdentifier, false);
   }
