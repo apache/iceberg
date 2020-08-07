@@ -28,6 +28,7 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.Column;
@@ -38,6 +39,17 @@ import org.apache.spark.sql.functions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * An action which performs the same operation as {@link org.apache.iceberg.ExpireSnapshots} but uses Spark
+ * to to determine the delta in files between the pre and post-expiration table metadata. All of the same
+ * restrictions apply that apply to Remove Snapshots.
+ * <p>
+ * This implementation uses the MetadataTables for the table being expired to list all Manifest and DataFiles. This
+ * is made into a Dataframe which is antiJoined with the same list read after the expiration. This operation will
+ * require a Shuffle so parallelism can be controlled through spark.sql.shuffle.partitions. The expiration is done
+ * locally using a direct call to RemoveSnapshots. Deletes are still performed locally after retrieving the results
+ * from the SparkExecutors.
+ */
 public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResult> {
   private static final Logger LOG = LoggerFactory.getLogger(ExpireSnapshotsAction.class);
 
@@ -77,6 +89,7 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
 
   /**
    * An executor service used when deleting files. Only used during the local delete phase of this Spark action
+   * Similar to {@link org.apache.iceberg.ExpireSnapshots#executeWith(ExecutorService)}
    * @param executorService the service to use
    * @return this for method chaining
    */
@@ -85,21 +98,47 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
     return this;
   }
 
+  /**
+   * A specific snapshot to expire.
+   * Identical to {@link org.apache.iceberg.ExpireSnapshots#expireSnapshotId(long)}
+   * @param expireSnapshotId Id of the snapshot to expire
+   * @return this for method chaining
+   */
   public ExpireSnapshotsAction expireSnapshotId(long expireSnapshotId) {
     this.expireSnapshotIdValue = expireSnapshotId;
     return this;
   }
 
+  /**
+   * Expire all snapshots older than a given timestamp.
+   * Identical to {@link org.apache.iceberg.ExpireSnapshots#expireOlderThan(long)}
+   * @param timestampMillis all snapshots before this time will be expired
+   * @return this for method chaining
+   */
   public ExpireSnapshotsAction expireOlderThan(long timestampMillis) {
     this.expireOlderThanValue = timestampMillis;
     return this;
   }
 
+  /**
+   * Retain at least x snapshots when expiring
+   * Identical to {@link org.apache.iceberg.ExpireSnapshots#retainLast(int)}
+   * @param numSnapshots number of snapshots to leave
+   * @return this for method chaining
+   */
   public ExpireSnapshotsAction retainLast(int numSnapshots) {
+    Preconditions.checkArgument(1 <= numSnapshots,
+        "Number of snapshots to retain must be at least 1, cannot be: %s", numSnapshots);
     this.retainLastValue = numSnapshots;
     return this;
   }
 
+  /**
+   * The Consumer used on files which have been determined to be expired. By default uses a filesystem delete.
+   * Identical to {@link org.apache.iceberg.ExpireSnapshots#deleteWith(Consumer)}
+   * @param newDeleteFunc Consumer which takes a path and deletes it
+   * @return this for method chaining
+   */
   public ExpireSnapshotsAction deleteWith(Consumer<String> newDeleteFunc) {
     this.deleteFunc = newDeleteFunc;
     return this;
@@ -107,30 +146,37 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
 
   @Override
   public ExpireSnapshotsActionResult execute() {
-    //Metadata before Expiration
-    Dataset<Row> originalFiles = buildValidFileDF().persist();
-    originalFiles.count(); // Action to trigger persist
+    Dataset<Row> originalFiles = null;
+    try {
+      // Metadata before Expiration
+      originalFiles = buildValidFileDF().persist();
+      // Action to trigger persist
+      originalFiles.count();
 
-    //Perform Expiration
-    ExpireSnapshots expireSnaps = table.expireSnapshots().cleanExpiredFiles(false);
-    if (expireSnapshotIdValue != null) {
-      expireSnaps = expireSnaps.expireSnapshotId(expireSnapshotIdValue);
-    }
-    if (expireOlderThanValue != null) {
-      expireSnaps = expireSnaps.expireOlderThan(expireOlderThanValue);
-    }
-    if (retainLastValue != null) {
-      expireSnaps = expireSnaps.retainLast(retainLastValue);
-    }
-    expireSnaps.commit();
+      // Perform Expiration
+      ExpireSnapshots expireSnaps = table.expireSnapshots().cleanExpiredFiles(false);
+      if (expireSnapshotIdValue != null) {
+        expireSnaps = expireSnaps.expireSnapshotId(expireSnapshotIdValue);
+      }
+      if (expireOlderThanValue != null) {
+        expireSnaps = expireSnaps.expireOlderThan(expireOlderThanValue);
+      }
+      if (retainLastValue != null) {
+        expireSnaps = expireSnaps.retainLast(retainLastValue);
+      }
+      expireSnaps.commit();
 
-    // Metadata after Expiration
-    Dataset<Row> validFiles = buildValidFileDF();
-    Dataset<Row> filesToDelete = originalFiles.except(validFiles);
+      // Metadata after Expiration
+      Dataset<Row> validFiles = buildValidFileDF();
+      Dataset<Row> filesToDelete = originalFiles.except(validFiles);
 
-    ExpireSnapshotsActionResult result =  deleteFiles(filesToDelete.toLocalIterator());
-    originalFiles.unpersist();
-    return result;
+      ExpireSnapshotsActionResult result = deleteFiles(filesToDelete.toLocalIterator());
+      return result;
+    } finally {
+      if (originalFiles != null) {
+        originalFiles.unpersist();
+      }
+    }
   }
 
   private Dataset<Row> appendTypeString(Dataset<Row> ds, String type) {
@@ -143,12 +189,17 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
         .union(appendTypeString(buildManifestListDF(spark, table), MANIFEST_LIST));
   }
 
-  private ExpireSnapshotsActionResult deleteFiles(Iterator<Row> paths) {
+  /**
+   * Deletes files passed to it based on their type.
+   * @param expiredFiles an Iterator of Spark Rows of the structure (path: String, type: String)
+   * @return Statistics on which files were deleted
+   */
+  private ExpireSnapshotsActionResult deleteFiles(Iterator<Row> expiredFiles) {
     AtomicLong dataFileCount = new AtomicLong(0L);
     AtomicLong manifestCount = new AtomicLong(0L);
     AtomicLong manifestListCount = new AtomicLong(0L);
 
-    Tasks.foreach(paths)
+    Tasks.foreach(expiredFiles)
         .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
         .executeWith(deleteExecutorService)
         .onFailure((fileInfo, exc) ->
@@ -164,15 +215,15 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
               break;
             case MANIFEST:
               manifestCount.incrementAndGet();
-              LOG.warn("Deleted Manifest: {}", file);
+              LOG.debug("Deleted Manifest: {}", file);
               break;
             case MANIFEST_LIST:
               manifestListCount.incrementAndGet();
-              LOG.warn("Deleted Manifest List: {}", file);
+              LOG.debug("Deleted Manifest List: {}", file);
               break;
           }
         });
-    LOG.warn("Deleted {} total files", dataFileCount.get() + manifestCount.get() + manifestListCount.get());
+    LOG.debug("Deleted {} total files", dataFileCount.get() + manifestCount.get() + manifestListCount.get());
     return new ExpireSnapshotsActionResult(dataFileCount.get(), manifestCount.get(), manifestListCount.get());
   }
 }
