@@ -25,8 +25,10 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
@@ -46,25 +48,37 @@ public class RandomGenericData {
   private RandomGenericData() {}
 
   public static List<Record> generate(Schema schema, int numRecords, long seed) {
-    return generateRecords(schema, numRecords, new RandomRecordGenerator(seed));
-  }
-
-  public static List<Record> generateRecords(Schema schema, int numRecords,
-                                             RandomRecordGenerator generator) {
-    List<Record> records = Lists.newArrayListWithExpectedSize(numRecords);
-    for (int i = 0; i < numRecords; i += 1) {
-      records.add((Record) TypeUtil.visit(schema, generator));
-    }
-
-    return records;
+    return Lists.newArrayList(generateIcebergGenerics(schema, numRecords, () -> new RandomRecordGenerator(seed)));
   }
 
   public static Iterable<Record> generateFallbackRecords(Schema schema, int numRecords, long seed, long numDictRows) {
-    return generateRecords(schema, numRecords, new FallbackGenerator(seed, numDictRows));
+    return generateIcebergGenerics(schema, numRecords, () -> new FallbackGenerator(seed, numDictRows));
   }
 
   public static Iterable<Record> generateDictionaryEncodableRecords(Schema schema, int numRecords, long seed) {
-    return generateRecords(schema, numRecords, new DictionaryEncodedGenerator(seed));
+    return generateIcebergGenerics(schema, numRecords, () -> new DictionaryEncodedGenerator(seed));
+  }
+
+  private static Iterable<Record> generateIcebergGenerics(Schema schema, int numRecords,
+                                                          Supplier<RandomDataGenerator<Record>> supplier) {
+    return () -> new Iterator<Record>() {
+      private final RandomDataGenerator<Record> generator = supplier.get();
+      private int count = 0;
+
+      @Override
+      public boolean hasNext() {
+        return count < numRecords;
+      }
+
+      @Override
+      public Record next() {
+        if (!hasNext()) {
+          throw new NoSuchElementException();
+        }
+        ++count;
+        return (Record) TypeUtil.visit(schema, generator);
+      }
+    };
   }
 
   private static class RandomRecordGenerator extends RandomDataGenerator<Record> {

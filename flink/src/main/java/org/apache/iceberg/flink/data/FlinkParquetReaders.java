@@ -176,7 +176,6 @@ class FlinkParquetReaders {
           case INT_8:
           case INT_16:
           case INT_32:
-          case DATE:
             if (expected != null && expected.typeId() == Types.LongType.get().typeId()) {
               return new ParquetValueReaders.IntAsLongReader(desc);
             } else {
@@ -184,6 +183,7 @@ class FlinkParquetReaders {
             }
           case TIME_MICROS:
             return new LossyMicrosToMillisTimeReader(desc);
+          case DATE:
           case INT_64:
             return new ParquetValueReaders.UnboxedReader<>(desc);
           case TIMESTAMP_MICROS:
@@ -197,7 +197,7 @@ class FlinkParquetReaders {
             switch (primitive.getPrimitiveTypeName()) {
               case BINARY:
               case FIXED_LEN_BYTE_ARRAY:
-                return new BinaryDecimalReader(desc, decimal.getScale());
+                return new BinaryDecimalReader(desc, decimal.getPrecision(), decimal.getScale());
               case INT64:
                 return new LongDecimalReader(desc, decimal.getPrecision(), decimal.getScale());
               case INT32:
@@ -241,10 +241,12 @@ class FlinkParquetReaders {
   }
 
   private static class BinaryDecimalReader extends ParquetValueReaders.PrimitiveReader<DecimalData> {
+    private final int precision;
     private final int scale;
 
-    BinaryDecimalReader(ColumnDescriptor desc, int scale) {
+    BinaryDecimalReader(ColumnDescriptor desc, int precision, int scale) {
       super(desc);
+      this.precision = precision;
       this.scale = scale;
     }
 
@@ -252,7 +254,7 @@ class FlinkParquetReaders {
     public DecimalData read(DecimalData ignored) {
       Binary binary = column.nextBinary();
       BigDecimal bigDecimal = new BigDecimal(new BigInteger(binary.getBytes()), scale);
-      return DecimalData.fromBigDecimal(bigDecimal, bigDecimal.precision(), scale);
+      return DecimalData.fromBigDecimal(bigDecimal, precision, scale);
     }
   }
 

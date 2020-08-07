@@ -23,12 +23,14 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DataTest;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
@@ -59,9 +61,10 @@ public class TestFlinkParquetReader extends DataTest {
         .build()) {
       Iterator<Record> expected = iterable.iterator();
       Iterator<RowData> rows = reader.iterator();
+      LogicalType rowType = FlinkSchemaUtil.convert(schema);
       for (int i = 0; i < NUM_RECORDS; i += 1) {
         Assert.assertTrue("Should have expected number of rows", rows.hasNext());
-        TestHelpers.assertRowData(schema.asStruct(), expected.next(), rows.next());
+        TestHelpers.assertRowData(schema.asStruct(), rowType, expected.next(), rows.next());
       }
       Assert.assertFalse("Should not have extra rows", rows.hasNext());
     }

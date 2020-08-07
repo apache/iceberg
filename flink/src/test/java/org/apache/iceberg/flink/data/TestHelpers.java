@@ -28,13 +28,20 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
 import org.apache.flink.table.data.ArrayData;
+import org.apache.flink.table.data.DecimalData;
+import org.apache.flink.table.data.MapData;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.TimestampData;
+import org.apache.flink.table.types.logical.ArrayType;
+import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.MapType;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
@@ -47,7 +54,7 @@ public class TestHelpers {
   private static final OffsetDateTime EPOCH = Instant.ofEpochMilli(0L).atOffset(ZoneOffset.UTC);
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
-  public static void assertRowData(Type type, Record expectedRecord, RowData actualRowData) {
+  public static void assertRowData(Type type, LogicalType rowType, Record expectedRecord, RowData actualRowData) {
     if (expectedRecord == null && actualRowData == null) {
       return;
     }
@@ -55,7 +62,7 @@ public class TestHelpers {
     Assert.assertTrue("expected Record and actual RowData should be both null or not null",
         expectedRecord != null && actualRowData != null);
 
-    List<Type> types = new ArrayList<>();
+    List<Type> types = Lists.newArrayList();
     for (Types.NestedField field : type.asStructType().fields()) {
       types.add(field.type());
     }
@@ -65,104 +72,116 @@ public class TestHelpers {
         Assert.assertTrue(actualRowData.isNullAt(i));
         continue;
       }
-      Type.TypeID typeId = types.get(i).typeId();
+
       Object expected = expectedRecord.get(i);
-      switch (typeId) {
-        case BOOLEAN:
-          Assert.assertEquals("boolean value should be equal", expected, actualRowData.getBoolean(i));
-          break;
-        case INTEGER:
-          Assert.assertEquals("int value should be equal", expected, actualRowData.getInt(i));
-          break;
-        case LONG:
-          Assert.assertEquals("long value should be equal", expected, actualRowData.getLong(i));
-          break;
-        case FLOAT:
-          Assert.assertEquals("float value should be equal", expected, actualRowData.getFloat(i));
-          break;
-        case DOUBLE:
-          Assert.assertEquals("double should be equal", expected, actualRowData.getDouble(i));
-          break;
-        case STRING:
-          Assert.assertTrue("Should expect a CharSequence", expected instanceof CharSequence);
-          Assert.assertEquals("string should be equal",
-              String.valueOf(expected), actualRowData.getString(i).toString());
-          break;
-        case DATE:
-          Assert.assertTrue("Should expect a Date", expected instanceof LocalDate);
-          LocalDate date = ChronoUnit.DAYS.addTo(EPOCH_DAY, actualRowData.getInt(i));
-          Assert.assertEquals("date should be equal", expected, date);
-          break;
-        case TIME:
-          Assert.assertTrue("Should expect a LocalTime", expected instanceof LocalTime);
-          int milliseconds = (int) (((LocalTime) expected).toNanoOfDay() / 1000_000);
-          Assert.assertEquals("time millis should be equal", milliseconds, actualRowData.getInt(i));
-          break;
-        case TIMESTAMP:
-          if (((Types.TimestampType) types.get(i).asPrimitiveType()).shouldAdjustToUTC()) {
-            Assert.assertTrue("Should expect a OffsetDataTime", expected instanceof OffsetDateTime);
-            OffsetDateTime ts = (OffsetDateTime) expected;
-            Assert.assertEquals("OffsetDataTime should be equal", ts.toLocalDateTime(),
-                actualRowData.getTimestamp(i, 6).toLocalDateTime());
-          } else {
-            Assert.assertTrue("Should expect a LocalDataTime", expected instanceof LocalDateTime);
-            LocalDateTime ts = (LocalDateTime) expected;
-            Assert.assertEquals("LocalDataTime should be equal", ts,
-                actualRowData.getTimestamp(i, 6).toLocalDateTime());
-          }
-          break;
-        case FIXED:
-          Assert.assertTrue("Should expect byte[]", expected instanceof byte[]);
-          Assert.assertArrayEquals("binary should be equal", (byte[]) expected, actualRowData.getBinary(i));
-          break;
-        case BINARY:
-          Assert.assertTrue("Should expect a ByteBuffer", expected instanceof ByteBuffer);
-          Assert.assertArrayEquals("binary should be equal",
-              ((ByteBuffer) expected).array(), actualRowData.getBinary(i));
-          break;
-        case DECIMAL:
-          Assert.assertTrue("Should expect a BigDecimal", expected instanceof BigDecimal);
-          BigDecimal bd = (BigDecimal) expected;
-          Assert.assertEquals("decimal value should be equal", bd,
-              actualRowData.getDecimal(i, bd.precision(), bd.scale()).toBigDecimal());
-          break;
-        case LIST:
-          Assert.assertTrue("Should expect a Collection", expected instanceof Collection);
-          Collection<?> expectedArray = (Collection<?>) expected;
-          ArrayData actualArray = actualRowData.getArray(i);
-          Assert.assertEquals("array length should be equal", expectedArray.size(), actualArray.size());
-          assertArrayValues(types.get(i).asListType().elementType(), expectedArray, actualArray);
-          break;
-        case MAP:
-          Assert.assertTrue("Should expect a Map", expected instanceof Map);
-          Collection<?> expectedKeyArray = ((Map<?, ?>) expected).keySet();
-          Collection<?> expectedValueArray = ((Map<?, ?>) expected).values();
-          ArrayData actualKeyArray = actualRowData.getMap(i).keyArray();
-          ArrayData actualValueArray = actualRowData.getMap(i).valueArray();
-          Type keyType = types.get(i).asMapType().keyType();
-          Type valueType = types.get(i).asMapType().valueType();
-          Assert.assertEquals("map size should be equal",
-              ((Map<?, ?>) expected).size(), actualRowData.getMap(i).size());
-          assertArrayValues(keyType, expectedKeyArray, actualKeyArray);
-          assertArrayValues(valueType, expectedValueArray, actualValueArray);
-          break;
-        case STRUCT:
-          Assert.assertTrue("Should expect a Record", expected instanceof Record);
-          int numFields = types.get(i).asStructType().fields().size();
-          assertRowData(types.get(i).asStructType(), (Record) expected, actualRowData.getRow(i, numFields));
-          break;
-        case UUID:
-          Assert.assertTrue("Should expect a UUID", expected instanceof UUID);
-          Assert.assertEquals("UUID should be equal", expected.toString(),
-              UUID.nameUUIDFromBytes(actualRowData.getBinary(i)).toString());
-          break;
-        default:
-          throw new IllegalArgumentException("Not a supported type: " + type);
-      }
+      LogicalType logicalType = ((RowType) rowType).getTypeAt(i);
+
+      final int fieldPos = i;
+      assertEquals(types.get(i), logicalType, expected,
+          () -> RowData.createFieldGetter(logicalType, fieldPos).getFieldOrNull(actualRowData));
+    }
+
+  }
+
+  private static void assertEquals(Type type, LogicalType logicalType, Object expected, Supplier<Object> supplier) {
+    switch (type.typeId()) {
+      case BOOLEAN:
+        Assert.assertEquals("boolean value should be equal", expected, supplier.get());
+        break;
+      case INTEGER:
+        Assert.assertEquals("int value should be equal", expected, supplier.get());
+        break;
+      case LONG:
+        Assert.assertEquals("long value should be equal", expected, supplier.get());
+        break;
+      case FLOAT:
+        Assert.assertEquals("float value should be equal", expected, supplier.get());
+        break;
+      case DOUBLE:
+        Assert.assertEquals("double value should be equal", expected, supplier.get());
+        break;
+      case STRING:
+        Assert.assertTrue("Should expect a CharSequence", expected instanceof CharSequence);
+        Assert.assertEquals("string should be equal",
+            String.valueOf(expected), supplier.get().toString());
+        break;
+      case DATE:
+        Assert.assertTrue("Should expect a Date", expected instanceof LocalDate);
+        LocalDate date = ChronoUnit.DAYS.addTo(EPOCH_DAY, (int) supplier.get());
+        Assert.assertEquals("date should be equal", expected, date);
+        break;
+      case TIME:
+        Assert.assertTrue("Should expect a LocalTime", expected instanceof LocalTime);
+        int milliseconds = (int) (((LocalTime) expected).toNanoOfDay() / 1000_000);
+        Assert.assertEquals("time millis should be equal", milliseconds, supplier.get());
+        break;
+      case TIMESTAMP:
+        if (((Types.TimestampType) type.asPrimitiveType()).shouldAdjustToUTC()) {
+          Assert.assertTrue("Should expect a OffsetDataTime", expected instanceof OffsetDateTime);
+          OffsetDateTime ts = (OffsetDateTime) expected;
+          Assert.assertEquals("OffsetDataTime should be equal", ts.toLocalDateTime(),
+              ((TimestampData) supplier.get()).toLocalDateTime());
+        } else {
+          Assert.assertTrue("Should expect a LocalDataTime", expected instanceof LocalDateTime);
+          LocalDateTime ts = (LocalDateTime) expected;
+          Assert.assertEquals("LocalDataTime should be equal", ts,
+              ((TimestampData) supplier.get()).toLocalDateTime());
+        }
+        break;
+      case BINARY:
+        Assert.assertTrue("Should expect a ByteBuffer", expected instanceof ByteBuffer);
+        Assert.assertArrayEquals("binary should be equal", ((ByteBuffer) expected).array(), (byte[]) supplier.get());
+        break;
+      case DECIMAL:
+        Assert.assertTrue("Should expect a BigDecimal", expected instanceof BigDecimal);
+        BigDecimal bd = (BigDecimal) expected;
+        Assert.assertEquals("decimal value should be equal", bd,
+            ((DecimalData) supplier.get()).toBigDecimal());
+        break;
+      case LIST:
+        Assert.assertTrue("Should expect a Collection", expected instanceof Collection);
+        Collection<?> expectedArrayData = (Collection<?>) expected;
+        ArrayData actualArrayData = (ArrayData) supplier.get();
+        LogicalType elementType = ((ArrayType) logicalType).getElementType();
+        Assert.assertEquals("array length should be equal", expectedArrayData.size(), actualArrayData.size());
+        assertArrayValues(type.asListType().elementType(), elementType, expectedArrayData, actualArrayData);
+        break;
+      case MAP:
+        Assert.assertTrue("Should expect a Map", expected instanceof Map);
+        MapData actual = (MapData) supplier.get();
+        Assert.assertEquals("map size should be equal",
+            ((Map<?, ?>) expected).size(), actual.size());
+        Collection<?> expectedKeyArrayData = ((Map<?, ?>) expected).keySet();
+        Collection<?> expectedValueArrayData = ((Map<?, ?>) expected).values();
+        ArrayData actualKeyArrayData = actual.keyArray();
+        ArrayData actualValueArrayData = actual.valueArray();
+        Type keyType = type.asMapType().keyType();
+        Type valueType = type.asMapType().valueType();
+        LogicalType actualKeyType = ((MapType) logicalType).getKeyType();
+        LogicalType actualValueType = ((MapType) logicalType).getValueType();
+        assertArrayValues(keyType, actualKeyType, expectedKeyArrayData, actualKeyArrayData);
+        assertArrayValues(valueType, actualValueType, expectedValueArrayData, actualValueArrayData);
+        break;
+      case STRUCT:
+        Assert.assertTrue("Should expect a Record", expected instanceof Record);
+        assertRowData(type.asStructType(), logicalType, (Record) expected, (RowData) supplier.get());
+        break;
+      case UUID:
+        Assert.assertTrue("Should expect a UUID", expected instanceof UUID);
+        Assert.assertEquals("UUID should be equal", expected.toString(),
+            UUID.nameUUIDFromBytes((byte[]) supplier.get()).toString());
+        break;
+      case FIXED:
+        Assert.assertTrue("Should expect byte[]", expected instanceof byte[]);
+        Assert.assertArrayEquals("binary should be equal", (byte[]) expected, (byte[]) supplier.get());
+        break;
+      default:
+        throw new IllegalArgumentException("Not a supported type: " + type);
     }
   }
 
-  private static void assertArrayValues(Type type, Collection<?> expectedArray, ArrayData actualArray) {
+  private static void assertArrayValues(Type type, LogicalType logicalType, Collection<?> expectedArray,
+                                        ArrayData actualArray) {
     List<?> expectedElements = Lists.newArrayList(expectedArray);
     for (int i = 0; i < expectedArray.size(); i += 1) {
       if (expectedElements.get(i) == null) {
@@ -172,98 +191,9 @@ public class TestHelpers {
 
       Object expected = expectedElements.get(i);
 
-      switch (type.typeId()) {
-        case BOOLEAN:
-          Assert.assertEquals("boolean value should be equal", expected, actualArray.getBoolean(i));
-          break;
-        case INTEGER:
-          Assert.assertEquals("int value should be equal", expected, actualArray.getInt(i));
-          break;
-        case LONG:
-          Assert.assertEquals("long value should be equal", expected, actualArray.getLong(i));
-          break;
-        case FLOAT:
-          Assert.assertEquals("float value should be equal", expected, actualArray.getFloat(i));
-          break;
-        case DOUBLE:
-          Assert.assertEquals("double value should be equal", expected, actualArray.getDouble(i));
-          break;
-        case STRING:
-          Assert.assertTrue("Should expect a CharSequence", expected instanceof CharSequence);
-          Assert.assertEquals("string should be equal",
-              String.valueOf(expected), actualArray.getString(i).toString());
-          break;
-        case DATE:
-          Assert.assertTrue("Should expect a Date", expected instanceof LocalDate);
-          LocalDate date = ChronoUnit.DAYS.addTo(EPOCH_DAY, actualArray.getInt(i));
-          Assert.assertEquals("date should be equal", expected, date);
-          break;
-        case TIME:
-          Assert.assertTrue("Should expect a LocalTime", expected instanceof LocalTime);
-          int milliseconds = (int) (((LocalTime) expected).toNanoOfDay() / 1000_000);
-          Assert.assertEquals("time millis should be equal", milliseconds, actualArray.getInt(i));
-          break;
-        case TIMESTAMP:
-          if (((Types.TimestampType) type.asPrimitiveType()).shouldAdjustToUTC()) {
-            Assert.assertTrue("Should expect a OffsetDataTime", expected instanceof OffsetDateTime);
-            OffsetDateTime ts = (OffsetDateTime) expected;
-            Assert.assertEquals("OffsetDataTime should be equal", ts.toLocalDateTime(),
-                actualArray.getTimestamp(i, 6).toLocalDateTime());
-          } else {
-            Assert.assertTrue("Should expect a LocalDataTime", expected instanceof LocalDateTime);
-            LocalDateTime ts = (LocalDateTime) expected;
-            Assert.assertEquals("LocalDataTime should be equal", ts,
-                actualArray.getTimestamp(i, 6).toLocalDateTime());
-          }
-          break;
-        case BINARY:
-          Assert.assertTrue("Should expect a ByteBuffer", expected instanceof ByteBuffer);
-          Assert.assertArrayEquals("binary should be equal",
-              ((ByteBuffer) expected).array(), actualArray.getBinary(i));
-          break;
-        case DECIMAL:
-          Assert.assertTrue("Should expect a BigDecimal", expected instanceof BigDecimal);
-          BigDecimal bd = (BigDecimal) expected;
-          Assert.assertEquals("decimal value should be equal", bd,
-              actualArray.getDecimal(i, bd.precision(), bd.scale()).toBigDecimal());
-          break;
-        case LIST:
-          Assert.assertTrue("Should expect a Collection", expected instanceof Collection);
-          Collection<?> expectedArrayData = (Collection<?>) expected;
-          ArrayData actualArrayData = actualArray.getArray(i);
-          Assert.assertEquals("array length should be equal", expectedArrayData.size(), actualArrayData.size());
-          assertArrayValues(type.asListType().elementType(), expectedArrayData, actualArrayData);
-          break;
-        case MAP:
-          Assert.assertTrue("Should expect a Map", expected instanceof Map);
-          Assert.assertEquals("map size should be equal",
-              ((Map<?, ?>) expected).size(), actualArray.getMap(i).size());
-          Collection<?> expectedKeyArrayData = ((Map<?, ?>) expected).keySet();
-          Collection<?> expectedValueArrayData = ((Map<?, ?>) expected).values();
-          ArrayData actualKeyArrayData = actualArray.getMap(i).keyArray();
-          ArrayData actualValueArrayData = actualArray.getMap(i).valueArray();
-          Type keyType = type.asMapType().keyType();
-          Type valueType = type.asMapType().valueType();
-          assertArrayValues(keyType, expectedKeyArrayData, actualKeyArrayData);
-          assertArrayValues(valueType, expectedValueArrayData, actualValueArrayData);
-          break;
-        case STRUCT:
-          Assert.assertTrue("Should expect a Record", expected instanceof Record);
-          int numFields = type.asStructType().fields().size();
-          assertRowData(type.asStructType(), (Record) expected, actualArray.getRow(i, numFields));
-          break;
-        case UUID:
-          Assert.assertTrue("Should expect a UUID", expected instanceof UUID);
-          Assert.assertEquals("UUID should be equal", expected.toString(),
-              UUID.nameUUIDFromBytes(actualArray.getBinary(i)).toString());
-          break;
-        case FIXED:
-          Assert.assertTrue("Should expect byte[]", expected instanceof byte[]);
-          Assert.assertArrayEquals("binary should be equal", (byte[]) expected, actualArray.getBinary(i));
-          break;
-        default:
-          throw new IllegalArgumentException("Not a supported type: " + type);
-      }
+      final int pos = i;
+      assertEquals(type, logicalType, expected,
+          () -> ArrayData.createElementGetter(logicalType).getElementOrNull(actualArray, pos));
     }
   }
 }
