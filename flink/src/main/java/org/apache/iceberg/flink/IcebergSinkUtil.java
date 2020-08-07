@@ -22,7 +22,7 @@ package org.apache.iceberg.flink;
 import java.util.Locale;
 import java.util.Map;
 import org.apache.flink.table.api.TableSchema;
-import org.apache.flink.types.Row;
+import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -39,7 +39,7 @@ class IcebergSinkUtil {
   private IcebergSinkUtil() {
   }
 
-  static IcebergStreamWriter<Row> createStreamWriter(Table table, TableSchema tableSchema) {
+  static IcebergStreamWriter<RowData> createStreamWriter(Table table, TableSchema tableSchema) {
     Preconditions.checkArgument(table != null, "Iceberg table should't be null");
 
     if (tableSchema != null) {
@@ -53,7 +53,7 @@ class IcebergSinkUtil {
     long targetFileSize = getTargetFileSizeBytes(props);
     FileFormat fileFormat = getFileFormat(props);
 
-    TaskWriterFactory<Row> taskWriterFactory = new RowTaskWriterFactory(table.schema(), table.spec(),
+    TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(table.schema(), table.spec(),
         table.locationProvider(), table.io(), table.encryption(), targetFileSize, fileFormat, props);
 
     return new IcebergStreamWriter<>(table.toString(), taskWriterFactory);

@@ -45,14 +45,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-class RowDataConverter {
+public class RowDataConverter {
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
   private RowDataConverter() {
   }
 
-  static RowData convert(Schema iSchema, Record record) {
+  public static RowData convert(Schema iSchema, Record record) {
     return convert(iSchema.asStruct(), record);
   }
 

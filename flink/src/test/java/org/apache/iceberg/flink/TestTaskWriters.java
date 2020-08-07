@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import org.apache.flink.types.Row;
+import org.apache.flink.table.data.RowData;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -34,7 +34,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.flink.data.RandomData;
+import org.apache.iceberg.flink.data.RandomRowData;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -54,13 +54,12 @@ public class TestTaskWriters {
   @Rule
   public final TemporaryFolder tempFolder = new TemporaryFolder();
 
-  // TODO add AVRO unit test once the RowDataWrapper are ready.
-  // TODO add ORC unit test once the readers and writers are ready.
+  // TODO add ORC/Parquet unit test once the readers and writers are ready.
   @Parameterized.Parameters(name = "format = {0}, partitioned = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] {"parquet", true},
-        new Object[] {"parquet", false}
+        new Object[] {"avro", true},
+        new Object[] {"avro", false}
     };
   }
 
@@ -87,7 +86,7 @@ public class TestTaskWriters {
 
   @Test
   public void testWriteZeroRecord() throws IOException {
-    try (TaskWriter<Row> taskWriter = createTaskWriter(TARGET_FILE_SIZE)) {
+    try (TaskWriter<RowData> taskWriter = createTaskWriter(TARGET_FILE_SIZE)) {
       taskWriter.close();
 
       DataFile[] dataFiles = taskWriter.complete();
@@ -104,9 +103,9 @@ public class TestTaskWriters {
 
   @Test
   public void testCloseTwice() throws IOException {
-    try (TaskWriter<Row> taskWriter = createTaskWriter(TARGET_FILE_SIZE)) {
-      taskWriter.write(Row.of(1, "hello"));
-      taskWriter.write(Row.of(2, "world"));
+    try (TaskWriter<RowData> taskWriter = createTaskWriter(TARGET_FILE_SIZE)) {
+      taskWriter.write(SimpleDataUtil.createRowData(1, "hello"));
+      taskWriter.write(SimpleDataUtil.createRowData(2, "world"));
       taskWriter.close(); // The first close
       taskWriter.close(); // The second close
 
@@ -123,9 +122,9 @@ public class TestTaskWriters {
 
   @Test
   public void testAbort() throws IOException {
-    try (TaskWriter<Row> taskWriter = createTaskWriter(TARGET_FILE_SIZE)) {
-      taskWriter.write(Row.of(1, "hello"));
-      taskWriter.write(Row.of(2, "world"));
+    try (TaskWriter<RowData> taskWriter = createTaskWriter(TARGET_FILE_SIZE)) {
+      taskWriter.write(SimpleDataUtil.createRowData(1, "hello"));
+      taskWriter.write(SimpleDataUtil.createRowData(2, "world"));
 
       taskWriter.abort();
       DataFile[] dataFiles = taskWriter.complete();
@@ -142,11 +141,11 @@ public class TestTaskWriters {
 
   @Test
   public void testCompleteFiles() throws IOException {
-    try (TaskWriter<Row> taskWriter = createTaskWriter(TARGET_FILE_SIZE)) {
-      taskWriter.write(Row.of(1, "a"));
-      taskWriter.write(Row.of(2, "b"));
-      taskWriter.write(Row.of(3, "c"));
-      taskWriter.write(Row.of(4, "d"));
+    try (TaskWriter<RowData> taskWriter = createTaskWriter(TARGET_FILE_SIZE)) {
+      taskWriter.write(SimpleDataUtil.createRowData(1, "a"));
+      taskWriter.write(SimpleDataUtil.createRowData(2, "b"));
+      taskWriter.write(SimpleDataUtil.createRowData(3, "c"));
+      taskWriter.write(SimpleDataUtil.createRowData(4, "d"));
 
       DataFile[] dataFiles = taskWriter.complete();
       int expectedFiles = partitioned ? 4 : 1;
@@ -178,17 +177,17 @@ public class TestTaskWriters {
 
   @Test
   public void testRollingWithTargetFileSize() throws IOException {
-    try (TaskWriter<Row> taskWriter = createTaskWriter(4)) {
-      List<Row> rows = Lists.newArrayListWithCapacity(8000);
+    try (TaskWriter<RowData> taskWriter = createTaskWriter(4)) {
+      List<RowData> rows = Lists.newArrayListWithCapacity(8000);
       List<Record> records = Lists.newArrayListWithCapacity(8000);
       for (int i = 0; i < 2000; i++) {
         for (String data : new String[] {"a", "b", "c", "d"}) {
-          rows.add(Row.of(i, data));
+          rows.add(SimpleDataUtil.createRowData(i, data));
           records.add(SimpleDataUtil.createRecord(i, data));
         }
       }
 
-      for (Row row : rows) {
+      for (RowData row : rows) {
         taskWriter.write(row);
       }
 
@@ -208,9 +207,9 @@ public class TestTaskWriters {
 
   @Test
   public void testRandomData() throws IOException {
-    try (TaskWriter<Row> taskWriter = createTaskWriter(TARGET_FILE_SIZE)) {
-      Iterable<Row> rows = RandomData.generate(SimpleDataUtil.SCHEMA, 100, 1996);
-      for (Row row : rows) {
+    try (TaskWriter<RowData> taskWriter = createTaskWriter(TARGET_FILE_SIZE)) {
+      Iterable<RowData> rows = RandomRowData.generate(SimpleDataUtil.SCHEMA, 100, 1996);
+      for (RowData row : rows) {
         taskWriter.write(row);
       }
 
@@ -227,8 +226,8 @@ public class TestTaskWriters {
     }
   }
 
-  private TaskWriter<Row> createTaskWriter(long targetFileSize) {
-    TaskWriterFactory<Row> taskWriterFactory = new RowTaskWriterFactory(table.schema(), table.spec(),
+  private TaskWriter<RowData> createTaskWriter(long targetFileSize) {
+    TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(table.schema(), table.spec(),
         table.locationProvider(), table.io(), table.encryption(), targetFileSize, format, table.properties());
     taskWriterFactory.initialize(1, 1);
     return taskWriterFactory.create();
