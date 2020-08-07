@@ -136,7 +136,6 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         expectedManifestListsDeleted, results.getManifestListsDeleted());
   }
 
-
   @Test
   public void testFilesCleaned() throws Exception {
     Dataset<Row> df = buildDF(RECORDS);

@@ -21,11 +21,9 @@ package org.apache.iceberg.actions;
 
 import java.util.List;
 import org.apache.iceberg.MetadataTableType;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.TableUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -63,27 +61,12 @@ abstract class BaseAction<R> implements Action<R> {
   }
 
   protected Dataset<Row> buildManifestListDF(SparkSession spark, Table table) {
-    List<String> manifestLists = Lists.newArrayList();
-    for (Snapshot snapshot : table.snapshots()) {
-      String manifestListLocation = snapshot.manifestListLocation();
-      if (manifestListLocation != null) {
-        manifestLists.add(manifestListLocation);
-      }
-    }
-
+    List<String> manifestLists = TableUtil.getManifestListPaths(table);
     return spark.createDataset(manifestLists, Encoders.STRING()).toDF("file_path");
   }
 
   protected Dataset<Row> buildOtherMetadataFileDF(SparkSession spark, TableOperations ops) {
-    List<String> otherMetadataFiles = Lists.newArrayList();
-    otherMetadataFiles.add(ops.metadataFileLocation("version-hint.text"));
-
-    TableMetadata metadata = ops.current();
-    otherMetadataFiles.add(metadata.metadataFileLocation());
-    for (TableMetadata.MetadataLogEntry previousMetadataFile : metadata.previousFiles()) {
-      otherMetadataFiles.add(previousMetadataFile.file());
-    }
-
+    List<String> otherMetadataFiles = TableUtil.getOtherMetadataFilePaths(ops);
     return spark.createDataset(otherMetadataFiles, Encoders.STRING()).toDF("file_path");
   }
 

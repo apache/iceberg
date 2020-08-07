@@ -42,13 +42,13 @@ import org.slf4j.LoggerFactory;
 /**
  * An action which performs the same operation as {@link org.apache.iceberg.ExpireSnapshots} but uses Spark
  * to to determine the delta in files between the pre and post-expiration table metadata. All of the same
- * restrictions apply that apply to Remove Snapshots.
+ * restrictions of Remove Snapshots also apply to this action.
  * <p>
- * This implementation uses the MetadataTables for the table being expired to list all Manifest and DataFiles. This
- * is made into a Dataframe which is antiJoined with the same list read after the expiration. This operation will
- * require a Shuffle so parallelism can be controlled through spark.sql.shuffle.partitions. The expiration is done
- * locally using a direct call to RemoveSnapshots. Deletes are still performed locally after retrieving the results
- * from the SparkExecutors.
+ * This implementation uses the metadata tables for the table being expired to list all Manifest and DataFiles. This
+ * is made into a Dataframe which are anti-joined with the same list read after the expiration. This operation will
+ * require a shuffle so parallelism can be controlled through spark.sql.shuffle.partitions. The expiration is done
+ * locally using a direct call to RemoveSnapshots. The snapshot expiration will be fully committed before any deletes
+ * are issued. Deletes are still performed locally after retrieving the results from the Spark executors.
  */
 public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResult> {
   private static final Logger LOG = LoggerFactory.getLogger(ExpireSnapshotsAction.class);
