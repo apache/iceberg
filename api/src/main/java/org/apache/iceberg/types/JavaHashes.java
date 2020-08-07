@@ -25,6 +25,9 @@ import java.util.function.IntFunction;
 import org.apache.iceberg.StructLike;
 
 public class JavaHashes {
+  private JavaHashes() {
+  }
+
   public static int hashCode(CharSequence str) {
     int result = 177;
     for (int i = 0; i < str.length(); i += 1) {
