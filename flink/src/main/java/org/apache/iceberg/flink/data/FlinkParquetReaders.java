@@ -22,8 +22,6 @@ package org.apache.iceberg.flink.data;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import org.apache.commons.lang3.ArrayUtils;
@@ -187,11 +185,7 @@ class FlinkParquetReaders {
           case INT_64:
             return new ParquetValueReaders.UnboxedReader<>(desc);
           case TIMESTAMP_MICROS:
-            if (((Types.TimestampType) expected).shouldAdjustToUTC()) {
-              return new TimestampTzReader(desc);
-            } else {
-              return new TimestampReader(desc);
-            }
+            return new TimestampMicrosReader(desc);
           case DECIMAL:
             DecimalLogicalTypeAnnotation decimal = (DecimalLogicalTypeAnnotation) primitive.getLogicalTypeAnnotation();
             switch (primitive.getPrimitiveTypeName()) {
@@ -254,6 +248,7 @@ class FlinkParquetReaders {
     public DecimalData read(DecimalData ignored) {
       Binary binary = column.nextBinary();
       BigDecimal bigDecimal = new BigDecimal(new BigInteger(binary.getBytes()), scale);
+      // TODO: need a unit test to write-read-validate decimal via FlinkParquetWrite/Reader
       return DecimalData.fromBigDecimal(bigDecimal, precision, scale);
     }
   }
@@ -290,36 +285,16 @@ class FlinkParquetReaders {
     }
   }
 
-  private static class TimestampTzReader extends ParquetValueReaders.UnboxedReader<TimestampData> {
-    TimestampTzReader(ColumnDescriptor desc) {
+  private static class TimestampMicrosReader extends ParquetValueReaders.UnboxedReader<TimestampData> {
+    TimestampMicrosReader(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
     public TimestampData read(TimestampData ignored) {
-      long value = readLong();
-      return TimestampData.fromLocalDateTime(Instant.ofEpochSecond(Math.floorDiv(value, 1000_000),
-          Math.floorMod(value, 1000_000) * 1000)
-          .atOffset(ZoneOffset.UTC)
-          .toLocalDateTime());
-    }
-
-    @Override
-    public long readLong() {
-      return column.nextLong();
-    }
-  }
-
-  private static class TimestampReader extends ParquetValueReaders.UnboxedReader<TimestampData> {
-    TimestampReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public TimestampData read(TimestampData ignored) {
-      long value = readLong();
-      return TimestampData.fromInstant(Instant.ofEpochSecond(Math.floorDiv(value, 1000_000),
-          Math.floorMod(value, 1000_000) * 1000));
+      long micros = readLong();
+      return TimestampData.fromEpochMillis(Math.floorDiv(micros, 1_000),
+          (int) Math.floorMod(micros, 1_000) * 1_000);
     }
 
     @Override

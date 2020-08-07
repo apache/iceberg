@@ -80,7 +80,6 @@ public class TestHelpers {
       assertEquals(types.get(i), logicalType, expected,
           () -> RowData.createFieldGetter(logicalType, fieldPos).getFieldOrNull(actualRowData));
     }
-
   }
 
   private static void assertEquals(Type type, LogicalType logicalType, Object expected, Supplier<Object> supplier) {
@@ -116,7 +115,7 @@ public class TestHelpers {
         Assert.assertEquals("time millis should be equal", milliseconds, supplier.get());
         break;
       case TIMESTAMP:
-        if (((Types.TimestampType) type.asPrimitiveType()).shouldAdjustToUTC()) {
+        if (((Types.TimestampType) type).shouldAdjustToUTC()) {
           Assert.assertTrue("Should expect a OffsetDataTime", expected instanceof OffsetDateTime);
           OffsetDateTime ts = (OffsetDateTime) expected;
           Assert.assertEquals("OffsetDataTime should be equal", ts.toLocalDateTime(),
