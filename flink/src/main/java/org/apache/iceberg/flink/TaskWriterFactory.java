@@ -19,95 +19,28 @@
 
 package org.apache.iceberg.flink;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.Map;
-import org.apache.flink.types.Row;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.MetricsConfig;
-import org.apache.iceberg.PartitionKey;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.flink.data.FlinkParquetWriters;
-import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.io.FileAppenderFactory;
-import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.OutputFileFactory;
+import java.io.Serializable;
 import org.apache.iceberg.io.TaskWriter;
-import org.apache.iceberg.io.UnpartitionedWriter;
-import org.apache.iceberg.parquet.Parquet;
 
-class TaskWriterFactory {
-  private TaskWriterFactory() {
-  }
+/**
+ * Factory to create {@link TaskWriter}
+ *
+ * @param <T> data type of record.
+ */
+interface TaskWriterFactory<T> extends Serializable {
 
-  static TaskWriter<Row> createTaskWriter(Schema schema,
-                                          PartitionSpec spec,
-                                          FileFormat format,
-                                          FileAppenderFactory<Row> appenderFactory,
-                                          OutputFileFactory fileFactory,
-                                          FileIO io,
-                                          long targetFileSizeBytes) {
-    if (spec.fields().isEmpty()) {
-      return new UnpartitionedWriter<>(spec, format, appenderFactory, fileFactory, io, targetFileSizeBytes);
-    } else {
-      return new RowPartitionedFanoutWriter(spec, format, appenderFactory, fileFactory,
-          io, targetFileSizeBytes, schema);
-    }
-  }
+  /**
+   * Initialize the factory with a given taskId and attemptId.
+   *
+   * @param taskId    the identifier of task.
+   * @param attemptId the attempt id of this task.
+   */
+  void initialize(int taskId, int attemptId);
 
-  private static class RowPartitionedFanoutWriter extends PartitionedFanoutWriter<Row> {
-
-    private final PartitionKey partitionKey;
-    private final RowWrapper rowWrapper;
-
-    RowPartitionedFanoutWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<Row> appenderFactory,
-                               OutputFileFactory fileFactory, FileIO io, long targetFileSize, Schema schema) {
-      super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
-      this.partitionKey = new PartitionKey(spec, schema);
-      this.rowWrapper = new RowWrapper(schema.asStruct());
-    }
-
-    @Override
-    protected PartitionKey partition(Row row) {
-      partitionKey.partition(rowWrapper.wrap(row));
-      return partitionKey;
-    }
-  }
-
-  static class FlinkFileAppenderFactory implements FileAppenderFactory<Row> {
-    private final Schema schema;
-    private final Map<String, String> props;
-
-    FlinkFileAppenderFactory(Schema schema, Map<String, String> props) {
-      this.schema = schema;
-      this.props = props;
-    }
-
-    @Override
-    public FileAppender<Row> newAppender(OutputFile outputFile, FileFormat format) {
-      MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
-      try {
-        switch (format) {
-          case PARQUET:
-            return Parquet.write(outputFile)
-                .createWriterFunc(FlinkParquetWriters::buildWriter)
-                .setAll(props)
-                .metricsConfig(metricsConfig)
-                .schema(schema)
-                .overwrite()
-                .build();
-
-          case AVRO:
-            // TODO add AVRO once the RowDataWrapper are ready.
-          case ORC:
-          default:
-            throw new UnsupportedOperationException("Cannot write unknown file format: " + format);
-        }
-      } catch (IOException e) {
-        throw new UncheckedIOException(e);
-      }
-    }
-  }
+  /**
+   * Initialize a {@link TaskWriter} with given task id and attempt id.
+   *
+   * @return a newly created task writer.
+   */
+  TaskWriter<T> create();
 }
