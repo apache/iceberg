@@ -21,6 +21,7 @@ package org.apache.iceberg.util;
 
 import java.io.Serializable;
 import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.JavaHashes;
 
 /**
  * Wrapper class to adapt CharSequence for use in maps and sets.
@@ -59,12 +60,7 @@ public class CharSequenceWrapper implements CharSequence, Serializable {
 
   @Override
   public int hashCode() {
-    int result = 177;
-    for (int i = 0; i < wrapped.length(); i += 1) {
-      char ch = wrapped.charAt(i);
-      result = 31 * result + (int) ch;
-    }
-    return result;
+    return JavaHashes.hashCode(wrapped);
   }
 
   @Override
