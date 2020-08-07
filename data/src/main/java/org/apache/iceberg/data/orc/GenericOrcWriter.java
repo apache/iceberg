@@ -363,8 +363,10 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
         output.isNull[rowId] = false;
         TimestampColumnVector cv = (TimestampColumnVector) output;
         cv.setIsUTC(true);
-        cv.time[rowId] = data.toInstant(ZoneOffset.UTC).toEpochMilli(); // millis
-        cv.nanos[rowId] = (data.getNano() / 1_000) * 1_000; // truncate nanos to only keep microsecond precision
+        // millis
+        cv.time[rowId] = data.toInstant(ZoneOffset.UTC).toEpochMilli();
+        // truncate nanos to only keep microsecond precision
+        cv.nanos[rowId] = data.getNano() / 1_000 * 1_000;
       }
     }
   }
@@ -578,7 +580,13 @@ public class GenericOrcWriter implements OrcValueWriter<Record> {
       case VARCHAR:
         return new StringConverter();
       case DECIMAL:
-        return schema.getPrecision() <= 18 ? new Decimal18Converter(schema) : new Decimal38Converter(schema);
+        int precision = schema.getPrecision();
+        if (precision <= 18) {
+          return new Decimal18Converter(schema);
+        } else if (precision <= 38) {
+          return new Decimal38Converter(schema);
+        }
+        throw new IllegalArgumentException("Invalid precision: " + precision);
       case TIMESTAMP:
         return new TimestampConverter();
       case TIMESTAMP_INSTANT:

@@ -214,9 +214,9 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
       } else {
         output.isNull[rowId] = false;
         TimestampColumnVector cv = (TimestampColumnVector) output;
-        long micros = data.getLong(column);
-        cv.time[rowId] = micros / 1_000; // millis
-        cv.nanos[rowId] = (int) (micros % 1_000_000) * 1_000; // nanos
+        long micros = data.getLong(column); // it could be negative
+        cv.time[rowId] = Math.floorDiv(micros, 1_000); // millis
+        cv.nanos[rowId] = (int) Math.floorMod(micros, 1_000_000) * 1_000; // nanos
       }
     }
   }
@@ -388,9 +388,13 @@ public class SparkOrcWriter implements OrcValueWriter<InternalRow> {
       case VARCHAR:
         return new StringConverter();
       case DECIMAL:
-        return schema.getPrecision() <= 18 ?
-            new Decimal18Converter(schema) :
-            new Decimal38Converter(schema);
+        int precision = schema.getPrecision();
+        if (precision <= 18) {
+          return new Decimal18Converter(schema);
+        } else if (precision <= 38) {
+          return new Decimal38Converter(schema);
+        }
+        throw new IllegalArgumentException("Invalid precision: " + precision);
       case TIMESTAMP_INSTANT:
         return new TimestampTzConverter();
       case STRUCT:

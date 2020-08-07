@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.orc.OrcValueReader;
 import org.apache.iceberg.orc.OrcValueReaders;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
@@ -53,6 +54,16 @@ class SparkOrcValueReaders {
 
   static OrcValueReader<?> timestampTzs() {
     return TimestampTzReader.INSTANCE;
+  }
+
+  public static OrcValueReader<Decimal> decimals(int precision, int scale) {
+    if (precision <= Decimal.MAX_LONG_DIGITS()) {
+      return new Decimal18Reader(precision, scale);
+    } else if (precision <= 38) {
+      return new Decimal38Reader(precision, scale);
+    } else {
+      throw new IllegalArgumentException("Invalid precision: " + precision);
+    }
   }
 
   static OrcValueReader<?> struct(
@@ -159,13 +170,12 @@ class SparkOrcValueReaders {
 
     @Override
     public Long nonNullRead(ColumnVector vector, int row) {
-      TimestampColumnVector timestampVector = (TimestampColumnVector) vector;
-      return (timestampVector.time[row] / 1000) * 1_000_000 + timestampVector.nanos[row] / 1000;
+      TimestampColumnVector tcv = (TimestampColumnVector) vector;
+      return (Math.floorDiv(tcv.time[row], 1_000)) * 1_000_000 + Math.floorDiv(tcv.nanos[row], 1000);
     }
   }
 
-  static class Decimal18Reader implements OrcValueReader<Decimal> {
-    //TODO: these are being unused. check for bug
+  private static class Decimal18Reader implements OrcValueReader<Decimal> {
     private final int precision;
     private final int scale;
 
@@ -177,7 +187,15 @@ class SparkOrcValueReaders {
     @Override
     public Decimal nonNullRead(ColumnVector vector, int row) {
       HiveDecimalWritable value = ((DecimalColumnVector) vector).vector[row];
-      return new Decimal().set(value.serialize64(value.scale()), value.precision(), value.scale());
+
+      // The scale of decimal read from hive ORC file may be not equals to the expected scale. For data type
+      // decimal(10,3) and the value 10.100, the hive ORC writer will remove its trailing zero and store it
+      // as 101*10^(-1), its scale will adjust from 3 to 1. So here we could not assert that value.scale() == scale.
+      // we also need to convert the hive orc decimal to a decimal with expected precision and scale.
+      Preconditions.checkArgument(value.precision() <= precision,
+          "Cannot read value as decimal(%s,%s), too large: %s", precision, scale, value);
+
+      return new Decimal().set(value.serialize64(scale), precision, scale);
     }
   }
 
@@ -194,6 +212,10 @@ class SparkOrcValueReaders {
     public Decimal nonNullRead(ColumnVector vector, int row) {
       BigDecimal value = ((DecimalColumnVector) vector).vector[row]
           .getHiveDecimal().bigDecimalValue();
+
+      Preconditions.checkArgument(value.precision() <= precision,
+          "Cannot read value as decimal(%s,%s), too large: %s", precision, scale, value);
+
       return new Decimal().set(new scala.math.BigDecimal(value), precision, scale);
     }
   }

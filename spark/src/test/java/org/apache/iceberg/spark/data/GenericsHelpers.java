@@ -237,7 +237,7 @@ public class GenericsHelpers {
         break;
       case DATE:
         Assert.assertTrue("Should expect a LocalDate", expected instanceof LocalDate);
-        long expectedDays = ChronoUnit.DAYS.between(EPOCH_DAY, (LocalDate) expected);
+        int expectedDays = (int) ChronoUnit.DAYS.between(EPOCH_DAY, (LocalDate) expected);
         Assert.assertEquals("Primitive value should be equal to expected", expectedDays, actual);
         break;
       case TIMESTAMP:
