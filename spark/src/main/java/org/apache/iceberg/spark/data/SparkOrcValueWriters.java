@@ -183,9 +183,9 @@ class SparkOrcValueWriters {
     @Override
     public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
       TimestampColumnVector cv = (TimestampColumnVector) output;
-      long micros = data.getLong(column);
-      cv.time[rowId] = micros / 1_000; // millis
-      cv.nanos[rowId] = (int) (micros % 1_000_000) * 1_000; // nanos
+      long micros = data.getLong(column); // it could be negative.
+      cv.time[rowId] = Math.floorDiv(micros, 1_000); // millis
+      cv.nanos[rowId] = (int) (Math.floorMod(micros, 1_000_000)) * 1_000; // nanos
     }
   }
 
