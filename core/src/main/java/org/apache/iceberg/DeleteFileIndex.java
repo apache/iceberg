@@ -40,12 +40,14 @@ import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.ListMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.apache.iceberg.util.Tasks;
@@ -53,31 +55,45 @@ import org.apache.iceberg.util.Tasks;
 /**
  * An index of {@link DeleteFile delete files} by sequence number.
  * <p>
- * Use {@link #builderFor(FileIO, Iterable)} to construct an index, and {@link #forDataFile(int, long, DataFile)} or
- * {@link #forEntry(int, ManifestEntry)} to get the the delete files to apply to a given data file.
+ * Use {@link #builderFor(FileIO, Iterable)} to construct an index, and {@link #forDataFile(long, DataFile)} or
+ * {@link #forEntry(ManifestEntry)} to get the the delete files to apply to a given data file.
  */
 class DeleteFileIndex {
   private static final DeleteFile[] NO_DELETE_FILES = new DeleteFile[0];
 
+  private final Map<Integer, Types.StructType> partitionTypeById;
+  private final Map<Integer, ThreadLocal<StructLikeWrapper>> wrapperById;
   private final long[] globalSeqs;
   private final DeleteFile[] globalDeletes;
   private final Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> sortedDeletesByPartition;
-  private final ThreadLocal<StructLikeWrapper> lookupWrapper = ThreadLocal.withInitial(
-      () -> StructLikeWrapper.wrap(null));
 
-  DeleteFileIndex(long[] globalSeqs, DeleteFile[] globalDeletes,
+  DeleteFileIndex(Map<Integer, PartitionSpec> specsById, long[] globalSeqs, DeleteFile[] globalDeletes,
                   Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> sortedDeletesByPartition) {
+    ImmutableMap.Builder<Integer, Types.StructType> builder = ImmutableMap.builder();
+    specsById.forEach((specId, spec) -> builder.put(specId, spec.partitionType()));
+    this.partitionTypeById = builder.build();
+    this.wrapperById = Maps.newHashMap();
     this.globalSeqs = globalSeqs;
     this.globalDeletes = globalDeletes;
     this.sortedDeletesByPartition = sortedDeletesByPartition;
   }
 
-  DeleteFile[] forEntry(int specId, ManifestEntry<DataFile> entry) {
-    return forDataFile(specId, entry.sequenceNumber(), entry.file());
+  private StructLikeWrapper newWrapper(int specId) {
+    return StructLikeWrapper.forType(partitionTypeById.get(specId));
   }
 
-  DeleteFile[] forDataFile(int specId, long sequenceNumber, DataFile file) {
-    Pair<Integer, StructLikeWrapper> partition = Pair.of(specId, lookupWrapper.get().set(file.partition()));
+  private Pair<Integer, StructLikeWrapper> partition(int specId, StructLike struct) {
+    ThreadLocal<StructLikeWrapper> wrapper = wrapperById.computeIfAbsent(specId,
+        id -> ThreadLocal.withInitial(() -> newWrapper(id)));
+    return Pair.of(specId, wrapper.get().set(struct));
+  }
+
+  DeleteFile[] forEntry(ManifestEntry<DataFile> entry) {
+    return forDataFile(entry.sequenceNumber(), entry.file());
+  }
+
+  DeleteFile[] forDataFile(long sequenceNumber, DataFile file) {
+    Pair<Integer, StructLikeWrapper> partition = partition(file.specId(), file.partition());
     Pair<long[], DeleteFile[]> partitionDeletes = sortedDeletesByPartition.get(partition);
 
     if (partitionDeletes == null) {
@@ -164,15 +180,15 @@ class DeleteFileIndex {
 
     DeleteFileIndex build() {
       // read all of the matching delete manifests in parallel and accumulate the matching files in a queue
-      Queue<Pair<Integer, ManifestEntry<DeleteFile>>> deleteEntries = new ConcurrentLinkedQueue<>();
+      Queue<ManifestEntry<DeleteFile>> deleteEntries = new ConcurrentLinkedQueue<>();
       Tasks.foreach(deleteManifestReaders())
           .stopOnFailure().throwFailureWhenFinished()
           .executeWith(executorService)
-          .run(specIdAndReader -> {
-            try (CloseableIterable<ManifestEntry<DeleteFile>> reader = specIdAndReader.second()) {
+          .run(deleteFile -> {
+            try (CloseableIterable<ManifestEntry<DeleteFile>> reader = deleteFile) {
               for (ManifestEntry<DeleteFile> entry : reader) {
                 // copy with stats for better filtering against data file stats
-                deleteEntries.add(Pair.of(specIdAndReader.first(), entry.copy()));
+                deleteEntries.add(entry.copy());
               }
             } catch (IOException e) {
               throw new RuntimeIOException("Failed to close", e);
@@ -182,10 +198,11 @@ class DeleteFileIndex {
       // build a map from (specId, partition) to delete file entries
       ListMultimap<Pair<Integer, StructLikeWrapper>, ManifestEntry<DeleteFile>> deleteFilesByPartition =
           Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
-      for (Pair<Integer, ManifestEntry<DeleteFile>> specIdAndEntry : deleteEntries) {
-        int specId = specIdAndEntry.first();
-        ManifestEntry<DeleteFile> entry = specIdAndEntry.second();
-        deleteFilesByPartition.put(Pair.of(specId, StructLikeWrapper.wrap(entry.file().partition())), entry);
+      for (ManifestEntry<DeleteFile> entry : deleteEntries) {
+        int specId = entry.file().specId();
+        StructLikeWrapper wrapper = StructLikeWrapper.forType(specsById.get(specId).partitionType())
+            .set(entry.file().partition());
+        deleteFilesByPartition.put(Pair.of(specId, wrapper), entry);
       }
 
       // sort the entries in each map value by sequence number and split into sequence numbers and delete files lists
@@ -237,10 +254,10 @@ class DeleteFileIndex {
         }
       }
 
-      return new DeleteFileIndex(globalApplySeqs, globalDeletes, sortedDeletesByPartition);
+      return new DeleteFileIndex(specsById, globalApplySeqs, globalDeletes, sortedDeletesByPartition);
     }
 
-    private Iterable<Pair<Integer, CloseableIterable<ManifestEntry<DeleteFile>>>> deleteManifestReaders() {
+    private Iterable<CloseableIterable<ManifestEntry<DeleteFile>>> deleteManifestReaders() {
       LoadingCache<Integer, ManifestEvaluator> evalCache = specsById == null ? null :
           Caffeine.newBuilder().build(specId -> {
             PartitionSpec spec = specsById.get(specId);
@@ -257,13 +274,12 @@ class DeleteFileIndex {
 
       return Iterables.transform(
           matchingManifests,
-          manifest -> Pair.of(
-              manifest.partitionSpecId(),
+          manifest ->
               ManifestFiles.readDeleteManifest(manifest, io, specsById)
                   .filterRows(dataFilter)
                   .filterPartitions(partitionFilter)
                   .caseSensitive(caseSensitive)
-                  .liveEntries())
+                  .liveEntries()
       );
     }
   }

@@ -21,6 +21,7 @@ package org.apache.iceberg.util;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
@@ -103,6 +104,36 @@ public class ManifestFileUtil {
       return true;
     }
 
+    List<FieldSummary<?>> summaries = summaries(manifest, specLookup);
+
+    for (StructLike partition : partitions) {
+      if (canContain(summaries, partition)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  public static boolean canContainAny(ManifestFile manifest,
+                                      Iterable<Pair<Integer, StructLike>> partitions,
+                                      Map<Integer, PartitionSpec> specsById) {
+    if (manifest.partitions() == null) {
+      return true;
+    }
+
+    List<FieldSummary<?>> summaries = summaries(manifest, specsById::get);
+
+    for (Pair<Integer, StructLike> partition : partitions) {
+      if (partition.first() == manifest.partitionSpecId() && canContain(summaries, partition.second())) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private static List<FieldSummary<?>> summaries(ManifestFile manifest, Function<Integer, PartitionSpec> specLookup) {
     Types.StructType partitionType = specLookup.apply(manifest.partitionSpecId()).partitionType();
     List<ManifestFile.PartitionFieldSummary> fieldSummaries = manifest.partitions();
     List<Types.NestedField> fields = partitionType.fields();
@@ -113,12 +144,6 @@ public class ManifestFileUtil {
       summaries.add(new FieldSummary<>(primitive, fieldSummaries.get(pos)));
     }
 
-    for (StructLike partition : partitions) {
-      if (canContain(summaries, partition)) {
-        return true;
-      }
-    }
-
-    return false;
+    return summaries;
   }
 }
