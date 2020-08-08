@@ -186,8 +186,7 @@ public class TestMergeAppend extends TableTestBase {
   public void testMergeWithExistingManifest() {
     // merge all manifests for this test
     table.updateProperties().set("commit.manifest.min-count-to-merge", "1").commit();
-    V1Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
-    V2Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
+    Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
 
     table.newAppend()
@@ -218,7 +217,7 @@ public class TestMergeAppend extends TableTestBase {
         .appendFile(FILE_D)
         .commit();
     V1Assert.assertEquals("Last sequence number should be 0", 0, table.ops().current().lastSequenceNumber());
-    V2Assert.assertEquals("Last sequence number should be 1", 2, table.ops().current().lastSequenceNumber());
+    V2Assert.assertEquals("Last sequence number should be 2", 2, table.ops().current().lastSequenceNumber());
 
     Snapshot committedAfter = table.currentSnapshot();
 
@@ -408,8 +407,7 @@ public class TestMergeAppend extends TableTestBase {
 
     TableMetadata base = readMetadata();
     Assert.assertNull("Should not have a current snapshot", base.currentSnapshot());
-    V1Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
-    V2Assert.assertEquals("Last sequence number should be 0", 0, readMetadata().lastSequenceNumber());
+    Assert.assertEquals("Last sequence number should be 0", 0, base.lastSequenceNumber());
 
     ManifestFile manifest = writeManifest(FILE_A, FILE_B);
     ManifestFile manifest2 = writeManifestWithName("FILE_C", FILE_C);
