@@ -24,11 +24,11 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.junit.Assert;
 
-public final class SerializationCheckHelper {
-  private SerializationCheckHelper() {
+public final class TaskCheckHelper {
+  private TaskCheckHelper() {
   }
 
-  public static void checkBaseCombinedScanTask(BaseCombinedScanTask expected, BaseCombinedScanTask actual) {
+  public static void assertEquals(BaseCombinedScanTask expected, BaseCombinedScanTask actual) {
     List<FileScanTask> expectedTasks = getFileScanTasksInFilePathOrder(expected);
     List<FileScanTask> actualTasks = getFileScanTasksInFilePathOrder(actual);
 
@@ -38,19 +38,12 @@ public final class SerializationCheckHelper {
     for (int i = 0; i < expectedTasks.size(); i++) {
       FileScanTask expectedTask = expectedTasks.get(i);
       FileScanTask actualTask = actualTasks.get(i);
-      checkFileScanTask(expectedTask, actualTask);
+      assertEquals(expectedTask, actualTask);
     }
   }
 
-  private static List<FileScanTask> getFileScanTasksInFilePathOrder(BaseCombinedScanTask task) {
-    return task.files().stream()
-        // use file path + start position to differentiate the tasks
-        .sorted(Comparator.comparing(o -> o.file().path().toString() + "##" + o.start()))
-        .collect(Collectors.toList());
-  }
-
-  public static void checkFileScanTask(FileScanTask expected, FileScanTask actual) {
-    checkDataFile(expected.file(), actual.file());
+  public static void assertEquals(FileScanTask expected, FileScanTask actual) {
+    assertEquals(expected.file(), actual.file());
 
     // PartitionSpec implements its own equals method
     Assert.assertEquals("PartitionSpec doesn't match", expected.spec(), actual.spec());
@@ -64,7 +57,7 @@ public final class SerializationCheckHelper {
         expected.residual().toString(), actual.residual().toString());
   }
 
-  public static void checkDataFile(DataFile expected, DataFile actual) {
+  public static void assertEquals(DataFile expected, DataFile actual) {
     Assert.assertEquals("Should match the serialized record path",
         expected.path(), actual.path());
     Assert.assertEquals("Should match the serialized record format",
@@ -89,5 +82,12 @@ public final class SerializationCheckHelper {
         expected.splitOffsets(), actual.splitOffsets());
     Assert.assertEquals("Should match the serialized record offsets",
         expected.keyMetadata(), actual.keyMetadata());
+  }
+
+  private static List<FileScanTask> getFileScanTasksInFilePathOrder(BaseCombinedScanTask task) {
+    return task.files().stream()
+        // use file path + start position to differentiate the tasks
+        .sorted(Comparator.comparing(o -> o.file().path().toString() + "##" + o.start()))
+        .collect(Collectors.toList());
   }
 }

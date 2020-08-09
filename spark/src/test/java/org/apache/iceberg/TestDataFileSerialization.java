@@ -50,7 +50,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.SerializationCheckHelper.checkDataFile;
+import static org.apache.iceberg.TaskCheckHelper.assertEquals;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -108,7 +108,7 @@ public class TestDataFileSerialization {
       for (int i = 0; i < 2; i += 1) {
         Object obj = kryo.readClassAndObject(in);
         Assert.assertTrue("Should be a DataFile", obj instanceof DataFile);
-        checkDataFile(DATA_FILE, (DataFile) obj);
+        assertEquals(DATA_FILE, (DataFile) obj);
       }
     }
   }
@@ -125,7 +125,7 @@ public class TestDataFileSerialization {
       for (int i = 0; i < 2; i += 1) {
         Object obj = in.readObject();
         Assert.assertTrue("Should be a DataFile", obj instanceof DataFile);
-        checkDataFile(DATA_FILE, (DataFile) obj);
+        assertEquals(DATA_FILE, (DataFile) obj);
       }
     }
   }

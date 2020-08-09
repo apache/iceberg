@@ -49,7 +49,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.SerializationCheckHelper.checkBaseCombinedScanTask;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public abstract class TestScanTaskSerialization extends SparkTestBase {
@@ -87,7 +86,7 @@ public abstract class TestScanTaskSerialization extends SparkTestBase {
     try (Input in = new Input(new FileInputStream(data))) {
       Object obj = kryo.readClassAndObject(in);
       Assert.assertTrue("Should be a BaseCombinedScanTask", obj instanceof BaseCombinedScanTask);
-      checkBaseCombinedScanTask(scanTask, (BaseCombinedScanTask) obj);
+      TaskCheckHelper.assertEquals(scanTask, (BaseCombinedScanTask) obj);
     }
   }
 
@@ -103,7 +102,7 @@ public abstract class TestScanTaskSerialization extends SparkTestBase {
     try (ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
       Object obj = in.readObject();
       Assert.assertTrue("Should be a BaseCombinedScanTask", obj instanceof BaseCombinedScanTask);
-      checkBaseCombinedScanTask(scanTask, (BaseCombinedScanTask) obj);
+      TaskCheckHelper.assertEquals(scanTask, (BaseCombinedScanTask) obj);
     }
   }
 
