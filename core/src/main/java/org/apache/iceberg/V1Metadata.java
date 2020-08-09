@@ -65,6 +65,41 @@ class V1Metadata {
     }
 
     @Override
+    public Object get(int pos) {
+      switch (pos) {
+        case 0:
+          return path();
+        case 1:
+          return length();
+        case 2:
+          return partitionSpecId();
+        case 3:
+          return snapshotId();
+        case 4:
+          return addedFilesCount();
+        case 5:
+          return existingFilesCount();
+        case 6:
+          return deletedFilesCount();
+        case 7:
+          return partitions();
+        case 8:
+          return addedRowsCount();
+        case 9:
+          return existingRowsCount();
+        case 10:
+          return deletedRowsCount();
+        default:
+          throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+      }
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(get(pos));
+    }
+
+    @Override
     public String path() {
       return wrapped.path();
     }
@@ -150,43 +185,19 @@ class V1Metadata {
     }
 
     @Override
-    public ManifestFile copy() {
-      return wrapped.copy();
+    public IndexedManifestFile copy() {
+      return (IndexedManifestFile) wrapped.copy();
     }
 
     @Override
-    public <T> T get(int pos, Class<T> javaClass) {
-      return javaClass.cast(get(pos));
-    }
+    public Record copy(Map<String, Object> overwriteValues) {
+      IndexedManifestFile record = this.copy();
 
-    @Override
-    public Object get(int pos) {
-      switch (pos) {
-        case 0:
-          return path();
-        case 1:
-          return length();
-        case 2:
-          return partitionSpecId();
-        case 3:
-          return snapshotId();
-        case 4:
-          return addedFilesCount();
-        case 5:
-          return existingFilesCount();
-        case 6:
-          return deletedFilesCount();
-        case 7:
-          return partitions();
-        case 8:
-          return addedRowsCount();
-        case 9:
-          return existingRowsCount();
-        case 10:
-          return deletedRowsCount();
-        default:
-          throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+      for (Map.Entry<String, Object> entry : overwriteValues.entrySet()) {
+        setField(entry.getKey(), entry.getValue());
       }
+
+      return record;
     }
 
     @Override
@@ -208,25 +219,6 @@ class V1Metadata {
     @Override
     public void setField(String name, Object value) {
       throw new UnsupportedOperationException("Cannot read using Record");
-    }
-
-    @Override
-    public Record copyRecord() {
-      IndexedManifestFile record = new IndexedManifestFile();
-      record.wrap(wrapped);
-      return record;
-    }
-
-    @Override
-    public Record copyRecord(Map<String, Object> overwriteValues) {
-      IndexedManifestFile record = new IndexedManifestFile();
-      record.wrap(wrapped);
-
-      for (Map.Entry<String, Object> entry : overwriteValues.entrySet()) {
-        setField(entry.getKey(), entry.getValue());
-      }
-
-      return record;
     }
 
     @Override

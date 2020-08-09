@@ -163,18 +163,18 @@ public class GenericPartitionFieldSummary
     int pos = nameToProjectedPos.get(name);
     set(pos, value);
   }
+
   @Override
-  public Record copyRecord() {
+  public Record copy(Map<String, Object> overwriteValues) {
     return null;
   }
 
   @Override
-  public Record copyRecord(Map<String, Object> overwriteValues) {
-    return null;
+  public GenericPartitionFieldSummary copy() {
+    return new GenericPartitionFieldSummary(this);
   }
 
   @Override
-  @SuppressWarnings("unchecked")
   public <T> void set(int i, T value) {
     int pos = i;
     // if the schema was projected, map the incoming ordinal to the expected one
@@ -194,11 +194,6 @@ public class GenericPartitionFieldSummary
       default:
         // ignore the object, it must be from a newer version of the format
     }
-  }
-
-  @Override
-  public PartitionFieldSummary copy() {
-    return new GenericPartitionFieldSummary(this);
   }
 
   @Override

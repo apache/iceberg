@@ -32,7 +32,7 @@ public interface Record extends StructLike {
 
   Object get(int pos);
 
-  Record copyRecord();
+  Record copy();
 
-  Record copyRecord(Map<String, Object> overwriteValues);
+  Record copy(Map<String, Object> overwriteValues);
 }

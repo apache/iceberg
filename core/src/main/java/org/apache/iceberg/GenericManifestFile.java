@@ -363,8 +363,13 @@ public class GenericManifestFile
   }
 
   @Override
-  public ManifestFile copy() {
+  public GenericManifestFile copy() {
     return new GenericManifestFile(this);
+  }
+
+  @Override
+  public Record copy(Map<String, Object> overwriteValues) {
+    return new GenericManifestFile(this, overwriteValues);
   }
 
   @Override
@@ -383,15 +388,6 @@ public class GenericManifestFile
     set(pos, value);
   }
 
-  @Override
-  public Record copyRecord() {
-    return new GenericManifestFile(this);
-  }
-
-  @Override
-  public Record copyRecord(Map<String, Object> overwriteValues) {
-    return new GenericManifestFile(this, overwriteValues);
-  }
 
   @Override
   public boolean equals(Object other) {
