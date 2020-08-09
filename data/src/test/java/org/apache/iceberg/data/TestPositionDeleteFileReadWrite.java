@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.source;
+package org.apache.iceberg.data;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,19 +32,15 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.avro.DataWriter;
+import org.apache.iceberg.data.orc.GenericOrcWriter;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.spark.data.RandomData;
-import org.apache.iceberg.spark.data.SparkAvroWriter;
-import org.apache.iceberg.spark.data.SparkOrcWriter;
-import org.apache.iceberg.spark.data.SparkParquetWriters;
-import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -82,32 +78,32 @@ public class TestPositionDeleteFileReadWrite {
 
   @Test
   public void writeAndValidate() throws IOException {
-    Iterable<InternalRow> expected = RandomData.generateSpark(SCHEMA, 100, 0L);
+    Iterable<Record> expected = RandomGenericData.generate(SCHEMA, 100, 1991L);
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
     switch (format) {
       case PARQUET:
-        try (FileAppender<InternalRow> writer = Parquet.write(Files.localOutput(testFile))
+        try (FileAppender<Record> writer = Parquet.write(Files.localOutput(testFile))
             .schema(SCHEMA)
             .named("test")
-            .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(SCHEMA), msgType))
+            .createWriterFunc(GenericParquetWriter::buildWriter)
             .build()) {
           writer.addAll(expected);
         }
         break;
       case AVRO:
-        try (FileAppender<InternalRow> writer = Avro.write(Files.localOutput(testFile))
+        try (FileAppender<Record> writer = Avro.write(Files.localOutput(testFile))
             .schema(SCHEMA)
-            .createWriterFunc(ignored -> new SparkAvroWriter(SparkSchemaUtil.convert(SCHEMA)))
+            .createWriterFunc(DataWriter::create)
             .named("test")
             .build()) {
           writer.addAll(expected);
         }
         break;
       case ORC:
-        try (FileAppender<InternalRow> writer = ORC.write(Files.localOutput(testFile))
-            .createWriterFunc(SparkOrcWriter::new)
+        try (FileAppender<Record> writer = ORC.write(Files.localOutput(testFile))
             .schema(SCHEMA)
+            .createWriterFunc(GenericOrcWriter::buildWriter)
             .build()) {
           writer.addAll(expected);
         }
@@ -126,12 +122,14 @@ public class TestPositionDeleteFileReadWrite {
         .withFileSizeInBytes(testFile.length())
         .build();
 
-    PositionDeleteFileReader reader = new PositionDeleteFileReader(inputFile, format);
-    Iterator<InternalRow> rows = reader.open(0, file.fileSizeInBytes()).iterator();
+    PositionDeletesReader reader = new PositionDeletesReader(inputFile, format);
+    Iterator<Record> records = reader.open(0, file.fileSizeInBytes()).iterator();
 
-    for (InternalRow row : expected) {
-      Assert.assertTrue("Should have expected number of rows", rows.hasNext());
-      TestHelpers.assertEquals(SCHEMA, row, rows.next());
+    for (Record row : expected) {
+      Assert.assertTrue("Should have expected number of rows", records.hasNext());
+      Record actual = records.next();
+      Assert.assertEquals("file path should be equal", row.get(0), actual.get(0));
+      Assert.assertEquals("row position should be equal", row.get(1), actual.get(1));
     }
   }
 }

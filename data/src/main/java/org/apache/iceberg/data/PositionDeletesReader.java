@@ -17,44 +17,44 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.source;
+package org.apache.iceberg.data;
 
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.orc.GenericOrcReader;
+import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.spark.data.SparkAvroReader;
-import org.apache.iceberg.spark.data.SparkOrcReader;
-import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.sql.catalyst.InternalRow;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-class PositionDeleteFileReader {
+class PositionDeletesReader {
   private final InputFile inputFile;
   private final FileFormat format;
 
+  // TODO: use static schema definition
   private static final Schema deleteSchema = new Schema(
       required(1, "file_path", Types.StringType.get()),
       required(2, "position", Types.LongType.get())
   );
 
-  PositionDeleteFileReader(InputFile inputFile, FileFormat format) {
+  PositionDeletesReader(InputFile inputFile, FileFormat format) {
     this.inputFile = inputFile;
     this.format = format;
   }
 
-  public CloseableIterable<InternalRow> open(long start, long length) {
+  public CloseableIterable<Record> open(long start, long length) {
     switch (format) {
       case PARQUET:
         return Parquet.read(inputFile)
             .project(deleteSchema)
             .split(start, length)
-            .createReaderFunc(fileSchema -> SparkParquetReaders.buildReader(deleteSchema, fileSchema))
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(deleteSchema, fileSchema))
             .build();
 
       case AVRO:
@@ -62,14 +62,14 @@ class PositionDeleteFileReader {
             .reuseContainers()
             .project(deleteSchema)
             .split(start, length)
-            .createReaderFunc(SparkAvroReader::new)
+            .createReaderFunc(avroSchema -> DataReader.create(deleteSchema, avroSchema))
             .build();
 
       case ORC:
         return ORC.read(inputFile)
             .project(deleteSchema)
             .split(start, length)
-            .createReaderFunc(readOrcSchema -> new SparkOrcReader(deleteSchema, readOrcSchema))
+            .createReaderFunc(readOrcSchema -> GenericOrcReader.buildReader(deleteSchema, readOrcSchema))
             .build();
 
       default:

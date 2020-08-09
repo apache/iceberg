@@ -595,7 +595,7 @@ public class TestHelpers {
     }
   }
 
-  public static void assertEquals(Schema schema, Object expected, Object actual) {
+  static void assertEquals(Schema schema, Object expected, Object actual) {
     assertEquals("schema", convert(schema), expected, actual);
   }
 
