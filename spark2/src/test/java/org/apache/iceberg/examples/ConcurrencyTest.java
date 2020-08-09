@@ -67,7 +67,7 @@ public class ConcurrencyTest {
     spark = SparkSession.builder().master("local[2]").getOrCreate();
     spark.sparkContext().setLogLevel("WARN");
 
-    HadoopTables tables = new HadoopTables(spark.sparkContext().hadoopConfiguration());
+    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
     table = tables.create(schema, tableLocation.toString());
 
     for (int i = 0; i < 1000000; i++) {

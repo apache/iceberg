@@ -67,7 +67,7 @@ public class SchemaEvolutionTest {
         .year("published")
         .build();
 
-    HadoopTables tables = new HadoopTables(spark.sparkContext().hadoopConfiguration());
+    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
     table = tables.create(schema, spec, tableLocation.toString());
 
     Dataset<Row> df = spark.read().json(dataLocation + "/books.json");
@@ -144,7 +144,7 @@ public class SchemaEvolutionTest {
     // Set up a new table to test this conversion
     Schema schema = new Schema(optional(1, "float", Types.FloatType.get()));
     File location = Files.createTempDirectory("temp").toFile();
-    HadoopTables tables = new HadoopTables(spark.sparkContext().hadoopConfiguration());
+    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
     Table floatTable = tables.create(schema, location.toString());
 
     floatTable.updateSchema().updateColumn("float", Types.DoubleType.get()).commit();
