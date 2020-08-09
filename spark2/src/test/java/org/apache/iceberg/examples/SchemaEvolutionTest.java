@@ -157,7 +157,7 @@ public class SchemaEvolutionTest {
     // Set up a new table to test this conversion
     Schema schema = new Schema(optional(1, "decimal", Types.DecimalType.of(2, 2)));
     File location = Files.createTempDirectory("temp").toFile();
-    HadoopTables tables = new HadoopTables(spark.sparkContext().hadoopConfiguration());
+    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
     Table decimalTable = tables.create(schema, location.toString());
 
     decimalTable.updateSchema().updateColumn("decimal", Types.DecimalType.of(4, 2)).commit();
