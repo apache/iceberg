@@ -90,6 +90,12 @@ public final class Catalogs {
     if (catalogName != null) {
       switch (catalogName.toLowerCase()) {
         case HADOOP:
+          String warehouseLocation = conf.get(InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION);
+
+          if (warehouseLocation != null) {
+            return Optional.of(new HadoopCatalog(conf, warehouseLocation));
+          }
+
           return Optional.of(new HadoopCatalog(conf));
         case HIVE:
           return Optional.of(HiveCatalogs.loadCatalog(conf));
