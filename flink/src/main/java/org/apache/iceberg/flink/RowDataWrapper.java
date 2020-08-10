@@ -101,7 +101,8 @@ class RowDataWrapper implements StructLike {
         return (row, pos) -> row.getDecimal(pos, decimalType.getPrecision(), decimalType.getScale()).toBigDecimal();
 
       case TIME:
-        return (row, pos) -> (long) row.getInt(pos);
+        // Time in RowData is in milliseconds (Integer), while iceberg's time is microseconds (Long).
+        return (row, pos) -> ((long) row.getInt(pos)) * 1_000;
 
       case TIMESTAMP:
         switch (logicalType.getTypeRoot()) {
@@ -116,7 +117,7 @@ class RowDataWrapper implements StructLike {
             LocalZonedTimestampType lzTs = (LocalZonedTimestampType) logicalType;
             return (row, pos) -> {
               TimestampData timestampData = row.getTimestamp(pos, lzTs.getPrecision());
-              return timestampData.getMillisecond() * 1000 + Math.floorDiv(timestampData.getNanoOfMillisecond(), 1000);
+              return timestampData.getMillisecond() * 1000 + timestampData.getNanoOfMillisecond() / 1000;
             };
 
           default:

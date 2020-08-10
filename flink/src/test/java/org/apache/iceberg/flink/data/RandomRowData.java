@@ -170,8 +170,9 @@ public class RandomRowData {
           BigDecimal decimal = (BigDecimal) obj;
           return DecimalData.fromBigDecimal(decimal, decimal.precision(), decimal.scale());
         case TIME:
-          long value = (long) obj;
-          return (int) value;
+          long micros = (long) obj;
+          // The iceberg's time is in microseconds, while flink's time is in milliseconds.
+          return (int) (micros / 1_000);
         case TIMESTAMP:
           Types.TimestampType tsType = (Types.TimestampType) primitive;
           if (tsType.shouldAdjustToUTC()) {

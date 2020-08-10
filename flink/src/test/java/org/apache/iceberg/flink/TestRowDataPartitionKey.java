@@ -183,12 +183,13 @@ public class TestRowDataPartitionKey {
       case UUID:
         return UUID.nameUUIDFromBytes((byte[]) value);
       case TIME:
-        int intValue = (int) value;
-        return (long) intValue;
+        int millis = (int) value;
+        // The flink's time is in milliseconds, while iceberg's time is in microseconds.
+        return ((long) millis) * 1_000;
       case TIMESTAMP:
         TimestampData timestampData = (TimestampData) value;
         if (((Types.TimestampType) type).shouldAdjustToUTC()) {
-          return timestampData.getMillisecond() * 1000 + Math.floorDiv(timestampData.getNanoOfMillisecond(), 1000);
+          return timestampData.getMillisecond() * 1000 + timestampData.getNanoOfMillisecond() / 1000;
         } else {
           return DateTimeUtil.microsFromTimestamp(timestampData.toLocalDateTime());
         }
