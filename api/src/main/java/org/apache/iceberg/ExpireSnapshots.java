@@ -96,7 +96,7 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
    * @param executorService an executor service to parallelize tasks to delete manifests and data files
    * @return this for method chaining
    */
-  ExpireSnapshots executeWith(ExecutorService executorService);
+  ExpireSnapshots executeDeleteWith(ExecutorService executorService);
 
   /**
    * Allows expiration of snapshots without any cleanup of underlying manifest or data files.

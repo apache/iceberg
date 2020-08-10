@@ -121,7 +121,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   @Override
-  public ExpireSnapshots executeWith(ExecutorService executorService) {
+  public ExpireSnapshots executeDeleteWith(ExecutorService executorService) {
     this.deleteExecutorService = executorService;
     return this;
   }
