@@ -95,7 +95,7 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
 
   private String location = null;
   private long olderThanTimestamp = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(3);
-  private int excutorTaskNum = 1;
+  private int excutorTaskNum = 0;
   private Consumer<String> deleteFunc;
 
   RemoveOrphanFilesAction(SparkSession spark, Table table) {
@@ -179,14 +179,22 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
 
   private void paralleExecutor(JavaSparkContext javaSc, List<String> orphanFiles,
                               int numSlices, Consumer deleteConsumer) {
-    javaSc.parallelize(orphanFiles, numSlices).foreachPartition(row -> {
-      List<String> orphanFileList = IteratorUtils.toList(row);
-      Tasks.foreach(orphanFileList)
-              .noRetry()
-              .suppressFailureWhenFinished()
-              .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
-              .run(deleteConsumer::accept);
-    });
+    if (numSlices == 0) {
+      Tasks.foreach(orphanFiles)
+          .noRetry()
+          .suppressFailureWhenFinished()
+          .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
+          .run(deleteConsumer::accept);
+    } else {
+      javaSc.parallelize(orphanFiles, numSlices).foreachPartition(row -> {
+        List<String> orphanFileList = IteratorUtils.toList(row);
+        Tasks.foreach(orphanFileList)
+            .noRetry()
+            .suppressFailureWhenFinished()
+            .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
+            .run(deleteConsumer::accept);
+      });
+    }
   }
 
   public static class DeleteConsumer implements Consumer<String>, Serializable {
