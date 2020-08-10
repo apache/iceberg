@@ -569,4 +569,39 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .collectAsList();
     Assert.assertEquals("Rows must match", records, actualRecords);
   }
+
+  @Test
+  public void testRemoveOrphanFilesWithExecutorParallel() {
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
+
+    List<ThreeColumnRecord> records = Lists.newArrayList(
+        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
+    );
+
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+
+    df.select("c1", "c2", "c3")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+
+    for (int i = 0; i < 20; i++) {
+      df.write().mode("append").parquet(tableLocation + "/data");
+    }
+
+    Actions actions = Actions.forTable(table);
+
+    List<String> result = actions.removeOrphanFiles()
+        .olderThan(System.currentTimeMillis())
+        .executorParallelNum(10)
+        .execute();
+    Assert.assertEquals("Should delete only 20 files", 20, result.size());
+
+    // gets the number of tasks completed by the last stage
+    int completedTasks = spark.sparkContext().statusTracker()
+        .getStageInfo(23).get().numCompletedTasks();
+
+    Assert.assertEquals("Should executor only 10 tasks", 10, completedTasks);
+  }
 }

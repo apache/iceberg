@@ -21,11 +21,13 @@ package org.apache.iceberg.actions;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import org.apache.commons.collections.IteratorUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -38,7 +40,9 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -91,12 +95,8 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
 
   private String location = null;
   private long olderThanTimestamp = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(3);
-  private Consumer<String> deleteFunc = new Consumer<String>() {
-    @Override
-    public void accept(String file) {
-      table.io().deleteFile(file);
-    }
-  };
+  private int excutorTaskNum = 1;
+  private Consumer<String> deleteFunc;
 
   RemoveOrphanFilesAction(SparkSession spark, Table table) {
     this.spark = spark;
@@ -106,6 +106,7 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
     this.table = table;
     this.ops = ((HasTableOperations) table).operations();
     this.location = table.location();
+    this.deleteFunc = new DeleteConsumer(table);
   }
 
   @Override
@@ -146,6 +147,16 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
     return this;
   }
 
+  /**
+   * Use Spark Application’s executor to remove orphan file.
+   *
+   * @param numSlices The number of executor parallelize.
+   */
+  public RemoveOrphanFilesAction executorParallelNum(int numSlices) {
+    this.excutorTaskNum = numSlices;
+    return this;
+  }
+
   @Override
   public List<String> execute() {
     Dataset<Row> validDataFileDF = buildValidDataFileDF();
@@ -161,13 +172,34 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
         .as(Encoders.STRING())
         .collectAsList();
 
-    Tasks.foreach(orphanFiles)
-        .noRetry()
-        .suppressFailureWhenFinished()
-        .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
-        .run(deleteFunc::accept);
+    paralleExecutor(sparkContext, orphanFiles, excutorTaskNum, deleteFunc);
 
     return orphanFiles;
+  }
+
+  private void paralleExecutor(JavaSparkContext javaSc, List<String> orphanFiles,
+                              int numSlices, Consumer deleteConsumer) {
+    javaSc.parallelize(orphanFiles, numSlices).foreachPartition(row -> {
+      List<String> orphanFileList = IteratorUtils.toList(row);
+      Tasks.foreach(orphanFileList)
+              .noRetry()
+              .suppressFailureWhenFinished()
+              .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
+              .run(deleteConsumer::accept);
+    });
+  }
+
+  public static class DeleteConsumer implements Consumer<String>, Serializable {
+    private final FileIO fileIO;
+
+    public DeleteConsumer(Table table) {
+      this.fileIO = SparkUtil.serializableFileIO(table);
+    }
+
+    @Override
+    public void accept(String file) {
+      fileIO.deleteFile(file);
+    }
   }
 
   private Dataset<Row> buildValidDataFileDF() {
