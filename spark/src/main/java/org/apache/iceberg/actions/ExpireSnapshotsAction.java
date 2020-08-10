@@ -20,6 +20,7 @@
 package org.apache.iceberg.actions;
 
 import java.util.Iterator;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -29,7 +30,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
@@ -40,8 +41,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * An action which performs the same operation as {@link org.apache.iceberg.ExpireSnapshots} but uses Spark
- * to to determine the delta in files between the pre and post-expiration table metadata. All of the same
+ * An action which performs the same operation as {@link ExpireSnapshots} but uses Spark
+ * to determine the delta in files between the pre and post-expiration table metadata. All of the same
  * restrictions of Remove Snapshots also apply to this action.
  * <p>
  * This implementation uses the metadata tables for the table being expired to list all Manifest and DataFiles. This
@@ -58,7 +59,7 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
   private static final String MANIFEST_LIST = "Manifest List";
 
   // Creates an executor service that runs each task in the thread that invokes execute/submit.
-  private static final ExecutorService DEFAULT_DELETE_EXECUTOR_SERVICE = MoreExecutors.newDirectExecutorService();
+  private static final ExecutorService DEFAULT_DELETE_EXECUTOR_SERVICE = null;
 
   private final SparkSession spark;
   private final Table table;
@@ -70,7 +71,7 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
     }
   };
 
-  private Long expireSnapshotIdValue = null;
+  private Set<Long> expireSnapshotIdValues = Sets.newHashSet();
   private Long expireOlderThanValue = null;
   private Integer retainLastValue = null;
   private Consumer<String> deleteFunc = defaultDelete;
@@ -88,8 +89,8 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
   }
 
   /**
-   * An executor service used when deleting files. Only used during the local delete phase of this Spark action
-   * Similar to {@link org.apache.iceberg.ExpireSnapshots#executeWith(ExecutorService)}
+   * An executor service used when deleting files. Only used during the local delete phase of this Spark action.
+   * Similar to {@link ExpireSnapshots#executeWith(ExecutorService)}
    * @param executorService the service to use
    * @return this for method chaining
    */
@@ -100,18 +101,18 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
 
   /**
    * A specific snapshot to expire.
-   * Identical to {@link org.apache.iceberg.ExpireSnapshots#expireSnapshotId(long)}
+   * Identical to {@link ExpireSnapshots#expireSnapshotId(long)}
    * @param expireSnapshotId Id of the snapshot to expire
    * @return this for method chaining
    */
   public ExpireSnapshotsAction expireSnapshotId(long expireSnapshotId) {
-    this.expireSnapshotIdValue = expireSnapshotId;
+    this.expireSnapshotIdValues.add(expireSnapshotId);
     return this;
   }
 
   /**
    * Expire all snapshots older than a given timestamp.
-   * Identical to {@link org.apache.iceberg.ExpireSnapshots#expireOlderThan(long)}
+   * Identical to {@link ExpireSnapshots#expireOlderThan(long)}
    * @param timestampMillis all snapshots before this time will be expired
    * @return this for method chaining
    */
@@ -122,7 +123,7 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
 
   /**
    * Retain at least x snapshots when expiring
-   * Identical to {@link org.apache.iceberg.ExpireSnapshots#retainLast(int)}
+   * Identical to {@link ExpireSnapshots#retainLast(int)}
    * @param numSnapshots number of snapshots to leave
    * @return this for method chaining
    */
@@ -135,7 +136,7 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
 
   /**
    * The Consumer used on files which have been determined to be expired. By default uses a filesystem delete.
-   * Identical to {@link org.apache.iceberg.ExpireSnapshots#deleteWith(Consumer)}
+   * Identical to {@link ExpireSnapshots#deleteWith(Consumer)}
    * @param newDeleteFunc Consumer which takes a path and deletes it
    * @return this for method chaining
    */
@@ -155,23 +156,25 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
 
       // Perform Expiration
       ExpireSnapshots expireSnaps = table.expireSnapshots().cleanExpiredFiles(false);
-      if (expireSnapshotIdValue != null) {
-        expireSnaps = expireSnaps.expireSnapshotId(expireSnapshotIdValue);
+      for (final Long id : expireSnapshotIdValues) {
+        expireSnaps = expireSnaps.expireSnapshotId(id);
       }
+
       if (expireOlderThanValue != null) {
         expireSnaps = expireSnaps.expireOlderThan(expireOlderThanValue);
       }
+
       if (retainLastValue != null) {
         expireSnaps = expireSnaps.retainLast(retainLastValue);
       }
+
       expireSnaps.commit();
 
       // Metadata after Expiration
       Dataset<Row> validFiles = buildValidFileDF();
       Dataset<Row> filesToDelete = originalFiles.except(validFiles);
 
-      ExpireSnapshotsActionResult result = deleteFiles(filesToDelete.toLocalIterator());
-      return result;
+      return deleteFiles(filesToDelete.toLocalIterator());
     } finally {
       if (originalFiles != null) {
         originalFiles.unpersist();

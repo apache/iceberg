@@ -21,8 +21,6 @@ package org.apache.iceberg.actions;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -30,7 +28,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
@@ -49,10 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkTestBase;
-import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -71,8 +65,6 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
   );
 
   private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
-
-  private static final List<ThreeColumnRecord> RECORDS = Lists.newArrayList(new ThreeColumnRecord(1, "AAAA", "AAAA"));
 
   static final DataFile FILE_A = DataFiles.builder(SPEC)
       .withPath("/path/to/data-a.parquet")
@@ -113,63 +105,47 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     this.table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
   }
 
-  private Dataset<Row> buildDF(List<ThreeColumnRecord> records) {
-    return spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
-  }
-
-  private void writeDF(Dataset<Row> df, String mode) {
-    df.select("c1", "c2", "c3")
-        .write()
-        .format("iceberg")
-        .mode(mode)
-        .save(tableLocation);
+  private Long rightAfterSnapshot() {
+    Long end = System.currentTimeMillis();
+    while (end <= table.currentSnapshot().timestampMillis()) {
+      end = System.currentTimeMillis();
+    }
+    return end;
   }
 
   private void checkExpirationResults(Long expectedDatafiles, Long expectedManifestsDeleted,
       Long expectedManifestListsDeleted, ExpireSnapshotsActionResult results) {
 
     Assert.assertEquals("Incorrect number of manifest files deleted",
-        expectedManifestsDeleted, results.getManifestFilesDeleted());
+        expectedManifestsDeleted, results.manifestFilesDeleted());
     Assert.assertEquals("Incorrect number of datafiles deleted",
-        expectedDatafiles, results.getDataFilesDeleted());
+        expectedDatafiles, results.dataFilesDeleted());
     Assert.assertEquals("Incorrect number of manifest lists deleted",
-        expectedManifestListsDeleted, results.getManifestListsDeleted());
+        expectedManifestListsDeleted, results.manifestListsDeleted());
   }
 
   @Test
   public void testFilesCleaned() throws Exception {
-    Dataset<Row> df = buildDF(RECORDS);
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
 
-    writeDF(df, "append");
+    table.newOverwrite()
+        .deleteFile(FILE_A)
+        .addFile(FILE_B)
+        .commit();
 
-    List<Path> expiredDataFiles = Files
-        .list(tableDir.toPath().resolve("data").resolve("c1=1"))
-        .collect(Collectors.toList());
+    table.newFastAppend()
+        .appendFile(FILE_C)
+        .commit();
 
-    Assert.assertEquals("There should be a data file to delete but there was none.",
-        2, expiredDataFiles.size());
+    long end = rightAfterSnapshot();
 
-    writeDF(df, "overwrite");
-    writeDF(df, "append");
-
-    long end = System.currentTimeMillis();
-    while (end <= table.currentSnapshot().timestampMillis()) {
-      end = System.currentTimeMillis();
-    }
-
-    ExpireSnapshotsActionResult results =
-        Actions.forTable(table).expireSnapshots().expireOlderThan(end).execute();
-
-    table.refresh();
+    ExpireSnapshotsActionResult results = Actions.forTable(table).expireSnapshots().expireOlderThan(end).execute();
 
     Assert.assertEquals("Table does not have 1 snapshot after expiration", 1, Iterables.size(table.snapshots()));
 
-    for (Path p : expiredDataFiles) {
-      Assert.assertFalse(String.format("File %s still exists but should have been deleted", p),
-          Files.exists(p));
-    }
-
-    checkExpirationResults(1L, 2L, 2L, results);
+    checkExpirationResults(1L, 1L, 2L, results);
   }
 
   @Test
@@ -186,23 +162,18 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     table.newRewrite()
         .rewriteFiles(ImmutableSet.of(FILE_B), ImmutableSet.of(FILE_D))
         .commit();
-    long thirdSnapshotId = table.currentSnapshot().snapshotId();
 
     table.newRewrite()
         .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_C))
         .commit();
-    long fourthSnapshotId = table.currentSnapshot().snapshotId();
 
-    long t4 = System.currentTimeMillis();
-    while (t4 <= table.currentSnapshot().timestampMillis()) {
-      t4 = System.currentTimeMillis();
-    }
+    long t4 = rightAfterSnapshot();
 
     Set<String> deletedFiles = Sets.newHashSet();
     Set<String> deleteThreads = ConcurrentHashMap.newKeySet();
     AtomicInteger deleteThreadsIndex = new AtomicInteger(0);
 
-    Actions.forTable(table).expireSnapshots()
+    ExpireSnapshotsActionResult result = Actions.forTable(table).expireSnapshots()
         .executeDeleteWith(Executors.newFixedThreadPool(4, runnable -> {
           Thread thread = new Thread(runnable);
           thread.setName("remove-snapshot-" + deleteThreadsIndex.getAndIncrement());
@@ -222,44 +193,45 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
 
     Assert.assertTrue("FILE_A should be deleted", deletedFiles.contains(FILE_A.path().toString()));
     Assert.assertTrue("FILE_B should be deleted", deletedFiles.contains(FILE_B.path().toString()));
+
+    checkExpirationResults(2L, 3L, 3L, result);
   }
 
   @Test
   public void testNoFilesDeletedWhenNoSnapshotsExpired() throws Exception {
-    Dataset<Row> df = buildDF(RECORDS);
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
 
-    writeDF(df, "append");
-
-    ExpireSnapshotsActionResult results =
-        Actions.forTable(table).expireSnapshots().execute();
-
+    ExpireSnapshotsActionResult results = Actions.forTable(table).expireSnapshots().execute();
     checkExpirationResults(0L, 0L, 0L, results);
   }
 
   @Test
   public void testCleanupRepeatedOverwrites() throws Exception {
-    Dataset<Row> df = buildDF(RECORDS);
-
-    writeDF(df, "append");
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
 
     for (int i = 0; i < 10; i++) {
-      writeDF(df, "overwrite");
+      table.newOverwrite()
+          .deleteFile(FILE_A)
+          .addFile(FILE_B)
+          .commit();
+
+      table.newOverwrite()
+          .deleteFile(FILE_B)
+          .addFile(FILE_A)
+          .commit();
     }
 
-    long end = System.currentTimeMillis();
-    while (end <= table.currentSnapshot().timestampMillis()) {
-      end = System.currentTimeMillis();
-    }
-
-    ExpireSnapshotsActionResult results =
-        Actions.forTable(table).expireSnapshots().expireOlderThan(end).execute();
-
-    checkExpirationResults(10L, 19L, 10L, results);
+    long end = rightAfterSnapshot();
+    ExpireSnapshotsActionResult results = Actions.forTable(table).expireSnapshots().expireOlderThan(end).execute();
+    checkExpirationResults(1L, 39L, 20L, results);
   }
 
   @Test
   public void testRetainLastWithExpireOlderThan() {
-    long t0 = System.currentTimeMillis();
     table.newAppend()
         .appendFile(FILE_A) // data_bucket=0
         .commit();
@@ -273,19 +245,11 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         .appendFile(FILE_B) // data_bucket=1
         .commit();
 
-    long t2 = System.currentTimeMillis();
-    while (t2 <= table.currentSnapshot().timestampMillis()) {
-      t2 = System.currentTimeMillis();
-    }
-
     table.newAppend()
         .appendFile(FILE_C) // data_bucket=2
         .commit();
 
-    long t3 = System.currentTimeMillis();
-    while (t3 <= table.currentSnapshot().timestampMillis()) {
-      t3 = System.currentTimeMillis();
-    }
+    long t3 = rightAfterSnapshot();
 
     // Retain last 2 snapshots
     Actions.forTable(table).expireSnapshots()
@@ -293,224 +257,180 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         .retainLast(2)
         .execute();
 
-    Assert.assertEquals("Should have two snapshots.",
-        2, Lists.newArrayList(table.snapshots()).size());
-    Assert.assertEquals("First snapshot should not present.",
-        null, table.snapshot(firstSnapshotId));
+    Assert.assertEquals("Should have two snapshots.", 2, Lists.newArrayList(table.snapshots()).size());
+    Assert.assertEquals("First snapshot should not present.", null, table.snapshot(firstSnapshotId));
+  }
+
+  @Test
+  public void testExpireTwoSnapshotsById() throws Exception {
+    table.newAppend()
+        .appendFile(FILE_A) // data_bucket=0
+        .commit();
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
+
+    table.newAppend()
+        .appendFile(FILE_B) // data_bucket=1
+        .commit();
+
+    long secondSnapshotID = table.currentSnapshot().snapshotId();
+
+    table.newAppend()
+        .appendFile(FILE_C) // data_bucket=2
+        .commit();
+
+    // Retain last 2 snapshots
+    ExpireSnapshotsActionResult result = Actions.forTable(table).expireSnapshots()
+        .expireSnapshotId(firstSnapshotId)
+        .expireSnapshotId(secondSnapshotID)
+        .execute();
+
+    Assert.assertEquals("Should have one snapshots.", 1, Lists.newArrayList(table.snapshots()).size());
+    Assert.assertEquals("First snapshot should not present.", null, table.snapshot(firstSnapshotId));
+    Assert.assertEquals("Second snapshot should not be present.", null, table.snapshot(secondSnapshotID));
+
+    checkExpirationResults(0L, 0L, 2L, result);
   }
 
   @Test
   public void testRetainLastWithExpireById() {
-    long t0 = System.currentTimeMillis();
     table.newAppend()
         .appendFile(FILE_A) // data_bucket=0
         .commit();
     long firstSnapshotId = table.currentSnapshot().snapshotId();
-    long t1 = System.currentTimeMillis();
-    while (t1 <= table.currentSnapshot().timestampMillis()) {
-      t1 = System.currentTimeMillis();
-    }
 
     table.newAppend()
         .appendFile(FILE_B) // data_bucket=1
         .commit();
 
-    long t2 = System.currentTimeMillis();
-    while (t2 <= table.currentSnapshot().timestampMillis()) {
-      t2 = System.currentTimeMillis();
-    }
-
     table.newAppend()
         .appendFile(FILE_C) // data_bucket=2
         .commit();
 
-    long t3 = System.currentTimeMillis();
-    while (t3 <= table.currentSnapshot().timestampMillis()) {
-      t3 = System.currentTimeMillis();
-    }
-
     // Retain last 3 snapshots, but explicitly remove the first snapshot
-    Actions.forTable(table).expireSnapshots()
+    ExpireSnapshotsActionResult result = Actions.forTable(table).expireSnapshots()
         .expireSnapshotId(firstSnapshotId)
         .retainLast(3)
         .execute();
 
-    Assert.assertEquals("Should have two snapshots.",
-        2, Lists.newArrayList(table.snapshots()).size());
-    Assert.assertEquals("First snapshot should not present.",
-        null, table.snapshot(firstSnapshotId));
+    Assert.assertEquals("Should have two snapshots.", 2, Lists.newArrayList(table.snapshots()).size());
+    Assert.assertEquals("First snapshot should not present.", null, table.snapshot(firstSnapshotId));
+    checkExpirationResults(0L, 0L, 1L, result);
   }
 
   @Test
   public void testRetainLastWithTooFewSnapshots() {
-    long t0 = System.currentTimeMillis();
     table.newAppend()
         .appendFile(FILE_A) // data_bucket=0
         .appendFile(FILE_B) // data_bucket=1
         .commit();
     long firstSnapshotId = table.currentSnapshot().snapshotId();
 
-    long t1 = System.currentTimeMillis();
-    while (t1 <= table.currentSnapshot().timestampMillis()) {
-      t1 = System.currentTimeMillis();
-    }
-
     table.newAppend()
         .appendFile(FILE_C) // data_bucket=2
         .commit();
 
-    long t2 = System.currentTimeMillis();
-    while (t2 <= table.currentSnapshot().timestampMillis()) {
-      t2 = System.currentTimeMillis();
-    }
+    long t2 = rightAfterSnapshot();
 
     // Retain last 3 snapshots
-    Actions.forTable(table).expireSnapshots()
+    ExpireSnapshotsActionResult result = Actions.forTable(table).expireSnapshots()
         .expireOlderThan(t2)
         .retainLast(3)
         .execute();
 
-    Assert.assertEquals("Should have two snapshots",
-        2, Lists.newArrayList(table.snapshots()).size());
+    Assert.assertEquals("Should have two snapshots", 2, Lists.newArrayList(table.snapshots()).size());
     Assert.assertEquals("First snapshot should still present",
         firstSnapshotId, table.snapshot(firstSnapshotId).snapshotId());
+    checkExpirationResults(0L, 0L, 0L, result);
   }
 
   @Test
   public void testRetainLastKeepsExpiringSnapshot() {
-    long t0 = System.currentTimeMillis();
     table.newAppend()
         .appendFile(FILE_A) // data_bucket=0
         .commit();
-    long t1 = System.currentTimeMillis();
-    while (t1 <= table.currentSnapshot().timestampMillis()) {
-      t1 = System.currentTimeMillis();
-    }
 
     table.newAppend()
         .appendFile(FILE_B) // data_bucket=1
         .commit();
 
     Snapshot secondSnapshot = table.currentSnapshot();
-    long t2 = System.currentTimeMillis();
-    while (t2 <= table.currentSnapshot().timestampMillis()) {
-      t2 = System.currentTimeMillis();
-    }
 
     table.newAppend()
         .appendFile(FILE_C) // data_bucket=2
         .commit();
-
-    long t3 = System.currentTimeMillis();
-    while (t3 <= table.currentSnapshot().timestampMillis()) {
-      t3 = System.currentTimeMillis();
-    }
 
     table.newAppend()
         .appendFile(FILE_D) // data_bucket=3
         .commit();
 
-    long t4 = System.currentTimeMillis();
-    while (t4 <= table.currentSnapshot().timestampMillis()) {
-      t4 = System.currentTimeMillis();
-    }
-
     // Retain last 2 snapshots and expire older than t3
-    Actions.forTable(table).expireSnapshots()
+    ExpireSnapshotsActionResult result = Actions.forTable(table).expireSnapshots()
         .expireOlderThan(secondSnapshot.timestampMillis())
         .retainLast(2)
         .execute();
 
-    Assert.assertEquals("Should have three snapshots.",
-        3, Lists.newArrayList(table.snapshots()).size());
-    Assert.assertNotNull("Second snapshot should present.",
-        table.snapshot(secondSnapshot.snapshotId()));
+    Assert.assertEquals("Should have three snapshots.", 3, Lists.newArrayList(table.snapshots()).size());
+    Assert.assertNotNull("Second snapshot should present.", table.snapshot(secondSnapshot.snapshotId()));
+    checkExpirationResults(0L, 0L, 1L, result);
   }
 
   @Test
   public void testExpireOlderThanMultipleCalls() {
-    long t0 = System.currentTimeMillis();
     table.newAppend()
         .appendFile(FILE_A) // data_bucket=0
         .commit();
-    long t1 = System.currentTimeMillis();
-    while (t1 <= table.currentSnapshot().timestampMillis()) {
-      t1 = System.currentTimeMillis();
-    }
 
     table.newAppend()
         .appendFile(FILE_B) // data_bucket=1
         .commit();
 
     Snapshot secondSnapshot = table.currentSnapshot();
-    long t2 = System.currentTimeMillis();
-    while (t2 <= table.currentSnapshot().timestampMillis()) {
-      t2 = System.currentTimeMillis();
-    }
 
     table.newAppend()
         .appendFile(FILE_C) // data_bucket=2
         .commit();
 
     Snapshot thirdSnapshot = table.currentSnapshot();
-    long t3 = System.currentTimeMillis();
-    while (t3 <= table.currentSnapshot().timestampMillis()) {
-      t3 = System.currentTimeMillis();
-    }
 
     // Retain last 2 snapshots and expire older than t3
-    Actions.forTable(table).expireSnapshots()
+    ExpireSnapshotsActionResult result =  Actions.forTable(table).expireSnapshots()
         .expireOlderThan(secondSnapshot.timestampMillis())
         .expireOlderThan(thirdSnapshot.timestampMillis())
         .execute();
 
-    Assert.assertEquals("Should have one snapshots.",
-        1, Lists.newArrayList(table.snapshots()).size());
-    Assert.assertNull("Second snapshot should not present.",
-        table.snapshot(secondSnapshot.snapshotId()));
+    Assert.assertEquals("Should have one snapshots.", 1, Lists.newArrayList(table.snapshots()).size());
+    Assert.assertNull("Second snapshot should not present.", table.snapshot(secondSnapshot.snapshotId()));
+    checkExpirationResults(0L, 0L, 2L, result);
   }
 
   @Test
   public void testRetainLastMultipleCalls() {
-    long t0 = System.currentTimeMillis();
     table.newAppend()
         .appendFile(FILE_A) // data_bucket=0
         .commit();
-    long t1 = System.currentTimeMillis();
-    while (t1 <= table.currentSnapshot().timestampMillis()) {
-      t1 = System.currentTimeMillis();
-    }
 
     table.newAppend()
         .appendFile(FILE_B) // data_bucket=1
         .commit();
 
     Snapshot secondSnapshot = table.currentSnapshot();
-    long t2 = System.currentTimeMillis();
-    while (t2 <= table.currentSnapshot().timestampMillis()) {
-      t2 = System.currentTimeMillis();
-    }
 
     table.newAppend()
         .appendFile(FILE_C) // data_bucket=2
         .commit();
 
-    long t3 = System.currentTimeMillis();
-    while (t3 <= table.currentSnapshot().timestampMillis()) {
-      t3 = System.currentTimeMillis();
-    }
+    long t3 = rightAfterSnapshot();
 
     // Retain last 2 snapshots and expire older than t3
-    Actions.forTable(table).expireSnapshots()
+    ExpireSnapshotsActionResult result = Actions.forTable(table).expireSnapshots()
         .expireOlderThan(t3)
         .retainLast(2)
         .retainLast(1)
         .execute();
 
-    Assert.assertEquals("Should have one snapshots.",
-        1, Lists.newArrayList(table.snapshots()).size());
-    Assert.assertNull("Second snapshot should not present.",
-        table.snapshot(secondSnapshot.snapshotId()));
+    Assert.assertEquals("Should have one snapshots.", 1, Lists.newArrayList(table.snapshots()).size());
+    Assert.assertNull("Second snapshot should not present.", table.snapshot(secondSnapshot.snapshotId()));
+    checkExpirationResults(0L, 0L, 2L, result);
   }
 
   @Test
@@ -538,20 +458,17 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         .appendFile(FILE_D)
         .commit();
 
-    long t3 = System.currentTimeMillis();
-    while (t3 <= table.currentSnapshot().timestampMillis()) {
-      t3 = System.currentTimeMillis();
-    }
+    long t3 = rightAfterSnapshot();
 
     Set<String> deletedFiles = Sets.newHashSet();
 
-    Actions.forTable(table).expireSnapshots()
+    ExpireSnapshotsActionResult result = Actions.forTable(table).expireSnapshots()
         .expireOlderThan(t3)
         .deleteWith(deletedFiles::add)
         .execute();
 
     Assert.assertTrue("FILE_A should be deleted", deletedFiles.contains(FILE_A.path().toString()));
-
+    checkExpirationResults(1L, 1L, 2L, result);
   }
 
   @Test
@@ -575,19 +492,17 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         .appendFile(FILE_D)
         .commit();
 
-    long t3 = System.currentTimeMillis();
-    while (t3 <= table.currentSnapshot().timestampMillis()) {
-      t3 = System.currentTimeMillis();
-    }
+    long t3 = rightAfterSnapshot();
 
     Set<String> deletedFiles = Sets.newHashSet();
 
-    Actions.forTable(table).expireSnapshots()
+    ExpireSnapshotsActionResult result = Actions.forTable(table).expireSnapshots()
         .expireOlderThan(t3)
         .deleteWith(deletedFiles::add)
         .execute();
 
     Assert.assertTrue("FILE_A should be deleted", deletedFiles.contains(FILE_A.path().toString()));
+    checkExpirationResults(1L, 1L, 2L, result);
   }
 
   /**
@@ -620,10 +535,12 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     Set<String> deletedFiles = new HashSet<>();
 
     // Expire all commits including dangling staged snapshot.
-    Actions.forTable(table).expireSnapshots()
+    ExpireSnapshotsActionResult result = Actions.forTable(table).expireSnapshots()
         .deleteWith(deletedFiles::add)
         .expireOlderThan(snapshotB.timestampMillis() + 1)
         .execute();
+
+    checkExpirationResults(1L, 1L, 2L, result);
 
     Set<String> expectedDeletes = new HashSet<>();
     expectedDeletes.add(snapshotA.manifestListLocation());
@@ -697,7 +614,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     List<String> deletedFiles = new ArrayList<>();
 
     // Expire `C`
-    Actions.forTable(table).expireSnapshots()
+    ExpireSnapshotsActionResult result = Actions.forTable(table).expireSnapshots()
         .deleteWith(deletedFiles::add)
         .expireOlderThan(snapshotC.timestampMillis() + 1)
         .execute();
@@ -708,6 +625,8 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         Assert.assertFalse(deletedFiles.contains(item.path().toString()));
       });
     });
+
+    checkExpirationResults(1L, 2L, 2L, result);
   }
 
   /**
@@ -750,7 +669,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     List<String> deletedFiles = new ArrayList<>();
 
     // Expire `B` commit.
-    Actions.forTable(table).expireSnapshots()
+    ExpireSnapshotsActionResult firstResult = Actions.forTable(table).expireSnapshots()
         .deleteWith(deletedFiles::add)
         .expireSnapshotId(snapshotB.snapshotId())
         .execute();
@@ -761,9 +680,10 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         Assert.assertFalse(deletedFiles.contains(item.path().toString()));
       });
     });
+    checkExpirationResults(0L, 1L, 1L, firstResult);
 
     // Expire all snapshots including cherry-pick
-    Actions.forTable(table).expireSnapshots()
+    ExpireSnapshotsActionResult secondResult = Actions.forTable(table).expireSnapshots()
         .deleteWith(deletedFiles::add)
         .expireOlderThan(table.currentSnapshot().timestampMillis() + 1)
         .execute();
@@ -774,7 +694,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         Assert.assertFalse(deletedFiles.contains(item.path().toString()));
       });
     });
+    checkExpirationResults(0L, 0L, 2L, secondResult);
   }
-
 }
 

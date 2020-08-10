@@ -31,15 +31,15 @@ public class ExpireSnapshotsActionResult {
     this.manifestListsDeleted = manifestListsDeleted;
   }
 
-  public Long getDataFilesDeleted() {
+  public Long dataFilesDeleted() {
     return dataFilesDeleted;
   }
 
-  public Long getManifestFilesDeleted() {
+  public Long manifestFilesDeleted() {
     return manifestFilesDeleted;
   }
 
-  public Long getManifestListsDeleted() {
+  public Long manifestListsDeleted() {
     return manifestListsDeleted;
   }
 
