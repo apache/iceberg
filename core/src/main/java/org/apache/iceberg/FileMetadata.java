@@ -30,7 +30,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
 
-class FileMetadata {
+public class FileMetadata {
   private FileMetadata() {
   }
 

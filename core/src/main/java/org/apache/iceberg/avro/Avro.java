@@ -20,10 +20,14 @@
 package org.apache.iceberg.avro;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.avro.Conversions;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
@@ -31,15 +35,26 @@ import org.apache.avro.file.CodecFactory;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DatumWriter;
+import org.apache.avro.io.Encoder;
 import org.apache.avro.specific.SpecificData;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.util.ArrayUtil;
 
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION_DEFAULT;
@@ -82,11 +97,11 @@ public class Avro {
 
   public static class WriteBuilder {
     private final OutputFile file;
+    private final Map<String, String> config = Maps.newHashMap();
+    private final Map<String, String> metadata = Maps.newLinkedHashMap();
     private org.apache.iceberg.Schema schema = null;
     private String name = "table";
-    private Map<String, String> config = Maps.newHashMap();
-    private Map<String, String> metadata = Maps.newLinkedHashMap();
-    private Function<Schema, DatumWriter<?>> createWriterFunc = GenericAvroWriter::new;
+    private Function<Schema, DatumWriter<?>> createWriterFunc = null;
     private boolean overwrite;
 
     private WriteBuilder(OutputFile file) {
@@ -156,11 +171,208 @@ public class Avro {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
 
+      Function<Schema, DatumWriter<?>> writerFunc;
+      if (createWriterFunc != null) {
+        writerFunc = createWriterFunc;
+      } else {
+        writerFunc = GenericAvroWriter::new;
+      }
+
       // add the Iceberg schema to keyValueMetadata
       meta("iceberg.schema", SchemaParser.toJson(schema));
 
       return new AvroFileAppender<>(
-          AvroSchemaUtil.convert(schema, name), file, createWriterFunc, codec(), metadata, overwrite);
+          AvroSchemaUtil.convert(schema, name), file, writerFunc, codec(), metadata, overwrite);
+    }
+  }
+
+  public static DeleteWriteBuilder writeDeletes(OutputFile file) {
+    return new DeleteWriteBuilder(file);
+  }
+
+  public static class DeleteWriteBuilder {
+    private final WriteBuilder appenderBuilder;
+    private final String location;
+    private Function<Schema, DatumWriter<?>> createWriterFunc = null;
+    private org.apache.iceberg.Schema rowSchema;
+    private PartitionSpec spec;
+    private StructLike partition;
+    private EncryptionKeyMetadata keyMetadata = null;
+    private int[] equalityFieldIds = null;
+
+    private DeleteWriteBuilder(OutputFile file) {
+      this.appenderBuilder = write(file);
+      this.location = file.location();
+    }
+
+    public DeleteWriteBuilder forTable(Table table) {
+      rowSchema(table.schema());
+      withSpec(table.spec());
+      setAll(table.properties());
+      return this;
+    }
+
+    public DeleteWriteBuilder set(String property, String value) {
+      appenderBuilder.set(property, value);
+      return this;
+    }
+
+    public DeleteWriteBuilder setAll(Map<String, String> properties) {
+      appenderBuilder.setAll(properties);
+      return this;
+    }
+
+    public DeleteWriteBuilder meta(String property, String value) {
+      appenderBuilder.meta(property, value);
+      return this;
+    }
+
+    public DeleteWriteBuilder meta(Map<String, String> properties) {
+      appenderBuilder.meta(properties);
+      return this;
+    }
+
+    public DeleteWriteBuilder overwrite() {
+      return overwrite(true);
+    }
+
+    public DeleteWriteBuilder overwrite(boolean enabled) {
+      appenderBuilder.overwrite(enabled);
+      return this;
+    }
+
+    public DeleteWriteBuilder createWriterFunc(Function<Schema, DatumWriter<?>> writerFunction) {
+      this.createWriterFunc = writerFunction;
+      return this;
+    }
+
+    public DeleteWriteBuilder rowSchema(org.apache.iceberg.Schema newRowSchema) {
+      this.rowSchema = newRowSchema;
+      return this;
+    }
+
+    public DeleteWriteBuilder withSpec(PartitionSpec newSpec) {
+      this.spec = newSpec;
+      return this;
+    }
+
+    public DeleteWriteBuilder withPartition(StructLike key) {
+      this.partition = key;
+      return this;
+    }
+
+    public DeleteWriteBuilder withKeyMetadata(EncryptionKeyMetadata metadata) {
+      this.keyMetadata = metadata;
+      return this;
+    }
+
+    public DeleteWriteBuilder equalityFieldIds(List<Integer> fieldIds) {
+      this.equalityFieldIds = ArrayUtil.toIntArray(fieldIds);
+      return this;
+    }
+
+    public DeleteWriteBuilder equalityFieldIds(int... fieldIds) {
+      this.equalityFieldIds = fieldIds;
+      return this;
+    }
+
+    public <T> EqualityDeleteWriter<T> buildEqualityWriter() throws IOException {
+      Preconditions.checkState(rowSchema != null, "Cannot create equality delete file without a schema`");
+      Preconditions.checkState(equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
+      Preconditions.checkState(createWriterFunc != null,
+          "Cannot create equality delete file unless createWriterFunc is set");
+
+      meta("delete-type", "equality");
+      meta("delete-field-ids", IntStream.of(equalityFieldIds)
+          .mapToObj(Objects::toString)
+          .collect(Collectors.joining(", ")));
+
+      // the appender uses the row schema without extra columns
+      appenderBuilder.schema(rowSchema);
+      appenderBuilder.createWriterFunc(createWriterFunc);
+
+      return new EqualityDeleteWriter<>(
+          appenderBuilder.build(), FileFormat.AVRO, location, spec, partition, keyMetadata, equalityFieldIds);
+    }
+
+    public <T> PositionDeleteWriter<T> buildPositionWriter() throws IOException {
+      Preconditions.checkState(equalityFieldIds == null, "Cannot create position delete file using delete field ids");
+
+      meta("delete-type", "position");
+
+      if (rowSchema != null) {
+        Preconditions.checkState(createWriterFunc != null,
+            "Cannot create delete file with deletes rows unless createWriterFunc is set");
+
+        // the appender uses the row schema wrapped with position fields
+        appenderBuilder.schema(new org.apache.iceberg.Schema(
+            MetadataColumns.DELETE_FILE_PATH,
+            MetadataColumns.DELETE_FILE_POS,
+            NestedField.optional(
+                MetadataColumns.DELETE_FILE_ROW_FIELD_ID, "row", rowSchema.asStruct(),
+                MetadataColumns.DELETE_FILE_ROW_DOC)));
+
+        appenderBuilder.createWriterFunc(
+            avroSchema -> new PositionAndRowDatumWriter<>(createWriterFunc.apply(avroSchema)));
+
+      } else {
+        appenderBuilder.schema(new org.apache.iceberg.Schema(
+            MetadataColumns.DELETE_FILE_PATH,
+            MetadataColumns.DELETE_FILE_POS));
+
+        appenderBuilder.createWriterFunc(ignored -> new PositionDatumWriter());
+      }
+
+      return new PositionDeleteWriter<>(
+          appenderBuilder.build(), FileFormat.AVRO, location, spec, partition, keyMetadata);
+    }
+  }
+
+  /**
+   * A {@link DatumWriter} implementation that wraps another to produce position deletes.
+   */
+  private static class PositionDatumWriter implements DatumWriter<PositionDelete<?>> {
+    private static final ValueWriter<Object> PATH_WRITER = ValueWriters.strings();
+    private static final ValueWriter<Long> POS_WRITER = ValueWriters.longs();
+
+    @Override
+    public void setSchema(Schema schema) {
+    }
+
+    @Override
+    public void write(PositionDelete<?> delete, Encoder out) throws IOException {
+      PATH_WRITER.write(delete.path(), out);
+      POS_WRITER.write(delete.pos(), out);
+    }
+  }
+
+  /**
+   * A {@link DatumWriter} implementation that wraps another to produce position deletes with row data.
+   *
+   * @param <D> the type of datum written as a deleted row
+   */
+  private static class PositionAndRowDatumWriter<D> implements DatumWriter<PositionDelete<D>> {
+    private static final ValueWriter<Object> PATH_WRITER = ValueWriters.strings();
+    private static final ValueWriter<Long> POS_WRITER = ValueWriters.longs();
+    private final DatumWriter<D> rowWriter;
+
+    private PositionAndRowDatumWriter(DatumWriter<D> rowWriter) {
+      this.rowWriter = rowWriter;
+    }
+
+    @Override
+    public void setSchema(Schema schema) {
+      Schema.Field rowField = schema.getField("row");
+      if (rowField != null) {
+        rowWriter.setSchema(rowField.schema());
+      }
+    }
+
+    @Override
+    public void write(PositionDelete<D> delete, Encoder out) throws IOException {
+      PATH_WRITER.write(delete.path(), out);
+      POS_WRITER.write(delete.pos(), out);
+      rowWriter.write(delete.row(), out);
     }
   }
 

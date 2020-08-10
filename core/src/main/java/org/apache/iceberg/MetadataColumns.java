@@ -31,10 +31,19 @@ public class MetadataColumns {
   private MetadataColumns() {
   }
 
+  // IDs Integer.MAX_VALUE - (1-100) are used for metadata columns
   public static final NestedField FILE_PATH = NestedField.required(
       Integer.MAX_VALUE - 1, "_file", Types.StringType.get(), "Path of the file in which a row is stored");
   public static final NestedField ROW_POSITION = NestedField.required(
       Integer.MAX_VALUE - 2, "_pos", Types.LongType.get(), "Ordinal position of a row in the source data file");
+
+  // IDs Integer.MAX_VALUE - (101-200) are used for reserved columns
+  public static final NestedField DELETE_FILE_PATH = NestedField.required(
+      Integer.MAX_VALUE - 101, "file_path", Types.StringType.get(), "Path of a file in which a deleted row is stored");
+  public static final NestedField DELETE_FILE_POS = NestedField.required(
+      Integer.MAX_VALUE - 102, "pos", Types.LongType.get(), "Ordinal position of a deleted row in the data file");
+  public static final int DELETE_FILE_ROW_FIELD_ID = Integer.MAX_VALUE - 103;
+  public static final String DELETE_FILE_ROW_DOC = "Deleted row values";
 
   private static final Map<String, NestedField> META_COLUMNS = ImmutableMap.of(
       FILE_PATH.name(), FILE_PATH,
