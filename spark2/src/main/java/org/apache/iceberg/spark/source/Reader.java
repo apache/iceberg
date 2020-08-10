@@ -133,7 +133,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     if (io.getValue() instanceof HadoopFileIO) {
       String scheme = "no_exist";
       try {
-        Configuration conf = new Configuration(SparkSession.active().sparkContext().hadoopConfiguration());
+        Configuration conf = SparkSession.active().sessionState().newHadoopConf();
         // merge hadoop config set on table
         mergeIcebergHadoopConfs(conf, table.properties());
         // merge hadoop config passed as options and overwrite the one on table
@@ -443,6 +443,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
       return expectedSchema;
     }
 
+    @SuppressWarnings("checkstyle:RegexpSingleline")
     private String[] getPreferredLocations() {
       if (!localityPreferred) {
         return new String[0];

@@ -58,7 +58,7 @@ public class IcebergSource implements DataSourceRegister, TableProvider {
   @Override
   public SparkTable getTable(StructType schema, Transform[] partitioning, Map<String, String> options) {
     // Get Iceberg table from options
-    Configuration conf = new Configuration(SparkSession.active().sparkContext().hadoopConfiguration());
+    Configuration conf = SparkSession.active().sessionState().newHadoopConf();
     Table icebergTable = getTableAndResolveHadoopConfiguration(options, conf);
 
     // Build Spark table based on Iceberg table, and return it
