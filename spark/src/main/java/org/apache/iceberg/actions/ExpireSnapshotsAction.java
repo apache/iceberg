@@ -223,7 +223,7 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
               break;
           }
         });
-    LOG.debug("Deleted {} total files", dataFileCount.get() + manifestCount.get() + manifestListCount.get());
+    LOG.info("Deleted {} total files", dataFileCount.get() + manifestCount.get() + manifestListCount.get());
     return new ExpireSnapshotsActionResult(dataFileCount.get(), manifestCount.get(), manifestListCount.get());
   }
 }
