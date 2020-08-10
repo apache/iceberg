@@ -312,6 +312,11 @@ public class TestHelpers {
     }
 
     @Override
+    public int specId() {
+      return 0;
+    }
+
+    @Override
     public CharSequence path() {
       return path;
     }

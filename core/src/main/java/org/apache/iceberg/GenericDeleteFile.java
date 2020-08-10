@@ -34,9 +34,9 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
     super(avroSchema);
   }
 
-  GenericDeleteFile(FileContent content, String filePath, FileFormat format, PartitionData partition,
+  GenericDeleteFile(int specId, FileContent content, String filePath, FileFormat format, PartitionData partition,
                     long fileSizeInBytes, Metrics metrics, ByteBuffer keyMetadata) {
-    super(content, filePath, format, partition, fileSizeInBytes, metrics.recordCount(),
+    super(specId, content, filePath, format, partition, fileSizeInBytes, metrics.recordCount(),
         metrics.columnSizes(), metrics.valueCounts(), metrics.nullValueCounts(),
         metrics.lowerBounds(), metrics.upperBounds(), null, keyMetadata);
   }

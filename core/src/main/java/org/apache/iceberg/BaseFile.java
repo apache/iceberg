@@ -53,6 +53,7 @@ abstract class BaseFile<F>
   private int[] fromProjectionPos;
   private Types.StructType partitionType;
 
+  private int partitionSpecId = -1;
   private FileContent content = FileContent.DATA;
   private String filePath = null;
   private FileFormat format = null;
@@ -108,11 +109,12 @@ abstract class BaseFile<F>
     this.partitionData = new PartitionData(partitionType);
   }
 
-  BaseFile(FileContent content, String filePath, FileFormat format,
+  BaseFile(int specId, FileContent content, String filePath, FileFormat format,
            PartitionData partition, long fileSizeInBytes, long recordCount,
            Map<Integer, Long> columnSizes, Map<Integer, Long> valueCounts, Map<Integer, Long> nullValueCounts,
            Map<Integer, ByteBuffer> lowerBounds, Map<Integer, ByteBuffer> upperBounds, List<Long> splitOffsets,
            ByteBuffer keyMetadata) {
+    this.partitionSpecId = specId;
     this.content = content;
     this.filePath = filePath;
     this.format = format;
@@ -145,6 +147,7 @@ abstract class BaseFile<F>
    * @param fullCopy whether to copy all fields or to drop column-level stats
    */
   BaseFile(BaseFile<F> toCopy, boolean fullCopy) {
+    this.partitionSpecId = toCopy.partitionSpecId;
     this.content = toCopy.content;
     this.filePath = toCopy.filePath;
     this.format = toCopy.format;
@@ -176,6 +179,15 @@ abstract class BaseFile<F>
    * Constructor for Java serialization.
    */
   BaseFile() {
+  }
+
+  @Override
+  public int specId() {
+    return partitionSpecId;
+  }
+
+  void setSpecId(int specId) {
+    this.partitionSpecId = specId;
   }
 
   protected abstract Schema getAvroSchema(Types.StructType partitionStruct);

@@ -255,7 +255,11 @@ public class TestLocalScan {
       }
 
       writeFile(location.toString(), format.addExtension("file-" + fileNum), records);
-      append.appendFile(fromInputFile(HadoopInputFile.fromPath(path, CONF), numRecords));
+      DataFile file = DataFiles.builder(PartitionSpec.unpartitioned())
+          .withRecordCount(numRecords)
+          .withInputFile(HadoopInputFile.fromPath(path, CONF))
+          .build();
+      append.appendFile(file);
 
       fileNum += 1;
     }
