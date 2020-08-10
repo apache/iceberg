@@ -166,15 +166,10 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
     boolean atLeastOneColumn = expectedSchema.columns().size() > 0;
 
-    boolean hasNoIdentityProjections = tasks().stream()
-        .allMatch(combinedScanTask -> combinedScanTask.files()
-            .stream()
-            .allMatch(fileScanTask -> fileScanTask.spec().identitySourceIds().isEmpty()));
-
     boolean onlyPrimitives = expectedSchema.columns().stream().allMatch(c -> c.type().isPrimitiveType());
 
     boolean readUsingBatch = batchReadsEnabled && (allOrcFileScanTasks ||
-        (allParquetFileScanTasks && atLeastOneColumn && hasNoIdentityProjections && onlyPrimitives));
+        (allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives));
 
     return new ReaderFactory(readUsingBatch ? batchSize : 0);
   }
