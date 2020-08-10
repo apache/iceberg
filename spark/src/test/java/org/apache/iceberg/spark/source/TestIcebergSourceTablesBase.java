@@ -55,6 +55,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
@@ -777,6 +778,43 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     for (int i = 0; i < expected.size(); i += 1) {
       TestHelpers.assertEqualsSafe(manifestTable.schema().asStruct(), expected.get(i), actual.get(i));
     }
+  }
+
+  @Test
+  public void testUnpartitionedPartitionsTable() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "unpartitioned_partitions_test");
+    createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
+
+    Dataset<Row> df = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
+
+    df.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    Types.StructType expectedSchema = Types.StructType.of(
+        required(2, "record_count", Types.LongType.get()),
+        required(3, "file_count", Types.IntegerType.get()));
+
+    Table partitionsTable = loadTable(tableIdentifier, "partitions");
+
+    Assert.assertEquals("Schema should not have partition field",
+        expectedSchema, partitionsTable.schema().asStruct());
+
+    GenericRecordBuilder builder = new GenericRecordBuilder(AvroSchemaUtil.convert(
+        partitionsTable.schema(), "partitions"));
+    GenericData.Record expectedRow = builder
+        .set("record_count", 1L)
+        .set("file_count", 1)
+        .build();
+
+    List<Row> actual = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier, "partitions"))
+        .collectAsList();
+
+    Assert.assertEquals("Unpartitioned partitions table should have one row", 1, actual.size());
+    TestHelpers.assertEqualsSafe(expectedSchema, expectedRow, actual.get(0));
   }
 
   @Test
