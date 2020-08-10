@@ -94,7 +94,12 @@ class RowDataWrapper implements StructLike {
         return (row, pos) -> ByteBuffer.wrap(row.getBinary(pos));
 
       case UUID:
-        return (row, pos) -> UUID.nameUUIDFromBytes(row.getBinary(pos));
+        return (row, pos) -> {
+          ByteBuffer bb = ByteBuffer.wrap(row.getBinary(pos));
+          long mostSigBits = bb.getLong();
+          long leastSigBits = bb.getLong();
+          return new UUID(mostSigBits, leastSigBits);
+        };
 
       case DECIMAL:
         DecimalType decimalType = (DecimalType) logicalType;

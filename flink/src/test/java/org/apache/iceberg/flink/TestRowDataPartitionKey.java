@@ -19,24 +19,20 @@
 
 package org.apache.iceberg.flink;
 
-import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
-import org.apache.flink.table.data.DecimalData;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
-import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.flink.data.RandomRowData;
+import org.apache.iceberg.data.InternalRecordWrapper;
+import org.apache.iceberg.data.RandomGenericData;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -102,7 +98,9 @@ public class TestRowDataPartitionKey {
   @Test
   public void testPartitionWithOneNestedField() {
     RowDataWrapper rowWrapper = new RowDataWrapper(FlinkSchemaUtil.convert(NESTED_SCHEMA), NESTED_SCHEMA.asStruct());
-    Iterable<RowData> rows = RandomRowData.generate(NESTED_SCHEMA, 10, 1991);
+    List<Record> records = RandomGenericData.generate(NESTED_SCHEMA, 10, 1991);
+    List<RowData> rows = records.stream().map(record -> RowDataConverter.convert(NESTED_SCHEMA, record))
+        .collect(Collectors.toList());
 
     PartitionSpec spec1 = PartitionSpec.builderFor(NESTED_SCHEMA)
         .identity("structType.innerStringType")
@@ -111,29 +109,30 @@ public class TestRowDataPartitionKey {
         .identity("structType.innerIntegerType")
         .build();
 
-    for (RowData row : rows) {
-      RowData innerRow = row.getRow(0, 2);
+    for (int i = 0; i < rows.size(); i++) {
+      RowData row = rows.get(i);
+      Record record = (Record) records.get(i).get(0);
 
       PartitionKey partitionKey1 = new PartitionKey(spec1, NESTED_SCHEMA);
       partitionKey1.partition(rowWrapper.wrap(row));
       Assert.assertEquals(partitionKey1.size(), 1);
 
-      String expectedStr = innerRow.isNullAt(0) ? null : innerRow.getString(0).toString();
-      Assert.assertEquals(expectedStr, partitionKey1.get(0, String.class));
+      Assert.assertEquals(record.get(0), partitionKey1.get(0, String.class));
 
       PartitionKey partitionKey2 = new PartitionKey(spec2, NESTED_SCHEMA);
       partitionKey2.partition(rowWrapper.wrap(row));
       Assert.assertEquals(partitionKey2.size(), 1);
 
-      Integer expectedInt = innerRow.isNullAt(1) ? null : innerRow.getInt(1);
-      Assert.assertEquals(expectedInt, partitionKey2.get(0, Integer.class));
+      Assert.assertEquals(record.get(1), partitionKey2.get(0, Integer.class));
     }
   }
 
   @Test
   public void testPartitionMultipleNestedField() {
     RowDataWrapper rowWrapper = new RowDataWrapper(FlinkSchemaUtil.convert(NESTED_SCHEMA), NESTED_SCHEMA.asStruct());
-    Iterable<RowData> rows = RandomRowData.generate(NESTED_SCHEMA, 10, 1992);
+    List<Record> records = RandomGenericData.generate(NESTED_SCHEMA, 10, 1992);
+    List<RowData> rows = records.stream().map(record -> RowDataConverter.convert(NESTED_SCHEMA, record))
+        .collect(Collectors.toList());
 
     PartitionSpec spec1 = PartitionSpec.builderFor(NESTED_SCHEMA)
         .identity("structType.innerIntegerType")
@@ -147,57 +146,21 @@ public class TestRowDataPartitionKey {
     PartitionKey pk1 = new PartitionKey(spec1, NESTED_SCHEMA);
     PartitionKey pk2 = new PartitionKey(spec2, NESTED_SCHEMA);
 
-    for (RowData row : rows) {
-      RowData innerRow = row.getRow(0, 2);
+    for (int i = 0; i < rows.size(); i++) {
+      RowData row = rows.get(i);
+      Record record = (Record) records.get(i).get(0);
 
       pk1.partition(rowWrapper.wrap(row));
       Assert.assertEquals(2, pk1.size());
 
-      Integer expectedInt = innerRow.isNullAt(1) ? null : innerRow.getInt(1);
-      Assert.assertEquals(expectedInt, pk1.get(0, Integer.class));
-
-      String expectedStr = innerRow.isNullAt(0) ? null : innerRow.getString(0).toString();
-      Assert.assertEquals(expectedStr, pk1.get(1, String.class));
+      Assert.assertEquals(record.get(1), pk1.get(0, Integer.class));
+      Assert.assertEquals(record.get(0), pk1.get(1, String.class));
 
       pk2.partition(rowWrapper.wrap(row));
       Assert.assertEquals(2, pk2.size());
 
-      expectedStr = innerRow.isNullAt(0) ? null : innerRow.getString(0).toString();
-      Assert.assertEquals(expectedStr, pk2.get(0, String.class));
-
-      expectedInt = innerRow.isNullAt(1) ? null : innerRow.getInt(1);
-      Assert.assertEquals(expectedInt, pk2.get(1, Integer.class));
-    }
-  }
-
-  private static Object transform(Object value, Type type) {
-    if (value == null) {
-      return null;
-    }
-    switch (type.typeId()) {
-      case STRING:
-        return value.toString();
-      case FIXED:
-      case BINARY:
-        return ByteBuffer.wrap((byte[]) value);
-      case UUID:
-        return UUID.nameUUIDFromBytes((byte[]) value);
-      case TIME:
-        int millis = (int) value;
-        // The flink's time is in milliseconds, while iceberg's time is in microseconds.
-        return ((long) millis) * 1_000;
-      case TIMESTAMP:
-        TimestampData timestampData = (TimestampData) value;
-        if (((Types.TimestampType) type).shouldAdjustToUTC()) {
-          return timestampData.getMillisecond() * 1000 + timestampData.getNanoOfMillisecond() / 1000;
-        } else {
-          return DateTimeUtil.microsFromTimestamp(timestampData.toLocalDateTime());
-        }
-      case DECIMAL:
-        DecimalData decimalData = (DecimalData) value;
-        return decimalData.toBigDecimal();
-      default:
-        return value;
+      Assert.assertEquals(record.get(0), pk2.get(0, String.class));
+      Assert.assertEquals(record.get(1), pk2.get(1, Integer.class));
     }
   }
 
@@ -205,23 +168,35 @@ public class TestRowDataPartitionKey {
   public void testPartitionValueTypes() {
     RowType rowType = FlinkSchemaUtil.convert(SCHEMA);
     RowDataWrapper rowWrapper = new RowDataWrapper(rowType, SCHEMA.asStruct());
-    Iterable<RowData> rows = RandomRowData.generate(SCHEMA, 10, 1993);
+    InternalRecordWrapper recordWrapper = new InternalRecordWrapper(SCHEMA.asStruct());
 
-    for (int i = 0; i < SUPPORTED_PRIMITIVES.size(); i++) {
-      String column = SUPPORTED_PRIMITIVES.get(i);
+    List<Record> records = RandomGenericData.generate(SCHEMA, 10, 1993);
+    List<RowData> rows = records.stream().map(record -> RowDataConverter.convert(SCHEMA, record))
+        .collect(Collectors.toList());
 
+    for (String column : SUPPORTED_PRIMITIVES) {
       PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity(column).build();
-      Type type = spec.schema().findType(column);
       Class<?>[] javaClasses = spec.javaClasses();
 
       PartitionKey pk = new PartitionKey(spec, SCHEMA);
+      PartitionKey expectedPK = new PartitionKey(spec, SCHEMA);
 
-      for (RowData row : rows) {
+      for (int j = 0; j < rows.size(); j++) {
+        RowData row = rows.get(j);
+        Record record = records.get(j);
+
         pk.partition(rowWrapper.wrap(row));
-        Object expected = RowData.createFieldGetter(rowType.getTypeAt(i), i).getFieldOrNull(row);
+        expectedPK.partition(recordWrapper.wrap(record));
+
         Assert.assertEquals("Partition with column " + column + " should have one field.", 1, pk.size());
-        Assert.assertEquals("Partition with column " + column + " should have the expected values",
-            transform(expected, type), pk.get(0, javaClasses[0]));
+
+        if (column.equals("timeType")) {
+          Assert.assertEquals("Partition with column " + column + " should have the expected values",
+              expectedPK.get(0, Long.class) / 1000, pk.get(0, Long.class) / 1000);
+        } else {
+          Assert.assertEquals("Partition with column " + column + " should have the expected values",
+              expectedPK.get(0, javaClasses[0]), pk.get(0, javaClasses[0]));
+        }
       }
     }
   }
@@ -230,29 +205,37 @@ public class TestRowDataPartitionKey {
   public void testNestedPartitionValues() {
     Schema nestedSchema = new Schema(Types.NestedField.optional(1001, "nested", SCHEMA.asStruct()));
     RowType rowType = FlinkSchemaUtil.convert(nestedSchema);
-    RowType nestedRowType = (RowType) rowType.getTypeAt(0);
 
     RowDataWrapper rowWrapper = new RowDataWrapper(rowType, nestedSchema.asStruct());
-    Iterable<RowData> rows = RandomRowData.generate(nestedSchema, 10, 1994);
+    InternalRecordWrapper recordWrapper = new InternalRecordWrapper(nestedSchema.asStruct());
+
+    List<Record> records = RandomGenericData.generate(nestedSchema, 10, 1994);
+    List<RowData> rows = records.stream().map(record -> RowDataConverter.convert(nestedSchema, record))
+        .collect(Collectors.toList());
 
     for (int i = 0; i < SUPPORTED_PRIMITIVES.size(); i++) {
       String column = String.format("nested.%s", SUPPORTED_PRIMITIVES.get(i));
 
       PartitionSpec spec = PartitionSpec.builderFor(nestedSchema).identity(column).build();
-      Type type = spec.schema().findType(column);
       Class<?>[] javaClasses = spec.javaClasses();
 
       PartitionKey pk = new PartitionKey(spec, nestedSchema);
+      PartitionKey expectedPK = new PartitionKey(spec, nestedSchema);
 
-      for (RowData row : rows) {
-        pk.partition(rowWrapper.wrap(row));
+      for (int j = 0; j < rows.size(); j++) {
+        pk.partition(rowWrapper.wrap(rows.get(j)));
+        expectedPK.partition(recordWrapper.wrap(records.get(j)));
 
-        Object expected = RowData.createFieldGetter(nestedRowType.getTypeAt(i), i)
-            .getFieldOrNull(row.getRow(0, SUPPORTED_PRIMITIVES.size()));
         Assert.assertEquals("Partition with nested column " + column + " should have one field.",
             1, pk.size());
-        Assert.assertEquals("Partition with nested column " + column + "should have the expected values.",
-            transform(expected, type), pk.get(0, javaClasses[0]));
+
+        if (column.equals("nested.timeType")) {
+          Assert.assertEquals("Partition with nested column " + column + " should have the expected values.",
+              expectedPK.get(0, Long.class) / 1000, pk.get(0, Long.class) / 1000);
+        } else {
+          Assert.assertEquals("Partition with nested column " + column + " should have the expected values.",
+              expectedPK.get(0, javaClasses[0]), pk.get(0, javaClasses[0]));
+        }
       }
     }
   }
