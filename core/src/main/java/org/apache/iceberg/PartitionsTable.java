@@ -83,7 +83,7 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   private static Iterable<Partition> partitions(Table table, Long snapshotId) {
-    PartitionSet partitions = new PartitionSet();
+    PartitionMap partitions = new PartitionMap(table.spec().partitionType());
     TableScan scan = table.newScan();
 
     if (snapshotId != null) {
@@ -103,15 +103,21 @@ public class PartitionsTable extends BaseMetadataTable {
     }
   }
 
-  static class PartitionSet {
+  static class PartitionMap {
     private final Map<StructLikeWrapper, Partition> partitions = Maps.newHashMap();
-    private final StructLikeWrapper reused = StructLikeWrapper.wrap(null);
+    private final Types.StructType type;
+    private final StructLikeWrapper reused;
+
+    PartitionMap(Types.StructType type) {
+      this.type = type;
+      this.reused = StructLikeWrapper.forType(type);
+    }
 
     Partition get(StructLike key) {
       Partition partition = partitions.get(reused.set(key));
       if (partition == null) {
         partition = new Partition(key);
-        partitions.put(StructLikeWrapper.wrap(key), partition);
+        partitions.put(StructLikeWrapper.forType(type).set(key), partition);
       }
       return partition;
     }
