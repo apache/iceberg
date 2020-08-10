@@ -20,7 +20,6 @@
 package org.apache.iceberg.types;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.function.IntFunction;
 import org.apache.iceberg.StructLike;
 
@@ -37,7 +36,7 @@ public class JavaHashes {
     return result;
   }
 
-  static JavaHash<CharSequence> strings() {
+  static JavaHash<Object> strings() {
     return CharSequenceHash.INSTANCE;
   }
 
@@ -49,19 +48,24 @@ public class JavaHashes {
     return new ListHash(list);
   }
 
-  private static class CharSequenceHash implements JavaHash<CharSequence> {
+  private static class CharSequenceHash implements JavaHash<Object> {
     private static final CharSequenceHash INSTANCE = new CharSequenceHash();
 
     private CharSequenceHash() {
     }
 
     @Override
-    public int hash(CharSequence str) {
-      if (str == null) {
-        return 0;
+    public int hash(Object str) {
+      if (str instanceof CharSequence) {
+        return JavaHashes.hashCode((CharSequence) str);
+      } else if (str != null) {
+        // UnknownTransform results are assumed to be string, the most generic type. But there is no guarantee that the
+        // values actually are strings so this can receive non-string values to hash. To get a consistent hash code for
+        // those values, convert to string an hash the string.
+        return JavaHashes.hashCode(str.toString());
       }
 
-      return JavaHashes.hashCode(str);
+      return 0;
     }
   }
 
@@ -70,10 +74,8 @@ public class JavaHashes {
 
     private StructLikeHash(Types.StructType struct) {
       this.hashes = struct.fields().stream()
-          .map(field ->
-            "unknown-partition".equals(field.doc()) ?
-                (JavaHash<Object>) Objects::hashCode :
-                JavaHash.forType(field.type()))
+          .map(Types.NestedField::type)
+          .map(JavaHash::forType)
           .toArray((IntFunction<JavaHash<Object>[]>) JavaHash[]::new);
     }
 
