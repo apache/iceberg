@@ -128,8 +128,13 @@ public class AllManifestsTable extends BaseMetadataTable {
         if (snap.manifestListLocation() != null) {
           Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
           ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
+          DataFile manifestListAsDataFile = DataFiles.builder(PartitionSpec.unpartitioned())
+              .withInputFile(ops.io().newInputFile(snap.manifestListLocation()))
+              .withRecordCount(1)
+              .withFormat(FileFormat.AVRO)
+              .build();
           return new ManifestListReadTask(ops.io(), table().spec(), new BaseFileScanTask(
-              DataFiles.fromManifestList(ops.io().newInputFile(snap.manifestListLocation())), null,
+              manifestListAsDataFile, null,
               schemaString, specString, residuals));
         } else {
           return StaticDataTask.of(

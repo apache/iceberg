@@ -42,7 +42,7 @@ class StaticDataTask implements DataTask {
   private final StructLike[] rows;
 
   private StaticDataTask(InputFile metadata, StructLike[] rows) {
-    this.metadataFile = DataFiles.builder()
+    this.metadataFile = DataFiles.builder(PartitionSpec.unpartitioned())
         .withInputFile(metadata)
         .withRecordCount(rows.length)
         .withFormat(FileFormat.METADATA)

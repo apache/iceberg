@@ -30,6 +30,11 @@ import java.util.Map;
  */
 public interface ContentFile<F> {
   /**
+   * @return id of the partition spec used for partition metadata
+   */
+  int specId();
+
+  /**
    * @return type of content stored in the file; one of DATA, POSITION_DELETES, or EQUALITY_DELETES
    */
   FileContent content();

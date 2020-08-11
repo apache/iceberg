@@ -265,7 +265,10 @@ public abstract class TestPartitionValues {
 
     // add the Avro data file to the source table
     source.newAppend()
-        .appendFile(DataFiles.fromInputFile(Files.localInput(avroData), 10))
+        .appendFile(DataFiles.builder(PartitionSpec.unpartitioned())
+            .withRecordCount(10)
+            .withInputFile(Files.localInput(avroData))
+            .build())
         .commit();
 
     Dataset<Row> sourceDF = spark.read().format("iceberg")
@@ -330,7 +333,10 @@ public abstract class TestPartitionValues {
 
     // add the Avro data file to the source table
     source.newAppend()
-        .appendFile(DataFiles.fromInputFile(Files.localInput(avroData), 10))
+        .appendFile(DataFiles.builder(PartitionSpec.unpartitioned())
+            .withRecordCount(10)
+            .withInputFile(Files.localInput(avroData))
+            .build())
         .commit();
 
     Dataset<Row> sourceDF = spark.read().format("iceberg")
