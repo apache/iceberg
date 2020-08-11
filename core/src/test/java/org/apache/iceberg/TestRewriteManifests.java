@@ -579,22 +579,26 @@ public class TestRewriteManifests extends TableTestBase {
     // commit the new partition spec to the table manually
     table.ops().commit(base, base.updatePartitionSpec(newSpec));
 
-    DataFile newFileC = DataFiles.builder(newSpec)
-        .copy(FILE_C)
+    DataFile newFileY = DataFiles.builder(newSpec)
+        .withPath("/path/to/data-y.parquet")
+        .withFileSizeInBytes(10)
         .withPartitionPath("data_bucket=2/id_bucket=3")
+        .withRecordCount(1)
         .build();
 
     table.newAppend()
-        .appendFile(newFileC)
+        .appendFile(newFileY)
         .commit();
 
-    DataFile newFileD = DataFiles.builder(newSpec)
-        .copy(FILE_D)
+    DataFile newFileZ = DataFiles.builder(newSpec)
+        .withPath("/path/to/data-z.parquet")
+        .withFileSizeInBytes(10)
         .withPartitionPath("data_bucket=2/id_bucket=4")
+        .withRecordCount(1)
         .build();
 
     table.newAppend()
-        .appendFile(newFileD)
+        .appendFile(newFileZ)
         .commit();
 
     Assert.assertEquals("Should use 3 manifest files",
@@ -648,22 +652,26 @@ public class TestRewriteManifests extends TableTestBase {
     // commit the new partition spec to the table manually
     table.ops().commit(base, base.updatePartitionSpec(newSpec));
 
-    DataFile newFileC = DataFiles.builder(newSpec)
-        .copy(FILE_C)
+    DataFile newFileY = DataFiles.builder(newSpec)
+        .withPath("/path/to/data-y.parquet")
+        .withFileSizeInBytes(10)
         .withPartitionPath("data_bucket=2/id_bucket=3")
+        .withRecordCount(1)
         .build();
 
     table.newAppend()
-        .appendFile(newFileC)
+        .appendFile(newFileY)
         .commit();
 
-    DataFile newFileD = DataFiles.builder(newSpec)
-        .copy(FILE_D)
+    DataFile newFileZ = DataFiles.builder(newSpec)
+        .withPath("/path/to/data-z.parquet")
+        .withFileSizeInBytes(10)
         .withPartitionPath("data_bucket=2/id_bucket=4")
+        .withRecordCount(1)
         .build();
 
     table.newAppend()
-        .appendFile(newFileD)
+        .appendFile(newFileZ)
         .commit();
 
     Assert.assertEquals("Rewrite manifests should produce 3 manifest files",

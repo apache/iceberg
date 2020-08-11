@@ -681,13 +681,15 @@ public class TestMergeAppend extends TableTestBase {
     V2Assert.assertEquals("Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
     V1Assert.assertEquals("Table should end with last-sequence-number 0", 0, readMetadata().lastSequenceNumber());
 
-    DataFile newFileC = DataFiles.builder(newSpec)
-        .copy(FILE_C)
+    DataFile newFileY = DataFiles.builder(newSpec)
+        .withPath("/path/to/data-y.parquet")
+        .withFileSizeInBytes(10)
         .withPartitionPath("data_bucket=2/id_bucket=3")
+        .withRecordCount(1)
         .build();
 
     table.newAppend()
-        .appendFile(newFileC)
+        .appendFile(newFileY)
         .commit();
 
     Snapshot lastSnapshot = table.currentSnapshot();
@@ -702,7 +704,7 @@ public class TestMergeAppend extends TableTestBase {
     validateManifest(lastSnapshot.allManifests().get(0),
         seqs(2),
         ids(lastSnapshot.snapshotId()),
-        files(newFileC),
+        files(newFileY),
         statuses(Status.ADDED)
     );
 
@@ -747,13 +749,15 @@ public class TestMergeAppend extends TableTestBase {
     V2Assert.assertEquals("Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
     V1Assert.assertEquals("Table should end with last-sequence-number 0", 0, readMetadata().lastSequenceNumber());
 
-    DataFile newFileC = DataFiles.builder(newSpec)
-        .copy(FILE_C)
+    DataFile newFileY = DataFiles.builder(newSpec)
+        .withPath("/path/to/data-y.parquet")
+        .withFileSizeInBytes(10)
         .withPartitionPath("data_bucket=2/id_bucket=3")
+        .withRecordCount(1)
         .build();
 
     table.newAppend()
-        .appendFile(newFileC)
+        .appendFile(newFileY)
         .commit();
     Snapshot lastSnapshot = table.currentSnapshot();
     V2Assert.assertEquals("Snapshot sequence number should be 3", 3, lastSnapshot.sequenceNumber());
@@ -768,7 +772,7 @@ public class TestMergeAppend extends TableTestBase {
     validateManifest(lastSnapshot.allManifests().get(0),
         seqs(3),
         ids(lastSnapshot.snapshotId()),
-        files(newFileC),
+        files(newFileY),
         statuses(Status.ADDED)
     );
     validateManifest(lastSnapshot.allManifests().get(1),
@@ -1129,8 +1133,12 @@ public class TestMergeAppend extends TableTestBase {
     V2Assert.assertEquals("Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
     V1Assert.assertEquals("Table should end with last-sequence-number 0", 0, readMetadata().lastSequenceNumber());
 
+    // create a new with the table's current spec
     DataFile newFile = DataFiles.builder(table.spec())
-        .copy(FILE_B)
+        .withPath("/path/to/data-x.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("id_bucket=1/data_bucket=1")
+        .withRecordCount(1)
         .build();
 
     table.newAppend()
