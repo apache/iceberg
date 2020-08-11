@@ -115,8 +115,15 @@ public class TestCatalogs {
   }
 
   public static class CustomHadoopCatalog extends HadoopCatalog {
+
+    public static final String WAREHOUSE_LOCATION = "warehouse.location";
+
+    public CustomHadoopCatalog(Configuration conf, String warehouseLocation) {
+      super(conf, warehouseLocation);
+    }
+
     public CustomHadoopCatalog(Configuration conf) {
-      super(conf, conf.get("warehouse.location"));
+      this(conf, conf.get(WAREHOUSE_LOCATION));
     }
   }
 

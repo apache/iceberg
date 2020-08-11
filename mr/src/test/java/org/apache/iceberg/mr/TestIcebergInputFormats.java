@@ -42,6 +42,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -107,7 +108,7 @@ public class TestIcebergInputFormats {
     File location = temp.newFolder(testInputFormat.name(), fileFormat.name());
     Assert.assertTrue(location.delete());
 
-    helper = new TestHelper(conf, tables, SCHEMA, SPEC, fileFormat, temp, location);
+    helper = new TestHelper(conf, tables, location.toString(), SCHEMA, SPEC, fileFormat, temp);
     builder = new InputFormatConfig.ConfigBuilder(conf).readFrom(location.toString());
   }
 
@@ -142,7 +143,7 @@ public class TestIcebergInputFormats {
 
   @Test
   public void testPartitionedTable() throws Exception {
-    helper.createPartitionedTable();
+    helper.createTable();
     List<Record> expectedRecords = helper.generateRandomRecords(1, 0L);
     expectedRecords.get(0).set(2, "2020-03-20");
     helper.appendToTable(Row.of("2020-03-20", 0), expectedRecords);
@@ -152,7 +153,7 @@ public class TestIcebergInputFormats {
 
   @Test
   public void testFilterExp() throws Exception {
-    helper.createPartitionedTable();
+    helper.createTable();
 
     List<Record> expectedRecords = helper.generateRandomRecords(2, 0L);
     expectedRecords.get(0).set(2, "2020-03-20");
@@ -168,7 +169,7 @@ public class TestIcebergInputFormats {
 
   @Test
   public void testResiduals() throws Exception {
-    helper.createPartitionedTable();
+    helper.createTable();
 
     List<Record> writeRecords = helper.generateRandomRecords(2, 0L);
     writeRecords.get(0).set(1, 123L);
@@ -195,7 +196,7 @@ public class TestIcebergInputFormats {
 
   @Test
   public void testFailedResidualFiltering() throws Exception {
-    helper.createPartitionedTable();
+    helper.createTable();
 
     List<Record> expectedRecords = helper.generateRandomRecords(2, 0L);
     expectedRecords.get(0).set(2, "2020-03-20");
@@ -223,7 +224,7 @@ public class TestIcebergInputFormats {
 
   @Test
   public void testProjection() throws Exception {
-    helper.createPartitionedTable();
+    helper.createTable();
     List<Record> inputRecords = helper.generateRandomRecords(1, 0L);
     helper.appendToTable(Row.of("2020-03-20", 0), inputRecords);
 
@@ -252,7 +253,7 @@ public class TestIcebergInputFormats {
     List<Record> inputRecords = helper.generateRandomRecords(10, 0L);
 
     Integer idx = 0;
-    AppendFiles append = helper.getTable().newAppend();
+    AppendFiles append = helper.table().newAppend();
     for (Record record : inputRecords) {
       record.set(1, "2020-03-2" + idx);
       record.set(2, idx.toString());
@@ -318,7 +319,7 @@ public class TestIcebergInputFormats {
 
     List<Record> expectedRecords = helper.generateRandomRecords(1, 0L);
     helper.appendToTable(null, expectedRecords);
-    long snapshotId = helper.getTable().currentSnapshot().snapshotId();
+    long snapshotId = helper.table().currentSnapshot().snapshotId();
 
     helper.appendToTable(null, helper.generateRandomRecords(1, 0L));
 
@@ -356,7 +357,8 @@ public class TestIcebergInputFormats {
 
     Catalog catalog = new HadoopCatalogLoader().load(conf);
     TableIdentifier identifier = TableIdentifier.of("db", "t");
-    helper.createTable(catalog, identifier);
+    Table table = catalog.createTable(identifier, SCHEMA, SPEC, helper.properties());
+    helper.setTable(table);
 
     List<Record> expectedRecords = helper.generateRandomRecords(1, 0L);
     expectedRecords.get(0).set(2, "2020-03-20");
