@@ -281,6 +281,12 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
     Assert.assertEquals(record, projected);
   }
 
+  @Test
+  @Override
+  public void testAvroArrayAsLogicalMap() {
+    // no-op
+  }
+
   @Override
   protected Record writeAndRead(String desc,
                                 Schema writeSchema,
