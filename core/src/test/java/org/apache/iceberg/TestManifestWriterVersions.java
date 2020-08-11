@@ -68,10 +68,10 @@ public class TestManifestWriterVersions {
   private static final List<Long> OFFSETS = ImmutableList.of(4L);
 
   private static final DataFile DATA_FILE = new GenericDataFile(
-      PATH, FORMAT, PARTITION, 150972L, METRICS, null, OFFSETS);
+      0, PATH, FORMAT, PARTITION, 150972L, METRICS, null, OFFSETS);
 
   private static final DeleteFile DELETE_FILE = new GenericDeleteFile(
-      FileContent.EQUALITY_DELETES, PATH, FORMAT, PARTITION, 22905L, METRICS, null);
+      0, FileContent.EQUALITY_DELETES, PATH, FORMAT, PARTITION, 22905L, METRICS, null);
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();

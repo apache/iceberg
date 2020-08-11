@@ -365,6 +365,11 @@ class V1Metadata {
     }
 
     @Override
+    public int specId() {
+      return wrapped.specId();
+    }
+
+    @Override
     public FileContent content() {
       return wrapped.content();
     }
