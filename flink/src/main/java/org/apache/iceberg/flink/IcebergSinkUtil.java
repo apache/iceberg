@@ -21,9 +21,15 @@ package org.apache.iceberg.flink;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -37,7 +43,28 @@ import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
 class IcebergSinkUtil {
+
   private IcebergSinkUtil() {
+  }
+
+  private static final String ICEBERG_STREAM_WRITER = "Iceberg-Stream-Writer";
+  private static final String ICEBERG_FILES_COMMITTER = "Iceberg-Files-Committer";
+
+  static void write(DataStream<RowData> dataStream, int parallelism,
+                    Map<String, String> options, Configuration conf,
+                    Table table, TableSchema requestedSchema) {
+    IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, requestedSchema);
+    IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(table.toString(), options, conf);
+
+    SingleOutputStreamOperator<DataFile> operator = dataStream
+        .transform(ICEBERG_STREAM_WRITER, TypeInformation.of(DataFile.class), streamWriter)
+        .uid(UUID.randomUUID().toString())
+        .setParallelism(parallelism);
+
+    operator.addSink(filesCommitter)
+        .name(ICEBERG_FILES_COMMITTER)
+        .uid(UUID.randomUUID().toString())
+        .setParallelism(1);
   }
 
   static IcebergStreamWriter<RowData> createStreamWriter(Table table, TableSchema requestedSchema) {
