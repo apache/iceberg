@@ -43,6 +43,7 @@ class FileMetadata {
     private final boolean isPartitioned;
     private final int specId;
     private FileContent content = null;
+    private int[] equalityFieldIds = null;
     private PartitionData partitionData;
     private String filePath = null;
     private FileFormat format = null;
@@ -101,11 +102,13 @@ class FileMetadata {
 
     public Builder ofPositionDeletes() {
       this.content = FileContent.POSITION_DELETES;
+      this.equalityFieldIds = null;
       return this;
     }
 
-    public Builder ofEqualityDeletes() {
+    public Builder ofEqualityDeletes(int... fieldIds) {
       this.content = FileContent.EQUALITY_DELETES;
+      this.equalityFieldIds = fieldIds;
       return this;
     }
 
@@ -204,7 +207,7 @@ class FileMetadata {
           specId, content, filePath, format, isPartitioned ? DataFiles.copy(spec, partitionData) : null,
           fileSizeInBytes, new Metrics(
           recordCount, columnSizes, valueCounts, nullValueCounts, lowerBounds, upperBounds),
-          keyMetadata);
+          equalityFieldIds, keyMetadata);
     }
   }
 }
