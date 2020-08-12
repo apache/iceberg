@@ -27,19 +27,16 @@ import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DataTest;
+import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
-import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.junit.Assert;
 import org.junit.Rule;
-import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import static org.apache.iceberg.flink.data.RandomData.COMPLEX_SCHEMA;
 
 public class TestFlinkParquetWriter extends DataTest {
   private static final int NUM_RECORDS = 100;
@@ -77,8 +74,15 @@ public class TestFlinkParquetWriter extends DataTest {
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    writeAndValidate(RandomData.generateRowData(schema, NUM_RECORDS, 19981), schema);
-    writeAndValidate(RandomData.generateDictionaryEncodableRowData(schema, NUM_RECORDS, 21124), schema);
-    writeAndValidate(RandomData.generateFallbackRowData(schema, NUM_RECORDS, 21124, NUM_RECORDS / 20), schema);
+    writeAndValidate(
+        RandomRowData.generate(schema, NUM_RECORDS, 19981), schema);
+
+    writeAndValidate(RandomRowData.convert(schema,
+        RandomGenericData.generateDictionaryEncodableRecords(schema, NUM_RECORDS, 21124)),
+        schema);
+
+    writeAndValidate(RandomRowData.convert(schema,
+        RandomGenericData.generateFallbackRecords(schema, NUM_RECORDS, 21124, NUM_RECORDS / 20)),
+        schema);
   }
 }

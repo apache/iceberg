@@ -260,7 +260,7 @@ public class FlinkParquetWriters {
     public void write(int repetitionLevel, DecimalData decimal) {
       Preconditions.checkArgument(decimal.scale() == scale,
           "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, decimal);
-      Preconditions.checkArgument(decimal.precision() <= 9,
+      Preconditions.checkArgument(decimal.precision() <= precision,
           "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, decimal);
 
       column.writeInteger(repetitionLevel, (int) decimal.toUnscaledLong());
@@ -281,7 +281,7 @@ public class FlinkParquetWriters {
     public void write(int repetitionLevel, DecimalData decimal) {
       Preconditions.checkArgument(decimal.scale() == scale,
           "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, decimal);
-      Preconditions.checkArgument(decimal.precision() <= 18,
+      Preconditions.checkArgument(decimal.precision() <= precision,
           "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, decimal);
 
       column.writeLong(repetitionLevel, decimal.toUnscaledLong());
