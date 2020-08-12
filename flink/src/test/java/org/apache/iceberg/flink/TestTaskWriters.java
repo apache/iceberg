@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -227,8 +228,10 @@ public class TestTaskWriters {
   }
 
   private TaskWriter<RowData> createTaskWriter(long targetFileSize) {
-    TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(table.schema(), table.spec(),
-        table.locationProvider(), table.io(), table.encryption(), targetFileSize, format, table.properties());
+    TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(table.schema(),
+        (RowType) SimpleDataUtil.FLINK_SCHEMA.toRowDataType().getLogicalType(), table.spec(),
+        table.locationProvider(), table.io(), table.encryption(),
+        targetFileSize, format, table.properties());
     taskWriterFactory.initialize(1, 1);
     return taskWriterFactory.create();
   }

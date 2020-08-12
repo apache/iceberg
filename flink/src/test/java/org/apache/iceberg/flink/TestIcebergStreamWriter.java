@@ -27,6 +27,9 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
+import org.apache.flink.table.api.DataTypes;
+import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -36,13 +39,18 @@ import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -241,10 +249,69 @@ public class TestIcebergStreamWriter {
     SimpleDataUtil.assertTableRecords(tablePath, records);
   }
 
+  @Test
+  public void testPromotedFlinkDataType() throws Exception {
+    Schema iSchema = new Schema(
+        Types.NestedField.required(1, "tinyint", Types.IntegerType.get()),
+        Types.NestedField.required(2, "smallint", Types.IntegerType.get()),
+        Types.NestedField.optional(3, "int", Types.IntegerType.get())
+    );
+    TableSchema flinkSchema = TableSchema.builder()
+        .field("tinyint", DataTypes.TINYINT().notNull())
+        .field("smallint", DataTypes.SMALLINT().notNull())
+        .field("int", DataTypes.INT().nullable())
+        .build();
+
+    PartitionSpec spec;
+    if (partitioned) {
+      spec = PartitionSpec.builderFor(iSchema).identity("smallint").identity("tinyint").identity("int").build();
+    } else {
+      spec = PartitionSpec.unpartitioned();
+    }
+
+    String location = tempFolder.newFolder().getAbsolutePath();
+    Map<String, String> props = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name());
+    Table icebergTable = new HadoopTables().create(iSchema, spec, props, location);
+
+    List<RowData> rows = Lists.newArrayList(
+        GenericRowData.of((byte) 0x01, (short) -32768, 101),
+        GenericRowData.of((byte) 0x02, (short) 0, 102),
+        GenericRowData.of((byte) 0x03, (short) 32767, 103)
+    );
+
+    Record record = GenericRecord.create(iSchema);
+    List<Record> expected = Lists.newArrayList(
+        record.copy(ImmutableMap.of("tinyint", 1, "smallint", -32768, "int", 101)),
+        record.copy(ImmutableMap.of("tinyint", 2, "smallint", 0, "int", 102)),
+        record.copy(ImmutableMap.of("tinyint", 3, "smallint", 32767, "int", 103))
+    );
+
+    try (OneInputStreamOperatorTestHarness<RowData, DataFile> testHarness = createIcebergStreamWriter(icebergTable,
+        flinkSchema)) {
+      for (RowData row : rows) {
+        testHarness.processElement(row, 1);
+      }
+      testHarness.prepareSnapshotPreBarrier(1);
+      Assert.assertEquals(partitioned ? 3 : 1, testHarness.extractOutputValues().size());
+
+      // Commit the iceberg transaction.
+      AppendFiles appendFiles = icebergTable.newAppend();
+      testHarness.extractOutputValues().forEach(appendFiles::appendFile);
+      appendFiles.commit();
+    }
+
+    SimpleDataUtil.assertTableRecords(location, expected);
+  }
+
   private OneInputStreamOperatorTestHarness<RowData, DataFile> createIcebergStreamWriter() throws Exception {
-    IcebergStreamWriter<RowData> streamWriter = IcebergSinkUtil.createStreamWriter(table, SimpleDataUtil.FLINK_SCHEMA);
-    OneInputStreamOperatorTestHarness<RowData, DataFile> harness = new OneInputStreamOperatorTestHarness<>(streamWriter,
-        1, 1, 0);
+    return createIcebergStreamWriter(table, SimpleDataUtil.FLINK_SCHEMA);
+  }
+
+  private OneInputStreamOperatorTestHarness<RowData, DataFile> createIcebergStreamWriter(
+      Table icebergTable, TableSchema flinkSchema) throws Exception {
+    IcebergStreamWriter<RowData> streamWriter = IcebergSinkUtil.createStreamWriter(icebergTable, flinkSchema);
+    OneInputStreamOperatorTestHarness<RowData, DataFile> harness = new OneInputStreamOperatorTestHarness<>(
+        streamWriter, 1, 1, 0);
 
     harness.setup();
     harness.open();
