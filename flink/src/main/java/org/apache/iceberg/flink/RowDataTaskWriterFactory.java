@@ -44,13 +44,13 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final Schema schema;
+  private final RowType flinkSchema;
   private final PartitionSpec spec;
   private final LocationProvider locations;
   private final FileIO io;
   private final EncryptionManager encryptionManager;
   private final long targetFileSizeBytes;
   private final FileFormat format;
-  private final RowType flinkSchema;
   private final FileAppenderFactory<RowData> appenderFactory;
 
   private OutputFileFactory outputFileFactory;
@@ -65,13 +65,13 @@ class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
                            FileFormat format,
                            Map<String, String> tableProperties) {
     this.schema = schema;
+    this.flinkSchema = flinkSchema;
     this.spec = spec;
     this.locations = locations;
     this.io = io;
     this.encryptionManager = encryptionManager;
     this.targetFileSizeBytes = targetFileSizeBytes;
     this.format = format;
-    this.flinkSchema = flinkSchema;
     this.appenderFactory = new FlinkFileAppenderFactory(schema, flinkSchema, tableProperties);
   }
 
