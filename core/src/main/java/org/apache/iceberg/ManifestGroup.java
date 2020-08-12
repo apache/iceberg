@@ -172,10 +172,10 @@ class ManifestGroup {
       ResidualEvaluator residuals = residualCache.get(specId);
       if (dropStats) {
         return CloseableIterable.transform(entries, e -> new BaseFileScanTask(
-            e.file().copyWithoutStats(), deleteFiles.forEntry(specId, e), schemaString, specString, residuals));
+            e.file().copyWithoutStats(), deleteFiles.forEntry(e), schemaString, specString, residuals));
       } else {
         return CloseableIterable.transform(entries, e -> new BaseFileScanTask(
-            e.file().copy(), deleteFiles.forEntry(specId, e), schemaString, specString, residuals));
+            e.file().copy(), deleteFiles.forEntry(e), schemaString, specString, residuals));
       }
     });
 

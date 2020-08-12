@@ -132,10 +132,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   /**
    * Add a partition tuple to drop from the table during the delete phase.
    */
-  protected void dropPartition(StructLike partition) {
+  protected void dropPartition(int specId, StructLike partition) {
     // dropping the data in a partition also drops all deletes in the partition
-    filterManager.dropPartition(partition);
-    deleteFilterManager.dropPartition(partition);
+    filterManager.dropPartition(specId, partition);
+    deleteFilterManager.dropPartition(specId, partition);
   }
 
   /**
@@ -368,9 +368,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   private class DataFileFilterManager extends ManifestFilterManager<DataFile> {
-    @Override
-    protected PartitionSpec spec(int specId) {
-      return ops.current().spec(specId);
+    private DataFileFilterManager() {
+      super(ops.current().specsById());
     }
 
     @Override
@@ -421,9 +420,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   private class DeleteFileFilterManager extends ManifestFilterManager<DeleteFile> {
-    @Override
-    protected PartitionSpec spec(int specId) {
-      return ops.current().spec(specId);
+    private DeleteFileFilterManager() {
+      super(ops.current().specsById());
     }
 
     @Override

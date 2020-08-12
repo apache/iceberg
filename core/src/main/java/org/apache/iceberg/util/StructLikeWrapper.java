@@ -20,7 +20,6 @@
 package org.apache.iceberg.util;
 
 import java.util.Comparator;
-import java.util.Objects;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.JavaHash;
@@ -31,10 +30,6 @@ import org.apache.iceberg.types.Types;
  */
 public class StructLikeWrapper {
 
-  public static StructLikeWrapper wrap(StructLike struct) {
-    return new StructLikeWrapper(struct);
-  }
-
   public static StructLikeWrapper forType(Types.StructType struct) {
     return new StructLikeWrapper(struct);
   }
@@ -44,19 +39,9 @@ public class StructLikeWrapper {
   private Integer hashCode;
   private StructLike struct;
 
-  private StructLikeWrapper(StructLike struct) {
-    this((Types.StructType) null);
-    set(struct);
-  }
-
   private StructLikeWrapper(Types.StructType type) {
-    if (type != null) {
-      this.comparator = Comparators.forType(type);
-      this.structHash = JavaHash.forType(type);
-    } else {
-      this.comparator = null;
-      this.structHash = null;
-    }
+    this.comparator = Comparators.forType(type);
+    this.structHash = JavaHash.forType(type);
     this.hashCode = null;
   }
 
@@ -93,33 +78,13 @@ public class StructLikeWrapper {
       return false;
     }
 
-    if (comparator != null) {
-      return comparator.compare(this.struct, that.struct) == 0;
-    }
-
-    for (int i = 0; i < len; i += 1) {
-      if (!Objects.equals(struct.get(i, Object.class), that.struct.get(i, Object.class))) {
-        return false;
-      }
-    }
-
-    return true;
+    return comparator.compare(this.struct, that.struct) == 0;
   }
 
   @Override
   public int hashCode() {
     if (hashCode == null) {
-      if (structHash != null) {
-        this.hashCode = structHash.hash(struct);
-      } else {
-        int result = 97;
-        int len = struct.size();
-        result = 41 * result + len;
-        for (int i = 0; i < len; i += 1) {
-          result = 41 * result + Objects.hashCode(struct.get(i, Object.class));
-        }
-        this.hashCode = result;
-      }
+      this.hashCode = structHash.hash(struct);
     }
 
     return hashCode;

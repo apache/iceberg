@@ -78,58 +78,71 @@ public class TestDeleteFileIndex extends TableTestBase {
 
   @Test
   public void testUnpartitionedDeletes() {
-    DeleteFileIndex index = new DeleteFileIndex(new long[] { 3, 5, 5, 6 }, DELETE_FILES, ImmutableMap.of());
+    DeleteFileIndex index = new DeleteFileIndex(
+        ImmutableMap.of(
+            PartitionSpec.unpartitioned().specId(), PartitionSpec.unpartitioned(),
+            1, SPEC),
+        new long[] { 3, 5, 5, 6 }, DELETE_FILES, ImmutableMap.of());
 
     Assert.assertArrayEquals("All deletes should apply to seq 0",
-        DELETE_FILES, index.forDataFile(1, 0, UNPARTITIONED_FILE));
+        DELETE_FILES, index.forDataFile(0, UNPARTITIONED_FILE));
     Assert.assertArrayEquals("All deletes should apply to seq 3",
-        DELETE_FILES, index.forDataFile(1, 3, UNPARTITIONED_FILE));
+        DELETE_FILES, index.forDataFile(3, UNPARTITIONED_FILE));
     Assert.assertArrayEquals("Last 3 deletes should apply to seq 4",
-        Arrays.copyOfRange(DELETE_FILES, 1, 4), index.forDataFile(1, 4, UNPARTITIONED_FILE));
+        Arrays.copyOfRange(DELETE_FILES, 1, 4), index.forDataFile(4, UNPARTITIONED_FILE));
     Assert.assertArrayEquals("Last 3 deletes should apply to seq 5",
-        Arrays.copyOfRange(DELETE_FILES, 1, 4), index.forDataFile(1, 5, UNPARTITIONED_FILE));
+        Arrays.copyOfRange(DELETE_FILES, 1, 4), index.forDataFile(5, UNPARTITIONED_FILE));
     Assert.assertArrayEquals("Last delete should apply to seq 6",
-        Arrays.copyOfRange(DELETE_FILES, 3, 4), index.forDataFile(1, 6, UNPARTITIONED_FILE));
+        Arrays.copyOfRange(DELETE_FILES, 3, 4), index.forDataFile(6, UNPARTITIONED_FILE));
     Assert.assertArrayEquals("No deletes should apply to seq 7",
-        new DataFile[0], index.forDataFile(1, 7, UNPARTITIONED_FILE));
+        new DataFile[0], index.forDataFile(7, UNPARTITIONED_FILE));
     Assert.assertArrayEquals("No deletes should apply to seq 10",
-        new DataFile[0], index.forDataFile(1, 10, UNPARTITIONED_FILE));
+        new DataFile[0], index.forDataFile(10, UNPARTITIONED_FILE));
 
+    // copy file A with a different spec ID
+    DataFile partitionedFileA = FILE_A.copy();
+    ((BaseFile<?>) partitionedFileA).setSpecId(1);
     Assert.assertArrayEquals("All global deletes should apply to a partitioned file",
-        DELETE_FILES, index.forDataFile(2, 0, FILE_B));
+        DELETE_FILES, index.forDataFile(0, partitionedFileA));
   }
 
   @Test
   public void testPartitionedDeleteIndex() {
-    DeleteFileIndex index = new DeleteFileIndex(null, null, ImmutableMap.of(
-        Pair.of(1, StructLikeWrapper.wrap(FILE_A.partition())),
-        Pair.of(new long[] { 3, 5, 5, 6 }, DELETE_FILES),
-        Pair.of(1, StructLikeWrapper.wrap(FILE_C.partition())),
-        Pair.of(new long[0], new DeleteFile[0])));
+    DeleteFileIndex index = new DeleteFileIndex(
+        ImmutableMap.of(
+            SPEC.specId(), SPEC,
+            1, PartitionSpec.unpartitioned()),
+        null, null, ImmutableMap.of(
+            Pair.of(SPEC.specId(), StructLikeWrapper.forType(SPEC.partitionType()).set(FILE_A.partition())),
+            Pair.of(new long[] { 3, 5, 5, 6 }, DELETE_FILES),
+            Pair.of(SPEC.specId(), StructLikeWrapper.forType(SPEC.partitionType()).set(FILE_C.partition())),
+            Pair.of(new long[0], new DeleteFile[0])));
 
     Assert.assertArrayEquals("All deletes should apply to seq 0",
-        DELETE_FILES, index.forDataFile(1, 0, FILE_A));
+        DELETE_FILES, index.forDataFile(0, FILE_A));
     Assert.assertArrayEquals("All deletes should apply to seq 3",
-        DELETE_FILES, index.forDataFile(1, 3, FILE_A));
+        DELETE_FILES, index.forDataFile(3, FILE_A));
     Assert.assertArrayEquals("Last 3 deletes should apply to seq 4",
-        Arrays.copyOfRange(DELETE_FILES, 1, 4), index.forDataFile(1, 4, FILE_A));
+        Arrays.copyOfRange(DELETE_FILES, 1, 4), index.forDataFile(4, FILE_A));
     Assert.assertArrayEquals("Last 3 deletes should apply to seq 5",
-        Arrays.copyOfRange(DELETE_FILES, 1, 4), index.forDataFile(1, 5, FILE_A));
+        Arrays.copyOfRange(DELETE_FILES, 1, 4), index.forDataFile(5, FILE_A));
     Assert.assertArrayEquals("Last delete should apply to seq 6",
-        Arrays.copyOfRange(DELETE_FILES, 3, 4), index.forDataFile(1, 6, FILE_A));
+        Arrays.copyOfRange(DELETE_FILES, 3, 4), index.forDataFile(6, FILE_A));
     Assert.assertArrayEquals("No deletes should apply to seq 7",
-        new DataFile[0], index.forDataFile(1, 7, FILE_A));
+        new DataFile[0], index.forDataFile(7, FILE_A));
     Assert.assertArrayEquals("No deletes should apply to seq 10",
-        new DataFile[0], index.forDataFile(1, 10, FILE_A));
+        new DataFile[0], index.forDataFile(10, FILE_A));
 
     Assert.assertEquals("No deletes should apply to FILE_B, partition not in index",
-        0, index.forDataFile(1, 0, FILE_B).length);
+        0, index.forDataFile(0, FILE_B).length);
 
     Assert.assertEquals("No deletes should apply to FILE_C, no indexed delete files",
-        0, index.forDataFile(1, 0, FILE_C).length);
+        0, index.forDataFile(0, FILE_C).length);
 
+    DataFile unpartitionedFileA = FILE_A.copy();
+    ((BaseFile<?>) unpartitionedFileA).setSpecId(1);
     Assert.assertEquals("No deletes should apply to FILE_A with a different specId",
-        0, index.forDataFile(2, 0, FILE_A).length);
+        0, index.forDataFile(0, unpartitionedFileA).length);
   }
 
   @Test
