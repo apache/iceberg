@@ -56,6 +56,7 @@ class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private OutputFileFactory outputFileFactory;
 
   RowDataTaskWriterFactory(Schema schema,
+                           RowType flinkSchema,
                            PartitionSpec spec,
                            LocationProvider locations,
                            FileIO io,
@@ -70,7 +71,7 @@ class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.encryptionManager = encryptionManager;
     this.targetFileSizeBytes = targetFileSizeBytes;
     this.format = format;
-    this.flinkSchema = FlinkSchemaUtil.convert(schema);
+    this.flinkSchema = flinkSchema;
     this.appenderFactory = new FlinkFileAppenderFactory(schema, flinkSchema, tableProperties);
   }
 
