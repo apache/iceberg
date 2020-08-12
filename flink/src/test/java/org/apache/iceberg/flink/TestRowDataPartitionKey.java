@@ -31,6 +31,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.flink.data.RandomRowData;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -99,8 +100,7 @@ public class TestRowDataPartitionKey {
   public void testPartitionWithOneNestedField() {
     RowDataWrapper rowWrapper = new RowDataWrapper(FlinkSchemaUtil.convert(NESTED_SCHEMA), NESTED_SCHEMA.asStruct());
     List<Record> records = RandomGenericData.generate(NESTED_SCHEMA, 10, 1991);
-    List<RowData> rows = records.stream().map(record -> RowDataConverter.convert(NESTED_SCHEMA, record))
-        .collect(Collectors.toList());
+    List<RowData> rows = Lists.newArrayList(RandomRowData.convert(NESTED_SCHEMA, records));
 
     PartitionSpec spec1 = PartitionSpec.builderFor(NESTED_SCHEMA)
         .identity("structType.innerStringType")
@@ -131,8 +131,7 @@ public class TestRowDataPartitionKey {
   public void testPartitionMultipleNestedField() {
     RowDataWrapper rowWrapper = new RowDataWrapper(FlinkSchemaUtil.convert(NESTED_SCHEMA), NESTED_SCHEMA.asStruct());
     List<Record> records = RandomGenericData.generate(NESTED_SCHEMA, 10, 1992);
-    List<RowData> rows = records.stream().map(record -> RowDataConverter.convert(NESTED_SCHEMA, record))
-        .collect(Collectors.toList());
+    List<RowData> rows = Lists.newArrayList(RandomRowData.convert(NESTED_SCHEMA, records));
 
     PartitionSpec spec1 = PartitionSpec.builderFor(NESTED_SCHEMA)
         .identity("structType.innerIntegerType")
@@ -171,8 +170,7 @@ public class TestRowDataPartitionKey {
     InternalRecordWrapper recordWrapper = new InternalRecordWrapper(SCHEMA.asStruct());
 
     List<Record> records = RandomGenericData.generate(SCHEMA, 10, 1993);
-    List<RowData> rows = records.stream().map(record -> RowDataConverter.convert(SCHEMA, record))
-        .collect(Collectors.toList());
+    List<RowData> rows = Lists.newArrayList(RandomRowData.convert(SCHEMA, records));
 
     for (String column : SUPPORTED_PRIMITIVES) {
       PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity(column).build();
@@ -210,8 +208,7 @@ public class TestRowDataPartitionKey {
     InternalRecordWrapper recordWrapper = new InternalRecordWrapper(nestedSchema.asStruct());
 
     List<Record> records = RandomGenericData.generate(nestedSchema, 10, 1994);
-    List<RowData> rows = records.stream().map(record -> RowDataConverter.convert(nestedSchema, record))
-        .collect(Collectors.toList());
+    List<RowData> rows = Lists.newArrayList(RandomRowData.convert(nestedSchema, records));
 
     for (int i = 0; i < SUPPORTED_PRIMITIVES.size(); i++) {
       String column = String.format("nested.%s", SUPPORTED_PRIMITIVES.get(i));

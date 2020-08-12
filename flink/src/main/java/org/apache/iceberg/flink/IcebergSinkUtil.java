@@ -22,7 +22,8 @@ package org.apache.iceberg.flink;
 import java.util.Locale;
 import java.util.Map;
 import org.apache.flink.table.api.TableSchema;
-import org.apache.flink.types.Row;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -39,22 +40,30 @@ class IcebergSinkUtil {
   private IcebergSinkUtil() {
   }
 
-  static IcebergStreamWriter<Row> createStreamWriter(Table table, TableSchema tableSchema) {
+  static IcebergStreamWriter<RowData> createStreamWriter(Table table, TableSchema requestedSchema) {
     Preconditions.checkArgument(table != null, "Iceberg table should't be null");
 
-    if (tableSchema != null) {
-      Schema writeSchema = FlinkSchemaUtil.convert(tableSchema);
-      // Reassign ids to match the existing table schema.
-      writeSchema = TypeUtil.reassignIds(writeSchema, table.schema());
+    RowType flinkSchema;
+    if (requestedSchema != null) {
+      // Convert the flink schema to iceberg schema firstly, then reassign ids to match the existing iceberg schema.
+      Schema writeSchema = TypeUtil.reassignIds(FlinkSchemaUtil.convert(requestedSchema), table.schema());
       TypeUtil.validateWriteSchema(table.schema(), writeSchema, true, true);
+
+      // We use this flink schema to read values from RowData. The flink's TINYINT and SMALLINT will be promoted to
+      // iceberg INTEGER, that means if we use iceberg's table schema to read TINYINT (backend by 1 'byte'), we will
+      // read 4 bytes rather than 1 byte, it will mess up the byte array in BinaryRowData. So here we must use flink
+      // schema.
+      flinkSchema = (RowType) requestedSchema.toRowDataType().getLogicalType();
+    } else {
+      flinkSchema = FlinkSchemaUtil.convert(table.schema());
     }
 
     Map<String, String> props = table.properties();
     long targetFileSize = getTargetFileSizeBytes(props);
     FileFormat fileFormat = getFileFormat(props);
 
-    TaskWriterFactory<Row> taskWriterFactory = new RowTaskWriterFactory(table.schema(), table.spec(),
-        table.locationProvider(), table.io(), table.encryption(), targetFileSize, fileFormat, props);
+    TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(table.schema(), flinkSchema,
+        table.spec(), table.locationProvider(), table.io(), table.encryption(), targetFileSize, fileFormat, props);
 
     return new IcebergStreamWriter<>(table.toString(), taskWriterFactory);
   }
