@@ -356,7 +356,7 @@ public abstract class BaseParquetReaders<T> {
     }
   }
 
-  private static class TimestampInt96Reader extends ParquetValueReaders.PrimitiveReader<LocalDateTime> {
+  private static class TimestampInt96Reader extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
     private static final long UNIX_EPOCH_JULIAN = 2_440_588L;
 
     private TimestampInt96Reader(ColumnDescriptor desc) {
@@ -364,14 +364,14 @@ public abstract class BaseParquetReaders<T> {
     }
 
     @Override
-    public LocalDateTime read(LocalDateTime reuse) {
+    public OffsetDateTime read(OffsetDateTime reuse) {
       final ByteBuffer byteBuffer = column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
       final long timeOfDayNanos = byteBuffer.getLong();
       final int julianDay = byteBuffer.getInt();
 
       return Instant
               .ofEpochMilli(TimeUnit.DAYS.toMillis(julianDay - UNIX_EPOCH_JULIAN))
-              .plusNanos(timeOfDayNanos).atOffset(ZoneOffset.UTC).toLocalDateTime();
+              .plusNanos(timeOfDayNanos).atOffset(ZoneOffset.UTC);
     }
   }
 
