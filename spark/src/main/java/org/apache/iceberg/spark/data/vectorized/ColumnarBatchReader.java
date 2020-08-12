@@ -48,10 +48,11 @@ public class ColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
   }
 
   @Override
-  public final void setRowGroupInfo(PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData) {
+  public final void setRowGroupInfo(PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData,
+                                    long rowPosition) {
     for (VectorizedArrowReader reader : readers) {
       if (reader != null) {
-        reader.setRowGroupInfo(pageStore, metaData);
+        reader.setRowGroupInfo(pageStore, metaData, rowPosition);
       }
     }
   }

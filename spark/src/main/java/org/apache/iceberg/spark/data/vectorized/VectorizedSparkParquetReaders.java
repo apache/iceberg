@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader;
@@ -103,6 +104,8 @@ public class VectorizedSparkParquetReaders {
         VectorizedReader<?> reader = readersById.get(id);
         if (idToConstant.containsKey(id)) {
           reorderedFields.add(new ConstantVectorReader(idToConstant.get(id)));
+        } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
+          reorderedFields.add(VectorizedArrowReader.positions());
         } else if (reader != null) {
           reorderedFields.add(reader);
         } else {

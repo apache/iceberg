@@ -56,10 +56,10 @@ public class ArrowVectorAccessors {
   static ArrowVectorAccessor getVectorAccessor(VectorHolder holder) {
     Dictionary dictionary = holder.dictionary();
     boolean isVectorDictEncoded = holder.isDictionaryEncoded();
-    ColumnDescriptor desc = holder.descriptor();
     FieldVector vector = holder.vector();
-    PrimitiveType primitive = desc.getPrimitiveType();
     if (isVectorDictEncoded) {
+      ColumnDescriptor desc = holder.descriptor();
+      PrimitiveType primitive = desc.getPrimitiveType();
       return getDictionaryVectorAccessor(dictionary, desc, vector, primitive);
     } else {
       return getPlainVectorAccessor(vector);
