@@ -19,10 +19,14 @@
 
 package org.apache.iceberg.mr.hive;
 
+import java.math.BigDecimal;
+import java.sql.Date;
+import java.sql.Timestamp;
 import java.util.List;
 import org.apache.hadoop.hive.ql.io.sarg.ExpressionTree;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
+import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 
@@ -34,7 +38,6 @@ import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
-import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
 
 
@@ -43,51 +46,7 @@ public class HiveIcebergFilterFactory {
   private HiveIcebergFilterFactory() {}
 
   public static Expression generateFilterExpression(SearchArgument sarg) {
-    List<PredicateLeaf> leaves = sarg.getLeaves();
-    List<ExpressionTree> childNodes = sarg.getExpression().getChildren();
-
-    switch (sarg.getExpression().getOperator()) {
-      case OR:
-        ExpressionTree orLeft = childNodes.get(0);
-        ExpressionTree orRight = childNodes.get(1);
-        return or(translate(orLeft, leaves), translate(orRight, leaves));
-      case AND:
-        ExpressionTree andLeft = childNodes.get(0);
-        ExpressionTree andRight = childNodes.get(1);
-        if (childNodes.size() > 2) {
-          Expression[] evaluatedChildren = getLeftoverLeaves(childNodes, leaves);
-          return and(
-              translate(andLeft, leaves), translate(andRight, leaves), evaluatedChildren);
-        } else {
-          return and(translate(andLeft, leaves), translate(andRight, leaves));
-        }
-      case NOT:
-        return not(translateLeaf(sarg.getLeaves().get(0)));
-      case LEAF:
-        return translateLeaf(sarg.getLeaves().get(0));
-      case CONSTANT:
-        return null;
-      default:
-        throw new IllegalStateException("Unknown operator: " + sarg.getExpression().getOperator());
-    }
-  }
-
-  /**
-   * Remove first 2 nodes already evaluated and return an array of the evaluated leftover nodes.
-   * @param allChildNodes All child nodes to be evaluated for the AND expression.
-   * @param leaves All instances of the leaf nodes.
-   * @return Array of leftover evaluated nodes.
-   */
-  private static Expression[] getLeftoverLeaves(List<ExpressionTree> allChildNodes, List<PredicateLeaf> leaves) {
-    allChildNodes.remove(0);
-    allChildNodes.remove(0);
-
-    Expression[] evaluatedLeaves = new Expression[allChildNodes.size()];
-    for (int i = 0; i < allChildNodes.size(); i++) {
-      Expression filter = translate(allChildNodes.get(i), leaves);
-      evaluatedLeaves[i] = filter;
-    }
-    return evaluatedLeaves;
+    return translate(sarg.getExpression(), sarg.getLeaves());
   }
 
   /**
@@ -97,19 +56,20 @@ public class HiveIcebergFilterFactory {
    * @return Expression that is translated from the Hive SearchArgument.
    */
   private static Expression translate(ExpressionTree tree, List<PredicateLeaf> leaves) {
+    List<ExpressionTree> childNodes = tree.getChildren();
     switch (tree.getOperator()) {
       case OR:
-        return or(translate(tree.getChildren().get(0), leaves),
-            translate(tree.getChildren().get(1), leaves));
-      case AND:
-        if (tree.getChildren().size() > 2) {
-          Expression[] evaluatedChildren = getLeftoverLeaves(tree.getChildren(), leaves);
-          return and(translate(tree.getChildren().get(0), leaves),
-              translate(tree.getChildren().get(1), leaves), evaluatedChildren);
-        } else {
-          return and(translate(tree.getChildren().get(0), leaves),
-              translate(tree.getChildren().get(1), leaves));
+        Expression orResult = Expressions.alwaysFalse();
+        for (ExpressionTree child : childNodes) {
+          orResult = or(orResult, translate(child, leaves));
         }
+        return orResult;
+      case AND:
+        Expression result = Expressions.alwaysTrue();
+        for (ExpressionTree child : childNodes) {
+          result = and(result, translate(child, leaves));
+        }
+        return result;
       case NOT:
         return not(translate(tree.getChildren().get(0), leaves));
       case LEAF:
@@ -118,7 +78,7 @@ public class HiveIcebergFilterFactory {
         //We are unsure of how the CONSTANT case works, so using the approach of:
         //https://github.com/apache/hive/blob/master/ql/src/java/org/apache/hadoop/hive/ql/io/parquet/read/
         // ParquetFilterPredicateConverter.java#L116
-        return null;
+        throw new UnsupportedOperationException("CONSTANT operator is not supported");
       default:
         throw new IllegalStateException("Unknown operator: " + tree.getOperator());
     }
@@ -131,27 +91,66 @@ public class HiveIcebergFilterFactory {
    */
   private static Expression translateLeaf(PredicateLeaf leaf) {
     String column = leaf.getColumnName();
-    if (column.equals("snapshot__id")) {
-      return Expressions.alwaysTrue();
-    }
     switch (leaf.getOperator()) {
       case EQUALS:
-        return equal(column, leaf.getLiteral());
-      case NULL_SAFE_EQUALS:
-        return equal(notNull(column).ref().name(), leaf.getLiteral()); //TODO: Unsure..
+        return equal(column, leafToIcebergType(leaf));
       case LESS_THAN:
-        return lessThan(column, leaf.getLiteral());
+        return lessThan(column, leafToIcebergType(leaf));
       case LESS_THAN_EQUALS:
-        return lessThanOrEqual(column, leaf.getLiteral());
+        return lessThanOrEqual(column, leafToIcebergType(leaf));
       case IN:
-        return in(column, leaf.getLiteralList());
+        return in(column, (List) leafToIcebergType(leaf));
       case BETWEEN:
-        return and(greaterThanOrEqual(column, leaf.getLiteralList().get(0)),
-            lessThanOrEqual(column, leaf.getLiteralList().get(1)));
+        List<Object> icebergLiterals = leaf.getLiteralList();
+        return and(greaterThanOrEqual(column, icebergLiterals.get(0)),
+                lessThanOrEqual(column, icebergLiterals.get(1)));
       case IS_NULL:
         return isNull(column);
       default:
         throw new IllegalStateException("Unknown operator: " + leaf.getOperator());
+    }
+  }
+
+  private static Object leafToIcebergType(PredicateLeaf leaf) {
+    switch (leaf.getType()) {
+      case LONG:
+        return leaf.getLiteral() != null ? leaf.getLiteral() : leaf.getLiteralList();
+      case FLOAT:
+        return leaf.getLiteral() != null ? leaf.getLiteral() : leaf.getLiteralList();
+      case STRING:
+        return leaf.getLiteral() != null ? leaf.getLiteral() : leaf.getLiteralList();
+      case DATE:
+        //Hive converts a Date type to a Timestamp internally when retrieving literal
+        if (leaf.getLiteral() != null) {
+          return ((Timestamp) leaf.getLiteral()).toLocalDateTime().toLocalDate().toEpochDay();
+        } else {
+          //But not when retrieving the literalList
+          List<Object> icebergValues = leaf.getLiteralList();
+          icebergValues.replaceAll(value -> ((Date) value).toLocalDate().toEpochDay());
+          return icebergValues;
+        }
+      case DECIMAL:
+        if (leaf.getLiteral() != null) {
+          return BigDecimal.valueOf(((HiveDecimalWritable) leaf.getLiteral()).doubleValue());
+        } else {
+          List<Object> icebergValues = leaf.getLiteralList();
+          icebergValues.replaceAll(value -> BigDecimal.valueOf(((HiveDecimalWritable) value).doubleValue()));
+          return icebergValues;
+        }
+      case TIMESTAMP:
+        if (leaf.getLiteral() != null) {
+          Timestamp timestamp = (Timestamp) leaf.getLiteral();
+          return timestamp.toInstant().getEpochSecond() * 1000000 + timestamp.getNanos() / 1000;
+        } else {
+          List<Object> icebergValues = leaf.getLiteralList();
+          icebergValues.replaceAll(value -> (
+                  (Timestamp) value).toInstant().getEpochSecond() * 1000000 + ((Timestamp) value).getNanos() / 1000);
+          return icebergValues;
+        }
+      case BOOLEAN:
+        return leaf.getLiteral() != null ? leaf.getLiteral() : leaf.getLiteralList();
+      default:
+        throw new IllegalStateException("Unknown type: " + leaf.getType());
     }
   }
 }
