@@ -53,6 +53,13 @@ public class TestAlterTable extends SparkCatalogTestBase {
   }
 
   @Test
+  public void testAddColumnNotNull() {
+    sql("ALTER TABLE %s ADD COLUMN c3 INT NOT NULL", tableName);
+    Assert.assertTrue(validationCatalog.loadTable(tableIdent).schema()
+        .caseInsensitiveFindField("c3").isRequired());
+  }
+
+  @Test
   public void testAddColumn() {
     sql("ALTER TABLE %s ADD COLUMN point struct<x: double NOT NULL, y: double NOT NULL> AFTER id", tableName);
 
