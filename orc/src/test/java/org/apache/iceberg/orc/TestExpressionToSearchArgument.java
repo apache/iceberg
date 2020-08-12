@@ -375,7 +375,7 @@ public class TestExpressionToSearchArgument {
     Expression boundFilter = Binder.bind(mappingSchema.asStruct(), expr, true);
     SearchArgument expected = SearchArgumentFactory.newBuilder()
         .startAnd()
-        // Drops strict.long
+        // Drops struct.long
         .equals("`struct`.`int_r2`", Type.LONG, 1L)
         .lessThanEquals("`list`.`_elem`", Type.LONG, 5L)
         // Drops map
