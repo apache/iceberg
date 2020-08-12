@@ -95,7 +95,7 @@ public class TestPositionFilter {
   }
 
   @Test
-  public void testPositionRowFilter() {
+  public void testPositionStreamRowFilter() {
     CloseableIterable<StructLike> rows = CloseableIterable.withNoopClose(Lists.newArrayList(
         Row.of(0L, "a"),
         Row.of(1L, "b"),
@@ -111,14 +111,14 @@ public class TestPositionFilter {
 
     CloseableIterable<Long> deletes = CloseableIterable.withNoopClose(Lists.newArrayList(0L, 3L, 4L, 7L, 9L));
 
-    CloseableIterable<StructLike> actual = Deletes.positionFilter(rows, row -> row.get(0, Long.class), deletes);
+    CloseableIterable<StructLike> actual = Deletes.streamingFilter(rows, row -> row.get(0, Long.class), deletes);
     Assert.assertEquals("Filter should produce expected rows",
         Lists.newArrayList(1L, 2L, 5L, 6L, 8L),
         Lists.newArrayList(Iterables.transform(actual, row -> row.get(0, Long.class))));
   }
 
   @Test
-  public void testPositionRowFilterWithDuplicates() {
+  public void testPositionStreamRowFilterWithDuplicates() {
     CloseableIterable<StructLike> rows = CloseableIterable.withNoopClose(Lists.newArrayList(
         Row.of(0L, "a"),
         Row.of(1L, "b"),
@@ -135,14 +135,14 @@ public class TestPositionFilter {
     CloseableIterable<Long> deletes = CloseableIterable.withNoopClose(
         Lists.newArrayList(0L, 0L, 0L, 3L, 4L, 7L, 7L, 9L, 9L, 9L));
 
-    CloseableIterable<StructLike> actual = Deletes.positionFilter(rows, row -> row.get(0, Long.class), deletes);
+    CloseableIterable<StructLike> actual = Deletes.streamingFilter(rows, row -> row.get(0, Long.class), deletes);
     Assert.assertEquals("Filter should produce expected rows",
         Lists.newArrayList(1L, 2L, 5L, 6L, 8L),
         Lists.newArrayList(Iterables.transform(actual, row -> row.get(0, Long.class))));
   }
 
   @Test
-  public void testPositionRowFilterWithRowGaps() {
+  public void testPositionStreamRowFilterWithRowGaps() {
     // test the case where row position is greater than the delete position
     CloseableIterable<StructLike> rows = CloseableIterable.withNoopClose(Lists.newArrayList(
         Row.of(2L, "c"),
@@ -153,14 +153,14 @@ public class TestPositionFilter {
 
     CloseableIterable<Long> deletes = CloseableIterable.withNoopClose(Lists.newArrayList(0L, 3L, 4L, 7L, 9L));
 
-    CloseableIterable<StructLike> actual = Deletes.positionFilter(rows, row -> row.get(0, Long.class), deletes);
+    CloseableIterable<StructLike> actual = Deletes.streamingFilter(rows, row -> row.get(0, Long.class), deletes);
     Assert.assertEquals("Filter should produce expected rows",
         Lists.newArrayList(2L, 5L, 6L),
         Lists.newArrayList(Iterables.transform(actual, row -> row.get(0, Long.class))));
   }
 
   @Test
-  public void testCombinedPositionRowFilter() {
+  public void testCombinedPositionStreamRowFilter() {
     CloseableIterable<StructLike> positionDeletes1 = CloseableIterable.withNoopClose(Lists.newArrayList(
         Row.of("file_a.avro", 0L),
         Row.of("file_a.avro", 3L),
@@ -189,10 +189,74 @@ public class TestPositionFilter {
         Row.of(9L, "j")
     ));
 
-    CloseableIterable<StructLike> actual = Deletes.positionFilter(
+    CloseableIterable<StructLike> actual = Deletes.streamingFilter(
         rows,
         row -> row.get(0, Long.class),
         Deletes.deletePositions("file_a.avro", ImmutableList.of(positionDeletes1, positionDeletes2)));
+
+    Assert.assertEquals("Filter should produce expected rows",
+        Lists.newArrayList(1L, 2L, 5L, 6L, 8L),
+        Lists.newArrayList(Iterables.transform(actual, row -> row.get(0, Long.class))));
+  }
+
+  @Test
+  public void testPositionSetRowFilter() {
+    CloseableIterable<StructLike> rows = CloseableIterable.withNoopClose(Lists.newArrayList(
+        Row.of(0L, "a"),
+        Row.of(1L, "b"),
+        Row.of(2L, "c"),
+        Row.of(3L, "d"),
+        Row.of(4L, "e"),
+        Row.of(5L, "f"),
+        Row.of(6L, "g"),
+        Row.of(7L, "h"),
+        Row.of(8L, "i"),
+        Row.of(9L, "j")
+    ));
+
+    CloseableIterable<Long> deletes = CloseableIterable.withNoopClose(Lists.newArrayList(0L, 3L, 4L, 7L, 9L));
+
+    CloseableIterable<StructLike> actual = Deletes.filter(
+        rows, row -> row.get(0, Long.class),
+        Deletes.toPositionSet(deletes));
+    Assert.assertEquals("Filter should produce expected rows",
+        Lists.newArrayList(1L, 2L, 5L, 6L, 8L),
+        Lists.newArrayList(Iterables.transform(actual, row -> row.get(0, Long.class))));
+  }
+
+  @Test
+  public void testCombinedPositionSetRowFilter() {
+    CloseableIterable<StructLike> positionDeletes1 = CloseableIterable.withNoopClose(Lists.newArrayList(
+        Row.of("file_a.avro", 0L),
+        Row.of("file_a.avro", 3L),
+        Row.of("file_a.avro", 9L),
+        Row.of("file_b.avro", 5L),
+        Row.of("file_b.avro", 6L)
+    ));
+
+    CloseableIterable<StructLike> positionDeletes2 = CloseableIterable.withNoopClose(Lists.newArrayList(
+        Row.of("file_a.avro", 3L),
+        Row.of("file_a.avro", 4L),
+        Row.of("file_a.avro", 7L),
+        Row.of("file_b.avro", 2L)
+    ));
+
+    CloseableIterable<StructLike> rows = CloseableIterable.withNoopClose(Lists.newArrayList(
+        Row.of(0L, "a"),
+        Row.of(1L, "b"),
+        Row.of(2L, "c"),
+        Row.of(3L, "d"),
+        Row.of(4L, "e"),
+        Row.of(5L, "f"),
+        Row.of(6L, "g"),
+        Row.of(7L, "h"),
+        Row.of(8L, "i"),
+        Row.of(9L, "j")
+    ));
+
+    CloseableIterable<StructLike> actual = Deletes.filter(
+        rows, row -> row.get(0, Long.class),
+        Deletes.toPositionSet("file_a.avro", ImmutableList.of(positionDeletes1, positionDeletes2)));
 
     Assert.assertEquals("Filter should produce expected rows",
         Lists.newArrayList(1L, 2L, 5L, 6L, 8L),
