@@ -31,10 +31,10 @@ import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
 
 /**
@@ -67,7 +67,8 @@ abstract class BaseFile<F>
   private Map<Integer, Long> nullValueCounts = null;
   private Map<Integer, ByteBuffer> lowerBounds = null;
   private Map<Integer, ByteBuffer> upperBounds = null;
-  private Long[] splitOffsets = null;
+  private long[] splitOffsets = null;
+  private int[] equalityIds = null;
   private byte[] keyMetadata = null;
 
   // cached schema
@@ -113,7 +114,7 @@ abstract class BaseFile<F>
            PartitionData partition, long fileSizeInBytes, long recordCount,
            Map<Integer, Long> columnSizes, Map<Integer, Long> valueCounts, Map<Integer, Long> nullValueCounts,
            Map<Integer, ByteBuffer> lowerBounds, Map<Integer, ByteBuffer> upperBounds, List<Long> splitOffsets,
-           ByteBuffer keyMetadata) {
+           int[] equalityFieldIds, ByteBuffer keyMetadata) {
     this.partitionSpecId = specId;
     this.content = content;
     this.filePath = filePath;
@@ -136,7 +137,8 @@ abstract class BaseFile<F>
     this.nullValueCounts = nullValueCounts;
     this.lowerBounds = SerializableByteBufferMap.wrap(lowerBounds);
     this.upperBounds = SerializableByteBufferMap.wrap(upperBounds);
-    this.splitOffsets = splitOffsets == null ? null : splitOffsets.toArray(new Long[0]);
+    this.splitOffsets = ArrayUtil.toLongArray(splitOffsets);
+    this.equalityIds = equalityFieldIds;
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
   }
 
@@ -247,7 +249,10 @@ abstract class BaseFile<F>
         this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
         return;
       case 12:
-        this.splitOffsets = value != null ? ((List<Long>) value).toArray(new Long[0]) : null;
+        this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
+        return;
+      case 13:
+        this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
         return;
       default:
         // ignore the object, it must be from a newer version of the format
@@ -290,9 +295,11 @@ abstract class BaseFile<F>
       case 10:
         return upperBounds;
       case 11:
-        return keyMetadata != null ? ByteBuffer.wrap(keyMetadata) : null;
+        return keyMetadata();
       case 12:
-        return splitOffsets != null ? Lists.newArrayList(splitOffsets) : null;
+        return splitOffsets();
+      case 13:
+        return equalityFieldIds();
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -370,7 +377,12 @@ abstract class BaseFile<F>
 
   @Override
   public List<Long> splitOffsets() {
-    return splitOffsets != null ? Lists.newArrayList(splitOffsets) : null;
+    return ArrayUtil.toLongList(splitOffsets);
+  }
+
+  @Override
+  public List<Integer> equalityFieldIds() {
+    return ArrayUtil.toIntList(equalityIds);
   }
 
   private static <K, V> Map<K, V> copy(Map<K, V> map) {
@@ -397,7 +409,9 @@ abstract class BaseFile<F>
         .add("lower_bounds", lowerBounds)
         .add("upper_bounds", upperBounds)
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
-        .add("split_offsets", splitOffsets == null ? "null" : splitOffsets)
+        .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
+        .add("equality_ids", equalityIds == null ? "null" : equalityFieldIds())
         .toString();
   }
+
 }

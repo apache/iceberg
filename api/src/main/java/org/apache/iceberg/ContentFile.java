@@ -102,6 +102,18 @@ public interface ContentFile<F> {
    */
   List<Long> splitOffsets();
 
+  /**
+   * Returns the set of field IDs used for equality comparison, in equality delete files.
+   * <p>
+   * An equality delete file may contain additional data fields that are not used by equality
+   * comparison. The subset of columns in a delete file to be used in equality comparison are
+   * tracked by ID. Extra columns can be used to reconstruct changes and metrics from extra
+   * columns are used during job planning.
+   *
+   * @return IDs of the fields used in equality comparison with the records in this delete file
+   */
+  List<Integer> equalityFieldIds();
+
 
   /**
    * Copies this file. Manifest readers can reuse file instances; use
