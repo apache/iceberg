@@ -38,14 +38,12 @@ class FileMetadata {
     return new Builder(spec);
   }
 
-  static Builder deleteFileBuilder() {
-    return new Builder();
-  }
-
   public static class Builder {
     private final PartitionSpec spec;
     private final boolean isPartitioned;
+    private final int specId;
     private FileContent content = null;
+    private int[] equalityFieldIds = null;
     private PartitionData partitionData;
     private String filePath = null;
     private FileFormat format = null;
@@ -60,14 +58,9 @@ class FileMetadata {
     private Map<Integer, ByteBuffer> upperBounds = null;
     private ByteBuffer keyMetadata = null;
 
-    Builder() {
-      this.spec = null;
-      this.partitionData = null;
-      this.isPartitioned = false;
-    }
-
     Builder(PartitionSpec spec) {
       this.spec = spec;
+      this.specId = spec.specId();
       this.isPartitioned = spec.fields().size() > 0;
       this.partitionData = isPartitioned ? DataFiles.newPartitionData(spec) : null;
     }
@@ -89,6 +82,7 @@ class FileMetadata {
 
     public Builder copy(DeleteFile toCopy) {
       if (isPartitioned) {
+        Preconditions.checkState(specId == toCopy.specId(), "Cannot copy a DeleteFile with a different spec");
         this.partitionData = DataFiles.copyPartitionData(spec, toCopy.partition(), partitionData);
       }
       this.content = toCopy.content();
@@ -108,11 +102,13 @@ class FileMetadata {
 
     public Builder ofPositionDeletes() {
       this.content = FileContent.POSITION_DELETES;
+      this.equalityFieldIds = null;
       return this;
     }
 
-    public Builder ofEqualityDeletes() {
+    public Builder ofEqualityDeletes(int... fieldIds) {
       this.content = FileContent.EQUALITY_DELETES;
+      this.equalityFieldIds = fieldIds;
       return this;
     }
 
@@ -208,10 +204,10 @@ class FileMetadata {
       Preconditions.checkArgument(recordCount >= 0, "Record count is required");
 
       return new GenericDeleteFile(
-          content, filePath, format, isPartitioned ? DataFiles.copy(spec, partitionData) : null,
+          specId, content, filePath, format, isPartitioned ? DataFiles.copy(spec, partitionData) : null,
           fileSizeInBytes, new Metrics(
           recordCount, columnSizes, valueCounts, nullValueCounts, lowerBounds, upperBounds),
-          keyMetadata);
+          equalityFieldIds, keyMetadata);
     }
   }
 }

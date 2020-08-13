@@ -517,7 +517,7 @@ public class TestRemoveSnapshots extends TableTestBase {
     AtomicInteger deleteThreadsIndex = new AtomicInteger(0);
 
     table.expireSnapshots()
-        .executeWith(Executors.newFixedThreadPool(4, runnable -> {
+        .executeDeleteWith(Executors.newFixedThreadPool(4, runnable -> {
           Thread thread = new Thread(runnable);
           thread.setName("remove-snapshot-" + deleteThreadsIndex.getAndIncrement());
           thread.setDaemon(true); // daemon threads will be terminated abruptly when the JVM exits

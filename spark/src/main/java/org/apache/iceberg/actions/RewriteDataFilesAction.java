@@ -247,7 +247,7 @@ public class RewriteDataFilesAction
 
     try {
       tasksIter.forEachRemaining(task -> {
-        StructLikeWrapper structLike = StructLikeWrapper.wrap(task.file().partition());
+        StructLikeWrapper structLike = StructLikeWrapper.forType(spec.partitionType()).set(task.file().partition());
         tasksGroupedByPartition.put(structLike, task);
       });
 

@@ -72,7 +72,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
 
         case ORC:
           return ORC.write(file)
-              .createWriterFunc((schema, typeDesc) -> new SparkOrcWriter(typeDesc))
+              .createWriterFunc(SparkOrcWriter::new)
               .setAll(properties)
               .schema(writeSchema)
               .overwrite()

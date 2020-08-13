@@ -23,7 +23,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.flink.types.Row;
+import org.apache.flink.table.api.DataTypes;
+import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.data.GenericRowData;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -48,6 +52,11 @@ public class SimpleDataUtil {
       Types.NestedField.optional(2, "data", Types.StringType.get())
   );
 
+  static final TableSchema FLINK_SCHEMA = TableSchema.builder()
+      .field("id", DataTypes.INT())
+      .field("data", DataTypes.STRING())
+      .build();
+
   static final Record RECORD = GenericRecord.create(SCHEMA);
 
   static Table createTable(String path, Map<String, String> properties, boolean partitioned) {
@@ -67,10 +76,16 @@ public class SimpleDataUtil {
     return record;
   }
 
-  static void assertTableRows(String tablePath, List<Row> rows) throws IOException {
+  static RowData createRowData(Integer id, String data) {
+    return GenericRowData.of(id, StringData.fromString(data));
+  }
+
+  static void assertTableRows(String tablePath, List<RowData> rows) throws IOException {
     List<Record> records = Lists.newArrayList();
-    for (Row row : rows) {
-      records.add(createRecord((Integer) row.getField(0), (String) row.getField(1)));
+    for (RowData row : rows) {
+      Integer id = row.isNullAt(0) ? null : row.getInt(0);
+      String data = row.isNullAt(1) ? null : row.getString(1).toString();
+      records.add(createRecord(id, data));
     }
     assertTableRecords(tablePath, records);
   }

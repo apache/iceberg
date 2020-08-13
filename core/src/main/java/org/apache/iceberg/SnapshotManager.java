@@ -21,14 +21,12 @@ package org.apache.iceberg;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.iceberg.exceptions.CherrypickAncestorCommitException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.PartitionSet;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
-import org.apache.iceberg.util.StructLikeWrapper;
 import org.apache.iceberg.util.WapUtil;
 
 public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> implements ManageSnapshots {
@@ -38,15 +36,17 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
     ROLLBACK
   }
 
+  private final Map<Integer, PartitionSpec> specsById;
   private SnapshotManagerOperation managerOperation = null;
   private Long targetSnapshotId = null;
   private String snapshotOperation = null;
   private Long requiredCurrentSnapshotId = null;
   private Long overwriteParentId = null;
-  private Set<StructLikeWrapper> replacedPartitions = null;
+  private PartitionSet replacedPartitions = null;
 
   SnapshotManager(String tableName, TableOperations ops) {
     super(tableName, ops);
+    this.specsById = ops.current().specsById();
   }
 
   @Override
@@ -100,7 +100,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
       this.managerOperation = SnapshotManagerOperation.CHERRYPICK;
       this.targetSnapshotId = snapshotId;
       this.snapshotOperation = cherryPickSnapshot.operation();
-      this.replacedPartitions = Sets.newHashSet();
+      this.replacedPartitions = PartitionSet.create(specsById);
 
       // check that all deleted files are still in the table
       failMissingDeletePaths();
@@ -108,7 +108,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
       // copy adds from the picked snapshot
       for (DataFile addedFile : cherryPickSnapshot.addedFiles()) {
         add(addedFile);
-        replacedPartitions.add(StructLikeWrapper.wrap(addedFile.partition()));
+        replacedPartitions.add(addedFile.specId(), addedFile.partition());
       }
 
       // copy deletes from the picked snapshot
@@ -261,14 +261,13 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
   }
 
   private static void validateReplacedPartitions(TableMetadata meta, Long parentId,
-                                                 Set<StructLikeWrapper> replacedPartitions) {
+                                                 PartitionSet replacedPartitions) {
     if (replacedPartitions != null) {
       ValidationException.check(parentId == null || isCurrentAncestor(meta, parentId),
           "Cannot cherry-pick overwrite, based on non-ancestor of the current state: %s", parentId);
       List<DataFile> newFiles = SnapshotUtil.newFiles(parentId, meta.currentSnapshot().snapshotId(), meta::snapshot);
-      StructLikeWrapper partitionWrapper = StructLikeWrapper.wrap(null);
       for (DataFile newFile : newFiles) {
-        ValidationException.check(!replacedPartitions.contains(partitionWrapper.set(newFile.partition())),
+        ValidationException.check(!replacedPartitions.contains(newFile.specId(), newFile.partition()),
             "Cannot cherry-pick replace partitions with changed partition: %s",
             newFile.partition());
       }

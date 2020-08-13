@@ -68,10 +68,13 @@ public class TestManifestWriterVersions {
   private static final List<Long> OFFSETS = ImmutableList.of(4L);
 
   private static final DataFile DATA_FILE = new GenericDataFile(
-      PATH, FORMAT, PARTITION, 150972L, METRICS, null, OFFSETS);
+      0, PATH, FORMAT, PARTITION, 150972L, METRICS, null, OFFSETS);
+
+  private static final List<Integer> EQUALITY_IDS = ImmutableList.of(1);
+  private static final int[] EQUALITY_ID_ARR = new int[] { 1 };
 
   private static final DeleteFile DELETE_FILE = new GenericDeleteFile(
-      FileContent.EQUALITY_DELETES, PATH, FORMAT, PARTITION, 22905L, METRICS, null);
+      0, FileContent.EQUALITY_DELETES, PATH, FORMAT, PARTITION, 22905L, METRICS, EQUALITY_ID_ARR, null);
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -195,6 +198,11 @@ public class TestManifestWriterVersions {
     Assert.assertEquals("Null value counts", METRICS.nullValueCounts(), dataFile.nullValueCounts());
     Assert.assertEquals("Lower bounds", METRICS.lowerBounds(), dataFile.lowerBounds());
     Assert.assertEquals("Upper bounds", METRICS.upperBounds(), dataFile.upperBounds());
+    if (dataFile.content() == FileContent.EQUALITY_DELETES) {
+      Assert.assertEquals(EQUALITY_IDS, dataFile.equalityFieldIds());
+    } else {
+      Assert.assertNull(dataFile.equalityFieldIds());
+    }
   }
 
   void checkManifest(ManifestFile manifest, long expectedSequenceNumber) {

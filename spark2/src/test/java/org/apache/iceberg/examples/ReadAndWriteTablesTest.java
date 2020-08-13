@@ -56,7 +56,7 @@ public class ReadAndWriteTablesTest {
     spark = SparkSession.builder().master("local[2]").getOrCreate();
 
     pathToTable = Files.createTempDirectory("temp").toFile();
-    tables = new HadoopTables(spark.sparkContext().hadoopConfiguration());
+    tables = new HadoopTables(spark.sessionState().newHadoopConf());
 
     schema = new Schema(
         optional(1, "id", Types.IntegerType.get()),

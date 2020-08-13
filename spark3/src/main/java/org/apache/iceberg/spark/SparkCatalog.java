@@ -91,7 +91,7 @@ public class SparkCatalog implements StagingTableCatalog, org.apache.spark.sql.c
    * @return an Iceberg catalog
    */
   protected Catalog buildIcebergCatalog(String name, CaseInsensitiveStringMap options) {
-    Configuration conf = SparkSession.active().sparkContext().hadoopConfiguration();
+    Configuration conf = SparkSession.active().sessionState().newHadoopConf();
     String catalogType = options.getOrDefault("type", "hive");
     switch (catalogType) {
       case "hive":

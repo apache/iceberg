@@ -253,7 +253,8 @@ class V2Metadata {
         DataFile.LOWER_BOUNDS,
         DataFile.UPPER_BOUNDS,
         DataFile.KEY_METADATA,
-        DataFile.SPLIT_OFFSETS
+        DataFile.SPLIT_OFFSETS,
+        DataFile.EQUALITY_IDS
     );
   }
 
@@ -403,6 +404,8 @@ class V2Metadata {
           return wrapped.keyMetadata();
         case 12:
           return wrapped.splitOffsets();
+        case 13:
+          return wrapped.equalityFieldIds();
       }
       throw new IllegalArgumentException("Unknown field ordinal: " + pos);
     }
@@ -410,6 +413,11 @@ class V2Metadata {
     @Override
     public void put(int i, Object v) {
       throw new UnsupportedOperationException("Cannot read into IndexedDataFile");
+    }
+
+    @Override
+    public int specId() {
+      return wrapped.specId();
     }
 
     @Override
@@ -475,6 +483,11 @@ class V2Metadata {
     @Override
     public List<Long> splitOffsets() {
       return wrapped.splitOffsets();
+    }
+
+    @Override
+    public List<Integer> equalityFieldIds() {
+      return wrapped.equalityFieldIds();
     }
 
     @Override

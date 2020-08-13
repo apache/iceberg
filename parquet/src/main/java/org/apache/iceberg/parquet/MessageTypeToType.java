@@ -156,6 +156,8 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
         return Types.DoubleType.get();
       case FIXED_LEN_BYTE_ARRAY:
         return Types.FixedType.ofLength(primitive.getTypeLength());
+      case INT96:
+        return Types.TimestampType.withZone();
       case BINARY:
         return Types.BinaryType.get();
     }
