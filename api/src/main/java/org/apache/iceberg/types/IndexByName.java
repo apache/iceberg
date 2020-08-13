@@ -25,6 +25,7 @@ import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
@@ -32,32 +33,56 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
   private static final Joiner DOT = Joiner.on(".");
 
   private final Deque<String> fieldNames = Lists.newLinkedList();
+  private final Deque<String> shortFieldNames = Lists.newLinkedList();
   private final Map<String, Integer> nameToId = Maps.newHashMap();
+  private final Map<String, Integer> shortNameToId = Maps.newHashMap();
+
+  public Map<String, Integer> byName() {
+    ImmutableMap.Builder<String, Integer> builder = ImmutableMap.builder();
+    builder.putAll(nameToId);
+    // add all short names that do not conflict with canonical names
+    shortNameToId.entrySet().stream()
+        .filter(entry -> !nameToId.containsKey(entry.getKey()))
+        .forEach(builder::put);
+    return builder.build();
+  }
+
+  public Map<Integer, String> byId() {
+    ImmutableMap.Builder<Integer, String> builder = ImmutableMap.builder();
+    nameToId.forEach((key, value) -> builder.put(value, key));
+    return builder.build();
+  }
 
   @Override
   public void beforeField(Types.NestedField field) {
     fieldNames.push(field.name());
+    shortFieldNames.push(field.name());
   }
 
   @Override
   public void afterField(Types.NestedField field) {
     fieldNames.pop();
+    shortFieldNames.pop();
   }
 
   @Override
   public void beforeListElement(Types.NestedField elementField) {
-    // only add "element" to the name if the element is not a struct, so that names are more natural
+    fieldNames.push(elementField.name());
+
+    // only add "element" to the short name if the element is not a struct, so that names are more natural
     // for example, locations.latitude instead of locations.element.latitude
     if (!elementField.type().isStructType()) {
-      beforeField(elementField);
+      shortFieldNames.push(elementField.name());
     }
   }
 
   @Override
   public void afterListElement(Types.NestedField elementField) {
+    fieldNames.pop();
+
     // only remove "element" if it was added
     if (!elementField.type().isStructType()) {
-      afterField(elementField);
+      shortFieldNames.pop();
     }
   }
 
@@ -73,17 +98,21 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
 
   @Override
   public void beforeMapValue(Types.NestedField valueField) {
+    fieldNames.push(valueField.name());
+
     // only add "value" to the name if the value is not a struct, so that names are more natural
     if (!valueField.type().isStructType()) {
-      beforeField(valueField);
+      shortFieldNames.push(valueField.name());
     }
   }
 
   @Override
   public void afterMapValue(Types.NestedField valueField) {
+    fieldNames.pop();
+
     // only remove "value" if it was added
     if (!valueField.type().isStructType()) {
-      afterField(valueField);
+      shortFieldNames.pop();
     }
   }
 
@@ -128,9 +157,15 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
     }
 
     Integer existingFieldId = nameToId.put(fullName, fieldId);
-    if (existingFieldId != null && !"element".equals(name) && !"value".equals(name)) {
-      throw new ValidationException(
-          "Invalid schema: multiple fields for name %s: %s and %s", fullName, existingFieldId, fieldId);
+    ValidationException.check(existingFieldId == null,
+        "Invalid schema: multiple fields for name %s: %s and %s", fullName, existingFieldId, fieldId);
+
+    // if the short name is not
+    if (!shortFieldNames.isEmpty()) {
+      String shortName = DOT.join(DOT.join(shortFieldNames.descendingIterator()), name);
+      if (!shortNameToId.containsKey(shortName)) {
+        shortNameToId.put(shortName, fieldId);
+      }
     }
   }
 }
