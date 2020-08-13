@@ -47,8 +47,8 @@ bin/
 metastore_db/
 
 # Spark/metastore files
-**/spark-warehouse/
-**derby.log
+spark-warehouse/
+derby.log
 
 # Python stuff
 python/.mypy_cache/
