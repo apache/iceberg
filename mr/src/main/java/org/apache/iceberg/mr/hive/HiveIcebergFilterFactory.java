@@ -43,6 +43,9 @@ import static org.apache.iceberg.expressions.Expressions.or;
 
 public class HiveIcebergFilterFactory {
 
+  private static final int MICROS_PER_SECOND = 1000000;
+  private static final int NANOSECS_PER_MICROSEC = 1000;
+
   private HiveIcebergFilterFactory() {}
 
   public static Expression generateFilterExpression(SearchArgument sarg) {
@@ -71,13 +74,10 @@ public class HiveIcebergFilterFactory {
         }
         return result;
       case NOT:
-        return not(translate(tree.getChildren().get(0), leaves));
+        return not(translate(childNodes.get(0), leaves));
       case LEAF:
         return translateLeaf(leaves.get(tree.getLeaf()));
       case CONSTANT:
-        //We are unsure of how the CONSTANT case works, so using the approach of:
-        //https://github.com/apache/hive/blob/master/ql/src/java/org/apache/hadoop/hive/ql/io/parquet/read/
-        // ParquetFilterPredicateConverter.java#L116
         throw new UnsupportedOperationException("CONSTANT operator is not supported");
       default:
         throw new IllegalStateException("Unknown operator: " + tree.getOperator());
@@ -93,15 +93,15 @@ public class HiveIcebergFilterFactory {
     String column = leaf.getColumnName();
     switch (leaf.getOperator()) {
       case EQUALS:
-        return equal(column, leafToIcebergType(leaf));
+        return equal(column, leafToLiteral(leaf));
       case LESS_THAN:
-        return lessThan(column, leafToIcebergType(leaf));
+        return lessThan(column, leafToLiteral(leaf));
       case LESS_THAN_EQUALS:
-        return lessThanOrEqual(column, leafToIcebergType(leaf));
+        return lessThanOrEqual(column, leafToLiteral(leaf));
       case IN:
-        return in(column, (List) leafToIcebergType(leaf));
+        return in(column, leafToLiteralList(leaf));
       case BETWEEN:
-        List<Object> icebergLiterals = leaf.getLiteralList();
+        List<Object> icebergLiterals = leafToLiteralList(leaf);
         return and(greaterThanOrEqual(column, icebergLiterals.get(0)),
                 lessThanOrEqual(column, icebergLiterals.get(1)));
       case IS_NULL:
@@ -111,44 +111,47 @@ public class HiveIcebergFilterFactory {
     }
   }
 
-  private static Object leafToIcebergType(PredicateLeaf leaf) {
+  private static Object leafToLiteral(PredicateLeaf leaf) {
     switch (leaf.getType()) {
       case LONG:
-        return leaf.getLiteral() != null ? leaf.getLiteral() : leaf.getLiteralList();
-      case FLOAT:
-        return leaf.getLiteral() != null ? leaf.getLiteral() : leaf.getLiteralList();
+      case BOOLEAN:
       case STRING:
-        return leaf.getLiteral() != null ? leaf.getLiteral() : leaf.getLiteralList();
+      case FLOAT:
+        return leaf.getLiteral();
       case DATE:
         //Hive converts a Date type to a Timestamp internally when retrieving literal
-        if (leaf.getLiteral() != null) {
-          return ((Timestamp) leaf.getLiteral()).toLocalDateTime().toLocalDate().toEpochDay();
-        } else {
-          //But not when retrieving the literalList
-          List<Object> icebergValues = leaf.getLiteralList();
-          icebergValues.replaceAll(value -> ((Date) value).toLocalDate().toEpochDay());
-          return icebergValues;
-        }
+        return ((Timestamp) leaf.getLiteral()).toLocalDateTime().toLocalDate().toEpochDay();
       case DECIMAL:
-        if (leaf.getLiteral() != null) {
-          return BigDecimal.valueOf(((HiveDecimalWritable) leaf.getLiteral()).doubleValue());
-        } else {
-          List<Object> icebergValues = leaf.getLiteralList();
-          icebergValues.replaceAll(value -> BigDecimal.valueOf(((HiveDecimalWritable) value).doubleValue()));
-          return icebergValues;
-        }
+        return BigDecimal.valueOf(((HiveDecimalWritable) leaf.getLiteral()).doubleValue());
       case TIMESTAMP:
-        if (leaf.getLiteral() != null) {
-          Timestamp timestamp = (Timestamp) leaf.getLiteral();
-          return timestamp.toInstant().getEpochSecond() * 1000000 + timestamp.getNanos() / 1000;
-        } else {
-          List<Object> icebergValues = leaf.getLiteralList();
-          icebergValues.replaceAll(value -> (
-                  (Timestamp) value).toInstant().getEpochSecond() * 1000000 + ((Timestamp) value).getNanos() / 1000);
-          return icebergValues;
-        }
+        Timestamp timestamp = (Timestamp) leaf.getLiteral();
+        return timestamp.toInstant().getEpochSecond() * MICROS_PER_SECOND +
+                timestamp.getNanos() / NANOSECS_PER_MICROSEC;
+      default:
+        throw new IllegalStateException("Unknown type: " + leaf.getType());
+    }
+  }
+
+  private static List<Object> leafToLiteralList(PredicateLeaf leaf) {
+    switch (leaf.getType()) {
+      case LONG:
       case BOOLEAN:
-        return leaf.getLiteral() != null ? leaf.getLiteral() : leaf.getLiteralList();
+      case FLOAT:
+      case STRING:
+        return leaf.getLiteralList();
+      case DATE:
+        List<Object> dateValues = leaf.getLiteralList();
+        dateValues.replaceAll(value -> ((Date) value).toLocalDate().toEpochDay());
+        return dateValues;
+      case DECIMAL:
+        List<Object> decimalValues = leaf.getLiteralList();
+        decimalValues.replaceAll(value -> BigDecimal.valueOf(((HiveDecimalWritable) value).doubleValue()));
+        return decimalValues;
+      case TIMESTAMP:
+        List<Object> timestampValues = leaf.getLiteralList();
+        timestampValues.replaceAll(value -> ((Timestamp) value).toInstant().getEpochSecond() * MICROS_PER_SECOND +
+                ((Timestamp) value).getNanos() / NANOSECS_PER_MICROSEC);
+        return timestampValues;
       default:
         throw new IllegalStateException("Unknown type: " + leaf.getType());
     }

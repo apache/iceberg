@@ -19,9 +19,11 @@
 
 package org.apache.iceberg.mr.hive;
 
+import java.math.BigDecimal;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgumentFactory;
+import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
 import org.apache.iceberg.expressions.And;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Not;
@@ -41,9 +43,7 @@ public class TestHiveIcebergFilterFactory {
     UnboundPredicate expected = Expressions.equal("salary", 3000L);
     UnboundPredicate actual = (UnboundPredicate) HiveIcebergFilterFactory.generateFilterExpression(arg);
 
-    assertEquals(actual.op(), expected.op());
-    assertEquals(actual.literal(), expected.literal());
-    assertEquals(actual.ref().name(), expected.ref().name());
+    assertPredicatesMatch(expected, actual);
   }
 
   @Test
@@ -84,9 +84,7 @@ public class TestHiveIcebergFilterFactory {
     UnboundPredicate expected = Expressions.lessThanOrEqual("salary", 3000L);
     UnboundPredicate actual = (UnboundPredicate) HiveIcebergFilterFactory.generateFilterExpression(arg);
 
-    assertEquals(actual.op(), expected.op());
-    assertEquals(actual.literal(), expected.literal());
-    assertEquals(actual.ref().name(), expected.ref().name());
+    assertPredicatesMatch(expected, actual);
   }
 
   @Test
@@ -149,7 +147,7 @@ public class TestHiveIcebergFilterFactory {
   }
 
   @Test
-  public void tesOrOperand() {
+  public void testOrOperand() {
     SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
     SearchArgument arg = builder
         .startOr()
@@ -167,25 +165,77 @@ public class TestHiveIcebergFilterFactory {
   }
 
   @Test
-  public void testManyAndOperand() {
+  public void testStringType() {
     SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
-    SearchArgument arg = builder
-        .startAnd()
-        .equals("salary", PredicateLeaf.Type.LONG, 3000L)
-        .equals("job", PredicateLeaf.Type.LONG, 4000L)
-        .equals("name", PredicateLeaf.Type.LONG, 9000L)
-        .end()
-        .build();
+    SearchArgument arg = builder.startAnd().equals("string", PredicateLeaf.Type.STRING, "Joe").end().build();
 
-    And expected = (And) Expressions.and(
-        Expressions.equal("salary", 3000L),
-        Expressions.equal("job", 4000L),
-        Expressions.equal("name", 9000L));
+    UnboundPredicate expected = Expressions.equal("string", "Joe");
+    UnboundPredicate actual = (UnboundPredicate) HiveIcebergFilterFactory.generateFilterExpression(arg);
 
-    And actual = (And) HiveIcebergFilterFactory.generateFilterExpression(arg);
+    assertPredicatesMatch(expected, actual);
+  }
 
+  @Test
+  public void testFloatType() {
+    SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
+    SearchArgument arg = builder.startAnd().equals("float", PredicateLeaf.Type.FLOAT, 1200D).end().build();
+
+    UnboundPredicate expected = Expressions.equal("float", 1200D);
+    UnboundPredicate actual = (UnboundPredicate) HiveIcebergFilterFactory.generateFilterExpression(arg);
+
+    assertPredicatesMatch(expected, actual);
+  }
+
+  @Test
+  public void testBooleanType() {
+    SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
+    SearchArgument arg = builder.startAnd().equals("boolean", PredicateLeaf.Type.BOOLEAN, true).end().build();
+
+    UnboundPredicate expected = Expressions.equal("boolean", true);
+    UnboundPredicate actual = (UnboundPredicate) HiveIcebergFilterFactory.generateFilterExpression(arg);
+
+    assertPredicatesMatch(expected, actual);
+  }
+
+  /*@Test
+  public void testDateType() {
+    SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
+    SearchArgument arg = builder.startAnd().equals("date", PredicateLeaf.Type.DATE,
+            Date.valueOf("2015-11-12")).end().build();
+
+    UnboundPredicate expected = Expressions.equal("date", LocalDate.of(2015,11,12));
+    UnboundPredicate actual = (UnboundPredicate) HiveIcebergFilterFactory.generateFilterExpression(arg);
+
+    assertPredicatesMatch(expected, actual);
+  }
+
+  @Test
+  public void testTimestampType() {
+    SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
+    SearchArgument arg = builder.startAnd().equals("timestamp", PredicateLeaf.Type.TIMESTAMP,
+            Timestamp.valueOf("2012-10-02 05:16:17")).end().build();
+
+    UnboundPredicate expected = Expressions.equal("timestamp", LocalDateTime.of(2012,10, 2,5, 16, 17 ));
+    UnboundPredicate actual = (UnboundPredicate) HiveIcebergFilterFactory.generateFilterExpression(arg);
+
+    assertPredicatesMatch(expected, actual);
+  }*/
+
+  @Test
+  public void testDecimalType() {
+    SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
+    SearchArgument arg = builder.startAnd().equals("decimal", PredicateLeaf.Type.DECIMAL,
+            new HiveDecimalWritable("20.12")).end().build();
+
+    UnboundPredicate expected = Expressions.equal("decimal", new BigDecimal("20.12"));
+    UnboundPredicate actual = (UnboundPredicate) HiveIcebergFilterFactory.generateFilterExpression(arg);
+
+    assertPredicatesMatch(expected, actual);
+  }
+
+  private void assertPredicatesMatch(UnboundPredicate expected, UnboundPredicate actual) {
     assertEquals(actual.op(), expected.op());
-    assertEquals(actual.right().op(), expected.right().op());
-    assertEquals(actual.left().op(), expected.left().op());
+    assertEquals(actual.literal(), expected.literal());
+    assertEquals(actual.ref().name(), expected.ref().name());
   }
 }
