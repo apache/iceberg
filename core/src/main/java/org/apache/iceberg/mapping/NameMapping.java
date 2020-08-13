@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.mapping;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -27,7 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 /**
  * Represents a mapping from external schema names to Iceberg type IDs.
  */
-public class NameMapping {
+public class NameMapping implements Serializable {
   private static final Joiner DOT = Joiner.on('.');
 
   public static NameMapping of(MappedField... fields) {
@@ -43,29 +44,43 @@ public class NameMapping {
   }
 
   private final MappedFields mapping;
-  private final Map<Integer, MappedField> fieldsById;
-  private final Map<String, MappedField> fieldsByName;
+  private transient Map<Integer, MappedField> fieldsById;
+  private transient Map<String, MappedField> fieldsByName;
 
   NameMapping(MappedFields mapping) {
     this.mapping = mapping;
-    this.fieldsById = MappingUtil.indexById(mapping);
-    this.fieldsByName = MappingUtil.indexByName(mapping);
+    lazyFieldsById();
+    lazyFieldsByName();
   }
 
   public MappedField find(int id) {
-    return fieldsById.get(id);
+    return lazyFieldsById().get(id);
   }
 
   public MappedField find(String... names) {
-    return fieldsByName.get(DOT.join(names));
+    return lazyFieldsByName().get(DOT.join(names));
   }
 
   public MappedField find(List<String> names) {
-    return fieldsByName.get(DOT.join(names));
+    return lazyFieldsByName().get(DOT.join(names));
   }
 
   public MappedFields asMappedFields() {
     return mapping;
+  }
+
+  private Map<Integer, MappedField> lazyFieldsById() {
+    if (fieldsById == null) {
+      this.fieldsById = MappingUtil.indexById(mapping);
+    }
+    return fieldsById;
+  }
+
+  private Map<String, MappedField> lazyFieldsByName() {
+    if (fieldsByName == null) {
+      this.fieldsByName = MappingUtil.indexByName(mapping);
+    }
+    return fieldsByName;
   }
 
   @Override

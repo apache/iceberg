@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.mapping;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -26,7 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-public class MappedFields {
+public class MappedFields implements Serializable {
 
   public static MappedFields of(MappedField... fields) {
     return new MappedFields(ImmutableList.copyOf(fields));
@@ -37,21 +38,21 @@ public class MappedFields {
   }
 
   private final List<MappedField> fields;
-  private final Map<String, Integer> nameToId;
-  private final Map<Integer, MappedField> idToField;
+  private transient Map<String, Integer> nameToId;
+  private transient Map<Integer, MappedField> idToField;
 
   private MappedFields(List<MappedField> fields) {
     this.fields = ImmutableList.copyOf(fields);
-    this.nameToId = indexIds(fields);
-    this.idToField = indexFields(fields);
+    lazyNameToId();
+    lazyIdToField();
   }
 
   public MappedField field(int id) {
-    return idToField.get(id);
+    return lazyIdToField().get(id);
   }
 
   public Integer id(String name) {
-    return nameToId.get(name);
+    return lazyNameToId().get(name);
   }
 
   public int size() {
@@ -83,6 +84,20 @@ public class MappedFields {
 
   public List<MappedField> fields() {
     return fields;
+  }
+
+  private Map<String, Integer> lazyNameToId() {
+    if (nameToId == null) {
+      this.nameToId = indexIds(fields);
+    }
+    return nameToId;
+  }
+
+  private Map<Integer, MappedField> lazyIdToField() {
+    if (idToField == null) {
+      this.idToField = indexFields(fields);
+    }
+    return idToField;
   }
 
   @Override

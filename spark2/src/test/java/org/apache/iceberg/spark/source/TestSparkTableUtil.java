@@ -22,7 +22,6 @@ package org.apache.iceberg.spark.source;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -239,18 +238,13 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
     List<String> actual = spark.read().format("iceberg").load(DB_NAME + ".target_table")
         .select("data")
         .sort("data")
-        .filter("data<'c'")
-        .collectAsList()
-        .stream()
-        .map(r -> r.getString(0))
-        .collect(Collectors.toList());
+        .filter("data >= 'b'")
+        .as(Encoders.STRING())
+        .collectAsList();
 
-    List<SimpleRecord> expected = Lists.newArrayList(
-        new SimpleRecord(2, "a"),
-        new SimpleRecord(1, "b")
-    );
+    List<String> expected = Lists.newArrayList("b", "c");
 
-    Assert.assertEquals(expected.stream().map(SimpleRecord::getData).collect(Collectors.toList()), actual);
+    Assert.assertEquals(expected, actual);
   }
 
   @Test
@@ -285,18 +279,13 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
         .load(DB_NAME + ".target_table_for_vectorization")
         .select("data")
         .sort("data")
-        .filter("data<'c'")
-        .collectAsList()
-        .stream()
-        .map(r -> r.getString(0))
-        .collect(Collectors.toList());
+        .filter("data >= 'b'")
+        .as(Encoders.STRING())
+        .collectAsList();
 
-    List<SimpleRecord> expected = Lists.newArrayList(
-        new SimpleRecord(2, "a"),
-        new SimpleRecord(1, "b")
-    );
+    List<String> expected = Lists.newArrayList("b", "c");
 
-    Assert.assertEquals(expected.stream().map(SimpleRecord::getData).collect(Collectors.toList()), actual);
+    Assert.assertEquals(expected, actual);
   }
 
   @Test
