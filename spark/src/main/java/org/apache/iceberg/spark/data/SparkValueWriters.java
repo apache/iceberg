@@ -99,6 +99,7 @@ public class SparkValueWriters {
     }
 
     @Override
+    @SuppressWarnings("ByteBufferBackingArray")
     public void write(UTF8String s, Encoder encoder) throws IOException {
       // TODO: direct conversion from string to byte buffer
       UUID uuid = UUID.fromString(s.toString());

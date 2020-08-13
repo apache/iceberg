@@ -231,7 +231,24 @@ public class GenericOrcWriters {
 
     @Override
     public void nonNullWrite(int rowId, ByteBuffer data, ColumnVector output) {
-      ((BytesColumnVector) output).setRef(rowId, data.array(), 0, data.array().length);
+      // We technically can't be sure if the ByteBuffer coming in is on or off
+      // heap so we cannot safely call `.array()` on it without first checking
+      // via the method ByteBuffer.hasArray().
+      // See: https://errorprone.info/bugpattern/ByteBufferBackingArray
+      //
+      // When there is a backing heap based byte array, we avoided the overhead of
+      // copying, which is especially important for small byte buffers.
+      //
+      // TODO - This copy slows it down, perhap unnecessarily. Is there any other way to tell, or no?
+      //        My guess is no, if I consider things like VectorizedOrcReaders on Spark.
+      if (data.hasArray()) {
+        ((BytesColumnVector) output).setRef(rowId, data.array(), 0, data.array().length);
+      } else {
+        byte[] bytes = new byte[data.remaining()];
+        data.get(bytes);
+        data.position(data.position() - bytes.length); // Restores the buffer position
+        ((BytesColumnVector) output).setRef(rowId, bytes, 0, bytes.length);
+      }
     }
   }
 
@@ -244,6 +261,7 @@ public class GenericOrcWriters {
     }
 
     @Override
+    @SuppressWarnings("ByteBufferBackingArray")
     public void nonNullWrite(int rowId, UUID data, ColumnVector output) {
       ByteBuffer buffer = ByteBuffer.allocate(16);
       buffer.putLong(data.getMostSignificantBits());

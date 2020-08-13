@@ -272,6 +272,7 @@ public class ValueWriters {
     }
 
     @Override
+    @SuppressWarnings("ByteBufferBackingArray")
     public void write(UUID uuid, Encoder encoder) throws IOException {
       // TODO: direct conversion from string to byte buffer
       ByteBuffer buffer = BUFFER.get();

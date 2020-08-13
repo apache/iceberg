@@ -133,6 +133,7 @@ public class SparkValueReaders {
     }
 
     @Override
+    @SuppressWarnings("ByteBufferBackingArray")
     public UTF8String read(Decoder decoder, Object reuse) throws IOException {
       ByteBuffer buffer = BUFFER.get();
       buffer.rewind();
