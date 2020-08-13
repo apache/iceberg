@@ -27,8 +27,6 @@ import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.table.descriptors.CatalogDescriptorValidator;
 import org.apache.flink.table.factories.CatalogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.hadoop.HadoopCatalog;
-import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -48,7 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
  * </ul>
  * <p>
  * To use a custom catalog that is not a Hive or Hadoop catalog, extend this class and override
- * {@link #buildIcebergCatalog(String, Map)}.
+ * {@link #createCatalogLoader(String, Map)}.
  */
 public class FlinkCatalogFactory implements CatalogFactory {
 
@@ -62,37 +60,23 @@ public class FlinkCatalogFactory implements CatalogFactory {
   public static final String BASE_NAMESPACE = "base-namespace";
 
   /**
-   * Build an Iceberg {@link org.apache.iceberg.catalog.Catalog} to be used by this Flink catalog adapter.
+   * Create an Iceberg {@link org.apache.iceberg.catalog.Catalog} loader to be used by this Flink catalog adapter.
    *
    * @param name    Flink's catalog name
    * @param options Flink's catalog options
-   * @return an Iceberg catalog
+   * @return an Iceberg catalog loader
    */
-  protected org.apache.iceberg.catalog.Catalog buildIcebergCatalog(String name, Map<String, String> options) {
-    Configuration conf = HadoopUtils.getHadoopConfiguration(GlobalConfiguration.loadConfiguration());
-    return buildIcebergCatalog(name, options, conf);
-  }
-
-  /**
-   * Build an Iceberg {@link org.apache.iceberg.catalog.Catalog} to be used by this Flink catalog adapter.
-   *
-   * @param name    Flink's catalog name
-   * @param options Flink's catalog options
-   * @param conf    Flink's hadoop configuration
-   * @return an Iceberg catalog
-   */
-  protected org.apache.iceberg.catalog.Catalog buildIcebergCatalog(
-      String name, Map<String, String> options, Configuration conf) {
+  protected CatalogLoader createCatalogLoader(String name, Map<String, String> options) {
     String catalogType = options.getOrDefault(ICEBERG_CATALOG_TYPE, "hive");
     switch (catalogType) {
       case "hive":
         int clientPoolSize = Integer.parseInt(options.getOrDefault(HIVE_CLIENT_POOL_SIZE, "2"));
         String uri = options.get(HIVE_URI);
-        return new HiveCatalog(name, uri, clientPoolSize, conf);
+        return CatalogLoader.hive(name, uri, clientPoolSize);
 
       case "hadoop":
         String warehouseLocation = options.get(HADOOP_WAREHOUSE_LOCATION);
-        return new HadoopCatalog(name, conf, warehouseLocation);
+        return CatalogLoader.hadoop(name, warehouseLocation);
 
       default:
         throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
@@ -121,12 +105,17 @@ public class FlinkCatalogFactory implements CatalogFactory {
 
   @Override
   public Catalog createCatalog(String name, Map<String, String> properties) {
-    org.apache.iceberg.catalog.Catalog catalog = buildIcebergCatalog(name, properties);
+    Configuration hadoopConf = HadoopUtils.getHadoopConfiguration(GlobalConfiguration.loadConfiguration());
+    return createCatalog(name, properties, hadoopConf);
+  }
+
+  protected Catalog createCatalog(String name, Map<String, String> properties, Configuration hadoopConf) {
+    CatalogLoader catalogLoader = createCatalogLoader(name, properties);
     String defaultDatabase = properties.getOrDefault(DEFAULT_DATABASE, "default");
     String[] baseNamespace = properties.containsKey(BASE_NAMESPACE) ?
         Splitter.on('.').splitToList(properties.get(BASE_NAMESPACE)).toArray(new String[0]) :
         new String[0];
     boolean cacheEnabled = Boolean.parseBoolean(properties.getOrDefault("cache-enabled", "true"));
-    return new FlinkCatalog(name, defaultDatabase, baseNamespace, catalog, cacheEnabled);
+    return new FlinkCatalog(name, defaultDatabase, baseNamespace, catalogLoader, hadoopConf, cacheEnabled);
   }
 }

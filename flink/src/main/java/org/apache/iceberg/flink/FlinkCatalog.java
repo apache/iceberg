@@ -47,6 +47,7 @@ import org.apache.flink.table.catalog.stats.CatalogColumnStatistics;
 import org.apache.flink.table.catalog.stats.CatalogTableStatistics;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.util.StringUtils;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
@@ -71,6 +72,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
  */
 public class FlinkCatalog extends AbstractCatalog {
 
+  private final CatalogLoader catalogLoader;
+  private final Configuration hadoopConf;
   private final Catalog originalCatalog;
   private final Catalog icebergCatalog;
   private final String[] baseNamespace;
@@ -80,14 +83,17 @@ public class FlinkCatalog extends AbstractCatalog {
       String catalogName,
       String defaultDatabase,
       String[] baseNamespace,
-      Catalog icebergCatalog,
+      CatalogLoader catalogLoader,
+      Configuration hadoopConf,
       boolean cacheEnabled) {
     super(catalogName, defaultDatabase);
-    this.originalCatalog = icebergCatalog;
-    this.icebergCatalog = cacheEnabled ? CachingCatalog.wrap(icebergCatalog) : icebergCatalog;
+    this.hadoopConf = hadoopConf;
+    this.originalCatalog = catalogLoader.loadCatalog(hadoopConf);
+    this.catalogLoader = catalogLoader;
+    this.icebergCatalog = cacheEnabled ? CachingCatalog.wrap(originalCatalog) : originalCatalog;
     this.baseNamespace = baseNamespace;
-    if (icebergCatalog instanceof SupportsNamespaces) {
-      asNamespaceCatalog = (SupportsNamespaces) icebergCatalog;
+    if (originalCatalog instanceof SupportsNamespaces) {
+      asNamespaceCatalog = (SupportsNamespaces) originalCatalog;
     } else {
       asNamespaceCatalog = null;
     }
