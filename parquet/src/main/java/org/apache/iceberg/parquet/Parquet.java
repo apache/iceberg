@@ -21,15 +21,27 @@ package org.apache.iceberg.parquet;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
@@ -39,9 +51,13 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.parquet.ParquetValueWriters.PositionDeleteStructWriter;
+import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.parquet.HadoopReadOptions;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.avro.AvroReadSupport;
@@ -81,11 +97,11 @@ public class Parquet {
 
   public static class WriteBuilder {
     private final OutputFile file;
+    private final Map<String, String> metadata = Maps.newLinkedHashMap();
+    private final Map<String, String> config = Maps.newLinkedHashMap();
     private Schema schema = null;
     private String name = "table";
     private WriteSupport<?> writeSupport = null;
-    private Map<String, String> metadata = Maps.newLinkedHashMap();
-    private Map<String, String> config = Maps.newLinkedHashMap();
     private Function<MessageType, ParquetValueWriter<?>> createWriterFunc = null;
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
     private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
@@ -250,6 +266,158 @@ public class Parquet {
     }
   }
 
+  public static DeleteWriteBuilder writeDeletes(OutputFile file) {
+    return new DeleteWriteBuilder(file);
+  }
+
+  public static class DeleteWriteBuilder extends WriteBuilder {
+    private final WriteBuilder appenderBuilder;
+    private final String location;
+    private Function<MessageType, ParquetValueWriter<?>> createWriterFunc = null;
+    private Schema rowSchema = null;
+    private PartitionSpec spec = null;
+    private StructLike partition = null;
+    private EncryptionKeyMetadata keyMetadata = null;
+    private int[] equalityFieldIds = null;
+
+    private DeleteWriteBuilder(OutputFile file) {
+      super(file);
+      this.appenderBuilder = write(file);
+      this.location = file.location();
+    }
+
+    public DeleteWriteBuilder forTable(Table table) {
+      schema(table.schema());
+      setAll(table.properties());
+      metricsConfig(MetricsConfig.fromProperties(table.properties()));
+      return this;
+    }
+
+    public DeleteWriteBuilder set(String property, String value) {
+      appenderBuilder.set(property, value);
+      return this;
+    }
+
+    public DeleteWriteBuilder setAll(Map<String, String> properties) {
+      appenderBuilder.setAll(properties);
+      return this;
+    }
+
+    public DeleteWriteBuilder meta(String property, String value) {
+      appenderBuilder.meta(property, value);
+      return this;
+    }
+
+    public DeleteWriteBuilder overwrite() {
+      return overwrite(true);
+    }
+
+    public DeleteWriteBuilder overwrite(boolean enabled) {
+      appenderBuilder.overwrite(enabled);
+      return this;
+    }
+
+    public DeleteWriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
+      // TODO: keep full metrics for position delete file columns
+      appenderBuilder.metricsConfig(newMetricsConfig);
+      return this;
+    }
+
+    public DeleteWriteBuilder createWriterFunc(Function<MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
+      this.createWriterFunc = newCreateWriterFunc;
+      return this;
+    }
+
+    public DeleteWriteBuilder rowSchema(Schema newSchema) {
+      this.rowSchema = newSchema;
+      return this;
+    }
+
+    public DeleteWriteBuilder withSpec(PartitionSpec newSpec) {
+      this.spec = newSpec;
+      return this;
+    }
+
+    public DeleteWriteBuilder withPartition(StructLike key) {
+      this.partition = key;
+      return this;
+    }
+
+    public DeleteWriteBuilder withKeyMetadata(EncryptionKeyMetadata metadata) {
+      this.keyMetadata = metadata;
+      return this;
+    }
+
+    public DeleteWriteBuilder equalityFieldIds(List<Integer> fieldIds) {
+      this.equalityFieldIds = ArrayUtil.toIntArray(fieldIds);
+      return this;
+    }
+
+    public DeleteWriteBuilder equalityFieldIds(int... fieldIds) {
+      this.equalityFieldIds = fieldIds;
+      return this;
+    }
+
+    public <T> EqualityDeleteWriter<T> buildEqualityWriter() throws IOException {
+      Preconditions.checkState(rowSchema != null, "Cannot create equality delete file without a schema`");
+      Preconditions.checkState(equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
+      Preconditions.checkState(createWriterFunc != null,
+          "Cannot create equality delete file unless createWriterFunc is set");
+
+      meta("delete-type", "equality");
+      meta("delete-field-ids", IntStream.of(equalityFieldIds)
+          .mapToObj(Objects::toString)
+          .collect(Collectors.joining(", ")));
+
+      // the appender uses the row schema without extra columns
+      appenderBuilder.schema(rowSchema);
+      appenderBuilder.createWriterFunc(createWriterFunc);
+
+      return new EqualityDeleteWriter<>(
+          appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata, equalityFieldIds);
+    }
+
+
+    public <T> PositionDeleteWriter<T> buildPositionWriter() throws IOException {
+      Preconditions.checkState(equalityFieldIds == null, "Cannot create position delete file using delete field ids");
+
+      meta("delete-type", "position");
+
+      if (rowSchema != null) {
+        Preconditions.checkState(createWriterFunc != null,
+            "Cannot create delete file with deletes rows unless createWriterFunc is set");
+
+        // the appender uses the row schema wrapped with position fields
+        appenderBuilder.schema(new org.apache.iceberg.Schema(
+            MetadataColumns.DELETE_FILE_PATH,
+            MetadataColumns.DELETE_FILE_POS,
+            NestedField.optional(
+                MetadataColumns.DELETE_FILE_ROW_FIELD_ID, "row", rowSchema.asStruct(),
+                MetadataColumns.DELETE_FILE_ROW_DOC)));
+
+        appenderBuilder.createWriterFunc(parquetSchema -> {
+          ParquetValueWriter<?> writer = createWriterFunc.apply(parquetSchema);
+          if (writer instanceof StructWriter) {
+            return new PositionDeleteStructWriter<T>((StructWriter<?>) writer);
+          } else {
+            throw new UnsupportedOperationException("Cannot wrap writer for position deletes: " + writer.getClass());
+          }
+        });
+
+      } else {
+        appenderBuilder.schema(new org.apache.iceberg.Schema(
+            MetadataColumns.DELETE_FILE_PATH,
+            MetadataColumns.DELETE_FILE_POS));
+
+        appenderBuilder.createWriterFunc(parquetSchema ->
+            new PositionDeleteStructWriter<T>((StructWriter<?>) GenericParquetWriter.buildWriter(parquetSchema)));
+      }
+
+      return new PositionDeleteWriter<>(
+          appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata);
+    }
+  }
+
   private static class ParquetWriteBuilder<T> extends ParquetWriter.Builder<T, ParquetWriteBuilder<T>> {
     private Map<String, String> keyValueMetadata = Maps.newHashMap();
     private Map<String, String> config = Maps.newHashMap();
@@ -300,6 +468,7 @@ public class Parquet {
 
   public static class ReadBuilder {
     private final InputFile file;
+    private final Map<String, String> properties = Maps.newHashMap();
     private Long start = null;
     private Long length = null;
     private Schema schema = null;
@@ -309,7 +478,6 @@ public class Parquet {
     private Function<MessageType, ParquetValueReader<?>> readerFunc = null;
     private boolean filterRecords = true;
     private boolean caseSensitive = true;
-    private Map<String, String> properties = Maps.newHashMap();
     private boolean callInit = false;
     private boolean reuseContainers = false;
     private int maxRecordsPerBatch = 10000;
@@ -426,7 +594,7 @@ public class Parquet {
         ParquetReadOptions options = optionsBuilder.build();
 
         if (batchedReaderFunc != null) {
-          return new VectorizedParquetReader(file, schema, options, batchedReaderFunc, nameMapping, filter,
+          return new VectorizedParquetReader<>(file, schema, options, batchedReaderFunc, nameMapping, filter,
               reuseContainers, caseSensitive, maxRecordsPerBatch);
         } else {
           return new org.apache.iceberg.parquet.ParquetReader<>(

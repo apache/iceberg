@@ -59,6 +59,7 @@ public abstract class BaseParquetWriter<T> {
 
     @Override
     public ParquetValueWriter<?> message(MessageType message, List<ParquetValueWriter<?>> fieldWriters) {
+
       return struct(message.asGroupType(), fieldWriters);
     }
 

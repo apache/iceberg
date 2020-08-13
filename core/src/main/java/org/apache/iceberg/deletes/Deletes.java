@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.Accessor;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.io.CloseableGroup;
@@ -44,12 +45,14 @@ import org.apache.iceberg.util.StructLikeSet;
 
 public class Deletes {
   private static final Schema POSITION_DELETE_SCHEMA = new Schema(
-      Types.NestedField.required(1, "file_path", Types.StringType.get(), "Data file location of the deleted row"),
-      Types.NestedField.required(2, "pos", Types.LongType.get(), "Row position in the data file of the deleted row")
+      MetadataColumns.DELETE_FILE_PATH,
+      MetadataColumns.DELETE_FILE_POS
   );
 
-  private static final Accessor<StructLike> FILENAME_ACCESSOR = POSITION_DELETE_SCHEMA.accessorForField(1);
-  private static final Accessor<StructLike> POSITION_ACCESSOR = POSITION_DELETE_SCHEMA.accessorForField(2);
+  private static final Accessor<StructLike> FILENAME_ACCESSOR = POSITION_DELETE_SCHEMA
+      .accessorForField(MetadataColumns.DELETE_FILE_PATH.fieldId());
+  private static final Accessor<StructLike> POSITION_ACCESSOR = POSITION_DELETE_SCHEMA
+      .accessorForField(MetadataColumns.DELETE_FILE_POS.fieldId());
 
   private Deletes() {
   }

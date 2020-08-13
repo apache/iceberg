@@ -22,11 +22,13 @@ package org.apache.iceberg.parquet;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.TypeUtil;
@@ -487,5 +489,24 @@ public class ParquetValueWriters {
     }
 
     protected abstract Object get(S struct, int index);
+  }
+
+  public static class PositionDeleteStructWriter<R> extends StructWriter<PositionDelete<R>> {
+    public PositionDeleteStructWriter(StructWriter<?> replacedWriter) {
+      super(Arrays.asList(replacedWriter.writers));
+    }
+
+    @Override
+    protected Object get(PositionDelete<R> delete, int index) {
+      switch (index) {
+        case 0:
+          return delete.path();
+        case 1:
+          return delete.pos();
+        case 2:
+          return delete.row();
+      }
+      throw new IllegalArgumentException("Cannot get value for invalid index: " + index);
+    }
   }
 }
