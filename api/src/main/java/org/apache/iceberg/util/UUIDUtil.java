@@ -60,8 +60,8 @@ public class UUIDUtil {
   public static ByteBuffer convertToByteBuffer(UUID value) {
     ByteBuffer buffer = ByteBuffer.allocate(16);
     buffer.order(ByteOrder.BIG_ENDIAN);
-    buffer.putLong(value.getMostSignificantBits());
-    buffer.putLong(value.getLeastSignificantBits());
+    buffer.putLong(0, value.getMostSignificantBits());
+    buffer.putLong(8, value.getLeastSignificantBits());
     return buffer;
   }
 }

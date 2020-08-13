@@ -36,8 +36,7 @@ import org.apache.iceberg.util.UUIDUtil;
 
 public class Conversions {
 
-  private Conversions() {
-  }
+  private Conversions() {}
 
   private static final String HIVE_NULL = "__HIVE_DEFAULT_PARTITION__";
 

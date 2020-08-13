@@ -148,7 +148,7 @@ public class GenericOrcReaders {
     public LocalDateTime nonNullRead(ColumnVector vector, int row) {
       TimestampColumnVector tcv = (TimestampColumnVector) vector;
       return Instant.ofEpochSecond(Math.floorDiv(tcv.time[row], 1_000), tcv.nanos[row]).atOffset(ZoneOffset.UTC)
-          .toLocalDateTime();
+                    .toLocalDateTime();
     }
   }
 
@@ -175,7 +175,7 @@ public class GenericOrcReaders {
     public String nonNullRead(ColumnVector vector, int row) {
       BytesColumnVector bytesVector = (BytesColumnVector) vector;
       return new String(bytesVector.vector[row], bytesVector.start[row], bytesVector.length[row],
-          StandardCharsets.UTF_8);
+                        StandardCharsets.UTF_8);
     }
   }
 
