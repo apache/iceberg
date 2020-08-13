@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -47,6 +48,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeWrapper;
@@ -59,16 +63,16 @@ import org.apache.iceberg.util.Tasks;
  * {@link #forEntry(ManifestEntry)} to get the the delete files to apply to a given data file.
  */
 class DeleteFileIndex {
-  private static final DeleteFile[] NO_DELETE_FILES = new DeleteFile[0];
-
+  private final Schema schema;
   private final Map<Integer, Types.StructType> partitionTypeById;
   private final Map<Integer, ThreadLocal<StructLikeWrapper>> wrapperById;
   private final long[] globalSeqs;
   private final DeleteFile[] globalDeletes;
   private final Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> sortedDeletesByPartition;
 
-  DeleteFileIndex(Map<Integer, PartitionSpec> specsById, long[] globalSeqs, DeleteFile[] globalDeletes,
+  DeleteFileIndex(Schema schema, Map<Integer, PartitionSpec> specsById, long[] globalSeqs, DeleteFile[] globalDeletes,
                   Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> sortedDeletesByPartition) {
+    this.schema = schema;
     ImmutableMap.Builder<Integer, Types.StructType> builder = ImmutableMap.builder();
     specsById.forEach((specId, spec) -> builder.put(specId, spec.partitionType()));
     this.partitionTypeById = builder.build();
@@ -96,21 +100,101 @@ class DeleteFileIndex {
     Pair<Integer, StructLikeWrapper> partition = partition(file.specId(), file.partition());
     Pair<long[], DeleteFile[]> partitionDeletes = sortedDeletesByPartition.get(partition);
 
+    Stream<DeleteFile> matchingDeletes;
     if (partitionDeletes == null) {
-      return limitBySequenceNumber(sequenceNumber, globalSeqs, globalDeletes);
+      matchingDeletes = limitBySequenceNumber(sequenceNumber, globalSeqs, globalDeletes);
     } else if (globalDeletes == null) {
-      return limitBySequenceNumber(sequenceNumber, partitionDeletes.first(), partitionDeletes.second());
+      matchingDeletes = limitBySequenceNumber(sequenceNumber, partitionDeletes.first(), partitionDeletes.second());
     } else {
-      return Stream.concat(
-          Stream.of(limitBySequenceNumber(sequenceNumber, globalSeqs, globalDeletes)),
-          Stream.of(limitBySequenceNumber(sequenceNumber, partitionDeletes.first(), partitionDeletes.second()))
-      ).toArray(DeleteFile[]::new);
+      matchingDeletes = Stream.concat(
+          limitBySequenceNumber(sequenceNumber, globalSeqs, globalDeletes),
+          limitBySequenceNumber(sequenceNumber, partitionDeletes.first(), partitionDeletes.second()));
     }
+
+    return matchingDeletes
+        .filter(deleteFile -> canContainDeletesForFile(file, deleteFile, schema))
+        .toArray(DeleteFile[]::new);
   }
 
-  private static DeleteFile[] limitBySequenceNumber(long sequenceNumber, long[] seqs, DeleteFile[] files) {
+  private static boolean canContainDeletesForFile(DataFile dataFile, DeleteFile deleteFile, Schema schema) {
+    switch (deleteFile.content()) {
+      case POSITION_DELETES:
+        // check that the delete file can contain the data file's file_path
+        Map<Integer, ByteBuffer> lowers = deleteFile.lowerBounds();
+        Map<Integer, ByteBuffer> uppers = deleteFile.upperBounds();
+        if (lowers == null || uppers == null) {
+          return true;
+        }
+
+        Type pathType = MetadataColumns.DELETE_FILE_PATH.type();
+        int pathId = MetadataColumns.DELETE_FILE_PATH.fieldId();
+        ByteBuffer lower = lowers.get(pathId);
+        if (lower != null &&
+            Comparators.charSequences().compare(dataFile.path(), Conversions.fromByteBuffer(pathType, lower)) < 0) {
+          return false;
+        }
+
+        ByteBuffer upper = uppers.get(pathId);
+        if (upper != null &&
+            Comparators.charSequences().compare(dataFile.path(), Conversions.fromByteBuffer(pathType, upper)) > 0) {
+          return false;
+        }
+
+        break;
+
+      case EQUALITY_DELETES:
+        if (dataFile.lowerBounds() == null || dataFile.upperBounds() == null ||
+            deleteFile.lowerBounds() == null || deleteFile.upperBounds() == null) {
+          return true;
+        }
+
+        Map<Integer, ByteBuffer> dataLowers = dataFile.lowerBounds();
+        Map<Integer, ByteBuffer> dataUppers = dataFile.upperBounds();
+        Map<Integer, ByteBuffer> deleteLowers = deleteFile.lowerBounds();
+        Map<Integer, ByteBuffer> deleteUppers = deleteFile.upperBounds();
+
+        for (int id : deleteFile.equalityFieldIds()) {
+          Type type = schema.findType(id);
+          if (!type.isPrimitiveType()) {
+            return true;
+          }
+
+          if (!rangesOverlap(type.asPrimitiveType(),
+              dataLowers.get(id), dataUppers.get(id), deleteLowers.get(id), deleteUppers.get(id))) {
+            return false;
+          }
+        }
+        break;
+    }
+
+    return true;
+  }
+
+  private static <T> boolean rangesOverlap(Type.PrimitiveType type,
+                                           ByteBuffer dataLower, ByteBuffer dataUpper,
+                                           ByteBuffer deleteLower, ByteBuffer deleteUpper) {
+    Comparator<T> comparator = Comparators.forType(type);
+    T low = Conversions.fromByteBuffer(type, dataLower);
+    T high = Conversions.fromByteBuffer(type, dataUpper);
+
+    if (contains(comparator, low, high, Conversions.fromByteBuffer(type, deleteLower))) {
+      return true;
+    }
+
+    if (contains(comparator, low, high, Conversions.fromByteBuffer(type, deleteUpper))) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private static <T> boolean contains(Comparator<T> comparator, T low, T high, T value) {
+    return comparator.compare(low, value) <= 0 && comparator.compare(value, high) <= 0;
+  }
+
+  private static Stream<DeleteFile> limitBySequenceNumber(long sequenceNumber, long[] seqs, DeleteFile[] files) {
     if (files == null) {
-      return NO_DELETE_FILES;
+      return Stream.empty();
     }
 
     int pos = Arrays.binarySearch(seqs, sequenceNumber);
@@ -127,7 +211,7 @@ class DeleteFileIndex {
       }
     }
 
-    return Arrays.copyOfRange(files, start, files.length);
+    return Arrays.stream(files, start, files.length);
   }
 
   static Builder builderFor(FileIO io, Iterable<ManifestFile> deleteManifests) {
@@ -137,20 +221,21 @@ class DeleteFileIndex {
   static class Builder {
     private final FileIO io;
     private final Set<ManifestFile> deleteManifests;
-    private Map<Integer, PartitionSpec> specsById;
-    private Expression dataFilter;
-    private Expression partitionFilter;
-    private boolean caseSensitive;
-    private ExecutorService executorService;
+    private Schema schema = null;
+    private Map<Integer, PartitionSpec> specsById = null;
+    private Expression dataFilter = Expressions.alwaysTrue();
+    private Expression partitionFilter = Expressions.alwaysTrue();
+    private boolean caseSensitive = true;
+    private ExecutorService executorService = null;
 
     Builder(FileIO io, Set<ManifestFile> deleteManifests) {
       this.io = io;
       this.deleteManifests = Sets.newHashSet(deleteManifests);
-      this.specsById = null;
-      this.dataFilter = Expressions.alwaysTrue();
-      this.partitionFilter = Expressions.alwaysTrue();
-      this.caseSensitive = true;
-      this.executorService = null;
+    }
+
+    Builder schema(Schema tableSchema) {
+      this.schema = tableSchema;
+      return this;
     }
 
     Builder specsById(Map<Integer, PartitionSpec> newSpecsById) {
@@ -254,7 +339,7 @@ class DeleteFileIndex {
         }
       }
 
-      return new DeleteFileIndex(specsById, globalApplySeqs, globalDeletes, sortedDeletesByPartition);
+      return new DeleteFileIndex(schema, specsById, globalApplySeqs, globalDeletes, sortedDeletesByPartition);
     }
 
     private Iterable<CloseableIterable<ManifestEntry<DeleteFile>>> deleteManifestReaders() {
