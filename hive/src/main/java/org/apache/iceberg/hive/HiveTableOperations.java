@@ -159,7 +159,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
             null,
             null,
             TableType.EXTERNAL_TABLE.toString());
-        tbl.getParameters().put("EXTERNAL", "TRUE"); // using the external table type also requires this
+        setTableProperties(tbl);
       }
 
       String metadataLocation = tbl.getParameters().get(METADATA_LOCATION_PROP);
@@ -234,12 +234,28 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     final StorageDescriptor storageDescriptor = new StorageDescriptor();
     storageDescriptor.setCols(columns(metadata.schema()));
     storageDescriptor.setLocation(metadata.location());
-    storageDescriptor.setOutputFormat("org.apache.hadoop.mapred.FileOutputFormat");
-    storageDescriptor.setInputFormat("org.apache.hadoop.mapred.FileInputFormat");
+    String inputformat = metadata
+        .properties()
+        .getOrDefault("inputformat", "org.apache.iceberg.mr.hive.HiveIcebergInputFormat");
+    String outputformat = metadata
+        .properties()
+        .getOrDefault("outputformat", "org.apache.iceberg.mr.hive.HiveIcebergOutputFormat");
+    String serde = metadata
+        .properties()
+        .getOrDefault("serde", "org.apache.iceberg.mr.hive.HiveIcebergSerDe");
+    storageDescriptor.setOutputFormat(outputformat);
+    storageDescriptor.setInputFormat(inputformat);
     SerDeInfo serDeInfo = new SerDeInfo();
-    serDeInfo.setSerializationLib("org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe");
+    serDeInfo.setSerializationLib(serde);
     storageDescriptor.setSerdeInfo(serDeInfo);
     return storageDescriptor;
+  }
+
+  private void setTableProperties(Table tbl) {
+    tbl.getParameters().put("EXTERNAL", "TRUE"); // using the external table type also requires this
+    tbl.getParameters().put("iceberg.catalog", "hive.catalog");
+    tbl.getParameters().put("hive.database.name", tbl.getDbName());
+    tbl.getParameters().put("name", tbl.getTableName());
   }
 
   private List<FieldSchema> columns(Schema schema) {

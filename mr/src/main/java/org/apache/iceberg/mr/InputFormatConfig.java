@@ -55,6 +55,7 @@ public class InputFormatConfig {
   public static final String SNAPSHOT_TABLE = "iceberg.snapshots.table";
   public static final String SNAPSHOT_TABLE_SUFFIX = "__snapshots";
   public static final String TABLE_LOCATION = "location";
+  public static final String HIVE_DATABASE_NAME = "hive.database.name";
   public static final String TABLE_NAME = "name";
 
   public enum InMemoryDataModel {

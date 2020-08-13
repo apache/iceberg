@@ -51,7 +51,7 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
 
     forwardConfigSettings(job);
 
-    return Arrays.stream(super.getSplits(job, numSplits))
+    return Arrays.stream(super.getSplits(job, table))
                  .map(split -> new HiveIcebergSplit((IcebergSplit) split, table.location()))
                  .toArray(InputSplit[]::new);
   }

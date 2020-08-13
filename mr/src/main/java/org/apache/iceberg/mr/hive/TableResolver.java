@@ -23,8 +23,10 @@ import java.util.Map;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.hive.HiveCatalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -53,9 +55,11 @@ public final class TableResolver {
         return tables.load(tableLocation);
 
       case InputFormatConfig.HIVE_CATALOG:
+        String dbName = conf.get(InputFormatConfig.HIVE_DATABASE_NAME);
+        Preconditions.checkNotNull(dbName, InputFormatConfig.HIVE_DATABASE_NAME + " is not set using hive catalog.");
         String tableName = conf.get(InputFormatConfig.TABLE_NAME);
-        Preconditions.checkNotNull(tableName, InputFormatConfig.TABLE_NAME + " is not set.");
-        throw new UnsupportedOperationException(InputFormatConfig.HIVE_CATALOG + " is not supported yet");
+        Preconditions.checkNotNull(tableName, InputFormatConfig.TABLE_NAME + " is not set using hive catalog.");
+        return HiveCatalogs.loadCatalog(conf).loadTable(TableIdentifier.of(dbName, tableName));
 
       default:
         throw new NoSuchNamespaceException("Catalog " + catalogName + " not supported.");

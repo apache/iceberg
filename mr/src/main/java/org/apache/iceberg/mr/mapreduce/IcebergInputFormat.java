@@ -94,12 +94,10 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     return new InputFormatConfig.ConfigBuilder(job.getConfiguration());
   }
 
-  @Override
-  public List<InputSplit> getSplits(JobContext context) {
+  public List<InputSplit> getSplits(JobContext context, Table table) {
     Configuration conf = context.getConfiguration();
-    Table table = findTable(conf);
     TableScan scan = table.newScan()
-            .caseSensitive(conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, true));
+        .caseSensitive(conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, true));
     long snapshotId = conf.getLong(InputFormatConfig.SNAPSHOT_ID, -1);
     if (snapshotId != -1) {
       scan = scan.useSnapshot(snapshotId);
@@ -141,6 +139,13 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     return splits;
+  }
+
+  @Override
+  public List<InputSplit> getSplits(JobContext context) {
+    Configuration conf = context.getConfiguration();
+    Table table = findTable(conf);
+    return getSplits(context, table);
   }
 
   private static void checkResiduals(CombinedScanTask task) {

@@ -111,7 +111,7 @@ public class TestTableResolver {
     Assert.assertEquals(tableLocation.getAbsolutePath(), table.location());
   }
 
-  @Test(expected = UnsupportedOperationException.class)
+  @Test(expected = NullPointerException.class)
   public void resolveTableFromConfigurationHiveCatalog() throws IOException {
     Configuration conf = new Configuration();
     conf.set(InputFormatConfig.CATALOG_NAME, InputFormatConfig.HIVE_CATALOG);

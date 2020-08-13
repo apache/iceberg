@@ -56,18 +56,18 @@ public abstract class SparkCatalogTestBase extends SparkTestBase {
   @Parameterized.Parameters
   public static Object[][] parameters() {
     return new Object[][] {
+        new Object[] { "spark_catalog", SparkSessionCatalog.class.getName(), ImmutableMap.of(
+            "type", "hive",
+            "default-namespace", "default",
+            "parquet-enabled", "true",
+            "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
+        ) },
         new Object[] { "testhive", SparkCatalog.class.getName(), ImmutableMap.of(
             "type", "hive",
             "default-namespace", "default"
         ) },
         new Object[] { "testhadoop", SparkCatalog.class.getName(), ImmutableMap.of(
             "type", "hadoop"
-        ) },
-        new Object[] { "spark_catalog", SparkSessionCatalog.class.getName(), ImmutableMap.of(
-            "type", "hive",
-            "default-namespace", "default",
-            "parquet-enabled", "true",
-            "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
         ) }
     };
   }

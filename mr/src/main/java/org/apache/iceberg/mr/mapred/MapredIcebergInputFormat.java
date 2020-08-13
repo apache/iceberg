@@ -34,6 +34,7 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.TaskAttemptID;
 import org.apache.hadoop.mapreduce.task.JobContextImpl;
 import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.mapreduce.IcebergSplit;
@@ -61,6 +62,13 @@ public class MapredIcebergInputFormat<T> implements InputFormat<Void, Container<
   public static InputFormatConfig.ConfigBuilder configure(JobConf job) {
     job.setInputFormat(MapredIcebergInputFormat.class);
     return new InputFormatConfig.ConfigBuilder(job);
+  }
+
+  public InputSplit[] getSplits(JobConf job, Table table) throws IOException {
+    return innerInputFormat.getSplits(newJobContext(job), table)
+                           .stream()
+                           .map(InputSplit.class::cast)
+                           .toArray(InputSplit[]::new);
   }
 
   @Override
