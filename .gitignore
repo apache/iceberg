@@ -1,7 +1,7 @@
 *.swp
 .DS_Store
 .cache
-**/tmp/
+tmp/
 
 # intellij files
 .idea
