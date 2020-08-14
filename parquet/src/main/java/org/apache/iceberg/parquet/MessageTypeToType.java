@@ -42,7 +42,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 /**
  * A visitor that converts a {@link MessageType} to a {@link Type} in Iceberg.
  * <p>
- * Fields we failed to assign IDs to will be pruned.
+ * Fields we could not determine IDs for will be pruned.
  */
 class MessageTypeToType extends ParquetTypeVisitor<Type> {
   private static final Joiner DOT = Joiner.on(".");
@@ -173,7 +173,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
       case FIXED_LEN_BYTE_ARRAY:
         return Types.FixedType.ofLength(primitive.getTypeLength());
       case INT96:
-        return TimestampType.withZone();
+        return Types.TimestampType.withZone();
       case BINARY:
         return Types.BinaryType.get();
     }
