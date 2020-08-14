@@ -20,13 +20,13 @@
 
 package org.apache.iceberg;
 
-import java.nio.file.Paths;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 
 /**
- * Representation of an immutable snapshot of Table State that can be used in
- * other Iceberg Functions.
+ * TableOperations implementation that provides access to metadata for a Table at some point in time, using a
+ * table metadata location. It will never refer to a different Metadata object than the one it was created with
+ * and cannot be used to create or delete files.
  */
 public class StaticTableOperations implements TableOperations {
   private final TableMetadata staticMetadata;
@@ -35,9 +35,9 @@ public class StaticTableOperations implements TableOperations {
   /**
    * Creates a StaticTableOperations tied to a specific static version of the TableMetadata
    */
-  public StaticTableOperations(String location, FileIO io) {
+  public StaticTableOperations(String metadataFileLocation, FileIO io) {
     this.io = io;
-    this.staticMetadata = TableMetadataParser.read(io, location);
+    this.staticMetadata = TableMetadataParser.read(io, metadataFileLocation);
   }
 
   @Override
@@ -52,7 +52,7 @@ public class StaticTableOperations implements TableOperations {
 
   @Override
   public void commit(TableMetadata base, TableMetadata metadata) {
-    throw new UnsupportedOperationException("This TableOperations is static, it cannot be modified");
+    throw new UnsupportedOperationException("Cannot modify a static table");
   }
 
   @Override
@@ -62,11 +62,11 @@ public class StaticTableOperations implements TableOperations {
 
   @Override
   public String metadataFileLocation(String fileName) {
-    throw new UnsupportedOperationException("New files cannot be created in a Static Table Operations");
+    throw new UnsupportedOperationException("Cannot modify a static table");
   }
 
   @Override
   public LocationProvider locationProvider() {
-    throw new UnsupportedOperationException("New files cannot be created in a Static Table Operations");
+    throw new UnsupportedOperationException("Cannot modify a static table");
   }
 }

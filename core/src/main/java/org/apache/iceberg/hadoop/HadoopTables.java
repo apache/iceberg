@@ -22,7 +22,6 @@ package org.apache.iceberg.hadoop;
 import java.util.Map;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AllDataFilesTable;
 import org.apache.iceberg.AllEntriesTable;
@@ -46,6 +45,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.Pair;
 
 /**
  * Implementation of Iceberg tables that uses the Hadoop FileSystem
@@ -71,25 +71,37 @@ public class HadoopTables implements Tables, Configurable {
    */
   @Override
   public Table load(String location) {
-    //Possibly Load a Metadata Table
-    if (location.contains("#") && !location.endsWith("#")) {
-      // try to resolve a metadata table, which we encode as URI fragments
-      // e.g. hdfs:///warehouse/my_table#snapshots
-      int hashIndex = location.lastIndexOf('#');
+    Pair<String, MetadataTableType> parsedMetadataType = parseMetadataType(location);
+
+    if (parsedMetadataType != null) {
+      // Load a metadata table
+      return loadMetadataTable(parsedMetadataType.first(), parsedMetadataType.second());
+    } else {
+      // Load a normal table
+      TableOperations ops = newTableOps(location);
+      if (ops.current() != null) {
+        return new BaseTable(ops, location);
+      } else {
+        throw new NoSuchTableException("Table does not exist at location: " + location);
+      }
+    }
+  }
+
+  /**
+   * Try to resolve a metadata table, which we encode as URI fragments
+   * e.g. hdfs:///warehouse/my_table#snapshots
+   * @param location Path to parse
+   * @return A base table name and MetadataTableType if a type is found, null if not
+   */
+  private Pair<String, MetadataTableType> parseMetadataType(String location) {
+    int hashIndex = location.lastIndexOf('#');
+    if (hashIndex != -1 & !location.endsWith("#")) {
       String baseTable = location.substring(0, hashIndex);
       String metaTable = location.substring(hashIndex + 1);
       MetadataTableType type = MetadataTableType.from(metaTable);
-      if (type != null) {
-        return loadMetadataTable(baseTable, type);
-      }
-    }
-
-    //Normal Table Load if we haven't loaded a MetadataTable
-    TableOperations ops = newTableOps(location);
-    if (ops.current() != null) {
-      return new BaseTable(ops, location);
+      return (type == null) ? null : Pair.of(baseTable, type);
     } else {
-      throw new NoSuchTableException("Table does not exist at location: " + location);
+      return null;
     }
   }
 
