@@ -27,7 +27,7 @@ import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
 
-public abstract class BaseMessageTypeToType extends ParquetTypeVisitor<Type> {
+abstract class BaseMessageTypeToType extends ParquetTypeVisitor<Type> {
 
   @Override
   public Type primitive(PrimitiveType primitive) {
