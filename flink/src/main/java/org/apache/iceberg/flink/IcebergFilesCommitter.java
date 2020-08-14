@@ -19,22 +19,22 @@
 
 package org.apache.iceberg.flink;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.SortedMap;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
-import org.apache.flink.api.common.typeutils.base.array.BytePrimitiveArraySerializer;
+import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.java.typeutils.ListTypeInfo;
 import org.apache.flink.runtime.state.CheckpointListener;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
+import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
@@ -47,6 +47,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,9 +87,9 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
   private transient Table table;
 
   // All pending checkpoints states for this function.
-  private static final ListStateDescriptor<byte[]> STATE_DESCRIPTOR =
-      new ListStateDescriptor<>("checkpoints-state", BytePrimitiveArraySerializer.INSTANCE);
-  private transient ListState<byte[]> checkpointsState;
+  private static final ListStateDescriptor<SortedMap<Long, List<DataFile>>> STATE_DESCRIPTOR = buildStateDescriptor();
+
+  private transient ListState<SortedMap<Long, List<DataFile>>> checkpointsState;
 
   IcebergFilesCommitter(String fullTableName, Map<String, String> options, Configuration conf) {
     this.fullTableName = fullTableName;
@@ -105,7 +107,7 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
     checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     if (context.isRestored()) {
       maxCommittedCheckpointId = getMaxCommittedCheckpointId(table.currentSnapshot());
-      dataFilesPerCheckpoint.putAll(deserializeState(checkpointsState.get().iterator().next()));
+      dataFilesPerCheckpoint.putAll(checkpointsState.get().iterator().next());
     }
   }
 
@@ -119,7 +121,7 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
 
     // Reset the snapshot state to the latest state.
     checkpointsState.clear();
-    checkpointsState.addAll(ImmutableList.of(serializeState(dataFilesPerCheckpoint)));
+    checkpointsState.addAll(ImmutableList.of(dataFilesPerCheckpoint));
 
     // Clear the local buffer for current checkpoint.
     dataFilesOfCurrentCheckpoint.clear();
@@ -152,6 +154,17 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
     this.dataFilesOfCurrentCheckpoint.add(value);
   }
 
+  private static ListStateDescriptor<SortedMap<Long, List<DataFile>>> buildStateDescriptor() {
+    Comparator<Long> longComparator = Comparators.forType(Types.LongType.get());
+    // Construct a ListTypeInfo.
+    ListTypeInfo<DataFile> dataFileListTypeInfo = new ListTypeInfo<>(TypeInformation.of(DataFile.class));
+    // Construct a SortedMapTypeInfo.
+    SortedMapTypeInfo<Long, List<DataFile>> sortedMapTypeInfo = new SortedMapTypeInfo<>(
+        BasicTypeInfo.LONG_TYPE_INFO, dataFileListTypeInfo, longComparator
+    );
+    return new ListStateDescriptor<>("iceberg-files-committer-state", sortedMapTypeInfo);
+  }
+
   static Long getMaxCommittedCheckpointId(Snapshot snapshot) {
     if (snapshot != null && snapshot.summary() != null) {
       String value = snapshot.summary().get(MAX_COMMITTED_CHECKPOINT_ID);
@@ -160,22 +173,5 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
       }
     }
     return INITIAL_CHECKPOINT_ID;
-  }
-
-  private static byte[] serializeState(Map<Long, List<DataFile>> dataFiles) throws IOException {
-    try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
-         ObjectOutputStream out = new ObjectOutputStream(bos)) {
-      out.writeObject(dataFiles);
-      return bos.toByteArray();
-    }
-  }
-
-  @SuppressWarnings("unchecked")
-  private static NavigableMap<Long, List<DataFile>> deserializeState(byte[] data)
-      throws IOException, ClassNotFoundException {
-    try (ByteArrayInputStream bis = new ByteArrayInputStream(data);
-         ObjectInputStream in = new ObjectInputStream(bis)) {
-      return (NavigableMap<Long, List<DataFile>>) in.readObject();
-    }
   }
 }
