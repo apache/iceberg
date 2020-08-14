@@ -21,32 +21,37 @@ package org.apache.iceberg.parquet;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type.Repetition;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 /**
- * A visitor that converts a {@link MessageType} to a {@link Type} in Iceberg and assigns ids.
+ * A visitor that converts a {@link MessageType} to a {@link Type} in Iceberg.
+ * <p>
+ * Fields we failed to assign IDs to will be pruned.
  */
-class MessageTypeToType extends BaseMessageTypeToType {
+class MessageTypeToType extends ParquetTypeVisitor<Type> {
   private static final Joiner DOT = Joiner.on(".");
 
   private final Map<String, Integer> aliasToId = Maps.newHashMap();
-  private final GroupType root;
-  private int nextId = 1;
+  private final Function<String[], Integer> nameToIdFunc;
 
-  MessageTypeToType(GroupType root) {
-    this.root = root;
-    this.nextId = 1_000; // use ids that won't match other than for root
+  MessageTypeToType(Function<String[], Integer> nameToIdFunc) {
+    this.nameToIdFunc = nameToIdFunc;
   }
 
   public Map<String, Integer> getAliases() {
@@ -60,12 +65,9 @@ class MessageTypeToType extends BaseMessageTypeToType {
 
   @Override
   public Type struct(GroupType struct, List<Type> fieldTypes) {
-    if (struct == root) {
-      nextId = 1; // use the reserved IDs for the root struct
-    }
-
     List<org.apache.parquet.schema.Type> parquetFields = struct.getFields();
-    List<Types.NestedField> fields = Lists.newArrayListWithExpectedSize(fieldTypes.size());
+    List<Types.NestedField> fields = Lists.newArrayList();
+
     for (int i = 0; i < parquetFields.size(); i += 1) {
       org.apache.parquet.schema.Type field = parquetFields.get(i);
 
@@ -73,18 +75,22 @@ class MessageTypeToType extends BaseMessageTypeToType {
           !field.isRepetition(Repetition.REPEATED),
           "Fields cannot have repetition REPEATED: %s", field);
 
-      int fieldId = getId(field);
+      Integer fieldId = getId(field);
+      Type fieldType = fieldTypes.get(i);
 
-      addAlias(field.getName(), fieldId);
+      // keep the field if it has an id and it was not pruned (i.e. its type is not null)
+      if (fieldId != null && fieldType != null) {
+        addAlias(field.getName(), fieldId);
 
-      if (parquetFields.get(i).isRepetition(Repetition.OPTIONAL)) {
-        fields.add(optional(fieldId, field.getName(), fieldTypes.get(i)));
-      } else {
-        fields.add(required(fieldId, field.getName(), fieldTypes.get(i)));
+        if (parquetFields.get(i).isRepetition(Repetition.OPTIONAL)) {
+          fields.add(optional(fieldId, field.getName(), fieldType));
+        } else {
+          fields.add(required(fieldId, field.getName(), fieldType));
+        }
       }
     }
 
-    return Types.StructType.of(fields);
+    return fields.isEmpty() ? null : Types.StructType.of(fields);
   }
 
   @Override
@@ -96,15 +102,20 @@ class MessageTypeToType extends BaseMessageTypeToType {
         !element.isRepetition(Repetition.REPEATED),
         "Elements cannot have repetition REPEATED: %s", element);
 
-    int elementFieldId = getId(element);
+    Integer elementFieldId = getId(element);
 
-    addAlias(element.getName(), elementFieldId);
+    // keep the list if its element has an id and it was not pruned (i.e. its type is not null)
+    if (elementFieldId != null && elementType != null) {
+      addAlias(element.getName(), elementFieldId);
 
-    if (element.isRepetition(Repetition.OPTIONAL)) {
-      return Types.ListType.ofOptional(elementFieldId, elementType);
-    } else {
-      return Types.ListType.ofRequired(elementFieldId, elementType);
+      if (element.isRepetition(Repetition.OPTIONAL)) {
+        return Types.ListType.ofOptional(elementFieldId, elementType);
+      } else {
+        return Types.ListType.ofRequired(elementFieldId, elementType);
+      }
     }
+
+    return null;
   }
 
   @Override
@@ -117,16 +128,118 @@ class MessageTypeToType extends BaseMessageTypeToType {
         !value.isRepetition(Repetition.REPEATED),
         "Values cannot have repetition REPEATED: %s", value);
 
-    int keyFieldId = getId(key);
-    int valueFieldId = getId(value);
+    Integer keyFieldId = getId(key);
+    Integer valueFieldId = getId(value);
 
-    addAlias(key.getName(), keyFieldId);
-    addAlias(value.getName(), valueFieldId);
+    // keep the map if its key and values have ids and were not pruned (i.e. their types are not null)
+    if (keyFieldId != null && valueFieldId != null && keyType != null && valueType != null) {
+      addAlias(key.getName(), keyFieldId);
+      addAlias(value.getName(), valueFieldId);
 
-    if (value.isRepetition(Repetition.OPTIONAL)) {
-      return Types.MapType.ofOptional(keyFieldId, valueFieldId, keyType, valueType);
-    } else {
-      return Types.MapType.ofRequired(keyFieldId, valueFieldId, keyType, valueType);
+      // check only values as keys are required by the spec
+      if (value.isRepetition(Repetition.OPTIONAL)) {
+        return Types.MapType.ofOptional(keyFieldId, valueFieldId, keyType, valueType);
+      } else {
+        return Types.MapType.ofRequired(keyFieldId, valueFieldId, keyType, valueType);
+      }
+    }
+
+    return null;
+  }
+
+  @Override
+  public Type primitive(PrimitiveType primitive) {
+    // first, use the logical type annotation, if present
+    LogicalTypeAnnotation logicalType = primitive.getLogicalTypeAnnotation();
+    if (logicalType != null) {
+      Optional<Type> converted = logicalType.accept(ParquetLogicalTypeVisitor.get());
+      if (converted.isPresent()) {
+        return converted.get();
+      }
+    }
+
+    // last, use the primitive type
+    switch (primitive.getPrimitiveTypeName()) {
+      case BOOLEAN:
+        return Types.BooleanType.get();
+      case INT32:
+        return Types.IntegerType.get();
+      case INT64:
+        return Types.LongType.get();
+      case FLOAT:
+        return Types.FloatType.get();
+      case DOUBLE:
+        return Types.DoubleType.get();
+      case FIXED_LEN_BYTE_ARRAY:
+        return Types.FixedType.ofLength(primitive.getTypeLength());
+      case INT96:
+        return TimestampType.withZone();
+      case BINARY:
+        return Types.BinaryType.get();
+    }
+
+    throw new UnsupportedOperationException(
+        "Cannot convert unknown primitive type: " + primitive);
+  }
+
+  private static class ParquetLogicalTypeVisitor implements LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<Type> {
+    private static final ParquetLogicalTypeVisitor INSTANCE = new ParquetLogicalTypeVisitor();
+
+    private static ParquetLogicalTypeVisitor get() {
+      return INSTANCE;
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.StringLogicalTypeAnnotation stringType) {
+      return Optional.of(Types.StringType.get());
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.EnumLogicalTypeAnnotation enumType) {
+      return Optional.of(Types.StringType.get());
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimalType) {
+      return Optional.of(Types.DecimalType.of(decimalType.getPrecision(), decimalType.getScale()));
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.DateLogicalTypeAnnotation dateType) {
+      return Optional.of(Types.DateType.get());
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.TimeLogicalTypeAnnotation timeType) {
+      return Optional.of(Types.TimeType.get());
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampType) {
+      return Optional.of(timestampType.isAdjustedToUTC() ? TimestampType.withZone() : TimestampType.withoutZone());
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.IntLogicalTypeAnnotation intType) {
+      Preconditions.checkArgument(intType.isSigned() || intType.getBitWidth() < 64,
+          "Cannot use uint64: not a supported Java type");
+      if (intType.getBitWidth() < 32) {
+        return Optional.of(Types.IntegerType.get());
+      } else if (intType.getBitWidth() == 32 && intType.isSigned()) {
+        return Optional.of(Types.IntegerType.get());
+      } else {
+        return Optional.of(Types.LongType.get());
+      }
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.JsonLogicalTypeAnnotation jsonType) {
+      return Optional.of(Types.StringType.get());
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonType) {
+      return Optional.of(Types.BinaryType.get());
     }
   }
 
@@ -134,18 +247,12 @@ class MessageTypeToType extends BaseMessageTypeToType {
     aliasToId.put(DOT.join(path(name)), fieldId);
   }
 
-  protected int nextId() {
-    int current = nextId;
-    nextId += 1;
-    return current;
-  }
-
-  private int getId(org.apache.parquet.schema.Type type) {
+  private Integer getId(org.apache.parquet.schema.Type type) {
     org.apache.parquet.schema.Type.ID id = type.getId();
     if (id != null) {
       return id.intValue();
     } else {
-      return nextId();
+      return nameToIdFunc.apply(path(type.getName()));
     }
   }
 }

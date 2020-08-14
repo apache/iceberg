@@ -95,8 +95,9 @@ public class ParquetUtil {
     Map<Integer, Literal<?>> upperBounds = Maps.newHashMap();
     Set<Integer> missingStats = Sets.newHashSet();
 
+    // ignore metrics for fields we failed to determine reliable IDs
     MessageType parquetTypeWithIds = getParquetTypeWithIds(metadata, nameMapping);
-    Schema fileSchema = ParquetSchemaUtil.convertWithoutAssigningIds(parquetTypeWithIds);
+    Schema fileSchema = ParquetSchemaUtil.convert(parquetTypeWithIds, name -> null);
 
     List<BlockMetaData> blocks = metadata.getBlocks();
     for (BlockMetaData block : blocks) {
@@ -154,13 +155,16 @@ public class ParquetUtil {
 
   private static MessageType getParquetTypeWithIds(ParquetMetadata metadata, NameMapping nameMapping) {
     MessageType type = metadata.getFileMetaData().getSchema();
+
     if (ParquetSchemaUtil.hasIds(type)) {
       return type;
-    } else if (nameMapping != null) {
-      return ParquetSchemaUtil.applyNameMapping(type, nameMapping);
-    } else {
-      return ParquetSchemaUtil.addFallbackIds(type);
     }
+
+    if (nameMapping != null) {
+      return ParquetSchemaUtil.applyNameMapping(type, nameMapping);
+    }
+
+    return ParquetSchemaUtil.addFallbackIds(type);
   }
 
   /**

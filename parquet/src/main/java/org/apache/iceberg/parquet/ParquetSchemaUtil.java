@@ -21,6 +21,8 @@ package org.apache.iceberg.parquet;
 
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -41,15 +43,29 @@ public class ParquetSchemaUtil {
     return new TypeToMessageType().convert(schema, name);
   }
 
+  /**
+   * Converts a Parquet schema to an Iceberg schema. Fields without IDs are kept and assigned fallback IDs.
+   *
+   * @param parquetSchema a Parquet schema
+   * @return a matching Iceberg schema for the provided Parquet schema
+   */
   public static Schema convert(MessageType parquetSchema) {
-    MessageTypeToType converter = new MessageTypeToType(parquetSchema);
-    return new Schema(
-        ParquetTypeVisitor.visit(parquetSchema, converter).asNestedType().fields(),
-        converter.getAliases());
+    // if the Parquet schema does not contain ids, we assign fallback ids to top-level fields
+    // all remaining fields will get ids >= 1000 to avoid pruning columns without ids
+    MessageType parquetSchemaWithIds = hasIds(parquetSchema) ? parquetSchema : addFallbackIds(parquetSchema);
+    AtomicInteger nextId = new AtomicInteger(1000);
+    return convert(parquetSchemaWithIds, name -> nextId.getAndIncrement());
   }
 
-  public static Schema convertWithoutAssigningIds(MessageType parquetSchema) {
-    MessageTypeToTypeWithoutAssigningIds converter = new MessageTypeToTypeWithoutAssigningIds();
+  /**
+   * Converts a Parquet schema to an Iceberg schema. Fields without IDs are pruned.
+   *
+   * @param parquetSchema a Parquet schema
+   * @param nameToIdFunc a name to field id mapping function
+   * @return a matching Iceberg schema for the provided Parquet schema
+   */
+  public static Schema convert(MessageType parquetSchema, Function<String[], Integer> nameToIdFunc) {
+    MessageTypeToType converter = new MessageTypeToType(nameToIdFunc);
     return new Schema(
         ParquetTypeVisitor.visit(parquetSchema, converter).asNestedType().fields(),
         converter.getAliases());

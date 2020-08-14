@@ -177,7 +177,7 @@ public class TestParquetSchemaUtil {
         ))
     );
 
-    Schema actualSchema = ParquetSchemaUtil.convertWithoutAssigningIds(messageType);
+    Schema actualSchema = ParquetSchemaUtil.convert(messageType, name -> null);
     Assert.assertEquals("Schema must match", expectedSchema.asStruct(), actualSchema.asStruct());
   }
 
