@@ -47,7 +47,7 @@ import org.junit.runner.RunWith;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(StandaloneHiveRunner.class)
-public abstract class TestHiveIcebergInputFormat {
+public abstract class HiveIcebergStorageHandlerBaseTest {
 
   @HiveSQL(files = {}, autoStart = false)
   private HiveShell shell;

@@ -23,10 +23,10 @@ import java.io.IOException;
 import org.apache.hadoop.conf.Configuration;
 import org.junit.rules.TemporaryFolder;
 
-public class TestHiveIcebergInputFormatWithHadoopCatalog extends TestHiveIcebergInputFormat {
+public class TestHiveIcebergStorageHandlerWithCustomCatalog extends HiveIcebergStorageHandlerBaseTest {
 
   @Override
   public TestTables testTables(Configuration conf, TemporaryFolder temp) throws IOException {
-    return new TestTables.HadoopCatalogTestTables(conf, temp);
+    return new TestTables.CustomCatalogTestTables(conf, temp);
   }
 }

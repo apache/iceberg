@@ -26,7 +26,7 @@ import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.thrift.TException;
 import org.junit.rules.TemporaryFolder;
 
-public class TestHiveIcebergInputFormatWithHiveCatalog extends TestHiveIcebergInputFormat {
+public class TestHiveIcebergStorageHandlerWithHiveCatalog extends HiveIcebergStorageHandlerBaseTest {
 
   @Override
   public TestTables testTables(Configuration conf, TemporaryFolder temp) {
