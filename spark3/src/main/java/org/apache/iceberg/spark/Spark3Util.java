@@ -177,13 +177,11 @@ public class Spark3Util {
   }
 
   private static void apply(UpdateSchema pendingUpdate, TableChange.AddColumn add) {
+    Preconditions.checkArgument(add.isNullable(),
+        "Incompatible change: cannot add required column: %s", leafName(add.fieldNames()));
     Type type = SparkSchemaUtil.convert(add.dataType());
-    if (add.isNullable()) {
-      pendingUpdate.addColumn(parentName(add.fieldNames()), leafName(add.fieldNames()), type, add.comment());
-    } else {
-      pendingUpdate.allowIncompatibleChanges()
-        .addRequiredColumn(parentName(add.fieldNames()), leafName(add.fieldNames()), type, add.comment());
-    }
+    pendingUpdate.addColumn(parentName(add.fieldNames()), leafName(add.fieldNames()), type, add.comment());
+
     if (add.position() instanceof TableChange.After) {
       TableChange.After after = (TableChange.After) add.position();
       String referenceField = peerName(add.fieldNames(), after.column());
