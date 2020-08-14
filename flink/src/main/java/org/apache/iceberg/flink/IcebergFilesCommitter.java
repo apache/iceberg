@@ -63,12 +63,26 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
   private final SerializableConfiguration conf;
   private final ImmutableMap<String, String> options;
 
+  // The max checkpoint id we've committed to iceberg table. As the flink's checkpoint is always increasing, so we could
+  // correctly commit all the data files whose checkpoint id is greater than the max committed one to iceberg table, for
+  // avoiding committing the same data files twice. This id will be attached to iceberg's meta when committing the
+  // iceberg transaction.
   private transient long maxCommittedCheckpointId;
+
+  // A sorted map to maintain the completed data files for each pending checkpointId (which have not been committed
+  // to iceberg table). We need a sorted map here because there's possible that few checkpoints snapshot failed, for
+  // example: the 1st checkpoint have 2 data files <1, <file0, file1>>, the 2st checkpoint have 1 data files
+  // <2, <file3>>. Snapshot for checkpoint#1 interrupted because of network/disk failure etc, while we don't expect
+  // any data loss in iceberg table. So we keep the finished files <1, <file0, file1>> in memory and retry to commit
+  // iceberg table when the next checkpoint happen.
   private transient NavigableMap<Long, List<DataFile>> dataFilesPerCheckpoint;
+
+  // The data files cache for current checkpoint. Once the snapshot barrier received, it will be flushed to the
+  // `dataFilesPerCheckpoint`.
   private transient List<DataFile> dataFilesOfCurrentCheckpoint;
   private transient Table table;
 
-  // State for all checkpoints;
+  // All pending checkpoints states for this function.
   private static final ListStateDescriptor<byte[]> STATE_DESCRIPTOR =
       new ListStateDescriptor<>("checkpoints-state", BytePrimitiveArraySerializer.INSTANCE);
   private transient ListState<byte[]> checkpointsState;
@@ -82,8 +96,9 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
   @Override
   public void initializeState(FunctionInitializationContext context) throws Exception {
     Catalog icebergCatalog = CATALOG_FACTORY.buildIcebergCatalog(path, options, conf.get());
+
     table = icebergCatalog.loadTable(TableIdentifier.parse(path));
-    maxCommittedCheckpointId = parseMaxCommittedCheckpointId(table.currentSnapshot());
+    maxCommittedCheckpointId = getMaxCommittedCheckpointId(table.currentSnapshot());
 
     dataFilesPerCheckpoint = Maps.newTreeMap();
     dataFilesOfCurrentCheckpoint = Lists.newArrayList();
@@ -137,7 +152,7 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
     this.dataFilesOfCurrentCheckpoint.add(value);
   }
 
-  static Long parseMaxCommittedCheckpointId(Snapshot snapshot) {
+  static Long getMaxCommittedCheckpointId(Snapshot snapshot) {
     if (snapshot != null && snapshot.summary() != null) {
       String value = snapshot.summary().get(MAX_COMMITTED_CHECKPOINT_ID);
       if (value != null) {

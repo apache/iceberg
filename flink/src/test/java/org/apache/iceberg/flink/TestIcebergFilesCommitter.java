@@ -231,7 +231,7 @@ public class TestIcebergFilesCommitter {
 
   private void assertMaxCommittedCheckpointId(long expectedId) {
     table.refresh();
-    long actualId = IcebergFilesCommitter.parseMaxCommittedCheckpointId(table.currentSnapshot());
+    long actualId = IcebergFilesCommitter.getMaxCommittedCheckpointId(table.currentSnapshot());
     Assert.assertEquals(expectedId, actualId);
   }
 
