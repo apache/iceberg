@@ -61,7 +61,7 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
 
   private static final FlinkCatalogFactory CATALOG_FACTORY = new FlinkCatalogFactory();
 
-  private final String path;
+  private final String fullTableName;
   private final SerializableConfiguration conf;
   private final ImmutableMap<String, String> options;
 
@@ -89,17 +89,17 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
       new ListStateDescriptor<>("checkpoints-state", BytePrimitiveArraySerializer.INSTANCE);
   private transient ListState<byte[]> checkpointsState;
 
-  IcebergFilesCommitter(String path, Map<String, String> options, Configuration conf) {
-    this.path = path;
+  IcebergFilesCommitter(String fullTableName, Map<String, String> options, Configuration conf) {
+    this.fullTableName = fullTableName;
     this.options = ImmutableMap.copyOf(options);
     this.conf = new SerializableConfiguration(conf);
   }
 
   @Override
   public void initializeState(FunctionInitializationContext context) throws Exception {
-    Catalog icebergCatalog = CATALOG_FACTORY.buildIcebergCatalog(path, options, conf.get());
+    Catalog icebergCatalog = CATALOG_FACTORY.buildIcebergCatalog(fullTableName, options, conf.get());
 
-    table = icebergCatalog.loadTable(TableIdentifier.parse(path));
+    table = icebergCatalog.loadTable(TableIdentifier.parse(fullTableName));
     maxCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
     checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);

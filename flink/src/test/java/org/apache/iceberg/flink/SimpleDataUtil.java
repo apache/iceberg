@@ -22,12 +22,12 @@ package org.apache.iceberg.flink;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
@@ -68,6 +68,8 @@ public class SimpleDataUtil {
       .field("data", DataTypes.STRING())
       .build();
 
+  static final RowType ROW_TYPE = (RowType) FLINK_SCHEMA.toRowDataType().getLogicalType();
+
   static final Record RECORD = GenericRecord.create(SCHEMA);
 
   static Table createTable(String path, Map<String, String> properties, boolean partitioned) {
@@ -91,16 +93,16 @@ public class SimpleDataUtil {
     return GenericRowData.of(id, StringData.fromString(data));
   }
 
-  static DataFile writeFile(Configuration conf, String location, String filename, List<RowData> rows) throws
-      IOException {
+  static DataFile writeFile(Schema schema, PartitionSpec spec, Configuration conf, String location,
+                            String filename, List<RowData> rows) throws IOException {
     Path path = new Path(location, filename);
     FileFormat fileFormat = FileFormat.fromFileName(filename);
     Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
     switch (fileFormat) {
       case AVRO:
         FileAppender<RowData> avroAppender = Avro.write(fromPath(path, conf))
-            .schema(SCHEMA)
-            .createWriterFunc(ignore -> new FlinkAvroWriter(FlinkSchemaUtil.convert(SCHEMA)))
+            .schema(schema)
+            .createWriterFunc(ignore -> new FlinkAvroWriter(FlinkSchemaUtil.convert(schema)))
             .named(fileFormat.name())
             .build();
         try {
@@ -109,7 +111,7 @@ public class SimpleDataUtil {
           avroAppender.close();
         }
 
-        return DataFiles.builder(PartitionSpec.unpartitioned())
+        return DataFiles.builder(spec)
             .withInputFile(HadoopInputFile.fromPath(path, conf))
             .withMetrics(avroAppender.metrics())
             .build();
@@ -122,23 +124,22 @@ public class SimpleDataUtil {
     }
   }
 
-  static void assertTableRows(String tablePath, List<RowData> rows) throws IOException {
-    List<Record> records = Lists.newArrayList();
-    for (RowData row : rows) {
+  static void assertTableRows(String tablePath, List<RowData> expected) throws IOException {
+    List<Record> expectedRecords = Lists.newArrayList();
+    for (RowData row : expected) {
       Integer id = row.isNullAt(0) ? null : row.getInt(0);
       String data = row.isNullAt(1) ? null : row.getString(1).toString();
-      records.add(createRecord(id, data));
+      expectedRecords.add(createRecord(id, data));
     }
-    assertTableRecords(tablePath, records);
+    assertTableRecords(tablePath, expectedRecords);
   }
 
   static void assertTableRecords(String tablePath, List<Record> expected) throws IOException {
     Preconditions.checkArgument(expected != null, "expected records shouldn't be null");
     Table newTable = new HadoopTables().load(tablePath);
-    Set<Record> resultSet;
     try (CloseableIterable<Record> iterable = (CloseableIterable<Record>) IcebergGenerics.read(newTable).build()) {
-      resultSet = Sets.newHashSet(iterable);
+      Assert.assertEquals("Should produce the expected record",
+          Sets.newHashSet(expected), Sets.newHashSet(iterable));
     }
-    Assert.assertEquals("Should produce the expected record", resultSet, Sets.newHashSet(expected));
   }
 }

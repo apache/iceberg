@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.io;
 
+import java.io.Serializable;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.FileFormat;
@@ -27,7 +28,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
 
-public class OutputFileFactory {
+public class OutputFileFactory implements Serializable {
   private final PartitionSpec spec;
   private final FileFormat format;
   private final LocationProvider locations;

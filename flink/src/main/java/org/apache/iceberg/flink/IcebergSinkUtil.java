@@ -52,9 +52,9 @@ class IcebergSinkUtil {
 
   static void write(DataStream<RowData> dataStream, int parallelism,
                     Map<String, String> options, Configuration conf,
-                    Table table, TableSchema requestedSchema) {
+                    String fullTableName, Table table, TableSchema requestedSchema) {
     IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, requestedSchema);
-    IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(table.toString(), options, conf);
+    IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(fullTableName, options, conf);
 
     SingleOutputStreamOperator<DataFile> operator = dataStream
         .transform(ICEBERG_STREAM_WRITER, TypeInformation.of(DataFile.class), streamWriter)

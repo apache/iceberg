@@ -22,14 +22,23 @@ package org.apache.iceberg.flink;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.util.FiniteTestSource;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.util.DataFormatConverters;
+import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo;
 import org.apache.flink.test.util.AbstractTestBase;
+import org.apache.flink.types.Row;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
@@ -47,64 +56,78 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
   @Rule
   public TemporaryFolder tempFolder = new TemporaryFolder();
 
+  private String warehouse;
   private String tablePath;
-  private int parallelism;
-  private boolean partitioned;
+  private Table table;
 
-  @Before
-  public void before() throws IOException {
-    File folder = tempFolder.newFolder();
-    tablePath = folder.getAbsolutePath();
-  }
+  private final FileFormat format;
+  private final int parallelism;
+  private final boolean partitioned;
 
   @Parameterized.Parameters(name = "parallelism = {0}, partitioned = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] {1, true},
-        new Object[] {1, false},
-        new Object[] {2, true},
-        new Object[] {2, false},
+        new Object[] {"avro", 1, true},
+        new Object[] {"avro", 1, false},
+        new Object[] {"avro", 2, true},
+        new Object[] {"avro", 2, false},
     };
   }
 
-  public TestFlinkIcebergSink(int parallelism, boolean partitioned) {
+  public TestFlinkIcebergSink(String format, int parallelism, boolean partitioned) {
+    this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
     this.parallelism = parallelism;
     this.partitioned = partitioned;
   }
 
+  @Before
+  public void before() throws IOException {
+    File folder = tempFolder.newFolder();
+    warehouse = folder.getAbsolutePath();
+
+    tablePath = warehouse.concat("/test");
+    Assert.assertTrue("Should create the table path correctly.", new File(tablePath).mkdir());
+
+    Map<String, String> props = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name());
+    table = SimpleDataUtil.createTable(tablePath, props, partitioned);
+  }
+
   @Test
   public void testDataStream() throws Exception {
+    DataFormatConverters.RowConverter converter = new DataFormatConverters.RowConverter(
+        SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes());
+
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
     // Enable the checkpoint.
     env.enableCheckpointing(100);
     env.setParallelism(parallelism);
 
-    List<RowData> rows = Lists.newArrayList(
-        SimpleDataUtil.createRowData(1, "hello"),
-        SimpleDataUtil.createRowData(2, "world"),
-        SimpleDataUtil.createRowData(3, "foo")
+    List<Row> rows = Lists.newArrayList(
+        Row.of(1, "hello"),
+        Row.of(2, "world"),
+        Row.of(3, "foo")
     );
+    List<RowData> rowDataList = rows.stream().map(converter::toInternal).collect(Collectors.toList());
 
-    DataStream<RowData> dataStream = env.addSource(new FiniteTestSource<>(rows));
-
-    Table table = SimpleDataUtil.createTable(tablePath, ImmutableMap.of(), partitioned);
-    Assert.assertNotNull(table);
+    TypeInformation<Row> typeInformation = new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
+    DataStream<RowData> dataStream = env.addSource(new FiniteTestSource<>(rows), typeInformation)
+        .map(converter::toInternal, RowDataTypeInfo.of(SimpleDataUtil.ROW_TYPE));
 
     // Output the data stream to stdout.
     Map<String, String> options = ImmutableMap.of(
-        "catalog-type", "hadoop",
-        "warehouse", tablePath
+        FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hadoop",
+        FlinkCatalogFactory.HADOOP_WAREHOUSE_LOCATION, warehouse
     );
 
-    IcebergSinkUtil.write(dataStream, parallelism, options, CONF, table, SimpleDataUtil.FLINK_SCHEMA);
+    IcebergSinkUtil.write(dataStream, parallelism, options, CONF, "test", table, SimpleDataUtil.FLINK_SCHEMA);
 
     // Execute the program.
     env.execute("Test Iceberg DataStream");
 
     // Assert the iceberg table's records.
     List<RowData> expectedRows = Lists.newArrayList();
-    expectedRows.addAll(rows);
-    expectedRows.addAll(rows);
+    expectedRows.addAll(rowDataList);
+    expectedRows.addAll(rowDataList);
 
     SimpleDataUtil.assertTableRows(tablePath, expectedRows);
   }

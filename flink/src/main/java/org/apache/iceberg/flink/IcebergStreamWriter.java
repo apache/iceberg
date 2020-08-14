@@ -34,8 +34,8 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
   private static final long serialVersionUID = 1L;
 
   private final String fullTableName;
+  private final TaskWriterFactory<T> taskWriterFactory;
 
-  private transient TaskWriterFactory<T> taskWriterFactory;
   private transient TaskWriter<T> writer;
   private transient int subTaskId;
   private transient int attemptId;
