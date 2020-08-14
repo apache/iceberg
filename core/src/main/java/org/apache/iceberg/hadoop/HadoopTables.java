@@ -22,6 +22,7 @@ package org.apache.iceberg.hadoop;
 import java.util.Map;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AllDataFilesTable;
 import org.apache.iceberg.AllEntriesTable;
@@ -36,6 +37,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionsTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotsTable;
+import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -50,6 +52,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
  * to store metadata and manifests.
  */
 public class HadoopTables implements Tables, Configurable {
+  private static final String METADATA_JSON = "metadata.json";
   private Configuration conf;
 
   public HadoopTables() {
@@ -68,27 +71,26 @@ public class HadoopTables implements Tables, Configurable {
    */
   @Override
   public Table load(String location) {
-    TableOperations ops = newTableOps(location);
-    if (ops.current() == null) {
+    //Possibly Load a Metadata Table
+    if (location.contains("#") && !location.endsWith("#")) {
       // try to resolve a metadata table, which we encode as URI fragments
       // e.g. hdfs:///warehouse/my_table#snapshots
       int hashIndex = location.lastIndexOf('#');
-      if (hashIndex != -1 && location.length() - 1 != hashIndex) {
-        // we found char '#', and it is not the last char of location
-        String baseTable = location.substring(0, hashIndex);
-        String metaTable = location.substring(hashIndex + 1);
-        MetadataTableType type = MetadataTableType.from(metaTable);
-        if (type != null) {
-          return loadMetadataTable(baseTable, type);
-        } else {
-          throw new NoSuchTableException("Table does not exist at location: " + location);
-        }
-      } else {
-        throw new NoSuchTableException("Table does not exist at location: " + location);
+      String baseTable = location.substring(0, hashIndex);
+      String metaTable = location.substring(hashIndex + 1);
+      MetadataTableType type = MetadataTableType.from(metaTable);
+      if (type != null) {
+        return loadMetadataTable(baseTable, type);
       }
     }
 
-    return new BaseTable(ops, location);
+    //Normal Table Load if we haven't loaded a MetadataTable
+    TableOperations ops = newTableOps(location);
+    if (ops.current() != null) {
+      return new BaseTable(ops, location);
+    } else {
+      throw new NoSuchTableException("Table does not exist at location: " + location);
+    }
   }
 
   private Table loadMetadataTable(String location, MetadataTableType type) {
@@ -152,7 +154,11 @@ public class HadoopTables implements Tables, Configurable {
   }
 
   private TableOperations newTableOps(String location) {
-    return new HadoopTableOperations(new Path(location), conf);
+    if (location.contains(METADATA_JSON)) {
+      return new StaticTableOperations(location, new HadoopFileIO(conf));
+    } else {
+      return new HadoopTableOperations(new Path(location), conf);
+    }
   }
 
   @Override
