@@ -27,6 +27,7 @@ import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
+import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
 import org.junit.After;
 import org.junit.Assert;
@@ -50,6 +51,13 @@ public class TestAlterTable extends SparkCatalogTestBase {
   public void removeTable() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS %s2", tableName);
+  }
+
+  @Test
+  public void testAddColumnNotNull() {
+    AssertHelpers.assertThrows("Should reject adding NOT NULL column",
+        SparkException.class, "Incompatible change: cannot add required column",
+        () -> sql("ALTER TABLE %s ADD COLUMN c3 INT NOT NULL", tableName));
   }
 
   @Test
