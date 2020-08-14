@@ -44,7 +44,6 @@ import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopFileIO;
@@ -260,7 +259,7 @@ public class SparkTableUtil {
    */
   public static List<DataFile> listPartition(SparkPartition partition, PartitionSpec spec,
                                              SerializableConfiguration conf, MetricsConfig metricsConfig) {
-    return listPartition(partition, spec, conf, metricsConfig, null, null);
+    return listPartition(partition, spec, conf, metricsConfig, null);
   }
 
   /**
@@ -272,16 +271,13 @@ public class SparkTableUtil {
    * @param partition a partition
    * @param conf a serializable Hadoop conf
    * @param metricsConfig a metrics conf
-   * @param expectedSchema a schema
-   * @param nameMapping a name mapping
+   * @param mapping a name mapping
    * @return a List of DataFile
    */
   public static List<DataFile> listPartition(SparkPartition partition, PartitionSpec spec,
                                              SerializableConfiguration conf, MetricsConfig metricsConfig,
-                                             Schema expectedSchema, NameMapping nameMapping) {
-    return listPartition(
-        partition.values, partition.uri, partition.format,
-        spec, conf.get(), metricsConfig, expectedSchema, nameMapping);
+                                             NameMapping mapping) {
+    return listPartition(partition.values, partition.uri, partition.format, spec, conf.get(), metricsConfig, mapping);
   }
 
   /**
@@ -300,7 +296,7 @@ public class SparkTableUtil {
    */
   public static List<DataFile> listPartition(Map<String, String> partition, String uri, String format,
                                              PartitionSpec spec, Configuration conf, MetricsConfig metricsConfig) {
-    return listPartition(partition, uri, format, spec, conf, metricsConfig, null, null);
+    return listPartition(partition, uri, format, spec, conf, metricsConfig, null);
   }
 
   /**
@@ -315,17 +311,16 @@ public class SparkTableUtil {
    * @param spec a partition spec
    * @param conf a Hadoop conf
    * @param metricsConfig a metrics conf
-   * @param expectedSchema a schema
-   * @param nameMapping a name mapping
+   * @param mapping a name mapping
    * @return a List of DataFile
    */
   public static List<DataFile> listPartition(Map<String, String> partition, String uri, String format,
                                              PartitionSpec spec, Configuration conf, MetricsConfig metricsConfig,
-                                             Schema expectedSchema, NameMapping nameMapping) {
+                                             NameMapping mapping) {
     if (format.contains("avro")) {
       return listAvroPartition(partition, uri, spec, conf);
     } else if (format.contains("parquet")) {
-      return listParquetPartition(partition, uri, spec, conf, metricsConfig, expectedSchema, nameMapping);
+      return listParquetPartition(partition, uri, spec, conf, metricsConfig, mapping);
     } else if (format.contains("orc")) {
       // TODO: use MetricsConfig in listOrcPartition
       // TODO: use NameMapping in listOrcPartition
@@ -365,8 +360,7 @@ public class SparkTableUtil {
 
   private static List<DataFile> listParquetPartition(Map<String, String> partitionPath, String partitionUri,
                                                      PartitionSpec spec, Configuration conf,
-                                                     MetricsConfig metricsSpec, Schema expectedSchema,
-                                                     NameMapping nameMapping) {
+                                                     MetricsConfig metricsSpec, NameMapping mapping) {
     try {
       Path partition = new Path(partitionUri);
       FileSystem fs = partition.getFileSystem(conf);
@@ -377,7 +371,7 @@ public class SparkTableUtil {
             Metrics metrics;
             try {
               ParquetMetadata metadata = ParquetFileReader.readFooter(conf, stat);
-              metrics = ParquetUtil.footerMetrics(metadata, metricsSpec, expectedSchema, nameMapping);
+              metrics = ParquetUtil.footerMetrics(metadata, metricsSpec, mapping);
             } catch (IOException e) {
               throw SparkExceptionUtil.toUncheckedException(
                   e, "Unable to read the footer of the parquet file: %s", stat.getPath());
@@ -547,11 +541,9 @@ public class SparkTableUtil {
       MetricsConfig metricsConfig = MetricsConfig.fromProperties(targetTable.properties());
       String nameMappingString = targetTable.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
       NameMapping nameMapping = nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
-      Schema schema = targetTable.schema();
 
       List<DataFile> files = listPartition(
-          partition, Util.uriToString(sourceTable.location()), format.get(), spec, conf,
-          metricsConfig, schema, nameMapping);
+          partition, Util.uriToString(sourceTable.location()), format.get(), spec, conf, metricsConfig, nameMapping);
 
       AppendFiles append = targetTable.newAppend();
       files.forEach(append::appendFile);
@@ -583,7 +575,6 @@ public class SparkTableUtil {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(targetTable.properties());
     String nameMappingString = targetTable.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     NameMapping nameMapping = nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
-    Schema schema = targetTable.schema();
 
     JavaSparkContext sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     JavaRDD<SparkPartition> partitionRDD = sparkContext.parallelize(partitions, parallelism);
@@ -594,7 +585,7 @@ public class SparkTableUtil {
 
     List<ManifestFile> manifests = partitionDS
         .flatMap((FlatMapFunction<SparkPartition, DataFile>) sparkPartition ->
-                listPartition(sparkPartition, spec, serializableConf, metricsConfig, schema, nameMapping).iterator(),
+                listPartition(sparkPartition, spec, serializableConf, metricsConfig, nameMapping).iterator(),
             Encoders.javaSerialization(DataFile.class))
         .repartition(numShufflePartitions)
         .map((MapFunction<DataFile, Tuple2<String, DataFile>>) file ->

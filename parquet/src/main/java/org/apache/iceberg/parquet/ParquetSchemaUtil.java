@@ -48,6 +48,13 @@ public class ParquetSchemaUtil {
         converter.getAliases());
   }
 
+  public static Schema convertWithoutAssigningIds(MessageType parquetSchema) {
+    MessageTypeToTypeWithoutAssigningIds converter = new MessageTypeToTypeWithoutAssigningIds();
+    return new Schema(
+        ParquetTypeVisitor.visit(parquetSchema, converter).asNestedType().fields(),
+        converter.getAliases());
+  }
+
   public static MessageType pruneColumns(MessageType fileSchema, Schema expectedSchema) {
     // column order must match the incoming type, so it doesn't matter that the ids are unordered
     Set<Integer> selectedIds = TypeUtil.getProjectedIds(expectedSchema);

@@ -21,24 +21,23 @@ package org.apache.iceberg.parquet;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.parquet.schema.GroupType;
-import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type.Repetition;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-class MessageTypeToType extends ParquetTypeVisitor<Type> {
+/**
+ * A visitor that converts a {@link MessageType} to a {@link Type} in Iceberg and assigns ids.
+ */
+class MessageTypeToType extends BaseMessageTypeToType {
   private static final Joiner DOT = Joiner.on(".");
 
   private final Map<String, Integer> aliasToId = Maps.newHashMap();
@@ -128,102 +127,6 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
       return Types.MapType.ofOptional(keyFieldId, valueFieldId, keyType, valueType);
     } else {
       return Types.MapType.ofRequired(keyFieldId, valueFieldId, keyType, valueType);
-    }
-  }
-
-  @Override
-  public Type primitive(PrimitiveType primitive) {
-    // first, use the logical type annotation, if present
-    LogicalTypeAnnotation logicalType = primitive.getLogicalTypeAnnotation();
-    if (logicalType != null) {
-      Optional<Type> converted = logicalType.accept(ParquetLogicalTypeVisitor.get());
-      if (converted.isPresent()) {
-        return converted.get();
-      }
-    }
-
-    // last, use the primitive type
-    switch (primitive.getPrimitiveTypeName()) {
-      case BOOLEAN:
-        return Types.BooleanType.get();
-      case INT32:
-        return Types.IntegerType.get();
-      case INT64:
-        return Types.LongType.get();
-      case FLOAT:
-        return Types.FloatType.get();
-      case DOUBLE:
-        return Types.DoubleType.get();
-      case FIXED_LEN_BYTE_ARRAY:
-        return Types.FixedType.ofLength(primitive.getTypeLength());
-      case INT96:
-        return Types.TimestampType.withZone();
-      case BINARY:
-        return Types.BinaryType.get();
-    }
-
-    throw new UnsupportedOperationException(
-        "Cannot convert unknown primitive type: " + primitive);
-  }
-
-  private static class ParquetLogicalTypeVisitor implements LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<Type> {
-    private static final ParquetLogicalTypeVisitor INSTANCE = new ParquetLogicalTypeVisitor();
-
-    private static ParquetLogicalTypeVisitor get() {
-      return INSTANCE;
-    }
-
-    @Override
-    public Optional<Type> visit(LogicalTypeAnnotation.StringLogicalTypeAnnotation stringType) {
-      return Optional.of(Types.StringType.get());
-    }
-
-    @Override
-    public Optional<Type> visit(LogicalTypeAnnotation.EnumLogicalTypeAnnotation enumType) {
-      return Optional.of(Types.StringType.get());
-    }
-
-    @Override
-    public Optional<Type> visit(LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimalType) {
-      return Optional.of(Types.DecimalType.of(decimalType.getPrecision(), decimalType.getScale()));
-    }
-
-    @Override
-    public Optional<Type> visit(LogicalTypeAnnotation.DateLogicalTypeAnnotation dateType) {
-      return Optional.of(Types.DateType.get());
-    }
-
-    @Override
-    public Optional<Type> visit(LogicalTypeAnnotation.TimeLogicalTypeAnnotation timeType) {
-      return Optional.of(Types.TimeType.get());
-    }
-
-    @Override
-    public Optional<Type> visit(LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampType) {
-      return Optional.of(timestampType.isAdjustedToUTC() ? TimestampType.withZone() : TimestampType.withoutZone());
-    }
-
-    @Override
-    public Optional<Type> visit(LogicalTypeAnnotation.IntLogicalTypeAnnotation intType) {
-      Preconditions.checkArgument(intType.isSigned() || intType.getBitWidth() < 64,
-          "Cannot use uint64: not a supported Java type");
-      if (intType.getBitWidth() < 32) {
-        return Optional.of(Types.IntegerType.get());
-      } else if (intType.getBitWidth() == 32 && intType.isSigned()) {
-        return Optional.of(Types.IntegerType.get());
-      } else {
-        return Optional.of(Types.LongType.get());
-      }
-    }
-
-    @Override
-    public Optional<Type> visit(LogicalTypeAnnotation.JsonLogicalTypeAnnotation jsonType) {
-      return Optional.of(Types.StringType.get());
-    }
-
-    @Override
-    public Optional<Type> visit(LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonType) {
-      return Optional.of(Types.BinaryType.get());
     }
   }
 
