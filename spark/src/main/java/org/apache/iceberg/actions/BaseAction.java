@@ -20,6 +20,7 @@
 package org.apache.iceberg.actions;
 
 import java.util.List;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -36,7 +37,10 @@ abstract class BaseAction<R> implements Action<R> {
   protected abstract Table table();
 
   protected String metadataTableName(MetadataTableType type) {
-    String tableName = table().toString();
+    return metadataTableName(table().toString(), type);
+  }
+
+  protected String metadataTableName(String tableName, MetadataTableType type) {
     if (tableName.contains("/")) {
       return tableName + "#" + type;
     } else if (tableName.startsWith("hadoop.")) {
@@ -56,7 +60,7 @@ abstract class BaseAction<R> implements Action<R> {
    * @param table the table
    * @return the paths of the Manifest Lists
    */
-  protected List<String> getManifestListPaths(Table table) {
+  private List<String> getManifestListPaths(Table table) {
     List<String> manifestLists = Lists.newArrayList();
     for (Snapshot snapshot : table.snapshots()) {
       String manifestListLocation = snapshot.manifestListLocation();
@@ -73,7 +77,7 @@ abstract class BaseAction<R> implements Action<R> {
    * @param ops TableOperations for the table we will be getting paths from
    * @return a list of paths to metadata files
    */
-  protected List<String> getOtherMetadataFilePaths(TableOperations ops) {
+  private List<String> getOtherMetadataFilePaths(TableOperations ops) {
     List<String> otherMetadataFiles = Lists.newArrayList();
     otherMetadataFiles.add(ops.metadataFileLocation("version-hint.text"));
 
@@ -86,17 +90,22 @@ abstract class BaseAction<R> implements Action<R> {
   }
 
   protected Dataset<Row> buildValidDataFileDF(SparkSession spark) {
-    String allDataFilesMetadataTable = metadataTableName(MetadataTableType.ALL_DATA_FILES);
+    return buildValidDataFileDF(spark, table().toString());
+  }
+
+  protected Dataset<Row> buildValidDataFileDF(SparkSession spark, String tableName) {
+    String allDataFilesMetadataTable = metadataTableName(tableName, MetadataTableType.ALL_DATA_FILES);
     return spark.read().format("iceberg").load(allDataFilesMetadataTable).select("file_path");
   }
 
-  protected Dataset<Row> buildManifestFileDF(SparkSession spark) {
-    String allManifestsMetadataTable = metadataTableName(MetadataTableType.ALL_MANIFESTS);
+  protected Dataset<Row> buildManifestFileDF(SparkSession spark, String tableName) {
+    String allManifestsMetadataTable = metadataTableName(tableName, MetadataTableType.ALL_MANIFESTS);
     return spark.read().format("iceberg").load(allManifestsMetadataTable).selectExpr("path as file_path");
   }
 
-  protected Dataset<Row> buildManifestListDF(SparkSession spark, Table table) {
-    List<String> manifestLists = getManifestListPaths(table);
+  protected Dataset<Row> buildManifestListDF(SparkSession spark, String tableName, TableOperations ops) {
+    Table snapshot = new BaseTable(ops, tableName);
+    List<String> manifestLists = getManifestListPaths(snapshot);
     return spark.createDataset(manifestLists, Encoders.STRING()).toDF("file_path");
   }
 
@@ -106,8 +115,8 @@ abstract class BaseAction<R> implements Action<R> {
   }
 
   protected Dataset<Row> buildValidMetadataFileDF(SparkSession spark, Table table, TableOperations ops) {
-    Dataset<Row> manifestDF = buildManifestFileDF(spark);
-    Dataset<Row> manifestListDF = buildManifestListDF(spark, table);
+    Dataset<Row> manifestDF = buildManifestFileDF(spark, table.toString());
+    Dataset<Row> manifestListDF = buildManifestListDF(spark, table.toString(), ops);
     Dataset<Row> otherMetadataFileDF = buildOtherMetadataFileDF(spark, ops);
 
     return manifestDF.union(otherMetadataFileDF).union(manifestListDF);
