@@ -229,6 +229,56 @@ public class TestIcebergFilesCommitter {
     }
   }
 
+  @Test
+  public void testStartAnotherJobToWriteSameTable() throws Exception {
+    long checkpointId = 0;
+    long timestamp = 0;
+    List<RowData> rows = Lists.newArrayList();
+    List<RowData> tableRows = Lists.newArrayList();
+    try (OneInputStreamOperatorTestHarness<DataFile, Object> harness = createStreamSink()) {
+      harness.setup();
+      harness.open();
+
+      assertSnapshotSize(0);
+      assertMaxCommittedCheckpointId(-1L);
+
+      rows.add(SimpleDataUtil.createRowData(1, "hello"));
+      tableRows.addAll(rows);
+
+      DataFile dataFile1 = SimpleDataUtil.writeFile(CONF, path, "data-1.parquet", rows);
+      harness.processElement(dataFile1, ++timestamp);
+      harness.snapshot(++checkpointId, ++timestamp);
+
+      harness.notifyOfCompletedCheckpoint(checkpointId);
+      SimpleDataUtil.assertTableRows(path, tableRows);
+      assertSnapshotSize(1);
+      assertMaxCommittedCheckpointId(checkpointId);
+    }
+
+    // The new started job will start with checkpoint = 1 again.
+    checkpointId = 0;
+    timestamp = 0;
+    try (OneInputStreamOperatorTestHarness<DataFile, Object> harness = createStreamSink()) {
+      harness.setup();
+      harness.open();
+
+      assertSnapshotSize(1);
+      assertMaxCommittedCheckpointId(checkpointId);
+
+      rows.add(SimpleDataUtil.createRowData(2, "world"));
+      tableRows.addAll(rows);
+
+      DataFile dataFile2 = SimpleDataUtil.writeFile(CONF, path, "data-2.parquet", rows);
+      harness.processElement(dataFile2, ++timestamp);
+      harness.snapshot(++checkpointId, ++timestamp);
+
+      harness.notifyOfCompletedCheckpoint(checkpointId);
+      SimpleDataUtil.assertTableRows(path, tableRows);
+      assertSnapshotSize(2);
+      assertMaxCommittedCheckpointId(checkpointId);
+    }
+  }
+
   private void assertMaxCommittedCheckpointId(long expectedId) {
     table.refresh();
     long actualId = IcebergFilesCommitter.getMaxCommittedCheckpointId(table.currentSnapshot());

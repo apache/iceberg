@@ -54,6 +54,8 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
     CheckpointListener, CheckpointedFunction {
 
   private static final long serialVersionUID = 1L;
+  private static final long INITIAL_CHECKPOINT_ID = -1L;
+
   private static final Logger LOG = LoggerFactory.getLogger(IcebergFilesCommitter.class);
   private static final String MAX_COMMITTED_CHECKPOINT_ID = "flink.max-committed.checkpoint.id";
 
@@ -75,11 +77,11 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
   // <2, <file3>>. Snapshot for checkpoint#1 interrupted because of network/disk failure etc, while we don't expect
   // any data loss in iceberg table. So we keep the finished files <1, <file0, file1>> in memory and retry to commit
   // iceberg table when the next checkpoint happen.
-  private transient NavigableMap<Long, List<DataFile>> dataFilesPerCheckpoint;
+  private final NavigableMap<Long, List<DataFile>> dataFilesPerCheckpoint = Maps.newTreeMap();
 
   // The data files cache for current checkpoint. Once the snapshot barrier received, it will be flushed to the
   // `dataFilesPerCheckpoint`.
-  private transient List<DataFile> dataFilesOfCurrentCheckpoint;
+  private final List<DataFile> dataFilesOfCurrentCheckpoint = Lists.newArrayList();
   private transient Table table;
 
   // All pending checkpoints states for this function.
@@ -98,14 +100,12 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
     Catalog icebergCatalog = CATALOG_FACTORY.buildIcebergCatalog(path, options, conf.get());
 
     table = icebergCatalog.loadTable(TableIdentifier.parse(path));
-    maxCommittedCheckpointId = getMaxCommittedCheckpointId(table.currentSnapshot());
-
-    dataFilesPerCheckpoint = Maps.newTreeMap();
-    dataFilesOfCurrentCheckpoint = Lists.newArrayList();
+    maxCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
     checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     if (context.isRestored()) {
-      dataFilesPerCheckpoint = deserializeState(checkpointsState.get().iterator().next());
+      maxCommittedCheckpointId = getMaxCommittedCheckpointId(table.currentSnapshot());
+      dataFilesPerCheckpoint.putAll(deserializeState(checkpointsState.get().iterator().next()));
     }
   }
 
@@ -159,7 +159,7 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
         return Long.parseLong(value);
       }
     }
-    return -1L;
+    return INITIAL_CHECKPOINT_ID;
   }
 
   private static byte[] serializeState(Map<Long, List<DataFile>> dataFiles) throws IOException {
