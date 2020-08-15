@@ -54,7 +54,7 @@ public class ParquetSchemaUtil {
     // all remaining fields will get ids >= 1000 to avoid pruning columns without ids
     MessageType parquetSchemaWithIds = hasIds(parquetSchema) ? parquetSchema : addFallbackIds(parquetSchema);
     AtomicInteger nextId = new AtomicInteger(1000);
-    return convert(parquetSchemaWithIds, name -> nextId.getAndIncrement());
+    return convertInternal(parquetSchemaWithIds, name -> nextId.getAndIncrement());
   }
 
   /**
@@ -64,10 +64,10 @@ public class ParquetSchemaUtil {
    * @return a matching Iceberg schema for the provided Parquet schema
    */
   public static Schema convertAndPrune(MessageType parquetSchema) {
-    return convert(parquetSchema, name -> null);
+    return convertInternal(parquetSchema, name -> null);
   }
 
-  private static Schema convert(MessageType parquetSchema, Function<String[], Integer> nameToIdFunc) {
+  private static Schema convertInternal(MessageType parquetSchema, Function<String[], Integer> nameToIdFunc) {
     MessageTypeToType converter = new MessageTypeToType(nameToIdFunc);
     return new Schema(
         ParquetTypeVisitor.visit(parquetSchema, converter).asNestedType().fields(),
