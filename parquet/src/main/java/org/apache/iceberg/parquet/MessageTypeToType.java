@@ -60,7 +60,8 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
 
   @Override
   public Type message(MessageType message, List<Type> fields) {
-    return struct(message, fields);
+    Type struct = struct(message, fields);
+    return struct != null ? struct : Types.StructType.of(Lists.newArrayList());
   }
 
   @Override
