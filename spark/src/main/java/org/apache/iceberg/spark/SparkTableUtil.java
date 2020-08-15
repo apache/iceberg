@@ -52,6 +52,8 @@ import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -62,6 +64,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.spark.TaskContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -256,7 +259,25 @@ public class SparkTableUtil {
    */
   public static List<DataFile> listPartition(SparkPartition partition, PartitionSpec spec,
                                              SerializableConfiguration conf, MetricsConfig metricsConfig) {
-    return listPartition(partition.values, partition.uri, partition.format, spec, conf.get(), metricsConfig);
+    return listPartition(partition, spec, conf, metricsConfig, null);
+  }
+
+  /**
+   * Returns the data files in a partition by listing the partition location.
+   *
+   * For Parquet and ORC partitions, this will read metrics from the file footer. For Avro partitions,
+   * metrics are set to null.
+   *
+   * @param partition a partition
+   * @param conf a serializable Hadoop conf
+   * @param metricsConfig a metrics conf
+   * @param mapping a name mapping
+   * @return a List of DataFile
+   */
+  public static List<DataFile> listPartition(SparkPartition partition, PartitionSpec spec,
+                                             SerializableConfiguration conf, MetricsConfig metricsConfig,
+                                             NameMapping mapping) {
+    return listPartition(partition.values, partition.uri, partition.format, spec, conf.get(), metricsConfig, mapping);
   }
 
   /**
@@ -268,18 +289,41 @@ public class SparkTableUtil {
    * @param partition partition key, e.g., "a=1/b=2"
    * @param uri partition location URI
    * @param format partition format, avro or parquet
+   * @param spec a partition spec
    * @param conf a Hadoop conf
    * @param metricsConfig a metrics conf
    * @return a List of DataFile
    */
   public static List<DataFile> listPartition(Map<String, String> partition, String uri, String format,
                                              PartitionSpec spec, Configuration conf, MetricsConfig metricsConfig) {
+    return listPartition(partition, uri, format, spec, conf, metricsConfig, null);
+  }
+
+  /**
+   * Returns the data files in a partition by listing the partition location.
+   *
+   * For Parquet and ORC partitions, this will read metrics from the file footer. For Avro partitions,
+   * metrics are set to null.
+   *
+   * @param partition partition key, e.g., "a=1/b=2"
+   * @param uri partition location URI
+   * @param format partition format, avro or parquet
+   * @param spec a partition spec
+   * @param conf a Hadoop conf
+   * @param metricsConfig a metrics conf
+   * @param mapping a name mapping
+   * @return a List of DataFile
+   */
+  public static List<DataFile> listPartition(Map<String, String> partition, String uri, String format,
+                                             PartitionSpec spec, Configuration conf, MetricsConfig metricsConfig,
+                                             NameMapping mapping) {
     if (format.contains("avro")) {
       return listAvroPartition(partition, uri, spec, conf);
     } else if (format.contains("parquet")) {
-      return listParquetPartition(partition, uri, spec, conf, metricsConfig);
+      return listParquetPartition(partition, uri, spec, conf, metricsConfig, mapping);
     } else if (format.contains("orc")) {
       // TODO: use MetricsConfig in listOrcPartition
+      // TODO: use NameMapping in listOrcPartition
       return listOrcPartition(partition, uri, spec, conf);
     } else {
       throw new UnsupportedOperationException("Unknown partition format: " + format);
@@ -316,7 +360,7 @@ public class SparkTableUtil {
 
   private static List<DataFile> listParquetPartition(Map<String, String> partitionPath, String partitionUri,
                                                      PartitionSpec spec, Configuration conf,
-                                                     MetricsConfig metricsSpec) {
+                                                     MetricsConfig metricsSpec, NameMapping mapping) {
     try {
       Path partition = new Path(partitionUri);
       FileSystem fs = partition.getFileSystem(conf);
@@ -326,7 +370,8 @@ public class SparkTableUtil {
           .map(stat -> {
             Metrics metrics;
             try {
-              metrics = ParquetUtil.footerMetrics(ParquetFileReader.readFooter(conf, stat), metricsSpec);
+              ParquetMetadata metadata = ParquetFileReader.readFooter(conf, stat);
+              metrics = ParquetUtil.footerMetrics(metadata, metricsSpec, mapping);
             } catch (IOException e) {
               throw SparkExceptionUtil.toUncheckedException(
                   e, "Unable to read the footer of the parquet file: %s", stat.getPath());
@@ -494,9 +539,11 @@ public class SparkTableUtil {
       PartitionSpec spec = PartitionSpec.unpartitioned();
       Configuration conf = spark.sessionState().newHadoopConf();
       MetricsConfig metricsConfig = MetricsConfig.fromProperties(targetTable.properties());
+      String nameMappingString = targetTable.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
+      NameMapping nameMapping = nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
 
       List<DataFile> files = listPartition(
-          partition, Util.uriToString(sourceTable.location()), format.get(), spec, conf, metricsConfig);
+          partition, Util.uriToString(sourceTable.location()), format.get(), spec, conf, metricsConfig, nameMapping);
 
       AppendFiles append = targetTable.newAppend();
       files.forEach(append::appendFile);
@@ -526,6 +573,8 @@ public class SparkTableUtil {
     int parallelism = Math.min(partitions.size(), spark.sessionState().conf().parallelPartitionDiscoveryParallelism());
     int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(targetTable.properties());
+    String nameMappingString = targetTable.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
+    NameMapping nameMapping = nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
 
     JavaSparkContext sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     JavaRDD<SparkPartition> partitionRDD = sparkContext.parallelize(partitions, parallelism);
@@ -536,7 +585,7 @@ public class SparkTableUtil {
 
     List<ManifestFile> manifests = partitionDS
         .flatMap((FlatMapFunction<SparkPartition, DataFile>) sparkPartition ->
-                listPartition(sparkPartition, spec, serializableConf, metricsConfig).iterator(),
+                listPartition(sparkPartition, spec, serializableConf, metricsConfig, nameMapping).iterator(),
             Encoders.javaSerialization(DataFile.class))
         .repartition(numShufflePartitions)
         .map((MapFunction<DataFile, Tuple2<String, DataFile>>) file ->

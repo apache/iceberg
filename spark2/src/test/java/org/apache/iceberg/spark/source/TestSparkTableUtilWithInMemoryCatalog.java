@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
@@ -29,16 +30,21 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.mapping.MappingUtil;
+import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
+import org.apache.spark.sql.functions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
@@ -48,6 +54,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestSparkTableUtilWithInMemoryCatalog {
 
@@ -273,6 +280,166 @@ public class TestSparkTableUtilWithInMemoryCatalog {
     } finally {
       spark.sql("DROP TABLE parquet_table");
     }
+  }
+
+  @Test
+  public void testImportTableWithMappingForNestedData() throws IOException {
+    File parquetTableDir = temp.newFolder("parquet_table");
+    String parquetTableLocation = parquetTableDir.toURI().toString();
+
+    try {
+      Dataset<Row> df1 = spark.range(1, 2)
+          .withColumn("extra_col", functions.lit(-1))
+          .withColumn("struct", functions.expr("named_struct('nested_1', 'a', 'nested_2', 'd', 'nested_3', 'f')"));
+      Dataset<Row> df2 = spark.range(2, 3)
+          .withColumn("extra_col", functions.lit(-1))
+          .withColumn("struct", functions.expr("named_struct('nested_1', 'b', 'nested_2', 'e', 'nested_3', 'g')"));
+      df1.union(df2).coalesce(1).select("id", "extra_col", "struct").write()
+          .format("parquet")
+          .mode("append")
+          .option("path", parquetTableLocation)
+          .saveAsTable("parquet_table");
+
+      // don't include `extra_col` and `nested_2` on purpose
+      Schema schema = new Schema(
+          optional(1, "id", Types.LongType.get()),
+          required(2, "struct", Types.StructType.of(
+              required(3, "nested_1", Types.StringType.get()),
+              required(4, "nested_3", Types.StringType.get())
+          ))
+      );
+      Table table = TABLES.create(schema, PartitionSpec.unpartitioned(), tableLocation);
+
+      // assign a custom metrics config and a name mapping
+      NameMapping nameMapping = MappingUtil.create(schema);
+      table.updateProperties()
+          .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts")
+          .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id", "full")
+          .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "struct.nested_3", "full")
+          .set(TableProperties.DEFAULT_NAME_MAPPING, NameMappingParser.toJson(nameMapping))
+          .commit();
+
+      File stagingDir = temp.newFolder("staging-dir");
+      SparkTableUtil.importSparkTable(spark, new TableIdentifier("parquet_table"), table, stagingDir.toString());
+
+      // validate we get the expected results back
+      List<Row> expected = spark.table("parquet_table")
+          .select("id", "struct.nested_1", "struct.nested_3")
+          .collectAsList();
+      List<Row> actual = spark.read().format("iceberg").load(tableLocation)
+          .select("id", "struct.nested_1", "struct.nested_3")
+          .collectAsList();
+      Assert.assertEquals("Rows must match", expected, actual);
+
+      // validate we persisted correct metrics
+      Dataset<Row> fileDF = spark.read().format("iceberg").load(tableLocation + "#files");
+
+      List<Row> bounds = fileDF.select("lower_bounds", "upper_bounds").collectAsList();
+      Assert.assertEquals("Must have lower bounds for 2 columns", 2, bounds.get(0).getMap(0).size());
+      Assert.assertEquals("Must have upper bounds for 2 columns", 2, bounds.get(0).getMap(1).size());
+
+      Types.NestedField nestedField1 = table.schema().findField("struct.nested_1");
+      checkFieldMetrics(fileDF, nestedField1, true);
+
+      Types.NestedField id = table.schema().findField("id");
+      checkFieldMetrics(fileDF, id, 1L, 2L);
+
+      Types.NestedField nestedField3 = table.schema().findField("struct.nested_3");
+      checkFieldMetrics(fileDF, nestedField3, "f", "g");
+    } finally {
+      spark.sql("DROP TABLE parquet_table");
+    }
+  }
+
+  @Test
+  public void testImportTableWithMappingForNestedDataPartitionedTable() throws IOException {
+    File parquetTableDir = temp.newFolder("parquet_table");
+    String parquetTableLocation = parquetTableDir.toURI().toString();
+
+    try {
+      Dataset<Row> df1 = spark.range(1, 2)
+          .withColumn("extra_col", functions.lit(-1))
+          .withColumn("struct", functions.expr("named_struct('nested_1', 'a', 'nested_2', 'd', 'nested_3', 'f')"))
+          .withColumn("data", functions.lit("Z"));
+      Dataset<Row> df2 = spark.range(2, 3)
+          .withColumn("extra_col", functions.lit(-1))
+          .withColumn("struct", functions.expr("named_struct('nested_1', 'b', 'nested_2', 'e', 'nested_3', 'g')"))
+          .withColumn("data", functions.lit("Z"));
+      df1.union(df2).coalesce(1).select("id", "extra_col", "struct", "data").write()
+          .format("parquet")
+          .mode("append")
+          .option("path", parquetTableLocation)
+          .partitionBy("data")
+          .saveAsTable("parquet_table");
+
+      // don't include `extra_col` and `nested_2` on purpose
+      Schema schema = new Schema(
+          optional(1, "id", Types.LongType.get()),
+          required(2, "struct", Types.StructType.of(
+              required(4, "nested_1", Types.StringType.get()),
+              required(5, "nested_3", Types.StringType.get())
+          )),
+          required(3, "data", Types.StringType.get())
+      );
+      PartitionSpec spec = PartitionSpec.builderFor(schema)
+          .identity("data")
+          .build();
+      Table table = TABLES.create(schema, spec, tableLocation);
+
+      // assign a custom metrics config and a name mapping
+      NameMapping nameMapping = MappingUtil.create(schema);
+      table.updateProperties()
+          .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts")
+          .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id", "full")
+          .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "struct.nested_3", "full")
+          .set(TableProperties.DEFAULT_NAME_MAPPING, NameMappingParser.toJson(nameMapping))
+          .commit();
+
+      File stagingDir = temp.newFolder("staging-dir");
+      SparkTableUtil.importSparkTable(spark, new TableIdentifier("parquet_table"), table, stagingDir.toString());
+
+      // validate we get the expected results back
+      List<Row> expected = spark.table("parquet_table")
+          .select("id", "struct.nested_1", "struct.nested_3", "data")
+          .collectAsList();
+      List<Row> actual = spark.read().format("iceberg").load(tableLocation)
+          .select("id", "struct.nested_1", "struct.nested_3", "data")
+          .collectAsList();
+      Assert.assertEquals("Rows must match", expected, actual);
+
+      // validate we persisted correct metrics
+      Dataset<Row> fileDF = spark.read().format("iceberg").load(tableLocation + "#files");
+
+      List<Row> bounds = fileDF.select("lower_bounds", "upper_bounds").collectAsList();
+      Assert.assertEquals("Must have lower bounds for 2 columns", 2, bounds.get(0).getMap(0).size());
+      Assert.assertEquals("Must have upper bounds for 2 columns", 2, bounds.get(0).getMap(1).size());
+
+      Types.NestedField nestedField1 = table.schema().findField("struct.nested_1");
+      checkFieldMetrics(fileDF, nestedField1, true);
+
+      Types.NestedField id = table.schema().findField("id");
+      checkFieldMetrics(fileDF, id, 1L, 2L);
+
+      Types.NestedField nestedField3 = table.schema().findField("struct.nested_3");
+      checkFieldMetrics(fileDF, nestedField3, "f", "g");
+    } finally {
+      spark.sql("DROP TABLE parquet_table");
+    }
+  }
+
+  private void checkFieldMetrics(Dataset<Row> fileDF, Types.NestedField field, Object min, Object max) {
+    List<Row> metricRows = fileDF
+        .selectExpr(
+            String.format("lower_bounds['%d']", field.fieldId()),
+            String.format("upper_bounds['%d']", field.fieldId())
+        )
+        .collectAsList();
+
+    // we compare string representations not to deal with HeapCharBuffers for strings
+    Object actualMin = Conversions.fromByteBuffer(field.type(), ByteBuffer.wrap(metricRows.get(0).getAs(0)));
+    Assert.assertEquals("Min value should match", min.toString(), actualMin.toString());
+    Object actualMax = Conversions.fromByteBuffer(field.type(), ByteBuffer.wrap(metricRows.get(0).getAs(1)));
+    Assert.assertEquals("Max value should match", max.toString(), actualMax.toString());
   }
 
   private void checkFieldMetrics(Dataset<Row> fileDF, Types.NestedField field, boolean isNull) {
