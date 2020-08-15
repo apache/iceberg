@@ -97,7 +97,7 @@ public class ParquetUtil {
 
     // ignore metrics for fields we failed to determine reliable IDs
     MessageType parquetTypeWithIds = getParquetTypeWithIds(metadata, nameMapping);
-    Schema fileSchema = ParquetSchemaUtil.convert(parquetTypeWithIds, name -> null);
+    Schema fileSchema = ParquetSchemaUtil.convertAndPrune(parquetTypeWithIds);
 
     List<BlockMetaData> blocks = metadata.getBlocks();
     for (BlockMetaData block : blocks) {

@@ -58,13 +58,16 @@ public class ParquetSchemaUtil {
   }
 
   /**
-   * Converts a Parquet schema to an Iceberg schema. Fields without IDs are pruned.
+   * Converts a Parquet schema to an Iceberg schema and prunes fields without IDs.
    *
    * @param parquetSchema a Parquet schema
-   * @param nameToIdFunc a name to field id mapping function
    * @return a matching Iceberg schema for the provided Parquet schema
    */
-  public static Schema convert(MessageType parquetSchema, Function<String[], Integer> nameToIdFunc) {
+  public static Schema convertAndPrune(MessageType parquetSchema) {
+    return convert(parquetSchema, name -> null);
+  }
+
+  private static Schema convert(MessageType parquetSchema, Function<String[], Integer> nameToIdFunc) {
     MessageTypeToType converter = new MessageTypeToType(nameToIdFunc);
     return new Schema(
         ParquetTypeVisitor.visit(parquetSchema, converter).asNestedType().fields(),

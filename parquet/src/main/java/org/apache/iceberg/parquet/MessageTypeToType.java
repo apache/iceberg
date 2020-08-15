@@ -67,7 +67,7 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
   @Override
   public Type struct(GroupType struct, List<Type> fieldTypes) {
     List<org.apache.parquet.schema.Type> parquetFields = struct.getFields();
-    List<Types.NestedField> fields = Lists.newArrayList();
+    List<Types.NestedField> fields = Lists.newArrayListWithExpectedSize(fieldTypes.size());
 
     for (int i = 0; i < parquetFields.size(); i += 1) {
       org.apache.parquet.schema.Type field = parquetFields.get(i);
