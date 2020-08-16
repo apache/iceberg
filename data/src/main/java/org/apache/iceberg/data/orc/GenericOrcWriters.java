@@ -237,16 +237,20 @@ public class GenericOrcWriters {
       // See: https://errorprone.info/bugpattern/ByteBufferBackingArray
       //
       // When there is a backing heap based byte array, we avoided the overhead of
-      // copying, which is especially important for small byte buffers.
-      //
-      // TODO - This copy slows it down, perhap unnecessarily. Is there any other way to tell, or no?
-      //        My guess is no, if I consider things like VectorizedOrcReaders on Spark.
+      // copying.
       if (data.hasArray()) {
-        ((BytesColumnVector) output).setRef(rowId, data.array(), 0, data.array().length);
+        // Don't assume the we're reading in the entire backing array.
+        // Using slice as any mutations to the data at rowId of output
+        // would also be visible in the `data`.
+        ByteBuffer slice = data.slice();
+        ((BytesColumnVector) output).setRef(rowId, slice.array(), 0, slice.array().length);
       } else {
+        // Consume the remaining contents of the input data
         byte[] bytes = new byte[data.remaining()];
-        data.get(bytes);
-        data.position(data.position() - bytes.length); // Restores the buffer position
+        data.get(bytes, data.position(), bytes.length);
+        // Restores the buffer position
+        // TODO - Is this necessary?
+        data.position(data.position() - bytes.length);
         ((BytesColumnVector) output).setRef(rowId, bytes, 0, bytes.length);
       }
     }
