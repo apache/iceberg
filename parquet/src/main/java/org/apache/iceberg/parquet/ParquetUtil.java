@@ -36,6 +36,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
@@ -70,14 +71,22 @@ public class ParquetUtil {
   }
 
   public static Metrics fileMetrics(InputFile file, MetricsConfig metricsConfig) {
+    return fileMetrics(file, metricsConfig, null);
+  }
+
+  public static Metrics fileMetrics(InputFile file, MetricsConfig metricsConfig, NameMapping nameMapping) {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
-      return footerMetrics(reader.getFooter(), metricsConfig);
+      return footerMetrics(reader.getFooter(), metricsConfig, nameMapping);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read footer of file: %s", file);
     }
   }
 
   public static Metrics footerMetrics(ParquetMetadata metadata, MetricsConfig metricsConfig) {
+    return footerMetrics(metadata, metricsConfig, null);
+  }
+
+  public static Metrics footerMetrics(ParquetMetadata metadata, MetricsConfig metricsConfig, NameMapping nameMapping) {
     long rowCount = 0;
     Map<Integer, Long> columnSizes = Maps.newHashMap();
     Map<Integer, Long> valueCounts = Maps.newHashMap();
@@ -86,15 +95,23 @@ public class ParquetUtil {
     Map<Integer, Literal<?>> upperBounds = Maps.newHashMap();
     Set<Integer> missingStats = Sets.newHashSet();
 
-    MessageType parquetType = metadata.getFileMetaData().getSchema();
-    Schema fileSchema = ParquetSchemaUtil.convert(parquetType);
+    // ignore metrics for fields we failed to determine reliable IDs
+    MessageType parquetTypeWithIds = getParquetTypeWithIds(metadata, nameMapping);
+    Schema fileSchema = ParquetSchemaUtil.convertAndPrune(parquetTypeWithIds);
 
     List<BlockMetaData> blocks = metadata.getBlocks();
     for (BlockMetaData block : blocks) {
       rowCount += block.getRowCount();
       for (ColumnChunkMetaData column : block.getColumns()) {
         ColumnPath path = column.getPath();
-        int fieldId = fileSchema.aliasToId(path.toDotString());
+
+        Integer fieldId = fileSchema.aliasToId(path.toDotString());
+        if (fieldId == null) {
+          // fileSchema may contain a subset of columns present in the file
+          // as we prune columns we could not assign ids
+          continue;
+        }
+
         increment(columnSizes, fieldId, column.getTotalSize());
 
         String columnName = fileSchema.findColumnName(fieldId);
@@ -134,6 +151,20 @@ public class ParquetUtil {
 
     return new Metrics(rowCount, columnSizes, valueCounts, nullValueCounts,
         toBufferMap(fileSchema, lowerBounds), toBufferMap(fileSchema, upperBounds));
+  }
+
+  private static MessageType getParquetTypeWithIds(ParquetMetadata metadata, NameMapping nameMapping) {
+    MessageType type = metadata.getFileMetaData().getSchema();
+
+    if (ParquetSchemaUtil.hasIds(type)) {
+      return type;
+    }
+
+    if (nameMapping != null) {
+      return ParquetSchemaUtil.applyNameMapping(type, nameMapping);
+    }
+
+    return ParquetSchemaUtil.addFallbackIds(type);
   }
 
   /**
