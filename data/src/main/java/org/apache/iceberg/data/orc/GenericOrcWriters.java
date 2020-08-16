@@ -247,7 +247,7 @@ public class GenericOrcWriters {
       } else {
         // Consume the remaining contents of the input data
         byte[] bytes = new byte[data.remaining()];
-        data.get(bytes, data.position(), bytes.length);
+        data.get(bytes);
         // Restores the buffer position
         // TODO - Is this necessary?
         data.position(data.position() - bytes.length);
