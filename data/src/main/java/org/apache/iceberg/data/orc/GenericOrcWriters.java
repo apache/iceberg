@@ -231,17 +231,12 @@ public class GenericOrcWriters {
 
     @Override
     public void nonNullWrite(int rowId, ByteBuffer data, ColumnVector output) {
-      // We technically can't be sure if the ByteBuffer coming in is on or off
-      // heap so we cannot safely call `.array()` on it without first checking
-      // via the method ByteBuffer.hasArray().
-      // See: https://errorprone.info/bugpattern/ByteBufferBackingArray
-      //
-      // When there is a backing heap based byte array, we avoided the overhead of
-      // copying.
+      // When there is a backing heap based byte array, we avoid the overhead of
+      // copying it.
       if (data.hasArray()) {
         // Don't assume the we're reading in the entire backing array.
         // Using slice as any mutations to the data at rowId of output
-        // would also be visible in the `data`.
+        // would also be visible in `data`.
         ByteBuffer slice = data.slice();
         ((BytesColumnVector) output).setRef(rowId, slice.array(), 0, slice.array().length);
       } else {
