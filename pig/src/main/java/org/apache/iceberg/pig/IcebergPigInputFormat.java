@@ -243,11 +243,14 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
       return true;
     }
 
-    @SuppressWarnings("ByteBufferBackingArray")
     private Object convertPartitionValue(Type type, Object value) {
       if (type.typeId() == Types.BinaryType.get().typeId()) {
         ByteBuffer buffer = (ByteBuffer) value;
-        return new DataByteArray(buffer.get(new byte[buffer.remaining()]).array());
+        byte[] bytes = new byte[buffer.remaining()];
+        buffer.get(bytes);
+        // Return the input buffer back to its original position.
+        buffer.position(buffer.position() - bytes.length);
+        return new DataByteArray(bytes);
       }
 
       return value;
