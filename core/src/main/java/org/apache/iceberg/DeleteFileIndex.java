@@ -119,77 +119,83 @@ class DeleteFileIndex {
   private static boolean canContainDeletesForFile(DataFile dataFile, DeleteFile deleteFile, Schema schema) {
     switch (deleteFile.content()) {
       case POSITION_DELETES:
-        // check that the delete file can contain the data file's file_path
-        Map<Integer, ByteBuffer> lowers = deleteFile.lowerBounds();
-        Map<Integer, ByteBuffer> uppers = deleteFile.upperBounds();
-        if (lowers == null || uppers == null) {
-          return true;
-        }
-
-        Type pathType = MetadataColumns.DELETE_FILE_PATH.type();
-        int pathId = MetadataColumns.DELETE_FILE_PATH.fieldId();
-        ByteBuffer lower = lowers.get(pathId);
-        if (lower != null &&
-            Comparators.charSequences().compare(dataFile.path(), Conversions.fromByteBuffer(pathType, lower)) < 0) {
-          return false;
-        }
-
-        ByteBuffer upper = uppers.get(pathId);
-        if (upper != null &&
-            Comparators.charSequences().compare(dataFile.path(), Conversions.fromByteBuffer(pathType, upper)) > 0) {
-          return false;
-        }
-
-        break;
+        return canContainPosDeletesForFile(dataFile, deleteFile);
 
       case EQUALITY_DELETES:
-        if (dataFile.lowerBounds() == null || dataFile.upperBounds() == null ||
-            deleteFile.lowerBounds() == null || deleteFile.upperBounds() == null) {
-          return true;
-        }
+        return canContainEqDeletesForFile(dataFile, deleteFile, schema);
+    }
 
-        Map<Integer, ByteBuffer> dataLowers = dataFile.lowerBounds();
-        Map<Integer, ByteBuffer> dataUppers = dataFile.upperBounds();
-        Map<Integer, ByteBuffer> deleteLowers = deleteFile.lowerBounds();
-        Map<Integer, ByteBuffer> deleteUppers = deleteFile.upperBounds();
+    return true;
+  }
 
-        for (int id : deleteFile.equalityFieldIds()) {
-          Type type = schema.findType(id);
-          if (!type.isPrimitiveType()) {
-            return true;
-          }
+  private static boolean canContainPosDeletesForFile(DataFile dataFile, DeleteFile deleteFile) {
+    // check that the delete file can contain the data file's file_path
+    Map<Integer, ByteBuffer> lowers = deleteFile.lowerBounds();
+    Map<Integer, ByteBuffer> uppers = deleteFile.upperBounds();
+    if (lowers == null || uppers == null) {
+      return true;
+    }
 
-          if (!rangesOverlap(type.asPrimitiveType(),
-              dataLowers.get(id), dataUppers.get(id), deleteLowers.get(id), deleteUppers.get(id))) {
-            return false;
-          }
-        }
-        break;
+    Type pathType = MetadataColumns.DELETE_FILE_PATH.type();
+    int pathId = MetadataColumns.DELETE_FILE_PATH.fieldId();
+    ByteBuffer lower = lowers.get(pathId);
+    if (lower != null &&
+        Comparators.charSequences().compare(dataFile.path(), Conversions.fromByteBuffer(pathType, lower)) < 0) {
+      return false;
+    }
+
+    ByteBuffer upper = uppers.get(pathId);
+    if (upper != null &&
+        Comparators.charSequences().compare(dataFile.path(), Conversions.fromByteBuffer(pathType, upper)) > 0) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private static boolean canContainEqDeletesForFile(DataFile dataFile, DeleteFile deleteFile, Schema schema) {
+    if (dataFile.lowerBounds() == null || dataFile.upperBounds() == null ||
+        deleteFile.lowerBounds() == null || deleteFile.upperBounds() == null) {
+      return true;
+    }
+
+    Map<Integer, ByteBuffer> dataLowers = dataFile.lowerBounds();
+    Map<Integer, ByteBuffer> dataUppers = dataFile.upperBounds();
+    Map<Integer, ByteBuffer> deleteLowers = deleteFile.lowerBounds();
+    Map<Integer, ByteBuffer> deleteUppers = deleteFile.upperBounds();
+
+    for (int id : deleteFile.equalityFieldIds()) {
+      Type type = schema.findType(id);
+      if (!type.isPrimitiveType()) {
+        return true;
+      }
+
+      ByteBuffer dataLower = dataLowers.get(id);
+      ByteBuffer dataUpper = dataUppers.get(id);
+      ByteBuffer deleteLower = deleteLowers.get(id);
+      ByteBuffer deleteUpper = deleteUppers.get(id);
+      if (dataLower == null || dataUpper == null || deleteLower == null || deleteUpper == null) {
+        return true;
+      }
+
+      if (!rangesOverlap(type.asPrimitiveType(), dataLower, dataUpper, deleteLower, deleteUpper)) {
+        return false;
+      }
     }
 
     return true;
   }
 
   private static <T> boolean rangesOverlap(Type.PrimitiveType type,
-                                           ByteBuffer dataLower, ByteBuffer dataUpper,
-                                           ByteBuffer deleteLower, ByteBuffer deleteUpper) {
+                                           ByteBuffer dataLowerBuf, ByteBuffer dataUpperBuf,
+                                           ByteBuffer deleteLowerBuf, ByteBuffer deleteUpperBuf) {
     Comparator<T> comparator = Comparators.forType(type);
-    T low = Conversions.fromByteBuffer(type, dataLower);
-    T high = Conversions.fromByteBuffer(type, dataUpper);
+    T dataLower = Conversions.fromByteBuffer(type, dataLowerBuf);
+    T dataUpper = Conversions.fromByteBuffer(type, dataUpperBuf);
+    T deleteLower = Conversions.fromByteBuffer(type, deleteLowerBuf);
+    T deleteUpper = Conversions.fromByteBuffer(type, deleteUpperBuf);
 
-    if (contains(comparator, low, high, Conversions.fromByteBuffer(type, deleteLower))) {
-      return true;
-    }
-
-    if (contains(comparator, low, high, Conversions.fromByteBuffer(type, deleteUpper))) {
-      return true;
-    }
-
-    return false;
-  }
-
-  private static <T> boolean contains(Comparator<T> comparator, T low, T high, T value) {
-    return comparator.compare(low, value) <= 0 && comparator.compare(value, high) <= 0;
+    return comparator.compare(deleteLower, dataUpper) <= 0 && comparator.compare(dataLower, deleteUpper) <= 0;
   }
 
   private static Stream<DeleteFile> limitBySequenceNumber(long sequenceNumber, long[] seqs, DeleteFile[] files) {
