@@ -52,7 +52,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
-class FlinkParquetReaders {
+public class FlinkParquetReaders {
   private FlinkParquetReaders() {
   }
 
