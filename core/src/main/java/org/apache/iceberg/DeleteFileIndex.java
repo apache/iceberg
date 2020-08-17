@@ -157,6 +157,7 @@ class DeleteFileIndex {
     return true;
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private static boolean canContainEqDeletesForFile(DataFile dataFile, DeleteFile deleteFile, Schema schema) {
     if (dataFile.lowerBounds() == null || dataFile.upperBounds() == null ||
         deleteFile.lowerBounds() == null || deleteFile.upperBounds() == null) {
