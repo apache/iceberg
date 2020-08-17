@@ -79,7 +79,7 @@ public abstract class TestFlinkScan extends AbstractTestBase {
           .build();
 
   // before variables
-  private Configuration conf;
+  Configuration conf;
   String warehouse;
   private HadoopCatalog catalog;
 

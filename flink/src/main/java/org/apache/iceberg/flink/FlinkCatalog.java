@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.flink.table.api.TableSchema;
@@ -46,6 +47,7 @@ import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.catalog.stats.CatalogColumnStatistics;
 import org.apache.flink.table.catalog.stats.CatalogTableStatistics;
 import org.apache.flink.table.expressions.Expression;
+import org.apache.flink.table.factories.TableFactory;
 import org.apache.flink.util.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
@@ -119,7 +121,7 @@ public class FlinkCatalog extends AbstractCatalog {
     return Namespace.of(namespace);
   }
 
-  private TableIdentifier toIdentifier(ObjectPath path) {
+  public TableIdentifier toIdentifier(ObjectPath path) {
     return TableIdentifier.of(toNamespace(path.getDatabaseName()), path.getObjectName());
   }
 
@@ -278,14 +280,18 @@ public class FlinkCatalog extends AbstractCatalog {
 
   @Override
   public CatalogBaseTable getTable(ObjectPath tablePath) throws TableNotExistException, CatalogException {
-    try {
-      Table table = icebergCatalog.loadTable(toIdentifier(tablePath));
-      TableSchema tableSchema = FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(table.schema()));
+    Table table = getIcebergTable(tablePath);
+    TableSchema tableSchema = FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(table.schema()));
 
-      // NOTE: We can not create a IcebergCatalogTable, because Flink optimizer may use CatalogTableImpl to copy a new
-      // catalog table.
-      // Let's re-loading table from Iceberg catalog when creating source/sink operators.
-      return new CatalogTableImpl(tableSchema, table.properties(), null);
+    // NOTE: We can not create a IcebergCatalogTable, because Flink optimizer may use CatalogTableImpl to copy a new
+    // catalog table.
+    // Let's re-loading table from Iceberg catalog when creating source/sink operators.
+    return new CatalogTableImpl(tableSchema, table.properties(), null);
+  }
+
+  Table getIcebergTable(ObjectPath tablePath) throws TableNotExistException {
+    try {
+      return icebergCatalog.loadTable(toIdentifier(tablePath));
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new TableNotExistException(getName(), tablePath, e);
     }
@@ -333,6 +339,19 @@ public class FlinkCatalog extends AbstractCatalog {
   public void alterTable(ObjectPath tablePath, CatalogBaseTable newTable, boolean ignoreIfNotExists)
       throws CatalogException {
     throw new UnsupportedOperationException("Not support alterTable now.");
+  }
+
+  CatalogLoader getCatalogLoader() {
+    return catalogLoader;
+  }
+
+  Configuration getHadoopConf() {
+    return hadoopConf;
+  }
+
+  @Override
+  public Optional<TableFactory> getTableFactory() {
+    return Optional.of(new FlinkTableFactory(this));
   }
 
   // ------------------------------ Unsupported methods ---------------------------------------------
