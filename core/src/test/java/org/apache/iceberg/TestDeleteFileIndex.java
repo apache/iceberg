@@ -79,7 +79,6 @@ public class TestDeleteFileIndex extends TableTestBase {
   @Test
   public void testUnpartitionedDeletes() {
     DeleteFileIndex index = new DeleteFileIndex(
-        SCHEMA,
         ImmutableMap.of(
             PartitionSpec.unpartitioned().specId(), PartitionSpec.unpartitioned(),
             1, SPEC),
@@ -110,7 +109,6 @@ public class TestDeleteFileIndex extends TableTestBase {
   @Test
   public void testPartitionedDeleteIndex() {
     DeleteFileIndex index = new DeleteFileIndex(
-        SCHEMA,
         ImmutableMap.of(
             SPEC.specId(), SPEC,
             1, PartitionSpec.unpartitioned()),
