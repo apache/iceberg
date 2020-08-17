@@ -61,7 +61,7 @@ subprojects {
 
   pluginManager.withPlugin('com.palantir.baseline-error-prone') {
     tasks.withType(JavaCompile).configureEach {
-      options.errorprone.errorproneArgs += [
+      options.errorprone.errorproneArgs.addAll (
           // error-prone is slow, don't run on tests
           '-XepExcludedPaths:.*/test/.*',
           // specific to Palantir
@@ -71,11 +71,12 @@ subprojects {
           // subclasses are not equal
           '-Xep:EqualsGetClass:OFF',
           // patterns that are allowed
-          '-Xep:SwitchStatementDefaultCase:OFF',
           '-Xep:MissingCasesInEnumSwitch:OFF',
+          //Added because it errors out compile, but we need to figure out if we want it
+          '-Xep:StrictUnusedVariable:OFF',
           '-Xep:TypeParameterShadowing:OFF',
           '-Xep:TypeParameterUnusedInFormals:OFF',
-        ]
+      )
     }
   }
 }

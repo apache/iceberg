@@ -8,6 +8,10 @@
     <property name="severity" value="error"/>
 
     <module name="FileTabCharacter"/> <!-- Java Style Guide: Whitespace characters -->
+    <module name="LineLength"> <!-- Java Style Guide: No line-wrapping -->
+        <property name="max" value="120"/>
+        <property name="ignorePattern" value="^package.*|^import.*|a href|href|http://|https://|ftp://"/>
+    </module>
     <module name="NewlineAtEndOfFile"> <!-- Java Style Guide: Line ending: LF -->
         <property name="lineSeparator" value="lf"/>
     </module>
@@ -212,10 +216,6 @@
         </module>
         <module name="InnerAssignment"/> <!-- Java Coding Guidelines: Inner assignments: Not used -->
         <module name="LeftCurly"/> <!-- Java Style Guide: Nonempty blocks: K & R style -->
-        <module name="LineLength"> <!-- Java Style Guide: No line-wrapping -->
-            <property name="max" value="120"/>
-            <property name="ignorePattern" value="^package.*|^import.*|a href|href|http://|https://|ftp://"/>
-        </module>
         <module name="MemberName"> <!-- Java Style Guide: Non-constant field names -->
             <property name="format" value="^[a-z][a-zA-Z0-9]+$"/>
             <message key="name.invalidPattern" value="Member name ''{0}'' must match pattern ''{1}''."/>
@@ -409,11 +409,9 @@
         <module name="JavadocMethod"> <!-- Java Style Guide: Where Javadoc is used -->
             <property name="scope" value="public"/>
             <property name="allowMissingParamTags" value="true"/>
-            <property name="allowMissingThrowsTags" value="true"/>
             <property name="allowMissingReturnTag" value="true"/>
-            <property name="minLineCount" value="99999999"/>
             <property name="allowedAnnotations" value="Override, Test"/>
-            <property name="allowThrowsTagsForSubclasses" value="true"/>
+            <property name="validateThrows" value="false"/>
         </module>
         <module name="JavadocStyle"> <!-- Java Style Guide: Javadoc -->
             <property name="checkFirstSentence" value="false"/>
