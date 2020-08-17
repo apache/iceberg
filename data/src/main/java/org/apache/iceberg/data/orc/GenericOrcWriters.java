@@ -229,6 +229,25 @@ public class GenericOrcWriters {
       return ByteBuffer.class;
     }
 
+//    public void nonNullWriteHelper() {
+//      @Override
+//      public byte[] getBytes() {
+//        byte[] bytes = new byte[length];
+//
+//        int limit = value.limit();
+//        value.limit(offset + length);
+//        int position = value.position();
+//        value.position(offset);
+//        value.get(bytes);
+//        value.limit(limit);
+//        value.position(position);
+//        if (!isBackingBytesReused) { // backing buffer might change
+//          cachedBytes = bytes;
+//        }
+//        return bytes;
+//      }
+//    }
+
     @Override
     public void nonNullWrite(int rowId, ByteBuffer data, ColumnVector output) {
       // When there is a backing heap based byte array, we avoid the overhead of
@@ -237,8 +256,30 @@ public class GenericOrcWriters {
         // Don't assume the we're reading in the entire backing array.
         // Using slice as any mutations to the data at rowId of output
         // would also be visible in `data`.
-        ByteBuffer slice = data.slice();
-        ((BytesColumnVector) output).setRef(rowId, slice.array(), 0, slice.array().length);
+
+        /* Invariant:
+         * If this buffer is backed by an array then the buffer's position, p,
+         * corresponds to array index, p + arrayOffset().
+         */
+        int startIndex = data.arrayOffset();
+        int position = data.position();
+        int limit = data.limit();
+        int curIndex = data.arrayOffset() + data.position();
+        int endIndex = curIndex + data.remaining();
+
+        // Prep for copy into bytes
+        byte[] bytes = new byte[data.remaining()];
+        data.limit(curIndex + limit);
+        data.position(curIndex);
+        
+        // Do I need to use the three arg version of this (with start and end)?
+        data.get(bytes);
+
+        // Reset the byte buffer.
+        data.limit(limit);
+        data.position(position);
+
+        ((BytesColumnVector) output).setRef(rowId, bytes, 0, bytes.length);
       } else {
         // Consume the remaining contents of the input data
         byte[] bytes = new byte[data.remaining()];
