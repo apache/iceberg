@@ -300,10 +300,7 @@ public class Avro {
 
       meta("delete-type", "position");
 
-      if (rowSchema != null) {
-        Preconditions.checkState(createWriterFunc != null,
-            "Cannot create delete file with deletes rows unless createWriterFunc is set");
-
+      if (rowSchema != null && createWriterFunc != null) {
         // the appender uses the row schema wrapped with position fields
         appenderBuilder.schema(new org.apache.iceberg.Schema(
             MetadataColumns.DELETE_FILE_PATH,
