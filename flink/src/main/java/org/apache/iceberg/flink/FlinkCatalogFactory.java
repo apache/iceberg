@@ -105,8 +105,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
 
   @Override
   public Catalog createCatalog(String name, Map<String, String> properties) {
-    Configuration hadoopConf = HadoopUtils.getHadoopConfiguration(GlobalConfiguration.loadConfiguration());
-    return createCatalog(name, properties, hadoopConf);
+    return createCatalog(name, properties, clusterHadoopConf());
   }
 
   protected Catalog createCatalog(String name, Map<String, String> properties, Configuration hadoopConf) {
@@ -117,5 +116,9 @@ public class FlinkCatalogFactory implements CatalogFactory {
         new String[0];
     boolean cacheEnabled = Boolean.parseBoolean(properties.getOrDefault("cache-enabled", "true"));
     return new FlinkCatalog(name, defaultDatabase, baseNamespace, catalogLoader, hadoopConf, cacheEnabled);
+  }
+
+  public static Configuration clusterHadoopConf() {
+    return HadoopUtils.getHadoopConfiguration(GlobalConfiguration.loadConfiguration());
   }
 }
