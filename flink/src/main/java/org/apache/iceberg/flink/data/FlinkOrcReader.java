@@ -39,16 +39,12 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 public class FlinkOrcReader implements OrcRowReader<RowData> {
   private final OrcValueReader<?> reader;
 
-  private FlinkOrcReader(Schema iSchema, TypeDescription readSchema) {
+  public FlinkOrcReader(Schema iSchema, TypeDescription readSchema) {
     this(iSchema, readSchema, ImmutableMap.of());
   }
 
-  private FlinkOrcReader(Schema iSchema, TypeDescription readSchema, Map<Integer, ?> idToConstant) {
+  public FlinkOrcReader(Schema iSchema, TypeDescription readSchema, Map<Integer, ?> idToConstant) {
     this.reader = OrcSchemaWithTypeVisitor.visit(iSchema, readSchema, new ReadBuilder(idToConstant));
-  }
-
-  public static OrcRowReader<RowData> buildReader(Schema schema, TypeDescription readSchema) {
-    return new FlinkOrcReader(schema, readSchema);
   }
 
   @Override
