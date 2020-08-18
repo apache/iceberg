@@ -58,6 +58,12 @@ public class TestDataTableScan extends TableTestBase {
   }
 
   @Test
+  public void testTableProjectAfterSelect() {
+    AssertHelpers.assertThrows("Cannot project schema when selected columns is specified",
+        IllegalStateException.class, () -> table.newScan().select("id").project(SCHEMA.select("data")));
+  }
+
+  @Test
   public void testTableScanHonorsSelectWithoutCaseSensitivity() {
     TableScan scan1 = table.newScan().caseSensitive(false).select("ID");
     // order of refinements shouldn't matter

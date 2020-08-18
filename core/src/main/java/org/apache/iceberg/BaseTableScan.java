@@ -159,6 +159,10 @@ abstract class BaseTableScan implements TableScan {
 
   @Override
   public TableScan project(Schema projectedSchema) {
+    if (context.selectedColumns() != null) {
+      throw new IllegalStateException("Cannot project schema when selected columns is specified.");
+    }
+
     return newRefinedScan(
         ops, table, projectedSchema, context);
   }
