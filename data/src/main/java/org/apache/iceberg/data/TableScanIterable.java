@@ -19,179 +19,33 @@
 
 package org.apache.iceberg.data;
 
-import java.io.Closeable;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.NoSuchElementException;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.HasTableOperations;
-import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.avro.DataReader;
-import org.apache.iceberg.data.orc.GenericOrcReader;
-import org.apache.iceberg.data.parquet.GenericParquetReaders;
-import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.expressions.Evaluator;
-import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.util.PartitionUtil;
 
 class TableScanIterable extends CloseableGroup implements CloseableIterable<Record> {
-  private final TableOperations ops;
-  private final Schema projection;
-  private final boolean reuseContainers;
-  private final boolean caseSensitive;
+  private final GenericReader reader;
   private final CloseableIterable<CombinedScanTask> tasks;
 
   TableScanIterable(TableScan scan, boolean reuseContainers) {
-    Preconditions.checkArgument(scan.table() instanceof HasTableOperations,
-        "Cannot scan table that doesn't expose its TableOperations");
-    this.ops = ((HasTableOperations) scan.table()).operations();
-    this.projection = scan.schema();
-    this.reuseContainers = reuseContainers;
-    this.caseSensitive = scan.isCaseSensitive();
-
+    this.reader = new GenericReader(scan, reuseContainers);
     // start planning tasks in the background
     this.tasks = scan.planTasks();
   }
 
   @Override
   public CloseableIterator<Record> iterator() {
-    ScanIterator iter = new ScanIterator(tasks, caseSensitive);
+    CloseableIterator<Record> iter = reader.open(tasks);
     addCloseable(iter);
     return iter;
-  }
-
-  private CloseableIterable<Record> open(FileScanTask task) {
-    InputFile input = ops.io().newInputFile(task.file().path().toString());
-    Map<Integer, ?> partition = PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
-
-    switch (task.file().format()) {
-      case AVRO:
-        Avro.ReadBuilder avro = Avro.read(input)
-            .project(projection)
-            .createReaderFunc(
-                avroSchema -> DataReader.create(projection, avroSchema, partition))
-            .split(task.start(), task.length());
-
-        if (reuseContainers) {
-          avro.reuseContainers();
-        }
-
-        return avro.build();
-
-      case PARQUET:
-        Parquet.ReadBuilder parquet = Parquet.read(input)
-            .project(projection)
-            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(projection, fileSchema, partition))
-            .split(task.start(), task.length());
-
-        if (reuseContainers) {
-          parquet.reuseContainers();
-        }
-
-        return parquet.build();
-
-      case ORC:
-        Schema projectionWithoutConstantAndMetadataFields = TypeUtil.selectNot(projection,
-            Sets.union(partition.keySet(), MetadataColumns.metadataFieldIds()));
-        ORC.ReadBuilder orc = ORC.read(input)
-                .project(projectionWithoutConstantAndMetadataFields)
-                .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(projection, fileSchema, partition))
-                .split(task.start(), task.length())
-                .filter(task.residual());
-
-        return orc.build();
-
-      default:
-        throw new UnsupportedOperationException(String.format("Cannot read %s file: %s",
-            task.file().format().name(), task.file().path()));
-    }
   }
 
   @Override
   public void close() throws IOException {
     tasks.close(); // close manifests from scan planning
     super.close(); // close data files
-  }
-
-  private class ScanIterator implements CloseableIterator<Record> {
-    private final Iterator<FileScanTask> tasks;
-    private final boolean caseSensitive;
-    private Closeable currentCloseable = null;
-    private Iterator<Record> currentIterator = Collections.emptyIterator();
-    private final InternalRecordWrapper recordWrapper;
-
-    private ScanIterator(CloseableIterable<CombinedScanTask> tasks, boolean caseSensitive) {
-      this.tasks = Lists.newArrayList(Iterables.concat(
-          CloseableIterable.transform(tasks, CombinedScanTask::files))).iterator();
-      this.caseSensitive = caseSensitive;
-      this.recordWrapper = new InternalRecordWrapper(projection.asStruct());
-    }
-
-    @Override
-    public boolean hasNext() {
-      while (true) {
-        if (currentIterator.hasNext()) {
-          return true;
-
-        } else if (tasks.hasNext()) {
-          if (currentCloseable != null) {
-            try {
-              currentCloseable.close();
-            } catch (IOException e) {
-              throw new RuntimeIOException(e, "Failed to close task");
-            }
-          }
-
-          FileScanTask task = tasks.next();
-          CloseableIterable<Record> reader = open(task);
-          this.currentCloseable = reader;
-
-          if (task.residual() != null && task.residual() != Expressions.alwaysTrue()) {
-            Evaluator filter = new Evaluator(projection.asStruct(), task.residual(), caseSensitive);
-            this.currentIterator = Iterables.filter(reader,
-                record -> filter.eval(recordWrapper.wrap(record))).iterator();
-          } else {
-            this.currentIterator = reader.iterator();
-          }
-
-        } else {
-          return false;
-        }
-      }
-    }
-
-    @Override
-    public Record next() {
-      if (!hasNext()) {
-        throw new NoSuchElementException();
-      }
-
-      return currentIterator.next();
-    }
-
-    @Override
-    public void close() throws IOException {
-      if (currentCloseable != null) {
-        currentCloseable.close();
-      }
-    }
   }
 }

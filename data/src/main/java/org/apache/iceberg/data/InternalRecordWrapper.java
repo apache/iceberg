@@ -64,6 +64,10 @@ public class InternalRecordWrapper implements StructLike {
     return null;
   }
 
+  public StructLike get() {
+    return wrapped;
+  }
+
   public InternalRecordWrapper wrap(StructLike record) {
     this.wrapped = record;
     return this;
