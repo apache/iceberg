@@ -509,6 +509,16 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
+    public SortOrder sortOrder() {
+      return current.sortOrder();
+    }
+
+    @Override
+    public Map<Integer, SortOrder> sortOrders() {
+      return current.sortOrdersById();
+    }
+
+    @Override
     public Map<String, String> properties() {
       return current.properties();
     }

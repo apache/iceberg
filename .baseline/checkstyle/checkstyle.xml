@@ -93,6 +93,8 @@
                 org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.*,
                 org.apache.iceberg.types.Types.NestedField.*,
                 org.apache.iceberg.TableProperties.*,
+                org.apache.iceberg.NullOrder.*,
+                org.apache.iceberg.SortDirection.*,
                 org.apache.iceberg.types.Type.*,
                 org.junit.Assert.*,
                 org.apache.spark.sql.functions.*"/>

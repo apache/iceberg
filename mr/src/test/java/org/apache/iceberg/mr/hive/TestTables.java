@@ -27,6 +27,7 @@ import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Tables;
 import org.apache.iceberg.catalog.Catalog;
@@ -79,8 +80,14 @@ abstract class TestTables {
     }
 
     @Override
-    public Table create(Schema schema, PartitionSpec spec, Map<String, String> properties, String tableIdentifier) {
-      return catalog.createTable(TableIdentifier.parse(tableIdentifier), schema, spec, properties);
+    public Table create(Schema schema, PartitionSpec spec, SortOrder sortOrder,
+                        Map<String, String> properties, String tableIdentifier) {
+      TableIdentifier tableIdent = TableIdentifier.parse(tableIdentifier);
+      return catalog.buildTable(tableIdent, schema)
+          .withPartitionSpec(spec)
+          .withSortOrder(sortOrder)
+          .withProperties(properties)
+          .create();
     }
 
     @Override

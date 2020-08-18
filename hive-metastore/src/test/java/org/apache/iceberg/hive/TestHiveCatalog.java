@@ -27,6 +27,7 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
@@ -37,6 +38,8 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.Assert;
@@ -44,6 +47,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import static org.apache.iceberg.NullOrder.NULLS_FIRST;
+import static org.apache.iceberg.SortDirection.ASC;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestHiveCatalog extends HiveMetastoreTest {
@@ -174,6 +179,57 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       Assert.assertTrue(table.spec().isUnpartitioned());
       Assert.assertEquals("value1", table.properties().get("key1"));
       Assert.assertEquals("value2", table.properties().get("key2"));
+    } finally {
+      catalog.dropTable(tableIdent);
+    }
+  }
+
+  @Test
+  public void testCreateTableDefaultSortOrder() {
+    Schema schema = new Schema(
+        required(1, "id", Types.IntegerType.get(), "unique ID"),
+        required(2, "data", Types.StringType.get())
+    );
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .bucket("data", 16)
+        .build();
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+
+    try {
+      Table table = catalog.createTable(tableIdent, schema, spec);
+      Assert.assertEquals("Order ID must match", 0, table.sortOrder().orderId());
+      Assert.assertTrue("Order must unsorted", table.sortOrder().isUnsorted());
+    } finally {
+      catalog.dropTable(tableIdent);
+    }
+  }
+
+  @Test
+  public void testCreateTableCustomSortOrder() {
+    Schema schema = new Schema(
+        required(1, "id", Types.IntegerType.get(), "unique ID"),
+        required(2, "data", Types.StringType.get())
+    );
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .bucket("data", 16)
+        .build();
+    SortOrder order = SortOrder.builderFor(schema)
+        .asc("id", NULLS_FIRST)
+        .build();
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+
+    try {
+      Table table = catalog.buildTable(tableIdent, schema)
+          .withPartitionSpec(spec)
+          .withSortOrder(order)
+          .create();
+      SortOrder sortOrder = table.sortOrder();
+      Assert.assertEquals("Order ID must match", 1, sortOrder.orderId());
+      Assert.assertEquals("Order must have 1 field", 1, sortOrder.fields().size());
+      Assert.assertEquals("Direction must match ", ASC, sortOrder.fields().get(0).direction());
+      Assert.assertEquals("Null order must match ", NULLS_FIRST, sortOrder.fields().get(0).nullOrder());
+      Transform<?, ?> transform = Transforms.identity(Types.IntegerType.get());
+      Assert.assertEquals("Transform must match", transform, sortOrder.fields().get(0).transform());
     } finally {
       catalog.dropTable(tableIdent);
     }

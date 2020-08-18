@@ -194,6 +194,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     private final Schema schema;
     private final ImmutableMap.Builder<String, String> propertiesBuilder = ImmutableMap.builder();
     private PartitionSpec spec = PartitionSpec.unpartitioned();
+    private SortOrder sortOrder = SortOrder.unsorted();
     private String location = null;
 
     public BaseMetastoreCatalogTableBuilder(TableIdentifier identifier, Schema schema) {
@@ -206,6 +207,12 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     @Override
     public TableBuilder withPartitionSpec(PartitionSpec newSpec) {
       this.spec = newSpec != null ? newSpec : PartitionSpec.unpartitioned();
+      return this;
+    }
+
+    @Override
+    public TableBuilder withSortOrder(SortOrder newSortOrder) {
+      this.sortOrder = newSortOrder != null ? newSortOrder : SortOrder.unsorted();
       return this;
     }
 
@@ -238,7 +245,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
       String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
       Map<String, String> properties = propertiesBuilder.build();
-      TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, baseLocation, properties);
+      TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, properties);
 
       try {
         ops.commit(null, metadata);
@@ -258,7 +265,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
       String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
       Map<String, String> properties = propertiesBuilder.build();
-      TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, baseLocation, properties);
+      TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, properties);
       return Transactions.createTableTransaction(identifier.toString(), ops, metadata);
     }
 
@@ -281,10 +288,10 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       TableMetadata metadata;
       if (ops.current() != null) {
         String baseLocation = location != null ? location : ops.current().location();
-        metadata = ops.current().buildReplacement(schema, spec, baseLocation, propertiesBuilder.build());
+        metadata = ops.current().buildReplacement(schema, spec, sortOrder, baseLocation, propertiesBuilder.build());
       } else {
         String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
-        metadata = TableMetadata.newTableMetadata(schema, spec, baseLocation, propertiesBuilder.build());
+        metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, propertiesBuilder.build());
       }
 
       if (orCreate) {

@@ -37,8 +37,13 @@ public interface Tables {
     return create(schema, spec, ImmutableMap.of(), tableIdentifier);
   }
 
+  default Table create(Schema schema, PartitionSpec spec, Map<String, String> properties, String tableIdentifier) {
+    return create(schema, spec, SortOrder.unsorted(), properties, tableIdentifier);
+  }
+
   Table create(Schema schema,
                PartitionSpec spec,
+               SortOrder order,
                Map<String, String> properties,
                String tableIdentifier);
 
