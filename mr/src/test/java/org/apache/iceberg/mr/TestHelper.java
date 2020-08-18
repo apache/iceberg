@@ -37,16 +37,14 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.Tables;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
-import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
@@ -58,50 +56,46 @@ import org.junit.rules.TemporaryFolder;
 public class TestHelper {
 
   private final Configuration conf;
-  private final HadoopTables tables;
+  private final Tables tables;
+  private final String tableIdentifier;
   private final Schema schema;
   private final PartitionSpec spec;
   private final FileFormat fileFormat;
   private final TemporaryFolder tmp;
-  private final File location;
 
   private Table table;
 
-  public TestHelper(Configuration conf, HadoopTables tables, Schema schema, PartitionSpec spec, FileFormat fileFormat,
-                    TemporaryFolder tmp, File location) {
+  public TestHelper(Configuration conf, Tables tables, String tableIdentifier, Schema schema, PartitionSpec spec,
+                    FileFormat fileFormat, TemporaryFolder tmp) {
     this.conf = conf;
     this.tables = tables;
+    this.tableIdentifier = tableIdentifier;
     this.schema = schema;
     this.spec = spec;
     this.fileFormat = fileFormat;
     this.tmp = tmp;
-    this.location = location;
   }
 
-  private void setTable(Table table) {
+  public void setTable(Table table) {
     this.table = table;
     conf.set(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(table.schema()));
   }
 
-  public Table getTable() {
+  public Table table() {
     return table;
   }
 
+  public Map<String, String> properties() {
+    return ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name());
+  }
+
   public Table createTable(Schema theSchema, PartitionSpec theSpec) {
-    Map<String, String> properties = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name());
-    Table tbl = tables.create(theSchema, theSpec, properties, location.toString());
+    Table tbl = tables.create(theSchema, theSpec, properties(), tableIdentifier);
     setTable(tbl);
     return tbl;
   }
 
-  public Table createTable(Catalog catalog, TableIdentifier identifier) {
-    Map<String, String> properties = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name());
-    Table tbl = catalog.createTable(identifier, schema, spec, properties);
-    setTable(tbl);
-    return tbl;
-  }
-
-  public Table createPartitionedTable() {
+  public Table createTable() {
     return createTable(schema, spec);
   }
 

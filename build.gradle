@@ -372,9 +372,10 @@ project(':iceberg-mr') {
   dependencies {
     compile project(':iceberg-api')
     compile project(':iceberg-core')
+    compile project(':iceberg-data')
+    compile project(':iceberg-hive')
     compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
-    compile project(':iceberg-data')
 
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -397,6 +398,7 @@ project(':iceberg-mr') {
     testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
 
     testCompile("org.apache.avro:avro:1.9.2")
     testCompile("org.apache.calcite:calcite-core")
