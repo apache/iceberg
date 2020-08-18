@@ -167,7 +167,7 @@ project(':iceberg-bundled-guava') {
   }
 
   jar {
-    classifier 'empty'
+    enabled = false
   }
 }
 
@@ -643,7 +643,7 @@ if (jdkVersion == '8') {
     }
 
     jar {
-      classifier = 'empty'
+      enabled = false
     }
   }
 }
@@ -749,7 +749,7 @@ project(':iceberg-spark3-runtime') {
   }
 
   jar {
-    classifier = 'empty'
+    enabled = false
   }
 }
 
