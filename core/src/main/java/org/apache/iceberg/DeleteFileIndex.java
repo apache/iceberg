@@ -158,10 +158,10 @@ class DeleteFileIndex {
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private static boolean canContainEqDeletesForFile(DataFile dataFile, DeleteFile deleteFile, Schema schema) {
-    if (dataFile.lowerBounds() == null || dataFile.upperBounds() == null ||
-        deleteFile.lowerBounds() == null || deleteFile.upperBounds() == null) {
-      return true;
-    }
+    // whether to check data ranges or to assume that the ranges match
+    // if upper/lower bounds are missing, null counts may still be used to determine delete files can be skipped
+    boolean checkRanges = dataFile.lowerBounds() != null && dataFile.upperBounds() != null &&
+        deleteFile.lowerBounds() != null && deleteFile.upperBounds() != null;
 
     Map<Integer, ByteBuffer> dataLowers = dataFile.lowerBounds();
     Map<Integer, ByteBuffer> dataUppers = dataFile.upperBounds();
@@ -193,6 +193,11 @@ class DeleteFileIndex {
       if (allNull(deleteNullCounts, deleteValueCounts, field) && allNonNull(dataNullCounts, field)) {
         // the delete file removes only null rows with null for this field, but there are no data rows with null
         return false;
+      }
+
+      if (!checkRanges) {
+        // some upper and lower bounds are missing, assume they match
+        continue;
       }
 
       ByteBuffer dataLower = dataLowers.get(id);
