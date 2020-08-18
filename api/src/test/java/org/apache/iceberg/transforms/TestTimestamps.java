@@ -75,24 +75,24 @@ public class TestTimestamps {
         "+10:00", "+11:00"};
 
     Arrays.stream(timeZoneArray).forEach(zoneId -> {
-        // Modify timeZone
-        TimeZone.setDefault(TimeZone.getTimeZone(ZoneId.of(zoneId)));
+      // Modify timeZone
+      TimeZone.setDefault(TimeZone.getTimeZone(ZoneId.of(zoneId)));
 
-        Timestamp date = Timestamp.valueOf("2017-12-01 10:12:55.038");
-        Types.TimestampType type = Types.TimestampType.withZone();
+      Timestamp date = Timestamp.valueOf("2017-12-01 10:12:55.038");
+      Types.TimestampType type = Types.TimestampType.withZone();
 
-        String message = "Should produce the correct Human string[" + zoneId + "]";
-        Transform<Long, Integer> year = Transforms.year(type);
-        Assert.assertEquals(message, "2017", year.toHumanString(year.apply(date.getTime() * 1000)));
+      String message = "Should produce the correct Human string[" + zoneId + "]";
+      Transform<Long, Integer> year = Transforms.year(type);
+      Assert.assertEquals(message, "2017", year.toHumanString(year.apply(date.getTime() * 1000)));
 
-        Transform<Long, Integer> month = Transforms.month(type);
-        Assert.assertEquals(message, "2017-12", month.toHumanString(month.apply(date.getTime() * 1000)));
+      Transform<Long, Integer> month = Transforms.month(type);
+      Assert.assertEquals(message, "2017-12", month.toHumanString(month.apply(date.getTime() * 1000)));
 
-        Transform<Long, Integer> day = Transforms.day(type);
-        Assert.assertEquals(message, "2017-12-01", day.toHumanString(day.apply(date.getTime() * 1000)));
+      Transform<Long, Integer> day = Transforms.day(type);
+      Assert.assertEquals(message, "2017-12-01", day.toHumanString(day.apply(date.getTime() * 1000)));
 
-        Transform<Long, Integer> hour = Transforms.hour(type);
-        Assert.assertEquals(message, "2017-12-01-10", hour.toHumanString(hour.apply(date.getTime() * 1000)));
+      Transform<Long, Integer> hour = Transforms.hour(type);
+      Assert.assertEquals(message, "2017-12-01-10", hour.toHumanString(hour.apply(date.getTime() * 1000)));
     });
   }
 
