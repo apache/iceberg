@@ -245,7 +245,7 @@ class DeleteFileIndex {
     Long nullValueCount = nullValueCounts.get(field.fieldId());
     Long valueCount = valueCounts.get(field.fieldId());
     if (nullValueCount == null || valueCount == null) {
-      return true;
+      return false;
     }
 
     return nullValueCount.equals(valueCount);
