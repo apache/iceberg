@@ -222,7 +222,7 @@ public class PartitionSpec implements Serializable {
 
   @Override
   public int hashCode() {
-    return Integer.hashCode(Arrays.hashCode(fields));
+    return 31 * Integer.hashCode(specId) + Arrays.hashCode(fields);
   }
 
   private List<PartitionField> lazyFieldList() {
