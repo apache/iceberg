@@ -19,11 +19,9 @@
 
 package org.apache.iceberg.orc;
 
-import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
 
@@ -31,26 +29,6 @@ import org.apache.orc.TypeDescription;
  * Converts an ORC schema to Iceberg.
  */
 class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> {
-
-  private final Deque<String> fieldNames;
-
-  OrcToIcebergVisitor() {
-    this.fieldNames = Lists.newLinkedList();
-  }
-
-  @Override
-  public void beforeField(String name, TypeDescription type) {
-    fieldNames.push(name);
-  }
-
-  @Override
-  public void afterField(String name, TypeDescription type) {
-    fieldNames.pop();
-  }
-
-  private String currentFieldName() {
-    return fieldNames.peek();
-  }
 
   @Override
   public Optional<Types.NestedField> record(TypeDescription record, List<String> names,

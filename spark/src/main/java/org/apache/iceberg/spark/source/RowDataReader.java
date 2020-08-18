@@ -174,13 +174,19 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       Map<Integer, ?> idToConstant) {
     Schema readSchemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(readSchema,
         Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
-    return ORC.read(location)
+
+    ORC.ReadBuilder builder = ORC.read(location)
         .project(readSchemaWithoutConstantAndMetadataFields)
         .split(task.start(), task.length())
         .createReaderFunc(readOrcSchema -> new SparkOrcReader(readSchema, readOrcSchema, idToConstant))
         .filter(task.residual())
-        .caseSensitive(caseSensitive)
-        .build();
+        .caseSensitive(caseSensitive);
+
+    if (nameMapping != null) {
+      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+    }
+
+    return builder.build();
   }
 
   private CloseableIterable<InternalRow> newDataIterable(DataTask task, Schema readSchema) {

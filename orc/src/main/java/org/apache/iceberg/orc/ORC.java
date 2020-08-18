@@ -36,6 +36,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.orc.OrcConf;
 import org.apache.orc.OrcFile;
@@ -121,11 +122,12 @@ public class ORC {
   public static class ReadBuilder {
     private final InputFile file;
     private final Configuration conf;
-    private org.apache.iceberg.Schema schema = null;
+    private Schema schema = null;
     private Long start = null;
     private Long length = null;
     private Expression filter = null;
     private boolean caseSensitive = true;
+    private NameMapping nameMapping = null;
 
     private Function<TypeDescription, OrcRowReader<?>> readerFunc;
     private Function<TypeDescription, OrcBatchReader<?>> batchedReaderFunc;
@@ -194,10 +196,15 @@ public class ORC {
       return this;
     }
 
+    public ReadBuilder withNameMapping(NameMapping newNameMapping) {
+      this.nameMapping = newNameMapping;
+      return this;
+    }
+
     public <D> CloseableIterable<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
-      return new OrcIterable<>(file, conf, schema, start, length, readerFunc, caseSensitive, filter, batchedReaderFunc,
-          recordsPerBatch);
+      return new OrcIterable<>(file, conf, schema, nameMapping, start, length, readerFunc, caseSensitive, filter,
+          batchedReaderFunc, recordsPerBatch);
     }
   }
 
