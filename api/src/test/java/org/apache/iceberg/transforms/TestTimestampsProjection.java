@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.transforms;
 
+import java.util.TimeZone;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -29,7 +30,9 @@ import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import static org.apache.iceberg.TestHelpers.assertAndUnwrapUnbound;
@@ -44,8 +47,19 @@ import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TestTimestampsProjection {
+  private static final TimeZone DEFAUL_TIMEZONE = TimeZone.getDefault();
   private static final Types.TimestampType TYPE = Types.TimestampType.withoutZone();
   private static final Schema SCHEMA = new Schema(optional(1, "timestamp", TYPE));
+
+  @Before
+  public void initTimeZone() {
+    TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+  }
+
+  @After
+  public void resetTimeZone() {
+    TimeZone.setDefault(DEFAUL_TIMEZONE);
+  }
 
   public void assertProjectionStrict(PartitionSpec spec, UnboundPredicate<?> filter,
                                      Expression.Operation expectedOp, String expectedLiteral) {

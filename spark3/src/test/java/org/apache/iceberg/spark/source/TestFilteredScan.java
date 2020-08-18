@@ -25,6 +25,7 @@ import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.TimeZone;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
@@ -86,6 +87,7 @@ import static org.apache.spark.sql.functions.column;
 
 @RunWith(Parameterized.class)
 public class TestFilteredScan {
+  private static final TimeZone DEFAUL_TIMEZONE = TimeZone.getDefault();
   private static final Configuration CONF = new Configuration();
   private static final HadoopTables TABLES = new HadoopTables(CONF);
 
@@ -119,6 +121,7 @@ public class TestFilteredScan {
 
   @BeforeClass
   public static void startSpark() {
+    TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
     TestFilteredScan.spark = SparkSession.builder().master("local[2]").getOrCreate();
 
     // define UDFs used by partition tests
@@ -144,6 +147,7 @@ public class TestFilteredScan {
     SparkSession currentSpark = TestFilteredScan.spark;
     TestFilteredScan.spark = null;
     currentSpark.stop();
+    TimeZone.setDefault(DEFAUL_TIMEZONE);
   }
 
   @Rule

@@ -21,6 +21,7 @@ package org.apache.iceberg.transforms;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.expressions.BoundPredicate;
@@ -52,9 +53,10 @@ enum Timestamps implements Transform<Long, Integer> {
       return null;
     }
 
+    int totalSeconds = OffsetDateTime.now(ZoneId.systemDefault()).getOffset().getTotalSeconds();
     // discards fractional seconds, not needed for calculation
     OffsetDateTime timestamp = Instant
-        .ofEpochSecond(timestampMicros / 1_000_000)
+        .ofEpochSecond(timestampMicros / 1_000_000 + totalSeconds)
         .atOffset(ZoneOffset.UTC);
 
     return (int) granularity.between(EPOCH, timestamp);

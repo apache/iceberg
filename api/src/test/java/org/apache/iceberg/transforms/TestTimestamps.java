@@ -19,13 +19,31 @@
 
 package org.apache.iceberg.transforms;
 
+import java.sql.Timestamp;
+import java.time.ZoneId;
+import java.util.Arrays;
+import java.util.TimeZone;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 public class TestTimestamps {
+  private static final TimeZone DEFAUL_TIMEZONE = TimeZone.getDefault();
+
+  @Before
+  public void initTimeZone() {
+    TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+  }
+
+  @After
+  public void resetTimeZone() {
+    TimeZone.setDefault(DEFAUL_TIMEZONE);
+  }
+
   @Test
   public void testTimestampWithoutZoneToHumanString() {
     Types.TimestampType type = Types.TimestampType.withoutZone();
@@ -50,25 +68,32 @@ public class TestTimestamps {
 
   @Test
   public void testTimestampWithZoneToHumanString() {
-    Types.TimestampType type = Types.TimestampType.withZone();
-    Literal<Long> date = Literal.of("2017-12-01T10:12:55.038194-08:00").to(type);
+    String[] timeZoneArray = {
+        "-01:00", "-02:00", "-03:00", "-04:00", "-05:00", "-06:00", "-07:00",
+        "-08:00", "-09:00", "-10:00", "-11:00", "+00:00", "+01:00", "+02:00",
+        "+03:00", "+04:00", "+05:00", "+06:00", "+07:00", "+08:00", "+09:00",
+        "+10:00", "+11:00"};
 
-    Transform<Long, Integer> year = Transforms.year(type);
-    Assert.assertEquals("Should produce the correct Human string",
-        "2017", year.toHumanString(year.apply(date.value())));
+    Arrays.stream(timeZoneArray).forEach(zoneId -> {
+        // Modify timeZone
+        TimeZone.setDefault(TimeZone.getTimeZone(ZoneId.of(zoneId)));
 
-    Transform<Long, Integer> month = Transforms.month(type);
-    Assert.assertEquals("Should produce the correct Human string",
-        "2017-12", month.toHumanString(month.apply(date.value())));
+        Timestamp date = Timestamp.valueOf("2017-12-01 10:12:55.038");
+        Types.TimestampType type = Types.TimestampType.withZone();
 
-    Transform<Long, Integer> day = Transforms.day(type);
-    Assert.assertEquals("Should produce the correct Human string",
-        "2017-12-01", day.toHumanString(day.apply(date.value())));
+        String message = "Should produce the correct Human string[" + zoneId + "]";
+        Transform<Long, Integer> year = Transforms.year(type);
+        Assert.assertEquals(message, "2017", year.toHumanString(year.apply(date.getTime() * 1000)));
 
-    // the hour is 18 because the value is always UTC
-    Transform<Long, Integer> hour = Transforms.hour(type);
-    Assert.assertEquals("Should produce the correct Human string",
-        "2017-12-01-18", hour.toHumanString(hour.apply(date.value())));
+        Transform<Long, Integer> month = Transforms.month(type);
+        Assert.assertEquals(message, "2017-12", month.toHumanString(month.apply(date.getTime() * 1000)));
+
+        Transform<Long, Integer> day = Transforms.day(type);
+        Assert.assertEquals(message, "2017-12-01", day.toHumanString(day.apply(date.getTime() * 1000)));
+
+        Transform<Long, Integer> hour = Transforms.hour(type);
+        Assert.assertEquals(message, "2017-12-01-10", hour.toHumanString(hour.apply(date.getTime() * 1000)));
+    });
   }
 
   @Test

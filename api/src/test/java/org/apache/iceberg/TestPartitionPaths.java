@@ -19,19 +19,33 @@
 
 package org.apache.iceberg;
 
+import java.util.TimeZone;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Types;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 public class TestPartitionPaths {
+  private static final TimeZone DEFAUL_TIMEZONE = TimeZone.getDefault();
   private static final Schema SCHEMA = new Schema(
       Types.NestedField.required(1, "id", Types.IntegerType.get()),
       Types.NestedField.optional(2, "data", Types.StringType.get()),
       Types.NestedField.optional(3, "ts", Types.TimestampType.withoutZone())
   );
+
+  @Before
+  public void initTimeZone() {
+    TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+  }
+
+  @After
+  public void resetTimeZone() {
+    TimeZone.setDefault(DEFAUL_TIMEZONE);
+  }
 
   @Test
   @SuppressWarnings("unchecked")
