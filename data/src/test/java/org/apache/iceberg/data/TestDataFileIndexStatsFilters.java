@@ -282,6 +282,35 @@ public class TestDataFileIndexStatsFilters {
     Assert.assertEquals("Should have no delete files, data contains no null values", 0, task.deletes().size());
   }
 
+  @Test
+  public void testEqualityDeletePlanningStatsSomeNullValuesWithSomeNullDeletes() throws IOException {
+    table.newAppend()
+        .appendFile(dataFile) // note that there are some nulls in the data column
+        .commit();
+
+    List<Record> deletes = Lists.newArrayList();
+    Schema deleteRowSchema = SCHEMA.select("data");
+    Record delete = GenericRecord.create(deleteRowSchema);
+    // the data and delete ranges do not overlap, but both contain null
+    deletes.add(delete.copy("data", null));
+    deletes.add(delete.copy("data", "x"));
+
+    DeleteFile posDeletes = writeDeleteFile(deletes, deleteRowSchema);
+
+    table.newRowDelta()
+        .addDeletes(posDeletes)
+        .commit();
+
+    List<FileScanTask> tasks;
+    try (CloseableIterable<FileScanTask> tasksIterable = table.newScan().planFiles()) {
+      tasks = Lists.newArrayList(tasksIterable);
+    }
+
+    Assert.assertEquals("Should produce one task", 1, tasks.size());
+    FileScanTask task = tasks.get(0);
+    Assert.assertEquals("Should have one delete file, data and deletes have null values", 1, task.deletes().size());
+  }
+
   public DeleteFile writeDeleteFile(List<Pair<CharSequence, Long>> deletes) throws IOException {
     OutputFile out = Files.localOutput(temp.newFile());
     PositionDeleteWriter<?> writer = Parquet.writeDeletes(out)
