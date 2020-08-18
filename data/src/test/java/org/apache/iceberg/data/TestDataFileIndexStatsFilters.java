@@ -24,7 +24,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
@@ -34,30 +33,26 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestTables;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
-import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class TestDataFileIndexStatsFilters {
-  private final Schema SCHEMA = new Schema(
+  private static final Schema SCHEMA = new Schema(
       Types.NestedField.optional(1, "id", Types.IntegerType.get()),
       Types.NestedField.optional(2, "data", Types.StringType.get()),
       Types.NestedField.required(3, "category", Types.StringType.get()));
@@ -320,7 +315,7 @@ public class TestDataFileIndexStatsFilters {
     return writer.toDeleteFile();
   }
 
-  public DataFile writeDataFile(List<Record> records) throws IOException {
+  public DataFile writeDataFile(List<Record> rows) throws IOException {
     OutputFile out = Files.localOutput(temp.newFile());
     FileAppender<Record> writer = Parquet.write(out)
         .createWriterFunc(GenericParquetWriter::buildWriter)
@@ -329,7 +324,7 @@ public class TestDataFileIndexStatsFilters {
         .build();
 
     try (Closeable toClose = writer) {
-      writer.addAll(records);
+      writer.addAll(rows);
     }
 
     return DataFiles.builder(table.spec())

@@ -142,15 +142,14 @@ class DeleteFileIndex {
 
     Type pathType = MetadataColumns.DELETE_FILE_PATH.type();
     int pathId = MetadataColumns.DELETE_FILE_PATH.fieldId();
+    Comparator<CharSequence> comparator = Comparators.charSequences();
     ByteBuffer lower = lowers.get(pathId);
-    if (lower != null &&
-        Comparators.charSequences().compare(dataFile.path(), Conversions.fromByteBuffer(pathType, lower)) < 0) {
+    if (lower != null && comparator.compare(dataFile.path(), Conversions.fromByteBuffer(pathType, lower)) < 0) {
       return false;
     }
 
     ByteBuffer upper = uppers.get(pathId);
-    if (upper != null &&
-        Comparators.charSequences().compare(dataFile.path(), Conversions.fromByteBuffer(pathType, upper)) > 0) {
+    if (upper != null && comparator.compare(dataFile.path(), Conversions.fromByteBuffer(pathType, upper)) > 0) {
       return false;
     }
 

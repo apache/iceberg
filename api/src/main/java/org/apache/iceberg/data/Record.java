@@ -44,14 +44,14 @@ public interface Record extends StructLike {
   }
 
   default Record copy(String field1, Object value1, String field2, Object value2) {
-    Map<String, Object> overwriteValues = Maps.newHashMapWithExpectedSize(1);
+    Map<String, Object> overwriteValues = Maps.newHashMapWithExpectedSize(2);
     overwriteValues.put(field1, value1);
     overwriteValues.put(field2, value2);
     return copy(overwriteValues);
   }
 
   default Record copy(String field1, Object value1, String field2, Object value2, String field3, Object value3) {
-    Map<String, Object> overwriteValues = Maps.newHashMapWithExpectedSize(1);
+    Map<String, Object> overwriteValues = Maps.newHashMapWithExpectedSize(3);
     overwriteValues.put(field1, value1);
     overwriteValues.put(field2, value2);
     overwriteValues.put(field3, value3);
