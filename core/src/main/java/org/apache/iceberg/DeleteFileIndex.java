@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -47,6 +48,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeWrapper;
@@ -59,8 +63,7 @@ import org.apache.iceberg.util.Tasks;
  * {@link #forEntry(ManifestEntry)} to get the the delete files to apply to a given data file.
  */
 class DeleteFileIndex {
-  private static final DeleteFile[] NO_DELETE_FILES = new DeleteFile[0];
-
+  private final Map<Integer, PartitionSpec> specsById;
   private final Map<Integer, Types.StructType> partitionTypeById;
   private final Map<Integer, ThreadLocal<StructLikeWrapper>> wrapperById;
   private final long[] globalSeqs;
@@ -69,6 +72,7 @@ class DeleteFileIndex {
 
   DeleteFileIndex(Map<Integer, PartitionSpec> specsById, long[] globalSeqs, DeleteFile[] globalDeletes,
                   Map<Pair<Integer, StructLikeWrapper>, Pair<long[], DeleteFile[]>> sortedDeletesByPartition) {
+    this.specsById = specsById;
     ImmutableMap.Builder<Integer, Types.StructType> builder = ImmutableMap.builder();
     specsById.forEach((specId, spec) -> builder.put(specId, spec.partitionType()));
     this.partitionTypeById = builder.build();
@@ -76,6 +80,10 @@ class DeleteFileIndex {
     this.globalSeqs = globalSeqs;
     this.globalDeletes = globalDeletes;
     this.sortedDeletesByPartition = sortedDeletesByPartition;
+  }
+
+  public boolean isEmpty() {
+    return (globalDeletes == null || globalDeletes.length == 0) && sortedDeletesByPartition.isEmpty();
   }
 
   private StructLikeWrapper newWrapper(int specId) {
@@ -96,21 +104,188 @@ class DeleteFileIndex {
     Pair<Integer, StructLikeWrapper> partition = partition(file.specId(), file.partition());
     Pair<long[], DeleteFile[]> partitionDeletes = sortedDeletesByPartition.get(partition);
 
+    Stream<DeleteFile> matchingDeletes;
     if (partitionDeletes == null) {
-      return limitBySequenceNumber(sequenceNumber, globalSeqs, globalDeletes);
+      matchingDeletes = limitBySequenceNumber(sequenceNumber, globalSeqs, globalDeletes);
     } else if (globalDeletes == null) {
-      return limitBySequenceNumber(sequenceNumber, partitionDeletes.first(), partitionDeletes.second());
+      matchingDeletes = limitBySequenceNumber(sequenceNumber, partitionDeletes.first(), partitionDeletes.second());
     } else {
-      return Stream.concat(
-          Stream.of(limitBySequenceNumber(sequenceNumber, globalSeqs, globalDeletes)),
-          Stream.of(limitBySequenceNumber(sequenceNumber, partitionDeletes.first(), partitionDeletes.second()))
-      ).toArray(DeleteFile[]::new);
+      matchingDeletes = Stream.concat(
+          limitBySequenceNumber(sequenceNumber, globalSeqs, globalDeletes),
+          limitBySequenceNumber(sequenceNumber, partitionDeletes.first(), partitionDeletes.second()));
     }
+
+    return matchingDeletes
+        .filter(deleteFile -> canContainDeletesForFile(file, deleteFile, specsById.get(file.specId()).schema()))
+        .toArray(DeleteFile[]::new);
   }
 
-  private static DeleteFile[] limitBySequenceNumber(long sequenceNumber, long[] seqs, DeleteFile[] files) {
+  private static boolean canContainDeletesForFile(DataFile dataFile, DeleteFile deleteFile, Schema schema) {
+    switch (deleteFile.content()) {
+      case POSITION_DELETES:
+        return canContainPosDeletesForFile(dataFile, deleteFile);
+
+      case EQUALITY_DELETES:
+        return canContainEqDeletesForFile(dataFile, deleteFile, schema);
+    }
+
+    return true;
+  }
+
+  private static boolean canContainPosDeletesForFile(DataFile dataFile, DeleteFile deleteFile) {
+    // check that the delete file can contain the data file's file_path
+    Map<Integer, ByteBuffer> lowers = deleteFile.lowerBounds();
+    Map<Integer, ByteBuffer> uppers = deleteFile.upperBounds();
+    if (lowers == null || uppers == null) {
+      return true;
+    }
+
+    Type pathType = MetadataColumns.DELETE_FILE_PATH.type();
+    int pathId = MetadataColumns.DELETE_FILE_PATH.fieldId();
+    Comparator<CharSequence> comparator = Comparators.charSequences();
+    ByteBuffer lower = lowers.get(pathId);
+    if (lower != null && comparator.compare(dataFile.path(), Conversions.fromByteBuffer(pathType, lower)) < 0) {
+      return false;
+    }
+
+    ByteBuffer upper = uppers.get(pathId);
+    if (upper != null && comparator.compare(dataFile.path(), Conversions.fromByteBuffer(pathType, upper)) > 0) {
+      return false;
+    }
+
+    return true;
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  private static boolean canContainEqDeletesForFile(DataFile dataFile, DeleteFile deleteFile, Schema schema) {
+    // whether to check data ranges or to assume that the ranges match
+    // if upper/lower bounds are missing, null counts may still be used to determine delete files can be skipped
+    boolean checkRanges = dataFile.lowerBounds() != null && dataFile.upperBounds() != null &&
+        deleteFile.lowerBounds() != null && deleteFile.upperBounds() != null;
+
+    Map<Integer, ByteBuffer> dataLowers = dataFile.lowerBounds();
+    Map<Integer, ByteBuffer> dataUppers = dataFile.upperBounds();
+    Map<Integer, ByteBuffer> deleteLowers = deleteFile.lowerBounds();
+    Map<Integer, ByteBuffer> deleteUppers = deleteFile.upperBounds();
+
+    Map<Integer, Long> dataNullCounts = dataFile.nullValueCounts();
+    Map<Integer, Long> dataValueCounts = dataFile.valueCounts();
+    Map<Integer, Long> deleteNullCounts = deleteFile.nullValueCounts();
+    Map<Integer, Long> deleteValueCounts = deleteFile.valueCounts();
+
+    for (int id : deleteFile.equalityFieldIds()) {
+      Types.NestedField field = schema.findField(id);
+      if (!field.type().isPrimitiveType()) {
+        // stats are not kept for nested types. assume that the delete file may match
+        continue;
+      }
+
+      if (containsNull(dataNullCounts, field) && containsNull(deleteNullCounts, field)) {
+        // the data has null values and null has been deleted, so the deletes must be applied
+        continue;
+      }
+
+      if (allNull(dataNullCounts, dataValueCounts, field) && allNonNull(deleteNullCounts, field)) {
+        // the data file contains only null values for this field, but there are no deletes for null values
+        return false;
+      }
+
+      if (allNull(deleteNullCounts, deleteValueCounts, field) && allNonNull(dataNullCounts, field)) {
+        // the delete file removes only null rows with null for this field, but there are no data rows with null
+        return false;
+      }
+
+      if (!checkRanges) {
+        // some upper and lower bounds are missing, assume they match
+        continue;
+      }
+
+      ByteBuffer dataLower = dataLowers.get(id);
+      ByteBuffer dataUpper = dataUppers.get(id);
+      ByteBuffer deleteLower = deleteLowers.get(id);
+      ByteBuffer deleteUpper = deleteUppers.get(id);
+      if (dataLower == null || dataUpper == null || deleteLower == null || deleteUpper == null) {
+        // at least one bound is not known, assume the delete file may match
+        continue;
+      }
+
+      if (!rangesOverlap(field.type().asPrimitiveType(), dataLower, dataUpper, deleteLower, deleteUpper)) {
+        // no values overlap between the data file and the deletes
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private static <T> boolean rangesOverlap(Type.PrimitiveType type,
+                                           ByteBuffer dataLowerBuf, ByteBuffer dataUpperBuf,
+                                           ByteBuffer deleteLowerBuf, ByteBuffer deleteUpperBuf) {
+    Comparator<T> comparator = Comparators.forType(type);
+    T dataLower = Conversions.fromByteBuffer(type, dataLowerBuf);
+    T dataUpper = Conversions.fromByteBuffer(type, dataUpperBuf);
+    T deleteLower = Conversions.fromByteBuffer(type, deleteLowerBuf);
+    T deleteUpper = Conversions.fromByteBuffer(type, deleteUpperBuf);
+
+    return comparator.compare(deleteLower, dataUpper) <= 0 && comparator.compare(dataLower, deleteUpper) <= 0;
+  }
+
+  private static boolean allNonNull(Map<Integer, Long> nullValueCounts, Types.NestedField field) {
+    if (field.isRequired()) {
+      return true;
+    }
+
+    if (nullValueCounts == null) {
+      return false;
+    }
+
+    Long nullValueCount = nullValueCounts.get(field.fieldId());
+    if (nullValueCount == null) {
+      return false;
+    }
+
+    return nullValueCount <= 0;
+  }
+
+  private static boolean allNull(Map<Integer, Long> nullValueCounts, Map<Integer, Long> valueCounts,
+                                 Types.NestedField field) {
+    if (field.isRequired()) {
+      return false;
+    }
+
+    if (nullValueCounts == null || valueCounts == null) {
+      return false;
+    }
+
+    Long nullValueCount = nullValueCounts.get(field.fieldId());
+    Long valueCount = valueCounts.get(field.fieldId());
+    if (nullValueCount == null || valueCount == null) {
+      return false;
+    }
+
+    return nullValueCount.equals(valueCount);
+  }
+
+  private static boolean containsNull(Map<Integer, Long> nullValueCounts, Types.NestedField field) {
+    if (field.isRequired()) {
+      return false;
+    }
+
+    if (nullValueCounts == null) {
+      return true;
+    }
+
+    Long nullValueCount = nullValueCounts.get(field.fieldId());
+    if (nullValueCount == null) {
+      return true;
+    }
+
+    return nullValueCount > 0;
+  }
+
+  private static Stream<DeleteFile> limitBySequenceNumber(long sequenceNumber, long[] seqs, DeleteFile[] files) {
     if (files == null) {
-      return NO_DELETE_FILES;
+      return Stream.empty();
     }
 
     int pos = Arrays.binarySearch(seqs, sequenceNumber);
@@ -127,7 +302,7 @@ class DeleteFileIndex {
       }
     }
 
-    return Arrays.copyOfRange(files, start, files.length);
+    return Arrays.stream(files, start, files.length);
   }
 
   static Builder builderFor(FileIO io, Iterable<ManifestFile> deleteManifests) {
@@ -137,20 +312,15 @@ class DeleteFileIndex {
   static class Builder {
     private final FileIO io;
     private final Set<ManifestFile> deleteManifests;
-    private Map<Integer, PartitionSpec> specsById;
-    private Expression dataFilter;
-    private Expression partitionFilter;
-    private boolean caseSensitive;
-    private ExecutorService executorService;
+    private Map<Integer, PartitionSpec> specsById = null;
+    private Expression dataFilter = Expressions.alwaysTrue();
+    private Expression partitionFilter = Expressions.alwaysTrue();
+    private boolean caseSensitive = true;
+    private ExecutorService executorService = null;
 
     Builder(FileIO io, Set<ManifestFile> deleteManifests) {
       this.io = io;
       this.deleteManifests = Sets.newHashSet(deleteManifests);
-      this.specsById = null;
-      this.dataFilter = Expressions.alwaysTrue();
-      this.partitionFilter = Expressions.alwaysTrue();
-      this.caseSensitive = true;
-      this.executorService = null;
     }
 
     Builder specsById(Map<Integer, PartitionSpec> newSpecsById) {
