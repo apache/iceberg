@@ -158,7 +158,7 @@ class GenericReader implements Serializable {
       InternalRecordWrapper asStructLike = new InternalRecordWrapper(recordSchema.asStruct());
 
       // a projection to select and reorder fields of the file schema to match the delete rows
-      ProjectStructLike projection = ProjectStructLike.of(recordSchema, orderedIds);
+      ProjectStructLike projectRow = ProjectStructLike.of(recordSchema, orderedIds);
 
       Iterable<CloseableIterable<Record>> deleteRecords = Iterables.transform(deletes,
           delete -> openDeletes(delete, dataFile, deleteSchema));
@@ -167,7 +167,8 @@ class GenericReader implements Serializable {
           CloseableIterable.transform(CloseableIterable.concat(deleteRecords), Record::copy),
           deleteSchema.asStruct());
 
-      filteredRecords = Deletes.filter(filteredRecords, record -> projection.wrap(asStructLike.wrap(record)), deleteSet);
+      filteredRecords = Deletes.filter(filteredRecords,
+          record -> projectRow.wrap(asStructLike.wrap(record)), deleteSet);
     }
 
     return filteredRecords;
