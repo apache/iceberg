@@ -229,66 +229,35 @@ public class GenericOrcWriters {
       return ByteBuffer.class;
     }
 
-//    public void nonNullWriteHelper() {
-//      @Override
-//      public byte[] getBytes() {
-//        byte[] bytes = new byte[length];
-//
-//        int limit = value.limit();
-//        value.limit(offset + length);
-//        int position = value.position();
-//        value.position(offset);
-//        value.get(bytes);
-//        value.limit(limit);
-//        value.position(position);
-//        if (!isBackingBytesReused) { // backing buffer might change
-//          cachedBytes = bytes;
-//        }
-//        return bytes;
-//      }
-//    }
-
     @Override
     public void nonNullWrite(int rowId, ByteBuffer data, ColumnVector output) {
-      // When there is a backing heap based byte array, we avoid the overhead of
-      // copying it.
-      if (data.hasArray()) {
-        // Don't assume the we're reading in the entire backing array.
-        // Using slice as any mutations to the data at rowId of output
-        // would also be visible in `data`.
+      // Don't assume the we're reading in the entire backing array.
+      //
+      // We use the same logic for on heap vs off heap buffers as we don't assume
+      // that the position of the byte buffer received for the write is at the beginning
+      // position, such an assumption is needed to make use of methods like `.slice()`
+      // or any methods that would be useful here if we checked if there is an on-heap
+      // backing array and that the buffer is at the beginning position. (aka we don't check
+      // that one can use if `data.hasArray()` is true as we couldn't make any optimizations
+      // in that case).
+      int position = data.position();
+      int limit = data.limit();
+      int curIndex = data.arrayOffset() + data.position();
+      int endIndex = curIndex + data.remaining();
 
-        /* Invariant:
-         * If this buffer is backed by an array then the buffer's position, p,
-         * corresponds to array index, p + arrayOffset().
-         */
-        int startIndex = data.arrayOffset();
-        int position = data.position();
-        int limit = data.limit();
-        int curIndex = data.arrayOffset() + data.position();
-        int endIndex = curIndex + data.remaining();
+      // Prep for copy into bytes
+      byte[] bytes = new byte[data.remaining()];
+      data.limit(curIndex + limit);
+      data.position(curIndex);
 
-        // Prep for copy into bytes
-        byte[] bytes = new byte[data.remaining()];
-        data.limit(curIndex + limit);
-        data.position(curIndex);
-        
-        // Do I need to use the three arg version of this (with start and end)?
-        data.get(bytes);
+      // Perform copy into bytes of remainder of byte buffer.
+      data.get(bytes, curIndex, endIndex - curIndex);
 
-        // Reset the byte buffer.
-        data.limit(limit);
-        data.position(position);
+      // Reset the byte buffer.
+      data.limit(limit);
+      data.position(position);
 
-        ((BytesColumnVector) output).setRef(rowId, bytes, 0, bytes.length);
-      } else {
-        // Consume the remaining contents of the input data
-        byte[] bytes = new byte[data.remaining()];
-        data.get(bytes);
-        // Restores the buffer position
-        // TODO - Is this necessary?
-        data.position(data.position() - bytes.length);
-        ((BytesColumnVector) output).setRef(rowId, bytes, 0, bytes.length);
-      }
+      ((BytesColumnVector) output).setRef(rowId, bytes, 0, bytes.length);
     }
   }
 
