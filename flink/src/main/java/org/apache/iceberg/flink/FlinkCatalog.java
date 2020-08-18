@@ -74,10 +74,10 @@ public class FlinkCatalog extends AbstractCatalog {
 
   private final CatalogLoader catalogLoader;
   private final Configuration hadoopConf;
-  private final Catalog originalCatalog;
   private final Catalog icebergCatalog;
   private final String[] baseNamespace;
   private final SupportsNamespaces asNamespaceCatalog;
+  private final Closeable closeable;
 
   public FlinkCatalog(
       String catalogName,
@@ -88,15 +88,13 @@ public class FlinkCatalog extends AbstractCatalog {
       boolean cacheEnabled) {
     super(catalogName, defaultDatabase);
     this.hadoopConf = hadoopConf;
-    this.originalCatalog = catalogLoader.loadCatalog(hadoopConf);
     this.catalogLoader = catalogLoader;
-    this.icebergCatalog = cacheEnabled ? CachingCatalog.wrap(originalCatalog) : originalCatalog;
     this.baseNamespace = baseNamespace;
-    if (originalCatalog instanceof SupportsNamespaces) {
-      asNamespaceCatalog = (SupportsNamespaces) originalCatalog;
-    } else {
-      asNamespaceCatalog = null;
-    }
+
+    Catalog originalCatalog = catalogLoader.loadCatalog(hadoopConf);
+    icebergCatalog = cacheEnabled ? CachingCatalog.wrap(originalCatalog) : originalCatalog;
+    asNamespaceCatalog = originalCatalog instanceof SupportsNamespaces ? (SupportsNamespaces) originalCatalog : null;
+    closeable = originalCatalog instanceof Closeable ? (Closeable) originalCatalog : null;
   }
 
   @Override
@@ -105,9 +103,9 @@ public class FlinkCatalog extends AbstractCatalog {
 
   @Override
   public void close() throws CatalogException {
-    if (originalCatalog instanceof Closeable) {
+    if (closeable != null) {
       try {
-        ((Closeable) originalCatalog).close();
+        closeable.close();
       } catch (IOException e) {
         throw new CatalogException(e);
       }
