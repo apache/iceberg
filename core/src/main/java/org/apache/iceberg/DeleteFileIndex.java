@@ -176,14 +176,22 @@ class DeleteFileIndex {
     for (int id : deleteFile.equalityFieldIds()) {
       Types.NestedField field = schema.findField(id);
       if (!field.type().isPrimitiveType()) {
-        return true;
+        // stats are not kept for nested types. assume that the delete file may match
+        continue;
+      }
+
+      if (containsNull(dataNullCounts, field) && containsNull(deleteNullCounts, field)) {
+        // the data has null values and null has been deleted, so the deletes must be applied
+        continue;
       }
 
       if (allNull(dataNullCounts, dataValueCounts, field) && allNonNull(deleteNullCounts, field)) {
+        // the data file contains only null values for this field, but there are no deletes for null values
         return false;
       }
 
       if (allNull(deleteNullCounts, deleteValueCounts, field) && allNonNull(dataNullCounts, field)) {
+        // the delete file removes only null rows with null for this field, but there are no data rows with null
         return false;
       }
 
@@ -192,10 +200,12 @@ class DeleteFileIndex {
       ByteBuffer deleteLower = deleteLowers.get(id);
       ByteBuffer deleteUpper = deleteUppers.get(id);
       if (dataLower == null || dataUpper == null || deleteLower == null || deleteUpper == null) {
-        return true;
+        // at least one bound is not known, assume the delete file may match
+        continue;
       }
 
       if (!rangesOverlap(field.type().asPrimitiveType(), dataLower, dataUpper, deleteLower, deleteUpper)) {
+        // no values overlap between the data file and the deletes
         return false;
       }
     }
@@ -249,6 +259,23 @@ class DeleteFileIndex {
     }
 
     return nullValueCount.equals(valueCount);
+  }
+
+  private static boolean containsNull(Map<Integer, Long> nullValueCounts, Types.NestedField field) {
+    if (field.isRequired()) {
+      return false;
+    }
+
+    if (nullValueCounts == null) {
+      return true;
+    }
+
+    Long nullValueCount = nullValueCounts.get(field.fieldId());
+    if (nullValueCount == null) {
+      return true;
+    }
+
+    return nullValueCount > 0;
   }
 
   private static Stream<DeleteFile> limitBySequenceNumber(long sequenceNumber, long[] seqs, DeleteFile[] files) {
