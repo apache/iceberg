@@ -242,16 +242,16 @@ public class GenericOrcWriters {
       // in that case).
       int position = data.position();
       int limit = data.limit();
-      int curIndex = data.arrayOffset() + data.position();
-      int endIndex = curIndex + data.remaining();
+      int remaining = data.remaining();
+      int startIndex = data.arrayOffset() + data.position();
 
       // Prep for copy into bytes
       byte[] bytes = new byte[data.remaining()];
-      data.limit(curIndex + limit);
-      data.position(curIndex);
+      data.limit(startIndex + limit);
+      data.position(startIndex);
 
       // Perform copy into bytes of remainder of byte buffer.
-      data.get(bytes, curIndex, endIndex - curIndex);
+      data.get(bytes, startIndex, remaining);
 
       // Reset the byte buffer.
       data.limit(limit);
