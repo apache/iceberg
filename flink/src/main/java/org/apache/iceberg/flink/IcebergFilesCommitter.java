@@ -59,10 +59,13 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
   private static final long INITIAL_CHECKPOINT_ID = -1L;
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergFilesCommitter.class);
+  private static final String GLOBAL_FILES_COMMITTER_UID = "flink.files-committer.uid";
   private static final String MAX_COMMITTED_CHECKPOINT_ID = "flink.max-committed.checkpoint.id";
 
   private static final FlinkCatalogFactory CATALOG_FACTORY = new FlinkCatalogFactory();
 
+  // It will have an unique identifier for one job.
+  private final String filesCommitterUid;
   private final String fullTableName;
   private final SerializableConfiguration conf;
   private final ImmutableMap<String, String> options;
@@ -91,7 +94,9 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
 
   private transient ListState<SortedMap<Long, List<DataFile>>> checkpointsState;
 
-  IcebergFilesCommitter(String fullTableName, Map<String, String> options, Configuration conf) {
+  IcebergFilesCommitter(String filesCommitterUid, String fullTableName,
+                        Map<String, String> options, Configuration conf) {
+    this.filesCommitterUid = filesCommitterUid;
     this.fullTableName = fullTableName;
     this.options = ImmutableMap.copyOf(options);
     this.conf = new SerializableConfiguration(conf);
@@ -106,7 +111,7 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
 
     checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     if (context.isRestored()) {
-      maxCommittedCheckpointId = getMaxCommittedCheckpointId(table.currentSnapshot());
+      maxCommittedCheckpointId = getMaxCommittedCheckpointId(table, filesCommitterUid);
       dataFilesPerCheckpoint.putAll(checkpointsState.get().iterator().next());
     }
   }
@@ -140,6 +145,7 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
       AppendFiles appendFiles = table.newAppend();
       pendingDataFiles.forEach(appendFiles::appendFile);
       appendFiles.set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));
+      appendFiles.set(GLOBAL_FILES_COMMITTER_UID, filesCommitterUid);
       appendFiles.commit();
 
       maxCommittedCheckpointId = checkpointId;
@@ -165,13 +171,24 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
     return new ListStateDescriptor<>("iceberg-files-committer-state", sortedMapTypeInfo);
   }
 
-  static Long getMaxCommittedCheckpointId(Snapshot snapshot) {
-    if (snapshot != null && snapshot.summary() != null) {
-      String value = snapshot.summary().get(MAX_COMMITTED_CHECKPOINT_ID);
-      if (value != null) {
-        return Long.parseLong(value);
+  static Long getMaxCommittedCheckpointId(Table table, String filesCommitterUid) {
+    Snapshot snapshot = table.currentSnapshot();
+    long lastCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
+
+    while (snapshot != null) {
+      Map<String, String> summary = snapshot.summary();
+      String snapshotFilesCommitterUid = summary.get(GLOBAL_FILES_COMMITTER_UID);
+      if (filesCommitterUid.equals(snapshotFilesCommitterUid)) {
+        String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
+        if (value != null) {
+          lastCommittedCheckpointId = Long.parseLong(value);
+          break;
+        }
       }
+      Long parentSnapshotId = snapshot.parentId();
+      snapshot = parentSnapshotId != null ? table.snapshot(parentSnapshotId) : null;
     }
-    return INITIAL_CHECKPOINT_ID;
+
+    return lastCommittedCheckpointId;
   }
 }

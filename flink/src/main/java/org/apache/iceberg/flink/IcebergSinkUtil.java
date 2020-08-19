@@ -48,22 +48,26 @@ class IcebergSinkUtil {
   }
 
   private static final String ICEBERG_STREAM_WRITER = "Iceberg-Stream-Writer";
+  private static final String ICEBERG_STREAM_WRITER_UID = String.format("%s-f6ceadec", ICEBERG_STREAM_WRITER);
   private static final String ICEBERG_FILES_COMMITTER = "Iceberg-Files-Committer";
+  private static final String ICEBERG_FILES_COMMITTER_UID = String.format("%s-d3b345ff", ICEBERG_FILES_COMMITTER);
 
   static void write(DataStream<RowData> dataStream, int parallelism,
                     Map<String, String> options, Configuration conf,
                     String fullTableName, Table table, TableSchema requestedSchema) {
     IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, requestedSchema);
-    IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(fullTableName, options, conf);
+
+    String filesCommitterUID = String.format("%s-%s", ICEBERG_FILES_COMMITTER, UUID.randomUUID().toString());
+    IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(filesCommitterUID, fullTableName, options, conf);
 
     SingleOutputStreamOperator<DataFile> operator = dataStream
         .transform(ICEBERG_STREAM_WRITER, TypeInformation.of(DataFile.class), streamWriter)
-        .uid(UUID.randomUUID().toString())
+        .uid(ICEBERG_STREAM_WRITER_UID)
         .setParallelism(parallelism);
 
     operator.addSink(filesCommitter)
         .name(ICEBERG_FILES_COMMITTER)
-        .uid(UUID.randomUUID().toString())
+        .uid(ICEBERG_FILES_COMMITTER_UID)
         .setParallelism(1);
   }
 
