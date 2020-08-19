@@ -32,6 +32,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
@@ -60,7 +61,6 @@ public class TestIcebergFilesCommitter {
   public static Object[][] parameters() {
     return new Object[][] {
         new Object[] {"avro"},
-        new Object[] {"avro"}
     };
   }
 
@@ -94,56 +94,130 @@ public class TestIcebergFilesCommitter {
 
   @Test
   public void testCommitTxn() throws Exception {
-    long checkpointId = 0;
+    // Test with 3 continues checkpoints:
+    //   1. snapshotState for checkpoint#1
+    //   2. notifyCheckpointComplete for checkpoint#1
+    //   3. snapshotState for checkpoint#2
+    //   4. notifyCheckpointComplete for checkpoint#2
+    //   5. snapshotState for checkpoint#3
+    //   6. notifyCheckpointComplete for checkpoint#3
     long timestamp = 0;
-    List<RowData> rows = Lists.newArrayList();
-    List<RowData> tableRows = Lists.newArrayList();
+
+    String filesCommitterUid = UUID.randomUUID().toString();
+    try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(filesCommitterUid)) {
+      harness.setup();
+      harness.open();
+      assertSnapshotSize(0);
+
+      List<RowData> rows = Lists.newArrayListWithExpectedSize(3);
+      for (int i = 1; i <= 3; i++) {
+        RowData rowData = SimpleDataUtil.createRowData(i, "hello" + i);
+        DataFile dataFile = writeDataFile("data-" + i, ImmutableList.of(rowData));
+        harness.processElement(dataFile, ++timestamp);
+        rows.add(rowData);
+
+        harness.snapshot(i, ++timestamp);
+
+        harness.notifyOfCompletedCheckpoint(i);
+
+        SimpleDataUtil.assertTableRows(tablePath, ImmutableList.copyOf(rows));
+        assertSnapshotSize(i);
+        assertMaxCommittedCheckpointId(filesCommitterUid, i);
+      }
+    }
+  }
+
+  @Test
+  public void testOrderedEventsBetweenCheckpoints() throws Exception {
+    // It's possible that two checkpoints happen in the following orders:
+    //   1. snapshotState for checkpoint#1;
+    //   2. snapshotState for checkpoint#2;
+    //   3. notifyCheckpointComplete for checkpoint#1;
+    //   4. notifyCheckpointComplete for checkpoint#2;
+    long timestamp = 0;
 
     String filesCommitterUid = UUID.randomUUID().toString();
     try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(filesCommitterUid)) {
       harness.setup();
       harness.open();
 
-      assertSnapshotSize(0);
+      assertMaxCommittedCheckpointId(filesCommitterUid, -1L);
 
-      rows.add(SimpleDataUtil.createRowData(1, "hello"));
-      tableRows.addAll(rows);
-      DataFile dataFile1 = writeDataFile("data-1", rows);
+      RowData row1 = SimpleDataUtil.createRowData(1, "hello");
+      DataFile dataFile1 = writeDataFile("data-1", ImmutableList.of(row1));
 
       harness.processElement(dataFile1, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      harness.notifyOfCompletedCheckpoint(checkpointId);
-      SimpleDataUtil.assertTableRows(tablePath, tableRows);
-      assertSnapshotSize(1);
-      assertMaxCommittedCheckpointId(filesCommitterUid, checkpointId);
+      assertMaxCommittedCheckpointId(filesCommitterUid, -1L);
 
-      rows.add(SimpleDataUtil.createRowData(2, "world"));
-      tableRows.addAll(rows);
-      DataFile dataFile2 = writeDataFile("data-2", rows);
+      // 1. snapshotState for checkpoint#1
+      long firstCheckpointId = 1;
+      harness.snapshot(firstCheckpointId, ++timestamp);
 
+      RowData row2 = SimpleDataUtil.createRowData(2, "world");
+      DataFile dataFile2 = writeDataFile("data-2", ImmutableList.of(row2));
       harness.processElement(dataFile2, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      harness.notifyOfCompletedCheckpoint(checkpointId);
-      SimpleDataUtil.assertTableRows(tablePath, tableRows);
-      assertSnapshotSize(2);
-      assertMaxCommittedCheckpointId(filesCommitterUid, checkpointId);
+      assertMaxCommittedCheckpointId(filesCommitterUid, -1L);
 
-      rows.add(SimpleDataUtil.createRowData(3, "foo"));
-      tableRows.addAll(rows);
-      DataFile dataFile3 = writeDataFile("data-3", rows);
+      // 2. snapshotState for checkpoint#2
+      long secondCheckpointId = 2;
+      harness.snapshot(secondCheckpointId, ++timestamp);
 
-      harness.processElement(dataFile3, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      harness.notifyOfCompletedCheckpoint(checkpointId);
-      SimpleDataUtil.assertTableRows(tablePath, tableRows);
-      assertSnapshotSize(3);
-      assertMaxCommittedCheckpointId(filesCommitterUid, checkpointId);
+      // 3. notifyCheckpointComplete for checkpoint#1
+      harness.notifyOfCompletedCheckpoint(firstCheckpointId);
+      SimpleDataUtil.assertTableRows(tablePath, ImmutableList.of(row1));
+      assertMaxCommittedCheckpointId(filesCommitterUid, firstCheckpointId);
 
-      harness.snapshot(++checkpointId, ++timestamp);
-      harness.notifyOfCompletedCheckpoint(checkpointId);
-      SimpleDataUtil.assertTableRows(tablePath, tableRows);
-      assertSnapshotSize(3);
-      assertMaxCommittedCheckpointId(filesCommitterUid, checkpointId - 1);
+      // 4. notifyCheckpointComplete for checkpoint#2
+      harness.notifyOfCompletedCheckpoint(secondCheckpointId);
+      SimpleDataUtil.assertTableRows(tablePath, ImmutableList.of(row1, row2));
+      assertMaxCommittedCheckpointId(filesCommitterUid, secondCheckpointId);
+    }
+  }
+
+  @Test
+  public void testDisorderedEventsBetweenCheckpoints() throws Exception {
+    // It's possible that the two checkpoints happen in the following orders:
+    //   1. snapshotState for checkpoint#1;
+    //   2. snapshotState for checkpoint#2;
+    //   3. notifyCheckpointComplete for checkpoint#2;
+    //   4. notifyCheckpointComplete for checkpoint#1;
+    long timestamp = 0;
+
+    String filesCommitterUid = UUID.randomUUID().toString();
+    try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(filesCommitterUid)) {
+      harness.setup();
+      harness.open();
+
+      assertMaxCommittedCheckpointId(filesCommitterUid, -1L);
+
+      RowData row1 = SimpleDataUtil.createRowData(1, "hello");
+      DataFile dataFile1 = writeDataFile("data-1", ImmutableList.of(row1));
+
+      harness.processElement(dataFile1, ++timestamp);
+      assertMaxCommittedCheckpointId(filesCommitterUid, -1L);
+
+      // 1. snapshotState for checkpoint#1
+      long firstCheckpointId = 1;
+      harness.snapshot(firstCheckpointId, ++timestamp);
+
+      RowData row2 = SimpleDataUtil.createRowData(2, "world");
+      DataFile dataFile2 = writeDataFile("data-2", ImmutableList.of(row2));
+      harness.processElement(dataFile2, ++timestamp);
+      assertMaxCommittedCheckpointId(filesCommitterUid, -1L);
+
+      // 2. snapshotState for checkpoint#2
+      long secondCheckpointId = 2;
+      harness.snapshot(secondCheckpointId, ++timestamp);
+
+      // 3. notifyCheckpointComplete for checkpoint#2
+      harness.notifyOfCompletedCheckpoint(secondCheckpointId);
+      SimpleDataUtil.assertTableRows(tablePath, ImmutableList.of(row1, row2));
+      assertMaxCommittedCheckpointId(filesCommitterUid, secondCheckpointId);
+
+      // 4. notifyCheckpointComplete for checkpoint#1
+      harness.notifyOfCompletedCheckpoint(firstCheckpointId);
+      SimpleDataUtil.assertTableRows(tablePath, ImmutableList.of(row1, row2));
+      assertMaxCommittedCheckpointId(filesCommitterUid, secondCheckpointId);
     }
   }
 

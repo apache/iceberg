@@ -86,7 +86,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private final NavigableMap<Long, List<DataFile>> dataFilesPerCheckpoint = Maps.newTreeMap();
 
   // The data files cache for current checkpoint. Once the snapshot barrier received, it will be flushed to the
-  // `dataFilesPerCheckpoint`.
+  // 'dataFilesPerCheckpoint'.
   private final List<DataFile> dataFilesOfCurrentCheckpoint = Lists.newArrayList();
   private transient Table table;
 
@@ -114,7 +114,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     if (context.isRestored()) {
       maxCommittedCheckpointId = getMaxCommittedCheckpointId(table, filesCommitterUid);
-      dataFilesPerCheckpoint.putAll(checkpointsState.get().iterator().next());
+      SortedMap<Long, List<DataFile>> restoredDataFiles = checkpointsState.get().iterator().next();
+      // Only keep the uncommitted data files in the cache.
+      dataFilesPerCheckpoint.putAll(restoredDataFiles.tailMap(maxCommittedCheckpointId + 1));
     }
   }
 
@@ -142,7 +144,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   }
 
   private void commitUpToCheckpoint(long checkpointId) {
-    NavigableMap<Long, List<DataFile>> pendingFileMap = dataFilesPerCheckpoint.tailMap(maxCommittedCheckpointId, false);
+    NavigableMap<Long, List<DataFile>> pendingFileMap = dataFilesPerCheckpoint.headMap(checkpointId, true);
 
     List<DataFile> pendingDataFiles = Lists.newArrayList();
     for (List<DataFile> dataFiles : pendingFileMap.values()) {
