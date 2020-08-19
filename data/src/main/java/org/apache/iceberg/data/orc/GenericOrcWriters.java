@@ -230,34 +230,16 @@ public class GenericOrcWriters {
     }
 
     @Override
+    @SuppressWarnings("ByteBufferBackingArray")
     public void nonNullWrite(int rowId, ByteBuffer data, ColumnVector output) {
-      // Don't assume the we're reading in the entire backing array.
-      //
-      // We use the same logic for on heap vs off heap buffers as we don't assume
-      // that the position of the byte buffer received for the write is at the beginning
-      // position, such an assumption is needed to make use of methods like `.slice()`
-      // or any methods that would be useful here if we checked if there is an on-heap
-      // backing array and that the buffer is at the beginning position. (aka we don't check
-      // that one can use if `data.hasArray()` is true as we couldn't make any optimizations
-      // in that case).
-      int position = data.position();
-      int limit = data.limit();
-      int remaining = data.remaining();
-      int startIndex = data.arrayOffset() + data.position();
-
-      // Prep for copy into bytes
-      byte[] bytes = new byte[data.remaining()];
-      data.limit(startIndex + limit);
-      data.position(startIndex);
-
-      // Perform copy into bytes of remainder of byte buffer.
-      data.get(bytes, startIndex, remaining);
-
-      // Reset the byte buffer.
-      data.limit(limit);
-      data.position(position);
-
-      ((BytesColumnVector) output).setRef(rowId, bytes, 0, bytes.length);
+      ByteBuffer dupe = data.duplicate();
+      if (data.hasArray()) {
+        ((BytesColumnVector) output).setRef(rowId, dupe.array(), dupe.arrayOffset(), dupe.remaining());
+      } else {
+        byte[] bytes = new byte[data.remaining()];
+        dupe.get(bytes);
+        ((BytesColumnVector) output).setRef(rowId, bytes, 0, bytes.length);
+      }
     }
   }
 
