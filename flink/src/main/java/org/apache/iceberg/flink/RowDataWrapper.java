@@ -22,7 +22,6 @@ package org.apache.iceberg.flink;
 import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.time.LocalDateTime;
-import java.util.UUID;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.DecimalType;
@@ -34,6 +33,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.UUIDUtil;
 
 class RowDataWrapper implements StructLike {
 
@@ -96,13 +96,8 @@ class RowDataWrapper implements StructLike {
 
       case BINARY:
       case VARBINARY:
-        if (Type.TypeID.UUID.equals(type.typeId())) {
-          return (row, pos) -> {
-            ByteBuffer bb = ByteBuffer.wrap(row.getBinary(pos));
-            long mostSigBits = bb.getLong();
-            long leastSigBits = bb.getLong();
-            return new UUID(mostSigBits, leastSigBits);
-          };
+        if (Type.TypeID.UUID == type.typeId()) {
+          return (row, pos) -> UUIDUtil.convert(row.getBinary(pos));
         } else {
           return (row, pos) -> ByteBuffer.wrap(row.getBinary(pos));
         }
