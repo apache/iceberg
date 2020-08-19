@@ -23,8 +23,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
+import org.apache.flink.streaming.api.functions.sink.DiscardingSink;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
@@ -47,26 +50,26 @@ class IcebergSinkUtil {
   private IcebergSinkUtil() {
   }
 
-  private static final String ICEBERG_STREAM_WRITER = "Iceberg-Stream-Writer";
-  private static final String ICEBERG_FILES_COMMITTER = "Iceberg-Files-Committer";
-
-  static void write(DataStream<RowData> dataStream, int parallelism,
-                    Map<String, String> options, Configuration conf,
-                    String fullTableName, Table table, TableSchema requestedSchema) {
+  @SuppressWarnings("unchecked")
+  static DataStreamSink<RowData> write(DataStream<RowData> inputStream,
+                                       Map<String, String> options,
+                                       Configuration conf,
+                                       String fullTableName,
+                                       Table table,
+                                       TableSchema requestedSchema) {
     IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, requestedSchema);
 
-    String filesCommitterUID = String.format("%s-%s", ICEBERG_FILES_COMMITTER, UUID.randomUUID().toString());
+    String filesCommitterUID = String.format("IcebergFilesCommitter-%s", UUID.randomUUID().toString());
     IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(filesCommitterUID, fullTableName, options, conf);
 
-    SingleOutputStreamOperator<DataFile> operator = dataStream
-        .transform(ICEBERG_STREAM_WRITER, TypeInformation.of(DataFile.class), streamWriter)
-        .uid(ICEBERG_STREAM_WRITER)
-        .setParallelism(parallelism);
+    DataStream<Void> returnStream = inputStream
+        .transform(IcebergStreamWriter.class.getSimpleName(), TypeInformation.of(DataFile.class), streamWriter)
+        .setParallelism(inputStream.getParallelism())
+        .transform(IcebergFilesCommitter.class.getSimpleName(), Types.VOID, filesCommitter)
+        .setParallelism(1)
+        .setMaxParallelism(1);
 
-    operator.addSink(filesCommitter)
-        .name(ICEBERG_FILES_COMMITTER)
-        .uid(ICEBERG_FILES_COMMITTER)
-        .setParallelism(1);
+    return returnStream.addSink(new DiscardingSink()).setParallelism(1);
   }
 
   static IcebergStreamWriter<RowData> createStreamWriter(Table table, TableSchema requestedSchema) {

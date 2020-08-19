@@ -26,7 +26,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
-import org.apache.flink.streaming.api.operators.StreamSink;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.data.RowData;
 import org.apache.hadoop.conf.Configuration;
@@ -84,7 +83,7 @@ public class TestIcebergFilesCommitter {
   @Test
   public void testCommitTxnWithoutDataFiles() throws Exception {
     String filesCommitterUid = UUID.randomUUID().toString();
-    try (OneInputStreamOperatorTestHarness<DataFile, Object> harness = createStreamSink(filesCommitterUid)) {
+    try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(filesCommitterUid)) {
       harness.setup();
       harness.open();
 
@@ -101,7 +100,7 @@ public class TestIcebergFilesCommitter {
     List<RowData> tableRows = Lists.newArrayList();
 
     String filesCommitterUid = UUID.randomUUID().toString();
-    try (OneInputStreamOperatorTestHarness<DataFile, Object> harness = createStreamSink(filesCommitterUid)) {
+    try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(filesCommitterUid)) {
       harness.setup();
       harness.open();
 
@@ -157,7 +156,7 @@ public class TestIcebergFilesCommitter {
     OperatorSubtaskState snapshot;
 
     String filesCommitterUid = UUID.randomUUID().toString();
-    try (OneInputStreamOperatorTestHarness<DataFile, Object> harness = createStreamSink(filesCommitterUid)) {
+    try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(filesCommitterUid)) {
       harness.setup();
       harness.open();
 
@@ -174,7 +173,7 @@ public class TestIcebergFilesCommitter {
     }
 
     // Restore from the given snapshot
-    try (OneInputStreamOperatorTestHarness<DataFile, Object> harness = createStreamSink(filesCommitterUid)) {
+    try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(filesCommitterUid)) {
       harness.setup();
       harness.initializeState(snapshot);
       harness.open();
@@ -216,7 +215,7 @@ public class TestIcebergFilesCommitter {
     OperatorSubtaskState snapshot;
 
     String filesCommitterUid = UUID.randomUUID().toString();
-    try (OneInputStreamOperatorTestHarness<DataFile, Object> harness = createStreamSink(filesCommitterUid)) {
+    try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(filesCommitterUid)) {
       harness.setup();
       harness.open();
 
@@ -236,7 +235,7 @@ public class TestIcebergFilesCommitter {
     }
 
     // Restore from the given snapshot
-    try (OneInputStreamOperatorTestHarness<DataFile, Object> harness = createStreamSink(filesCommitterUid)) {
+    try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(filesCommitterUid)) {
       harness.setup();
       harness.initializeState(snapshot);
       harness.open();
@@ -266,7 +265,7 @@ public class TestIcebergFilesCommitter {
     List<RowData> tableRows = Lists.newArrayList();
 
     String oldFilesCommitterUid = UUID.randomUUID().toString();
-    try (OneInputStreamOperatorTestHarness<DataFile, Object> harness = createStreamSink(oldFilesCommitterUid)) {
+    try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(oldFilesCommitterUid)) {
       harness.setup();
       harness.open();
 
@@ -292,7 +291,7 @@ public class TestIcebergFilesCommitter {
     checkpointId = 0;
     timestamp = 0;
     String newFilesCommitterUid = UUID.randomUUID().toString();
-    try (OneInputStreamOperatorTestHarness<DataFile, Object> harness = createStreamSink(newFilesCommitterUid)) {
+    try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(newFilesCommitterUid)) {
       harness.setup();
       harness.open();
 
@@ -323,7 +322,7 @@ public class TestIcebergFilesCommitter {
       int jobId = i % 3;
       int checkpointId = i / 3;
       String jobUid = String.format("job-%d", jobId);
-      try (OneInputStreamOperatorTestHarness<DataFile, Object> harness = createStreamSink(jobUid)) {
+      try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(jobUid)) {
         harness.setup();
         harness.open();
 
@@ -360,7 +359,7 @@ public class TestIcebergFilesCommitter {
     Assert.assertEquals(expectedSnapshotSize, Lists.newArrayList(table.snapshots()).size());
   }
 
-  private OneInputStreamOperatorTestHarness<DataFile, Object> createStreamSink(String filesCommitterUid)
+  private OneInputStreamOperatorTestHarness<DataFile, Void> createStreamSink(String filesCommitterUid)
       throws Exception {
     Map<String, String> options = ImmutableMap.of(
         "type", "iceberg",
@@ -369,6 +368,6 @@ public class TestIcebergFilesCommitter {
     );
 
     IcebergFilesCommitter committer = new IcebergFilesCommitter(filesCommitterUid, "test", options, CONF);
-    return new OneInputStreamOperatorTestHarness<>(new StreamSink<>(committer), 1, 1, 0);
+    return new OneInputStreamOperatorTestHarness<>(committer, 1, 1, 0);
   }
 }

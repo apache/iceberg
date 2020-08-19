@@ -29,11 +29,12 @@ import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.ListTypeInfo;
-import org.apache.flink.runtime.state.CheckpointListener;
-import org.apache.flink.runtime.state.FunctionInitializationContext;
-import org.apache.flink.runtime.state.FunctionSnapshotContext;
-import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
-import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
+import org.apache.flink.runtime.state.StateInitializationContext;
+import org.apache.flink.runtime.state.StateSnapshotContext;
+import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
+import org.apache.flink.streaming.api.operators.BoundedOneInput;
+import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
+import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
@@ -52,8 +53,8 @@ import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
-    CheckpointListener, CheckpointedFunction {
+class IcebergFilesCommitter extends AbstractStreamOperator<Void>
+    implements OneInputStreamOperator<DataFile, Void>, BoundedOneInput {
 
   private static final long serialVersionUID = 1L;
   private static final long INITIAL_CHECKPOINT_ID = -1L;
@@ -103,7 +104,8 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
   }
 
   @Override
-  public void initializeState(FunctionInitializationContext context) throws Exception {
+  public void initializeState(StateInitializationContext context) throws Exception {
+    super.initializeState(context);
     Catalog icebergCatalog = CATALOG_FACTORY.buildIcebergCatalog(fullTableName, options, conf.get());
 
     table = icebergCatalog.loadTable(TableIdentifier.parse(fullTableName));
@@ -117,7 +119,8 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
   }
 
   @Override
-  public void snapshotState(FunctionSnapshotContext context) throws Exception {
+  public void snapshotState(StateSnapshotContext context) throws Exception {
+    super.snapshotState(context);
     long checkpointId = context.getCheckpointId();
     LOG.info("Start to flush snapshot state to state backend, table: {}, checkpointId: {}", table, checkpointId);
 
@@ -133,7 +136,12 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
   }
 
   @Override
-  public void notifyCheckpointComplete(long checkpointId) {
+  public void notifyCheckpointComplete(long checkpointId) throws Exception {
+    super.notifyCheckpointComplete(checkpointId);
+    commitUpToCheckpoint(checkpointId);
+  }
+
+  private void commitUpToCheckpoint(long checkpointId) {
     NavigableMap<Long, List<DataFile>> pendingFileMap = dataFilesPerCheckpoint.tailMap(maxCommittedCheckpointId, false);
 
     List<DataFile> pendingDataFiles = Lists.newArrayList();
@@ -156,8 +164,13 @@ class IcebergFilesCommitter extends RichSinkFunction<DataFile> implements
   }
 
   @Override
-  public void invoke(DataFile value, Context context) {
-    this.dataFilesOfCurrentCheckpoint.add(value);
+  public void processElement(StreamRecord<DataFile> element) {
+    this.dataFilesOfCurrentCheckpoint.add(element.getValue());
+  }
+
+  @Override
+  public void endInput() {
+    commitUpToCheckpoint(Long.MAX_VALUE);
   }
 
   private static ListStateDescriptor<SortedMap<Long, List<DataFile>>> buildStateDescriptor() {
