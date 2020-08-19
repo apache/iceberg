@@ -246,11 +246,14 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
     private Object convertPartitionValue(Type type, Object value) {
       if (type.typeId() == Types.BinaryType.get().typeId()) {
         ByteBuffer buffer = (ByteBuffer) value;
-        byte[] bytes = new byte[buffer.remaining()];
-        buffer.get(bytes);
-        // Return the input buffer back to its original position.
-        buffer.position(buffer.position() - bytes.length);
-        return new DataByteArray(bytes);
+        ByteBuffer dupe = buffer.duplicate();
+        if (dupe.hasArray()) {
+          return new DataByteArray(dupe.array());
+        } else {
+          byte[] bytes = new byte[dupe.remaining()];
+          dupe.get(bytes);
+          return new DataByteArray(bytes);
+        }
       }
 
       return value;
