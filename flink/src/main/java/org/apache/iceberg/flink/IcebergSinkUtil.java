@@ -48,9 +48,7 @@ class IcebergSinkUtil {
   }
 
   private static final String ICEBERG_STREAM_WRITER = "Iceberg-Stream-Writer";
-  private static final String ICEBERG_STREAM_WRITER_UID = String.format("%s-f6ceadec", ICEBERG_STREAM_WRITER);
   private static final String ICEBERG_FILES_COMMITTER = "Iceberg-Files-Committer";
-  private static final String ICEBERG_FILES_COMMITTER_UID = String.format("%s-d3b345ff", ICEBERG_FILES_COMMITTER);
 
   static void write(DataStream<RowData> dataStream, int parallelism,
                     Map<String, String> options, Configuration conf,
@@ -62,12 +60,12 @@ class IcebergSinkUtil {
 
     SingleOutputStreamOperator<DataFile> operator = dataStream
         .transform(ICEBERG_STREAM_WRITER, TypeInformation.of(DataFile.class), streamWriter)
-        .uid(ICEBERG_STREAM_WRITER_UID)
+        .uid(ICEBERG_STREAM_WRITER)
         .setParallelism(parallelism);
 
     operator.addSink(filesCommitter)
         .name(ICEBERG_FILES_COMMITTER)
-        .uid(ICEBERG_FILES_COMMITTER_UID)
+        .uid(ICEBERG_FILES_COMMITTER)
         .setParallelism(1);
   }
 
