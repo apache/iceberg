@@ -230,13 +230,12 @@ public class GenericOrcWriters {
     }
 
     @Override
-    @SuppressWarnings("ByteBufferBackingArray")
     public void nonNullWrite(int rowId, ByteBuffer data, ColumnVector output) {
       ByteBuffer dupe = data.duplicate();
-      if (data.hasArray()) {
+      if (dupe.hasArray()) {
         ((BytesColumnVector) output).setRef(rowId, dupe.array(), dupe.arrayOffset(), dupe.remaining());
       } else {
-        byte[] bytes = new byte[data.remaining()];
+        byte[] bytes = new byte[dupe.remaining()];
         dupe.get(bytes);
         ((BytesColumnVector) output).setRef(rowId, bytes, 0, bytes.length);
       }
