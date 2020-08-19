@@ -87,11 +87,11 @@ public class Deletes {
     }
   }
 
-  public static Set<Long> toPositionSet(String dataLocation, CloseableIterable<StructLike> deleteFile) {
+  public static Set<Long> toPositionSet(CharSequence dataLocation, CloseableIterable<StructLike> deleteFile) {
     return toPositionSet(dataLocation, ImmutableList.of(deleteFile));
   }
 
-  public static Set<Long> toPositionSet(String dataLocation, List<CloseableIterable<StructLike>> deleteFiles) {
+  public static Set<Long> toPositionSet(CharSequence dataLocation, List<CloseableIterable<StructLike>> deleteFiles) {
     DataFileFilter locationFilter = new DataFileFilter(dataLocation);
     List<CloseableIterable<Long>> positions = Lists.transform(deleteFiles, deletes ->
         CloseableIterable.transform(locationFilter.filter(deletes), row -> (Long) POSITION_ACCESSOR.get(row)));
@@ -112,11 +112,12 @@ public class Deletes {
     return new PositionStreamDeleteFilter<>(rows, rowToPosition, posDeletes);
   }
 
-  public static CloseableIterable<Long> deletePositions(String dataLocation, CloseableIterable<StructLike> deleteFile) {
+  public static CloseableIterable<Long> deletePositions(CharSequence dataLocation,
+                                                        CloseableIterable<StructLike> deleteFile) {
     return deletePositions(dataLocation, ImmutableList.of(deleteFile));
   }
 
-  public static CloseableIterable<Long> deletePositions(String dataLocation,
+  public static CloseableIterable<Long> deletePositions(CharSequence dataLocation,
                                                         List<CloseableIterable<StructLike>> deleteFiles) {
     DataFileFilter locationFilter = new DataFileFilter(dataLocation);
     List<CloseableIterable<Long>> positions = Lists.transform(deleteFiles, deletes ->
@@ -233,9 +234,9 @@ public class Deletes {
 
   private static class DataFileFilter extends Filter<StructLike> {
     private static final Comparator<CharSequence> CHARSEQ_COMPARATOR = Comparators.charSequences();
-    private final String dataLocation;
+    private final CharSequence dataLocation;
 
-    DataFileFilter(String dataLocation) {
+    DataFileFilter(CharSequence dataLocation) {
       this.dataLocation = dataLocation;
     }
 

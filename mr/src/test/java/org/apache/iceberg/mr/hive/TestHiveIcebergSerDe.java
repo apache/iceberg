@@ -21,16 +21,13 @@ package org.apache.iceberg.mr.hive;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.serde2.SerDeException;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.mr.mapred.Container;
 import org.apache.iceberg.types.Types;
@@ -56,11 +53,10 @@ public class TestHiveIcebergSerDe {
     Configuration conf = new Configuration();
 
     Properties properties = new Properties();
-    properties.setProperty(InputFormatConfig.CATALOG_NAME, InputFormatConfig.HADOOP_TABLES);
-    properties.setProperty(InputFormatConfig.TABLE_LOCATION, location.toString());
+    properties.setProperty("location", location.toString());
 
     HadoopTables tables = new HadoopTables(conf);
-    tables.create(schema, PartitionSpec.unpartitioned(), Collections.emptyMap(), location.toString());
+    tables.create(schema, location.toString());
 
     HiveIcebergSerDe serDe = new HiveIcebergSerDe();
     serDe.initialize(conf, properties);

@@ -21,6 +21,7 @@ package org.apache.iceberg.data;
 
 import java.util.Map;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types.StructType;
 
 public interface Record extends StructLike {
@@ -35,4 +36,26 @@ public interface Record extends StructLike {
   Record copy();
 
   Record copy(Map<String, Object> overwriteValues);
+
+  default Record copy(String field, Object value) {
+    Map<String, Object> overwriteValues = Maps.newHashMapWithExpectedSize(1);
+    overwriteValues.put(field, value);
+    return copy(overwriteValues);
+  }
+
+  default Record copy(String field1, Object value1, String field2, Object value2) {
+    Map<String, Object> overwriteValues = Maps.newHashMapWithExpectedSize(2);
+    overwriteValues.put(field1, value1);
+    overwriteValues.put(field2, value2);
+    return copy(overwriteValues);
+  }
+
+  default Record copy(String field1, Object value1, String field2, Object value2, String field3, Object value3) {
+    Map<String, Object> overwriteValues = Maps.newHashMapWithExpectedSize(3);
+    overwriteValues.put(field1, value1);
+    overwriteValues.put(field2, value2);
+    overwriteValues.put(field3, value3);
+    return copy(overwriteValues);
+  }
+
 }

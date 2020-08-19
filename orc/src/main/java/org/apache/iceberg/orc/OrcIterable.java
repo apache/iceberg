@@ -31,6 +31,8 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mapping.MappingUtil;
+import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.util.Pair;
 import org.apache.orc.Reader;
 import org.apache.orc.TypeDescription;
@@ -51,14 +53,16 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private final boolean caseSensitive;
   private final Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction;
   private final int recordsPerBatch;
+  private NameMapping nameMapping;
 
   OrcIterable(InputFile file, Configuration config, Schema schema,
-              Long start, Long length,
+              NameMapping nameMapping, Long start, Long length,
               Function<TypeDescription, OrcRowReader<?>> readerFunction, boolean caseSensitive, Expression filter,
               Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction, int recordsPerBatch) {
     this.schema = schema;
     this.readerFunction = readerFunction;
     this.file = file;
+    this.nameMapping = nameMapping;
     this.start = start;
     this.length = length;
     this.config = config;
@@ -73,7 +77,18 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   public CloseableIterator<T> iterator() {
     Reader orcFileReader = ORC.newFileReader(file, config);
     addCloseable(orcFileReader);
-    TypeDescription readOrcSchema = ORCSchemaUtil.buildOrcProjection(schema, orcFileReader.getSchema());
+
+    TypeDescription fileSchema = orcFileReader.getSchema();
+    final TypeDescription readOrcSchema;
+    if (ORCSchemaUtil.hasIds(fileSchema)) {
+      readOrcSchema = ORCSchemaUtil.buildOrcProjection(schema, fileSchema);
+    } else {
+      if (nameMapping == null) {
+        nameMapping = MappingUtil.create(schema);
+      }
+      TypeDescription typeWithIds = ORCSchemaUtil.applyNameMapping(fileSchema, nameMapping);
+      readOrcSchema = ORCSchemaUtil.buildOrcProjection(schema, typeWithIds);
+    }
 
     SearchArgument sarg = null;
     if (filter != null) {

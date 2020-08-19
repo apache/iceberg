@@ -22,19 +22,21 @@ package org.apache.iceberg.mr.hive;
 import com.klarna.hiverunner.HiveShell;
 import com.klarna.hiverunner.StandaloneHiveRunner;
 import com.klarna.hiverunner.annotations.HiveSQL;
-import java.io.File;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.mr.TestHelper;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -45,9 +47,9 @@ import org.junit.runner.RunWith;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(StandaloneHiveRunner.class)
-public class TestHiveIcebergInputFormat {
+public abstract class HiveIcebergStorageHandlerBaseTest {
 
-  @HiveSQL(files = {}, autoStart = true)
+  @HiveSQL(files = {}, autoStart = false)
   private HiveShell shell;
 
   @Rule
@@ -75,52 +77,52 @@ public class TestHiveIcebergInputFormat {
           .add(102L, 1L, 33.33d)
           .build();
 
+  private static final PartitionSpec SPEC = PartitionSpec.unpartitioned();
+
   // before variables
-  private HadoopTables tables;
-  private Table customerTable;
-  private Table orderTable;
+  protected TestHiveMetastore metastore;
+  private TestTables testTables;
+
+  public abstract TestTables testTables(Configuration conf, TemporaryFolder tmp) throws IOException;
 
   @Before
   public void before() throws IOException {
-    Configuration conf = new Configuration();
-    tables = new HadoopTables(conf);
+    metastore = new TestHiveMetastore();
+    metastore.start();
 
-    File customerLocation = temp.newFolder("customers");
-    Assert.assertTrue(customerLocation.delete());
+    testTables = testTables(metastore.hiveConf(), temp);
 
-    TestHelper customerHelper = new TestHelper(
-            conf, tables, CUSTOMER_SCHEMA, PartitionSpec.unpartitioned(), FileFormat.PARQUET, temp, customerLocation);
+    for (Map.Entry<String, String> property : testTables.properties().entrySet()) {
+      shell.setHiveConfValue(property.getKey(), property.getValue());
+    }
 
-    customerTable = customerHelper.createUnpartitionedTable();
-    customerHelper.appendToTable(customerHelper.writeFile(null, CUSTOMER_RECORDS));
+    String metastoreUris = metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREURIS);
+    shell.setHiveConfValue(HiveConf.ConfVars.METASTOREURIS.varname, metastoreUris);
 
-    File orderLocation = temp.newFolder("orders");
-    Assert.assertTrue(orderLocation.delete());
+    String metastoreWarehouse = metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREWAREHOUSE);
+    shell.setHiveConfValue(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, metastoreWarehouse);
 
-    TestHelper orderHelper = new TestHelper(
-            conf, tables, ORDER_SCHEMA, PartitionSpec.unpartitioned(), FileFormat.PARQUET, temp, orderLocation);
+    shell.start();
+  }
 
-    orderTable = orderHelper.createUnpartitionedTable();
-    orderHelper.appendToTable(orderHelper.writeFile(null, ORDER_RECORDS));
+  @After
+  public void after() {
+    metastore.stop();
+    metastore = null;
   }
 
   @Test
   public void testScanEmptyTable() throws IOException {
-    File emptyLocation = temp.newFolder("empty");
-    Assert.assertTrue(emptyLocation.delete());
-
     Schema emptySchema = new Schema(required(1, "empty", Types.StringType.get()));
-    Table emptyTable = tables.create(
-            emptySchema, PartitionSpec.unpartitioned(), Collections.emptyMap(), emptyLocation.toString());
-    createHiveTable("empty", emptyTable.location());
+    createTable("empty", emptySchema, ImmutableList.of());
 
     List<Object[]> rows = shell.executeStatement("SELECT * FROM default.empty");
     Assert.assertEquals(0, rows.size());
   }
 
   @Test
-  public void testScanTable() {
-    createHiveTable("customers", customerTable.location());
+  public void testScanTable() throws IOException {
+    createTable("customers", CUSTOMER_SCHEMA, CUSTOMER_RECORDS);
 
     // Single fetch task: no MR job.
     List<Object[]> rows = shell.executeStatement("SELECT * FROM default.customers");
@@ -140,9 +142,9 @@ public class TestHiveIcebergInputFormat {
   }
 
   @Test
-  public void testJoinTables() {
-    createHiveTable("customers", customerTable.location());
-    createHiveTable("orders", orderTable.location());
+  public void testJoinTables() throws IOException {
+    createTable("customers", CUSTOMER_SCHEMA, CUSTOMER_RECORDS);
+    createTable("orders", ORDER_SCHEMA, ORDER_RECORDS);
 
     List<Object[]> rows = shell.executeStatement(
             "SELECT c.customer_id, c.first_name, o.order_id, o.total " +
@@ -155,11 +157,31 @@ public class TestHiveIcebergInputFormat {
     Assert.assertArrayEquals(new Object[] {1L, "Bob", 102L, 33.33d}, rows.get(2));
   }
 
-  private void createHiveTable(String table, String location) {
+  protected void createTable(String tableName, Schema schema, List<Record> records)
+          throws IOException {
+    Table table = createIcebergTable(tableName, schema, records);
+    createHiveTable(tableName, table.location());
+  }
+
+  protected Table createIcebergTable(String tableName, Schema schema, List<Record> records)
+          throws IOException {
+    String identifier = testTables.identifier("default." + tableName);
+    TestHelper helper = new TestHelper(
+            metastore.hiveConf(), testTables.tables(), identifier, schema, SPEC, FileFormat.PARQUET, temp);
+    Table table = helper.createTable();
+
+    if (!records.isEmpty()) {
+      helper.appendToTable(helper.writeFile(null, records));
+    }
+
+    return table;
+  }
+
+  protected void createHiveTable(String tableName, String location) {
     shell.execute(String.format(
             "CREATE TABLE default.%s " +
             "STORED BY '%s' " +
             "LOCATION '%s'",
-            table, HiveIcebergStorageHandler.class.getName(), location));
+            tableName, HiveIcebergStorageHandler.class.getName(), location));
   }
 }

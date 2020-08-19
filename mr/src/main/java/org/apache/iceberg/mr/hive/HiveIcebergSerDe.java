@@ -28,6 +28,7 @@ import org.apache.hadoop.hive.serde2.SerDeStats;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.io.Writable;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.mr.mapred.Container;
 
@@ -37,8 +38,7 @@ public class HiveIcebergSerDe extends AbstractSerDe {
 
   @Override
   public void initialize(@Nullable Configuration configuration, Properties serDeProperties) throws SerDeException {
-
-    Table table = TableResolver.resolveTableFromConfiguration(configuration, serDeProperties);
+    Table table = Catalogs.loadTable(configuration, serDeProperties);
 
     try {
       this.inspector = IcebergObjectInspector.create(table.schema());

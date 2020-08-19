@@ -34,21 +34,21 @@ import org.apache.iceberg.io.CloseableIterator;
 public abstract class FilterIterator<T> implements CloseableIterator<T> {
   private final Iterator<T> items;
   private boolean closed;
-  private boolean hasNext;
+  private boolean nextReady;
   private T next;
 
   protected FilterIterator(Iterator<T> items) {
     this.items = items;
     this.closed = false;
     this.next = null;
-    this.hasNext = false;
+    this.nextReady = false;
   }
 
   protected abstract boolean shouldKeep(T item);
 
   @Override
   public boolean hasNext() {
-    return hasNext || advance();
+    return nextReady || advance();
   }
 
   @Override
@@ -57,25 +57,23 @@ public abstract class FilterIterator<T> implements CloseableIterator<T> {
       throw new NoSuchElementException();
     }
 
-    T returnVal = next;
+    this.nextReady = false;
 
-    advance();
-
-    return returnVal;
+    return next;
   }
 
   private boolean advance() {
     while (!closed && items.hasNext()) {
       this.next = items.next();
       if (shouldKeep(next)) {
-        this.hasNext = true;
+        this.nextReady = true;
         return true;
       }
     }
 
     close();
 
-    this.hasNext = false;
+    this.nextReady = false;
     return false;
   }
 

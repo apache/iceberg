@@ -270,7 +270,7 @@ public class Parquet {
     return new DeleteWriteBuilder(file);
   }
 
-  public static class DeleteWriteBuilder extends WriteBuilder {
+  public static class DeleteWriteBuilder {
     private final WriteBuilder appenderBuilder;
     private final String location;
     private Function<MessageType, ParquetValueWriter<?>> createWriterFunc = null;
@@ -281,13 +281,13 @@ public class Parquet {
     private int[] equalityFieldIds = null;
 
     private DeleteWriteBuilder(OutputFile file) {
-      super(file);
       this.appenderBuilder = write(file);
       this.location = file.location();
     }
 
     public DeleteWriteBuilder forTable(Table table) {
-      schema(table.schema());
+      rowSchema(table.schema());
+      withSpec(table.spec());
       setAll(table.properties());
       metricsConfig(MetricsConfig.fromProperties(table.properties()));
       return this;
@@ -383,10 +383,7 @@ public class Parquet {
 
       meta("delete-type", "position");
 
-      if (rowSchema != null) {
-        Preconditions.checkState(createWriterFunc != null,
-            "Cannot create delete file with deletes rows unless createWriterFunc is set");
-
+      if (rowSchema != null && createWriterFunc != null) {
         // the appender uses the row schema wrapped with position fields
         appenderBuilder.schema(new org.apache.iceberg.Schema(
             MetadataColumns.DELETE_FILE_PATH,

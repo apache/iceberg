@@ -175,6 +175,7 @@ abstract class BaseFile<F>
     this.keyMetadata = toCopy.keyMetadata == null ? null : Arrays.copyOf(toCopy.keyMetadata, toCopy.keyMetadata.length);
     this.splitOffsets = toCopy.splitOffsets == null ? null :
         Arrays.copyOf(toCopy.splitOffsets, toCopy.splitOffsets.length);
+    this.equalityIds = toCopy.equalityIds != null ? Arrays.copyOf(toCopy.equalityIds, toCopy.equalityIds.length) : null;
   }
 
   /**
