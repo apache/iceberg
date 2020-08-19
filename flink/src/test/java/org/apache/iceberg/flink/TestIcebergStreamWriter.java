@@ -70,12 +70,14 @@ public class TestIcebergStreamWriter {
   private final FileFormat format;
   private final boolean partitioned;
 
-  // TODO add ORC/Parquet unit test once the readers and writers are ready.
+  // TODO add Parquet unit test once the readers and writers are ready.
   @Parameterized.Parameters(name = "format = {0}, partitioned = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
         new Object[] {"avro", true},
-        new Object[] {"avro", false}
+        new Object[] {"avro", false},
+        new Object[] {"orc", true},
+        new Object[] {"orc", false}
     };
   }
 

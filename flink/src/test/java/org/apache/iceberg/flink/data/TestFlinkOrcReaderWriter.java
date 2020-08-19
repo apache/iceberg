@@ -30,7 +30,9 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DataTest;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
+import org.apache.iceberg.flink.AssertHelpers;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -41,56 +43,57 @@ import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
 public class TestFlinkOrcReaderWriter extends DataTest {
-  private static final int NUM_RECORDS = 200;
+  private static final int NUM_RECORDS = 100;
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    List<Record> records = RandomGenericData.generate(schema, NUM_RECORDS, 1990L);
+    List<Record> expectedRecords = RandomGenericData.generate(schema, NUM_RECORDS, 1990L);
+    List<RowData> expectedRows = Lists.newArrayList(RandomRowData.convert(schema, expectedRecords));
 
     File recordsFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", recordsFile.delete());
 
+    // Write the expected records into ORC file, then read them into RowData and assert with the converted RowData list.
     try (FileAppender<Record> writer = ORC.write(Files.localOutput(recordsFile))
         .schema(schema)
         .createWriterFunc(GenericOrcWriter::buildWriter)
         .build()) {
-      writer.addAll(records);
+      writer.addAll(expectedRecords);
     }
 
-    List<RowData> rowDataList = Lists.newArrayList();
     try (CloseableIterable<RowData> reader = ORC.read(Files.localInput(recordsFile))
         .project(schema)
         .createReaderFunc(type -> FlinkOrcReader.buildReader(schema, type))
         .build()) {
-      reader.forEach(rowDataList::add);
+      Assert.assertArrayEquals("Should be equal when writing records to ORC file and reading by RowData reader.",
+          expectedRows.toArray(), Lists.newArrayList(reader.iterator()).toArray());
     }
 
-    File testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    File rowDataFile = temp.newFile();
+    Assert.assertTrue("Delete should succeed", rowDataFile.delete());
 
     RowType rowType = FlinkSchemaUtil.convert(schema);
-    try (FileAppender<RowData> writer = ORC.write(Files.localOutput(testFile))
+    try (FileAppender<RowData> writer = ORC.write(Files.localOutput(rowDataFile))
         .schema(schema)
         .createWriterFunc((iSchema, typeDesc) -> FlinkOrcWriter.buildWriter(rowType, iSchema))
         .build()) {
-      writer.addAll(rowDataList);
+      writer.addAll(expectedRows);
     }
 
-    try (CloseableIterable<RowData> reader = ORC.read(Files.localInput(testFile))
+    try (CloseableIterable<Record> reader = ORC.read(Files.localInput(rowDataFile))
         .project(schema)
-        .createReaderFunc(type -> FlinkOrcReader.buildReader(schema, type))
+        .createReaderFunc(type -> GenericOrcReader.buildReader(schema, type))
         .build()) {
-      Iterator<RowData> expected = rowDataList.iterator();
-      Iterator<RowData> rows = reader.iterator();
+      Iterator<Record> expected = expectedRecords.iterator();
+      Iterator<Record> rows = reader.iterator();
       for (int i = 0; i < NUM_RECORDS; i += 1) {
-        Assert.assertTrue("Should have expected number of rows", rows.hasNext());
-        Assert.assertEquals(expected.next(), rows.next());
+        Assert.assertTrue("Should have expected number of records", rows.hasNext());
+        AssertHelpers.assertRecordEquals(expected.next(), rows.next());
       }
-      Assert.assertFalse("Should not have extra rows", rows.hasNext());
-      Assert.assertFalse("Should not have extra rows", expected.hasNext());
+      Assert.assertFalse("Should not have extra records", rows.hasNext());
     }
   }
 }

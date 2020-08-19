@@ -34,13 +34,14 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.flink.table.data.DecimalData;
+import org.apache.flink.table.data.GenericArrayData;
+import org.apache.flink.table.data.GenericMapData;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -124,12 +125,12 @@ public class RowDataConverter {
       case STRUCT:
         return convert(type.asStructType(), (Record) object);
       case LIST:
-        List<Object> convertedList = Lists.newArrayList();
         List<?> list = (List<?>) object;
-        for (Object element : list) {
-          convertedList.add(convert(type.asListType().elementType(), element));
+        Object[] convertedArray = new Object[list.size()];
+        for (int i = 0; i < convertedArray.length; i++) {
+          convertedArray[i] = convert(type.asListType().elementType(), list.get(i));
         }
-        return convertedList;
+        return new GenericArrayData(convertedArray);
       case MAP:
         Map<Object, Object> convertedMap = Maps.newLinkedHashMap();
         Map<?, ?> map = (Map<?, ?>) object;
@@ -139,7 +140,7 @@ public class RowDataConverter {
               convert(type.asMapType().valueType(), entry.getValue())
           );
         }
-        return convertedMap;
+        return new GenericMapData(convertedMap);
       default:
         throw new UnsupportedOperationException("Not a supported type: " + type);
     }

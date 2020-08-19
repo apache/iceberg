@@ -89,7 +89,7 @@ public class GenericOrcWriters {
   }
 
   public static OrcValueWriter<byte[]> bytes() {
-    return FixedWriter.INSTANCE;
+    return BytesWriter.INSTANCE;
   }
 
   public static OrcValueWriter<LocalDate> dates() {
@@ -252,8 +252,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class FixedWriter implements OrcValueWriter<byte[]> {
-    private static final OrcValueWriter<byte[]> INSTANCE = new FixedWriter();
+  private static class BytesWriter implements OrcValueWriter<byte[]> {
+    private static final OrcValueWriter<byte[]> INSTANCE = new BytesWriter();
 
     @Override
     public Class<byte[]> getJavaClass() {
@@ -337,7 +337,7 @@ public class GenericOrcWriters {
           "Cannot write value as decimal(%s,%s), invalid precision: %s", precision, scale, data);
 
       ((DecimalColumnVector) output).vector[rowId]
-          .setFromLongAndScale(data.unscaledValue().longValueExact(), data.scale());
+          .setFromLongAndScale(data.unscaledValue().longValueExact(), scale);
     }
   }
 
