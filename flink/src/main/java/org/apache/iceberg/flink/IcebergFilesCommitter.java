@@ -44,6 +44,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -114,6 +115,13 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     if (context.isRestored()) {
       maxCommittedCheckpointId = getMaxCommittedCheckpointId(table, filesCommitterUid);
+      // In the restoring path, it should have one valid snapshot for current flink job at least, so the max committed
+      // checkpoint id should be positive. If it's not positive, that means someone might have removed or expired the
+      // iceberg snapshot, in that case we should throw an exception in case of committing duplicated data files into
+      // the iceberg table.
+      Preconditions.checkArgument(maxCommittedCheckpointId > 0,
+          "There should be an existing iceberg snapshot for current flink job: %s", filesCommitterUid);
+
       SortedMap<Long, List<DataFile>> restoredDataFiles = checkpointsState.get().iterator().next();
       // Only keep the uncommitted data files in the cache.
       dataFilesPerCheckpoint.putAll(restoredDataFiles.tailMap(maxCommittedCheckpointId + 1));

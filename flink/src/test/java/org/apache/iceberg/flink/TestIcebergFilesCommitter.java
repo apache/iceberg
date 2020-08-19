@@ -29,6 +29,7 @@ import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.data.RowData;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
@@ -222,11 +223,9 @@ public class TestIcebergFilesCommitter {
   }
 
   @Test
-  public void testRecoveryFromSnapshotWithoutNotifying() throws Exception {
+  public void testRecoveryFromInvalidSnapshot() throws Exception {
     long checkpointId = 0;
     long timestamp = 0;
-    List<RowData> rows = Lists.newArrayList();
-    List<RowData> tableRows = Lists.newArrayList();
     OperatorSubtaskState snapshot;
 
     String filesCommitterUid = UUID.randomUUID().toString();
@@ -237,55 +236,33 @@ public class TestIcebergFilesCommitter {
       assertSnapshotSize(0);
       assertMaxCommittedCheckpointId(filesCommitterUid, -1L);
 
-      rows.add(SimpleDataUtil.createRowData(1, "hello"));
-      tableRows.addAll(rows);
-      DataFile dataFile1 = writeDataFile("data-1", rows);
+      RowData row = SimpleDataUtil.createRowData(1, "hello");
+      DataFile dataFile = writeDataFile("data-1", ImmutableList.of(row));
 
-      harness.processElement(dataFile1, ++timestamp);
+      harness.processElement(dataFile, ++timestamp);
       snapshot = harness.snapshot(++checkpointId, ++timestamp);
       assertMaxCommittedCheckpointId(filesCommitterUid, -1L);
+      SimpleDataUtil.assertTableRows(tablePath, ImmutableList.of());
     }
 
     // Restore from the given snapshot
     try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(filesCommitterUid)) {
       harness.setup();
-      harness.initializeState(snapshot);
-      harness.open();
-
-      SimpleDataUtil.assertTableRows(tablePath, Lists.newArrayList());
-      assertSnapshotSize(0);
-      assertMaxCommittedCheckpointId(filesCommitterUid, -1L);
-
-      rows.add(SimpleDataUtil.createRowData(2, "foo"));
-      tableRows.addAll(rows);
-      DataFile dataFile2 = writeDataFile("data-2", rows);
-      harness.processElement(dataFile2, ++timestamp);
-
-      harness.snapshot(++checkpointId, ++timestamp);
-      harness.notifyOfCompletedCheckpoint(checkpointId);
-      SimpleDataUtil.assertTableRows(tablePath, tableRows);
-      assertSnapshotSize(1);
-      assertMaxCommittedCheckpointId(filesCommitterUid, checkpointId);
-
-      rows.add(SimpleDataUtil.createRowData(3, "bar"));
-      tableRows.addAll(rows);
-      DataFile dataFile3 = writeDataFile("data-3", rows);
-
-      harness.processElement(dataFile3, ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      harness.notifyOfCompletedCheckpoint(checkpointId);
-      SimpleDataUtil.assertTableRows(tablePath, tableRows);
-      assertSnapshotSize(2);
-      assertMaxCommittedCheckpointId(filesCommitterUid, checkpointId);
+      AssertHelpers.assertThrows("Could not restore because there's no valid snapshot.",
+          IllegalArgumentException.class,
+          "There should be an existing iceberg snapshot for current flink job",
+          () -> {
+            harness.initializeState(snapshot);
+            return null;
+          });
     }
   }
 
   @Test
-  public void testRecoveryFromSnapshotWithNotifying() throws Exception {
+  public void testRecoveryFromValidSnapshot() throws Exception {
     long checkpointId = 0;
     long timestamp = 0;
-    List<RowData> rows = Lists.newArrayList();
-    List<RowData> tableRows = Lists.newArrayList();
+    List<RowData> expectedRows = Lists.newArrayList();
     OperatorSubtaskState snapshot;
 
     String filesCommitterUid = UUID.randomUUID().toString();
@@ -296,14 +273,14 @@ public class TestIcebergFilesCommitter {
       assertSnapshotSize(0);
       assertMaxCommittedCheckpointId(filesCommitterUid, -1L);
 
-      rows.add(SimpleDataUtil.createRowData(1, "hello"));
-      tableRows.addAll(rows);
-      DataFile dataFile1 = writeDataFile("data-1", rows);
+      RowData row = SimpleDataUtil.createRowData(1, "hello");
+      expectedRows.add(row);
+      DataFile dataFile1 = writeDataFile("data-1", ImmutableList.of(row));
 
       harness.processElement(dataFile1, ++timestamp);
       snapshot = harness.snapshot(++checkpointId, ++timestamp);
       harness.notifyOfCompletedCheckpoint(checkpointId);
-      SimpleDataUtil.assertTableRows(tablePath, tableRows);
+      SimpleDataUtil.assertTableRows(tablePath, ImmutableList.of(row));
       assertSnapshotSize(1);
       assertMaxCommittedCheckpointId(filesCommitterUid, checkpointId);
     }
@@ -314,18 +291,18 @@ public class TestIcebergFilesCommitter {
       harness.initializeState(snapshot);
       harness.open();
 
-      SimpleDataUtil.assertTableRows(tablePath, tableRows);
+      SimpleDataUtil.assertTableRows(tablePath, expectedRows);
       assertSnapshotSize(1);
       assertMaxCommittedCheckpointId(filesCommitterUid, checkpointId);
 
-      rows.add(SimpleDataUtil.createRowData(2, "world"));
-      tableRows.addAll(rows);
-      DataFile dataFile2 = writeDataFile("data-2", rows);
-      harness.processElement(dataFile2, ++timestamp);
+      RowData row = SimpleDataUtil.createRowData(2, "world");
+      expectedRows.add(row);
+      DataFile dataFile = writeDataFile("data-2", ImmutableList.of(row));
+      harness.processElement(dataFile, ++timestamp);
 
       harness.snapshot(++checkpointId, ++timestamp);
       harness.notifyOfCompletedCheckpoint(checkpointId);
-      SimpleDataUtil.assertTableRows(tablePath, tableRows);
+      SimpleDataUtil.assertTableRows(tablePath, expectedRows);
       assertSnapshotSize(2);
       assertMaxCommittedCheckpointId(filesCommitterUid, checkpointId);
     }
