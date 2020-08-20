@@ -40,6 +40,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Before;
@@ -52,6 +53,8 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public class TestFlinkIcebergSink extends AbstractTestBase {
   private static final Configuration CONF = new Configuration();
+  private static final DataFormatConverters.RowConverter CONVERTER = new DataFormatConverters.RowConverter(
+      SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes());
 
   @Rule
   public TemporaryFolder tempFolder = new TemporaryFolder();
@@ -92,26 +95,14 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
     table = SimpleDataUtil.createTable(tablePath, props, partitioned);
   }
 
-  @Test
-  public void testDataStream() throws Exception {
-    DataFormatConverters.RowConverter converter = new DataFormatConverters.RowConverter(
-        SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes());
+  private List<RowData> convertToRowData(List<Row> rows) {
+    return rows.stream().map(CONVERTER::toInternal).collect(Collectors.toList());
+  }
 
-    StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-    // Enable the checkpoint.
-    env.enableCheckpointing(100);
-    env.setParallelism(parallelism);
-
-    List<Row> rows = Lists.newArrayList(
-        Row.of(1, "hello"),
-        Row.of(2, "world"),
-        Row.of(3, "foo")
-    );
-    List<RowData> rowDataList = rows.stream().map(converter::toInternal).collect(Collectors.toList());
-
+  private void writeWithStreamJob(StreamExecutionEnvironment env, List<Row> rows) throws Exception {
     TypeInformation<Row> typeInformation = new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
     DataStream<RowData> dataStream = env.addSource(new FiniteTestSource<>(rows), typeInformation)
-        .map(converter::toInternal, RowDataTypeInfo.of(SimpleDataUtil.ROW_TYPE));
+        .map(CONVERTER::toInternal, RowDataTypeInfo.of(SimpleDataUtil.ROW_TYPE));
 
     // Output the data stream to stdout.
     Map<String, String> options = ImmutableMap.of(
@@ -123,12 +114,36 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
 
     // Execute the program.
     env.execute("Test Iceberg DataStream");
+  }
 
-    // Assert the iceberg table's records.
-    List<RowData> expectedRows = Lists.newArrayList();
-    expectedRows.addAll(rowDataList);
-    expectedRows.addAll(rowDataList);
+  @Test
+  public void testDataStream() throws Exception {
+    StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+    // Enable the checkpoint.
+    env.enableCheckpointing(100);
+    env.setParallelism(parallelism);
 
+    List<Row> rows1 = Lists.newArrayList(
+        Row.of(1, "hello"),
+        Row.of(2, "world"),
+        Row.of(3, "foo")
+    );
+    // Summit the first flink stream job to write those rows.
+    writeWithStreamJob(env, rows1);
+
+    // Assert the iceberg table's records. NOTICE: the FiniteTestSource will checkpoint the same rows twice, so it will
+    // commit the same row list into iceberg twice.
+    List<RowData> expectedRows = Lists.newArrayList(Iterables.concat(convertToRowData(rows1), convertToRowData(rows1)));
+    SimpleDataUtil.assertTableRows(tablePath, expectedRows);
+
+    List<Row> rows2 = Lists.newArrayList(
+        Row.of(4, "bar"),
+        Row.of(5, "apache")
+    );
+    // Submit the second flink stream job to write those rows.
+    writeWithStreamJob(env, rows2);
+    expectedRows.addAll(convertToRowData(rows2));
+    expectedRows.addAll(convertToRowData(rows2));
     SimpleDataUtil.assertTableRows(tablePath, expectedRows);
   }
 }
