@@ -98,7 +98,7 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
         case UUID:
           return GenericOrcWriters.uuids();
         case FIXED:
-          return GenericOrcWriters.bytes();
+          return GenericOrcWriters.byteArrays();
         case BINARY:
           return GenericOrcWriters.byteBuffers();
         case DECIMAL:

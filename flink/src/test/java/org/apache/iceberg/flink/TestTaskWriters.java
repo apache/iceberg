@@ -180,6 +180,10 @@ public class TestTaskWriters {
 
   @Test
   public void testRollingWithTargetFileSize() throws IOException {
+    // TODO ORC don't support target file size before closed.
+    if (format == FileFormat.ORC) {
+      return;
+    }
     try (TaskWriter<RowData> taskWriter = createTaskWriter(4)) {
       List<RowData> rows = Lists.newArrayListWithCapacity(8000);
       List<Record> records = Lists.newArrayListWithCapacity(8000);

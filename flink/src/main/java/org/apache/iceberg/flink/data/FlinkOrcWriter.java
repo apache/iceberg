@@ -91,6 +91,12 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
         case BOOLEAN:
           return GenericOrcWriters.booleans();
         case INTEGER:
+          switch (flinkPrimitive.getTypeRoot()) {
+            case TINYINT:
+              return GenericOrcWriters.bytes();
+            case SMALLINT:
+              return GenericOrcWriters.shorts();
+          }
           return GenericOrcWriters.ints();
         case LONG:
           return GenericOrcWriters.longs();
@@ -114,7 +120,7 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
         case UUID:
         case FIXED:
         case BINARY:
-          return GenericOrcWriters.bytes();
+          return GenericOrcWriters.byteArrays();
         case DECIMAL:
           Types.DecimalType decimalType = (Types.DecimalType) iPrimitive;
           return FlinkOrcWriters.decimals(decimalType.precision(), decimalType.scale());

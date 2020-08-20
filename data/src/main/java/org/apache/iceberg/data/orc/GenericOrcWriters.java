@@ -56,6 +56,14 @@ public class GenericOrcWriters {
     return BooleanWriter.INSTANCE;
   }
 
+  public static OrcValueWriter<Byte> bytes() {
+    return ByteWriter.INSTANCE;
+  }
+
+  public static OrcValueWriter<Short> shorts() {
+    return ShortWriter.INSTANCE;
+  }
+
   public static OrcValueWriter<Integer> ints() {
     return IntWriter.INSTANCE;
   }
@@ -88,8 +96,8 @@ public class GenericOrcWriters {
     return UUIDWriter.INSTANCE;
   }
 
-  public static OrcValueWriter<byte[]> bytes() {
-    return BytesWriter.INSTANCE;
+  public static OrcValueWriter<byte[]> byteArrays() {
+    return ByteArrayWriter.INSTANCE;
   }
 
   public static OrcValueWriter<LocalDate> dates() {
@@ -133,6 +141,34 @@ public class GenericOrcWriters {
     @Override
     public void nonNullWrite(int rowId, Boolean data, ColumnVector output) {
       ((LongColumnVector) output).vector[rowId] = data ? 1 : 0;
+    }
+  }
+
+  private static class ByteWriter implements OrcValueWriter<Byte> {
+    private static final OrcValueWriter<Byte> INSTANCE = new ByteWriter();
+
+    @Override
+    public Class<Byte> getJavaClass() {
+      return Byte.class;
+    }
+
+    @Override
+    public void nonNullWrite(int rowId, Byte data, ColumnVector output) {
+      ((LongColumnVector) output).vector[rowId] = data;
+    }
+  }
+
+  private static class ShortWriter implements OrcValueWriter<Short> {
+    private static final OrcValueWriter<Short> INSTANCE = new ShortWriter();
+
+    @Override
+    public Class<Short> getJavaClass() {
+      return Short.class;
+    }
+
+    @Override
+    public void nonNullWrite(int rowId, Short data, ColumnVector output) {
+      ((LongColumnVector) output).vector[rowId] = data;
     }
   }
 
@@ -252,8 +288,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class BytesWriter implements OrcValueWriter<byte[]> {
-    private static final OrcValueWriter<byte[]> INSTANCE = new BytesWriter();
+  private static class ByteArrayWriter implements OrcValueWriter<byte[]> {
+    private static final OrcValueWriter<byte[]> INSTANCE = new ByteArrayWriter();
 
     @Override
     public Class<byte[]> getJavaClass() {
