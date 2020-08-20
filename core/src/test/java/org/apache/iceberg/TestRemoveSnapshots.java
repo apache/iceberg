@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Iterables;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -30,6 +29,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.Assert;
@@ -52,11 +52,11 @@ public class TestRemoveSnapshots extends TableTestBase {
   }
 
   private long waitUntilAfter(long timestampMillis) {
-    long t = System.currentTimeMillis();
-    while (t <= timestampMillis) {
-      t = System.currentTimeMillis();
+    long current = System.currentTimeMillis();
+    while (current <= timestampMillis) {
+      current = System.currentTimeMillis();
     }
-    return t;
+    return current;
   }
 
   @Test
