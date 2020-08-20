@@ -86,7 +86,7 @@ public class TestRemoveSnapshots extends TableTestBase {
 
     Assert.assertEquals("Expire should not change current snapshot", snapshotId, table.currentSnapshot().snapshotId());
     Assert.assertNull("Expire should remove the oldest snapshot", table.snapshot(firstSnapshot.snapshotId()));
-    Assert.assertEquals("Should not remove only the expired manifest list location",
+    Assert.assertEquals("Should remove only the expired manifest list location",
         Sets.newHashSet(firstSnapshot.manifestListLocation()), deletedFiles);
   }
 
@@ -164,7 +164,7 @@ public class TestRemoveSnapshots extends TableTestBase {
         .commit();
 
     Snapshot secondSnapshot = table.currentSnapshot();
-    Assert.assertEquals("Should create replace manifest with a rewritten manifest",
+    Assert.assertEquals("Should replace manifest with a rewritten manifest",
         1, secondSnapshot.allManifests().size());
 
     table.newFastAppend() // do not merge to keep the last snapshot's manifest valid
@@ -245,7 +245,7 @@ public class TestRemoveSnapshots extends TableTestBase {
     Assert.assertNotNull("Expire should keep the oldest snapshot, current", table.snapshot(firstSnapshot.snapshotId()));
     Assert.assertNull("Expire should remove the orphaned snapshot", table.snapshot(secondSnapshot.snapshotId()));
 
-    Assert.assertEquals("Should remove expired manifest lists and deleted data file",
+    Assert.assertEquals("Should remove expired manifest lists and reverted appended data file",
         Sets.newHashSet(
             secondSnapshot.manifestListLocation(), // snapshot expired
             Iterables.getOnlyElement(secondSnapshotManifests).path()), // manifest is no longer referenced
@@ -294,7 +294,7 @@ public class TestRemoveSnapshots extends TableTestBase {
     Assert.assertNotNull("Expire should keep the oldest snapshot, current", table.snapshot(firstSnapshot.snapshotId()));
     Assert.assertNull("Expire should remove the orphaned snapshot", table.snapshot(secondSnapshot.snapshotId()));
 
-    Assert.assertEquals("Should remove expired manifest lists and deleted data file",
+    Assert.assertEquals("Should remove expired manifest lists and reverted appended data file",
         Sets.newHashSet(
             secondSnapshot.manifestListLocation(), // snapshot expired
             Iterables.getOnlyElement(secondSnapshotManifests).path(), // manifest is no longer referenced

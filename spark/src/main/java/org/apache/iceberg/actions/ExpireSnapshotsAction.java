@@ -91,7 +91,7 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
 
   /**
    * An executor service used when deleting files. Only used during the local delete phase of this Spark action.
-   * Similar to {@link ExpireSnapshots#executeWith(ExecutorService)}
+   * Similar to {@link ExpireSnapshots#executeDeleteWith(ExecutorService)}
    * @param executorService the service to use
    * @return this for method chaining
    */
