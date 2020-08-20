@@ -27,6 +27,7 @@ import java.util.function.Consumer;
 import org.apache.iceberg.ExpireSnapshots;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -147,49 +148,40 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
 
   @Override
   public ExpireSnapshotsActionResult execute() {
-    Dataset<Row> originalFiles = null;
-    try {
-      // Metadata before Expiration
-      originalFiles = buildValidFileDF().persist();
-      // Action to trigger persist
-      originalFiles.count();
+    // Metadata before Expiration
+    Dataset<Row>  originalFiles = buildValidFileDF(ops.current());
 
-      // Perform Expiration
-      ExpireSnapshots expireSnaps = table.expireSnapshots().cleanExpiredFiles(false);
-      for (final Long id : expireSnapshotIdValues) {
-        expireSnaps = expireSnaps.expireSnapshotId(id);
-      }
-
-      if (expireOlderThanValue != null) {
-        expireSnaps = expireSnaps.expireOlderThan(expireOlderThanValue);
-      }
-
-      if (retainLastValue != null) {
-        expireSnaps = expireSnaps.retainLast(retainLastValue);
-      }
-
-      expireSnaps.commit();
-
-      // Metadata after Expiration
-      Dataset<Row> validFiles = buildValidFileDF();
-      Dataset<Row> filesToDelete = originalFiles.except(validFiles);
-
-      return deleteFiles(filesToDelete.toLocalIterator());
-    } finally {
-      if (originalFiles != null) {
-        originalFiles.unpersist();
-      }
+    // Perform Expiration
+    ExpireSnapshots expireSnaps = table.expireSnapshots().cleanExpiredFiles(false);
+    for (final Long id : expireSnapshotIdValues) {
+      expireSnaps = expireSnaps.expireSnapshotId(id);
     }
+
+    if (expireOlderThanValue != null) {
+      expireSnaps = expireSnaps.expireOlderThan(expireOlderThanValue);
+    }
+
+    if (retainLastValue != null) {
+      expireSnaps = expireSnaps.retainLast(retainLastValue);
+    }
+
+    expireSnaps.commit();
+
+    // Metadata after Expiration
+    Dataset<Row> validFiles = buildValidFileDF(ops.refresh());
+    Dataset<Row> filesToDelete = originalFiles.except(validFiles);
+
+    return deleteFiles(filesToDelete.toLocalIterator());
   }
 
   private Dataset<Row> appendTypeString(Dataset<Row> ds, String type) {
     return ds.select(new Column("file_path"), functions.lit(type).as("file_type"));
   }
 
-  private Dataset<Row> buildValidFileDF() {
-    return appendTypeString(buildValidDataFileDF(spark), DATA_FILE)
-        .union(appendTypeString(buildManifestFileDF(spark), MANIFEST))
-        .union(appendTypeString(buildManifestListDF(spark, table), MANIFEST_LIST));
+  private Dataset<Row> buildValidFileDF(TableMetadata metadata) {
+    return appendTypeString(buildValidDataFileDF(spark, metadata.metadataFileLocation()), DATA_FILE)
+        .union(appendTypeString(buildManifestFileDF(spark, metadata.metadataFileLocation()), MANIFEST))
+        .union(appendTypeString(buildManifestListDF(spark, metadata.metadataFileLocation()), MANIFEST_LIST));
   }
 
   /**
