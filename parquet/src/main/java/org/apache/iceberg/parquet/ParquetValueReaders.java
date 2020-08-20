@@ -340,6 +340,17 @@ public class ParquetValueReaders {
     }
   }
 
+  public static class ByteArrayReader extends ParquetValueReaders.PrimitiveReader<byte[]> {
+    public ByteArrayReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public byte[] read(byte[] ignored) {
+      return column.nextBinary().getBytes();
+    }
+  }
+
   private static class OptionReader<T> implements ParquetValueReader<T> {
     private final int definitionLevel;
     private final ParquetValueReader<T> reader;

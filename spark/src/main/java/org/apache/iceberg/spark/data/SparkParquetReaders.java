@@ -256,7 +256,7 @@ public class SparkParquetReaders {
                     "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
             }
           case BSON:
-            return new BytesReader(desc);
+            return new ParquetValueReaders.ByteArrayReader(desc);
           default:
             throw new UnsupportedOperationException(
                 "Unsupported logical type: " + primitive.getOriginalType());
@@ -266,7 +266,7 @@ public class SparkParquetReaders {
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
         case BINARY:
-          return new BytesReader(desc);
+          return new ParquetValueReaders.ByteArrayReader(desc);
         case INT32:
           if (expected != null && expected.typeId() == TypeID.LONG) {
             return new IntAsLongReader(desc);
@@ -398,17 +398,6 @@ public class SparkParquetReaders {
       } else {
         return UTF8String.fromBytes(binary.getBytes());
       }
-    }
-  }
-
-  private static class BytesReader extends PrimitiveReader<byte[]> {
-    BytesReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public byte[] read(byte[] ignored) {
-      return column.nextBinary().getBytes();
     }
   }
 
