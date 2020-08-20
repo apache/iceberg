@@ -47,6 +47,7 @@ import org.apache.flink.table.catalog.stats.CatalogColumnStatistics;
 import org.apache.flink.table.catalog.stats.CatalogTableStatistics;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.util.StringUtils;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
@@ -71,26 +72,29 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
  */
 public class FlinkCatalog extends AbstractCatalog {
 
-  private final Catalog originalCatalog;
+  private final CatalogLoader catalogLoader;
+  private final Configuration hadoopConf;
   private final Catalog icebergCatalog;
   private final String[] baseNamespace;
   private final SupportsNamespaces asNamespaceCatalog;
+  private final Closeable closeable;
 
   public FlinkCatalog(
       String catalogName,
       String defaultDatabase,
       String[] baseNamespace,
-      Catalog icebergCatalog,
+      CatalogLoader catalogLoader,
+      Configuration hadoopConf,
       boolean cacheEnabled) {
     super(catalogName, defaultDatabase);
-    this.originalCatalog = icebergCatalog;
-    this.icebergCatalog = cacheEnabled ? CachingCatalog.wrap(icebergCatalog) : icebergCatalog;
+    this.hadoopConf = hadoopConf;
+    this.catalogLoader = catalogLoader;
     this.baseNamespace = baseNamespace;
-    if (icebergCatalog instanceof SupportsNamespaces) {
-      asNamespaceCatalog = (SupportsNamespaces) icebergCatalog;
-    } else {
-      asNamespaceCatalog = null;
-    }
+
+    Catalog originalCatalog = catalogLoader.loadCatalog(hadoopConf);
+    icebergCatalog = cacheEnabled ? CachingCatalog.wrap(originalCatalog) : originalCatalog;
+    asNamespaceCatalog = originalCatalog instanceof SupportsNamespaces ? (SupportsNamespaces) originalCatalog : null;
+    closeable = originalCatalog instanceof Closeable ? (Closeable) originalCatalog : null;
   }
 
   @Override
@@ -99,9 +103,9 @@ public class FlinkCatalog extends AbstractCatalog {
 
   @Override
   public void close() throws CatalogException {
-    if (originalCatalog instanceof Closeable) {
+    if (closeable != null) {
       try {
-        ((Closeable) originalCatalog).close();
+        closeable.close();
       } catch (IOException e) {
         throw new CatalogException(e);
       }
