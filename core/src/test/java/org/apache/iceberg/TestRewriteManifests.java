@@ -136,9 +136,9 @@ public class TestRewriteManifests extends TableTestBase {
   public void testReplaceManifestsSeparate() {
     Table table = load();
     table.newFastAppend()
-      .appendFile(FILE_A)
-      .appendFile(FILE_B)
-      .commit();
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
     long appendId = table.currentSnapshot().snapshotId();
 
     Assert.assertEquals(1, table.currentSnapshot().allManifests().size());
@@ -146,8 +146,8 @@ public class TestRewriteManifests extends TableTestBase {
     // cluster by path will split the manifest into two
 
     table.rewriteManifests()
-      .clusterBy(file -> file.path())
-      .commit();
+        .clusterBy(file -> file.path())
+        .commit();
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests();
     Assert.assertEquals(2, manifests.size());
@@ -168,12 +168,12 @@ public class TestRewriteManifests extends TableTestBase {
     Table table = load();
 
     table.newFastAppend()
-      .appendFile(FILE_A)
-      .commit();
+        .appendFile(FILE_A)
+        .commit();
     long appendIdA = table.currentSnapshot().snapshotId();
     table.newFastAppend()
-      .appendFile(FILE_B)
-      .commit();
+        .appendFile(FILE_B)
+        .commit();
     long appendIdB = table.currentSnapshot().snapshotId();
 
     Assert.assertEquals(2, table.currentSnapshot().allManifests().size());
@@ -181,8 +181,8 @@ public class TestRewriteManifests extends TableTestBase {
     // cluster by constant will combine manifests into one
 
     table.rewriteManifests()
-      .clusterBy(file -> "file")
-      .commit();
+        .clusterBy(file -> "file")
+        .commit();
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests();
     Assert.assertEquals(1, manifests.size());
@@ -211,18 +211,18 @@ public class TestRewriteManifests extends TableTestBase {
     Table table = load();
 
     table.newFastAppend()
-      .appendFile(FILE_A)
-      .commit();
+        .appendFile(FILE_A)
+        .commit();
     long appendIdA = table.currentSnapshot().snapshotId();
 
     table.newFastAppend()
-      .appendFile(FILE_B)
-      .commit();
+        .appendFile(FILE_B)
+        .commit();
     long appendIdB = table.currentSnapshot().snapshotId();
 
     table.newFastAppend()
-      .appendFile(FILE_C)
-      .commit();
+        .appendFile(FILE_C)
+        .commit();
     long appendIdC = table.currentSnapshot().snapshotId();
 
     Assert.assertEquals(3, table.currentSnapshot().allManifests().size());
@@ -230,15 +230,15 @@ public class TestRewriteManifests extends TableTestBase {
     //keep the file A manifest, combine the other two
 
     table.rewriteManifests()
-      .clusterBy(file -> "file")
-      .rewriteIf(manifest -> {
-        try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, table.io())) {
-          return !reader.iterator().next().path().equals(FILE_A.path());
-        } catch (IOException x) {
-          throw new RuntimeIOException(x);
-        }
-      })
-      .commit();
+        .clusterBy(file -> "file")
+        .rewriteIf(manifest -> {
+          try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, table.io())) {
+            return !reader.iterator().next().path().equals(FILE_A.path());
+          } catch (IOException x) {
+            throw new RuntimeIOException(x);
+          }
+        })
+        .commit();
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests();
     Assert.assertEquals(2, manifests.size());
@@ -270,9 +270,9 @@ public class TestRewriteManifests extends TableTestBase {
   public void testReplaceManifestsMaxSize() {
     Table table = load();
     table.newFastAppend()
-      .appendFile(FILE_A)
-      .appendFile(FILE_B)
-      .commit();
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
     long appendId = table.currentSnapshot().snapshotId();
 
     Assert.assertEquals(1, table.currentSnapshot().allManifests().size());
@@ -300,12 +300,12 @@ public class TestRewriteManifests extends TableTestBase {
   public void testConcurrentRewriteManifest() throws IOException {
     Table table = load();
     table.newFastAppend()
-      .appendFile(FILE_A)
-      .commit();
+        .appendFile(FILE_A)
+        .commit();
     long appendIdA = table.currentSnapshot().snapshotId();
     table.newFastAppend()
-      .appendFile(FILE_B)
-      .commit();
+        .appendFile(FILE_B)
+        .commit();
     long appendIdB = table.currentSnapshot().snapshotId();
 
     // start a rewrite manifests that involves both manifests
@@ -314,15 +314,15 @@ public class TestRewriteManifests extends TableTestBase {
 
     // commit a rewrite manifests that only involves one manifest
     table.rewriteManifests()
-      .clusterBy(file -> "file")
-      .rewriteIf(manifest -> {
-        try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, table.io())) {
-          return !reader.iterator().next().path().equals(FILE_A.path());
-        } catch (IOException x) {
-          throw new RuntimeIOException(x);
-        }
-      })
-      .commit();
+        .clusterBy(file -> "file")
+        .rewriteIf(manifest -> {
+          try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, table.io())) {
+            return !reader.iterator().next().path().equals(FILE_A.path());
+          } catch (IOException x) {
+            throw new RuntimeIOException(x);
+          }
+        })
+        .commit();
 
     Assert.assertEquals(2, table.currentSnapshot().allManifests().size());
 
@@ -356,8 +356,8 @@ public class TestRewriteManifests extends TableTestBase {
   public void testAppendDuringRewriteManifest() {
     Table table = load();
     table.newFastAppend()
-      .appendFile(FILE_A)
-      .commit();
+        .appendFile(FILE_A)
+        .commit();
     long appendIdA = table.currentSnapshot().snapshotId();
 
     // start the rewrite manifests
@@ -366,8 +366,8 @@ public class TestRewriteManifests extends TableTestBase {
 
     // append a file
     table.newFastAppend()
-      .appendFile(FILE_B)
-      .commit();
+        .appendFile(FILE_B)
+        .commit();
     long appendIdB = table.currentSnapshot().snapshotId();
 
     Assert.assertEquals(2, table.currentSnapshot().allManifests().size());
@@ -395,8 +395,8 @@ public class TestRewriteManifests extends TableTestBase {
   public void testRewriteManifestDuringAppend() {
     Table table = load();
     table.newFastAppend()
-      .appendFile(FILE_A)
-      .commit();
+        .appendFile(FILE_A)
+        .commit();
     long appendIdA = table.currentSnapshot().snapshotId();
 
     // start an append
@@ -405,8 +405,8 @@ public class TestRewriteManifests extends TableTestBase {
 
     // rewrite the manifests - only affects the first
     table.rewriteManifests()
-      .clusterBy(file -> "file")
-      .commit();
+        .clusterBy(file -> "file")
+        .commit();
 
     Assert.assertEquals(1, table.currentSnapshot().allManifests().size());
 

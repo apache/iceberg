@@ -347,7 +347,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     }
 
     @Override
-    public void setBatchSize(int batchSize) {}
+    public void setBatchSize(int batchSize) {
+
+    }
   }
 
   /**
@@ -377,8 +379,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     }
 
     @Override
-    public void setBatchSize(int batchSize) {}
+    public void setBatchSize(int batchSize) {
 
+    }
   }
 
 }
