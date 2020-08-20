@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.util.Collection;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
@@ -35,6 +36,12 @@ class StaticTableScan extends BaseTableScan {
                           Function<StaticTableScan, DataTask> buildTask, TableScanContext context) {
     super(ops, table, schema, context);
     this.buildTask = buildTask;
+  }
+
+  @Override
+  public TableScan select(Collection<String> columns) {
+    throw new UnsupportedOperationException(
+        "StaticTableScan does not support selecting columns, please use project schema.");
   }
 
   @Override

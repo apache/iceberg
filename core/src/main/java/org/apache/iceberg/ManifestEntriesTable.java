@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.util.Collection;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
@@ -84,6 +85,12 @@ public class ManifestEntriesTable extends BaseMetadataTable {
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema,
                                        TableScanContext context) {
       return new EntriesTableScan(ops, table, schema, context);
+    }
+
+    @Override
+    public TableScan select(Collection<String> columns) {
+      throw new UnsupportedOperationException(
+          "EntriesTableScan does not support selecting columns, please use project schema.");
     }
 
     @Override

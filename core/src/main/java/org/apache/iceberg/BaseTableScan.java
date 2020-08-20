@@ -159,12 +159,8 @@ abstract class BaseTableScan implements TableScan {
 
   @Override
   public TableScan project(Schema projectedSchema) {
-    if (context.selectedColumns() != null) {
-      throw new IllegalStateException("Cannot project schema when selected columns is specified.");
-    }
-
     return newRefinedScan(
-        ops, table, projectedSchema, context);
+        ops, table, schema, context.project(projectedSchema));
   }
 
   @Override
@@ -288,6 +284,8 @@ abstract class BaseTableScan implements TableScan {
   private Schema lazyColumnProjection() {
     Collection<String> selectedColumns = context.selectedColumns();
     if (selectedColumns != null) {
+      // select columns only works for data table scans, so it is OK to select on table.schema().
+
       Set<Integer> requiredFieldIds = Sets.newHashSet();
 
       // all of the filter columns are required
@@ -305,6 +303,9 @@ abstract class BaseTableScan implements TableScan {
       requiredFieldIds.addAll(selectedIds);
 
       return TypeUtil.select(table.schema(), requiredFieldIds);
+    } else if (context.projectedSchema() != null) {
+
+      return context.projectedSchema();
     }
 
     return schema;

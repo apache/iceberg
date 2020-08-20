@@ -158,6 +158,14 @@ public class TestMetadataTableScans extends TableTestBase {
     validateTaskScanResiduals(scan2, true);
   }
 
+  @Test
+  public void testDataFilesTableSelection() {
+    Table dataFilesTable = new DataFilesTable(table.ops(), table);
+
+    AssertHelpers.assertThrows("FilesTableScan does not support selecting columns, please use project schema.",
+        UnsupportedOperationException.class, () -> dataFilesTable.newScan().select("file_path"));
+  }
+
   private void validateTaskScanResiduals(TableScan scan, boolean ignoreResiduals) throws IOException {
     try (CloseableIterable<CombinedScanTask> tasks = scan.planTasks()) {
       Assert.assertTrue("Tasks should not be empty", Iterables.size(tasks) > 0);
