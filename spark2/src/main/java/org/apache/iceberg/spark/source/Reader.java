@@ -131,7 +131,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     this.splitOpenFileCost = options.get("file-open-cost").map(Long::parseLong).orElse(null);
 
     if (io.getValue() instanceof HadoopFileIO) {
-      String scheme = "no_exist";
+      String fsscheme = "no_exist";
       try {
         Configuration conf = SparkSession.active().sessionState().newHadoopConf();
         // merge hadoop config set on table
@@ -139,13 +139,13 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
         // merge hadoop config passed as options and overwrite the one on table
         mergeIcebergHadoopConfs(conf, options.asMap());
         FileSystem fs = new Path(table.location()).getFileSystem(conf);
-        scheme = fs.getScheme().toLowerCase(Locale.ENGLISH);
+        fsscheme = fs.getScheme().toLowerCase(Locale.ENGLISH);
       } catch (IOException ioe) {
         LOG.warn("Failed to get Hadoop Filesystem", ioe);
       }
-      Boolean localityFallback = LOCALITY_WHITELIST_FS.contains(scheme);
+      String scheme = fsscheme; //Makes an effectively final version of scheme
       this.localityPreferred = options.get("locality").map(Boolean::parseBoolean)
-          .orElse(localityFallback);
+          .orElseGet(() -> LOCALITY_WHITELIST_FS.contains(scheme));
     } else {
       this.localityPreferred = false;
     }
