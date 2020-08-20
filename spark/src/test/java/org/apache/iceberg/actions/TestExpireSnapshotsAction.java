@@ -103,6 +103,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     this.tableDir = temp.newFolder();
     this.tableLocation = tableDir.toURI().toString();
     this.table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
+    spark.conf().set("spark.sql.shuffle.partitions", 1);
   }
 
   private Long rightAfterSnapshot() {
