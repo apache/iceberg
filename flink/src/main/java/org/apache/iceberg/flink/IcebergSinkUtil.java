@@ -46,6 +46,10 @@ import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DE
 
 public class IcebergSinkUtil {
 
+  private static final TypeInformation<DataFile> DATA_FILE_TYPE_INFO = TypeInformation.of(DataFile.class);
+  private static final String ICEBERG_STREAM_WRITER_NAME = IcebergStreamWriter.class.getSimpleName();
+  private static final String ICEBERG_FILES_COMMITTER_NAME = IcebergFilesCommitter.class.getSimpleName();
+
   private IcebergSinkUtil() {
   }
 
@@ -58,6 +62,7 @@ public class IcebergSinkUtil {
     private DataStream<RowData> inputStream;
     private Configuration config;
     private Table table;
+    private String catalogName;
     private String fullTableName;
     private TableSchema flinkSchema;
 
@@ -66,7 +71,12 @@ public class IcebergSinkUtil {
       return this;
     }
 
-    public Builder options(Map<String, String> newOptions) {
+    public Builder set(String key, String value) {
+      this.options.put(key, value);
+      return this;
+    }
+
+    public Builder setAll(Map<String, String> newOptions) {
       this.options.putAll(newOptions);
       return this;
     }
@@ -78,6 +88,11 @@ public class IcebergSinkUtil {
 
     public Builder table(Table newTable) {
       this.table = newTable;
+      return this;
+    }
+
+    public Builder catalogName(String newCatalogName) {
+      this.catalogName = newCatalogName;
       return this;
     }
 
@@ -93,13 +108,18 @@ public class IcebergSinkUtil {
 
     @SuppressWarnings("unchecked")
     public DataStreamSink<RowData> build() {
+      Preconditions.checkNotNull(inputStream, "Input DataStream shouldn't be null");
+      Preconditions.checkNotNull(table, "Table shouldn't be null");
+      Preconditions.checkNotNull(catalogName, "Catalog name should be null");
+      Preconditions.checkNotNull(fullTableName, "Full table name should be provided.");
+
       IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkSchema);
-      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(fullTableName, options, config);
+      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(catalogName, fullTableName, options, config);
 
       DataStream<Void> returnStream = inputStream
-          .transform(IcebergStreamWriter.class.getSimpleName(), TypeInformation.of(DataFile.class), streamWriter)
+          .transform(ICEBERG_STREAM_WRITER_NAME, DATA_FILE_TYPE_INFO, streamWriter)
           .setParallelism(inputStream.getParallelism())
-          .transform(IcebergFilesCommitter.class.getSimpleName(), Types.VOID, filesCommitter)
+          .transform(ICEBERG_FILES_COMMITTER_NAME, Types.VOID, filesCommitter)
           .setParallelism(1)
           .setMaxParallelism(1);
 

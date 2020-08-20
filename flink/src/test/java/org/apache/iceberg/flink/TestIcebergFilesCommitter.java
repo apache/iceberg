@@ -462,7 +462,7 @@ public class TestIcebergFilesCommitter {
 
     @Override
     public <T extends StreamOperator<Void>> T createStreamOperator(StreamOperatorParameters<Void> param) {
-      IcebergFilesCommitter committer = new IcebergFilesCommitter(fullTableName, options, conf);
+      IcebergFilesCommitter committer = new IcebergFilesCommitter("prod", fullTableName, options, conf);
       committer.setup(param.getContainingTask(), param.getStreamConfig(), param.getOutput());
       return (T) committer;
     }

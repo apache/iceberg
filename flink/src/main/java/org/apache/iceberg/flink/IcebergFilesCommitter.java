@@ -72,6 +72,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
   private static final FlinkCatalogFactory CATALOG_FACTORY = new FlinkCatalogFactory();
 
+  private final String catalogName;
   private final String fullTableName;
   private final SerializableConfiguration conf;
   private final ImmutableMap<String, String> options;
@@ -87,16 +88,17 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // The data files cache for current checkpoint. Once the snapshot barrier received, it will be flushed to the
   // 'dataFilesPerCheckpoint'.
   private final List<DataFile> dataFilesOfCurrentCheckpoint = Lists.newArrayList();
+
   // It will have an unique identifier for one job.
   private transient String flinkJobId;
   private transient Table table;
 
   // All pending checkpoints states for this function.
   private static final ListStateDescriptor<SortedMap<Long, List<DataFile>>> STATE_DESCRIPTOR = buildStateDescriptor();
-
   private transient ListState<SortedMap<Long, List<DataFile>>> checkpointsState;
 
-  IcebergFilesCommitter(String fullTableName, Map<String, String> options, Configuration conf) {
+  IcebergFilesCommitter(String catalogName, String fullTableName, Map<String, String> options, Configuration conf) {
+    this.catalogName = catalogName;
     this.fullTableName = fullTableName;
     this.options = ImmutableMap.copyOf(options);
     this.conf = new SerializableConfiguration(conf);
@@ -106,8 +108,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   @Override
   public void initializeState(StateInitializationContext context) throws Exception {
     super.initializeState(context);
-    flinkJobId = getContainingTask().getEnvironment().getJobID().toHexString();
-    Catalog icebergCatalog = CATALOG_FACTORY.buildIcebergCatalog(fullTableName, options, conf.get());
+    flinkJobId = getContainingTask().getEnvironment().getJobID().toString();
+    Catalog icebergCatalog = CATALOG_FACTORY.buildIcebergCatalog(catalogName, options, conf.get());
 
     table = icebergCatalog.loadTable(TableIdentifier.parse(fullTableName));
 
