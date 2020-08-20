@@ -22,6 +22,7 @@ package org.apache.iceberg.flink;
 import java.io.IOException;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
+import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.iceberg.DataFile;
@@ -43,6 +44,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
   IcebergStreamWriter(String fullTableName, TaskWriterFactory<T> taskWriterFactory) {
     this.fullTableName = fullTableName;
     this.taskWriterFactory = taskWriterFactory;
+    setChainingStrategy(ChainingStrategy.ALWAYS);
   }
 
   @Override

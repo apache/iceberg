@@ -110,7 +110,14 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
         FlinkCatalogFactory.HADOOP_WAREHOUSE_LOCATION, warehouse
     );
 
-    IcebergSinkUtil.write(dataStream, options, CONF, "test", table, SimpleDataUtil.FLINK_SCHEMA);
+    IcebergSinkUtil.builder()
+        .inputStream(dataStream)
+        .config(CONF)
+        .options(options)
+        .fullTableName("test")
+        .table(table)
+        .flinkSchema(SimpleDataUtil.FLINK_SCHEMA)
+        .build();
 
     // Execute the program.
     env.execute("Test Iceberg DataStream");

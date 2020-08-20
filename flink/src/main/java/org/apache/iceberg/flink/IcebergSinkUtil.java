@@ -21,7 +21,6 @@ package org.apache.iceberg.flink;
 
 import java.util.Locale;
 import java.util.Map;
-import java.util.UUID;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -36,6 +35,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -44,31 +44,69 @@ import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
-class IcebergSinkUtil {
+public class IcebergSinkUtil {
 
   private IcebergSinkUtil() {
   }
 
-  @SuppressWarnings("unchecked")
-  static DataStreamSink<RowData> write(DataStream<RowData> inputStream,
-                                       Map<String, String> options,
-                                       Configuration conf,
-                                       String fullTableName,
-                                       Table table,
-                                       TableSchema requestedSchema) {
-    IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, requestedSchema);
+  public static Builder builder() {
+    return new Builder();
+  }
 
-    String filesCommitterUID = String.format("IcebergFilesCommitter-%s", UUID.randomUUID().toString());
-    IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(filesCommitterUID, fullTableName, options, conf);
+  public static class Builder {
+    private final Map<String, String> options = Maps.newHashMap();
+    private DataStream<RowData> inputStream;
+    private Configuration config;
+    private Table table;
+    private String fullTableName;
+    private TableSchema flinkSchema;
 
-    DataStream<Void> returnStream = inputStream
-        .transform(IcebergStreamWriter.class.getSimpleName(), TypeInformation.of(DataFile.class), streamWriter)
-        .setParallelism(inputStream.getParallelism())
-        .transform(IcebergFilesCommitter.class.getSimpleName(), Types.VOID, filesCommitter)
-        .setParallelism(1)
-        .setMaxParallelism(1);
+    public Builder inputStream(DataStream<RowData> newInputStream) {
+      this.inputStream = newInputStream;
+      return this;
+    }
 
-    return returnStream.addSink(new DiscardingSink()).setParallelism(1);
+    public Builder options(Map<String, String> newOptions) {
+      this.options.putAll(newOptions);
+      return this;
+    }
+
+    public Builder config(Configuration newConfig) {
+      this.config = newConfig;
+      return this;
+    }
+
+    public Builder table(Table newTable) {
+      this.table = newTable;
+      return this;
+    }
+
+    public Builder fullTableName(String newFullTableName) {
+      this.fullTableName = newFullTableName;
+      return this;
+    }
+
+    public Builder flinkSchema(TableSchema newTableSchema) {
+      this.flinkSchema = newTableSchema;
+      return this;
+    }
+
+    @SuppressWarnings("unchecked")
+    public DataStreamSink<RowData> build() {
+      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkSchema);
+      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(fullTableName, options, config);
+
+      DataStream<Void> returnStream = inputStream
+          .transform(IcebergStreamWriter.class.getSimpleName(), TypeInformation.of(DataFile.class), streamWriter)
+          .setParallelism(inputStream.getParallelism())
+          .transform(IcebergFilesCommitter.class.getSimpleName(), Types.VOID, filesCommitter)
+          .setParallelism(1)
+          .setMaxParallelism(1);
+
+      return returnStream.addSink(new DiscardingSink())
+          .name(String.format("Iceberg-Table-Sink-%s", fullTableName))
+          .setParallelism(1);
+    }
   }
 
   static IcebergStreamWriter<RowData> createStreamWriter(Table table, TableSchema requestedSchema) {

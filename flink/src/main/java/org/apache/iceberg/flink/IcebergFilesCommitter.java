@@ -33,6 +33,7 @@ import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.runtime.state.StateSnapshotContext;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
+import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
@@ -61,22 +62,19 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private static final long INITIAL_CHECKPOINT_ID = -1L;
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergFilesCommitter.class);
-  private static final String GLOBAL_FILES_COMMITTER_UID = "flink.files-committer.uid";
-  private static final String MAX_COMMITTED_CHECKPOINT_ID = "flink.max-committed.checkpoint.id";
-
-  private static final FlinkCatalogFactory CATALOG_FACTORY = new FlinkCatalogFactory();
-
-  // It will have an unique identifier for one job.
-  private final String filesCommitterUid;
-  private final String fullTableName;
-  private final SerializableConfiguration conf;
-  private final ImmutableMap<String, String> options;
+  private static final String FLINK_JOB_ID = "flink.job-id";
 
   // The max checkpoint id we've committed to iceberg table. As the flink's checkpoint is always increasing, so we could
   // correctly commit all the data files whose checkpoint id is greater than the max committed one to iceberg table, for
   // avoiding committing the same data files twice. This id will be attached to iceberg's meta when committing the
   // iceberg transaction.
-  private transient long maxCommittedCheckpointId;
+  private static final String MAX_COMMITTED_CHECKPOINT_ID = "flink.max-committed-checkpoint-id";
+
+  private static final FlinkCatalogFactory CATALOG_FACTORY = new FlinkCatalogFactory();
+
+  private final String fullTableName;
+  private final SerializableConfiguration conf;
+  private final ImmutableMap<String, String> options;
 
   // A sorted map to maintain the completed data files for each pending checkpointId (which have not been committed
   // to iceberg table). We need a sorted map here because there's possible that few checkpoints snapshot failed, for
@@ -89,6 +87,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // The data files cache for current checkpoint. Once the snapshot barrier received, it will be flushed to the
   // 'dataFilesPerCheckpoint'.
   private final List<DataFile> dataFilesOfCurrentCheckpoint = Lists.newArrayList();
+  // It will have an unique identifier for one job.
+  private transient String flinkJobId;
   private transient Table table;
 
   // All pending checkpoints states for this function.
@@ -96,31 +96,30 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
   private transient ListState<SortedMap<Long, List<DataFile>>> checkpointsState;
 
-  IcebergFilesCommitter(String filesCommitterUid, String fullTableName,
-                        Map<String, String> options, Configuration conf) {
-    this.filesCommitterUid = filesCommitterUid;
+  IcebergFilesCommitter(String fullTableName, Map<String, String> options, Configuration conf) {
     this.fullTableName = fullTableName;
     this.options = ImmutableMap.copyOf(options);
     this.conf = new SerializableConfiguration(conf);
+    setChainingStrategy(ChainingStrategy.ALWAYS);
   }
 
   @Override
   public void initializeState(StateInitializationContext context) throws Exception {
     super.initializeState(context);
+    flinkJobId = getContainingTask().getEnvironment().getJobID().toHexString();
     Catalog icebergCatalog = CATALOG_FACTORY.buildIcebergCatalog(fullTableName, options, conf.get());
 
     table = icebergCatalog.loadTable(TableIdentifier.parse(fullTableName));
-    maxCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
     checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     if (context.isRestored()) {
-      maxCommittedCheckpointId = getMaxCommittedCheckpointId(table, filesCommitterUid);
+      long maxCommittedCheckpointId = getMaxCommittedCheckpointId(table, flinkJobId);
       // In the restoring path, it should have one valid snapshot for current flink job at least, so the max committed
       // checkpoint id should be positive. If it's not positive, that means someone might have removed or expired the
       // iceberg snapshot, in that case we should throw an exception in case of committing duplicated data files into
       // the iceberg table.
-      Preconditions.checkArgument(maxCommittedCheckpointId > 0,
-          "There should be an existing iceberg snapshot for current flink job: %s", filesCommitterUid);
+      Preconditions.checkState(maxCommittedCheckpointId != INITIAL_CHECKPOINT_ID,
+          "There should be an existing iceberg snapshot for current flink job: %s", flinkJobId);
 
       SortedMap<Long, List<DataFile>> restoredDataFiles = checkpointsState.get().iterator().next();
       // Only keep the uncommitted data files in the cache.
@@ -139,7 +138,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     // Reset the snapshot state to the latest state.
     checkpointsState.clear();
-    checkpointsState.addAll(ImmutableList.of(dataFilesPerCheckpoint));
+    checkpointsState.add(dataFilesPerCheckpoint);
 
     // Clear the local buffer for current checkpoint.
     dataFilesOfCurrentCheckpoint.clear();
@@ -163,10 +162,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       AppendFiles appendFiles = table.newAppend();
       pendingDataFiles.forEach(appendFiles::appendFile);
       appendFiles.set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));
-      appendFiles.set(GLOBAL_FILES_COMMITTER_UID, filesCommitterUid);
+      appendFiles.set(FLINK_JOB_ID, flinkJobId);
       appendFiles.commit();
-
-      maxCommittedCheckpointId = checkpointId;
     }
 
     // Clear the committed data files from dataFilesPerCheckpoint.
@@ -194,14 +191,14 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     return new ListStateDescriptor<>("iceberg-files-committer-state", sortedMapTypeInfo);
   }
 
-  static Long getMaxCommittedCheckpointId(Table table, String filesCommitterUid) {
+  static Long getMaxCommittedCheckpointId(Table table, String flinkJobId) {
     Snapshot snapshot = table.currentSnapshot();
     long lastCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
     while (snapshot != null) {
       Map<String, String> summary = snapshot.summary();
-      String snapshotFilesCommitterUid = summary.get(GLOBAL_FILES_COMMITTER_UID);
-      if (filesCommitterUid.equals(snapshotFilesCommitterUid)) {
+      String snapshotFlinkJobId = summary.get(FLINK_JOB_ID);
+      if (flinkJobId.equals(snapshotFlinkJobId)) {
         String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
         if (value != null) {
           lastCommittedCheckpointId = Long.parseLong(value);

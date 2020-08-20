@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.io;
 
+import java.io.Serializable;
 import org.apache.iceberg.FileFormat;
 
 /**
@@ -26,7 +27,7 @@ import org.apache.iceberg.FileFormat;
  *
  * @param <T> data type of the rows to append.
  */
-public interface FileAppenderFactory<T> {
+public interface FileAppenderFactory<T> extends Serializable {
 
   /**
    * Create a new {@link FileAppender}.
