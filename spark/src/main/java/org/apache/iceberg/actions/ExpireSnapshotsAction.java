@@ -24,6 +24,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ExpireSnapshots;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.StaticTableOperations;
@@ -183,7 +184,7 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
     StaticTableOperations staticOps = new StaticTableOperations(metadata.metadataFileLocation(), table.io());
     return appendTypeString(buildValidDataFileDF(spark, metadata.metadataFileLocation()), DATA_FILE)
         .union(appendTypeString(buildManifestFileDF(spark, metadata.metadataFileLocation()), MANIFEST))
-        .union(appendTypeString(buildManifestListDF(spark, table.toString(), staticOps), MANIFEST_LIST));
+        .union(appendTypeString(buildManifestListDF(spark, new BaseTable(staticOps, table.toString())), MANIFEST_LIST));
   }
 
   /**

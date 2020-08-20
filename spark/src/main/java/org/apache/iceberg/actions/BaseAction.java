@@ -20,7 +20,6 @@
 package org.apache.iceberg.actions;
 
 import java.util.List;
-import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -60,9 +59,9 @@ abstract class BaseAction<R> implements Action<R> {
    * @param table the table
    * @return the paths of the Manifest Lists
    */
-  private List<String> getManifestListPaths(Table table) {
+  private List<String> getManifestListPaths(Iterable<Snapshot> snapshots) {
     List<String> manifestLists = Lists.newArrayList();
-    for (Snapshot snapshot : table.snapshots()) {
+    for (Snapshot snapshot : snapshots) {
       String manifestListLocation = snapshot.manifestListLocation();
       if (manifestListLocation != null) {
         manifestLists.add(manifestListLocation);
@@ -103,9 +102,8 @@ abstract class BaseAction<R> implements Action<R> {
     return spark.read().format("iceberg").load(allManifestsMetadataTable).selectExpr("path as file_path");
   }
 
-  protected Dataset<Row> buildManifestListDF(SparkSession spark, String tableName, TableOperations ops) {
-    Table snapshot = new BaseTable(ops, tableName);
-    List<String> manifestLists = getManifestListPaths(snapshot);
+  protected Dataset<Row> buildManifestListDF(SparkSession spark, Table table) {
+    List<String> manifestLists = getManifestListPaths(table.snapshots());
     return spark.createDataset(manifestLists, Encoders.STRING()).toDF("file_path");
   }
 
@@ -116,7 +114,7 @@ abstract class BaseAction<R> implements Action<R> {
 
   protected Dataset<Row> buildValidMetadataFileDF(SparkSession spark, Table table, TableOperations ops) {
     Dataset<Row> manifestDF = buildManifestFileDF(spark, table.toString());
-    Dataset<Row> manifestListDF = buildManifestListDF(spark, table.toString(), ops);
+    Dataset<Row> manifestListDF = buildManifestListDF(spark, table);
     Dataset<Row> otherMetadataFileDF = buildOtherMetadataFileDF(spark, ops);
 
     return manifestDF.union(otherMetadataFileDF).union(manifestListDF);
