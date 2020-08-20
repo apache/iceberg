@@ -40,7 +40,6 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
@@ -231,13 +230,13 @@ public class OrcMetrics {
   }
 
   private static Object truncateIfNeeded(Bound bound, Type type, Object value, MetricsMode metricsMode) {
-    // ORC only stores min/max for String columns
-    if (value == null || metricsMode == MetricsModes.Full.get() || type.typeId() != Type.TypeID.STRING) {
+    // Out of the two types which could be truncated, string or binary, ORC only supports string bounds.
+    // Therefore, truncation will be applied if needed only on string type.
+    if (!(metricsMode instanceof MetricsModes.Truncate) || type.typeId() != Type.TypeID.STRING || value == null) {
       return value;
     }
 
     CharSequence charSequence = (CharSequence) value;
-    Preconditions.checkArgument(metricsMode instanceof MetricsModes.Truncate, "Expected Truncate MetricsMode");
     MetricsModes.Truncate truncateMode = (MetricsModes.Truncate) metricsMode;
     int truncateLength = truncateMode.length();
 
