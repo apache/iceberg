@@ -31,14 +31,9 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.DataWriter;
-import org.apache.iceberg.data.orc.GenericOrcWriter;
-import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkValueConverter;
@@ -111,33 +106,9 @@ public abstract class TestSparkReadProjection extends TestReadProjection {
       // When tables are created, the column ids are reassigned.
       Schema tableSchema = table.schema();
 
-      switch (format) {
-        case AVRO:
-          try (FileAppender<Record> writer = Avro.write(localOutput(testFile))
-              .createWriterFunc(DataWriter::create)
-              .schema(tableSchema)
-              .build()) {
-            writer.add(record);
-          }
-          break;
-
-        case PARQUET:
-          try (FileAppender<Record> writer = Parquet.write(localOutput(testFile))
-              .createWriterFunc(GenericParquetWriter::buildWriter)
-              .schema(tableSchema)
-              .build()) {
-            writer.add(record);
-          }
-          break;
-
-        case ORC:
-          try (FileAppender<org.apache.iceberg.data.Record> writer = ORC.write(localOutput(testFile))
-              .createWriterFunc(GenericOrcWriter::buildWriter)
-              .schema(tableSchema)
-              .build()) {
-            writer.add(record);
-          }
-          break;
+      try (FileAppender<Record> writer = new GenericAppenderFactory(tableSchema).newAppender(
+          localOutput(testFile), format)) {
+        writer.add(record);
       }
 
       DataFile file = DataFiles.builder(PartitionSpec.unpartitioned())
