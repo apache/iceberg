@@ -39,12 +39,14 @@ import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.functions;
+import org.apache.spark.sql.internal.SQLConf;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
@@ -422,6 +424,58 @@ public class TestSparkTableUtilWithInMemoryCatalog {
 
       Types.NestedField nestedField3 = table.schema().findField("struct.nested_3");
       checkFieldMetrics(fileDF, nestedField3, "f", "g");
+    } finally {
+      spark.sql("DROP TABLE parquet_table");
+    }
+  }
+
+  @Test
+  public void testImportTableWithInt96Timestamp() throws IOException {
+    File parquetTableDir = temp.newFolder("parquet_table");
+    String parquetTableLocation = parquetTableDir.toURI().toString();
+
+    try {
+      spark.conf().set(SQLConf.PARQUET_OUTPUT_TIMESTAMP_TYPE().key(), "INT96");
+
+      Column timestampColumn = functions.to_timestamp(functions.lit("2010-03-20 10:40:30.1234"));
+      Dataset<Row> df = spark.range(1, 10).withColumn("tmp_col", timestampColumn);
+      df.coalesce(1).select("id", "tmp_col").write()
+          .format("parquet")
+          .mode("append")
+          .option("path", parquetTableLocation)
+          .saveAsTable("parquet_table");
+
+      Schema schema = new Schema(
+          optional(1, "id", Types.LongType.get()),
+          optional(2, "tmp_col", Types.TimestampType.withZone())
+      );
+      Table table = TABLES.create(schema, PartitionSpec.unpartitioned(), tableLocation);
+
+      // assign a custom metrics config
+      table.updateProperties()
+          .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full")
+          .commit();
+
+      File stagingDir = temp.newFolder("staging-dir");
+      SparkTableUtil.importSparkTable(spark, new TableIdentifier("parquet_table"), table, stagingDir.toString());
+
+      // validate we get the expected results back
+      List<Row> expected = spark.table("parquet_table")
+          .select("id", "tmp_col")
+          .collectAsList();
+      List<Row> actual = spark.read().format("iceberg").load(tableLocation)
+          .select("id", "tmp_col")
+          .collectAsList();
+      Assert.assertEquals("Rows must match", expected, actual);
+
+      // validate we did not persist metrics for INT96
+      Dataset<Row> fileDF = spark.read().format("iceberg").load(tableLocation + "#files");
+
+      Types.NestedField timestampField = table.schema().findField("tmp_col");
+      checkFieldMetrics(fileDF, timestampField, true);
+
+      Types.NestedField idField = table.schema().findField("id");
+      checkFieldMetrics(fileDF, idField, 1L, 9L);
     } finally {
       spark.sql("DROP TABLE parquet_table");
     }
