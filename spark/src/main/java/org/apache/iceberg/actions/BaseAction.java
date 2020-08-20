@@ -20,8 +20,10 @@
 package org.apache.iceberg.actions;
 
 import java.util.List;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -105,6 +107,11 @@ abstract class BaseAction<R> implements Action<R> {
   protected Dataset<Row> buildManifestListDF(SparkSession spark, Table table) {
     List<String> manifestLists = getManifestListPaths(table.snapshots());
     return spark.createDataset(manifestLists, Encoders.STRING()).toDF("file_path");
+  }
+
+  protected Dataset<Row> buildManifestListDF(SparkSession spark, String metadataFileLocation) {
+    StaticTableOperations ops = new StaticTableOperations(metadataFileLocation, table().io());
+    return buildManifestListDF(spark, new BaseTable(ops, table().toString()));
   }
 
   protected Dataset<Row> buildOtherMetadataFileDF(SparkSession spark, TableOperations ops) {

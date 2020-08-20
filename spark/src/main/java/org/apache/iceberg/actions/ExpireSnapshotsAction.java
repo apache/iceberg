@@ -24,10 +24,8 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ExpireSnapshots;
 import org.apache.iceberg.HasTableOperations;
-import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -181,10 +179,9 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
   }
 
   private Dataset<Row> buildValidFileDF(TableMetadata metadata) {
-    StaticTableOperations staticOps = new StaticTableOperations(metadata.metadataFileLocation(), table.io());
     return appendTypeString(buildValidDataFileDF(spark, metadata.metadataFileLocation()), DATA_FILE)
         .union(appendTypeString(buildManifestFileDF(spark, metadata.metadataFileLocation()), MANIFEST))
-        .union(appendTypeString(buildManifestListDF(spark, new BaseTable(staticOps, table.toString())), MANIFEST_LIST));
+        .union(appendTypeString(buildManifestListDF(spark, metadata.metadataFileLocation()), MANIFEST_LIST));
   }
 
   /**
