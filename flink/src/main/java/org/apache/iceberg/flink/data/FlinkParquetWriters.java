@@ -206,12 +206,12 @@ public class FlinkParquetWriters {
     return new IntegerDecimalWriter(desc, precision, scale);
   }
   private static ParquetValueWriters.PrimitiveWriter<DecimalData> decimalAsLong(ColumnDescriptor desc,
-                                                                            int precision, int scale) {
+                                                                                int precision, int scale) {
     return new LongDecimalWriter(desc, precision, scale);
   }
 
   private static ParquetValueWriters.PrimitiveWriter<DecimalData> decimalAsFixed(ColumnDescriptor desc,
-                                                                             int precision, int scale) {
+                                                                                 int precision, int scale) {
     return new FixedDecimalWriter(desc, precision, scale);
   }
 
