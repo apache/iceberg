@@ -167,7 +167,7 @@ project(':iceberg-bundled-guava') {
   }
 
   jar {
-    classifier 'empty'
+    archiveClassifier 'empty'
   }
 }
 
