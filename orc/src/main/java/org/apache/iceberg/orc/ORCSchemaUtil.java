@@ -267,7 +267,7 @@ public final class ORCSchemaUtil {
           // e.g. renaming column c -> d and adding new column d
           String name = Optional.ofNullable(mapping.get(nestedField.fieldId()))
               .map(OrcField::name)
-              .orElse(nestedField.name() + "_r" + nestedField.fieldId());
+              .orElseGet(() -> nestedField.name() + "_r" + nestedField.fieldId());
           TypeDescription childType = buildOrcProjection(nestedField.fieldId(), nestedField.type(),
               isRequired && nestedField.isRequired(), mapping);
           orcType.addField(name, childType);

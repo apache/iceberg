@@ -148,14 +148,14 @@ public class MapredIcebergInputFormat<T> implements InputFormat<Void, Container<
 
   private static JobContext newJobContext(JobConf job) {
     JobID jobID = Optional.ofNullable(JobID.forName(job.get(JobContext.ID)))
-                          .orElse(new JobID());
+                          .orElseGet(JobID::new);
 
     return new JobContextImpl(job, jobID);
   }
 
   private static TaskAttemptContext newTaskAttemptContext(JobConf job, Reporter reporter) {
     TaskAttemptID taskAttemptID = Optional.ofNullable(TaskAttemptID.forName(job.get(JobContext.TASK_ATTEMPT_ID)))
-                                          .orElse(new TaskAttemptID());
+                                          .orElseGet(TaskAttemptID::new);
 
     return new TaskAttemptContextImpl(job, taskAttemptID, toStatusReporter(reporter));
   }
