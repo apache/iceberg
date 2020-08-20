@@ -34,6 +34,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.flink.table.data.DecimalData;
+import org.apache.flink.table.data.GenericArrayData;
+import org.apache.flink.table.data.GenericMapData;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
@@ -129,7 +131,7 @@ public class RowDataConverter {
         for (Object element : list) {
           convertedList.add(convert(type.asListType().elementType(), element));
         }
-        return convertedList;
+        return new GenericArrayData(convertedList.toArray());
       case MAP:
         Map<Object, Object> convertedMap = Maps.newLinkedHashMap();
         Map<?, ?> map = (Map<?, ?>) object;
@@ -139,7 +141,7 @@ public class RowDataConverter {
               convert(type.asMapType().valueType(), entry.getValue())
           );
         }
-        return convertedMap;
+        return new GenericMapData(convertedMap);
       default:
         throw new UnsupportedOperationException("Not a supported type: " + type);
     }
