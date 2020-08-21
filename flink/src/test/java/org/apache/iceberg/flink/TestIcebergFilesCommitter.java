@@ -65,11 +65,12 @@ public class TestIcebergFilesCommitter {
 
   private final FileFormat format;
 
-  // TODO Add ORC/Parquet unit test once those readers and writers are ready.
+  // TODO Add Parquet unit test once those readers and writers are ready.
   @Parameterized.Parameters(name = "format = {0}")
   public static Object[][] parameters() {
     return new Object[][] {
         new Object[] {"avro"},
+        new Object[] {"orc"},
     };
   }
 
