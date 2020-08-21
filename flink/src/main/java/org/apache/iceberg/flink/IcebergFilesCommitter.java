@@ -86,6 +86,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // It will have an unique identifier for one job.
   private transient String flinkJobId;
   private transient Table table;
+  private transient long maxCommittedCheckpointId;
 
   // All pending checkpoints states for this function.
   private static final ListStateDescriptor<SortedMap<Long, List<DataFile>>> STATE_DESCRIPTOR = buildStateDescriptor();
@@ -108,7 +109,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     if (context.isRestored()) {
-      long maxCommittedCheckpointId = getMaxCommittedCheckpointId(table, flinkJobId);
+      maxCommittedCheckpointId = getMaxCommittedCheckpointId(table, flinkJobId);
       // In the restoring path, it should have one valid snapshot for current flink job at least, so the max committed
       // checkpoint id should be positive. If it's not positive, that means someone might have removed or expired the
       // iceberg snapshot, in that case we should throw an exception in case of committing duplicated data files into
@@ -142,7 +143,17 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   @Override
   public void notifyCheckpointComplete(long checkpointId) throws Exception {
     super.notifyCheckpointComplete(checkpointId);
-    commitUpToCheckpoint(checkpointId);
+    // It's possible that we have the following events:
+    //   1. snapshotState(ckpId);
+    //   2. snapshotState(ckpId+1);
+    //   3. notifyCheckpointComplete(ckpId+1);
+    //   4. notifyCheckpointComplete(ckpId);
+    // For step#4, we don't need to commit iceberg table again because in step#3 we've committed all the files,
+    // Besides, we need to maintain the max-committed-checkpoint-id to be increasing.
+    if (checkpointId > maxCommittedCheckpointId) {
+      commitUpToCheckpoint(checkpointId);
+      maxCommittedCheckpointId = checkpointId;
+    }
   }
 
   private void commitUpToCheckpoint(long checkpointId) {
