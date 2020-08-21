@@ -38,14 +38,9 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
 
 public class TestFlinkOrcReaderWriter extends DataTest {
   private static final int NUM_RECORDS = 100;
-
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {

@@ -35,14 +35,9 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
 
 public class TestFlinkParquetReader extends DataTest {
   private static final int NUM_RECORDS = 100;
-
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
 
   private void writeAndValidate(Iterable<Record> iterable, Schema schema) throws IOException {
     File testFile = temp.newFile();
