@@ -24,7 +24,8 @@ import org.junit.Assert;
 
 public class AssertHelpers {
 
-  private AssertHelpers() {}
+  private AssertHelpers() {
+  }
 
   /**
    * A convenience method to avoid a large number of @Test(expected=...) tests

@@ -44,7 +44,8 @@ import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkValueReaders {
 
-  private SparkValueReaders() {}
+  private SparkValueReaders() {
+  }
 
   static ValueReader<UTF8String> strings() {
     return StringReader.INSTANCE;

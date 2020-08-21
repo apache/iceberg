@@ -28,7 +28,8 @@ import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFact
 
 public class ThreadPools {
 
-  private ThreadPools() {}
+  private ThreadPools() {
+  }
 
   public static final String WORKER_THREAD_POOL_SIZE_PROP =
       SystemProperties.WORKER_THREAD_POOL_SIZE_PROP;

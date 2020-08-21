@@ -58,5 +58,6 @@ public class ByteBuffers {
     return ByteBuffer.wrap(copyArray);
   }
 
-  private ByteBuffers() {}
+  private ByteBuffers() {
+  }
 }

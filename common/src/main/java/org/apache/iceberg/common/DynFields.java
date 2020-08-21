@@ -34,7 +34,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 public class DynFields {
 
-  private DynFields() {}
+  private DynFields() {
+  }
 
   /**
    * Convenience wrapper class around {@link java.lang.reflect.Field}.

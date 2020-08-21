@@ -37,7 +37,8 @@ import org.apache.iceberg.util.DecimalUtil;
 
 public class FlinkValueWriters {
 
-  private FlinkValueWriters() {}
+  private FlinkValueWriters() {
+  }
 
   static ValueWriter<StringData> strings() {
     return StringWriter.INSTANCE;

@@ -31,5 +31,6 @@ public class EncryptionKeyMetadatas {
     return BaseEncryptionKeyMetadata.fromByteArray(keyMetadata);
   }
 
-  private EncryptionKeyMetadatas() {}
+  private EncryptionKeyMetadatas() {
+  }
 }

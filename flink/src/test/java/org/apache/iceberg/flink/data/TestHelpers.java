@@ -47,7 +47,8 @@ import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.Assert;
 
 public class TestHelpers {
-  private TestHelpers() {}
+  private TestHelpers() {
+  }
 
   public static void assertRowData(Types.StructType structType, LogicalType rowType, Record expectedRecord,
                                    RowData actualRowData) {

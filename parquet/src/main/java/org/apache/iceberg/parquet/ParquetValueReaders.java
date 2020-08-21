@@ -697,7 +697,7 @@ public class ParquetValueReaders {
 
       for (int i = 0; i < readers.length; i += 1) {
         set(intermediate, i, readers[i].read(get(intermediate, i)));
-        //setters[i].set(intermediate, i, get(intermediate, i));
+        // setters[i].set(intermediate, i, get(intermediate, i));
       }
 
       return buildStruct(intermediate);

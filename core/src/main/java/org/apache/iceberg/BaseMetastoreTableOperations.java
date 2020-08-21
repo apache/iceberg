@@ -51,7 +51,8 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   private boolean shouldRefresh = true;
   private int version = -1;
 
-  protected BaseMetastoreTableOperations() { }
+  protected BaseMetastoreTableOperations() {
+  }
 
   @Override
   public TableMetadata current() {

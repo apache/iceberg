@@ -36,7 +36,8 @@ import static org.apache.iceberg.TableMetadata.newTableMetadata;
 
 public class TestTables {
 
-  private TestTables() {}
+  private TestTables() {
+  }
 
   private static TestTable upgrade(File temp, String name, int newFormatVersion) {
     TestTable table = load(temp, name);

@@ -33,7 +33,8 @@ public final class HiveCatalogs {
       .removalListener((RemovalListener<String, HiveCatalog>) (uri, catalog, cause) -> catalog.close())
       .build();
 
-  private HiveCatalogs() {}
+  private HiveCatalogs() {
+  }
 
   public static HiveCatalog loadCatalog(Configuration conf) {
     // metastore URI can be null in local mode

@@ -21,7 +21,8 @@ package org.apache.iceberg.util;
 
 public class ExceptionUtil {
 
-  private ExceptionUtil() {}
+  private ExceptionUtil() {
+  }
 
   @SuppressWarnings("unchecked")
   static <E extends Exception> void castAndThrow(

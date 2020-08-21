@@ -41,7 +41,8 @@ import org.slf4j.LoggerFactory;
  */
 class HadoopStreams {
 
-  private HadoopStreams() {}
+  private HadoopStreams() {
+  }
 
   private static final Logger LOG = LoggerFactory.getLogger(HadoopStreams.class);
 

@@ -37,7 +37,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class TypeUtil {
 
-  private TypeUtil() {}
+  private TypeUtil() {
+  }
 
   public static Schema select(Schema schema, Set<Integer> fieldIds) {
     Preconditions.checkNotNull(schema, "Schema cannot be null");

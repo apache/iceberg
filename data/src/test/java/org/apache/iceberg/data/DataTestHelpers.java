@@ -26,7 +26,8 @@ import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 
 public class DataTestHelpers {
-  private DataTestHelpers() {}
+  private DataTestHelpers() {
+  }
 
   public static void assertEquals(Types.StructType struct, Record expected, Record actual) {
     List<Types.NestedField> fields = struct.fields();

@@ -34,7 +34,8 @@ import org.apache.iceberg.io.SeekableInputStream;
 
 public class Files {
 
-  private Files() {}
+  private Files() {
+  }
 
   public static OutputFile localOutput(File file) {
     return new LocalOutputFile(file);

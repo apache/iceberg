@@ -34,7 +34,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Throwables;
  */
 public class DynMethods {
 
-  private DynMethods() {}
+  private DynMethods() {
+  }
 
   /**
    * Convenience wrapper class around {@link java.lang.reflect.Method}.

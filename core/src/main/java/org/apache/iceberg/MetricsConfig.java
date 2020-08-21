@@ -36,7 +36,8 @@ public class MetricsConfig implements Serializable {
   private Map<String, MetricsMode> columnModes = Maps.newHashMap();
   private MetricsMode defaultMode;
 
-  private MetricsConfig() {}
+  private MetricsConfig() {
+  }
 
   public static MetricsConfig getDefault() {
     MetricsConfig spec = new MetricsConfig();

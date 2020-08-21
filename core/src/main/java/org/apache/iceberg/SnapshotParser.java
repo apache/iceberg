@@ -35,7 +35,8 @@ import org.apache.iceberg.util.JsonUtil;
 
 public class SnapshotParser {
 
-  private SnapshotParser() {}
+  private SnapshotParser() {
+  }
 
   private static final String SEQUENCE_NUMBER = "sequence-number";
   private static final String SNAPSHOT_ID = "snapshot-id";

@@ -109,7 +109,7 @@ public class TestSparkParquetReadMetadataColumns {
   public static Object[][] parameters() {
     return new Object[][] {
         new Object[] { false },
-        //new Object[] { true }
+        // new Object[] { true }
     };
   }
 

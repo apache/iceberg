@@ -554,13 +554,13 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     // ManifestList should be deleted too
     expectedDeletes.add(snapshotB.manifestListLocation());
     snapshotB.dataManifests().forEach(file -> {
-      //Only the manifest of B should be deleted.
+      // Only the manifest of B should be deleted.
       if (file.snapshotId() == snapshotB.snapshotId()) {
         expectedDeletes.add(file.path());
       }
     });
     Assert.assertSame("Files deleted count should be expected", expectedDeletes.size(), deletedFiles.size());
-    //Take the diff
+    // Take the diff
     expectedDeletes.removeAll(deletedFiles);
     Assert.assertTrue("Exactly same files should be deleted", expectedDeletes.isEmpty());
   }

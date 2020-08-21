@@ -128,7 +128,7 @@ public abstract class TestSparkDataWrite {
           Assert.assertNotNull("Split offsets not present", file.splitOffsets());
         }
         Assert.assertEquals("Should have reported record count as 1", 1, file.recordCount());
-        //TODO: append more metric info
+        // TODO: append more metric info
         if (format.equals(FileFormat.PARQUET)) {
           Assert.assertNotNull("Column sizes metric not present", file.columnSizes());
           Assert.assertNotNull("Counts metric not present", file.valueCounts());
