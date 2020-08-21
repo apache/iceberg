@@ -90,6 +90,8 @@ public class TestIcebergFilesCommitter {
 
   @Test
   public void testCommitTxnWithoutDataFiles() throws Exception {
+    long checkpointId = 0;
+    long timestamp = 0;
     JobID jobId = new JobID();
     try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(jobId)) {
       harness.setup();
@@ -97,6 +99,16 @@ public class TestIcebergFilesCommitter {
 
       SimpleDataUtil.assertTableRows(tablePath, Lists.newArrayList());
       assertSnapshotSize(0);
+      assertMaxCommittedCheckpointId(jobId, -1L);
+
+      // It's better to advance the max-committed-checkpoint-id in iceberg snapshot, so that the future flink job
+      // failover won't fail.
+      for (int i = 1; i <= 3; i++) {
+        harness.snapshot(++checkpointId, ++timestamp);
+        harness.notifyOfCompletedCheckpoint(checkpointId);
+        assertSnapshotSize(i);
+        assertMaxCommittedCheckpointId(jobId, checkpointId);
+      }
     }
   }
 

@@ -153,13 +153,11 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       pendingDataFiles.addAll(dataFiles);
     }
 
-    if (!pendingDataFiles.isEmpty()) {
-      AppendFiles appendFiles = table.newAppend();
-      pendingDataFiles.forEach(appendFiles::appendFile);
-      appendFiles.set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));
-      appendFiles.set(FLINK_JOB_ID, flinkJobId);
-      appendFiles.commit();
-    }
+    AppendFiles appendFiles = table.newAppend();
+    pendingDataFiles.forEach(appendFiles::appendFile);
+    appendFiles.set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));
+    appendFiles.set(FLINK_JOB_ID, flinkJobId);
+    appendFiles.commit();
 
     // Clear the committed data files from dataFilesPerCheckpoint.
     pendingFileMap.clear();
