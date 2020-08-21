@@ -42,12 +42,9 @@ import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
@@ -70,12 +67,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // iceberg transaction.
   private static final String MAX_COMMITTED_CHECKPOINT_ID = "flink.max-committed-checkpoint-id";
 
-  private static final FlinkCatalogFactory CATALOG_FACTORY = new FlinkCatalogFactory();
-
-  private final String catalogName;
-  private final String fullTableName;
-  private final SerializableConfiguration conf;
-  private final ImmutableMap<String, String> options;
+  // TableLoader to load iceberg table lazily.
+  private final TableLoader tableLoader;
+  private final SerializableConfiguration hadoopConf;
 
   // A sorted map to maintain the completed data files for each pending checkpointId (which have not been committed
   // to iceberg table). We need a sorted map here because there's possible that few checkpoints snapshot failed, for
@@ -97,11 +91,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private static final ListStateDescriptor<SortedMap<Long, List<DataFile>>> STATE_DESCRIPTOR = buildStateDescriptor();
   private transient ListState<SortedMap<Long, List<DataFile>>> checkpointsState;
 
-  IcebergFilesCommitter(String catalogName, String fullTableName, Map<String, String> options, Configuration conf) {
-    this.catalogName = catalogName;
-    this.fullTableName = fullTableName;
-    this.options = ImmutableMap.copyOf(options);
-    this.conf = new SerializableConfiguration(conf);
+  IcebergFilesCommitter(TableLoader tableLoader, Configuration hadoopConf) {
+    this.tableLoader = tableLoader;
+    this.hadoopConf = new SerializableConfiguration(hadoopConf);
     setChainingStrategy(ChainingStrategy.ALWAYS);
   }
 
@@ -109,9 +101,10 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   public void initializeState(StateInitializationContext context) throws Exception {
     super.initializeState(context);
     flinkJobId = getContainingTask().getEnvironment().getJobID().toString();
-    Catalog icebergCatalog = CATALOG_FACTORY.buildIcebergCatalog(catalogName, options, conf.get());
 
-    table = icebergCatalog.loadTable(TableIdentifier.parse(fullTableName));
+    // Open the table loader and load the table.
+    tableLoader.open(hadoopConf.get());
+    table = tableLoader.loadTable();
 
     checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     if (context.isRestored()) {

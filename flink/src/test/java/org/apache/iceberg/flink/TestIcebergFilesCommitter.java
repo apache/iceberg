@@ -23,7 +23,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
@@ -59,7 +58,6 @@ public class TestIcebergFilesCommitter {
   @Rule
   public TemporaryFolder tempFolder = new TemporaryFolder();
 
-  private String warehouse;
   private String tablePath;
   private Table table;
 
@@ -81,9 +79,9 @@ public class TestIcebergFilesCommitter {
   @Before
   public void before() throws IOException {
     File folder = tempFolder.newFolder();
-    warehouse = folder.getAbsolutePath();
+    String warehouse = folder.getAbsolutePath();
 
-    tablePath = warehouse + "/test";
+    tablePath = warehouse.concat("/test");
     Assert.assertTrue("Should create the table directory correctly.", new File(tablePath).mkdir());
 
     // Construct the iceberg table.
@@ -422,13 +420,7 @@ public class TestIcebergFilesCommitter {
 
   private OneInputStreamOperatorTestHarness<DataFile, Void> createStreamSink(JobID jobID)
       throws Exception {
-    Map<String, String> options = ImmutableMap.of(
-        "type", "iceberg",
-        FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hadoop",
-        FlinkCatalogFactory.HADOOP_WAREHOUSE_LOCATION, warehouse
-    );
-
-    TestOperatorFactory factory = TestOperatorFactory.of("test", options, CONF);
+    TestOperatorFactory factory = TestOperatorFactory.of(tablePath);
     return new OneInputStreamOperatorTestHarness<>(factory, createEnvironment(jobID));
   }
 
@@ -447,23 +439,20 @@ public class TestIcebergFilesCommitter {
 
   private static class TestOperatorFactory extends AbstractStreamOperatorFactory<Void>
       implements OneInputStreamOperatorFactory<DataFile, Void> {
-    private final String fullTableName;
-    private final Map<String, String> options;
-    private final Configuration conf;
+    private final String tablePath;
 
-    private TestOperatorFactory(String fullTableName, Map<String, String> options, Configuration conf) {
-      this.fullTableName = fullTableName;
-      this.options = options;
-      this.conf = conf;
+    private TestOperatorFactory(String tablePath) {
+      this.tablePath = tablePath;
     }
 
-    private static TestOperatorFactory of(String fullTableName, Map<String, String> options, Configuration conf) {
-      return new TestOperatorFactory(fullTableName, options, conf);
+    private static TestOperatorFactory of(String tablePath) {
+      return new TestOperatorFactory(tablePath);
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public <T extends StreamOperator<Void>> T createStreamOperator(StreamOperatorParameters<Void> param) {
-      IcebergFilesCommitter committer = new IcebergFilesCommitter("prod", fullTableName, options, conf);
+      IcebergFilesCommitter committer = new IcebergFilesCommitter(TableLoader.fromHadoopTable(tablePath), CONF);
       committer.setup(param.getContainingTask(), param.getStreamConfig(), param.getOutput());
       return (T) committer;
     }

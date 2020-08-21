@@ -39,6 +39,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -108,19 +109,14 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
     DataStream<RowData> dataStream = env.addSource(new FiniteTestSource<>(rows), typeInformation)
         .map(CONVERTER::toInternal, RowDataTypeInfo.of(SimpleDataUtil.ROW_TYPE));
 
-    // Output the data stream to stdout.
-    Map<String, String> options = ImmutableMap.of(
-        FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hadoop",
-        FlinkCatalogFactory.HADOOP_WAREHOUSE_LOCATION, warehouse
-    );
-
     IcebergSinkUtil.builder()
         .inputStream(dataStream)
-        .config(CONF)
-        .setAll(options)
-        .catalogName("prod")
-        .fullTableName("test")
         .table(table)
+        .tableIdentifier(TableIdentifier.of("test"))
+        .hadoopConf(CONF)
+        .catalogType("hadoop")
+        .warehouseLocation(warehouse)
+        .catalogName("prod")
         .flinkSchema(SimpleDataUtil.FLINK_SCHEMA)
         .build();
 
