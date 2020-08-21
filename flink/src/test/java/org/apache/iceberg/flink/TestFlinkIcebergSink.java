@@ -30,6 +30,7 @@ import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.util.FiniteTestSource;
+import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
 import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo;
@@ -39,7 +40,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -54,15 +54,18 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public class TestFlinkIcebergSink extends AbstractTestBase {
   private static final Configuration CONF = new Configuration();
+  private static final TypeInformation<Row> ROW_TYPE_INFO = new RowTypeInfo(
+      SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
   private static final DataFormatConverters.RowConverter CONVERTER = new DataFormatConverters.RowConverter(
       SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes());
 
   @Rule
   public TemporaryFolder tempFolder = new TemporaryFolder();
 
-  private String warehouse;
   private String tablePath;
   private Table table;
+  private StreamExecutionEnvironment env;
+  private TableLoader tableLoader;
 
   private final FileFormat format;
   private final int parallelism;
@@ -91,67 +94,79 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
   @Before
   public void before() throws IOException {
     File folder = tempFolder.newFolder();
-    warehouse = folder.getAbsolutePath();
+    String warehouse = folder.getAbsolutePath();
 
     tablePath = warehouse.concat("/test");
     Assert.assertTrue("Should create the table path correctly.", new File(tablePath).mkdir());
 
     Map<String, String> props = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name());
     table = SimpleDataUtil.createTable(tablePath, props, partitioned);
+
+    env = StreamExecutionEnvironment.getExecutionEnvironment()
+        .enableCheckpointing(100)
+        .setParallelism(parallelism)
+        .setMaxParallelism(parallelism);
+
+    tableLoader = TableLoader.fromHadoopTable(tablePath);
   }
 
   private List<RowData> convertToRowData(List<Row> rows) {
     return rows.stream().map(CONVERTER::toInternal).collect(Collectors.toList());
   }
 
-  private void writeWithStreamJob(StreamExecutionEnvironment env, List<Row> rows) throws Exception {
-    TypeInformation<Row> typeInformation = new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
-    DataStream<RowData> dataStream = env.addSource(new FiniteTestSource<>(rows), typeInformation)
-        .map(CONVERTER::toInternal, RowDataTypeInfo.of(SimpleDataUtil.ROW_TYPE));
-
-    IcebergSinkUtil.builder()
-        .inputStream(dataStream)
-        .table(table)
-        .tableIdentifier(TableIdentifier.of("test"))
-        .hadoopConf(CONF)
-        .catalogType("hadoop")
-        .warehouseLocation(warehouse)
-        .catalogName("prod")
-        .flinkSchema(SimpleDataUtil.FLINK_SCHEMA)
-        .build();
-
-    // Execute the program.
-    env.execute("Test Iceberg DataStream");
-  }
-
   @Test
-  public void testDataStream() throws Exception {
-    StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-    // Enable the checkpoint.
-    env.enableCheckpointing(100);
-    env.setParallelism(parallelism);
-
-    List<Row> rows1 = Lists.newArrayList(
+  public void testWriteRowData() throws Exception {
+    List<Row> rows = Lists.newArrayList(
         Row.of(1, "hello"),
         Row.of(2, "world"),
         Row.of(3, "foo")
     );
-    // Summit the first flink stream job to write those rows.
-    writeWithStreamJob(env, rows1);
+    DataStream<RowData> dataStream = env.addSource(new FiniteTestSource<>(rows), ROW_TYPE_INFO)
+        .map(CONVERTER::toInternal, RowDataTypeInfo.of(SimpleDataUtil.ROW_TYPE));
+
+    FlinkSink.forRowData(dataStream)
+        .table(table)
+        .tableLoader(tableLoader)
+        .hadoopConf(CONF)
+        .build();
+
+    // Execute the program.
+    env.execute("Test Iceberg DataStream");
 
     // Assert the iceberg table's records. NOTICE: the FiniteTestSource will checkpoint the same rows twice, so it will
     // commit the same row list into iceberg twice.
-    List<RowData> expectedRows = Lists.newArrayList(Iterables.concat(convertToRowData(rows1), convertToRowData(rows1)));
+    List<RowData> expectedRows = Lists.newArrayList(Iterables.concat(convertToRowData(rows), convertToRowData(rows)));
     SimpleDataUtil.assertTableRows(tablePath, expectedRows);
+  }
 
-    List<Row> rows2 = Lists.newArrayList(
+  private void testWriteRow(TableSchema tableSchema) throws Exception {
+    List<Row> rows = Lists.newArrayList(
         Row.of(4, "bar"),
         Row.of(5, "apache")
     );
-    // Submit the second flink stream job to write those rows.
-    writeWithStreamJob(env, rows2);
-    expectedRows.addAll(convertToRowData(rows2));
-    expectedRows.addAll(convertToRowData(rows2));
+    DataStream<Row> dataStream = env.addSource(new FiniteTestSource<>(rows), ROW_TYPE_INFO);
+
+    FlinkSink.forRow(dataStream)
+        .table(table)
+        .tableLoader(tableLoader)
+        .tableSchema(tableSchema)
+        .hadoopConf(CONF)
+        .build();
+
+    // Execute the program.
+    env.execute("Test Iceberg DataStream.");
+
+    List<RowData> expectedRows = Lists.newArrayList(Iterables.concat(convertToRowData(rows), convertToRowData(rows)));
     SimpleDataUtil.assertTableRows(tablePath, expectedRows);
+  }
+
+  @Test
+  public void testWriteRow() throws Exception {
+    testWriteRow(null);
+  }
+
+  @Test
+  public void testWriteRowWithTableSchema() throws Exception {
+    testWriteRow(SimpleDataUtil.FLINK_SCHEMA);
   }
 }

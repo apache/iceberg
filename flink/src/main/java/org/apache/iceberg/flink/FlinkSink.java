@@ -28,15 +28,19 @@ import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.functions.sink.DiscardingSink;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.util.DataFormatConverters;
+import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo;
+import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.table.types.utils.TypeConversions;
+import org.apache.flink.types.Row;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -45,57 +49,38 @@ import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
-public class IcebergSinkUtil {
+public class FlinkSink {
 
   private static final TypeInformation<DataFile> DATA_FILE_TYPE_INFO = TypeInformation.of(DataFile.class);
   private static final String ICEBERG_STREAM_WRITER_NAME = IcebergStreamWriter.class.getSimpleName();
   private static final String ICEBERG_FILES_COMMITTER_NAME = IcebergFilesCommitter.class.getSimpleName();
 
-  private IcebergSinkUtil() {
+  private FlinkSink() {
   }
 
-  public static Builder builder() {
-    return new Builder();
+  public static Builder forRow(DataStream<Row> input) {
+    return new Builder().forRow(input);
   }
 
-  private enum CatalogType {
-    HIVE("hive"), HADOOP("hadoop");
-
-    private final String catalogType;
-
-    CatalogType(String catalogType) {
-      this.catalogType = catalogType;
-    }
-
-    @Override
-    public String toString() {
-      return catalogType;
-    }
-
-    public static CatalogType of(String catalogType) {
-      for (CatalogType type : CatalogType.values()) {
-        if (Comparators.charSequences().compare(type.catalogType, catalogType) == 0) {
-          return type;
-        }
-      }
-      return null;
-    }
+  public static Builder forRowData(DataStream<RowData> input) {
+    return new Builder().forRowData(input);
   }
 
   public static class Builder {
-    private DataStream<RowData> inputStream;
-    private Table table;
-    private TableIdentifier tableIdentifier;
+    private DataStream<Row> rowInput = null;
+    private DataStream<RowData> rowDataInput = null;
+    private TableLoader tableLoader;
     private Configuration hadoopConf;
-    private CatalogType catalogType;
-    private String catalogName;
-    private String hadoopWarehouseLocation;
-    private String hiveURI;
-    private int hiveClientPoolSize;
-    private TableSchema flinkSchema;
+    private Table table;
+    private TableSchema tableSchema;
 
-    public Builder inputStream(DataStream<RowData> newInputStream) {
-      this.inputStream = newInputStream;
+    private Builder forRow(DataStream<Row> newRowInput) {
+      this.rowInput = newRowInput;
+      return this;
+    }
+
+    private Builder forRowData(DataStream<RowData> newRowDataInput) {
+      this.rowDataInput = newRowDataInput;
       return this;
     }
 
@@ -104,8 +89,8 @@ public class IcebergSinkUtil {
       return this;
     }
 
-    public Builder tableIdentifier(TableIdentifier newTableIdentifier) {
-      this.tableIdentifier = newTableIdentifier;
+    public Builder tableLoader(TableLoader newTableLoader) {
+      this.tableLoader = newTableLoader;
       return this;
     }
 
@@ -114,63 +99,42 @@ public class IcebergSinkUtil {
       return this;
     }
 
-    public Builder catalogType(String newCatalogType) {
-      this.catalogType = CatalogType.of(newCatalogType);
+    public Builder tableSchema(TableSchema newTableSchema) {
+      this.tableSchema = newTableSchema;
       return this;
     }
 
-    public Builder catalogName(String newCatalogName) {
-      this.catalogName = newCatalogName;
-      return this;
-    }
+    private DataStream<RowData> convert() {
+      Preconditions.checkArgument(rowInput != null, "The DataStream<Row> to convert shouldn't be null");
 
-    public Builder warehouseLocation(String newHadoopWarehouseLocation) {
-      this.hadoopWarehouseLocation = newHadoopWarehouseLocation;
-      return this;
-    }
+      RowType rowType;
+      DataType[] fieldDataTypes;
+      if (tableSchema != null) {
+        rowType = (RowType) tableSchema.toRowDataType().getLogicalType();
+        fieldDataTypes = tableSchema.getFieldDataTypes();
+      } else {
+        rowType = FlinkSchemaUtil.convert(table.schema());
+        fieldDataTypes = TypeConversions.fromLogicalToDataType(rowType.getChildren().toArray(new LogicalType[0]));
+      }
 
-    public Builder hiveURI(String newHiveURI) {
-      this.hiveURI = newHiveURI;
-      return this;
-    }
+      DataFormatConverters.RowConverter rowConverter = new DataFormatConverters.RowConverter(fieldDataTypes);
 
-    public Builder hiveClientPoolSize(int clientPoolSize) {
-      this.hiveClientPoolSize = clientPoolSize;
-      return this;
-    }
-
-    public Builder flinkSchema(TableSchema newTableSchema) {
-      this.flinkSchema = newTableSchema;
-      return this;
+      return rowInput.map(rowConverter::toInternal, RowDataTypeInfo.of(rowType));
     }
 
     @SuppressWarnings("unchecked")
     public DataStreamSink<RowData> build() {
-      Preconditions.checkNotNull(inputStream, "Input DataStream shouldn't be null");
+      Preconditions.checkArgument(rowInput != null || rowDataInput != null,
+          "Should initialize input DataStream first with DataStream<Row> or DataStream<RowData>");
+      Preconditions.checkArgument(rowInput == null || rowDataInput == null,
+          "Could only initialize input DataStream with either DataStream<Row> or DataStream<RowData>");
       Preconditions.checkNotNull(table, "Table shouldn't be null");
-      Preconditions.checkNotNull(tableIdentifier, "TableIdentifier shouldn't be null");
+      Preconditions.checkNotNull(tableLoader, "Table loader shouldn't be null");
       Preconditions.checkNotNull(hadoopConf, "Hadoop configuration shouldn't be null");
 
-      // Initialize the CatalogLoader and TableLoader.
-      CatalogLoader catalogLoader;
-      Preconditions.checkNotNull(catalogType, "CatalogType should be 'hive' or 'hadoop'");
-      Preconditions.checkNotNull(catalogName, "CatalogName shouldn't be null");
-      switch (catalogType) {
-        case HIVE:
-          Preconditions.checkArgument(hiveURI != null, "Hive URI shouldn't be null");
-          Preconditions.checkArgument(hiveClientPoolSize > 0, "Hive client pool size should be positive");
-          catalogLoader = CatalogLoader.hive(catalogName, hiveURI, hiveClientPoolSize);
-          break;
-        case HADOOP:
-          Preconditions.checkNotNull(hadoopWarehouseLocation, "Hadoop warehouse location shouldn't be null");
-          catalogLoader = CatalogLoader.hadoop(catalogName, hadoopWarehouseLocation);
-          break;
-        default:
-          throw new IllegalArgumentException("Invalid catalog type: " + catalogType);
-      }
-      TableLoader tableLoader = TableLoader.fromCatalog(catalogLoader, tableIdentifier);
+      DataStream<RowData> inputStream = rowInput != null ? convert() : rowDataInput;
 
-      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkSchema);
+      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, tableSchema);
       IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, hadoopConf);
 
       DataStream<Void> returnStream = inputStream
@@ -181,7 +145,7 @@ public class IcebergSinkUtil {
           .setMaxParallelism(1);
 
       return returnStream.addSink(new DiscardingSink())
-          .name(String.format("IcebergSink %s", tableIdentifier.toString()))
+          .name(String.format("IcebergSink %s", table.toString()))
           .setParallelism(1);
     }
   }
