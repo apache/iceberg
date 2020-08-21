@@ -375,6 +375,10 @@
             <property name="format" value="serial"/>
         </module>
         <module name="SuppressWarningsHolder" />  <!-- Required for SuppressWarningsFilter -->
+        <module name="TodoComment"> <!-- Using TodoComment as a CommentRegex to find comments without a leading space-->
+            <property name="format" value="^\w"/>
+            <message key="todo.match" value="There must be whitespace at the beginning of all comments."/>
+        </module>
         <module name="TypeName"> <!-- Java Style Guide: Class names -->
             <message key="name.invalidPattern" value="Type name ''{0}'' must match pattern ''{1}''."/>
         </module>
@@ -413,6 +417,7 @@
             <property name="allowedAnnotations" value="Override, Test"/>
             <property name="validateThrows" value="false"/>
         </module>
+        <module name="JavadocMissingWhitespaceAfterAsterisk"/>
         <module name="JavadocStyle"> <!-- Java Style Guide: Javadoc -->
             <property name="checkFirstSentence" value="false"/>
         </module>

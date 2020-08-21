@@ -41,7 +41,7 @@ public class TestParquetDictionaryFallbackToPlainEncodingVectorizedReads extends
 
   @Override
   Iterable<GenericData.Record> generateData(Schema schema, int numRecords, long seed, float nullPercentage) {
-    //TODO: take into account nullPercentage when generating fallback encoding data
+    // TODO: take into account nullPercentage when generating fallback encoding data
     return RandomData.generateFallbackData(schema, numRecords, seed, numRecords / 20);
   }
 

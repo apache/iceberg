@@ -84,7 +84,7 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
 
     TableScan scan = table.newScan();
 
-    //Apply Filters
+    // Apply Filters
     Expression filterExpression =
         (Expression) ObjectSerializer.deserialize(context.getConfiguration().get(scope(ICEBERG_FILTER_EXPRESSION)));
     LOG.info("[{}]: iceberg filter expressions: {}", signature, filterExpression);
@@ -94,7 +94,7 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
       scan = scan.filter(filterExpression);
     }
 
-    //Wrap in Splits
+    // Wrap in Splits
     try (CloseableIterable<CombinedScanTask> tasks = scan.planTasks()) {
       tasks.forEach(scanTask -> splits.add(new IcebergSplit(scanTask)));
     }

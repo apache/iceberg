@@ -143,7 +143,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
       } catch (IOException ioe) {
         LOG.warn("Failed to get Hadoop Filesystem", ioe);
       }
-      String scheme = fsscheme; //Makes an effectively final version of scheme
+      String scheme = fsscheme; // Makes an effectively final version of scheme
       this.localityPreferred = options.get("locality").map(Boolean::parseBoolean)
           .orElseGet(() -> LOCALITY_WHITELIST_FS.contains(scheme));
     } else {

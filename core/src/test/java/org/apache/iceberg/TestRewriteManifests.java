@@ -227,7 +227,7 @@ public class TestRewriteManifests extends TableTestBase {
 
     Assert.assertEquals(3, table.currentSnapshot().allManifests().size());
 
-    //keep the file A manifest, combine the other two
+    // keep the file A manifest, combine the other two
 
     table.rewriteManifests()
         .clusterBy(file -> "file")
