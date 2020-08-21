@@ -101,7 +101,7 @@ public class TestOrcMetrics extends TestMetrics {
       Assert.assertFalse("ORC binary field should not have lower bounds.",
           metrics.lowerBounds().containsKey(fieldId));
       Assert.assertFalse("ORC binary field should not have upper bounds.",
-          metrics.lowerBounds().containsKey(fieldId));
+          metrics.upperBounds().containsKey(fieldId));
       return;
     }
     super.assertBounds(fieldId, type, lowerBound, upperBound, metrics);
