@@ -96,7 +96,8 @@ public final class ORCSchemaUtil {
           .put(Type.TypeID.DECIMAL, TypeDescription.Category.DECIMAL)
           .build();
 
-  private ORCSchemaUtil() {}
+  private ORCSchemaUtil() {
+  }
 
   public static TypeDescription convert(Schema schema) {
     final TypeDescription root = TypeDescription.createStruct();

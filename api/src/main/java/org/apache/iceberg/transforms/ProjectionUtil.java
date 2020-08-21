@@ -34,7 +34,8 @@ import static org.apache.iceberg.expressions.Expressions.predicate;
 
 class ProjectionUtil {
 
-  private ProjectionUtil() {}
+  private ProjectionUtil() {
+  }
 
   static <T> UnboundPredicate<T> truncateInteger(
       String name, BoundLiteralPredicate<Integer> pred, Transform<Integer, T> transform) {

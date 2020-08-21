@@ -42,7 +42,8 @@ public class IcebergSplit extends InputSplit implements org.apache.hadoop.mapred
   private transient Configuration conf;
 
   // public no-argument constructor for deserialization
-  public IcebergSplit() {}
+  public IcebergSplit() {
+  }
 
   IcebergSplit(Configuration conf, CombinedScanTask task) {
     this.task = task;

@@ -69,7 +69,8 @@ import static scala.collection.JavaConverters.seqAsJavaListConverter;
 @SuppressWarnings("checkstyle:OverloadMethodsDeclarationOrder")
 public class TestHelpers {
 
-  private TestHelpers() {}
+  private TestHelpers() {
+  }
 
   public static void assertEqualsSafe(Types.StructType struct, Record rec, Row row) {
     List<Types.NestedField> fields = struct.fields();

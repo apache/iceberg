@@ -39,7 +39,8 @@ public class DecoderResolver {
   private static final ThreadLocal<Map<Schema, Map<Schema, ResolvingDecoder>>> DECODER_CACHES =
       ThreadLocal.withInitial(() -> new MapMaker().weakKeys().makeMap());
 
-  private DecoderResolver() {}
+  private DecoderResolver() {
+  }
 
   public static <T> T resolveAndRead(
       Decoder decoder, Schema readSchema, Schema fileSchema, ValueReader<T> reader, T reuse) throws IOException {

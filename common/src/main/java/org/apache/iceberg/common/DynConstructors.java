@@ -35,7 +35,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Throwables;
  */
 public class DynConstructors {
 
-  private DynConstructors() {}
+  private DynConstructors() {
+  }
 
   public static class Ctor<C> extends DynMethods.UnboundMethod {
     private final Constructor<C> ctor;

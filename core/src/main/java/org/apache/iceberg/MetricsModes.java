@@ -35,7 +35,8 @@ public class MetricsModes {
 
   private static final Pattern TRUNCATE = Pattern.compile("truncate\\((\\d+)\\)");
 
-  private MetricsModes() {}
+  private MetricsModes() {
+  }
 
   public static MetricsMode fromString(String mode) {
     if ("none".equalsIgnoreCase(mode)) {
@@ -55,7 +56,8 @@ public class MetricsModes {
     throw new IllegalArgumentException("Invalid metrics mode: " + mode);
   }
 
-  public interface MetricsMode extends Serializable {}
+  public interface MetricsMode extends Serializable {
+  }
 
   /**
    * Under this mode, value_counts, null_value_counts, lower_bounds, upper_bounds are not persisted.

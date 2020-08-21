@@ -25,7 +25,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 
 public class DynClasses {
 
-  private DynClasses() {}
+  private DynClasses() {
+  }
 
   public static Builder builder() {
     return new Builder();

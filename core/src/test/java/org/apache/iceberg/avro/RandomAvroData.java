@@ -40,7 +40,8 @@ import org.apache.iceberg.util.RandomUtil;
 
 public class RandomAvroData {
 
-  private RandomAvroData() {}
+  private RandomAvroData() {
+  }
 
   public static List<Record> generate(Schema schema, int numRecords, long seed) {
     RandomDataGenerator generator = new RandomDataGenerator(schema, seed);

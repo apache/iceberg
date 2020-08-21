@@ -36,7 +36,8 @@ import org.apache.iceberg.util.JsonUtil;
 
 public class SchemaParser {
 
-  private SchemaParser() {}
+  private SchemaParser() {
+  }
 
   private static final String TYPE = "type";
   private static final String STRUCT = "struct";

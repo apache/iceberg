@@ -30,7 +30,8 @@ public class HiddenPathFilter implements PathFilter {
 
   private static final HiddenPathFilter INSTANCE = new HiddenPathFilter();
 
-  private HiddenPathFilter() {}
+  private HiddenPathFilter() {
+  }
 
   public static HiddenPathFilter get() {
     return INSTANCE;

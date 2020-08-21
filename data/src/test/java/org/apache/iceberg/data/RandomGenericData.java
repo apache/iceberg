@@ -45,7 +45,8 @@ import org.apache.iceberg.util.RandomUtil;
 import static java.time.temporal.ChronoUnit.MICROS;
 
 public class RandomGenericData {
-  private RandomGenericData() {}
+  private RandomGenericData() {
+  }
 
   public static List<Record> generate(Schema schema, int numRecords, long seed) {
     return Lists.newArrayList(generateIcebergGenerics(schema, numRecords, () -> new RandomRecordGenerator(seed)));

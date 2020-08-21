@@ -35,7 +35,8 @@ import org.apache.iceberg.util.ByteBuffers;
 
 public class DataFiles {
 
-  private DataFiles() {}
+  private DataFiles() {
+  }
 
   static PartitionData newPartitionData(PartitionSpec spec) {
     return new PartitionData(spec.partitionType());

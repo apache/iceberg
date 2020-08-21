@@ -40,7 +40,8 @@ public class HiveIcebergSplit extends FileSplit implements IcebergSplitContainer
   private String tableLocation;
 
   // public no-argument constructor for deserialization
-  public HiveIcebergSplit() {}
+  public HiveIcebergSplit() {
+  }
 
   HiveIcebergSplit(IcebergSplit split, String tableLocation) {
     this.innerSplit = split;

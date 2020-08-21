@@ -23,7 +23,8 @@ import org.apache.iceberg.BaseTransaction.TransactionType;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public final class Transactions {
-  private Transactions() {}
+  private Transactions() {
+  }
 
   public static Transaction createOrReplaceTableTransaction(
       String tableName, TableOperations ops, TableMetadata start) {
