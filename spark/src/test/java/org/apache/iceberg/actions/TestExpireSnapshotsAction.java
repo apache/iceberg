@@ -33,6 +33,7 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -114,15 +115,15 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     return end;
   }
 
-  private void checkExpirationResults(Long expectedDatafiles, Long expectedManifestsDeleted,
-      Long expectedManifestListsDeleted, ExpireSnapshotsActionResult results) {
+  private void checkExpirationResults(long expectedDatafiles, long expectedManifestsDeleted,
+      long expectedManifestListsDeleted, ExpireSnapshotsActionResult results) {
 
     Assert.assertEquals("Incorrect number of manifest files deleted",
-        expectedManifestsDeleted, results.manifestFilesDeleted());
+        (Long) expectedManifestsDeleted, results.manifestFilesDeleted());
     Assert.assertEquals("Incorrect number of datafiles deleted",
-        expectedDatafiles, results.dataFilesDeleted());
+        (Long) expectedDatafiles, results.dataFilesDeleted());
     Assert.assertEquals("Incorrect number of manifest lists deleted",
-        expectedManifestListsDeleted, results.manifestListsDeleted());
+        (Long) expectedManifestListsDeleted, results.manifestListsDeleted());
   }
 
   @Test
@@ -696,6 +697,260 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
       });
     });
     checkExpirationResults(0L, 0L, 2L, secondResult);
+  }
+
+
+  @Test
+  public void testExpireOlderThan() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    rightAfterSnapshot();
+
+    table.newAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    long tAfterCommits = rightAfterSnapshot();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    ExpireSnapshotsActionResult result = Actions.forTable(table).expireSnapshots()
+        .expireOlderThan(tAfterCommits)
+        .deleteWith(deletedFiles::add)
+        .execute();
+
+    Assert.assertEquals("Expire should not change current snapshot", snapshotId, table.currentSnapshot().snapshotId());
+    Assert.assertNull("Expire should remove the oldest snapshot", table.snapshot(firstSnapshot.snapshotId()));
+    Assert.assertEquals("Should remove only the expired manifest list location",
+        Sets.newHashSet(firstSnapshot.manifestListLocation()), deletedFiles);
+
+    checkExpirationResults(0, 0, 1, result);
+  }
+
+  @Test
+  public void testExpireOlderThanWithDelete() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+    Assert.assertEquals("Should create one manifest",
+        1, firstSnapshot.allManifests().size());
+
+    rightAfterSnapshot();
+
+    table.newDelete()
+        .deleteFile(FILE_A)
+        .commit();
+
+    Snapshot secondSnapshot = table.currentSnapshot();
+    Assert.assertEquals("Should create replace manifest with a rewritten manifest",
+        1, secondSnapshot.allManifests().size());
+
+    table.newAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    rightAfterSnapshot();
+
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    long tAfterCommits = rightAfterSnapshot();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    ExpireSnapshotsActionResult result = Actions.forTable(table).expireSnapshots()
+        .expireOlderThan(tAfterCommits)
+        .deleteWith(deletedFiles::add)
+        .execute();
+
+    Assert.assertEquals("Expire should not change current snapshot", snapshotId, table.currentSnapshot().snapshotId());
+    Assert.assertNull("Expire should remove the oldest snapshot", table.snapshot(firstSnapshot.snapshotId()));
+    Assert.assertNull("Expire should remove the second oldest snapshot", table.snapshot(secondSnapshot.snapshotId()));
+
+    Assert.assertEquals("Should remove expired manifest lists and deleted data file",
+        Sets.newHashSet(
+            firstSnapshot.manifestListLocation(), // snapshot expired
+            firstSnapshot.allManifests().get(0).path(), // manifest was rewritten for delete
+            secondSnapshot.manifestListLocation(), // snapshot expired
+            secondSnapshot.allManifests().get(0).path(), // manifest contained only deletes, was dropped
+            FILE_A.path()), // deleted
+        deletedFiles);
+
+    checkExpirationResults(1, 2, 2, result);
+  }
+
+  @Test
+  public void testExpireOlderThanWithDeleteInMergedManifests() {
+    // merge every commit
+    table.updateProperties()
+        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "0")
+        .commit();
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+    Assert.assertEquals("Should create one manifest",
+        1, firstSnapshot.allManifests().size());
+
+    rightAfterSnapshot();
+
+    table.newDelete()
+        .deleteFile(FILE_A) // FILE_B is still in the dataset
+        .commit();
+
+    Snapshot secondSnapshot = table.currentSnapshot();
+    Assert.assertEquals("Should replace manifest with a rewritten manifest",
+        1, secondSnapshot.allManifests().size());
+
+    table.newFastAppend() // do not merge to keep the last snapshot's manifest valid
+        .appendFile(FILE_C)
+        .commit();
+
+    rightAfterSnapshot();
+
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    long tAfterCommits = rightAfterSnapshot();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    ExpireSnapshotsActionResult result = Actions.forTable(table).expireSnapshots()
+        .expireOlderThan(tAfterCommits)
+        .deleteWith(deletedFiles::add)
+        .execute();
+
+    Assert.assertEquals("Expire should not change current snapshot", snapshotId, table.currentSnapshot().snapshotId());
+    Assert.assertNull("Expire should remove the oldest snapshot", table.snapshot(firstSnapshot.snapshotId()));
+    Assert.assertNull("Expire should remove the second oldest snapshot", table.snapshot(secondSnapshot.snapshotId()));
+
+    Assert.assertEquals("Should remove expired manifest lists and deleted data file",
+        Sets.newHashSet(
+            firstSnapshot.manifestListLocation(), // snapshot expired
+            firstSnapshot.allManifests().get(0).path(), // manifest was rewritten for delete
+            secondSnapshot.manifestListLocation(), // snapshot expired
+            FILE_A.path()), // deleted
+        deletedFiles);
+
+    checkExpirationResults(1, 1, 2, result);
+  }
+
+  @Test
+  public void testExpireOlderThanWithRollback() {
+    // merge every commit
+    table.updateProperties()
+        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "0")
+        .commit();
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+    Assert.assertEquals("Should create one manifest",
+        1, firstSnapshot.allManifests().size());
+
+    rightAfterSnapshot();
+
+    table.newDelete()
+        .deleteFile(FILE_B)
+        .commit();
+
+    Snapshot secondSnapshot = table.currentSnapshot();
+    Set<ManifestFile> secondSnapshotManifests = Sets.newHashSet(secondSnapshot.allManifests());
+    secondSnapshotManifests.removeAll(firstSnapshot.allManifests());
+    Assert.assertEquals("Should add one new manifest for append", 1, secondSnapshotManifests.size());
+
+    table.manageSnapshots()
+        .rollbackTo(firstSnapshot.snapshotId())
+        .commit();
+
+    rightAfterSnapshot();
+
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    long tAfterCommits = rightAfterSnapshot();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    ExpireSnapshotsActionResult result = Actions.forTable(table).expireSnapshots()
+        .expireOlderThan(tAfterCommits)
+        .deleteWith(deletedFiles::add)
+        .execute();
+
+    Assert.assertEquals("Expire should not change current snapshot", snapshotId, table.currentSnapshot().snapshotId());
+    Assert.assertNotNull("Expire should keep the oldest snapshot, current", table.snapshot(firstSnapshot.snapshotId()));
+    Assert.assertNull("Expire should remove the orphaned snapshot", table.snapshot(secondSnapshot.snapshotId()));
+
+    Assert.assertEquals("Should remove expired manifest lists and reverted appended data file",
+        Sets.newHashSet(
+            secondSnapshot.manifestListLocation(), // snapshot expired
+            Iterables.getOnlyElement(secondSnapshotManifests).path()), // manifest is no longer referenced
+        deletedFiles);
+
+    checkExpirationResults(0, 1, 1, result);
+  }
+
+  @Test
+  public void testExpireOlderThanWithRollbackAndMergedManifests() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+    Assert.assertEquals("Should create one manifest",
+        1, firstSnapshot.allManifests().size());
+
+    rightAfterSnapshot();
+
+    table.newAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    Snapshot secondSnapshot = table.currentSnapshot();
+    Set<ManifestFile> secondSnapshotManifests = Sets.newHashSet(secondSnapshot.allManifests());
+    secondSnapshotManifests.removeAll(firstSnapshot.allManifests());
+    Assert.assertEquals("Should add one new manifest for append", 1, secondSnapshotManifests.size());
+
+    table.manageSnapshots()
+        .rollbackTo(firstSnapshot.snapshotId())
+        .commit();
+
+    rightAfterSnapshot();
+
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    long tAfterCommits = rightAfterSnapshot();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    ExpireSnapshotsActionResult result = Actions.forTable(table).expireSnapshots()
+        .expireOlderThan(tAfterCommits)
+        .deleteWith(deletedFiles::add)
+        .execute();
+
+    Assert.assertEquals("Expire should not change current snapshot", snapshotId, table.currentSnapshot().snapshotId());
+    Assert.assertNotNull("Expire should keep the oldest snapshot, current", table.snapshot(firstSnapshot.snapshotId()));
+    Assert.assertNull("Expire should remove the orphaned snapshot", table.snapshot(secondSnapshot.snapshotId()));
+
+    Assert.assertEquals("Should remove expired manifest lists and reverted appended data file",
+        Sets.newHashSet(
+            secondSnapshot.manifestListLocation(), // snapshot expired
+            Iterables.getOnlyElement(secondSnapshotManifests).path(), // manifest is no longer referenced
+            FILE_B.path()), // added, but rolled back
+        deletedFiles);
+
+    checkExpirationResults(1, 1, 1, result);
   }
 }
 
