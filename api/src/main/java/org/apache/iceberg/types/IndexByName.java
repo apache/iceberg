@@ -37,6 +37,14 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
   private final Map<String, Integer> nameToId = Maps.newHashMap();
   private final Map<String, Integer> shortNameToId = Maps.newHashMap();
 
+  /**
+   * Returns a mapping from full field name to ID.
+   * <p>
+   * Short names for maps and lists are included for any name that does not conflict with a canonical name. For example,
+   * a list, 'l', with of structs with field 'x' will produce short name 'l.x' in addition to 'l.element.x'.
+   *
+   * @return a map from name to field ID
+   */
   public Map<String, Integer> byName() {
     ImmutableMap.Builder<String, Integer> builder = ImmutableMap.builder();
     builder.putAll(nameToId);
@@ -47,6 +55,13 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
     return builder.build();
   }
 
+  /**
+   * Returns a mapping from field ID to full name.
+   * <p>
+   * Canonical names, not short names are returned, for example 'list.element.field' instead of 'list.field'.
+   *
+   * @return a map from field ID to name
+   */
   public Map<Integer, String> byId() {
     ImmutableMap.Builder<Integer, String> builder = ImmutableMap.builder();
     nameToId.forEach((key, value) -> builder.put(value, key));
@@ -160,7 +175,7 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
     ValidationException.check(existingFieldId == null,
         "Invalid schema: multiple fields for name %s: %s and %s", fullName, existingFieldId, fieldId);
 
-    // if the short name is not
+    // also track the short name, if this is a nested field
     if (!shortFieldNames.isEmpty()) {
       String shortName = DOT.join(DOT.join(shortFieldNames.descendingIterator()), name);
       if (!shortNameToId.containsKey(shortName)) {
