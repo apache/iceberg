@@ -103,9 +103,8 @@ public class ParquetUtil {
     for (BlockMetaData block : blocks) {
       rowCount += block.getRowCount();
       for (ColumnChunkMetaData column : block.getColumns()) {
-        ColumnPath path = column.getPath();
 
-        Integer fieldId = fileSchema.aliasToId(path.toDotString());
+        Integer fieldId = fileSchema.aliasToId(column.getPath().toDotString());
         if (fieldId == null) {
           // fileSchema may contain a subset of columns present in the file
           // as we prune columns we could not assign ids
@@ -129,7 +128,7 @@ public class ParquetUtil {
 
           if (metricsMode != MetricsModes.Counts.get()) {
             Types.NestedField field = fileSchema.findField(fieldId);
-            if (field != null && stats.hasNonNullValue() && shouldStoreBounds(path, fileSchema)) {
+            if (field != null && stats.hasNonNullValue() && shouldStoreBounds(column, fileSchema)) {
               Literal<?> min = ParquetConversions.fromParquetPrimitive(
                   field.type(), column.getPrimitiveType(), stats.genericGetMin());
               updateMin(lowerBounds, fieldId, field.type(), min, metricsMode);
@@ -181,7 +180,13 @@ public class ParquetUtil {
   }
 
   // we allow struct nesting, but not maps or arrays
-  private static boolean shouldStoreBounds(ColumnPath columnPath, Schema schema) {
+  private static boolean shouldStoreBounds(ColumnChunkMetaData column, Schema schema) {
+    if (column.getPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT96) {
+      // stats for INT96 are not reliable
+      return false;
+    }
+
+    ColumnPath columnPath = column.getPath();
     Iterator<String> pathIterator = columnPath.iterator();
     Type currentType = schema.asStruct();
 

@@ -70,12 +70,14 @@ public class TestIcebergStreamWriter {
   private final FileFormat format;
   private final boolean partitioned;
 
-  // TODO add ORC/Parquet unit test once the readers and writers are ready.
+  // TODO add Parquet unit test once the readers and writers are ready.
   @Parameterized.Parameters(name = "format = {0}, partitioned = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
         new Object[] {"avro", true},
-        new Object[] {"avro", false}
+        new Object[] {"avro", false},
+        new Object[] {"orc", true},
+        new Object[] {"orc", false}
     };
   }
 
@@ -211,6 +213,10 @@ public class TestIcebergStreamWriter {
 
   @Test
   public void testTableWithTargetFileSize() throws Exception {
+    // TODO: ORC file does not support target file size before closed.
+    if (format == FileFormat.ORC) {
+      return;
+    }
     // Adjust the target-file-size in table properties.
     table.updateProperties()
         .set(TableProperties.WRITE_TARGET_FILE_SIZE_BYTES, "4") // ~4 bytes; low enough to trigger
