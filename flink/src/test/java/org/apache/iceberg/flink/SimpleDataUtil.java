@@ -36,16 +36,16 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.flink.data.FlinkAvroWriter;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -93,35 +93,26 @@ public class SimpleDataUtil {
     return GenericRowData.of(id, StringData.fromString(data));
   }
 
-  static DataFile writeFile(Schema schema, PartitionSpec spec, Configuration conf, String location,
-                            String filename, List<RowData> rows) throws IOException {
+  static DataFile writeFile(Schema schema, PartitionSpec spec, Configuration conf,
+                            String location, String filename, List<RowData> rows)
+      throws IOException {
     Path path = new Path(location, filename);
     FileFormat fileFormat = FileFormat.fromFileName(filename);
     Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
-    switch (fileFormat) {
-      case AVRO:
-        FileAppender<RowData> avroAppender = Avro.write(fromPath(path, conf))
-            .schema(schema)
-            .createWriterFunc(ignore -> new FlinkAvroWriter(FlinkSchemaUtil.convert(schema)))
-            .named(fileFormat.name())
-            .build();
-        try {
-          avroAppender.addAll(rows);
-        } finally {
-          avroAppender.close();
-        }
 
-        return DataFiles.builder(spec)
-            .withInputFile(HadoopInputFile.fromPath(path, conf))
-            .withMetrics(avroAppender.metrics())
-            .build();
+    RowType flinkSchema = FlinkSchemaUtil.convert(schema);
+    FileAppenderFactory<RowData> appenderFactory = new RowDataTaskWriterFactory.FlinkFileAppenderFactory(schema,
+        flinkSchema, ImmutableMap.of());
 
-      case PARQUET:
-      case ORC:
-        // TODO those writers once them are ready.
-      default:
-        throw new UnsupportedOperationException("Cannot write format: " + fileFormat);
+    FileAppender<RowData> appender = appenderFactory.newAppender(fromPath(path, conf), fileFormat);
+    try (FileAppender<RowData> closeableAppender = appender) {
+      closeableAppender.addAll(rows);
     }
+
+    return DataFiles.builder(spec)
+        .withInputFile(HadoopInputFile.fromPath(path, conf))
+        .withMetrics(appender.metrics())
+        .build();
   }
 
   static void assertTableRows(String tablePath, List<RowData> expected) throws IOException {

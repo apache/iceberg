@@ -115,12 +115,12 @@ class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     }
   }
 
-  private static class FlinkFileAppenderFactory implements FileAppenderFactory<RowData> {
+  static class FlinkFileAppenderFactory implements FileAppenderFactory<RowData> {
     private final Schema schema;
     private final RowType flinkSchema;
     private final Map<String, String> props;
 
-    private FlinkFileAppenderFactory(Schema schema, RowType flinkSchema, Map<String, String> props) {
+    FlinkFileAppenderFactory(Schema schema, RowType flinkSchema, Map<String, String> props) {
       this.schema = schema;
       this.flinkSchema = flinkSchema;
       this.props = props;
