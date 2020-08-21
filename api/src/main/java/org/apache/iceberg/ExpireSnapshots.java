@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
 /**
@@ -82,4 +83,29 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
    * @return this for method chaining
    */
   ExpireSnapshots deleteWith(Consumer<String> deleteFunc);
+
+  /**
+   * Passes an alternative executor service that will be used for manifests and data files deletion.
+   * <p>
+   * Manifest files that are no longer used by valid snapshots will be deleted. Data files that were
+   * deleted by snapshots that are expired will be deleted.
+   * <p>
+   * If this method is not called, unnecessary manifests and data files will still be deleted using a single threaded
+   * executor service.
+   *
+   * @param executorService an executor service to parallelize tasks to delete manifests and data files
+   * @return this for method chaining
+   */
+  ExpireSnapshots executeDeleteWith(ExecutorService executorService);
+
+  /**
+   * Allows expiration of snapshots without any cleanup of underlying manifest or data files.
+   * <p>
+   * Allows control in removing data and manifest files which may be more efficiently removed using
+   * a distributed framework through the actions API.
+   *
+   * @param clean setting this to false will skip deleting expired manifests and files
+   * @return this for method chaining
+   */
+  ExpireSnapshots cleanExpiredFiles(boolean clean);
 }

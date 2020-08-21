@@ -117,7 +117,7 @@ public class ManifestEntriesTable extends BaseMetadataTable {
 
     ManifestReadTask(FileIO io, ManifestFile manifest, Schema fileSchema, String schemaString,
                      String specString, ResidualEvaluator residuals) {
-      super(DataFiles.fromManifest(manifest), schemaString, specString, residuals);
+      super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
       this.fileSchema = fileSchema;
       this.io = io;
       this.manifest = manifest;

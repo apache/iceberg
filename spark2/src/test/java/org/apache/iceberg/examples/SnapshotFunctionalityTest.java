@@ -68,7 +68,7 @@ public class SnapshotFunctionalityTest {
 
     tableLocation = Files.createTempDirectory("temp").toFile();
 
-    HadoopTables tables = new HadoopTables(spark.sparkContext().hadoopConfiguration());
+    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
     PartitionSpec spec = PartitionSpec.unpartitioned();
     table = tables.create(schema, spec, tableLocation.toString());
 

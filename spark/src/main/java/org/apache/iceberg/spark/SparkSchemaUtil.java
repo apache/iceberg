@@ -37,6 +37,7 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalog.Column;
 import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
 /**
@@ -255,4 +256,24 @@ public class SparkSchemaUtil {
     return builder.build();
   }
 
+  /**
+   * estimate approximate table size based on spark schema and total records.
+   *
+   * @param tableSchema  spark schema
+   * @param totalRecords total records in the table
+   * @return approxiate size based on table schema
+   */
+  public static long estimateSize(StructType tableSchema, long totalRecords) {
+    if (totalRecords == Long.MAX_VALUE) {
+      return totalRecords;
+    }
+
+    long approximateSize = 0;
+    for (StructField sparkField : tableSchema.fields()) {
+      approximateSize += sparkField.dataType().defaultSize();
+    }
+
+    long result = approximateSize * totalRecords;
+    return result > 0 ? result : Long.MAX_VALUE;
+  }
 }

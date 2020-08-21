@@ -21,11 +21,18 @@ package org.apache.iceberg.avro;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.types.Types;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class TestAvroReadProjection extends TestReadProjection {
   @Override
@@ -48,5 +55,28 @@ public class TestAvroReadProjection extends TestReadProjection {
         .build();
 
     return Iterables.getOnlyElement(records);
+  }
+
+  @Test
+  public void testAvroArrayAsLogicalMap() throws IOException {
+    Schema writeSchema = new Schema(
+        Types.NestedField.optional(0, "map", Types.MapType.ofOptional(2, 3,
+            Types.LongType.get(),
+            Types.ListType.ofRequired(1, Types.LongType.get())
+        ))
+    );
+
+    List<Long> values1 = ImmutableList.of(101L, 102L);
+    List<Long> values2 = ImmutableList.of(201L, 202L, 203L);
+    GenericData.Record record = new GenericData.Record(AvroSchemaUtil.convert(writeSchema, "table"));
+    record.put("map", ImmutableMap.of(100L, values1, 200L, values2));
+
+    GenericData.Record projected = writeAndRead("full_projection", writeSchema, writeSchema, record);
+    Assert.assertEquals("Should contain correct value list",
+        values1,
+        ((Map<Long, List<Long>>) projected.get("map")).get(100L));
+    Assert.assertEquals("Should contain correct value list",
+        values2,
+        ((Map<Long, List<Long>>) projected.get("map")).get(200L));
   }
 }

@@ -35,6 +35,7 @@ import org.apache.avro.io.Encoder;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.DecimalUtil;
 
 public class ValueWriters {
   private ValueWriters() {
@@ -338,37 +339,17 @@ public class ValueWriters {
   private static class DecimalWriter implements ValueWriter<BigDecimal> {
     private final int precision;
     private final int scale;
-    private final int length;
     private final ThreadLocal<byte[]> bytes;
 
     private DecimalWriter(int precision, int scale) {
       this.precision = precision;
       this.scale = scale;
-      this.length = TypeUtil.decimalRequiredBytes(precision);
-      this.bytes = ThreadLocal.withInitial(() -> new byte[length]);
+      this.bytes = ThreadLocal.withInitial(() -> new byte[TypeUtil.decimalRequiredBytes(precision)]);
     }
 
     @Override
     public void write(BigDecimal decimal, Encoder encoder) throws IOException {
-      Preconditions.checkArgument(decimal.scale() == scale,
-          "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, decimal);
-      Preconditions.checkArgument(decimal.precision() <= precision,
-          "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, decimal);
-
-      byte fillByte = (byte) (decimal.signum() < 0 ? 0xFF : 0x00);
-      byte[] unscaled = decimal.unscaledValue().toByteArray();
-      byte[] buf = bytes.get();
-      int offset = length - unscaled.length;
-
-      for (int i = 0; i < length; i += 1) {
-        if (i < offset) {
-          buf[i] = fillByte;
-        } else {
-          buf[i] = unscaled[i - offset];
-        }
-      }
-
-      encoder.writeFixed(buf);
+      encoder.writeFixed(DecimalUtil.toReusedFixLengthBytes(precision, scale, decimal, bytes.get()));
     }
   }
 

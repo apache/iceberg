@@ -144,16 +144,18 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       if (selectedIds.contains(keyId) || selectedIds.contains(valueId)) {
         return complexMapWithIds(array, keyId, valueId);
       } else if (element != null) {
-        Schema keyProjection = element.getField("key").schema();
+        Schema.Field keyProjectionField = element.getField("key");
         Schema valueProjection = element.getField("value").schema();
+        // it is possible that key is not selected, and
         // key schemas can be different if new field ids were assigned to them
-        if (keyValue.getField("key").schema() != keyProjection) {
+        if (keyProjectionField != null && keyValue.getField("key").schema() != keyProjectionField.schema()) {
           Preconditions.checkState(
               SchemaNormalization.parsingFingerprint64(keyValue.getField("key").schema()) ==
-                  SchemaNormalization.parsingFingerprint64(keyProjection), "Map keys should not be projected");
-          return AvroSchemaUtil.createMap(keyId, keyProjection, valueId, valueProjection);
+                  SchemaNormalization.parsingFingerprint64(keyProjectionField.schema()),
+                  "Map keys should not be projected");
+          return AvroSchemaUtil.createMap(keyId, keyProjectionField.schema(), valueId, valueProjection);
         } else if (keyValue.getField("value").schema() != valueProjection) {
-          return AvroSchemaUtil.createMap(keyId, keyProjection, valueId, valueProjection);
+          return AvroSchemaUtil.createMap(keyId, keyValue.getField("key").schema(), valueId, valueProjection);
         } else {
           return complexMapWithIds(array, keyId, valueId);
         }

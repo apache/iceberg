@@ -19,20 +19,28 @@
 
 package org.apache.iceberg.orc;
 
-import java.io.IOException;
-import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
+import org.apache.orc.storage.ql.exec.vector.ColumnVector;
 
-/**
- * Write data value of a schema.
- */
 public interface OrcValueWriter<T> {
 
+  Class<?> getJavaClass();
+
   /**
-   * Writes the data.
+   * Take a value from the data value and add it to the ORC output.
    *
-   * @param value the data value to write.
-   * @param output the VectorizedRowBatch to which the output will be written.
-   * @throws IOException if there's any IO error while writing the data value.
+   * @param rowId  the row in the ColumnVector
+   * @param data   the data value to write.
+   * @param output the ColumnVector to put the value into
    */
-  void write(T value, VectorizedRowBatch output) throws IOException;
+  default void write(int rowId, T data, ColumnVector output) {
+    if (data == null) {
+      output.noNulls = false;
+      output.isNull[rowId] = true;
+    } else {
+      output.isNull[rowId] = false;
+      nonNullWrite(rowId, data, output);
+    }
+  }
+
+  void nonNullWrite(int rowId, T data, ColumnVector output);
 }

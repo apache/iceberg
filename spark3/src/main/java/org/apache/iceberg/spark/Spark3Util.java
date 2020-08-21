@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
@@ -176,6 +177,8 @@ public class Spark3Util {
   }
 
   private static void apply(UpdateSchema pendingUpdate, TableChange.AddColumn add) {
+    Preconditions.checkArgument(add.isNullable(),
+        "Incompatible change: cannot add required column: %s", leafName(add.fieldNames()));
     Type type = SparkSchemaUtil.convert(add.dataType());
     pendingUpdate.addColumn(parentName(add.fieldNames()), leafName(add.fieldNames()), type, add.comment());
 
@@ -517,9 +520,17 @@ public class Spark3Util {
           return pred.ref().name() + " != " + sqlString(pred.literal());
         case STARTS_WITH:
           return pred.ref().name() + " LIKE '" + pred.literal() + "%'";
+        case IN:
+          return pred.ref().name() + " IN (" + sqlString(pred.literals()) + ")";
+        case NOT_IN:
+          return pred.ref().name() + " NOT IN (" + sqlString(pred.literals()) + ")";
         default:
           throw new UnsupportedOperationException("Cannot convert predicate to SQL: " + pred);
       }
+    }
+
+    private static <T> String sqlString(List<org.apache.iceberg.expressions.Literal<T>> literals) {
+      return literals.stream().map(DescribeExpressionVisitor::sqlString).collect(Collectors.joining(", "));
     }
 
     private static String sqlString(org.apache.iceberg.expressions.Literal<?> lit) {

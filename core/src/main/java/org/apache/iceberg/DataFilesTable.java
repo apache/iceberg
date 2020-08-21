@@ -117,7 +117,7 @@ public class DataFilesTable extends BaseMetadataTable {
 
     ManifestReadTask(FileIO io, ManifestFile manifest, Schema schema, String schemaString,
                      String specString, ResidualEvaluator residuals) {
-      super(DataFiles.fromManifest(manifest), schemaString, specString, residuals);
+      super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
       this.io = io;
       this.manifest = manifest;
       this.schema = schema;

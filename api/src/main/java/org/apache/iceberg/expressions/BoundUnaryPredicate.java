@@ -25,6 +25,11 @@ public class BoundUnaryPredicate<T> extends BoundPredicate<T> {
   }
 
   @Override
+  public Expression negate() {
+    return new BoundUnaryPredicate<>(op().negate(), term());
+  }
+
+  @Override
   public boolean isUnaryPredicate() {
     return true;
   }

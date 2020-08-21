@@ -31,12 +31,12 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 
-class InternalRecordWrapper implements StructLike {
+public class InternalRecordWrapper implements StructLike {
   private final Function<Object, Object>[] transforms;
   private StructLike wrapped = null;
 
   @SuppressWarnings("unchecked")
-  InternalRecordWrapper(Types.StructType struct) {
+  public InternalRecordWrapper(Types.StructType struct) {
     this.transforms = struct.fields().stream()
         .map(field -> converter(field.type()))
         .toArray(length -> (Function<Object, Object>[]) Array.newInstance(Function.class, length));

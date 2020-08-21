@@ -26,14 +26,23 @@ import java.util.List;
 import java.util.Map;
 import org.apache.avro.generic.GenericData;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.data.IcebergGenerics;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.ParquetWriteAdapter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.TypeUtil;
@@ -95,6 +104,29 @@ public class TestSparkParquetReader extends AvroDataTest {
     }
   }
 
+  protected Table tableFromInputFile(InputFile inputFile, Schema schema) throws IOException {
+    HadoopTables tables = new HadoopTables();
+    Table table =
+        tables.create(
+            schema,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(),
+            temp.newFolder().getCanonicalPath());
+
+    table
+        .newAppend()
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withFormat(FileFormat.PARQUET)
+                .withInputFile(inputFile)
+                .withMetrics(ParquetUtil.fileMetrics(inputFile, MetricsConfig.getDefault()))
+                .withFileSizeInBytes(inputFile.getLength())
+                .build())
+        .commit();
+
+    return table;
+  }
+
   @Test
   public void testInt96TimestampProducedBySparkIsReadCorrectly() throws IOException {
     String outputFilePath = String.format("%s/%s", temp.getRoot().getAbsolutePath(), "parquet_int96.parquet");
@@ -120,9 +152,21 @@ public class TestSparkParquetReader extends AvroDataTest {
       writer.addAll(rows);
     }
 
-    List<InternalRow> readRows = rowsFromFile(Files.localInput(outputFilePath), schema);
+    InputFile parquetInputFile = Files.localInput(outputFilePath);
+    List<InternalRow> readRows = rowsFromFile(parquetInputFile, schema);
     Assert.assertEquals(rows.size(), readRows.size());
     Assert.assertThat(readRows, CoreMatchers.is(rows));
+
+    // Now we try to import that file as an Iceberg table to make sure Iceberg can read
+    // Int96 end to end.
+    Table int96Table = tableFromInputFile(parquetInputFile, schema);
+    List<Record> tableRecords = Lists.newArrayList(IcebergGenerics.read(int96Table).build());
+
+    Assert.assertEquals(rows.size(), tableRecords.size());
+
+    for (int i = 0;  i < tableRecords.size(); i++) {
+      GenericsHelpers.assertEqualsUnsafe(schema.asStruct(), tableRecords.get(i), rows.get(i));
+    }
   }
 
   /**

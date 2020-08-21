@@ -50,6 +50,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import static org.apache.iceberg.TaskCheckHelper.assertEquals;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -107,7 +108,7 @@ public class TestDataFileSerialization {
       for (int i = 0; i < 2; i += 1) {
         Object obj = kryo.readClassAndObject(in);
         Assert.assertTrue("Should be a DataFile", obj instanceof DataFile);
-        checkDataFile(DATA_FILE, (DataFile) obj);
+        assertEquals(DATA_FILE, (DataFile) obj);
       }
     }
   }
@@ -124,36 +125,9 @@ public class TestDataFileSerialization {
       for (int i = 0; i < 2; i += 1) {
         Object obj = in.readObject();
         Assert.assertTrue("Should be a DataFile", obj instanceof DataFile);
-        checkDataFile(DATA_FILE, (DataFile) obj);
+        assertEquals(DATA_FILE, (DataFile) obj);
       }
     }
-  }
-
-  private void checkDataFile(DataFile expected, DataFile actual) {
-    Assert.assertEquals("Should match the serialized record path",
-        expected.path(), actual.path());
-    Assert.assertEquals("Should match the serialized record format",
-        expected.format(), actual.format());
-    Assert.assertEquals("Should match the serialized record partition",
-        expected.partition().get(0, Object.class), actual.partition().get(0, Object.class));
-    Assert.assertEquals("Should match the serialized record count",
-        expected.recordCount(), actual.recordCount());
-    Assert.assertEquals("Should match the serialized record size",
-        expected.fileSizeInBytes(), actual.fileSizeInBytes());
-    Assert.assertEquals("Should match the serialized record value counts",
-        expected.valueCounts(), actual.valueCounts());
-    Assert.assertEquals("Should match the serialized record null value counts",
-        expected.nullValueCounts(), actual.nullValueCounts());
-    Assert.assertEquals("Should match the serialized record lower bounds",
-        expected.lowerBounds(), actual.lowerBounds());
-    Assert.assertEquals("Should match the serialized record upper bounds",
-        expected.upperBounds(), actual.upperBounds());
-    Assert.assertEquals("Should match the serialized record key metadata",
-        expected.keyMetadata(), actual.keyMetadata());
-    Assert.assertEquals("Should match the serialized record offsets",
-        expected.splitOffsets(), actual.splitOffsets());
-    Assert.assertEquals("Should match the serialized record offsets",
-        expected.keyMetadata(), actual.keyMetadata());
   }
 
   @Test

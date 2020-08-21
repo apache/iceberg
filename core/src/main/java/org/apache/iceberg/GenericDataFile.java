@@ -34,28 +34,12 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
     super(avroSchema);
   }
 
-  GenericDataFile(String filePath, FileFormat format, long recordCount,
-                  long fileSizeInBytes) {
-    this(filePath, format, null, recordCount, fileSizeInBytes);
-  }
-
-  GenericDataFile(String filePath, FileFormat format, PartitionData partition,
-                  long recordCount, long fileSizeInBytes) {
-    super(FileContent.DATA, filePath, format, partition, fileSizeInBytes, recordCount,
-        null, null, null, null, null, null, null);
-  }
-
-  GenericDataFile(String filePath, FileFormat format, PartitionData partition,
-                  long fileSizeInBytes, Metrics metrics, List<Long> splitOffsets) {
-    this(filePath, format, partition, fileSizeInBytes, metrics, null, splitOffsets);
-  }
-
-  GenericDataFile(String filePath, FileFormat format, PartitionData partition,
+  GenericDataFile(int specId, String filePath, FileFormat format, PartitionData partition,
                   long fileSizeInBytes, Metrics metrics,
                   ByteBuffer keyMetadata, List<Long> splitOffsets) {
-    super(FileContent.DATA, filePath, format, partition, fileSizeInBytes, metrics.recordCount(),
+    super(specId, FileContent.DATA, filePath, format, partition, fileSizeInBytes, metrics.recordCount(),
         metrics.columnSizes(), metrics.valueCounts(), metrics.nullValueCounts(),
-        metrics.lowerBounds(), metrics.upperBounds(), splitOffsets, keyMetadata);
+        metrics.lowerBounds(), metrics.upperBounds(), splitOffsets, null, keyMetadata);
   }
 
   /**
@@ -84,6 +68,7 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
     return new GenericDataFile(this, true /* full copy */);
   }
 
+  @Override
   protected Schema getAvroSchema(Types.StructType partitionStruct) {
     Types.StructType type = DataFile.getType(partitionStruct);
     return AvroSchemaUtil.convert(type, ImmutableMap.of(

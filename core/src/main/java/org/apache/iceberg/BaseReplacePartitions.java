@@ -42,7 +42,7 @@ public class BaseReplacePartitions
 
   @Override
   public ReplacePartitions addFile(DataFile file) {
-    dropPartition(file.partition());
+    dropPartition(file.specId(), file.partition());
     add(file);
     return this;
   }

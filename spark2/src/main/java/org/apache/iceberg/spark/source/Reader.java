@@ -32,6 +32,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
@@ -132,7 +133,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     if (io.getValue() instanceof HadoopFileIO) {
       String scheme = "no_exist";
       try {
-        Configuration conf = new Configuration(SparkSession.active().sparkContext().hadoopConfiguration());
+        Configuration conf = SparkSession.active().sessionState().newHadoopConf();
         // merge hadoop config set on table
         mergeIcebergHadoopConfs(conf, table.properties());
         // merge hadoop config passed as options and overwrite the one on table
@@ -276,6 +277,12 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
   @Override
   public Statistics estimateStatistics() {
+    if (filterExpressions == null || filterExpressions == Expressions.alwaysTrue()) {
+      long totalRecords = PropertyUtil.propertyAsLong(table.currentSnapshot().summary(),
+          SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
+      return new Stats(SparkSchemaUtil.estimateSize(lazyType(), totalRecords), totalRecords);
+    }
+
     long sizeInBytes = 0L;
     long numRows = 0L;
 
@@ -308,15 +315,10 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
       boolean atLeastOneColumn = lazySchema().columns().size() > 0;
 
-      boolean hasNoIdentityProjections = tasks().stream()
-          .allMatch(combinedScanTask -> combinedScanTask.files()
-              .stream()
-              .allMatch(fileScanTask -> fileScanTask.spec().identitySourceIds().isEmpty()));
-
       boolean onlyPrimitives = lazySchema().columns().stream().allMatch(c -> c.type().isPrimitiveType());
 
       this.readUsingBatch = batchReadsEnabled && (allOrcFileScanTasks ||
-          (allParquetFileScanTasks && atLeastOneColumn && hasNoIdentityProjections && onlyPrimitives));
+          (allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives));
     }
     return readUsingBatch;
   }
@@ -441,6 +443,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
       return expectedSchema;
     }
 
+    @SuppressWarnings("checkstyle:RegexpSingleline")
     private String[] getPreferredLocations() {
       if (!localityPreferred) {
         return new String[0];

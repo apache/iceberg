@@ -37,7 +37,7 @@ public abstract class FlinkTestBase extends AbstractTestBase {
   protected static ConcurrentMap<String, Catalog> flinkCatalogs;
 
   @BeforeClass
-  public static void startMetastoreAndSpark() {
+  public static void startMetastore() {
     FlinkTestBase.metastore = new TestHiveMetastore();
     metastore.start();
     FlinkTestBase.hiveConf = metastore.hiveConf();
@@ -46,7 +46,7 @@ public abstract class FlinkTestBase extends AbstractTestBase {
   }
 
   @AfterClass
-  public static void stopMetastoreAndSpark() {
+  public static void stopMetastore() {
     metastore.stop();
     catalog.close();
     FlinkTestBase.catalog = null;

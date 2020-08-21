@@ -89,7 +89,7 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
           .project(expectedSchema)
           .split(task.start(), task.length())
           .createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(expectedSchema,
-              fileSchema, /* setArrowValidityVector */ NullCheckingForGet.NULL_CHECKING_ENABLED))
+              fileSchema, /* setArrowValidityVector */ NullCheckingForGet.NULL_CHECKING_ENABLED, idToConstant))
           .recordsPerBatch(batchSize)
           .filter(task.residual())
           .caseSensitive(caseSensitive)
@@ -105,15 +105,20 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
       iter = builder.build();
     } else if (task.file().format() == FileFormat.ORC) {
       Schema schemaWithoutConstants = TypeUtil.selectNot(expectedSchema, idToConstant.keySet());
-      iter = ORC.read(location)
+      ORC.ReadBuilder builder = ORC.read(location)
           .project(schemaWithoutConstants)
           .split(task.start(), task.length())
           .createBatchedReaderFunc(fileSchema -> VectorizedSparkOrcReaders.buildReader(expectedSchema, fileSchema,
               idToConstant))
           .recordsPerBatch(batchSize)
           .filter(task.residual())
-          .caseSensitive(caseSensitive)
-          .build();
+          .caseSensitive(caseSensitive);
+
+      if (nameMapping != null) {
+        builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+      }
+
+      iter = builder.build();
     } else {
       throw new UnsupportedOperationException(
           "Format: " + task.file().format() + " not supported for batched reads");

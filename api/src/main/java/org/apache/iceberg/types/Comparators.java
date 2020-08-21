@@ -21,6 +21,10 @@ package org.apache.iceberg.types;
 
 import java.nio.ByteBuffer;
 import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.function.IntFunction;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.UnicodeUtil;
 
@@ -44,6 +48,14 @@ public class Comparators {
       .put(Types.BinaryType.get(), Comparators.unsignedBytes())
       .build();
 
+  public static Comparator<StructLike> forType(Types.StructType struct) {
+    return new StructLikeComparator(struct);
+  }
+
+  public static <T> Comparator<List<T>> forType(Types.ListType list) {
+    return new ListComparator<>(list);
+  }
+
   @SuppressWarnings("unchecked")
   public static <T> Comparator<T> forType(Type.PrimitiveType type) {
     Comparator<?> cmp = COMPARATORS.get(type);
@@ -56,6 +68,88 @@ public class Comparators {
     }
 
     throw new UnsupportedOperationException("Cannot determine comparator for type: " + type);
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <T> Comparator<T> internal(Type type) {
+    if (type.isPrimitiveType()) {
+      return forType(type.asPrimitiveType());
+    } else if (type.isStructType()) {
+      return (Comparator<T>) forType(type.asStructType());
+    } else if (type.isListType()) {
+      return (Comparator<T>) forType(type.asListType());
+    }
+
+    throw new UnsupportedOperationException("Cannot determine comparator for type: " + type);
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <T> Class<T> internalClass(Type type) {
+    if (type.isPrimitiveType()) {
+      return (Class<T>) type.typeId().javaClass();
+    } else if (type.isStructType()) {
+      return (Class<T>) StructLike.class;
+    } else if (type.isListType()) {
+      return (Class<T>) List.class;
+    } else if (type.isMapType()) {
+      return (Class<T>) Map.class;
+    }
+
+    throw new UnsupportedOperationException("Cannot determine expected class for type: " + type);
+  }
+
+  private static class StructLikeComparator implements Comparator<StructLike> {
+    private final Comparator<Object>[] comparators;
+    private final Class<?>[] classes;
+
+    private StructLikeComparator(Types.StructType struct) {
+      this.comparators = struct.fields().stream()
+          .map(field -> field.isOptional() ?
+              Comparators.nullsFirst().thenComparing(internal(field.type())) :
+              internal(field.type())
+          )
+          .toArray((IntFunction<Comparator<Object>[]>) Comparator[]::new);
+      this.classes = struct.fields().stream()
+          .map(field -> internalClass(field.type()))
+          .toArray(Class<?>[]::new);
+    }
+
+    @Override
+    public int compare(StructLike o1, StructLike o2) {
+      for (int i = 0; i < comparators.length; i += 1) {
+        Class<?> valueClass = classes[i];
+        int cmp = comparators[i].compare(o1.get(i, valueClass), o2.get(i, valueClass));
+        if (cmp != 0) {
+          return cmp;
+        }
+      }
+
+      return 0;
+    }
+  }
+
+  private static class ListComparator<T> implements Comparator<List<T>> {
+    private final Comparator<T> elementComparator;
+
+    private ListComparator(Types.ListType list) {
+      Comparator<T> elemComparator = internal(list.elementType());
+      this.elementComparator = list.isElementOptional() ?
+          Comparators.<T>nullsFirst().thenComparing(elemComparator) :
+          elemComparator;
+    }
+
+    @Override
+    public int compare(List<T> o1, List<T> o2) {
+      int length = Math.min(o1.size(), o2.size());
+      for (int i = 0; i < length; i += 1) {
+        int cmp = elementComparator.compare(o1.get(i), o2.get(i));
+        if (cmp != 0) {
+          return cmp;
+        }
+      }
+
+      return Integer.compare(o1.size(), o2.size());
+    }
   }
 
   public static Comparator<ByteBuffer> unsignedBytes() {

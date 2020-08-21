@@ -37,6 +37,11 @@
         <property name="format" value="^\n\n$"/>
         <property name="message" value="Two consecutive blank lines are not permitted."/>
     </module>
+    <module name="RegexpSingleline">
+        <property name="fileExtensions" value="java"/>
+        <property name="format" value="sparkContext\(\)\.hadoopConfiguration\(\)"/>
+        <property name="message" value="Are you sure that you want to use sparkContext().hadoopConfiguration()? In most cases, you should use sessionState().newHadoopConf() instead, so that the Hadoop configurations specified in the Spark session configuration will come into effect."/>
+    </module>
     <module name="SuppressionFilter"> <!-- baseline-gradle: README.md -->
         <property name="file" value="${config_loc}/checkstyle-suppressions.xml"/>
     </module>
@@ -130,7 +135,7 @@
             <message key="import.illegal" value="Must not import javafx classes because some OpenJDK builds do not include javafx."/>
         </module>
         <module name="IllegalImport"> <!-- Java Coding Guidelines: Import the canonical package -->
-            <property name="illegalPkgs" value="org.elasticsearch.common.base, com.clearspring.analytics.util, org.spark_project.guava, org.sparkproject.guava, org.glassfish.jersey.internal.guava."/>
+            <property name="illegalPkgs" value="org.elasticsearch.common.base, com.clearspring.analytics.util, org.spark_project.guava, org.sparkproject.guava, org.glassfish.jersey.internal.guava, org.apache.commons.compress.utils"/>
             <message key="import.illegal" value="Must not import repackaged classes."/>
         </module>
         <module name="IllegalImport"> <!-- Java Coding Guidelines: Import the canonical package -->

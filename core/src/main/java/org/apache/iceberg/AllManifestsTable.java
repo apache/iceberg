@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.util.List;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
@@ -127,8 +128,13 @@ public class AllManifestsTable extends BaseMetadataTable {
         if (snap.manifestListLocation() != null) {
           Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
           ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
+          DataFile manifestListAsDataFile = DataFiles.builder(PartitionSpec.unpartitioned())
+              .withInputFile(ops.io().newInputFile(snap.manifestListLocation()))
+              .withRecordCount(1)
+              .withFormat(FileFormat.AVRO)
+              .build();
           return new ManifestListReadTask(ops.io(), table().spec(), new BaseFileScanTask(
-              DataFiles.fromManifestList(ops.io().newInputFile(snap.manifestListLocation())),
+              manifestListAsDataFile, null,
               schemaString, specString, residuals));
         } else {
           return StaticDataTask.of(
@@ -149,6 +155,11 @@ public class AllManifestsTable extends BaseMetadataTable {
       this.io = io;
       this.spec = spec;
       this.manifestListTask = manifestListTask;
+    }
+
+    @Override
+    public List<DeleteFile> deletes() {
+      return manifestListTask.deletes();
     }
 
     @Override

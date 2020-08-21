@@ -555,6 +555,10 @@ public class Tasks {
     return new Builder<>(new Range(upTo));
   }
 
+  public static <I> Builder<I> foreach(Iterator<I> items) {
+    return new Builder<>(() -> items);
+  }
+
   public static <I> Builder<I> foreach(Iterable<I> items) {
     return new Builder<>(items);
   }

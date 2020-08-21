@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.expressions.BoundPredicate;
@@ -124,6 +125,25 @@ public class TestHelpers {
     @Override
     public <T> void set(int pos, T value) {
       throw new UnsupportedOperationException("Setting values is not supported");
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      }
+      if (other == null || getClass() != other.getClass()) {
+        return false;
+      }
+
+      Row that = (Row) other;
+
+      return Arrays.equals(values, that.values);
+    }
+
+    @Override
+    public int hashCode() {
+      return Arrays.hashCode(values);
     }
   }
 
@@ -309,6 +329,11 @@ public class TestHelpers {
       this.nullValueCounts = nullValueCounts;
       this.lowerBounds = lowerBounds;
       this.upperBounds = upperBounds;
+    }
+
+    @Override
+    public int specId() {
+      return 0;
     }
 
     @Override

@@ -94,88 +94,27 @@ public class DataFiles {
     return copyPartitionData(spec, partition, null);
   }
 
-  public static DataFile fromStat(FileStatus stat, long rowCount) {
-    String location = stat.getPath().toString();
-    FileFormat format = FileFormat.fromFileName(location);
-    return new GenericDataFile(location, format, rowCount, stat.getLen());
-  }
-
-  public static DataFile fromStat(FileStatus stat, PartitionData partition, long rowCount) {
-    String location = stat.getPath().toString();
-    FileFormat format = FileFormat.fromFileName(location);
-    return new GenericDataFile(
-        location, format, partition, rowCount, stat.getLen());
-  }
-
-  public static DataFile fromStat(FileStatus stat, PartitionData partition, Metrics metrics,
-      EncryptionKeyMetadata keyMetadata, List<Long> splitOffsets) {
-    String location = stat.getPath().toString();
-    FileFormat format = FileFormat.fromFileName(location);
-    return new GenericDataFile(
-        location, format, partition, stat.getLen(), metrics, keyMetadata.buffer(), splitOffsets);
-  }
-
-  public static DataFile fromInputFile(InputFile file, PartitionData partition, long rowCount) {
-    if (file instanceof HadoopInputFile) {
-      return fromStat(((HadoopInputFile) file).getStat(), partition, rowCount);
-    }
-
-    String location = file.location();
-    FileFormat format = FileFormat.fromFileName(location);
-    return new GenericDataFile(
-        location, format, partition, rowCount, file.getLength());
-  }
-
-  public static DataFile fromInputFile(InputFile file, long rowCount) {
-    if (file instanceof HadoopInputFile) {
-      return fromStat(((HadoopInputFile) file).getStat(), rowCount);
-    }
-
-    String location = file.location();
-    FileFormat format = FileFormat.fromFileName(location);
-    return new GenericDataFile(location, format, rowCount, file.getLength());
-  }
-
-  public static DataFile fromEncryptedOutputFile(EncryptedOutputFile encryptedFile, PartitionData partition,
-                                                Metrics metrics, List<Long> splitOffsets) {
-    EncryptionKeyMetadata keyMetadata = encryptedFile.keyMetadata();
-    InputFile file = encryptedFile.encryptingOutputFile().toInputFile();
-    if (encryptedFile instanceof HadoopInputFile) {
-      return fromStat(((HadoopInputFile) file).getStat(), partition, metrics, keyMetadata, splitOffsets);
-    }
-
-    String location = file.location();
-    FileFormat format = FileFormat.fromFileName(location);
-    return new GenericDataFile(
-        location, format, partition, file.getLength(), metrics, keyMetadata.buffer(), splitOffsets);
-  }
-
   public static DataFile fromManifest(ManifestFile manifest) {
     Preconditions.checkArgument(
         manifest.addedFilesCount() != null && manifest.existingFilesCount() != null,
         "Cannot create data file from manifest: data file counts are missing.");
 
-    return new GenericDataFile(manifest.path(),
-        FileFormat.AVRO,
-        manifest.addedFilesCount() + manifest.existingFilesCount(),
-        manifest.length());
-  }
-
-  public static DataFile fromManifestList(InputFile manifestList) {
-    return new GenericDataFile(manifestList.location(), FileFormat.AVRO, 1, manifestList.getLength());
+    return DataFiles.builder(PartitionSpec.unpartitioned())
+        .withPath(manifest.path())
+        .withFormat(FileFormat.AVRO)
+        .withRecordCount(manifest.addedFilesCount() + manifest.existingFilesCount())
+        .withFileSizeInBytes(manifest.length())
+        .build();
   }
 
   public static Builder builder(PartitionSpec spec) {
     return new Builder(spec);
   }
 
-  static Builder builder() {
-    return new Builder();
-  }
-
   public static class Builder {
     private final PartitionSpec spec;
     private final boolean isPartitioned;
+    private final int specId;
     private PartitionData partitionData;
     private String filePath = null;
     private FileFormat format = null;
@@ -191,14 +130,9 @@ public class DataFiles {
     private ByteBuffer keyMetadata = null;
     private List<Long> splitOffsets = null;
 
-    public Builder() {
-      this.spec = null;
-      this.partitionData = null;
-      this.isPartitioned = false;
-    }
-
     public Builder(PartitionSpec spec) {
       this.spec = spec;
+      this.specId = spec.specId();
       this.isPartitioned = spec.fields().size() > 0;
       this.partitionData = isPartitioned ? newPartitionData(spec) : null;
     }
@@ -221,6 +155,7 @@ public class DataFiles {
 
     public Builder copy(DataFile toCopy) {
       if (isPartitioned) {
+        Preconditions.checkState(specId == toCopy.specId(), "Cannot copy a DataFile with a different spec");
         this.partitionData = copyPartitionData(spec, toCopy.partition(), partitionData);
       }
       this.filePath = toCopy.path().toString();
@@ -338,7 +273,7 @@ public class DataFiles {
       Preconditions.checkArgument(recordCount >= 0, "Record count is required");
 
       return new GenericDataFile(
-          filePath, format, isPartitioned ? partitionData.copy() : null,
+          specId, filePath, format, isPartitioned ? partitionData.copy() : null,
           fileSizeInBytes, new Metrics(
               recordCount, columnSizes, valueCounts, nullValueCounts, lowerBounds, upperBounds),
           keyMetadata, splitOffsets);
