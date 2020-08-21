@@ -20,6 +20,8 @@
 package org.apache.iceberg.mr.hive;
 
 import java.math.BigDecimal;
+import java.sql.Date;
+import java.sql.Timestamp;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgumentFactory;
@@ -197,13 +199,13 @@ public class TestHiveIcebergFilterFactory {
     assertPredicatesMatch(expected, actual);
   }
 
-  /*@Test
+  @Test
   public void testDateType() {
     SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
     SearchArgument arg = builder.startAnd().equals("date", PredicateLeaf.Type.DATE,
             Date.valueOf("2015-11-12")).end().build();
 
-    UnboundPredicate expected = Expressions.equal("date", LocalDate.of(2015,11,12));
+    UnboundPredicate expected = Expressions.equal("date", "2015-11-12");
     UnboundPredicate actual = (UnboundPredicate) HiveIcebergFilterFactory.generateFilterExpression(arg);
 
     assertPredicatesMatch(expected, actual);
@@ -213,13 +215,13 @@ public class TestHiveIcebergFilterFactory {
   public void testTimestampType() {
     SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
     SearchArgument arg = builder.startAnd().equals("timestamp", PredicateLeaf.Type.TIMESTAMP,
-            Timestamp.valueOf("2012-10-02 05:16:17")).end().build();
+            Timestamp.valueOf("2012-10-02 05:16:17.123")).end().build();
 
-    UnboundPredicate expected = Expressions.equal("timestamp", LocalDateTime.of(2012,10, 2,5, 16, 17 ));
+    UnboundPredicate expected = Expressions.equal("timestamp", "2012-10-02T05:16:17.123");
     UnboundPredicate actual = (UnboundPredicate) HiveIcebergFilterFactory.generateFilterExpression(arg);
 
     assertPredicatesMatch(expected, actual);
-  }*/
+  }
 
   @Test
   public void testDecimalType() {

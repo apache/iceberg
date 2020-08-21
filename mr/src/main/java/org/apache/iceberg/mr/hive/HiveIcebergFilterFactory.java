@@ -43,8 +43,6 @@ import static org.apache.iceberg.expressions.Expressions.or;
 
 
 public class HiveIcebergFilterFactory {
-  private static final int MICROS_PER_SECOND = 1000000;
-  private static final int NANOS_PER_MICROSEC = 1000;
 
   private HiveIcebergFilterFactory() {}
 
@@ -120,15 +118,14 @@ public class HiveIcebergFilterFactory {
         return leaf.getLiteral();
       case DATE:
         //Hive converts a Date type to a Timestamp internally when retrieving literal
-        return ((Timestamp) leaf.getLiteral()).toLocalDateTime().toLocalDate().toEpochDay();
+        return timestampToDateString((Timestamp) leaf.getLiteral());
       case DECIMAL:
-        return BigDecimal.valueOf(((HiveDecimalWritable) leaf.getLiteral()).doubleValue());
+        return hiveDecimalToBigDecimal((HiveDecimalWritable) leaf.getLiteral());
       case TIMESTAMP:
-        Timestamp timestamp = (Timestamp) leaf.getLiteral();
-        return timestamp.toInstant().getEpochSecond() * MICROS_PER_SECOND +
-                timestamp.getNanos() / NANOS_PER_MICROSEC;
+        return timestampToTimestampString((Timestamp) leaf.getLiteral());
+
       default:
-        throw new IllegalStateException("Unknown type: " + leaf.getType());
+        throw new UnsupportedOperationException("Unknown type: " + leaf.getType());
     }
   }
 
@@ -140,18 +137,34 @@ public class HiveIcebergFilterFactory {
       case STRING:
         return leaf.getLiteralList();
       case DATE:
-        return leaf.getLiteralList().stream().map(value -> ((Date) value).toLocalDate().toEpochDay())
+        return leaf.getLiteralList().stream().map(value -> dateToString((Date) value))
                 .collect(Collectors.toList());
       case DECIMAL:
         return leaf.getLiteralList().stream()
-                .map(value -> BigDecimal.valueOf(((HiveDecimalWritable) value).doubleValue()))
+                .map(value -> hiveDecimalToBigDecimal((HiveDecimalWritable) value))
                 .collect(Collectors.toList());
       case TIMESTAMP:
         return leaf.getLiteralList().stream()
-                .map(value -> ((Timestamp) value).toInstant().getEpochSecond() * MICROS_PER_SECOND +
-                        ((Timestamp) value).getNanos() / NANOS_PER_MICROSEC).collect(Collectors.toList());
+                .map(value -> timestampToTimestampString((Timestamp) value))
+                .collect(Collectors.toList());
       default:
-        throw new IllegalStateException("Unknown type: " + leaf.getType());
+        throw new UnsupportedOperationException("Unknown type: " + leaf.getType());
     }
+  }
+
+  private static String timestampToDateString(Timestamp timestamp) {
+    return timestamp.toLocalDateTime().toLocalDate().toString();
+  }
+
+  private static String dateToString(Date date) {
+    return date.toLocalDate().toString();
+  }
+
+  private static BigDecimal hiveDecimalToBigDecimal(HiveDecimalWritable hiveDecimalWritable) {
+    return new BigDecimal(hiveDecimalWritable.toString()).setScale(hiveDecimalWritable.scale());
+  }
+
+  private static String timestampToTimestampString(Timestamp timestamp) {
+    return timestamp.toLocalDateTime().toString();
   }
 }
