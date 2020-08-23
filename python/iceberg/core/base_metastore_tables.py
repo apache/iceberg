@@ -14,46 +14,40 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from typing import Tuple
 
-from iceberg.api import Tables
-from iceberg.exceptions import AlreadyExistsException, CommitFailedException, NoSuchTableException
-
+from . import TableOperations
 from .base_table import BaseTable
 from .table_metadata import TableMetadata
+from ..api import PartitionSpec, Schema, Table, Tables
+from ..exceptions import AlreadyExistsException, CommitFailedException, NoSuchTableException
 
 
 class BaseMetastoreTables(Tables):
-    DOT = '.'
 
-    def __init__(self, conf):
+    def __init__(self: "BaseMetastoreTables", conf: dict) -> None:
         self.conf = conf
 
-    def new_table_ops(self, conf, database, table):
+    def new_table_ops(self: "BaseMetastoreTables", conf: dict, database: str, table: str) -> "TableOperations":
         raise RuntimeError("Abstract Implementation")
 
-    def load(self, table_identifier):
-        parts = table_identifier.rsplit(BaseMetastoreTables.DOT, 1)
-        if len(parts) > 1:
-            database = parts[0]
-            table = parts[1]
-        else:
-            database = "default"
-            table = parts[0]
+    def load(self: "BaseMetastoreTables", table_identifier: str) -> Table:
+        database, table = _parse_table_identifier(table_identifier)
         ops = self.new_table_ops(self.conf, database, table)
-        if ops.current() is None:
-            raise NoSuchTableException("Table does not exist: {}.{}".format(database, table))
+        if ops.current():
+            return BaseTable(ops, "{}.{}".format(database, table))
+        raise NoSuchTableException("Table does not exist: {}.{}".format(database, table))
 
-        return BaseTable(ops, "{}.{}".format(database, table))
-
-    def create(self, schema, table_identifier=None, spec=None, properties=None):
-        database, table = table_identifier.rsplit(BaseMetastoreTables.DOT, 1)
+    def create(self: "BaseMetastoreTables", schema: Schema, table_identifier: str, spec: PartitionSpec = None,
+               properties: dict = None) -> Table:
+        database, table = _parse_table_identifier(table_identifier)
         ops = self.new_table_ops(self.conf, database, table)
-        if ops.current() is not None:
+        if ops.current() is not None:  # not None check here to ensure MagicMocks aren't treated as None
             raise AlreadyExistsException("Table already exists: " + table_identifier)
 
         base_location = self.default_warehouse_location(self.conf, database, table)
-
-        metadata = TableMetadata.new_table_metadata(ops, schema, spec, base_location, dict() if properties is None else properties)
+        full_spec, properties = super(BaseMetastoreTables, self).default_args(spec, properties)
+        metadata = TableMetadata.new_table_metadata(ops, schema, full_spec, base_location, properties)
 
         try:
             ops.commit(None, metadata)
@@ -62,15 +56,30 @@ class BaseMetastoreTables(Tables):
 
         return BaseTable(ops, "{}.{}".format(database, table))
 
-    def begin_create(self, schema, spec, database, table_name, properties=None):
+    def begin_create(self: "BaseMetastoreTables", schema: Schema, spec: PartitionSpec, database: str, table_name: str,
+                     properties: dict = None):
         raise RuntimeError("Not Yet Implemented")
 
-    def begin_replace(self, schema, spec, database, table, properties=None):
+    def begin_replace(self: "BaseMetastoreTables", schema: Schema, spec: PartitionSpec, database: str, table: str,
+                      properties: dict = None):
         raise RuntimeError("Not Yet Implemented")
 
-    def default_warehouse_location(self, conf, database, table):
+    def default_warehouse_location(self: "BaseMetastoreTables", conf: dict, database: str, table: str) -> str:
         warehouse_location = conf.get("hive.metastore.warehouse.dir")
-        if warehouse_location is None:
-            raise RuntimeError("Warehouse location is not set: hive.metastore.warehouse.dir=null")
+        if warehouse_location:
+            return f"{warehouse_location}/{database}.db/{table}"
+        raise RuntimeError("Warehouse location is not set: hive.metastore.warehouse.dir=null")
 
-        return f"{warehouse_location}/{database}.db/{table}"
+
+_DOT = '.'
+
+
+def _parse_table_identifier(table_identifier: str) -> Tuple[str, str]:
+    parts = table_identifier.rsplit(_DOT, 1)
+    if len(parts) > 1:
+        database = parts[0]
+        table = parts[1]
+    else:
+        database = "default"
+        table = parts[0]
+    return database, table

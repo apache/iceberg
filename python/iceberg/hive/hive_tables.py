@@ -25,7 +25,7 @@ from .hive_table_operations import HiveTableOperations
 
 
 class HiveTables(BaseMetastoreTables):
-    DOT = "."
+    _DOT = "."
     THRIFT_URIS = "hive.metastore.uris"
 
     def __init__(self, conf):

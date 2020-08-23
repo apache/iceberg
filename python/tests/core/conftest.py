@@ -306,7 +306,7 @@ def split_planning_table(base_scan_schema):
     tables = FilesystemTables()
 
     with tempfile.TemporaryDirectory() as td:
-        table = tables.create(base_scan_schema, location=td)
+        table = tables.create(base_scan_schema, table_identifier=td)
         table.properties().update({TableProperties.SPLIT_SIZE: "{}".format(128 * 1024 * 1024),
                                    TableProperties.SPLIT_OPEN_FILE_COST: "{}".format(4 * 1024 * 1024),
                                    TableProperties.SPLIT_LOOKBACK: "{}".format(2 ** 31 - 1)})
