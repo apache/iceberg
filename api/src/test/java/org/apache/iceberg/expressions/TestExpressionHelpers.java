@@ -137,16 +137,16 @@ public class TestExpressionHelpers {
   @Test
   public void testTransformExpressions() {
     Assert.assertEquals("Should produce the correct expression string",
-        "year(ref(name=\"ts\")) == \"2019\"",
+        "year[0](ref(name=\"ts\")) == \"2019\"",
         equal(year("ts"), "2019").toString());
     Assert.assertEquals("Should produce the correct expression string",
-        "month(ref(name=\"ts\")) == 1234",
+        "month[0](ref(name=\"ts\")) == 1234",
         equal(month("ts"), 1234).toString());
     Assert.assertEquals("Should produce the correct expression string",
-        "day(ref(name=\"ts\")) == \"2019-12-04\"",
+        "day[0](ref(name=\"ts\")) == \"2019-12-04\"",
         equal(day("ts"), "2019-12-04").toString());
     Assert.assertEquals("Should produce the correct expression string",
-        "hour(ref(name=\"ts\")) == \"2019-12-04-10\"",
+        "hour[0](ref(name=\"ts\")) == \"2019-12-04-10\"",
         equal(hour("ts"), "2019-12-04-10").toString());
     Assert.assertEquals("Should produce the correct expression string",
         "truncate[6](ref(name=\"str\")) == \"abcdef\"",

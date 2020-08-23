@@ -37,6 +37,7 @@ enum Timestamps implements Transform<Long, Integer> {
   DAY(ChronoUnit.DAYS, "day"),
   HOUR(ChronoUnit.HOURS, "hour");
 
+  private ZoneOffset zoneOffset = ZoneOffset.UTC;
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private final ChronoUnit granularity;
   private final String name;
@@ -54,10 +55,15 @@ enum Timestamps implements Transform<Long, Integer> {
 
     // discards fractional seconds, not needed for calculation
     OffsetDateTime timestamp = Instant
-        .ofEpochSecond(timestampMicros / 1_000_000)
+        .ofEpochSecond(timestampMicros / 1_000_000 + zoneOffset.getTotalSeconds())
         .atOffset(ZoneOffset.UTC);
 
     return (int) granularity.between(EPOCH, timestamp);
+  }
+
+  public Timestamps zoneOffset(ZoneOffset newZoneOffset) {
+    this.zoneOffset = newZoneOffset;
+    return this;
   }
 
   @Override
@@ -127,6 +133,6 @@ enum Timestamps implements Transform<Long, Integer> {
 
   @Override
   public String toString() {
-    return name;
+    return name + "[" + zoneOffset.getTotalSeconds() + "]";
   }
 }

@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.transforms;
 
+import java.time.ZoneOffset;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -40,6 +41,7 @@ public class Transforms {
   }
 
   private static final Pattern HAS_WIDTH = Pattern.compile("(\\w+)\\[(\\d+)\\]");
+  private static final Pattern HAS_TIME_OFFSET = Pattern.compile("(\\w+)\\[(\\-?\\d+)\\]");
 
   public static Transform<?, ?> fromString(Type type, String transform) {
     Matcher widthMatcher = HAS_WIDTH.matcher(transform);
@@ -57,10 +59,22 @@ public class Transforms {
       return Identity.get(type);
     }
 
+    Matcher timeZoneOffset = HAS_TIME_OFFSET.matcher(transform);
+    if (timeZoneOffset.matches()) {
+      String name = timeZoneOffset.group(1);
+      int totalSeconds = Integer.parseInt(timeZoneOffset.group(2));
+      try {
+        if (type.typeId() == Type.TypeID.TIMESTAMP) {
+          return Timestamps.valueOf(name.toUpperCase(Locale.ENGLISH))
+              .zoneOffset(ZoneOffset.ofTotalSeconds(totalSeconds));
+        }
+      } catch (IllegalArgumentException ignored) {
+        // fall through to return unknown transform
+      }
+    }
+
     try {
-      if (type.typeId() == Type.TypeID.TIMESTAMP) {
-        return Timestamps.valueOf(transform.toUpperCase(Locale.ENGLISH));
-      } else if (type.typeId() == Type.TypeID.DATE) {
+      if (type.typeId() == Type.TypeID.DATE) {
         return Dates.valueOf(transform.toUpperCase(Locale.ENGLISH));
       }
     } catch (IllegalArgumentException ignored) {
@@ -94,14 +108,18 @@ public class Transforms {
    */
   @SuppressWarnings("unchecked")
   public static <T> Transform<T, Integer> year(Type type) {
+    return year(type, ZoneOffset.UTC);
+  }
+
+  public static <T> Transform<T, Integer> year(Type type, ZoneOffset zoneOffset) {
     switch (type.typeId()) {
       case DATE:
         return (Transform<T, Integer>) Dates.YEAR;
       case TIMESTAMP:
-        return (Transform<T, Integer>) Timestamps.YEAR;
+        return (Transform<T, Integer>) Timestamps.YEAR.zoneOffset(zoneOffset);
       default:
         throw new IllegalArgumentException(
-            "Cannot partition type " + type + " by year");
+                "Cannot partition type " + type + " by year");
     }
   }
 
@@ -114,14 +132,18 @@ public class Transforms {
    */
   @SuppressWarnings("unchecked")
   public static <T> Transform<T, Integer> month(Type type) {
+    return month(type, ZoneOffset.UTC);
+  }
+
+  public static <T> Transform<T, Integer> month(Type type, ZoneOffset zoneOffset) {
     switch (type.typeId()) {
       case DATE:
         return (Transform<T, Integer>) Dates.MONTH;
       case TIMESTAMP:
-        return (Transform<T, Integer>) Timestamps.MONTH;
+        return (Transform<T, Integer>) Timestamps.MONTH.zoneOffset(zoneOffset);
       default:
         throw new IllegalArgumentException(
-            "Cannot partition type " + type + " by month");
+                "Cannot partition type " + type + " by month");
     }
   }
 
@@ -134,14 +156,18 @@ public class Transforms {
    */
   @SuppressWarnings("unchecked")
   public static <T> Transform<T, Integer> day(Type type) {
+    return day(type, ZoneOffset.UTC);
+  }
+
+  public static <T> Transform<T, Integer> day(Type type, ZoneOffset zoneOffset) {
     switch (type.typeId()) {
       case DATE:
         return (Transform<T, Integer>) Dates.DAY;
       case TIMESTAMP:
-        return (Transform<T, Integer>) Timestamps.DAY;
+        return (Transform<T, Integer>) Timestamps.DAY.zoneOffset(zoneOffset);
       default:
         throw new IllegalArgumentException(
-            "Cannot partition type " + type + " by day");
+                "Cannot partition type " + type + " by day");
     }
   }
 
@@ -154,9 +180,13 @@ public class Transforms {
    */
   @SuppressWarnings("unchecked")
   public static <T> Transform<T, Integer> hour(Type type) {
+    return hour(type, ZoneOffset.UTC);
+  }
+
+  public static <T> Transform<T, Integer> hour(Type type, ZoneOffset zoneOffset) {
     Preconditions.checkArgument(type.typeId() == Type.TypeID.TIMESTAMP,
-        "Cannot partition type %s by hour", type);
-    return (Transform<T, Integer>) Timestamps.HOUR;
+            "Cannot partition type %s by hour", type);
+    return (Transform<T, Integer>) Timestamps.HOUR.zoneOffset(zoneOffset);
   }
 
   /**

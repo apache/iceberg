@@ -19,6 +19,11 @@
 
 package org.apache.iceberg.transforms;
 
+import java.text.SimpleDateFormat;
+import java.time.ZoneOffset;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.TimeZone;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -69,6 +74,49 @@ public class TestTimestamps {
     Transform<Long, Integer> hour = Transforms.hour(type);
     Assert.assertEquals("Should produce the correct Human string",
         "2017-12-01-18", hour.toHumanString(hour.apply(date.value())));
+  }
+
+  @Test
+  public void testTimestampWithZoneAndZoneOffsetToHumanString() {
+    Types.TimestampType type = Types.TimestampType.withZone();
+    Literal<Long> date = Literal.of("2017-01-01T00:12:55.038194+00:00").to(type);
+
+    String[] timeZoneArray = {
+        "-01:00", "-02:00", "-03:00", "-04:00", "-05:00", "-06:00", "-07:00",
+        "-08:00", "-09:00", "-10:00", "-11:00", "+00:00", "+01:00", "+02:00",
+        "+03:00", "+04:00", "+05:00", "+06:00", "+07:00", "+08:00", "+09:00",
+        "+10:00", "+11:00"};
+
+    Arrays.stream(timeZoneArray).forEach(offsetId -> {
+      Transform<Long, Integer> year = Transforms.year(type, ZoneOffset.of(offsetId));
+      Assert.assertEquals("Should produce the correct Human string",
+          getExpectedStringWithOffsetId(date.value(), offsetId, "yyyy"),
+          year.toHumanString(year.apply(date.value())));
+
+      Transform<Long, Integer> month = Transforms.month(type, ZoneOffset.of(offsetId));
+      Assert.assertEquals("Should produce the correct Human string",
+          getExpectedStringWithOffsetId(date.value(), offsetId, "yyyy-MM"),
+          month.toHumanString(month.apply(date.value())));
+
+      Transform<Long, Integer> day = Transforms.day(type, ZoneOffset.of(offsetId));
+      Assert.assertEquals("Should produce the correct Human string",
+          getExpectedStringWithOffsetId(date.value(), offsetId, "yyyy-MM-dd"),
+          day.toHumanString(day.apply(date.value())));
+
+      Transform<Long, Integer> hour = Transforms.hour(type, ZoneOffset.of(offsetId));
+      Assert.assertEquals("Should produce the correct Human string",
+          getExpectedStringWithOffsetId(date.value(), offsetId, "yyyy-MM-dd-HH"),
+          hour.toHumanString(hour.apply(date.value())));
+    });
+  }
+
+  private String getExpectedStringWithOffsetId(long millis, String offsetId, String pattern) {
+    SimpleDateFormat utcFormater = new SimpleDateFormat(pattern);
+    utcFormater.setTimeZone(TimeZone.getTimeZone("UTC"));
+    Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+    calendar.setTimeInMillis(millis / 1000);
+    calendar.add(Calendar.HOUR_OF_DAY, Integer.valueOf(offsetId.split("\\:")[0]));
+    return utcFormater.format(calendar.getTime());
   }
 
   @Test
