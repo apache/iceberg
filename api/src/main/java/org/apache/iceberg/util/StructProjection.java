@@ -96,8 +96,8 @@ public class StructProjection implements StructLike {
     }
   }
 
-  public StructProjection wrap(StructLike struct) {
-    this.struct = struct;
+  public StructProjection wrap(StructLike newStruct) {
+    this.struct = newStruct;
     return this;
   }
 
