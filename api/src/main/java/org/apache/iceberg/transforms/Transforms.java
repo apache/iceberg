@@ -59,14 +59,16 @@ public class Transforms {
       return Identity.get(type);
     }
 
-    Matcher timeZoneOffset = HAS_TIME_OFFSET.matcher(transform);
-    if (timeZoneOffset.matches()) {
-      String name = timeZoneOffset.group(1);
-      int totalSeconds = Integer.parseInt(timeZoneOffset.group(2));
+    if (type.typeId() == Type.TypeID.TIMESTAMP) {
       try {
-        if (type.typeId() == Type.TypeID.TIMESTAMP) {
+        Matcher timeZoneOffset = HAS_TIME_OFFSET.matcher(transform);
+        if (timeZoneOffset.matches()) {
+          String name = timeZoneOffset.group(1);
+          int totalSeconds = Integer.parseInt(timeZoneOffset.group(2));
           return Timestamps.valueOf(name.toUpperCase(Locale.ENGLISH))
               .zoneOffset(ZoneOffset.ofTotalSeconds(totalSeconds));
+        } else {
+          return Timestamps.valueOf(transform.toUpperCase(Locale.ENGLISH));
         }
       } catch (IllegalArgumentException ignored) {
         // fall through to return unknown transform
