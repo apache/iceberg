@@ -59,8 +59,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PartitionUtil;
-import org.apache.iceberg.util.ProjectStructLike;
 import org.apache.iceberg.util.StructLikeSet;
+import org.apache.iceberg.util.StructProjection;
+import org.apache.parquet.Preconditions;
 
 class GenericReader implements Serializable {
   private static final Schema POS_DELETE_SCHEMA = new Schema(
@@ -68,12 +69,14 @@ class GenericReader implements Serializable {
       MetadataColumns.DELETE_FILE_POS);
 
   private final FileIO io;
+  private final Schema tableSchema;
   private final Schema projection;
   private final boolean caseSensitive;
   private final boolean reuseContainers;
 
   GenericReader(TableScan scan, boolean reuseContainers) {
     this.io = scan.table().io();
+    this.tableSchema = scan.table().schema();
     this.projection = scan.schema();
     this.caseSensitive = scan.isCaseSensitive();
     this.reuseContainers = reuseContainers;
@@ -104,7 +107,7 @@ class GenericReader implements Serializable {
       }
     }
 
-    Schema fileProjection = fileProjection(!posDeletes.isEmpty());
+    Schema fileProjection = fileProjection(posDeletes, eqDeletes);
 
     CloseableIterable<Record> records = openFile(task, fileProjection);
     records = applyPosDeletes(records, fileProjection, task.file().path(), posDeletes, task.file());
@@ -114,14 +117,40 @@ class GenericReader implements Serializable {
     return records;
   }
 
-  private Schema fileProjection(boolean hasPosDeletes) {
-    if (hasPosDeletes) {
-      List<Types.NestedField> columns = Lists.newArrayList(projection.columns());
-      columns.add(MetadataColumns.ROW_POSITION);
-      return new Schema(columns);
+  private Schema fileProjection(List<DeleteFile> posDeletes, List<DeleteFile> eqDeletes) {
+    Set<Integer> requiredIds = Sets.newLinkedHashSet();
+    if (!posDeletes.isEmpty()) {
+      requiredIds.add(MetadataColumns.ROW_POSITION.fieldId());
     }
 
-    return projection;
+    for (DeleteFile eqDelete : eqDeletes) {
+      requiredIds.addAll(eqDelete.equalityFieldIds());
+    }
+
+    Set<Integer> missingIds = Sets.newLinkedHashSet(Sets.difference(requiredIds, TypeUtil.getProjectedIds(projection)));
+
+    if (missingIds.isEmpty()) {
+      return projection;
+    }
+
+    // TODO: support adding nested columns. this will currently fail when finding nested columns to add
+    List<Types.NestedField> columns = Lists.newArrayList(projection.columns());
+    for (int fieldId : missingIds) {
+      if (fieldId == MetadataColumns.ROW_POSITION.fieldId()) {
+        continue; // add _pos at the end
+      }
+
+      Types.NestedField field = tableSchema.asStruct().field(fieldId);
+      Preconditions.checkArgument(field != null, "Cannot find required field for ID %s", fieldId);
+
+      columns.add(field);
+    }
+
+    if (requiredIds.contains(MetadataColumns.ROW_POSITION.fieldId())) {
+      columns.add(MetadataColumns.ROW_POSITION);
+    }
+
+    return new Schema(columns);
   }
 
   private CloseableIterable<Record> applyResidual(CloseableIterable<Record> records, Schema recordSchema,
@@ -152,13 +181,12 @@ class GenericReader implements Serializable {
       Iterable<DeleteFile> deletes = entry.getValue();
 
       Schema deleteSchema = TypeUtil.select(recordSchema, ids);
-      int[] orderedIds = deleteSchema.columns().stream().mapToInt(Types.NestedField::fieldId).toArray();
 
       // a wrapper to translate from generic objects to internal representations
       InternalRecordWrapper asStructLike = new InternalRecordWrapper(recordSchema.asStruct());
 
       // a projection to select and reorder fields of the file schema to match the delete rows
-      ProjectStructLike projectRow = ProjectStructLike.of(recordSchema, orderedIds);
+      StructProjection projectRow = StructProjection.create(recordSchema, deleteSchema);
 
       Iterable<CloseableIterable<Record>> deleteRecords = Iterables.transform(deletes,
           delete -> openDeletes(delete, dataFile, deleteSchema));

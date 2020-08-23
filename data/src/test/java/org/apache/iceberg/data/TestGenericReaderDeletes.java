@@ -19,30 +19,24 @@
 
 package org.apache.iceberg.data;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.TestHelpers.Row;
-import org.apache.iceberg.data.parquet.GenericParquetWriter;
-import org.apache.iceberg.deletes.EqualityDeleteWriter;
-import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
 import org.junit.Before;
@@ -62,90 +56,78 @@ public class TestGenericReaderDeletes extends TableTestBase {
 
     // records all use IDs that are in bucket id_bucket=0
     GenericRecord record = GenericRecord.create(table.schema());
-    records.add(record.copy(ImmutableMap.of("id", 29, "data", "a")));
-    records.add(record.copy(ImmutableMap.of("id", 43, "data", "b")));
-    records.add(record.copy(ImmutableMap.of("id", 61, "data", "c")));
-    records.add(record.copy(ImmutableMap.of("id", 89, "data", "d")));
-    records.add(record.copy(ImmutableMap.of("id", 100, "data", "e")));
-    records.add(record.copy(ImmutableMap.of("id", 121, "data", "f")));
-    records.add(record.copy(ImmutableMap.of("id", 122, "data", "g")));
+    records.add(record.copy("id", 29, "data", "a"));
+    records.add(record.copy("id", 43, "data", "b"));
+    records.add(record.copy("id", 61, "data", "c"));
+    records.add(record.copy("id", 89, "data", "d"));
+    records.add(record.copy("id", 100, "data", "e"));
+    records.add(record.copy("id", 121, "data", "f"));
+    records.add(record.copy("id", 122, "data", "g"));
 
-    OutputFile out = Files.localOutput(temp.newFile());
-    FileAppender<Record> writer = Parquet.write(out)
-        .createWriterFunc(GenericParquetWriter::buildWriter)
-        .schema(table.schema())
-        .overwrite()
-        .build();
+    this.dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), Row.of(0), records);
 
-    try (Closeable toClose = writer) {
-      writer.addAll(records);
-    }
-
-    this.dataFile = DataFiles.builder(table.spec())
-        .withFormat(FileFormat.PARQUET)
-        .withPath(out.location())
-        .withPartition(Row.of(0))
-        .withFileSizeInBytes(writer.length())
-        .withSplitOffsets(writer.splitOffsets())
-        .withMetrics(writer.metrics())
-        .build();
+    table.newAppend()
+        .appendFile(dataFile)
+        .commit();
   }
 
   @Test
   public void testEqualityDeletes() throws IOException {
-    table.newAppend()
-        .appendFile(dataFile)
-        .commit();
-
-    OutputFile out = Files.localOutput(temp.newFile());
     Schema deleteRowSchema = table.schema().select("data");
-    EqualityDeleteWriter<Record> writer = Parquet.writeDeletes(out)
-        .forTable(table)
-        .rowSchema(deleteRowSchema)
-        .withPartition(Row.of(0))
-        .createWriterFunc(GenericParquetWriter::buildWriter)
-        .overwrite()
-        .equalityFieldIds(deleteRowSchema.findField("data").fieldId())
-        .buildEqualityWriter();
+    Record dataDelete = GenericRecord.create(deleteRowSchema);
+    List<Record> dataDeletes = Lists.newArrayList(
+        dataDelete.copy("data", "a"), // id = 29
+        dataDelete.copy("data", "d"), // id = 89
+        dataDelete.copy("data", "g") // id = 122
+    );
 
-    try (Closeable toClose = writer) {
-      Record delete = GenericRecord.create(deleteRowSchema);
-      writer.delete(delete.copy(ImmutableMap.of("data", "a"))); // id = 29
-      writer.delete(delete.copy(ImmutableMap.of("data", "d"))); // id = 89
-      writer.delete(delete.copy(ImmutableMap.of("data", "g"))); // id = 122
-    }
+    DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, deleteRowSchema);
 
-    DeleteFile posDeletes = writer.toDeleteFile();
     table.newRowDelta()
-        .addDeletes(posDeletes)
+        .addDeletes(eqDeletes)
         .commit();
 
     StructLikeSet expected = rowSetWithoutIds(29, 89, 122);
     StructLikeSet actual = rowSet(table);
+
+    Assert.assertEquals("Table should contain expected rows", expected, actual);
+  }
+
+  @Test
+  public void testEqualityDeletesWithRequiredEqColumn() throws IOException {
+    Schema deleteRowSchema = table.schema().select("data");
+    Record dataDelete = GenericRecord.create(deleteRowSchema);
+    List<Record> dataDeletes = Lists.newArrayList(
+        dataDelete.copy("data", "a"), // id = 29
+        dataDelete.copy("data", "d"), // id = 89
+        dataDelete.copy("data", "g") // id = 122
+    );
+
+    DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, deleteRowSchema);
+
+    table.newRowDelta()
+        .addDeletes(eqDeletes)
+        .commit();
+
+    StructLikeSet expected = rowSetWithoutIds(29, 89, 122);
+    StructLikeSet actual = rowSet(table, "id"); // data is added by the reader to apply the eq deletes
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
   }
 
   @Test
   public void testPositionDeletes() throws IOException {
-    table.newAppend()
-        .appendFile(dataFile)
-        .commit();
+    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
+        Pair.of(dataFile.path(), 0L), // id = 29
+        Pair.of(dataFile.path(), 3L), // id = 89
+        Pair.of(dataFile.path(), 6L) // id = 122
+    );
 
-    OutputFile out = Files.localOutput(temp.newFile());
-    PositionDeleteWriter<?> writer = Parquet.writeDeletes(out)
-        .forTable(table)
-        .withPartition(Row.of(0))
-        .overwrite()
-        .buildPositionWriter();
+    DeleteFile posDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
 
-    try (Closeable toClose = writer) {
-      writer.delete(dataFile.path(), 0); // id = 29
-      writer.delete(dataFile.path(), 3); // id = 89
-      writer.delete(dataFile.path(), 6); // id = 122
-    }
-
-    DeleteFile posDeletes = writer.toDeleteFile();
     table.newRowDelta()
         .addDeletes(posDeletes)
         .commit();
@@ -156,9 +138,116 @@ public class TestGenericReaderDeletes extends TableTestBase {
     Assert.assertEquals("Table should contain expected rows", expected, actual);
   }
 
+  @Test
+  public void testMixedPositionAndEqualityDeletes() throws IOException {
+    Schema dataSchema = table.schema().select("data");
+    Record dataDelete = GenericRecord.create(dataSchema);
+    List<Record> dataDeletes = Lists.newArrayList(
+        dataDelete.copy("data", "a"), // id = 29
+        dataDelete.copy("data", "d"), // id = 89
+        dataDelete.copy("data", "g") // id = 122
+    );
+
+    DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, dataSchema);
+
+    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
+        Pair.of(dataFile.path(), 3L), // id = 89
+        Pair.of(dataFile.path(), 5L) // id = 121
+    );
+
+    DeleteFile posDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
+
+    table.newRowDelta()
+        .addDeletes(eqDeletes)
+        .addDeletes(posDeletes)
+        .commit();
+
+    StructLikeSet expected = rowSetWithoutIds(29, 89, 121, 122);
+    StructLikeSet actual = rowSet(table);
+
+    Assert.assertEquals("Table should contain expected rows", expected, actual);
+  }
+
+  @Test
+  public void testMultipleEqualityDeleteSchemas() throws IOException {
+    Schema dataSchema = table.schema().select("data");
+    Record dataDelete = GenericRecord.create(dataSchema);
+    List<Record> dataDeletes = Lists.newArrayList(
+        dataDelete.copy("data", "a"), // id = 29
+        dataDelete.copy("data", "d"), // id = 89
+        dataDelete.copy("data", "g") // id = 122
+    );
+
+    DeleteFile dataEqDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, dataSchema);
+
+    Schema idSchema = table.schema().select("id");
+    Record idDelete = GenericRecord.create(idSchema);
+    List<Record> idDeletes = Lists.newArrayList(
+        idDelete.copy("id", 121), // id = 121
+        idDelete.copy("id", 29) // id = 29
+    );
+
+    DeleteFile idEqDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), Row.of(0), idDeletes, idSchema);
+
+    table.newRowDelta()
+        .addDeletes(dataEqDeletes)
+        .addDeletes(idEqDeletes)
+        .commit();
+
+    StructLikeSet expected = rowSetWithoutIds(29, 89, 121, 122);
+    StructLikeSet actual = rowSet(table);
+
+    Assert.assertEquals("Table should contain expected rows", expected, actual);
+  }
+
+  @Test
+  public void testEqualityDeleteByNull() throws IOException {
+    // data is required in the test table; make it optional for this test
+    table.updateSchema()
+        .makeColumnOptional("data")
+        .commit();
+
+    // add a new data file with a record where data is null
+    Record record = GenericRecord.create(table.schema());
+    DataFile dataFileWithNull = FileHelpers.writeDataFile(
+        table, Files.localOutput(temp.newFile()), Row.of(0),
+        Lists.newArrayList(record.copy("id", 131, "data", null)));
+
+    table.newAppend()
+        .appendFile(dataFileWithNull)
+        .commit();
+
+    // delete where data is null
+    Schema dataSchema = table.schema().select("data");
+    Record dataDelete = GenericRecord.create(dataSchema);
+    List<Record> dataDeletes = Lists.newArrayList(
+        dataDelete.copy("data", null) // id = 131
+    );
+
+    DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, dataSchema);
+
+    table.newRowDelta()
+        .addDeletes(eqDeletes)
+        .commit();
+
+    StructLikeSet expected = rowSetWithoutIds(131);
+    StructLikeSet actual = rowSet(table);
+
+    Assert.assertEquals("Table should contain expected rows", expected, actual);
+  }
+
   private static StructLikeSet rowSet(Table table) throws IOException {
+    return rowSet(table, "*");
+  }
+
+  private static StructLikeSet rowSet(Table table, String... columns) throws IOException {
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
-    try (CloseableIterable<Record> reader = IcebergGenerics.read(table).build()) {
+    try (CloseableIterable<Record> reader = IcebergGenerics.read(table).select(columns).build()) {
       reader.forEach(set::add);
     }
     return set;
