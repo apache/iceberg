@@ -184,6 +184,13 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     commitUpToCheckpoint(Long.MAX_VALUE);
   }
 
+  @Override
+  public void dispose() throws Exception {
+    if (tableLoader != null) {
+      tableLoader.close();
+    }
+  }
+
   private static ListStateDescriptor<SortedMap<Long, List<DataFile>>> buildStateDescriptor() {
     Comparator<Long> longComparator = Comparators.forType(Types.LongType.get());
     // Construct a ListTypeInfo.
