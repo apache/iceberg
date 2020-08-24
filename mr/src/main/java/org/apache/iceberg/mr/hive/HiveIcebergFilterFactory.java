@@ -23,6 +23,7 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.apache.hadoop.hive.ql.io.sarg.ExpressionTree;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
@@ -122,7 +123,7 @@ public class HiveIcebergFilterFactory {
       case DECIMAL:
         return hiveDecimalToBigDecimal((HiveDecimalWritable) leaf.getLiteral());
       case TIMESTAMP:
-        return timestampToTimestampString((Timestamp) leaf.getLiteral());
+        return timestampToUnixEpoch((Timestamp) leaf.getLiteral());
 
       default:
         throw new UnsupportedOperationException("Unknown type: " + leaf.getType());
@@ -145,7 +146,7 @@ public class HiveIcebergFilterFactory {
                 .collect(Collectors.toList());
       case TIMESTAMP:
         return leaf.getLiteralList().stream()
-                .map(value -> timestampToTimestampString((Timestamp) value))
+                .map(value -> timestampToUnixEpoch((Timestamp) value))
                 .collect(Collectors.toList());
       default:
         throw new UnsupportedOperationException("Unknown type: " + leaf.getType());
@@ -161,10 +162,11 @@ public class HiveIcebergFilterFactory {
   }
 
   private static BigDecimal hiveDecimalToBigDecimal(HiveDecimalWritable hiveDecimalWritable) {
-    return new BigDecimal(hiveDecimalWritable.toString()).setScale(hiveDecimalWritable.scale());
+    return hiveDecimalWritable.getHiveDecimal().bigDecimalValue().setScale(hiveDecimalWritable.scale());
   }
 
-  private static String timestampToTimestampString(Timestamp timestamp) {
-    return timestamp.toLocalDateTime().toString();
+  private static long timestampToUnixEpoch(Timestamp timestamp) {
+    return timestamp.toInstant().getEpochSecond() * TimeUnit.SECONDS.toMicros(1) +
+            timestamp.getNanos() / TimeUnit.MICROSECONDS.toNanos(1);
   }
 }

@@ -217,7 +217,7 @@ public class TestHiveIcebergFilterFactory {
     SearchArgument arg = builder.startAnd().equals("timestamp", PredicateLeaf.Type.TIMESTAMP,
             Timestamp.valueOf("2012-10-02 05:16:17.123")).end().build();
 
-    UnboundPredicate expected = Expressions.equal("timestamp", "2012-10-02T05:16:17.123");
+    UnboundPredicate expected = Expressions.equal("timestamp", 1349151377123000L);
     UnboundPredicate actual = (UnboundPredicate) HiveIcebergFilterFactory.generateFilterExpression(arg);
 
     assertPredicatesMatch(expected, actual);
@@ -236,8 +236,8 @@ public class TestHiveIcebergFilterFactory {
   }
 
   private void assertPredicatesMatch(UnboundPredicate expected, UnboundPredicate actual) {
-    assertEquals(actual.op(), expected.op());
-    assertEquals(actual.literal(), expected.literal());
-    assertEquals(actual.ref().name(), expected.ref().name());
+    assertEquals(expected.op(), actual.op());
+    assertEquals(expected.literal(), actual.literal());
+    assertEquals(expected.ref().name(), actual.ref().name());
   }
 }

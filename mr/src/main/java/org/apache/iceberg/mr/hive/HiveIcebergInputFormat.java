@@ -37,9 +37,13 @@ import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.SerializationUtil;
 import org.apache.iceberg.mr.mapred.MapredIcebergInputFormat;
 import org.apache.iceberg.mr.mapreduce.IcebergSplit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
                                     implements CombineHiveInputFormat.AvoidSplitCombination {
+
+  private static final Logger LOG = LoggerFactory.getLogger(HiveIcebergInputFormat.class);
 
   @Override
   public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
@@ -49,8 +53,12 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
       ExprNodeGenericFuncDesc exprNodeDesc = SerializationUtilities
               .deserializeObject(hiveFilter, ExprNodeGenericFuncDesc.class);
       SearchArgument sarg = ConvertAstToSearchArg.create(job, exprNodeDesc);
-      Expression filter = HiveIcebergFilterFactory.generateFilterExpression(sarg);
-      job.set(InputFormatConfig.FILTER_EXPRESSION, SerializationUtil.serializeToBase64(filter));
+      try {
+        Expression filter = HiveIcebergFilterFactory.generateFilterExpression(sarg);
+        job.set(InputFormatConfig.FILTER_EXPRESSION, SerializationUtil.serializeToBase64(filter));
+      } catch (UnsupportedOperationException e) {
+        LOG.error("Unable to create Iceberg filter with operation specified: ", e);
+      }
     }
 
     String location = job.get(InputFormatConfig.TABLE_LOCATION);
