@@ -51,7 +51,6 @@ import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DE
 
 public class FlinkSink {
 
-  private static final TypeInformation<DataFile> DATA_FILE_TYPE_INFO = TypeInformation.of(DataFile.class);
   private static final String ICEBERG_STREAM_WRITER_NAME = IcebergStreamWriter.class.getSimpleName();
   private static final String ICEBERG_FILES_COMMITTER_NAME = IcebergFilesCommitter.class.getSimpleName();
 
@@ -138,7 +137,7 @@ public class FlinkSink {
       IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, hadoopConf);
 
       DataStream<Void> returnStream = inputStream
-          .transform(ICEBERG_STREAM_WRITER_NAME, DATA_FILE_TYPE_INFO, streamWriter)
+          .transform(ICEBERG_STREAM_WRITER_NAME, TypeInformation.of(DataFile.class), streamWriter)
           .setParallelism(inputStream.getParallelism())
           .transform(ICEBERG_FILES_COMMITTER_NAME, Types.VOID, filesCommitter)
           .setParallelism(1)

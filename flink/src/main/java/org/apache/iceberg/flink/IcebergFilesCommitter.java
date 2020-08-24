@@ -33,7 +33,6 @@ import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.runtime.state.StateSnapshotContext;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
-import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
@@ -95,7 +94,6 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   IcebergFilesCommitter(TableLoader tableLoader, Configuration hadoopConf) {
     this.tableLoader = tableLoader;
     this.hadoopConf = new SerializableConfiguration(hadoopConf);
-    setChainingStrategy(ChainingStrategy.ALWAYS);
   }
 
   @Override
@@ -106,6 +104,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     // Open the table loader and load the table.
     tableLoader.open(hadoopConf.get());
     table = tableLoader.loadTable();
+    maxCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
     checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     if (context.isRestored()) {
@@ -202,7 +201,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     return new ListStateDescriptor<>("iceberg-files-committer-state", sortedMapTypeInfo);
   }
 
-  static Long getMaxCommittedCheckpointId(Table table, String flinkJobId) {
+  static long getMaxCommittedCheckpointId(Table table, String flinkJobId) {
     Snapshot snapshot = table.currentSnapshot();
     long lastCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
