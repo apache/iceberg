@@ -210,7 +210,7 @@ class GenericReader implements Serializable {
 
     Accessor<StructLike> posAccessor = recordSchema.accessorForField(MetadataColumns.ROW_POSITION.fieldId());
     Function<Record, Long> posGetter = record -> (Long) posAccessor.get(record);
-    List<CloseableIterable<StructLike>> deletes = Lists.transform(posDeletes,
+    List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes,
         delete -> openPosDeletes(delete, dataFile));
 
     // if there are fewer deletes than a reasonable number to keep in memory, use a set
@@ -221,11 +221,11 @@ class GenericReader implements Serializable {
     return Deletes.streamingFilter(records, posGetter, Deletes.deletePositions(file, deletes));
   }
 
-  private CloseableIterable<StructLike> openPosDeletes(DeleteFile file, DataFile dataFile) {
+  private CloseableIterable<Record> openPosDeletes(DeleteFile file, DataFile dataFile) {
     return openDeletes(file, dataFile, POS_DELETE_SCHEMA);
   }
 
-  private <T> CloseableIterable<T> openDeletes(DeleteFile deleteFile, DataFile dataFile, Schema deleteSchema) {
+  private CloseableIterable<Record> openDeletes(DeleteFile deleteFile, DataFile dataFile, Schema deleteSchema) {
     InputFile input = io.newInputFile(deleteFile.path().toString());
     switch (deleteFile.format()) {
       case AVRO:
