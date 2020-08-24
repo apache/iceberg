@@ -27,6 +27,7 @@ from hmsclient.genthrift.hive_metastore.ttypes import AlreadyExistsException, En
     LockComponent, LockLevel, LockRequest, LockResponse, LockState, LockType, NoSuchObjectException, \
     SerDeInfo, StorageDescriptor, Table, TException
 
+from .hive_types import hive_types
 from ..api import Schema
 from ..api.types import Type
 from ..core import BaseMetastoreTableOperations, TableMetadata
@@ -200,7 +201,8 @@ def columns(schema: Schema) -> List[FieldSchema]:
 
 
 def convert_hive_type(col_type: Type) -> str:
-    type_id = col_type.type_id.value.get('hive_name')  # type: ignore  # noqa
-    if type_id:
-        return type_id
+    type_id = col_type.type_id
+    hive_type_id = hive_types.get(type_id)  # type: ignore
+    if hive_type_id:
+        return hive_type_id
     raise NotImplementedError("Not yet implemented column type " + str(col_type))

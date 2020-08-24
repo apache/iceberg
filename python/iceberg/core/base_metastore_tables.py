@@ -42,7 +42,7 @@ class BaseMetastoreTables(Tables):
                properties: dict = None) -> Table:
         database, table = _parse_table_identifier(table_identifier)
         ops = self.new_table_ops(self.conf, database, table)
-        if ops.current() is not None:  # not None check here to ensure MagicMocks aren't treated as None
+        if ops.current():  # not None check here to ensure MagicMocks aren't treated as None
             raise AlreadyExistsException("Table already exists: " + table_identifier)
 
         base_location = self.default_warehouse_location(self.conf, database, table)
