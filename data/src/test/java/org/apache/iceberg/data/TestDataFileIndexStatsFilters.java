@@ -147,7 +147,8 @@ public class TestDataFileIndexStatsFilters {
     Record delete = GenericRecord.create(deleteRowSchema);
     deletes.add(delete.copy("data", "d"));
 
-    DeleteFile posDeletes = FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
+    DeleteFile posDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
 
     table.newRowDelta()
         .addDeletes(posDeletes)
@@ -176,7 +177,8 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(delete.copy("data", "y"));
     deletes.add(delete.copy("data", "z"));
 
-    DeleteFile posDeletes = FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
+    DeleteFile posDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
 
     table.newRowDelta()
         .addDeletes(posDeletes)
@@ -203,7 +205,8 @@ public class TestDataFileIndexStatsFilters {
     Record delete = GenericRecord.create(deleteRowSchema);
     deletes.add(delete.copy("data", null));
 
-    DeleteFile posDeletes = FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
+    DeleteFile posDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
 
     table.newRowDelta()
         .addDeletes(posDeletes)
@@ -230,7 +233,8 @@ public class TestDataFileIndexStatsFilters {
     Record delete = GenericRecord.create(deleteRowSchema);
     deletes.add(delete.copy("data", null));
 
-    DeleteFile posDeletes = FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
+    DeleteFile posDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
 
     table.newRowDelta()
         .addDeletes(posDeletes)
@@ -257,7 +261,8 @@ public class TestDataFileIndexStatsFilters {
     Record delete = GenericRecord.create(deleteRowSchema);
     deletes.add(delete.copy("data", "d"));
 
-    DeleteFile posDeletes = FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
+    DeleteFile posDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
 
     table.newRowDelta()
         .addDeletes(posDeletes)
@@ -286,7 +291,8 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(delete.copy("data", null));
     deletes.add(delete.copy("data", "x"));
 
-    DeleteFile posDeletes = FileHelpers.writeDeleteFile(table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
+    DeleteFile posDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), deletes, deleteRowSchema);
 
     table.newRowDelta()
         .addDeletes(posDeletes)
