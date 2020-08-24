@@ -77,6 +77,7 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
   private Integer retainLastValue = null;
   private Consumer<String> deleteFunc = defaultDelete;
   private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
+  private Dataset<Row> expiredFiles = null;
 
   ExpireSnapshotsAction(SparkSession spark, Table table) {
     this.spark = spark;
@@ -146,32 +147,48 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
     return this;
   }
 
+  /**
+   * Expires snapshots and commits the changes to the table, returning a Dataset of files to delete.
+   * <p>
+   * This does not delete data files. To delete data files, run {@link #execute()}.
+   * <p>
+   * This may be called before or after {@link #execute()} is called to return the expired file list.
+   *
+   * @return a Dataset of files that are no longer referenced by the table
+   */
+  public Dataset<Row> expire() {
+    if (expiredFiles == null) {
+      // Metadata before Expiration
+      Dataset<Row> originalFiles = buildValidFileDF(ops.current());
+
+      // Perform Expiration
+      ExpireSnapshots expireSnaps = table.expireSnapshots().cleanExpiredFiles(false);
+      for (final Long id : expireSnapshotIdValues) {
+        expireSnaps = expireSnaps.expireSnapshotId(id);
+      }
+
+      if (expireOlderThanValue != null) {
+        expireSnaps = expireSnaps.expireOlderThan(expireOlderThanValue);
+      }
+
+      if (retainLastValue != null) {
+        expireSnaps = expireSnaps.retainLast(retainLastValue);
+      }
+
+      expireSnaps.commit();
+
+      // Metadata after Expiration
+      Dataset<Row> validFiles = buildValidFileDF(ops.refresh());
+
+      this.expiredFiles = originalFiles.except(validFiles);
+    }
+
+    return expiredFiles;
+  }
+
   @Override
   public ExpireSnapshotsActionResult execute() {
-    // Metadata before Expiration
-    Dataset<Row>  originalFiles = buildValidFileDF(ops.current());
-
-    // Perform Expiration
-    ExpireSnapshots expireSnaps = table.expireSnapshots().cleanExpiredFiles(false);
-    for (final Long id : expireSnapshotIdValues) {
-      expireSnaps = expireSnaps.expireSnapshotId(id);
-    }
-
-    if (expireOlderThanValue != null) {
-      expireSnaps = expireSnaps.expireOlderThan(expireOlderThanValue);
-    }
-
-    if (retainLastValue != null) {
-      expireSnaps = expireSnaps.retainLast(retainLastValue);
-    }
-
-    expireSnaps.commit();
-
-    // Metadata after Expiration
-    Dataset<Row> validFiles = buildValidFileDF(ops.refresh());
-    Dataset<Row> filesToDelete = originalFiles.except(validFiles);
-
-    return deleteFiles(filesToDelete.toLocalIterator());
+    return deleteFiles(expire().toLocalIterator());
   }
 
   private Dataset<Row> appendTypeString(Dataset<Row> ds, String type) {

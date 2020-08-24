@@ -33,6 +33,7 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.ExpireSnapshots;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -48,6 +49,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
+import org.apache.spark.sql.Row;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -699,7 +703,6 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     checkExpirationResults(0L, 0L, 2L, secondResult);
   }
 
-
   @Test
   public void testExpireOlderThan() {
     table.newAppend()
@@ -965,5 +968,46 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
 
     checkExpirationResults(0, 0, 0, result);
   }
-}
 
+  @Test
+  public void testExpireAction() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    rightAfterSnapshot();
+
+    table.newAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    long tAfterCommits = rightAfterSnapshot();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    ExpireSnapshotsAction action = Actions.forTable(table).expireSnapshots()
+        .expireOlderThan(tAfterCommits)
+        .deleteWith(deletedFiles::add);
+    Dataset<Row> pendingDeletes = action.expire();
+
+    List<Row> pending = pendingDeletes.collectAsList();
+
+    Assert.assertEquals("Should not change current snapshot", snapshotId, table.currentSnapshot().snapshotId());
+    Assert.assertNull("Should remove the oldest snapshot", table.snapshot(firstSnapshot.snapshotId()));
+
+    Assert.assertEquals("Pending deletes should contain one row", 1, pending.size());
+    Assert.assertEquals("Pending delete should be the expired manifest list location",
+        firstSnapshot.manifestListLocation(), pending.get(0).getString(0));
+    Assert.assertEquals("Pending delete should be a manifest list",
+        "Manifest List", pending.get(0).getString(1));
+
+    Assert.assertEquals("Should not delete any files", 0, deletedFiles.size());
+
+    Assert.assertSame("Multiple calls to expire should return the same deleted files",
+        pendingDeletes, action.expire());
+  }
+}
