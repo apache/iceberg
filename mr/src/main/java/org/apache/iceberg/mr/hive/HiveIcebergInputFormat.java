@@ -57,7 +57,7 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
         Expression filter = HiveIcebergFilterFactory.generateFilterExpression(sarg);
         job.set(InputFormatConfig.FILTER_EXPRESSION, SerializationUtil.serializeToBase64(filter));
       } catch (UnsupportedOperationException e) {
-        LOG.error("Unable to create Iceberg filter with operation specified: ", e);
+        LOG.warn("Unable to create Iceberg filter, continuing without filter (will be applied by Hive later): ", e);
       }
     }
 
