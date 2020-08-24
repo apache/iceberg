@@ -87,12 +87,13 @@ public class Deletes {
     }
   }
 
-  public static Set<Long> toPositionSet(CharSequence dataLocation, CloseableIterable<StructLike> deleteFile) {
+  public static Set<Long> toPositionSet(CharSequence dataLocation, CloseableIterable<? extends StructLike> deleteFile) {
     return toPositionSet(dataLocation, ImmutableList.of(deleteFile));
   }
 
-  public static Set<Long> toPositionSet(CharSequence dataLocation, List<CloseableIterable<StructLike>> deleteFiles) {
-    DataFileFilter locationFilter = new DataFileFilter(dataLocation);
+  public static <T extends StructLike> Set<Long> toPositionSet(CharSequence dataLocation,
+                                                               List<CloseableIterable<T>> deleteFiles) {
+    DataFileFilter<T> locationFilter = new DataFileFilter<>(dataLocation);
     List<CloseableIterable<Long>> positions = Lists.transform(deleteFiles, deletes ->
         CloseableIterable.transform(locationFilter.filter(deletes), row -> (Long) POSITION_ACCESSOR.get(row)));
     return toPositionSet(CloseableIterable.concat(positions));
@@ -117,9 +118,9 @@ public class Deletes {
     return deletePositions(dataLocation, ImmutableList.of(deleteFile));
   }
 
-  public static CloseableIterable<Long> deletePositions(CharSequence dataLocation,
-                                                        List<CloseableIterable<StructLike>> deleteFiles) {
-    DataFileFilter locationFilter = new DataFileFilter(dataLocation);
+  public static <T extends StructLike> CloseableIterable<Long> deletePositions(CharSequence dataLocation,
+                                                                               List<CloseableIterable<T>> deleteFiles) {
+    DataFileFilter<T> locationFilter = new DataFileFilter<>(dataLocation);
     List<CloseableIterable<Long>> positions = Lists.transform(deleteFiles, deletes ->
         CloseableIterable.transform(locationFilter.filter(deletes), row -> (Long) POSITION_ACCESSOR.get(row)));
 
@@ -232,7 +233,7 @@ public class Deletes {
     }
   }
 
-  private static class DataFileFilter extends Filter<StructLike> {
+  private static class DataFileFilter<T extends StructLike> extends Filter<T> {
     private static final Comparator<CharSequence> CHARSEQ_COMPARATOR = Comparators.charSequences();
     private final CharSequence dataLocation;
 
@@ -241,7 +242,7 @@ public class Deletes {
     }
 
     @Override
-    protected boolean shouldKeep(StructLike posDelete) {
+    protected boolean shouldKeep(T posDelete) {
       return CHARSEQ_COMPARATOR.compare(dataLocation, (CharSequence) FILENAME_ACCESSOR.get(posDelete)) == 0;
     }
   }
