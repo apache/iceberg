@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.io;
 
+import java.io.IOException;
 import java.util.NoSuchElementException;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -27,6 +28,36 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class TestCloseableIterable {
+
+  @Test
+  public void testFilterManuallyClosable() throws IOException {
+    TestableCloseableIterable iterable = new TestableCloseableIterable();
+    TestableCloseableIterable.TestableCloseableIterator iterator =
+            (TestableCloseableIterable.TestableCloseableIterator) iterable.iterator();
+
+    CloseableIterable<Integer> filtered = CloseableIterable.filter(iterable, x -> x > 5);
+
+    Assert.assertFalse("Iterable should not be closed", iterable.closed());
+    Assert.assertFalse("Iterator should not be closed", iterator.closed());
+
+    filtered.iterator().close();
+    Assert.assertFalse("Iterable should not be closed", iterable.closed());
+    Assert.assertTrue("Iterator should be closed", iterator.closed());
+
+    filtered.close();
+    Assert.assertTrue("Iterable should be closed", iterable.closed());
+    Assert.assertTrue("Iterator should be closed", iterator.closed());
+  }
+
+  @Test
+  public void testFilterAutomaticallyClosable() throws IOException {
+    TestableCloseableIterable iterable = new TestableCloseableIterable();
+    Assert.assertFalse("Iterable should not be closed", iterable.closed());
+    try (CloseableIterable<Integer> filtered = CloseableIterable.filter(iterable, x -> x > 5)) {
+      Assert.assertFalse("Iterable should not be closed", iterable.closed());
+    }
+    Assert.assertTrue("Iterable should be closed", iterable.closed());
+  }
 
   @Test
   public void testConcateWithEmptyIterables() {
