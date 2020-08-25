@@ -228,11 +228,9 @@ public class TestRemoveSnapshots extends TableTestBase {
         .rollbackTo(firstSnapshot.snapshotId())
         .commit();
 
-    waitUntilAfter(table.currentSnapshot().timestampMillis());
+    long tAfterCommits = waitUntilAfter(secondSnapshot.timestampMillis());
 
     long snapshotId = table.currentSnapshot().snapshotId();
-
-    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     Set<String> deletedFiles = Sets.newHashSet();
 
@@ -277,11 +275,9 @@ public class TestRemoveSnapshots extends TableTestBase {
         .rollbackTo(firstSnapshot.snapshotId())
         .commit();
 
-    waitUntilAfter(table.currentSnapshot().timestampMillis());
+    long tAfterCommits = waitUntilAfter(secondSnapshot.timestampMillis());
 
     long snapshotId = table.currentSnapshot().snapshotId();
-
-    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     Set<String> deletedFiles = Sets.newHashSet();
 

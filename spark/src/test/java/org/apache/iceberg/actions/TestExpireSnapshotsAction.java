@@ -110,8 +110,12 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
   }
 
   private Long rightAfterSnapshot() {
+    return rightAfterSnapshot(table.currentSnapshot().snapshotId());
+  }
+
+  private Long rightAfterSnapshot(long snapshotId) {
     Long end = System.currentTimeMillis();
-    while (end <= table.currentSnapshot().timestampMillis()) {
+    while (end <= table.snapshot(snapshotId).timestampMillis()) {
       end = System.currentTimeMillis();
     }
     return end;
@@ -876,11 +880,9 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         .rollbackTo(firstSnapshot.snapshotId())
         .commit();
 
-    rightAfterSnapshot();
+    long tAfterCommits = rightAfterSnapshot(secondSnapshot.snapshotId());
 
     long snapshotId = table.currentSnapshot().snapshotId();
-
-    long tAfterCommits = rightAfterSnapshot();
 
     Set<String> deletedFiles = Sets.newHashSet();
 
@@ -927,11 +929,9 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         .rollbackTo(firstSnapshot.snapshotId())
         .commit();
 
-    rightAfterSnapshot();
+    long tAfterCommits = rightAfterSnapshot(secondSnapshot.snapshotId());
 
     long snapshotId = table.currentSnapshot().snapshotId();
-
-    long tAfterCommits = rightAfterSnapshot();
 
     Set<String> deletedFiles = Sets.newHashSet();
 
