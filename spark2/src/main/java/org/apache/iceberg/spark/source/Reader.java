@@ -283,7 +283,8 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
       return new Stats(0L, 0L);
     }
 
-    if (filterExpressions == null || filterExpressions == Expressions.alwaysTrue()) {
+    // estimate stats using snapshot summary only for partitioned tables (metadata tables are unpartitioned)
+    if (!table.spec().isUnpartitioned() && filterExpression() == Expressions.alwaysTrue()) {
       long totalRecords = PropertyUtil.propertyAsLong(table.currentSnapshot().summary(),
           SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
       return new Stats(SparkSchemaUtil.estimateSize(lazyType(), totalRecords), totalRecords);
