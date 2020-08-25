@@ -29,7 +29,6 @@ import java.util.function.Predicate;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.util.FilterIterator;
 
 public interface CloseableIterable<T> extends Iterable<T>, Closeable {
 

@@ -17,14 +17,13 @@
  * under the License.
  */
 
-package org.apache.iceberg.util;
+package org.apache.iceberg.io;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import org.apache.iceberg.io.CloseableIterator;
 
 /**
  * An Iterator that filters another Iterator.
