@@ -69,6 +69,7 @@ public class TestIcebergFilesCommitter {
     return new Object[][] {
         new Object[] {"avro"},
         new Object[] {"orc"},
+        new Object[] {"parquet"}
     };
   }
 

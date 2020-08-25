@@ -62,7 +62,9 @@ public class TestTaskWriters {
         new Object[] {"avro", true},
         new Object[] {"avro", false},
         new Object[] {"orc", true},
-        new Object[] {"orc", false}
+        new Object[] {"orc", false},
+        new Object[] {"parquet", true},
+        new Object[] {"parquet", false}
     };
   }
 

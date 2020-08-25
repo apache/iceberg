@@ -82,6 +82,10 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
         new Object[] {"orc", 1, false},
         new Object[] {"orc", 2, true},
         new Object[] {"orc", 2, false},
+        new Object[] {"parquet", 1, true},
+        new Object[] {"parquet", 1, false},
+        new Object[] {"parquet", 2, true},
+        new Object[] {"parquet", 2, false}
     };
   }
 
