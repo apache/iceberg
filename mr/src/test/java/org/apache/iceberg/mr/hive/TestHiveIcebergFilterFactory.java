@@ -205,7 +205,7 @@ public class TestHiveIcebergFilterFactory {
     SearchArgument arg = builder.startAnd().equals("date", PredicateLeaf.Type.DATE,
             Date.valueOf("2015-11-12")).end().build();
 
-    UnboundPredicate expected = Expressions.equal("date", "2015-11-12");
+    UnboundPredicate expected = Expressions.equal("date", 1447286400000000L);
     UnboundPredicate actual = (UnboundPredicate) HiveIcebergFilterFactory.generateFilterExpression(arg);
 
     assertPredicatesMatch(expected, actual);

@@ -31,6 +31,7 @@ import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
 import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.util.DateTimeUtil;
 
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
@@ -45,7 +46,8 @@ import static org.apache.iceberg.expressions.Expressions.or;
 
 public class HiveIcebergFilterFactory {
 
-  private HiveIcebergFilterFactory() {}
+  private HiveIcebergFilterFactory() {
+  }
 
   public static Expression generateFilterExpression(SearchArgument sarg) {
     return translate(sarg.getExpression(), sarg.getLeaves());
@@ -118,8 +120,8 @@ public class HiveIcebergFilterFactory {
       case FLOAT:
         return leaf.getLiteral();
       case DATE:
-        //Hive converts a Date type to a Timestamp internally when retrieving literal
-        return timestampToDateString((Timestamp) leaf.getLiteral());
+        // Hive converts a Date type to a Timestamp internally when retrieving literal
+        return timestampToDateInMicros((Timestamp) leaf.getLiteral());
       case DECIMAL:
         return hiveDecimalToBigDecimal((HiveDecimalWritable) leaf.getLiteral());
       case TIMESTAMP:
@@ -138,7 +140,7 @@ public class HiveIcebergFilterFactory {
       case STRING:
         return leaf.getLiteralList();
       case DATE:
-        return leaf.getLiteralList().stream().map(value -> dateToString((Date) value))
+        return leaf.getLiteralList().stream().map(value -> dateToMicros((Date) value))
                 .collect(Collectors.toList());
       case DECIMAL:
         return leaf.getLiteralList().stream()
@@ -153,12 +155,12 @@ public class HiveIcebergFilterFactory {
     }
   }
 
-  private static String timestampToDateString(Timestamp timestamp) {
-    return timestamp.toLocalDateTime().toLocalDate().toString();
+  private static long timestampToDateInMicros(Timestamp timestamp) {
+    return DateTimeUtil.microsFromTimestamp(timestamp.toLocalDateTime());
   }
 
-  private static String dateToString(Date date) {
-    return date.toLocalDate().toString();
+  private static long dateToMicros(Date date) {
+    return TimeUnit.MILLISECONDS.toMicros(date.toInstant().toEpochMilli());
   }
 
   private static BigDecimal hiveDecimalToBigDecimal(HiveDecimalWritable hiveDecimalWritable) {
@@ -166,7 +168,7 @@ public class HiveIcebergFilterFactory {
   }
 
   private static long timestampToUnixEpoch(Timestamp timestamp) {
-    return timestamp.toInstant().getEpochSecond() * TimeUnit.SECONDS.toMicros(1) +
+    return TimeUnit.SECONDS.toMicros(timestamp.toInstant().getEpochSecond()) +
             timestamp.getNanos() / TimeUnit.MICROSECONDS.toNanos(1);
   }
 }

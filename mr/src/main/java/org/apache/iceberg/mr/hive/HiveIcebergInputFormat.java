@@ -47,7 +47,7 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
 
   @Override
   public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
-    //Convert Hive filter to Iceberg filter
+    // Convert Hive filter to Iceberg filter
     String hiveFilter = job.get(TableScanDesc.FILTER_EXPR_CONF_STR);
     if (hiveFilter != null) {
       ExprNodeGenericFuncDesc exprNodeDesc = SerializationUtilities
