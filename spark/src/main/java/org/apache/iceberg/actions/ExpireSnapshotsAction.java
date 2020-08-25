@@ -203,15 +203,15 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
 
   /**
    * Deletes files passed to it based on their type.
-   * @param expiredFiles an Iterator of Spark Rows of the structure (path: String, type: String)
+   * @param expired an Iterator of Spark Rows of the structure (path: String, type: String)
    * @return Statistics on which files were deleted
    */
-  private ExpireSnapshotsActionResult deleteFiles(Iterator<Row> expiredFiles) {
+  private ExpireSnapshotsActionResult deleteFiles(Iterator<Row> expired) {
     AtomicLong dataFileCount = new AtomicLong(0L);
     AtomicLong manifestCount = new AtomicLong(0L);
     AtomicLong manifestListCount = new AtomicLong(0L);
 
-    Tasks.foreach(expiredFiles)
+    Tasks.foreach(expired)
         .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
         .executeWith(deleteExecutorService)
         .onFailure((fileInfo, exc) ->
