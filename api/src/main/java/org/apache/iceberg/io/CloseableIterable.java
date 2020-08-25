@@ -29,7 +29,6 @@ import java.util.function.Predicate;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 public interface CloseableIterable<T> extends Iterable<T>, Closeable {
 
@@ -77,7 +76,12 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
   }
 
   static <E> CloseableIterable<E> filter(CloseableIterable<E> iterable, Predicate<E> pred) {
-    return combine(Iterables.filter(iterable, pred::test), iterable);
+    return combine(() -> new FilterIterator<E>(iterable.iterator()) {
+      @Override
+      protected boolean shouldKeep(E item) {
+        return pred.test(item);
+      }
+    }, iterable);
   }
 
   static <I, O> CloseableIterable<O> transform(CloseableIterable<I> iterable, Function<I, O> transform) {

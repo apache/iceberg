@@ -17,35 +17,48 @@
  * under the License.
  */
 
-package org.apache.iceberg.util;
+package org.apache.iceberg.io;
 
-import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FilterIterator;
+import java.io.IOException;
 
-/**
- *
- * @param <T> the type of objects filtered by this Filter
- */
-public abstract class Filter<T> {
+public class TestableCloseableIterable implements CloseableIterable<Integer> {
+  private Boolean closed = false;
+  private TestableCloseableIterator iterator = new TestableCloseableIterator();
 
-  protected abstract boolean shouldKeep(T item);
-
-  public Iterable<T> filter(Iterable<T> items) {
-    return () -> new Iterator(items.iterator());
+  @Override
+  public CloseableIterator<Integer> iterator() {
+    return iterator;
   }
 
-  public CloseableIterable<T> filter(CloseableIterable<T> items) {
-    return CloseableIterable.combine(filter((Iterable<T>) items), items);
+  @Override
+  public void close() throws IOException {
+    closed = true;
   }
 
-  private class Iterator extends FilterIterator<T> {
-    protected Iterator(java.util.Iterator<T> items) {
-      super(items);
+  public Boolean closed() {
+    return closed;
+  }
+
+  class TestableCloseableIterator implements CloseableIterator<Integer> {
+    private Boolean closed = false;
+
+    @Override
+    public void close() throws IOException {
+      closed = true;
     }
 
     @Override
-    protected boolean shouldKeep(T item) {
-      return Filter.this.shouldKeep(item);
+    public boolean hasNext() {
+      return false;
+    }
+
+    @Override
+    public Integer next() {
+      return null;
+    }
+
+    public Boolean closed() {
+      return closed;
     }
   }
 }
