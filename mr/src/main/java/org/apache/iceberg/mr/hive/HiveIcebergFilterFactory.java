@@ -169,6 +169,6 @@ public class HiveIcebergFilterFactory {
 
   private static long timestampToUnixEpoch(Timestamp timestamp) {
     return TimeUnit.SECONDS.toMicros(timestamp.toInstant().getEpochSecond()) +
-            timestamp.getNanos() / TimeUnit.MICROSECONDS.toNanos(1);
+            TimeUnit.NANOSECONDS.toMicros(timestamp.getNanos());
   }
 }
