@@ -37,7 +37,19 @@ class FilesystemTables(Tables):
 
     def create(self: "FilesystemTables", schema: Schema, table_identifier: str, spec: PartitionSpec = None,
                properties: dict = None, location: str = None) -> Table:
+        """
+        Create a new table on the filesystem.
+
+        Note: it is expected that the filesystem has atomic operations to ensure consistency for metadata updates.
+        Filesystems that don't have this guarantee could lead to data loss.
+
+        Location should always be None as the table location on disk is taken from `table_identifier`
+        """
         from ..base_table import BaseTable
+        if location:
+            raise RuntimeError("""location has to be None. Both table_identifier and location have been declared.
+             table_identifier: %s and location: %s""".format(table_identifier, location))
+
         full_spec, properties = super(FilesystemTables, self).default_args(spec, properties)
         ops = self.new_table_ops(table_identifier)
 
