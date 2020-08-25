@@ -19,18 +19,18 @@
 
 ## Using Iceberg in Spark 3
 
-The latest version of Iceberg is [0.9.0](../releases).
+The latest version of Iceberg is [0.9.1](../releases).
 
 To use Iceberg in a Spark shell, use the `--packages` option:
 
 ```sh
-spark-shell --packages org.apache.iceberg:iceberg-spark3-runtime:0.9.0
+spark-shell --packages org.apache.iceberg:iceberg-spark3-runtime:0.9.1
 ```
 
 !!! Note
     If you want to include Iceberg in your Spark installation, add the [`iceberg-spark3-runtime` Jar][spark-runtime-jar] to Spark's `jars` folder.
 
-[spark-runtime-jar]: https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark3-runtime/0.9.0/iceberg-spark3-runtime-0.9.0.jar
+[spark-runtime-jar]: https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark3-runtime/0.9.1/iceberg-spark3-runtime-0.9.1.jar
 
 ### Adding catalogs
 
@@ -39,7 +39,7 @@ Iceberg comes with [catalogs](../spark#configuring-catalogs) that enable SQL com
 This command creates a path-based catalog named `local` for tables under `$PWD/warehouse` and adds support for Iceberg tables to Spark's built-in catalog:
 
 ```sh
-spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:0.9.0 \
+spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:0.9.1 \
     --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog \
     --conf spark.sql.catalog.spark_catalog.type=hive \
     --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
