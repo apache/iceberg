@@ -20,42 +20,43 @@
 Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API
 with different levels of support in Spark versions.
 
-As of Spark 3.0, the new API on reading/writing table on table identifier is not yet added on streaming query.
+As of Spark 3.0, DataFrame reads and writes are supported.
 
 | Feature support                                  | Spark 3.0| Spark 2.4  | Notes                                          |
 |--------------------------------------------------|----------|------------|------------------------------------------------|
 | [DataFrame write](#writing-with-streaming-query) | ✔        | ✔          |                                                |
 
-## Writing with streaming query
+## Streaming Writes
 
 To write values from streaming query to Iceberg table, use `DataStreamWriter`:
 
 ```scala
+val tableIdentifier: String = ...
 data.writeStream
     .format("iceberg")
     .outputMode("append")
     .trigger(Trigger.ProcessingTime(1, TimeUnit.MINUTES))
-    .option("path", pathToTable)
+    .option("path", tableIdentifier)
     .option("checkpointLocation", checkpointPath)
     .start()
 ```
 
-The required value in `pathToTable` depends on the catalog:
+The `tableIdentifier` can be:
 
-* Hadoop Catalog: the location of the table
-* Hive Catalog: the Iceberg table identifier represented by String (`database.table`)
+* The fully-qualified path to a HDFS table, like `hdfs://nn:8020/path/to/table`
+* A table name if the table is tracked by a catalog, like `database.table_name`
 
 Iceberg doesn't support "continuous processing", as it doesn't provide the interface to "commit" the output.
 
-Iceberg supports below output modes:
+Iceberg supports `append` and `complete` output modes:
 
-* append: appends the output of every micro-batch to the table
-* complete: replaces the table contents every micro-batch
+* `append`: appends the rows of every micro-batch to the table
+* `complete`: replaces the table contents every micro-batch
 
-The table should be created in prior to start the streaming query. Please refer [SQL create table](/spark/#create-table)
+The table should be created in prior to start the streaming query. Refer [SQL create table](/spark/#create-table)
 on Spark page to see how to create the Iceberg table.
 
-## Maintenance
+## Maintenance for streaming tables
 
 Streaming queries can create new table versions quickly, which creates lots of table metadata to track those versions.
 Maintaining metadata by tuning the rate of commits, expiring old snapshots, and automatically cleaning up metadata files
@@ -64,112 +65,23 @@ is highly recommended.
 ### Tune the rate of commits
 
 Having high rate of commits would produce lots of data files, manifests, and snapshots which leads the table hard
-to maintain. We encourage having trigger interval 1 minute at minimum, and increase the interval if you encounter
-issues.
+to maintain. We encourage having trigger interval 1 minute at minimum, and increase the interval if needed.
 
-Please read through the triggers section in [Structured Streaming Programming Guide](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html#triggers)
-if you're not familiar with configuring batch interval yet.
+The triggers section in [Structured Streaming Programming Guide](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html#triggers)
+documents how to configure the interval.
 
 ### Expire old snapshots
 
-Run [expireSnapshots()](/javadoc/master/org/apache/iceberg/Table.html#expireSnapshots--) regularly to prune the old
-version of snapshots, which reduces the size of metadata file, as well as cleans up data files and manifest files which
-are no longer referenced.
+Each micro-batch written to a table produces a new snapshot, which are tracked in table metadata until they are expired to remove the metadata and any data files that are no longer needed. Snapshots accumulate quickly with frequent commits, so it is highly recommended that tables written by streaming queries are [regularly maintained](../maintenance#expire-snapshots).
 
-For example, below code executes expiring snapshots which are older than 1 day.
+### Compacting data files
 
-```scala
-// ... assuming there's a Table instance `table` ...
-val tsToExpire = System.currentTimeMillis() - (1000 * 60 * 60 * 24) // 1 day
-table.expireSnapshots()
-     .expireOlderThan(tsToExpire)
-     .commit()
-```
+The amount of data written in a micro batch is typically small, which can cause the table metadata to track lots of small files. Compacting small files into larger files reduces the metadata needed by the table, and increases query efficiency.
 
-`Table.expireSnapshots()` provides `ExpireSnapshots`, which provides various methods to control the criteria on
-expiration. Please refer the javadoc of [ExpireSnapshots](/javadoc/master/org/apache/iceberg/ExpireSnapshots.html) to
-see more.
+### Rewrite manifests
 
-Please keep in mind that expiring old version of snapshots means you no longer be able to do time travel before the
-time on condition for expiration.
-
-### Rewriting manifests (manifest compaction / rearrangement)
-
-To optimize write latency on streaming workload, Iceberg may write the new snapshot on fast append, which writes
-a new metadata per commit. This would lead lots of small manifest files, which affects badly on file system (e.g.
-"small files problem" in HDFS), and brings inefficient on reading the table.
-
-You may want to run this action periodically to cluster the manifest files and pack into smaller number of files.
-The action can be also used to optimize read performance for specific partition spec.
-
-```scala
-// ... assuming there's a Table instance `table` ...
-val actions: Actions = Actions.forTable(table)
-actions.rewriteManifests()
-       .execute()
-```
-
-`actions.rewriteManifests()` provides `RewriteManifestsAction`, which provides various methods to control how to group
-the manifest files, and how to exclude the files on grouping. Please refer the javadoc of
-[RewriteManifestsAction](/javadoc/master/org/apache/iceberg/actions/RewriteManifestsAction.html) to see more.
-
-Please note that rewriting manifests creates a new snapshot with optimized manifests. It doesn't rewrite old snapshots,
-meaning it doesn't optimize querying against older snapshot (via time-travel), and old manifest files cannot be removed
-until we expire old snapshots referring these files.
-
-### Rewriting data files (data compaction / rearrangement)
-
-Lots of (small) data files may lead bigger manifest and bring inefficiency to read the table. As we mentioned problems
-in the previous section, you would not prefer to have small files in general.
-
-You may want to run this action periodically to clusters the data files and pack into smaller number of files.
-The action can be also used to optimize read performance for specific partition spec.
-
-```scala
-// ... assuming there's a Table instance `table` ...
-val actions: Actions = Actions.forTable(table)
-actions.rewriteDataFiles()
-       .execute()
-```
-
-`actions.rewriteDataFiles()` provides `RewriteDataFilesAction`, which provides various methods to control how to group
-the data files, and how to exclude the files on grouping. Please refer the javadoc of
-[RewriteDataFilesAction](/javadoc/master/org/apache/iceberg/actions/RewriteDataFilesAction.html) to see more.
-
-Please note that rewriting data files creates a new snapshot with optimized data files. It doesn't rewrite old
-snapshots, meaning it doesn't optimize querying against older snapshot (via time-travel), and old data files cannot be
-removed until we expire old snapshots referring these files.
-
-### Removed old metadata files
-
-You may want to enable `write.metadata.delete-after-commit.enabled` in the table properties, and reduce
-`write.metadata.previous-versions-max` as well (if necessary) to retain only specific number of metadata files.
-
-Please refer the [table write properties](/configuration/#write-properties) for more details.
-
-### Remove orphan files
-
-Expiring old snapshots may leave orphan data and manifest files. `expireSnapshots()` takes care of removing files
-which are no longer referenced, but there may be still some cases orphan files may exist. You can execute removing
-orphan files explicitly to clean up files.
-
-```scala
-// ... assuming there's a Table instance `table` ...
-val actions: Actions = Actions.forTable(table)
-actions.removeOrphanFiles()
-       .execute()
-```
-
-`actions.removeOrphanFiles()` provides `RemoveOrphanFilesAction`, which provides various methods to control how to
-clean up orphan files. Please refer the javadoc of
-[RemoveOrphanFilesAction](/javadoc/master/org/apache/iceberg/actions/RemoveOrphanFilesAction.html) to see more.
-
-This action may take huge time to finish if you have lots of files in data and metadata directories. It's recommended
-to execute this periodically, but you may not need to execute this often.
-
-It is dangerous to call this action with a short retention interval as it might corrupt the state of the table if
-another operation is writing at the same time. To prevent the case, the action will only remove files that are older
-than 3 days by default.
+To optimize write latency on streaming workload, Iceberg may write the new snapshot with a "fast" append that does not automatically compact manifests.
+This could lead lots of small manifest files. Manifests can be [rewritten to optimize queries and to compact](../maintenance#rewrite-manifests).
 
 ## Appendix
 
