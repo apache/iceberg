@@ -952,5 +952,19 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
 
     checkExpirationResults(1, 1, 1, result);
   }
+
+  @Test
+  public void testExpireOnEmptyTable() {
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    // table has no data, testing ExpireSnapshots should not fail with no snapshot
+    ExpireSnapshotsActionResult result = Actions.forTable(table).expireSnapshots()
+            .expireOlderThan(System.currentTimeMillis())
+            .deleteWith(deletedFiles::add)
+            .execute();
+
+    checkExpirationResults(0, 0, 0, result);
+  }
 }
 
