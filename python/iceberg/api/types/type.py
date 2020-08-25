@@ -22,22 +22,22 @@ import uuid
 
 @unique
 class TypeID(Enum):
-    BOOLEAN = {"java_class": "Boolean.class", "python_class": bool, "id": 1, "hive_name": 'boolean'}
-    INTEGER = {"java_class": "Integer.class", "python_class": int, "id": 2, "hive_name": 'int'}
-    LONG = {"java_class": "Long.class", "python_class": int, "id": 3, "hive_name": 'bigint'}
-    FLOAT = {"java_class": "Float.class", "python_class": float, "id": 4, "hive_name": 'float'}
-    DOUBLE = {"java_class": "Double.class", "python_class": float, "id": 5, "hive_name": 'double'}
-    DATE = {"java_class": "Integer.class", "python_class": int, "id": 6, "hive_name": 'date'}
-    TIME = {"java_class": "Long.class", "python_class": int, "id": 7, "hive_name": 'string'}
-    TIMESTAMP = {"java_class": "Long.class", "python_class": int, "id": 8, "hive_name": 'timestamp'}
-    STRING = {"java_class": "CharSequence.class", "python_class": str, "id": 9, "hive_name": 'string'}
-    UUID = {"java_class": "java.util.UUID.class", "python_class": uuid.UUID, "id": 10, "hive_name": 'string'}
-    FIXED = {"java_class": "ByteBuffer.class", "python_class": bytes, "id": 11, "hive_name": 'binary'}
-    BINARY = {"java_class": "ByteBuffer.class", "python_class": bytearray, "id": 12, "hive_name": "binary"}
-    DECIMAL = {"java_class": "BigDecimal.class", "python_class": Decimal, "id": 13, "hive_name": None}
-    STRUCT = {"java_class": "Void.class", "python_class": None, "id": 14, "hive_name": None}
-    LIST = {"java_class": "Void.class", "python_class": None, "id": 15, "hive_name": None}
-    MAP = {"java_class": "Void.class", "python_class": None, "id": 16, "hive_name": None}
+    BOOLEAN = {"java_class": "Boolean.class", "python_class": bool, "id": 1}
+    INTEGER = {"java_class": "Integer.class", "python_class": int, "id": 2}
+    LONG = {"java_class": "Long.class", "python_class": int, "id": 3}
+    FLOAT = {"java_class": "Float.class", "python_class": float, "id": 4}
+    DOUBLE = {"java_class": "Double.class", "python_class": float, "id": 5}
+    DATE = {"java_class": "Integer.class", "python_class": int, "id": 6}
+    TIME = {"java_class": "Long.class", "python_class": int, "id": 7}
+    TIMESTAMP = {"java_class": "Long.class", "python_class": int, "id": 8}
+    STRING = {"java_class": "CharSequence.class", "python_class": str, "id": 9}
+    UUID = {"java_class": "java.util.UUID.class", "python_class": uuid.UUID, "id": 10}
+    FIXED = {"java_class": "ByteBuffer.class", "python_class": bytes, "id": 11}
+    BINARY = {"java_class": "ByteBuffer.class", "python_class": bytearray, "id": 12}
+    DECIMAL = {"java_class": "BigDecimal.class", "python_class": Decimal, "id": 13}
+    STRUCT = {"java_class": "Void.class", "python_class": None, "id": 14}
+    LIST = {"java_class": "Void.class", "python_class": None, "id": 15}
+    MAP = {"java_class": "Void.class", "python_class": None, "id": 16}
 
 
 class Type(object):
