@@ -322,9 +322,8 @@ public class SparkTableUtil {
     } else if (format.contains("parquet")) {
       return listParquetPartition(partition, uri, spec, conf, metricsConfig, mapping);
     } else if (format.contains("orc")) {
-      // TODO: use MetricsConfig in listOrcPartition
       // TODO: use NameMapping in listOrcPartition
-      return listOrcPartition(partition, uri, spec, conf);
+      return listOrcPartition(partition, uri, spec, conf, metricsConfig);
     } else {
       throw new UnsupportedOperationException("Unknown partition format: " + format);
     }
@@ -395,8 +394,9 @@ public class SparkTableUtil {
     }
   }
 
-  private static List<DataFile> listOrcPartition(
-      Map<String, String> partitionPath, String partitionUri, PartitionSpec spec, Configuration conf) {
+  private static List<DataFile> listOrcPartition(Map<String, String> partitionPath, String partitionUri,
+                                                 PartitionSpec spec, Configuration conf,
+                                                 MetricsConfig metricsSpec) {
     try {
       Path partition = new Path(partitionUri);
       FileSystem fs = partition.getFileSystem(conf);
@@ -404,7 +404,7 @@ public class SparkTableUtil {
       return Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
           .filter(FileStatus::isFile)
           .map(stat -> {
-            Metrics metrics = OrcMetrics.fromInputFile(HadoopInputFile.fromPath(stat.getPath(), conf));
+            Metrics metrics = OrcMetrics.fromInputFile(HadoopInputFile.fromPath(stat.getPath(), conf), metricsSpec);
             String partitionKey = spec.fields().stream()
                 .map(PartitionField::name)
                 .map(name -> String.format("%s=%s", name, partitionPath.get(name)))

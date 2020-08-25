@@ -26,6 +26,7 @@ import java.util.UUID;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Metrics;
+import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestMetrics;
@@ -56,8 +57,8 @@ public class TestParquetMetrics extends TestMetrics {
   }
 
   @Override
-  public Metrics getMetrics(InputFile file) {
-    return ParquetUtil.fileMetrics(file);
+  public Metrics getMetrics(InputFile file, MetricsConfig metricsConfig) {
+    return ParquetUtil.fileMetrics(file, metricsConfig);
   }
 
   @Override
