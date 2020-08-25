@@ -99,7 +99,8 @@ public class OrcMetrics {
                                          ColumnStatistics[] colStats, MetricsConfig metricsConfig) {
     final Schema schema = ORCSchemaUtil.convert(orcSchema);
     final Set<Integer> statsColumns = statsColumns(orcSchema);
-    final MetricsConfig effectiveMetricsConfig = Optional.ofNullable(metricsConfig).orElse(MetricsConfig.getDefault());
+    final MetricsConfig effectiveMetricsConfig = Optional.ofNullable(metricsConfig)
+        .orElseGet(MetricsConfig::getDefault);
     Map<Integer, Long> columnSizes = Maps.newHashMapWithExpectedSize(colStats.length);
     Map<Integer, Long> valueCounts = Maps.newHashMapWithExpectedSize(colStats.length);
     Map<Integer, Long> nullCounts = Maps.newHashMapWithExpectedSize(colStats.length);
