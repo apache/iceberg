@@ -29,7 +29,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.function.Supplier;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
 import org.apache.flink.table.data.MapData;
@@ -67,15 +66,12 @@ public class TestHelpers {
     for (int i = 0; i < types.size(); i += 1) {
       Object expected = expectedRecord.get(i);
       LogicalType logicalType = ((RowType) rowType).getTypeAt(i);
-
-      final int fieldPos = i;
       assertEquals(types.get(i), logicalType, expected,
-          () -> RowData.createFieldGetter(logicalType, fieldPos).getFieldOrNull(actualRowData));
+          RowData.createFieldGetter(logicalType, i).getFieldOrNull(actualRowData));
     }
   }
 
-  private static void assertEquals(Type type, LogicalType logicalType, Object expected, Supplier<Object> supplier) {
-    Object actual = supplier.get();
+  private static void assertEquals(Type type, LogicalType logicalType, Object expected, Object actual) {
 
     if (expected == null && actual == null) {
       return;
@@ -178,9 +174,8 @@ public class TestHelpers {
 
       Object expected = expectedElements.get(i);
 
-      final int pos = i;
       assertEquals(type, logicalType, expected,
-          () -> ArrayData.createElementGetter(logicalType).getElementOrNull(actualArray, pos));
+          ArrayData.createElementGetter(logicalType).getElementOrNull(actualArray, i));
     }
   }
 
@@ -203,7 +198,7 @@ public class TestHelpers {
       for (int i = 0; i < actual.size(); i += 1) {
         try {
           Object key = keyGetter.getElementOrNull(actualKeyArrayData, i);
-          assertEquals(keyType, actualKeyType, entry.getKey(), () -> key);
+          assertEquals(keyType, actualKeyType, entry.getKey(), key);
           matchedActualKey = key;
           matchedKeyIndex = i;
           break;
@@ -214,7 +209,7 @@ public class TestHelpers {
       Assert.assertNotNull("Should have a matching key", matchedActualKey);
       final int valueIndex = matchedKeyIndex;
       assertEquals(valueType, actualValueType, entry.getValue(),
-          () -> valueGetter.getElementOrNull(actualValueArrayData, valueIndex));
+          valueGetter.getElementOrNull(actualValueArrayData, valueIndex));
     }
   }
 }
