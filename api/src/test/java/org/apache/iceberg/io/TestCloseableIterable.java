@@ -22,6 +22,7 @@ package org.apache.iceberg.io;
 import java.io.IOException;
 import java.util.NoSuchElementException;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.io.TestableCloseableIterable.TestableCloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
@@ -32,8 +33,7 @@ public class TestCloseableIterable {
   @Test
   public void testFilterManuallyClosable() throws IOException {
     TestableCloseableIterable iterable = new TestableCloseableIterable();
-    TestableCloseableIterable.TestableCloseableIterator iterator =
-            (TestableCloseableIterable.TestableCloseableIterator) iterable.iterator();
+    TestableCloseableIterator iterator = (TestableCloseableIterator) iterable.iterator();
 
     CloseableIterable<Integer> filtered = CloseableIterable.filter(iterable, x -> x > 5);
 
