@@ -36,7 +36,7 @@ class FilesystemTables(Tables):
         return BaseTable(ops, table_identifier)
 
     def create(self: "FilesystemTables", schema: Schema, table_identifier: str, spec: PartitionSpec = None,
-               properties: dict = None) -> Table:
+               properties: dict = None, location: str = None) -> Table:
         from ..base_table import BaseTable
         full_spec, properties = super(FilesystemTables, self).default_args(spec, properties)
         ops = self.new_table_ops(table_identifier)

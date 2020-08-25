@@ -90,7 +90,7 @@ class HiveTableOperations(BaseMetastoreTableOperations):
 
             tbl.sd = storage_descriptor(metadata)
             metadata_location = tbl.parameters.get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP, None)
-            base_metadata_location = base.location if base else None
+            base_metadata_location = base.metadata_location if base else None
             if base_metadata_location != metadata_location:
                 raise CommitFailedException(
                     "Base metadata location '%s' is not same as the current table metadata location '%s' for %s.%s",

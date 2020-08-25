@@ -39,13 +39,13 @@ class BaseMetastoreTables(Tables):
         raise NoSuchTableException("Table does not exist: {}.{}".format(database, table))
 
     def create(self: "BaseMetastoreTables", schema: Schema, table_identifier: str, spec: PartitionSpec = None,
-               properties: dict = None) -> Table:
+               properties: dict = None, location: str = None) -> Table:
         database, table = _parse_table_identifier(table_identifier)
         ops = self.new_table_ops(self.conf, database, table)
         if ops.current():  # not None check here to ensure MagicMocks aren't treated as None
             raise AlreadyExistsException("Table already exists: " + table_identifier)
 
-        base_location = self.default_warehouse_location(self.conf, database, table)
+        base_location = location if location else self.default_warehouse_location(self.conf, database, table)
         full_spec, properties = super(BaseMetastoreTables, self).default_args(spec, properties)
         metadata = TableMetadata.new_table_metadata(ops, schema, full_spec, base_location, properties)
 
