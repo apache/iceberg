@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -75,6 +76,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private final LoadingCache<ManifestFile, ManifestFile> manifestsWithMetadata;
 
   private final TableOperations ops;
+  private final Clock clock;
   private final String commitUUID = UUID.randomUUID().toString();
   private final AtomicInteger manifestCount = new AtomicInteger(0);
   private final AtomicInteger attempt = new AtomicInteger(0);
@@ -84,8 +86,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private boolean stageOnly = false;
   private Consumer<String> deleteFunc = defaultDelete;
 
-  protected SnapshotProducer(TableOperations ops) {
+  protected SnapshotProducer(TableOperations ops, Clock clock) {
     this.ops = ops;
+    this.clock = clock;
     this.base = ops.current();
     this.manifestsWithMetadata = Caffeine
       .newBuilder()
@@ -172,12 +175,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       }
 
       return new BaseSnapshot(ops.io(),
-          sequenceNumber, snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
+          sequenceNumber, snapshotId(), parentSnapshotId, clock.millis(), operation(), summary(base),
           manifestList.location());
 
     } else {
       return new BaseSnapshot(ops.io(),
-          snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
+          snapshotId(), parentSnapshotId, clock.millis(), operation(), summary(base),
           manifests);
     }
   }

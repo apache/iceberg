@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.time.Clock;
 import java.util.List;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Evaluator;
@@ -35,7 +36,11 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
   private Expression conflictDetectionFilter = null;
 
   protected BaseOverwriteFiles(String tableName, TableOperations ops) {
-    super(tableName, ops);
+    this(tableName, ops, Clock.systemDefaultZone());
+  }
+
+  protected BaseOverwriteFiles(String tableName, TableOperations ops, Clock clock) {
+    super(tableName, ops, clock);
   }
 
   @Override

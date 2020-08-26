@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -109,13 +110,20 @@ public class TableTestBase {
   public TestTables.TestTable table = null;
 
   protected final int formatVersion;
+  protected final Clock clock;
   @SuppressWarnings("checkstyle:MemberName")
   protected final Assertions V1Assert;
   @SuppressWarnings("checkstyle:MemberName")
   protected final Assertions V2Assert;
 
+
   public TableTestBase(int formatVersion) {
+    this(formatVersion, Clock.systemDefaultZone());
+  }
+
+  public TableTestBase(int formatVersion, Clock clock) {
     this.formatVersion = formatVersion;
+    this.clock = clock;
     this.V1Assert = new Assertions(1, formatVersion);
     this.V2Assert = new Assertions(2, formatVersion);
   }
@@ -144,7 +152,7 @@ public class TableTestBase {
   }
 
   TestTables.TestTable create(Schema schema, PartitionSpec spec) {
-    return TestTables.create(tableDir, "test", schema, spec, formatVersion);
+    return TestTables.create(tableDir, "test", schema, spec, formatVersion, clock);
   }
 
   TestTables.TestTable load() {

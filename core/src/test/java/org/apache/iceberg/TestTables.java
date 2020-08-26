@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.io.File;
+import java.time.Clock;
 import java.util.Map;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -48,12 +49,17 @@ public class TestTables {
   }
 
   public static TestTable create(File temp, String name, Schema schema, PartitionSpec spec, int formatVersion) {
+    return create(temp, name, schema, spec, formatVersion, Clock.systemDefaultZone());
+  }
+
+  public static TestTable create(File temp, String name, Schema schema, PartitionSpec spec, int formatVersion,
+      Clock clock) {
     TestTableOperations ops = new TestTableOperations(name, temp);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
     }
     ops.commit(null, TableMetadata.newTableMetadata(schema, spec, temp.toString(), ImmutableMap.of(), formatVersion));
-    return new TestTable(ops, name);
+    return new TestTable(ops, name, clock);
   }
 
   public static Transaction beginCreate(File temp, String name, Schema schema, PartitionSpec spec) {
@@ -96,7 +102,11 @@ public class TestTables {
     private final TestTableOperations ops;
 
     private TestTable(TestTableOperations ops, String name) {
-      super(ops, name);
+      this(ops, name, Clock.systemDefaultZone());
+    }
+
+    private TestTable(TestTableOperations ops, String name, Clock clock) {
+      super(ops, name, clock);
       this.ops = ops;
     }
 
@@ -197,7 +207,7 @@ public class TestTables {
     @Override
     public LocationProvider locationProvider() {
       Preconditions.checkNotNull(current,
-          "Current metadata should not be null when locatinProvider is called");
+          "Current metadata should not be null when locationProvider is called");
       return LocationProviders.locationsFor(current.location(), current.properties());
     }
 

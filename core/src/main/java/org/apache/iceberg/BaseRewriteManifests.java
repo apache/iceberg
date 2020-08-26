@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -78,7 +79,11 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
   private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
 
   BaseRewriteManifests(TableOperations ops) {
-    super(ops);
+    this(ops, Clock.systemDefaultZone());
+  }
+
+  BaseRewriteManifests(TableOperations ops, Clock clock) {
+    super(ops, clock);
     this.ops = ops;
     this.specsById = ops.current().specsById();
     this.manifestTargetSizeBytes =

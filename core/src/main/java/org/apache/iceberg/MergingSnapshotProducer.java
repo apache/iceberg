@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -69,7 +70,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private boolean hasNewDeleteFiles = false;
 
   MergingSnapshotProducer(String tableName, TableOperations ops) {
-    super(ops);
+    this(tableName, ops, Clock.systemDefaultZone());
+  }
+
+  MergingSnapshotProducer(String tableName, TableOperations ops, Clock clock) {
+    super(ops, clock);
     this.tableName = tableName;
     this.ops = ops;
     this.spec = ops.current().spec();

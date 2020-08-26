@@ -19,9 +19,15 @@
 
 package org.apache.iceberg;
 
+import java.time.Clock;
+
 public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta {
   public BaseRowDelta(String tableName, TableOperations ops) {
-    super(tableName, ops);
+    this(tableName, ops, Clock.systemDefaultZone());
+  }
+
+  public BaseRowDelta(String tableName, TableOperations ops, Clock clock) {
+    super(tableName, ops, clock);
   }
 
   @Override

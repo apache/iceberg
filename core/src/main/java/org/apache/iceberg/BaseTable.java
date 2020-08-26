@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -33,10 +34,16 @@ import org.apache.iceberg.io.LocationProvider;
 public class BaseTable implements Table, HasTableOperations {
   private final TableOperations ops;
   private final String name;
+  private final Clock clock;
 
   public BaseTable(TableOperations ops, String name) {
+    this(ops, name, Clock.systemDefaultZone());
+  }
+
+  public BaseTable(TableOperations ops, String name, Clock clock) {
     this.ops = ops;
     this.name = name;
+    this.clock = clock;
   }
 
   @Override
@@ -116,42 +123,42 @@ public class BaseTable implements Table, HasTableOperations {
 
   @Override
   public AppendFiles newAppend() {
-    return new MergeAppend(name, ops);
+    return new MergeAppend(name, ops, clock);
   }
 
   @Override
   public AppendFiles newFastAppend() {
-    return new FastAppend(name, ops);
+    return new FastAppend(name, ops, clock);
   }
 
   @Override
   public RewriteFiles newRewrite() {
-    return new BaseRewriteFiles(name, ops);
+    return new BaseRewriteFiles(name, ops, clock);
   }
 
   @Override
   public RewriteManifests rewriteManifests() {
-    return new BaseRewriteManifests(ops);
+    return new BaseRewriteManifests(ops, clock);
   }
 
   @Override
   public OverwriteFiles newOverwrite() {
-    return new BaseOverwriteFiles(name, ops);
+    return new BaseOverwriteFiles(name, ops, clock);
   }
 
   @Override
   public RowDelta newRowDelta() {
-    return new BaseRowDelta(name, ops);
+    return new BaseRowDelta(name, ops, clock);
   }
 
   @Override
   public ReplacePartitions newReplacePartitions() {
-    return new BaseReplacePartitions(name, ops);
+    return new BaseReplacePartitions(name, ops, clock);
   }
 
   @Override
   public DeleteFiles newDelete() {
-    return new StreamingDelete(name, ops);
+    return new StreamingDelete(name, ops, clock);
   }
 
   @Override
