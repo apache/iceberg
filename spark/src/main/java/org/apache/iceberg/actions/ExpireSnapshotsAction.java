@@ -196,7 +196,7 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
   }
 
   private Dataset<Row> buildValidFileDF(TableMetadata metadata) {
-    return appendTypeString(buildValidDataFileDF(spark, metadata.metadataFileLocation()), DATA_FILE)
+    return appendTypeString(buildParallelValidDataFileDF(spark, table.io(), metadata.metadataFileLocation()), DATA_FILE)
         .union(appendTypeString(buildManifestFileDF(spark, metadata.metadataFileLocation()), MANIFEST))
         .union(appendTypeString(buildManifestListDF(spark, metadata.metadataFileLocation()), MANIFEST_LIST));
   }
