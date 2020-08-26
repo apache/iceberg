@@ -123,7 +123,7 @@ This example rewrites small manifests and groups data files by the first partiti
 ```java
 Table table = ...
 table.rewriteManifests()
-    .rewriteIf(file -> file.length() < 4 * 1024 * 1024) // 10 MB
+    .rewriteIf(file -> file.length() < 10 * 1024 * 1024) // 10 MB
     .clusterBy(file -> file.partition().get(0, Integer.class))
     .commit();
 ```
