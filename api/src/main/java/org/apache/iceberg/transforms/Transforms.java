@@ -41,7 +41,8 @@ public class Transforms {
   }
 
   private static final Pattern HAS_WIDTH = Pattern.compile("(\\w+)\\[(\\d+)\\]");
-  private static final Pattern HAS_TIME_OFFSET = Pattern.compile("(\\w+)\\[(\\-?\\d+)\\]");
+  private static final Pattern HAS_TIME_OFFSET =
+      Pattern.compile("(\\w+)\\[(\\+\\d{2}\\:\\d{2}|\\-\\d{2}\\:\\d{2})\\]");
 
   public static Transform<?, ?> fromString(Type type, String transform) {
     Matcher widthMatcher = HAS_WIDTH.matcher(transform);
@@ -64,13 +65,15 @@ public class Transforms {
         Matcher timeZoneOffset = HAS_TIME_OFFSET.matcher(transform);
         if (timeZoneOffset.matches()) {
           String name = timeZoneOffset.group(1);
-          int totalSeconds = Integer.parseInt(timeZoneOffset.group(2));
-          return Timestamps.valueOf(name.toUpperCase(Locale.ENGLISH))
-              .zoneOffset(ZoneOffset.ofTotalSeconds(totalSeconds));
+          String offsetId = timeZoneOffset.group(2);
+          return TimestampTransform.get(type, name.toLowerCase(Locale.ENGLISH))
+              .zoneOffset(ZoneOffset.of(offsetId));
         } else {
-          return Timestamps.valueOf(transform.toUpperCase(Locale.ENGLISH));
+          return TimestampTransform.get(type, transform.toLowerCase(Locale.ENGLISH));
         }
       } catch (IllegalArgumentException ignored) {
+        // fall through to return unknown transform
+      } catch (UnsupportedOperationException ignored) {
         // fall through to return unknown transform
       }
     }
@@ -116,12 +119,13 @@ public class Transforms {
   public static <T> Transform<T, Integer> year(Type type, ZoneOffset zoneOffset) {
     switch (type.typeId()) {
       case DATE:
+        checkZoneOffsetIsUTC(zoneOffset);
         return (Transform<T, Integer>) Dates.YEAR;
       case TIMESTAMP:
-        return (Transform<T, Integer>) Timestamps.YEAR.zoneOffset(zoneOffset);
+        return (Transform<T, Integer>) TimestampTransform.get(type, "YEAR").zoneOffset(zoneOffset);
       default:
         throw new IllegalArgumentException(
-                "Cannot partition type " + type + " by year");
+            "Cannot partition type " + type + " by year");
     }
   }
 
@@ -140,12 +144,13 @@ public class Transforms {
   public static <T> Transform<T, Integer> month(Type type, ZoneOffset zoneOffset) {
     switch (type.typeId()) {
       case DATE:
+        checkZoneOffsetIsUTC(zoneOffset);
         return (Transform<T, Integer>) Dates.MONTH;
       case TIMESTAMP:
-        return (Transform<T, Integer>) Timestamps.MONTH.zoneOffset(zoneOffset);
+        return (Transform<T, Integer>) TimestampTransform.get(type, "MONTH").zoneOffset(zoneOffset);
       default:
         throw new IllegalArgumentException(
-                "Cannot partition type " + type + " by month");
+            "Cannot partition type " + type + " by month");
     }
   }
 
@@ -164,12 +169,13 @@ public class Transforms {
   public static <T> Transform<T, Integer> day(Type type, ZoneOffset zoneOffset) {
     switch (type.typeId()) {
       case DATE:
+        checkZoneOffsetIsUTC(zoneOffset);
         return (Transform<T, Integer>) Dates.DAY;
       case TIMESTAMP:
-        return (Transform<T, Integer>) Timestamps.DAY.zoneOffset(zoneOffset);
+        return (Transform<T, Integer>) TimestampTransform.get(type, "DAY").zoneOffset(zoneOffset);
       default:
         throw new IllegalArgumentException(
-                "Cannot partition type " + type + " by day");
+            "Cannot partition type " + type + " by day");
     }
   }
 
@@ -187,8 +193,8 @@ public class Transforms {
 
   public static <T> Transform<T, Integer> hour(Type type, ZoneOffset zoneOffset) {
     Preconditions.checkArgument(type.typeId() == Type.TypeID.TIMESTAMP,
-            "Cannot partition type %s by hour", type);
-    return (Transform<T, Integer>) Timestamps.HOUR.zoneOffset(zoneOffset);
+        "Cannot partition type %s by hour", type);
+    return (Transform<T, Integer>) TimestampTransform.get(type, "HOUR").zoneOffset(zoneOffset);
   }
 
   /**
@@ -224,4 +230,10 @@ public class Transforms {
   public static <T> Transform<T, Void> alwaysNull() {
     return VoidTransform.get();
   }
+
+  private static void checkZoneOffsetIsUTC(ZoneOffset zoneOffset) {
+    Preconditions.checkArgument(zoneOffset == null || zoneOffset.getTotalSeconds() == 0,
+        "Expect zone offset is null or UTC, but is", zoneOffset);
+  }
+
 }

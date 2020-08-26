@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.transforms;
 
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
@@ -55,17 +56,24 @@ public interface PartitionSpecVisitor<T> {
       } else if (transform instanceof Truncate) {
         results.add(visitor.truncate(sourceName, field.sourceId(),
             ((Truncate<?>) transform).width()));
-      } else if (transform == Dates.YEAR || transform == Timestamps.YEAR) {
+      } else if (transform == Dates.YEAR || isTimestamp(transform, ChronoUnit.YEARS)) {
         results.add(visitor.year(sourceName, field.sourceId()));
-      } else if (transform == Dates.MONTH || transform == Timestamps.MONTH) {
+      } else if (transform == Dates.MONTH || isTimestamp(transform, ChronoUnit.MONTHS)) {
         results.add(visitor.month(sourceName, field.sourceId()));
-      } else if (transform == Dates.DAY || transform == Timestamps.DAY) {
+      } else if (transform == Dates.DAY || isTimestamp(transform, ChronoUnit.DAYS)) {
         results.add(visitor.day(sourceName, field.sourceId()));
-      } else if (transform == Timestamps.HOUR) {
+      } else if (isTimestamp(transform, ChronoUnit.HOURS)) {
         results.add(visitor.hour(sourceName, field.sourceId()));
       }
     }
 
     return results;
+  }
+
+  static boolean isTimestamp(Transform<?, ?> transform, ChronoUnit chronoUnit) {
+    if (transform instanceof TimestampTransform) {
+      return ((TimestampTransform) transform).getGranularity() == chronoUnit;
+    }
+    return false;
   }
 }

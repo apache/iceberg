@@ -28,23 +28,47 @@ import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-enum Timestamps implements Transform<Long, Integer> {
-  YEAR(ChronoUnit.YEARS, "year"),
-  MONTH(ChronoUnit.MONTHS, "month"),
-  DAY(ChronoUnit.DAYS, "day"),
-  HOUR(ChronoUnit.HOURS, "hour");
+abstract class TimestampTransform implements Transform<Long, Integer> {
 
-  private ZoneOffset zoneOffset = ZoneOffset.UTC;
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
-  private final ChronoUnit granularity;
-  private final String name;
 
-  Timestamps(ChronoUnit granularity, String name) {
+  private ChronoUnit granularity;
+  private String name;
+  private ZoneOffset zoneOffset;
+
+  @SuppressWarnings("unchecked")
+  static TimestampTransform get(Type type, String name) {
+    if (type.typeId() == Type.TypeID.TIMESTAMP) {
+      switch (name.toUpperCase()) {
+        case "YEAR":
+          return new TimestampTransform.TimestampYear(name.toLowerCase());
+        case "MONTH":
+          return new TimestampTransform.TimestampMonth(name.toLowerCase());
+        case "DAY":
+          return new TimestampTransform.TimestampDay(name.toLowerCase());
+        case "HOUR":
+          return new TimestampTransform.TimestampHour(name.toLowerCase());
+        default:
+          throw new UnsupportedOperationException("Unsupported timestamp method: " + name);
+      }
+    }
+    throw new UnsupportedOperationException(
+        "TimestampTransform cannot transform type: " + type);
+  }
+
+  private TimestampTransform(ChronoUnit granularity, String name) {
     this.granularity = granularity;
     this.name = name;
+    this.zoneOffset = ZoneOffset.UTC;
+  }
+
+  public TimestampTransform zoneOffset(ZoneOffset newZoneOffset) {
+    this.zoneOffset = newZoneOffset;
+    return this;
   }
 
   @Override
@@ -59,11 +83,6 @@ enum Timestamps implements Transform<Long, Integer> {
         .atOffset(ZoneOffset.UTC);
 
     return (int) granularity.between(EPOCH, timestamp);
-  }
-
-  public Timestamps zoneOffset(ZoneOffset newZoneOffset) {
-    this.zoneOffset = newZoneOffset;
-    return this;
   }
 
   @Override
@@ -133,6 +152,57 @@ enum Timestamps implements Transform<Long, Integer> {
 
   @Override
   public String toString() {
-    return name + "[" + zoneOffset.getTotalSeconds() + "]";
+    if (zoneOffset.getTotalSeconds() == 0) {
+      return name;
+    } else {
+      return name + "[" + zoneOffset.getId() + "]";
+    }
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    if (this == other) {
+      return true;
+    }
+    if (other == null || getClass() != other.getClass()) {
+      return false;
+    }
+    TimestampTransform that = (TimestampTransform) other;
+    return granularity == that.granularity &&
+        Objects.equal(name, that.name) &&
+        Objects.equal(zoneOffset, that.zoneOffset);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hashCode(granularity, name, zoneOffset);
+  }
+
+  public ChronoUnit getGranularity() {
+    return this.granularity;
+  }
+
+  private static class TimestampYear extends TimestampTransform {
+    private TimestampYear(String name) {
+      super(ChronoUnit.YEARS, name);
+    }
+  }
+
+  private static class TimestampMonth extends TimestampTransform {
+    private TimestampMonth(String name) {
+      super(ChronoUnit.MONTHS, name);
+    }
+  }
+
+  private static class TimestampDay extends TimestampTransform {
+    private TimestampDay(String name) {
+      super(ChronoUnit.DAYS, name);
+    }
+  }
+
+  private static class TimestampHour extends TimestampTransform {
+    private TimestampHour(String name) {
+      super(ChronoUnit.HOURS, name);
+    }
   }
 }

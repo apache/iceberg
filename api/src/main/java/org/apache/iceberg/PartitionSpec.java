@@ -381,72 +381,76 @@ public class PartitionSpec implements Serializable {
       return identity(sourceName, sourceName);
     }
 
-    public Builder year(String sourceName, String targetName, ZoneOffset zoneOffset) {
+    public Builder year(String sourceName, String targetName, String offsetId) {
       checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
-          sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.year(sourceColumn.type(), zoneOffset));
+          sourceColumn.fieldId(), nextFieldId(), targetName,
+          Transforms.year(sourceColumn.type(), ZoneOffset.of(offsetId)));
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
     }
 
     public Builder year(String sourceName, String targetName) {
-      return year(sourceName, targetName, ZoneOffset.UTC);
+      return year(sourceName, targetName, "Z");
     }
 
     public Builder year(String sourceName) {
       return year(sourceName, sourceName + "_year");
     }
 
-    public Builder month(String sourceName, String targetName, ZoneOffset zoneOffset) {
+    public Builder month(String sourceName, String targetName, String offsetId) {
       checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
-          sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.month(sourceColumn.type(), zoneOffset));
+          sourceColumn.fieldId(), nextFieldId(), targetName,
+          Transforms.month(sourceColumn.type(), ZoneOffset.of(offsetId)));
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
     }
 
     public Builder month(String sourceName, String targetName) {
-      return month(sourceName, targetName, ZoneOffset.UTC);
+      return month(sourceName, targetName, "Z");
     }
 
     public Builder month(String sourceName) {
       return month(sourceName, sourceName + "_month");
     }
 
-    public Builder day(String sourceName, String targetName, ZoneOffset zoneOffset) {
+    public Builder day(String sourceName, String targetName, String offsetId) {
       checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
-          sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.day(sourceColumn.type(), zoneOffset));
+          sourceColumn.fieldId(), nextFieldId(), targetName,
+          Transforms.day(sourceColumn.type(), ZoneOffset.of(offsetId)));
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
     }
 
     public Builder day(String sourceName, String targetName) {
-      return day(sourceName, targetName, ZoneOffset.UTC);
+      return day(sourceName, targetName, "Z");
     }
 
     public Builder day(String sourceName) {
       return day(sourceName, sourceName + "_day");
     }
 
-    public Builder hour(String sourceName, String targetName, ZoneOffset zoneOffset) {
+    public Builder hour(String sourceName, String targetName, String offsetId) {
       checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
-          sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.hour(sourceColumn.type(), zoneOffset));
+          sourceColumn.fieldId(), nextFieldId(), targetName,
+          Transforms.hour(sourceColumn.type(), ZoneOffset.of(offsetId)));
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
     }
 
     public Builder hour(String sourceName, String targetName) {
-      return hour(sourceName, targetName, ZoneOffset.UTC);
+      return hour(sourceName, targetName, "Z");
     }
 
     public Builder hour(String sourceName) {

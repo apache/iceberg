@@ -57,7 +57,7 @@ public class TestTimestampsProjection {
 
     Assert.assertNotEquals("Strict projection never runs for IN", Expression.Operation.IN, predicate.op());
 
-    Timestamps transform = (Timestamps) spec.getFieldsBySourceId(1).get(0).transform();
+    TimestampTransform transform = (TimestampTransform) spec.getFieldsBySourceId(1).get(0).transform();
     if (predicate.op() == Expression.Operation.NOT_IN) {
       Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
       String actual = Lists.newArrayList(values).stream().sorted()
@@ -93,7 +93,7 @@ public class TestTimestampsProjection {
 
     Assert.assertNotEquals("Inclusive projection never runs for NOT_IN", Expression.Operation.NOT_IN, predicate.op());
 
-    Timestamps transform = (Timestamps) spec.getFieldsBySourceId(1).get(0).transform();
+    TimestampTransform transform = (TimestampTransform) spec.getFieldsBySourceId(1).get(0).transform();
     if (predicate.op() == Expression.Operation.IN) {
       Iterable<?> values = Iterables.transform(predicate.literals(), Literal::value);
       String actual = Lists.newArrayList(values).stream().sorted()
