@@ -22,6 +22,7 @@ package org.apache.iceberg.mr.hive;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgumentFactory;
@@ -31,6 +32,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Not;
 import org.apache.iceberg.expressions.Or;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -216,8 +218,9 @@ public class TestHiveIcebergFilterFactory {
     SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
     SearchArgument arg = builder.startAnd().equals("timestamp", PredicateLeaf.Type.TIMESTAMP,
             Timestamp.valueOf("2012-10-02 05:16:17.123")).end().build();
+    LocalDateTime dateTime = LocalDateTime.of(2012, 10, 2, 5, 16, 17, 123000000);
 
-    UnboundPredicate expected = Expressions.equal("timestamp", 1349151377123000L);
+    UnboundPredicate expected = Expressions.equal("timestamp", DateTimeUtil.microsFromTimestamp(dateTime));
     UnboundPredicate actual = (UnboundPredicate) HiveIcebergFilterFactory.generateFilterExpression(arg);
 
     assertPredicatesMatch(expected, actual);

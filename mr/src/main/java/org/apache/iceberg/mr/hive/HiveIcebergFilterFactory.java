@@ -120,12 +120,11 @@ public class HiveIcebergFilterFactory {
       case FLOAT:
         return leaf.getLiteral();
       case DATE:
+      case TIMESTAMP:
         // Hive converts a Date type to a Timestamp internally when retrieving literal
-        return timestampToDateInMicros((Timestamp) leaf.getLiteral());
+        return timestampToUnixEpoch((Timestamp) leaf.getLiteral());
       case DECIMAL:
         return hiveDecimalToBigDecimal((HiveDecimalWritable) leaf.getLiteral());
-      case TIMESTAMP:
-        return timestampToUnixEpoch((Timestamp) leaf.getLiteral());
 
       default:
         throw new UnsupportedOperationException("Unknown type: " + leaf.getType());
@@ -155,10 +154,6 @@ public class HiveIcebergFilterFactory {
     }
   }
 
-  private static long timestampToDateInMicros(Timestamp timestamp) {
-    return DateTimeUtil.microsFromTimestamp(timestamp.toLocalDateTime());
-  }
-
   private static long dateToMicros(Date date) {
     return TimeUnit.MILLISECONDS.toMicros(date.toInstant().toEpochMilli());
   }
@@ -168,7 +163,6 @@ public class HiveIcebergFilterFactory {
   }
 
   private static long timestampToUnixEpoch(Timestamp timestamp) {
-    return TimeUnit.SECONDS.toMicros(timestamp.toInstant().getEpochSecond()) +
-            TimeUnit.NANOSECONDS.toMicros(timestamp.getNanos());
+    return DateTimeUtil.microsFromTimestamp(timestamp.toLocalDateTime());
   }
 }
