@@ -180,6 +180,10 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
   @Override
   public void endInput() {
+    // Flush the buffered data files into 'dataFilesPerCheckpoint' firstly.
+    dataFilesPerCheckpoint.put(Long.MAX_VALUE, ImmutableList.copyOf(dataFilesOfCurrentCheckpoint));
+    dataFilesOfCurrentCheckpoint.clear();
+
     commitUpToCheckpoint(Long.MAX_VALUE);
   }
 

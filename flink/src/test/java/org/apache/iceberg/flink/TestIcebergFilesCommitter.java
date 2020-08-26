@@ -30,6 +30,7 @@ import org.apache.flink.runtime.operators.testutils.MockEnvironment;
 import org.apache.flink.runtime.operators.testutils.MockEnvironmentBuilder;
 import org.apache.flink.runtime.operators.testutils.MockInputSplitProvider;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperatorFactory;
+import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperatorFactory;
 import org.apache.flink.streaming.api.operators.StreamOperator;
 import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
@@ -413,6 +414,28 @@ public class TestIcebergFilesCommitter {
         assertSnapshotSize(i + 1);
         assertMaxCommittedCheckpointId(jobId, checkpointId + 1);
       }
+    }
+  }
+
+  @Test
+  public void testBoundedStream() throws Exception {
+    JobID jobId = new JobID();
+    try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(jobId)) {
+      harness.setup();
+      harness.open();
+
+      assertSnapshotSize(0);
+      assertMaxCommittedCheckpointId(jobId, -1L);
+
+      List<RowData> tableRows = Lists.newArrayList(SimpleDataUtil.createRowData(1, "word-1"));
+
+      DataFile dataFile = writeDataFile("data-1", tableRows);
+      harness.processElement(dataFile, 1);
+      ((BoundedOneInput) harness.getOneInputOperator()).endInput();
+
+      SimpleDataUtil.assertTableRows(tablePath, tableRows);
+      assertSnapshotSize(1);
+      assertMaxCommittedCheckpointId(jobId, Long.MAX_VALUE);
     }
   }
 
