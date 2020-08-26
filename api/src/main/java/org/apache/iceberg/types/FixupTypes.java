@@ -1,48 +1,34 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
-package org.apache.iceberg.spark;
+package org.apache.iceberg.types;
 
 import java.util.List;
 import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types;
 
 /**
- * This is used to fix primitive types to match a table schema. Some types, like binary and fixed,
- * are converted to the same Spark type. Conversion back can produce only one, which may not be
- * correct. This uses a reference schema to override types that were lost in round-trip conversion.
+ * This is used to fix primitive types to match a table schema. This uses a reference schema to
+ * override types that were lost in round-trip conversion.
  */
-class FixupTypes extends TypeUtil.CustomOrderSchemaVisitor<Type> {
+public abstract class FixupTypes extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   private final Schema referenceSchema;
   private Type sourceType;
 
-  static Schema fixup(Schema schema, Schema referenceSchema) {
-    return new Schema(TypeUtil.visit(schema,
-        new FixupTypes(referenceSchema)).asStructType().fields());
-  }
-
-  private FixupTypes(Schema referenceSchema) {
+  public FixupTypes(Schema referenceSchema) {
     this.referenceSchema = referenceSchema;
     this.sourceType = referenceSchema.asStruct();
   }
@@ -156,20 +142,13 @@ class FixupTypes extends TypeUtil.CustomOrderSchemaVisitor<Type> {
       return primitive; // already correct
     }
 
-    switch (primitive.typeId()) {
-      case STRING:
-        if (sourceType.typeId() == Type.TypeID.UUID) {
-          return sourceType;
-        }
-        break;
-      case BINARY:
-        if (sourceType.typeId() == Type.TypeID.FIXED) {
-          return sourceType;
-        }
-        break;
-      default:
+    if (fixupPrimitive(primitive, sourceType)) {
+      return sourceType;
     }
+
     // nothing to fix up, let validation catch promotion errors
     return primitive;
   }
+
+  protected abstract boolean fixupPrimitive(Type.PrimitiveType type, Type source);
 }
