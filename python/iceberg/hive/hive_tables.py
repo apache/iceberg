@@ -25,23 +25,11 @@ from .hive_table_operations import HiveTableOperations
 
 
 class HiveTables(BaseMetastoreTables):
-    DOT = "."
+    _DOT = "."
     THRIFT_URIS = "hive.metastore.uris"
 
     def __init__(self, conf):
         super(HiveTables, self).__init__(conf)
-
-    def create(self, schema, table_identifier=None, spec=None, properties=None, database=None, table=None):
-        raise NotImplementedError()
-
-    def load(self, table_identifier):
-        parts = table_identifier.split(HiveTables.DOT)
-        if len(parts) == 2:
-            return super(HiveTables, self).load(database=parts[0], table=parts[1])
-        elif len(parts) == 1:
-            return super(HiveTables, self).load("default", table=parts[1])
-        else:
-            raise RuntimeError("Could not parse table identifier: %s" % table_identifier)
 
     def new_table_ops(self, conf, database, table):
         return HiveTableOperations(conf, self.get_client(), database, table)

@@ -15,20 +15,23 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from .partition_spec import PartitionSpec
+from iceberg.api.types import TypeID
 
-
-class Tables(object):
-
-    def create(self, schema, table_identifier, spec=None, properties=None, location=None):
-        raise NotImplementedError()
-
-    def load(self, table_identifier):
-        raise NotImplementedError()
-
-    @staticmethod
-    def default_args(spec=None, properties=None):
-        spec = spec if spec is not None else PartitionSpec.unpartitioned()
-        properties = properties if properties is not None else dict()
-
-        return spec, properties
+hive_types = {
+    TypeID.BOOLEAN: 'boolean',
+    TypeID.INTEGER: 'int',
+    TypeID.LONG: 'bigint',
+    TypeID.FLOAT: 'float',
+    TypeID.DOUBLE: 'double',
+    TypeID.DATE: 'date',
+    TypeID.TIME: 'string',
+    TypeID.TIMESTAMP: 'timestamp',
+    TypeID.STRING: 'string',
+    TypeID.UUID: 'string',
+    TypeID.FIXED: 'binary',
+    TypeID.BINARY: "binary",
+    TypeID.DECIMAL: None,
+    TypeID.STRUCT: None,
+    TypeID.LIST: None,
+    TypeID.MAP: None
+}

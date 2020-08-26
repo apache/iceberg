@@ -15,39 +15,51 @@
 # specific language governing permissions and limitations
 # under the License.
 
-
-from iceberg.api import Tables
-from iceberg.exceptions import NoSuchTableException
-
 from .filesystem_table_operations import FilesystemTableOperations
+from .. import TableOperations
 from ..table_metadata import TableMetadata
+from ...api import PartitionSpec, Schema, Table, Tables
+from ...exceptions import NoSuchTableException
 
 
 class FilesystemTables(Tables):
 
-    def __init__(self, conf=None):
+    def __init__(self: "FilesystemTables", conf: dict = None) -> None:
         self.conf = conf if conf is not None else dict()
 
-    def load(self, location):
+    def load(self: "FilesystemTables", table_identifier: str) -> Table:
         from ..base_table import BaseTable
-        ops = self.new_table_ops(location)
+        ops = self.new_table_ops(table_identifier)
         if ops.current() is None:
-            raise NoSuchTableException("Table does not exist at location: %s" % location)
+            raise NoSuchTableException("Table does not exist at location: %s" % table_identifier)
 
-        return BaseTable(ops, location)
+        return BaseTable(ops, table_identifier)
 
-    def create(self, schema, table_identifier=None, spec=None, properties=None, location=None):
+    def create(self: "FilesystemTables", schema: Schema, table_identifier: str, spec: PartitionSpec = None,
+               properties: dict = None, location: str = None) -> Table:
+        """
+        Create a new table on the filesystem.
+
+        Note: it is expected that the filesystem has atomic operations to ensure consistency for metadata updates.
+        Filesystems that don't have this guarantee could lead to data loss.
+
+        Location should always be None as the table location on disk is taken from `table_identifier`
+        """
         from ..base_table import BaseTable
-        spec, properties = super(FilesystemTables, self).default_args(spec, properties)
-        ops = self.new_table_ops(location)
+        if location:
+            raise RuntimeError("""location has to be None. Both table_identifier and location have been declared.
+             table_identifier: {} and location: {}""".format(table_identifier, location))
 
-        metadata = TableMetadata.new_table_metadata(ops, schema, spec, location, properties)
+        full_spec, properties = super(FilesystemTables, self).default_args(spec, properties)
+        ops = self.new_table_ops(table_identifier)
+
+        metadata = TableMetadata.new_table_metadata(ops, schema, full_spec, table_identifier, properties)
         ops.commit(None, metadata)
 
-        return BaseTable(ops, location)
+        return BaseTable(ops, table_identifier)
 
-    def new_table_ops(self, location):
-        if location is None:
-            raise RuntimeError("location cannot be None")
+    def new_table_ops(self: "FilesystemTables", table_identifier: str) -> TableOperations:
+        if table_identifier is None:
+            raise RuntimeError("table_identifier cannot be None")
 
-        return FilesystemTableOperations(location, self.conf)
+        return FilesystemTableOperations(table_identifier, self.conf)

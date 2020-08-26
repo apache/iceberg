@@ -1,3 +1,4 @@
+#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,21 +15,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+#
+import os
 
-from .partition_spec import PartitionSpec
+from iceberg.core.filesystem import FilesystemTables
 
 
-class Tables(object):
+def test_create_tables(base_scan_schema, base_scan_partition, tmpdir):
 
-    def create(self, schema, table_identifier, spec=None, properties=None, location=None):
-        raise NotImplementedError()
+    conf = {"hive.metastore.uris": 'thrift://hms:port',
+            "hive.metastore.warehouse.dir": tmpdir}
+    tables = FilesystemTables(conf)
+    table_location = os.path.join(str(tmpdir), "test", "test_123")
+    tables.create(base_scan_schema, table_location, base_scan_partition)
 
-    def load(self, table_identifier):
-        raise NotImplementedError()
-
-    @staticmethod
-    def default_args(spec=None, properties=None):
-        spec = spec if spec is not None else PartitionSpec.unpartitioned()
-        properties = properties if properties is not None else dict()
-
-        return spec, properties
+    tables.load(table_location)

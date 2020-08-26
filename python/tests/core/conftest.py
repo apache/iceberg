@@ -285,13 +285,19 @@ def base_scan_schema():
 
 
 @pytest.fixture(scope="session", params=["none", "one"])
-def ts_table(base_scan_schema, request):
+def base_scan_partition(base_scan_schema, request):
+    if request.param == "none":
+        spec = PartitionSpec.unpartitioned()
+    else:
+        spec = PartitionSpecBuilder(base_scan_schema).add(1, 1000, "id", "identity").build()
+    return spec
+
+
+@pytest.fixture(scope="session")
+def ts_table(base_scan_schema, base_scan_partition):
     with tempfile.TemporaryDirectory() as td:
-        if request.param == "none":
-            spec = PartitionSpec.unpartitioned()
-        else:
-            spec = PartitionSpecBuilder(base_scan_schema).add(1, 1000, "id", "identity").build()
-        return TestTables.create(td, "test-" + request.param, base_scan_schema, spec)
+        return TestTables.create(td, "test-" + str(len(base_scan_partition.fields)), base_scan_schema,
+                                 base_scan_partition)
 
 
 @pytest.fixture(scope="session")
@@ -300,7 +306,7 @@ def split_planning_table(base_scan_schema):
     tables = FilesystemTables()
 
     with tempfile.TemporaryDirectory() as td:
-        table = tables.create(base_scan_schema, location=td)
+        table = tables.create(base_scan_schema, table_identifier=td)
         table.properties().update({TableProperties.SPLIT_SIZE: "{}".format(128 * 1024 * 1024),
                                    TableProperties.SPLIT_OPEN_FILE_COST: "{}".format(4 * 1024 * 1024),
                                    TableProperties.SPLIT_LOOKBACK: "{}".format(2 ** 31 - 1)})
