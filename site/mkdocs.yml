@@ -49,8 +49,9 @@ nav:
   - User docs:
     - Getting Started: getting-started.md
     - Spark: spark.md
-    - Spark Structured Streaming: spark-structured-streaming.md
+    - Spark Streaming: spark-structured-streaming.md
     - Presto: presto.md
+    - Maintenance: maintenance.md
     - Configuration: configuration.md
     - Schemas: schemas.md
     - Partitioning: partitioning.md
