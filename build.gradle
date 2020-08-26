@@ -175,7 +175,6 @@ project(':iceberg-api') {
   dependencies {
     compile project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     testCompile "org.apache.avro:avro"
-    testCompile 'joda-time:joda-time'
   }
 }
 
