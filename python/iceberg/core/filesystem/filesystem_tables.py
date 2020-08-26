@@ -48,7 +48,7 @@ class FilesystemTables(Tables):
         from ..base_table import BaseTable
         if location:
             raise RuntimeError("""location has to be None. Both table_identifier and location have been declared.
-             table_identifier: %s and location: %s""".format(table_identifier, location))
+             table_identifier: {} and location: {}""".format(table_identifier, location))
 
         full_spec, properties = super(FilesystemTables, self).default_args(spec, properties)
         ops = self.new_table_ops(table_identifier)
