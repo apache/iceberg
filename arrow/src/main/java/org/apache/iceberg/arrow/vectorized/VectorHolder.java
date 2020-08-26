@@ -92,11 +92,11 @@ public class VectorHolder {
   }
 
   public static <T> VectorHolder constantHolder(int numRows, T constantValue) {
-    return new ConstantVectorHolder(numRows, constantValue);
+    return new ConstantVectorHolder<>(numRows, constantValue);
   }
 
   public static VectorHolder dummyHolder(int numRows) {
-    return new ConstantVectorHolder(numRows);
+    return new ConstantVectorHolder<>(numRows);
   }
 
   public boolean isDummy() {

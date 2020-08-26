@@ -25,7 +25,6 @@ import java.util.Map;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -127,7 +126,7 @@ class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     @Override
     public FileAppender<RowData> newAppender(OutputFile outputFile, FileFormat format) {
       // TODO MetricsConfig will be used for building parquet RowData writer.
-      MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
+      // MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
       try {
         switch (format) {
           case AVRO:

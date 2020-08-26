@@ -275,14 +275,12 @@ public class VectorizedSparkOrcReaders {
   private static class PrimitiveOrcColumnVector extends BaseOrcColumnVector {
     private final org.apache.orc.storage.ql.exec.vector.ColumnVector vector;
     private final OrcValueReader<?> primitiveValueReader;
-    private final long batchOffsetInFile;
 
     PrimitiveOrcColumnVector(Type type, int batchSize, org.apache.orc.storage.ql.exec.vector.ColumnVector vector,
                              OrcValueReader<?> primitiveValueReader, long batchOffsetInFile) {
       super(type, batchSize, vector);
       this.vector = vector;
       this.primitiveValueReader = primitiveValueReader;
-      this.batchOffsetInFile = batchOffsetInFile;
     }
 
     @Override
