@@ -363,10 +363,6 @@ project(':iceberg-hive') {
 }
 
 project(':iceberg-mr') {
-  apply plugin: 'com.github.johnrengelman.shadow'
-
-  tasks.jar.dependsOn tasks.shadowJar
-
   configurations {
     testCompile {
       exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
@@ -415,7 +411,29 @@ project(':iceberg-mr') {
       exclude group: 'org.apache.calcite.avatica'
     }
   }
+}
 
+project(':iceberg-mr-runtime') {
+  apply plugin: 'com.github.johnrengelman.shadow'
+
+  tasks.jar.dependsOn tasks.shadowJar
+
+  configurations {
+    compile {
+      exclude group: 'com.github.stephenc.findbugs'
+      exclude group: 'commons-pool'
+      exclude group: 'javax.xml.bind'
+      exclude group: 'javax.annotation'
+      exclude group: 'org.apache.commons'
+      exclude group: 'org.slf4j'
+      exclude group: 'org.xerial.snappy'
+    }
+  }
+
+  dependencies {
+    compile project(':iceberg-mr')
+  }
+  
   shadowJar {
     configurations = [project.configurations.compile]
 
@@ -427,16 +445,24 @@ project(':iceberg-mr') {
       include 'NOTICE'
     }
 
-    dependencies {
-      include(dependency('com.github.ben-manes.caffeine:caffeine:'))
-      include(dependency('org.apache.avro:avro:'))
-      include(dependency('org.apache.iceberg::'))
-      include(dependency('org.apache.parquet::'))
-    }
-    
+    // Relocate dependencies to avoid conflicts
     relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
     relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
+    
+    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
+    relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
+    relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
+    relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
+    relocate 'shaded.parquet', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
+    relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
+    relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
+    relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
 
+    classifier null
+  }
+
+  jar {
+    enabled = false
   }
 }
 
