@@ -41,7 +41,7 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public class TestRemoveSnapshots extends TableTestBase {
 
-  private final static TestClock testClock = new TestClock();
+  private static final TestClock testClock = new TestClock();
 
   @Parameterized.Parameters
   public static Object[][] parameters() {
