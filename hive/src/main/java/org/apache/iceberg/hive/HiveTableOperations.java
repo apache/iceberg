@@ -130,6 +130,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     }
 
     refreshFromMetadataLocation(metadataLocation);
+    LOG.debug("Refreshed [{}]", fullName);
   }
 
   @Override
@@ -143,9 +144,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       // TODO add lock heart beating for cases where default lock timeout is too low.
       Table tbl;
       if (base != null) {
+        LOG.info("Committing existing table [{}]", fullName);
         tbl = metaClients.run(client -> client.getTable(database, tableName));
         tbl.setSd(storageDescriptor(metadata)); // set to pickup any schema changes
       } else {
+        LOG.info("Committing new table [{}]", fullName);
         final long currentTimeMillis = System.currentTimeMillis();
         tbl = new Table(tableName,
             database,
@@ -187,6 +190,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         });
       }
       threw = false;
+      LOG.info("Commit successful for [{}] with new metadata location [{}]", fullName, newMetadataLocation);
+
     } catch (org.apache.hadoop.hive.metastore.api.AlreadyExistsException e) {
       throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);
 

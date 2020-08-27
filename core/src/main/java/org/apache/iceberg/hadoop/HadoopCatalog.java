@@ -324,4 +324,9 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   @Override
   public void close() throws IOException {
   }
+
+  @Override
+  public String toString() {
+    return "HadoopCatalog [name=" + catalogName + ", location=" + warehouseLocation + "]";
+  }
 }

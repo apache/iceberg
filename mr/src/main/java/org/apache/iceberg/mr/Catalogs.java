@@ -32,8 +32,11 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveCatalogs;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class Catalogs {
+  private static final Logger LOG = LoggerFactory.getLogger(Catalogs.class);
 
   private static final String HADOOP = "hadoop";
   private static final String HIVE = "hive";
@@ -65,13 +68,17 @@ public final class Catalogs {
   private static Table loadTable(Configuration conf, String tableIdentifier, String tableLocation) {
     Optional<Catalog> catalog = loadCatalog(conf);
 
+    Table table;
     if (catalog.isPresent()) {
       Preconditions.checkArgument(tableIdentifier != null, "Table identifier not set");
-      return catalog.get().loadTable(TableIdentifier.parse(tableIdentifier));
+      table = catalog.get().loadTable(TableIdentifier.parse(tableIdentifier));
+    } else {
+      Preconditions.checkArgument(tableLocation != null, "Table location not set");
+      table = new HadoopTables(conf).load(tableLocation);
     }
 
-    Preconditions.checkArgument(tableLocation != null, "Table location not set");
-    return new HadoopTables(conf).load(tableLocation);
+    LOG.info("Table loaded by catalog: [{}]", table);
+    return table;
   }
 
   @VisibleForTesting
@@ -83,28 +90,33 @@ public final class Catalogs {
               .impl(catalogLoaderClass)
               .build()
               .newInstance();
-      return Optional.of(loader.load(conf));
+      Catalog catalog = loader.load(conf);
+      LOG.info("Dynamic catalog is used: [{}]", catalog);
+      return Optional.of(catalog);
     }
 
     String catalogName = conf.get(InputFormatConfig.CATALOG);
 
     if (catalogName != null) {
+      Catalog catalog;
       switch (catalogName.toLowerCase()) {
         case HADOOP:
           String warehouseLocation = conf.get(InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION);
 
-          if (warehouseLocation != null) {
-            return Optional.of(new HadoopCatalog(conf, warehouseLocation));
-          }
-
-          return Optional.of(new HadoopCatalog(conf));
+          catalog = (warehouseLocation != null) ? new HadoopCatalog(conf, warehouseLocation) : new HadoopCatalog(conf);
+          break;
         case HIVE:
-          return Optional.of(HiveCatalogs.loadCatalog(conf));
+          catalog = HiveCatalogs.loadCatalog(conf);
+          break;
         default:
           throw new NoSuchNamespaceException("Catalog " + catalogName + " is not supported.");
       }
+
+      LOG.info("Catalog is used: [{}]", catalog);
+      return Optional.of(catalog);
     }
 
+    LOG.info("No catalog is used");
     return Optional.empty();
   }
 }
