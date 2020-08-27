@@ -65,7 +65,11 @@ abstract class TimestampTransform implements Transform<Long, Integer> {
   private TimestampTransform(ChronoUnit granularity, String name, ZoneOffset zoneOffset) {
     this.granularity = granularity;
     this.name = name;
-    this.zoneOffset = zoneOffset;
+    if (zoneOffset == null) {
+      this.zoneOffset = ZoneOffset.UTC;
+    } else {
+      this.zoneOffset = zoneOffset;
+    }
   }
 
   @Override

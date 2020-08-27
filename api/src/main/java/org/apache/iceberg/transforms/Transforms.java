@@ -112,13 +112,13 @@ public class Transforms {
    */
   @SuppressWarnings("unchecked")
   public static <T> Transform<T, Integer> year(Type type) {
-    return year(type, ZoneOffset.UTC);
+    return year(type, null);
   }
 
   public static <T> Transform<T, Integer> year(Type type, ZoneOffset zoneOffset) {
     switch (type.typeId()) {
       case DATE:
-        checkZoneOffsetIsUTC(zoneOffset);
+        checkZoneOffsetIsNull(zoneOffset);
         return (Transform<T, Integer>) Dates.YEAR;
       case TIMESTAMP:
         return (Transform<T, Integer>) TimestampTransform.get(type, "YEAR", zoneOffset);
@@ -137,13 +137,13 @@ public class Transforms {
    */
   @SuppressWarnings("unchecked")
   public static <T> Transform<T, Integer> month(Type type) {
-    return month(type, ZoneOffset.UTC);
+    return month(type, null);
   }
 
   public static <T> Transform<T, Integer> month(Type type, ZoneOffset zoneOffset) {
     switch (type.typeId()) {
       case DATE:
-        checkZoneOffsetIsUTC(zoneOffset);
+        checkZoneOffsetIsNull(zoneOffset);
         return (Transform<T, Integer>) Dates.MONTH;
       case TIMESTAMP:
         return (Transform<T, Integer>) TimestampTransform.get(type, "MONTH", zoneOffset);
@@ -162,13 +162,13 @@ public class Transforms {
    */
   @SuppressWarnings("unchecked")
   public static <T> Transform<T, Integer> day(Type type) {
-    return day(type, ZoneOffset.UTC);
+    return day(type, null);
   }
 
   public static <T> Transform<T, Integer> day(Type type, ZoneOffset zoneOffset) {
     switch (type.typeId()) {
       case DATE:
-        checkZoneOffsetIsUTC(zoneOffset);
+        checkZoneOffsetIsNull(zoneOffset);
         return (Transform<T, Integer>) Dates.DAY;
       case TIMESTAMP:
         return (Transform<T, Integer>) TimestampTransform.get(type, "DAY", zoneOffset);
@@ -187,7 +187,7 @@ public class Transforms {
    */
   @SuppressWarnings("unchecked")
   public static <T> Transform<T, Integer> hour(Type type) {
-    return hour(type, ZoneOffset.UTC);
+    return hour(type, null);
   }
 
   public static <T> Transform<T, Integer> hour(Type type, ZoneOffset zoneOffset) {
@@ -230,9 +230,9 @@ public class Transforms {
     return VoidTransform.get();
   }
 
-  private static void checkZoneOffsetIsUTC(ZoneOffset zoneOffset) {
-    Preconditions.checkArgument(zoneOffset == null || zoneOffset.getTotalSeconds() == 0,
-        "Expect zone offset is null or UTC, but is", zoneOffset);
+  private static void checkZoneOffsetIsNull(ZoneOffset zoneOffset) {
+    Preconditions.checkArgument(zoneOffset == null,
+        "Expect zone offset is null, but is", zoneOffset);
   }
 
 }
