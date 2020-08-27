@@ -68,15 +68,15 @@ public class FlinkParquetWriters {
     }
 
     @Override
-    public ParquetValueWriter<?> message(RowType sStruct, MessageType message, List<ParquetValueWriter<?>> fields) {
+    public ParquetValueWriter<?> message(LogicalType sStruct, MessageType message, List<ParquetValueWriter<?>> fields) {
       return struct(sStruct, message.asGroupType(), fields);
     }
 
     @Override
-    public ParquetValueWriter<?> struct(RowType sStruct, GroupType struct,
+    public ParquetValueWriter<?> struct(LogicalType fStruct, GroupType struct,
                                         List<ParquetValueWriter<?>> fieldWriters) {
       List<Type> fields = struct.getFields();
-      List<RowField> flinkFields = sStruct.getFields();
+      List<RowField> flinkFields = ((RowType) fStruct).getFields();
       List<ParquetValueWriter<?>> writers = Lists.newArrayListWithExpectedSize(fieldWriters.size());
       List<LogicalType> flinkTypes = Lists.newArrayList();
       for (int i = 0; i < fields.size(); i += 1) {
@@ -88,7 +88,7 @@ public class FlinkParquetWriters {
     }
 
     @Override
-    public ParquetValueWriter<?> list(ArrayType sArray, GroupType array, ParquetValueWriter<?> elementWriter) {
+    public ParquetValueWriter<?> list(LogicalType fArray, GroupType array, ParquetValueWriter<?> elementWriter) {
       GroupType repeated = array.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
@@ -97,11 +97,11 @@ public class FlinkParquetWriters {
 
       return new ArrayDataWriter<>(repeatedD, repeatedR,
           newOption(repeated.getType(0), elementWriter),
-          sArray.getElementType());
+          ((ArrayType) fArray).getElementType());
     }
 
     @Override
-    public ParquetValueWriter<?> map(MapType sMap, GroupType map,
+    public ParquetValueWriter<?> map(LogicalType fMap, GroupType map,
                                      ParquetValueWriter<?> keyWriter, ParquetValueWriter<?> valueWriter) {
       GroupType repeatedKeyValue = map.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
@@ -112,7 +112,7 @@ public class FlinkParquetWriters {
       return new MapDataWriter<>(repeatedD, repeatedR,
           newOption(repeatedKeyValue.getType(0), keyWriter),
           newOption(repeatedKeyValue.getType(1), valueWriter),
-          sMap.getKeyType(), sMap.getValueType());
+          ((MapType) fMap).getKeyType(), ((MapType) fMap).getValueType());
     }
 
 
