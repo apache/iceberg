@@ -41,17 +41,17 @@ abstract class TimestampTransform implements Transform<Long, Integer> {
   private ZoneOffset zoneOffset;
 
   @SuppressWarnings("unchecked")
-  static TimestampTransform get(Type type, String name) {
+  static TimestampTransform get(Type type, String name, ZoneOffset zoneOffset) {
     if (type.typeId() == Type.TypeID.TIMESTAMP) {
       switch (name.toUpperCase()) {
         case "YEAR":
-          return new TimestampTransform.TimestampYear(name.toLowerCase());
+          return new TimestampTransform.TimestampYear(name.toLowerCase(), zoneOffset);
         case "MONTH":
-          return new TimestampTransform.TimestampMonth(name.toLowerCase());
+          return new TimestampTransform.TimestampMonth(name.toLowerCase(), zoneOffset);
         case "DAY":
-          return new TimestampTransform.TimestampDay(name.toLowerCase());
+          return new TimestampTransform.TimestampDay(name.toLowerCase(), zoneOffset);
         case "HOUR":
-          return new TimestampTransform.TimestampHour(name.toLowerCase());
+          return new TimestampTransform.TimestampHour(name.toLowerCase(), zoneOffset);
         default:
           throw new UnsupportedOperationException("Unsupported timestamp method: " + name);
       }
@@ -60,15 +60,10 @@ abstract class TimestampTransform implements Transform<Long, Integer> {
         "TimestampTransform cannot transform type: " + type);
   }
 
-  private TimestampTransform(ChronoUnit granularity, String name) {
+  private TimestampTransform(ChronoUnit granularity, String name, ZoneOffset zoneOffset) {
     this.granularity = granularity;
     this.name = name;
-    this.zoneOffset = ZoneOffset.UTC;
-  }
-
-  public TimestampTransform zoneOffset(ZoneOffset newZoneOffset) {
-    this.zoneOffset = newZoneOffset;
-    return this;
+    this.zoneOffset = zoneOffset;
   }
 
   @Override
@@ -183,26 +178,26 @@ abstract class TimestampTransform implements Transform<Long, Integer> {
   }
 
   private static class TimestampYear extends TimestampTransform {
-    private TimestampYear(String name) {
-      super(ChronoUnit.YEARS, name);
+    private TimestampYear(String name, ZoneOffset zoneOffset) {
+      super(ChronoUnit.YEARS, name, zoneOffset);
     }
   }
 
   private static class TimestampMonth extends TimestampTransform {
-    private TimestampMonth(String name) {
-      super(ChronoUnit.MONTHS, name);
+    private TimestampMonth(String name, ZoneOffset zoneOffset) {
+      super(ChronoUnit.MONTHS, name, zoneOffset);
     }
   }
 
   private static class TimestampDay extends TimestampTransform {
-    private TimestampDay(String name) {
-      super(ChronoUnit.DAYS, name);
+    private TimestampDay(String name, ZoneOffset zoneOffset) {
+      super(ChronoUnit.DAYS, name, zoneOffset);
     }
   }
 
   private static class TimestampHour extends TimestampTransform {
-    private TimestampHour(String name) {
-      super(ChronoUnit.HOURS, name);
+    private TimestampHour(String name, ZoneOffset zoneOffset) {
+      super(ChronoUnit.HOURS, name, zoneOffset);
     }
   }
 }

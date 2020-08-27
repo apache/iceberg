@@ -23,6 +23,7 @@ import java.time.ZoneOffset;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -66,10 +67,9 @@ public class Transforms {
         if (timeZoneOffset.matches()) {
           String name = timeZoneOffset.group(1);
           String offsetId = timeZoneOffset.group(2);
-          return TimestampTransform.get(type, name.toLowerCase(Locale.ENGLISH))
-              .zoneOffset(ZoneOffset.of(offsetId));
+          return TimestampTransform.get(type, name.toLowerCase(Locale.ENGLISH), ZoneOffset.of(offsetId));
         } else {
-          return TimestampTransform.get(type, transform.toLowerCase(Locale.ENGLISH));
+          return TimestampTransform.get(type, transform.toLowerCase(Locale.ENGLISH), ZoneOffset.UTC);
         }
       } catch (IllegalArgumentException ignored) {
         // fall through to return unknown transform
@@ -122,7 +122,7 @@ public class Transforms {
         checkZoneOffsetIsUTC(zoneOffset);
         return (Transform<T, Integer>) Dates.YEAR;
       case TIMESTAMP:
-        return (Transform<T, Integer>) TimestampTransform.get(type, "YEAR").zoneOffset(zoneOffset);
+        return (Transform<T, Integer>) TimestampTransform.get(type, "YEAR", zoneOffset);
       default:
         throw new IllegalArgumentException(
             "Cannot partition type " + type + " by year");
@@ -147,7 +147,7 @@ public class Transforms {
         checkZoneOffsetIsUTC(zoneOffset);
         return (Transform<T, Integer>) Dates.MONTH;
       case TIMESTAMP:
-        return (Transform<T, Integer>) TimestampTransform.get(type, "MONTH").zoneOffset(zoneOffset);
+        return (Transform<T, Integer>) TimestampTransform.get(type, "MONTH", zoneOffset);
       default:
         throw new IllegalArgumentException(
             "Cannot partition type " + type + " by month");
@@ -172,7 +172,7 @@ public class Transforms {
         checkZoneOffsetIsUTC(zoneOffset);
         return (Transform<T, Integer>) Dates.DAY;
       case TIMESTAMP:
-        return (Transform<T, Integer>) TimestampTransform.get(type, "DAY").zoneOffset(zoneOffset);
+        return (Transform<T, Integer>) TimestampTransform.get(type, "DAY", zoneOffset);
       default:
         throw new IllegalArgumentException(
             "Cannot partition type " + type + " by day");
@@ -194,7 +194,7 @@ public class Transforms {
   public static <T> Transform<T, Integer> hour(Type type, ZoneOffset zoneOffset) {
     Preconditions.checkArgument(type.typeId() == Type.TypeID.TIMESTAMP,
         "Cannot partition type %s by hour", type);
-    return (Transform<T, Integer>) TimestampTransform.get(type, "HOUR").zoneOffset(zoneOffset);
+    return (Transform<T, Integer>) TimestampTransform.get(type, "HOUR", zoneOffset);
   }
 
   /**

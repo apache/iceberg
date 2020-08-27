@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
+
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -319,6 +321,7 @@ public class PartitionSpec implements Serializable {
     private Map<Integer, PartitionField> timeFields = Maps.newHashMap();
     private int specId = 0;
     private final AtomicInteger lastAssignedFieldId = new AtomicInteger(PARTITION_DATA_ID_START - 1);
+    private static final Pattern OFFSET_ID_PATTERN = Pattern.compile("(([+-])\\d{2}:\\d{2})");
 
     private Builder(Schema schema) {
       this.schema = schema;
@@ -358,6 +361,11 @@ public class PartitionSpec implements Serializable {
       timeFields.put(field.sourceId(), field);
     }
 
+    private void checkOffsetId(String offsetId) {
+      Preconditions.checkArgument(OFFSET_ID_PATTERN.matcher(offsetId).matches(),
+          "Expect offsetId is +HH:mm or -HH:mm, but is: %s", offsetId);
+    }
+
     public Builder withSpecId(int newSpecId) {
       this.specId = newSpecId;
       return this;
@@ -383,6 +391,7 @@ public class PartitionSpec implements Serializable {
 
     public Builder year(String sourceName, String targetName, String offsetId) {
       checkAndAddPartitionName(targetName);
+      checkOffsetId(offsetId);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), nextFieldId(), targetName,
@@ -402,6 +411,7 @@ public class PartitionSpec implements Serializable {
 
     public Builder month(String sourceName, String targetName, String offsetId) {
       checkAndAddPartitionName(targetName);
+      checkOffsetId(offsetId);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), nextFieldId(), targetName,
@@ -421,6 +431,7 @@ public class PartitionSpec implements Serializable {
 
     public Builder day(String sourceName, String targetName, String offsetId) {
       checkAndAddPartitionName(targetName);
+      checkOffsetId(offsetId);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), nextFieldId(), targetName,
@@ -440,6 +451,7 @@ public class PartitionSpec implements Serializable {
 
     public Builder hour(String sourceName, String targetName, String offsetId) {
       checkAndAddPartitionName(targetName);
+      checkOffsetId(offsetId);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), nextFieldId(), targetName,
