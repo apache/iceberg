@@ -24,9 +24,6 @@ import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types;
 
 /**
  * This is used to fix primitive types to match a table schema. This uses a reference schema to
