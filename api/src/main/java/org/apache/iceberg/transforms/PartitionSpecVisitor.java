@@ -72,7 +72,7 @@ public interface PartitionSpecVisitor<T> {
 
   static boolean isTimestamp(Transform<?, ?> transform, ChronoUnit chronoUnit) {
     if (transform instanceof TimestampTransform) {
-      return ((TimestampTransform) transform).getGranularity() == chronoUnit;
+      return ((TimestampTransform) transform).granularity() == chronoUnit;
     }
     return false;
   }

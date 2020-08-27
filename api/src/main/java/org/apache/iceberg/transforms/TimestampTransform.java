@@ -175,7 +175,7 @@ abstract class TimestampTransform implements Transform<Long, Integer> {
     return Objects.hashCode(granularity, name, zoneOffset);
   }
 
-  public ChronoUnit getGranularity() {
+  public ChronoUnit granularity() {
     return this.granularity;
   }
 
