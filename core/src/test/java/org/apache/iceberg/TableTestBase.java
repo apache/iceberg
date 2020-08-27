@@ -110,22 +110,18 @@ public class TableTestBase {
   public TestTables.TestTable table = null;
 
   protected final int formatVersion;
-  protected final Clock clock;
   @SuppressWarnings("checkstyle:MemberName")
   protected final Assertions V1Assert;
   @SuppressWarnings("checkstyle:MemberName")
   protected final Assertions V2Assert;
 
+  private final Clock clock;
 
   public TableTestBase(int formatVersion) {
-    this(formatVersion, Clock.systemDefaultZone());
-  }
-
-  public TableTestBase(int formatVersion, Clock clock) {
     this.formatVersion = formatVersion;
-    this.clock = clock;
     this.V1Assert = new Assertions(1, formatVersion);
     this.V2Assert = new Assertions(2, formatVersion);
+    this.clock = Clock.systemDefaultZone();
   }
 
   @Before
@@ -151,8 +147,12 @@ public class TableTestBase {
         !name.startsWith("snap") && Files.getFileExtension(name).equalsIgnoreCase("avro")));
   }
 
+  public Clock clock() {
+    return clock;
+  }
+
   TestTables.TestTable create(Schema schema, PartitionSpec spec) {
-    return TestTables.create(tableDir, "test", schema, spec, formatVersion, clock);
+    return TestTables.create(tableDir, "test", schema, spec, formatVersion, clock());
   }
 
   TestTables.TestTable load() {

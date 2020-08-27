@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -41,7 +42,7 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public class TestRemoveSnapshots extends TableTestBase {
 
-  private static final TestClock testClock = new TestClock();
+  private final TestClock testClock = new TestClock();
 
   @Parameterized.Parameters
   public static Object[][] parameters() {
@@ -52,7 +53,12 @@ public class TestRemoveSnapshots extends TableTestBase {
   }
 
   public TestRemoveSnapshots(int formatVersion) {
-    super(formatVersion, testClock);
+    super(formatVersion);
+  }
+
+  @Override
+  public Clock clock() {
+    return testClock;
   }
 
   @Test
