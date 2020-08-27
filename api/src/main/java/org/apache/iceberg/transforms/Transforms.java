@@ -66,9 +66,9 @@ public class Transforms {
         if (timeZoneOffset.matches()) {
           String name = timeZoneOffset.group(1);
           String offsetId = timeZoneOffset.group(2);
-          return TimestampTransform.get(type, name.toLowerCase(Locale.ENGLISH), ZoneOffset.of(offsetId));
+          return TimestampTransform.get(type, name, ZoneOffset.of(offsetId));
         } else {
-          return TimestampTransform.get(type, transform.toLowerCase(Locale.ENGLISH), ZoneOffset.UTC);
+          return TimestampTransform.get(type, transform, ZoneOffset.UTC);
         }
       } catch (IllegalArgumentException ignored) {
         // fall through to return unknown transform
