@@ -23,6 +23,7 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.TimeZone;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Literal;
@@ -126,16 +127,27 @@ public class TestTimestamps {
         Types.NestedField.required(1, "id", Types.LongType.get()),
         Types.NestedField.required(2, "ts", Types.TimestampType.withZone())
     );
+    String offsetId = "Z";
 
-    try {
-      PartitionSpec.builderFor(schema).hour("ts", "hour", "Z").build();
-      PartitionSpec.builderFor(schema).day("ts", "day", "Z").build();
-      PartitionSpec.builderFor(schema).month("ts", "month", "Z").build();
-      PartitionSpec.builderFor(schema).year("ts", "year", "Z").build();
-    } catch (IllegalArgumentException e) {
-      Assert.assertEquals("Expect offsetId is null or +HH:mm or -HH:mm, but is: Z",
-          e.getMessage());
-    }
+    AssertHelpers.assertThrows("should throw IllegalArgumentException",
+        IllegalArgumentException.class,
+        "Expect offsetId is null or +HH:mm or -HH:mm, but is:",
+        () -> PartitionSpec.builderFor(schema).hour("ts", "hour", offsetId).build());
+
+    AssertHelpers.assertThrows("should throw IllegalArgumentException",
+        IllegalArgumentException.class,
+        "Expect offsetId is null or +HH:mm or -HH:mm, but is:",
+        () -> PartitionSpec.builderFor(schema).day("ts", "day", offsetId).build());
+
+    AssertHelpers.assertThrows("should throw IllegalArgumentException",
+        IllegalArgumentException.class,
+        "Expect offsetId is null or +HH:mm or -HH:mm, but is:",
+        () -> PartitionSpec.builderFor(schema).month("ts", "month", offsetId).build());
+
+    AssertHelpers.assertThrows("should throw IllegalArgumentException",
+        IllegalArgumentException.class,
+        "Expect offsetId is null or +HH:mm or -HH:mm, but is:",
+        () -> PartitionSpec.builderFor(schema).year("ts", "year", offsetId).build());
   }
 
   @Test
