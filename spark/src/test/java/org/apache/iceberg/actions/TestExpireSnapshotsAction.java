@@ -1034,11 +1034,12 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     Assert.assertEquals("Table does not have 1 snapshot after expiration", 1, Iterables.size(table.snapshots()));
 
     int jobsAfter = spark.sparkContext().dagScheduler().nextJobId().get();
+    int totalJobsRun = jobsAfter - jobsBefore;
 
     checkExpirationResults(1L, 1L, 2L, results);
 
-    int expectedBroadcastJobs = 3;
-    Assert.assertEquals("Expected to run spark.sql.shuffle.partitions jobs when using local iterator",
-        SHUFFLE_PARTITIONS + expectedBroadcastJobs, jobsAfter - jobsBefore);
+    Assert.assertTrue(
+        String.format("Expected more than %d jobs when using local iterator, ran %d", SHUFFLE_PARTITIONS, totalJobsRun),
+        totalJobsRun > SHUFFLE_PARTITIONS);
   }
 }
