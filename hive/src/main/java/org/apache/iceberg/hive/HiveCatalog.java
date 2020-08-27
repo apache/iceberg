@@ -182,7 +182,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
         return null;
       });
 
-      LOG.info("Renamed table form: [{}], to: [{}]", from, to);
+      LOG.info("Renamed table from: [{}], to: [{}]", from, to);
 
     } catch (NoSuchObjectException e) {
       throw new NoSuchTableException("Table does not exist: %s", from);
