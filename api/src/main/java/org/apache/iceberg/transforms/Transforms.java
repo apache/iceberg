@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.transforms;
 
-import java.time.ZoneOffset;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -66,9 +65,9 @@ public class Transforms {
         if (timeZoneOffset.matches()) {
           String name = timeZoneOffset.group(1);
           String offsetId = timeZoneOffset.group(2);
-          return TimestampTransform.get(type, name, ZoneOffset.of(offsetId));
+          return TimestampTransform.get(type, name, offsetId);
         } else {
-          return TimestampTransform.get(type, transform, ZoneOffset.UTC);
+          return TimestampTransform.get(type, transform, null);
         }
       } catch (IllegalArgumentException ignored) {
         // fall through to return unknown transform
@@ -115,13 +114,13 @@ public class Transforms {
     return year(type, null);
   }
 
-  public static <T> Transform<T, Integer> year(Type type, ZoneOffset zoneOffset) {
+  public static <T> Transform<T, Integer> year(Type type, String offsetId) {
     switch (type.typeId()) {
       case DATE:
-        checkZoneOffsetIsNull(zoneOffset);
+        checkOffsetIdIsNull(offsetId);
         return (Transform<T, Integer>) Dates.YEAR;
       case TIMESTAMP:
-        return (Transform<T, Integer>) TimestampTransform.get(type, "YEAR", zoneOffset);
+        return (Transform<T, Integer>) TimestampTransform.get(type, "YEAR", offsetId);
       default:
         throw new IllegalArgumentException(
             "Cannot partition type " + type + " by year");
@@ -140,13 +139,13 @@ public class Transforms {
     return month(type, null);
   }
 
-  public static <T> Transform<T, Integer> month(Type type, ZoneOffset zoneOffset) {
+  public static <T> Transform<T, Integer> month(Type type, String offsetId) {
     switch (type.typeId()) {
       case DATE:
-        checkZoneOffsetIsNull(zoneOffset);
+        checkOffsetIdIsNull(offsetId);
         return (Transform<T, Integer>) Dates.MONTH;
       case TIMESTAMP:
-        return (Transform<T, Integer>) TimestampTransform.get(type, "MONTH", zoneOffset);
+        return (Transform<T, Integer>) TimestampTransform.get(type, "MONTH", offsetId);
       default:
         throw new IllegalArgumentException(
             "Cannot partition type " + type + " by month");
@@ -165,13 +164,13 @@ public class Transforms {
     return day(type, null);
   }
 
-  public static <T> Transform<T, Integer> day(Type type, ZoneOffset zoneOffset) {
+  public static <T> Transform<T, Integer> day(Type type, String offsetId) {
     switch (type.typeId()) {
       case DATE:
-        checkZoneOffsetIsNull(zoneOffset);
+        checkOffsetIdIsNull(offsetId);
         return (Transform<T, Integer>) Dates.DAY;
       case TIMESTAMP:
-        return (Transform<T, Integer>) TimestampTransform.get(type, "DAY", zoneOffset);
+        return (Transform<T, Integer>) TimestampTransform.get(type, "DAY", offsetId);
       default:
         throw new IllegalArgumentException(
             "Cannot partition type " + type + " by day");
@@ -190,10 +189,10 @@ public class Transforms {
     return hour(type, null);
   }
 
-  public static <T> Transform<T, Integer> hour(Type type, ZoneOffset zoneOffset) {
+  public static <T> Transform<T, Integer> hour(Type type, String offsetId) {
     Preconditions.checkArgument(type.typeId() == Type.TypeID.TIMESTAMP,
         "Cannot partition type %s by hour", type);
-    return (Transform<T, Integer>) TimestampTransform.get(type, "HOUR", zoneOffset);
+    return (Transform<T, Integer>) TimestampTransform.get(type, "HOUR", offsetId);
   }
 
   /**
@@ -230,9 +229,9 @@ public class Transforms {
     return VoidTransform.get();
   }
 
-  private static void checkZoneOffsetIsNull(ZoneOffset zoneOffset) {
-    Preconditions.checkArgument(zoneOffset == null,
-        "Expect zone offset is null, but is", zoneOffset);
+  private static void checkOffsetIdIsNull(String offsetId) {
+    Preconditions.checkArgument(offsetId == null,
+        "Expect offsetId is null, but is", offsetId);
   }
 
 }

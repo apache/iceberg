@@ -20,10 +20,11 @@
 package org.apache.iceberg.transforms;
 
 import java.text.SimpleDateFormat;
-import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.TimeZone;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -88,22 +89,22 @@ public class TestTimestamps {
         "+10:00", "+11:00"};
 
     Arrays.stream(timeZoneArray).forEach(offsetId -> {
-      Transform<Long, Integer> year = Transforms.year(type, ZoneOffset.of(offsetId));
+      Transform<Long, Integer> year = Transforms.year(type, offsetId);
       Assert.assertEquals("Should produce the correct Human string",
           getExpectedStringWithOffsetId(date.value(), offsetId, "yyyy"),
           year.toHumanString(year.apply(date.value())));
 
-      Transform<Long, Integer> month = Transforms.month(type, ZoneOffset.of(offsetId));
+      Transform<Long, Integer> month = Transforms.month(type, offsetId);
       Assert.assertEquals("Should produce the correct Human string",
           getExpectedStringWithOffsetId(date.value(), offsetId, "yyyy-MM"),
           month.toHumanString(month.apply(date.value())));
 
-      Transform<Long, Integer> day = Transforms.day(type, ZoneOffset.of(offsetId));
+      Transform<Long, Integer> day = Transforms.day(type, offsetId);
       Assert.assertEquals("Should produce the correct Human string",
           getExpectedStringWithOffsetId(date.value(), offsetId, "yyyy-MM-dd"),
           day.toHumanString(day.apply(date.value())));
 
-      Transform<Long, Integer> hour = Transforms.hour(type, ZoneOffset.of(offsetId));
+      Transform<Long, Integer> hour = Transforms.hour(type, offsetId);
       Assert.assertEquals("Should produce the correct Human string",
           getExpectedStringWithOffsetId(date.value(), offsetId, "yyyy-MM-dd-HH"),
           hour.toHumanString(hour.apply(date.value())));
@@ -117,6 +118,24 @@ public class TestTimestamps {
     calendar.setTimeInMillis(millis / 1000);
     calendar.add(Calendar.HOUR_OF_DAY, Integer.valueOf(offsetId.split("\\:")[0]));
     return utcFormater.format(calendar.getTime());
+  }
+
+  @Test
+  public void testIllegalOffsetId() {
+    Schema schema = new Schema(
+        Types.NestedField.required(1, "id", Types.LongType.get()),
+        Types.NestedField.required(2, "ts", Types.TimestampType.withZone())
+    );
+
+    try {
+      PartitionSpec.builderFor(schema).hour("ts", "hour", "Z").build();
+      PartitionSpec.builderFor(schema).day("ts", "day", "Z").build();
+      PartitionSpec.builderFor(schema).month("ts", "month", "Z").build();
+      PartitionSpec.builderFor(schema).year("ts", "year", "Z").build();
+    } catch (IllegalArgumentException e) {
+      Assert.assertEquals("Expect offsetId is null or +HH:mm or -HH:mm, but is: Z",
+          e.getMessage());
+    }
   }
 
   @Test

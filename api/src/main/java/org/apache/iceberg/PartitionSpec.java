@@ -22,7 +22,6 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
-import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -361,8 +360,8 @@ public class PartitionSpec implements Serializable {
     }
 
     private void checkOffsetId(String offsetId) {
-      Preconditions.checkArgument(OFFSET_ID_PATTERN.matcher(offsetId).matches(),
-          "Expect offsetId is +HH:mm or -HH:mm, but is: %s", offsetId);
+      Preconditions.checkArgument(offsetId == null || OFFSET_ID_PATTERN.matcher(offsetId).matches(),
+          "Expect offsetId is null or +HH:mm or -HH:mm, but is: %s", offsetId);
     }
 
     public Builder withSpecId(int newSpecId) {
@@ -394,14 +393,14 @@ public class PartitionSpec implements Serializable {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), nextFieldId(), targetName,
-          Transforms.year(sourceColumn.type(), ZoneOffset.of(offsetId)));
+          Transforms.year(sourceColumn.type(), offsetId));
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
     }
 
     public Builder year(String sourceName, String targetName) {
-      return year(sourceName, targetName, "Z");
+      return year(sourceName, targetName, null);
     }
 
     public Builder year(String sourceName) {
@@ -414,14 +413,14 @@ public class PartitionSpec implements Serializable {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), nextFieldId(), targetName,
-          Transforms.month(sourceColumn.type(), ZoneOffset.of(offsetId)));
+          Transforms.month(sourceColumn.type(), offsetId));
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
     }
 
     public Builder month(String sourceName, String targetName) {
-      return month(sourceName, targetName, "Z");
+      return month(sourceName, targetName, null);
     }
 
     public Builder month(String sourceName) {
@@ -434,14 +433,14 @@ public class PartitionSpec implements Serializable {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), nextFieldId(), targetName,
-          Transforms.day(sourceColumn.type(), ZoneOffset.of(offsetId)));
+          Transforms.day(sourceColumn.type(), offsetId));
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
     }
 
     public Builder day(String sourceName, String targetName) {
-      return day(sourceName, targetName, "Z");
+      return day(sourceName, targetName, null);
     }
 
     public Builder day(String sourceName) {
@@ -454,14 +453,14 @@ public class PartitionSpec implements Serializable {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
           sourceColumn.fieldId(), nextFieldId(), targetName,
-          Transforms.hour(sourceColumn.type(), ZoneOffset.of(offsetId)));
+          Transforms.hour(sourceColumn.type(), offsetId));
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
     }
 
     public Builder hour(String sourceName, String targetName) {
-      return hour(sourceName, targetName, "Z");
+      return hour(sourceName, targetName, null);
     }
 
     public Builder hour(String sourceName) {
