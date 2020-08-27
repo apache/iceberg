@@ -130,3 +130,25 @@ table.rewriteManifests()
 
 See the [`RewriteManifestsAction` Javadoc](/javadoc/master/org/apache/iceberg/actions/RewriteManifestsAction.html) to see more configuration options.
 
+## Appendix
+
+### Retrieve Table instance in Hadoop catalog
+
+```scala
+// ... assume catalogName, dbName, tableName are present ...
+import org.apache.iceberg.hadoop.HadoopTables
+val warehousePath = spark.sparkContext.getConf.get(s"spark.sql.catalog.$catalogName.warehouse")
+val hadoopTables = new HadoopTables(spark.sessionState.newHadoopConf)
+val table = hadoopTables.load(s"$warehousePath/$dbName/$tableName")
+```
+
+### Retrieve Table instance in Hive catalog
+
+```scala
+// ... assume dbName, tableName are present ...
+import org.apache.iceberg.hive.HiveCatalog;
+
+val catalog = new HiveCatalog(spark.sessionState.newHadoopConf)
+val table = catalog.loadTable(TableIdentifier.of(dbName, tableName))
+```
+

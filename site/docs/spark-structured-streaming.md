@@ -76,31 +76,9 @@ Each micro-batch written to a table produces a new snapshot, which are tracked i
 
 ### Compacting data files
 
-The amount of data written in a micro batch is typically small, which can cause the table metadata to track lots of small files. Compacting small files into larger files reduces the metadata needed by the table, and increases query efficiency.
+The amount of data written in a micro batch is typically small, which can cause the table metadata to track lots of small files. [Compacting small files into larger files](../maintenance#compact-data-files) reduces the metadata needed by the table, and increases query efficiency.
 
 ### Rewrite manifests
 
 To optimize write latency on streaming workload, Iceberg may write the new snapshot with a "fast" append that does not automatically compact manifests.
 This could lead lots of small manifest files. Manifests can be [rewritten to optimize queries and to compact](../maintenance#rewrite-manifests).
-
-## Appendix
-
-### Retrieve Table instance in Hadoop catalog
-
-```scala
-// ... assume catalogName, dbName, tableName are present ...
-import org.apache.iceberg.hadoop.HadoopTables
-val warehousePath = spark.sparkContext.getConf.get(s"spark.sql.catalog.$catalogName.warehouse")
-val hadoopTables = new HadoopTables(spark.sessionState.newHadoopConf)
-val table = hadoopTables.load(s"$warehousePath/$dbName/$tableName")
-```
-
-### Retrieve Table instance in Hive catalog
-
-```scala
-// ... assume dbName, tableName are present ...
-import org.apache.iceberg.hive.HiveCatalog;
-
-val catalog = new HiveCatalog(spark.sessionState.newHadoopConf)
-val table = catalog.loadTable(TableIdentifier.of(dbName, tableName))
-```
