@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.time.Clock;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.expressions.Expression;
 
@@ -30,11 +29,7 @@ import org.apache.iceberg.expressions.Expression;
  */
 class StreamingDelete extends MergingSnapshotProducer<DeleteFiles> implements DeleteFiles {
   StreamingDelete(String tableName, TableOperations ops) {
-    this(tableName, ops, Clock.systemDefaultZone());
-  }
-
-  StreamingDelete(String tableName, TableOperations ops, Clock clock) {
-    super(tableName, ops, clock);
+    super(tableName, ops);
   }
 
   @Override

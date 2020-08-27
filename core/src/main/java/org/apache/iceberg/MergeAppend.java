@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.time.Clock;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -30,11 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  */
 class MergeAppend extends MergingSnapshotProducer<AppendFiles> implements AppendFiles {
   MergeAppend(String tableName, TableOperations ops) {
-    this(tableName, ops, Clock.systemDefaultZone());
-  }
-
-  MergeAppend(String tableName, TableOperations ops, Clock clock) {
-    super(tableName, ops, clock);
+    super(tableName, ops);
   }
 
   @Override

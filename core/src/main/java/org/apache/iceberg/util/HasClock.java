@@ -17,32 +17,14 @@
  * under the License.
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.util;
 
-public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta {
-  public BaseRowDelta(String tableName, TableOperations ops) {
-    super(tableName, ops);
-  }
+import java.time.Clock;
 
-  @Override
-  protected BaseRowDelta self() {
-    return this;
-  }
+/**
+ * Used to expose an object's clock instance.
+ */
+public interface HasClock {
 
-  @Override
-  protected String operation() {
-    return DataOperations.OVERWRITE;
-  }
-
-  @Override
-  public RowDelta addRows(DataFile inserts) {
-    add(inserts);
-    return this;
-  }
-
-  @Override
-  public RowDelta addDeletes(DeleteFile deletes) {
-    add(deletes);
-    return this;
-  }
+  Clock clock();
 }

@@ -21,7 +21,6 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.io.IOException;
-import java.time.Clock;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -115,13 +114,10 @@ public class TableTestBase {
   @SuppressWarnings("checkstyle:MemberName")
   protected final Assertions V2Assert;
 
-  private final Clock clock;
-
   public TableTestBase(int formatVersion) {
     this.formatVersion = formatVersion;
     this.V1Assert = new Assertions(1, formatVersion);
     this.V2Assert = new Assertions(2, formatVersion);
-    this.clock = Clock.systemDefaultZone();
   }
 
   @Before
@@ -147,12 +143,8 @@ public class TableTestBase {
         !name.startsWith("snap") && Files.getFileExtension(name).equalsIgnoreCase("avro")));
   }
 
-  public Clock clock() {
-    return clock;
-  }
-
   TestTables.TestTable create(Schema schema, PartitionSpec spec) {
-    return TestTables.create(tableDir, "test", schema, spec, formatVersion, clock());
+    return TestTables.create(tableDir, "test", schema, spec, formatVersion);
   }
 
   TestTables.TestTable load() {

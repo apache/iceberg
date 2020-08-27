@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.time.Clock;
 import java.util.List;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
@@ -27,11 +26,7 @@ import org.apache.iceberg.expressions.Expressions;
 public class BaseReplacePartitions
     extends MergingSnapshotProducer<ReplacePartitions> implements ReplacePartitions {
   BaseReplacePartitions(String tableName, TableOperations ops) {
-    this(tableName, ops, Clock.systemDefaultZone());
-  }
-
-  BaseReplacePartitions(String tableName, TableOperations ops, Clock clock) {
-    super(tableName, ops, clock);
+    super(tableName, ops);
     set(SnapshotSummary.REPLACE_PARTITIONS_PROP, "true");
   }
 

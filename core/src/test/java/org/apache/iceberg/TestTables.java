@@ -32,6 +32,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.HasClock;
 
 import static org.apache.iceberg.TableMetadata.newTableMetadata;
 
@@ -54,12 +55,12 @@ public class TestTables {
 
   public static TestTable create(File temp, String name, Schema schema, PartitionSpec spec, int formatVersion,
       Clock clock) {
-    TestTableOperations ops = new TestTableOperations(name, temp);
+    TestTableOperations ops = new TestTableOperations(name, temp, clock);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
     }
     ops.commit(null, TableMetadata.newTableMetadata(schema, spec, temp.toString(), ImmutableMap.of(), formatVersion));
-    return new TestTable(ops, name, clock);
+    return new TestTable(ops, name);
   }
 
   public static Transaction beginCreate(File temp, String name, Schema schema, PartitionSpec spec) {
@@ -102,11 +103,7 @@ public class TestTables {
     private final TestTableOperations ops;
 
     private TestTable(TestTableOperations ops, String name) {
-      this(ops, name, Clock.systemDefaultZone());
-    }
-
-    private TestTable(TestTableOperations ops, String name, Clock clock) {
-      super(ops, name, clock);
+      super(ops, name);
       this.ops = ops;
     }
 
@@ -137,17 +134,23 @@ public class TestTables {
     }
   }
 
-  public static class TestTableOperations implements TableOperations {
+  public static class TestTableOperations implements TableOperations, HasClock {
 
     private final String tableName;
     private final File metadata;
+    private final Clock clock;
     private TableMetadata current = null;
     private long lastSnapshotId = 0;
     private int failCommits = 0;
 
     public TestTableOperations(String tableName, File location) {
+      this(tableName, location, Clock.systemDefaultZone());
+    }
+
+    public TestTableOperations(String tableName, File location, Clock clock) {
       this.tableName = tableName;
       this.metadata = new File(location, "metadata");
+      this.clock = clock;
       metadata.mkdirs();
       refresh();
       if (current != null) {
@@ -221,6 +224,11 @@ public class TestTables {
       long nextSnapshotId = lastSnapshotId + 1;
       this.lastSnapshotId = nextSnapshotId;
       return nextSnapshotId;
+    }
+
+    @Override
+    public Clock clock() {
+      return clock;
     }
   }
 

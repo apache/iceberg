@@ -19,30 +19,17 @@
 
 package org.apache.iceberg;
 
-public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta {
-  public BaseRowDelta(String tableName, TableOperations ops) {
-    super(tableName, ops);
+import org.apache.iceberg.util.TestClock;
+
+public class TableTestBaseWithClock extends TableTestBase {
+
+  protected TestClock testClock = new TestClock();
+
+  public TableTestBaseWithClock(int formatVersion) {
+    super(formatVersion);
   }
 
-  @Override
-  protected BaseRowDelta self() {
-    return this;
-  }
-
-  @Override
-  protected String operation() {
-    return DataOperations.OVERWRITE;
-  }
-
-  @Override
-  public RowDelta addRows(DataFile inserts) {
-    add(inserts);
-    return this;
-  }
-
-  @Override
-  public RowDelta addDeletes(DeleteFile deletes) {
-    add(deletes);
-    return this;
+  TestTables.TestTable create(Schema schema, PartitionSpec spec) {
+    return TestTables.create(tableDir, "test", schema, spec, formatVersion, testClock);
   }
 }

@@ -19,17 +19,12 @@
 
 package org.apache.iceberg;
 
-import java.time.Clock;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements RewriteFiles {
   BaseRewriteFiles(String tableName, TableOperations ops) {
-    this(tableName, ops, Clock.systemDefaultZone());
-  }
-
-  BaseRewriteFiles(String tableName, TableOperations ops, Clock clock) {
-    super(tableName, ops, clock);
+    super(tableName, ops);
 
     // replace files must fail if any of the deleted paths is missing and cannot be deleted
     failMissingDeletePaths();

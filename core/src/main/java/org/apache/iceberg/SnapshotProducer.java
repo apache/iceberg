@@ -40,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Exceptions;
+import org.apache.iceberg.util.HasClock;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
@@ -76,7 +77,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private final LoadingCache<ManifestFile, ManifestFile> manifestsWithMetadata;
 
   private final TableOperations ops;
-  private final Clock clock;
   private final String commitUUID = UUID.randomUUID().toString();
   private final AtomicInteger manifestCount = new AtomicInteger(0);
   private final AtomicInteger attempt = new AtomicInteger(0);
@@ -86,9 +86,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private boolean stageOnly = false;
   private Consumer<String> deleteFunc = defaultDelete;
 
-  protected SnapshotProducer(TableOperations ops, Clock clock) {
+  protected SnapshotProducer(TableOperations ops) {
     this.ops = ops;
-    this.clock = clock;
     this.base = ops.current();
     this.manifestsWithMetadata = Caffeine
       .newBuilder()
@@ -142,6 +141,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    */
   protected abstract List<ManifestFile> apply(TableMetadata metadataToUpdate);
 
+  private Clock clock() {
+    if (ops instanceof HasClock) {
+      return ((HasClock) ops).clock();
+    } else {
+      return Clock.systemDefaultZone();
+    }
+  }
+
   @Override
   public Snapshot apply() {
     this.base = refresh();
@@ -175,13 +182,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       }
 
       return new BaseSnapshot(ops.io(),
-          sequenceNumber, snapshotId(), parentSnapshotId, clock.millis(), operation(), summary(base),
+          sequenceNumber, snapshotId(), parentSnapshotId, clock().millis(), operation(), summary(base),
           manifestList.location());
 
     } else {
       return new BaseSnapshot(ops.io(),
-          snapshotId(), parentSnapshotId, clock.millis(), operation(), summary(base),
-          manifests);
+          snapshotId(), parentSnapshotId, clock().millis(), operation(), summary(base), manifests);
     }
   }
 
