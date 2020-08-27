@@ -59,13 +59,13 @@ import org.junit.rules.TemporaryFolder;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public abstract class TestExpireSnapshotsAction extends SparkTestBase {
-
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA = new Schema(
       optional(1, "c1", Types.IntegerType.get()),
       optional(2, "c2", Types.StringType.get()),
       optional(3, "c3", Types.StringType.get())
   );
+  private static final int SHUFFLE_PARTITIONS = 2;
 
   private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
 
@@ -106,7 +106,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     this.tableDir = temp.newFolder();
     this.tableLocation = tableDir.toURI().toString();
     this.table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
-    spark.conf().set("spark.sql.shuffle.partitions", 1);
+    spark.conf().set("spark.sql.shuffle.partitions", SHUFFLE_PARTITIONS);
   }
 
   private Long rightAfterSnapshot() {
@@ -1007,5 +1007,38 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
 
     Assert.assertSame("Multiple calls to expire should return the same deleted files",
         pendingDeletes, action.expire());
+  }
+
+  @Test
+  public void testUseLocalIterator() {
+    table.newFastAppend()
+            .appendFile(FILE_A)
+            .commit();
+
+    table.newOverwrite()
+            .deleteFile(FILE_A)
+            .addFile(FILE_B)
+            .commit();
+
+    table.newFastAppend()
+            .appendFile(FILE_C)
+            .commit();
+
+    long end = rightAfterSnapshot();
+
+    int jobsBefore = spark.sparkContext().dagScheduler().nextJobId().get();
+
+    ExpireSnapshotsActionResult results =
+            Actions.forTable(table).expireSnapshots().expireOlderThan(end).streamDeleteResults(true).execute();
+
+    Assert.assertEquals("Table does not have 1 snapshot after expiration", 1, Iterables.size(table.snapshots()));
+
+    int jobsAfter = spark.sparkContext().dagScheduler().nextJobId().get();
+
+    checkExpirationResults(1L, 1L, 2L, results);
+
+    int expectedBroadcastJobs = 3;
+    Assert.assertEquals("Expected to run spark.sql.shuffle.partitions jobs when using local iterator",
+            SHUFFLE_PARTITIONS + expectedBroadcastJobs, jobsAfter - jobsBefore);
   }
 }

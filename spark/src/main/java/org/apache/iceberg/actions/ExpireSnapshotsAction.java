@@ -78,6 +78,7 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
   private Consumer<String> deleteFunc = defaultDelete;
   private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
   private Dataset<Row> expiredFiles = null;
+  private boolean streamResults = false;
 
   ExpireSnapshotsAction(SparkSession spark, Table table) {
     this.spark = spark;
@@ -88,6 +89,19 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
   @Override
   protected Table table() {
     return table;
+  }
+
+  /**
+   * Whether or not to use stream the expired file list to the driver. The default (false) will use
+   * collect to bring back all results to the driver at once which may be an issue with very long file lists.
+   * Set this to true to use toLocalIterator if you are running into memory issues when collecting the list of files
+   * to be deleted.
+   * @param stream whether to use toLocalIterator to stream results instead of collect.
+   * @return this for method chaining
+   */
+  public ExpireSnapshotsAction streamDeleteResults(boolean stream) {
+    this.streamResults = stream;
+    return this;
   }
 
   /**
@@ -188,7 +202,11 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
 
   @Override
   public ExpireSnapshotsActionResult execute() {
-    return deleteFiles(expire().toLocalIterator());
+    if (streamResults) {
+      return deleteFiles(expire().toLocalIterator());
+    } else {
+      return deleteFiles(expire().collectAsList().iterator());
+    }
   }
 
   private Dataset<Row> appendTypeString(Dataset<Row> ds, String type) {
