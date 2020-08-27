@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.flink.table.api.TableSchema;
@@ -386,7 +387,7 @@ public class FlinkCatalog extends AbstractCatalog {
       String key = entry.getKey();
       String value = entry.getValue();
 
-      if (value.equals(oldOptions.get(key))) {
+      if (Objects.equals(value, oldOptions.get(key))) {
         continue;
       }
 
@@ -451,7 +452,7 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   private static void commitChanges(Table table, String setLocation, String setSnapshotId,
-      String pickSnapshotId, Map<String, String> setProperties) {
+                                    String pickSnapshotId, Map<String, String> setProperties) {
     // don't allow setting the snapshot and picking a commit at the same time because order is ambiguous and choosing
     // one order leads to different results
     Preconditions.checkArgument(setSnapshotId == null || pickSnapshotId == null,

@@ -172,10 +172,14 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     tEnv.executeSql("ALTER TABLE tl SET('oldK'='oldV2')");
     properties.put("oldK", "oldV2");
     Assert.assertEquals(properties, table("tl").properties());
+  }
 
-    // location
+  @Test
+  public void testRelocateTable() {
+    Assume.assumeFalse("HadoopCatalog does not support relocate table", isHadoopCatalog);
+
+    tEnv.executeSql("CREATE TABLE tl(id BIGINT)");
     tEnv.executeSql("ALTER TABLE tl SET('location'='/tmp/location')");
-    properties.put("oldK", "oldV2");
     Assert.assertEquals("/tmp/location", table("tl").location());
   }
 
