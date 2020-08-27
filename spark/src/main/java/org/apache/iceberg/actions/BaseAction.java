@@ -19,19 +19,17 @@
 
 package org.apache.iceberg.actions;
 
-import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.iceberg.BaseTable;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ManifestFiles;
-import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkUtil;
@@ -42,7 +40,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.spark_project.guava.collect.Iterators;
 
 abstract class BaseAction<R> implements Action<R> {
 
@@ -113,12 +110,8 @@ abstract class BaseAction<R> implements Action<R> {
     }
 
     @Override
-    public Iterator<String> call(ManifestFileBean manifest) throws IOException {
-      List<DataFile> files;
-      try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, io.getValue())) {
-        files = Lists.newArrayList(reader);
-      }
-      return Iterators.transform(files.iterator(), file -> file.path().toString());
+    public Iterator<String> call(ManifestFileBean manifest) {
+      return new ClosingIterator<>(ManifestFiles.readPaths(manifest, io.getValue()).iterator());
     }
   }
 
