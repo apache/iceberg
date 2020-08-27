@@ -19,15 +19,23 @@
 
 package org.apache.iceberg.actions;
 
+import java.util.Iterator;
 import java.util.List;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.io.ClosingIterator;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkUtil;
+import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.api.java.function.FlatMapFunction;
+import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -57,8 +65,8 @@ abstract class BaseAction<R> implements Action<R> {
   }
 
   /**
-   * Returns all the path locations of all Manifest Lists for a given table
-   * @param table the table
+   * Returns all the path locations of all Manifest Lists for a given list of snapshots
+   * @param snapshots snapshots
    * @return the paths of the Manifest Lists
    */
   private List<String> getManifestListPaths(Iterable<Snapshot> snapshots) {
@@ -95,8 +103,17 @@ abstract class BaseAction<R> implements Action<R> {
   }
 
   protected Dataset<Row> buildValidDataFileDF(SparkSession spark, String tableName) {
-    String allDataFilesMetadataTable = metadataTableName(tableName, MetadataTableType.ALL_DATA_FILES);
-    return spark.read().format("iceberg").load(allDataFilesMetadataTable).select("file_path");
+    JavaSparkContext context = new JavaSparkContext(spark.sparkContext());
+    Broadcast<FileIO> ioBroadcast = context.broadcast(SparkUtil.serializableFileIO(table()));
+    String allManifestsMetadataTable = metadataTableName(tableName, MetadataTableType.ALL_MANIFESTS);
+
+    Dataset<ManifestFileBean> allManifests = spark.read().format("iceberg").load(allManifestsMetadataTable)
+        .selectExpr("path", "length", "partition_spec_id as partitionSpecId", "added_snapshot_id as addedSnapshotId")
+        .dropDuplicates("path")
+        .repartition(spark.sessionState().conf().numShufflePartitions()) // avoid adaptive execution combining tasks
+        .as(Encoders.bean(ManifestFileBean.class));
+
+    return allManifests.flatMap(new ReadManifest(ioBroadcast), Encoders.STRING()).toDF("file_path");
   }
 
   protected Dataset<Row> buildManifestFileDF(SparkSession spark, String tableName) {
@@ -125,5 +142,18 @@ abstract class BaseAction<R> implements Action<R> {
     Dataset<Row> otherMetadataFileDF = buildOtherMetadataFileDF(spark, ops);
 
     return manifestDF.union(otherMetadataFileDF).union(manifestListDF);
+  }
+
+  private static class ReadManifest implements FlatMapFunction<ManifestFileBean, String> {
+    private final Broadcast<FileIO> io;
+
+    ReadManifest(Broadcast<FileIO> io) {
+      this.io = io;
+    }
+
+    @Override
+    public Iterator<String> call(ManifestFileBean manifest) {
+      return new ClosingIterator<>(ManifestFiles.readPaths(manifest, io.getValue()).iterator());
+    }
   }
 }

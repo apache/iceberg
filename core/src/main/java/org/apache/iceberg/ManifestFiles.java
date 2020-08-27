@@ -23,13 +23,28 @@ import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.ManifestReader.FileType;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class ManifestFiles {
   private ManifestFiles() {
+  }
+
+  /**
+   * Returns a {@link CloseableIterable} of file paths in the {@link ManifestFile}.
+   *
+   * @param manifest a ManifestFile
+   * @param io a FileIO
+   * @return a manifest reader
+   */
+  public static CloseableIterable<String> readPaths(ManifestFile manifest, FileIO io) {
+    return CloseableIterable.transform(
+        read(manifest, io, null).select(ImmutableList.of("file_path")).liveEntries(),
+        entry -> entry.file().path().toString());
   }
 
   /**
