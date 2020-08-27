@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.time.Clock;
 import java.util.UUID;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
@@ -114,4 +115,12 @@ public interface TableOperations {
     return Math.abs(mostSignificantBits ^ leastSignificantBits);
   }
 
+  /**
+   * Returns a clock to be used by table operations.
+   *
+   * @return a clock
+   */
+  default Clock clock() {
+    return Clock.systemDefaultZone();
+  }
 }

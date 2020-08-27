@@ -32,7 +32,6 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.util.HasClock;
 
 import static org.apache.iceberg.TableMetadata.newTableMetadata;
 
@@ -134,7 +133,7 @@ public class TestTables {
     }
   }
 
-  public static class TestTableOperations implements TableOperations, HasClock {
+  public static class TestTableOperations implements TableOperations {
 
     private final String tableName;
     private final File metadata;

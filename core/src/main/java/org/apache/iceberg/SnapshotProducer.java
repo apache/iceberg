@@ -22,7 +22,6 @@ package org.apache.iceberg;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
-import java.time.Clock;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +39,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Exceptions;
-import org.apache.iceberg.util.HasClock;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
@@ -141,14 +139,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    */
   protected abstract List<ManifestFile> apply(TableMetadata metadataToUpdate);
 
-  private Clock clock() {
-    if (ops instanceof HasClock) {
-      return ((HasClock) ops).clock();
-    } else {
-      return Clock.systemDefaultZone();
-    }
-  }
-
   @Override
   public Snapshot apply() {
     this.base = refresh();
@@ -182,12 +172,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       }
 
       return new BaseSnapshot(ops.io(),
-          sequenceNumber, snapshotId(), parentSnapshotId, clock().millis(), operation(), summary(base),
+          sequenceNumber, snapshotId(), parentSnapshotId, ops.clock().millis(), operation(), summary(base),
           manifestList.location());
 
     } else {
       return new BaseSnapshot(ops.io(),
-          snapshotId(), parentSnapshotId, clock().millis(), operation(), summary(base), manifests);
+          snapshotId(), parentSnapshotId, ops.clock().millis(), operation(), summary(base), manifests);
     }
   }
 

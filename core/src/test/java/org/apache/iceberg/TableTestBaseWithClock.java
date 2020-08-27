@@ -23,12 +23,13 @@ import org.apache.iceberg.util.TestClock;
 
 public class TableTestBaseWithClock extends TableTestBase {
 
-  protected TestClock testClock = new TestClock();
+  protected final TestClock testClock = new TestClock();
 
   public TableTestBaseWithClock(int formatVersion) {
     super(formatVersion);
   }
 
+  @Override
   TestTables.TestTable create(Schema schema, PartitionSpec spec) {
     return TestTables.create(tableDir, "test", schema, spec, formatVersion, testClock);
   }
