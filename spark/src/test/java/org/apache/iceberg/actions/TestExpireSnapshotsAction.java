@@ -1012,24 +1012,24 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
   @Test
   public void testUseLocalIterator() {
     table.newFastAppend()
-            .appendFile(FILE_A)
-            .commit();
+        .appendFile(FILE_A)
+        .commit();
 
     table.newOverwrite()
-            .deleteFile(FILE_A)
-            .addFile(FILE_B)
-            .commit();
+        .deleteFile(FILE_A)
+        .addFile(FILE_B)
+        .commit();
 
     table.newFastAppend()
-            .appendFile(FILE_C)
-            .commit();
+        .appendFile(FILE_C)
+        .commit();
 
     long end = rightAfterSnapshot();
 
     int jobsBefore = spark.sparkContext().dagScheduler().nextJobId().get();
 
     ExpireSnapshotsActionResult results =
-            Actions.forTable(table).expireSnapshots().expireOlderThan(end).streamDeleteResults(true).execute();
+        Actions.forTable(table).expireSnapshots().expireOlderThan(end).streamDeleteResults(true).execute();
 
     Assert.assertEquals("Table does not have 1 snapshot after expiration", 1, Iterables.size(table.snapshots()));
 
@@ -1039,6 +1039,6 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
 
     int expectedBroadcastJobs = 3;
     Assert.assertEquals("Expected to run spark.sql.shuffle.partitions jobs when using local iterator",
-            SHUFFLE_PARTITIONS + expectedBroadcastJobs, jobsAfter - jobsBefore);
+        SHUFFLE_PARTITIONS + expectedBroadcastJobs, jobsAfter - jobsBefore);
   }
 }

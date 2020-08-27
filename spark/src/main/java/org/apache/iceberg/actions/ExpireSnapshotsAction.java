@@ -92,11 +92,10 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
   }
 
   /**
-   * Whether or not to use stream the expired file list to the driver. The default (false) will use
-   * collect to bring back all results to the driver at once which may be an issue with very long file lists.
-   * Set this to true to use toLocalIterator if you are running into memory issues when collecting the list of files
-   * to be deleted.
-   * @param stream whether to use toLocalIterator to stream results instead of collect.
+   * By default, all files to delete are brought to the driver at once which may be an issue with very long file lists.
+   * Set this to true to use {@link Dataset#toLocalIterator()} if you are running into memory issues when collecting
+   * the list of files to be deleted.
+   * @param stream whether to use {@link Dataset#toLocalIterator} to stream results instead of {@link Dataset#collect}.
    * @return this for method chaining
    */
   public ExpireSnapshotsAction streamDeleteResults(boolean stream) {
