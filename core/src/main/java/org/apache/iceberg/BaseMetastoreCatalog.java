@@ -81,6 +81,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       String location,
       Map<String, String> properties,
       boolean orCreate) {
+    Preconditions.checkArgument(isValidIdentifier(identifier), "Invalid table identifier: %s", identifier);
 
     TableBuilder tableBuilder = buildTable(identifier, schema)
         .withPartitionSpec(spec)
