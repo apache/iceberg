@@ -49,7 +49,8 @@ import org.jetbrains.annotations.NotNull;
 
 public class ArrowVectorAccessors {
 
-  private ArrowVectorAccessors() {}
+  private ArrowVectorAccessors() {
+  }
 
   static ArrowVectorAccessor getVectorAccessor(VectorHolder holder) {
     Dictionary dictionary = holder.dictionary();

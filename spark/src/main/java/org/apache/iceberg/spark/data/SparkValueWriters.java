@@ -39,7 +39,8 @@ import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkValueWriters {
 
-  private SparkValueWriters() {}
+  private SparkValueWriters() {
+  }
 
   static ValueWriter<UTF8String> strings() {
     return StringWriter.INSTANCE;

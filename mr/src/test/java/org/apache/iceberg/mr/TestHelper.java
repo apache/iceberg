@@ -19,18 +19,14 @@
 
 package org.apache.iceberg.mr;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
@@ -38,23 +34,15 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Tables;
-import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.DataWriter;
-import org.apache.iceberg.data.orc.GenericOrcWriter;
-import org.apache.iceberg.data.parquet.GenericParquetWriter;
-import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.Assert;
 import org.junit.rules.TemporaryFolder;
 
 public class TestHelper {
-
   private final Configuration conf;
   private final Tables tables;
   private final String tableIdentifier;
@@ -114,77 +102,19 @@ public class TestHelper {
   }
 
   public void appendToTable(DataFile... dataFiles) {
-    Preconditions.checkNotNull(table, "table not set");
-
-    AppendFiles append = table.newAppend();
-
-    for (DataFile dataFile : dataFiles) {
-      append = append.appendFile(dataFile);
-    }
-
-    append.commit();
+    appender().appendToTable(dataFiles);
   }
 
   public void appendToTable(StructLike partition, List<Record> records) throws IOException {
-    appendToTable(writeFile(partition, records));
+    appender().appendToTable(partition, records);
   }
 
   public DataFile writeFile(StructLike partition, List<Record> records) throws IOException {
-    Preconditions.checkNotNull(table, "table not set");
-    return writeFile(table, partition, records, fileFormat, tmp.newFile());
+    return appender().writeFile(partition, records);
   }
 
-  public static DataFile writeFile(Table table, StructLike partition, List<Record> records, FileFormat fileFormat,
-                                   File file) throws IOException {
-    Assert.assertTrue(file.delete());
-
-    FileAppender<Record> appender;
-
-    switch (fileFormat) {
-      case AVRO:
-        appender = Avro.write(Files.localOutput(file))
-                .schema(table.schema())
-                .createWriterFunc(DataWriter::create)
-                .named(fileFormat.name())
-                .build();
-        break;
-
-      case PARQUET:
-        appender = Parquet.write(Files.localOutput(file))
-                .schema(table.schema())
-                .createWriterFunc(GenericParquetWriter::buildWriter)
-                .named(fileFormat.name())
-                .build();
-        break;
-
-      case ORC:
-        appender = ORC.write(Files.localOutput(file))
-                .schema(table.schema())
-                .createWriterFunc(GenericOrcWriter::buildWriter)
-                .build();
-        break;
-
-      default:
-        throw new UnsupportedOperationException("Cannot write format: " + fileFormat);
-    }
-
-    try {
-      appender.addAll(records);
-    } finally {
-      appender.close();
-    }
-
-    DataFiles.Builder builder = DataFiles.builder(table.spec())
-            .withPath(file.toString())
-            .withFormat(fileFormat)
-            .withFileSizeInBytes(file.length())
-            .withMetrics(appender.metrics());
-
-    if (partition != null) {
-      builder.withPartition(partition);
-    }
-
-    return builder.build();
+  private GenericAppenderHelper appender() {
+    return new GenericAppenderHelper(table, fileFormat, tmp);
   }
 
   public static class RecordsBuilder {

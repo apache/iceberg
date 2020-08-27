@@ -32,6 +32,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.flink.data.FlinkAvroWriter;
+import org.apache.iceberg.flink.data.FlinkOrcWriter;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
@@ -40,6 +41,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.UnpartitionedWriter;
+import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
@@ -137,8 +139,16 @@ class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
                 .schema(schema)
                 .overwrite()
                 .build();
-          case PARQUET:
+
           case ORC:
+            return ORC.write(outputFile)
+                .createWriterFunc((iSchema, typDesc) -> FlinkOrcWriter.buildWriter(flinkSchema, iSchema))
+                .setAll(props)
+                .schema(schema)
+                .overwrite()
+                .build();
+
+          case PARQUET:
           default:
             throw new UnsupportedOperationException("Cannot write unknown file format: " + format);
         }

@@ -28,7 +28,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 
 public class TableScanUtil {
 
-  private TableScanUtil() {}
+  private TableScanUtil() {
+  }
 
   public static CloseableIterable<FileScanTask> splitFiles(CloseableIterable<FileScanTask> tasks, long splitSize) {
     Iterable<FileScanTask> splitTasks = FluentIterable

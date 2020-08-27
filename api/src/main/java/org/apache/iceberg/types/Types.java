@@ -36,7 +36,8 @@ import org.apache.iceberg.types.Type.PrimitiveType;
 
 public class Types {
 
-  private Types() {}
+  private Types() {
+  }
 
   private static final ImmutableMap<String, PrimitiveType> TYPES = ImmutableMap
       .<String, PrimitiveType>builder()

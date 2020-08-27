@@ -77,7 +77,8 @@ public class TableMetadataParser {
     }
   }
 
-  private TableMetadataParser() {}
+  private TableMetadataParser() {
+  }
 
   // visible for testing
   static final String FORMAT_VERSION = "format-version";

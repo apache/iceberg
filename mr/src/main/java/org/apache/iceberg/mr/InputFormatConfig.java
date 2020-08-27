@@ -27,7 +27,8 @@ import org.apache.iceberg.expressions.Expression;
 
 public class InputFormatConfig {
 
-  private InputFormatConfig() {}
+  private InputFormatConfig() {
+  }
 
   // configuration values for Iceberg input formats
   public static final String REUSE_CONTAINERS = "iceberg.mr.reuse.containers";

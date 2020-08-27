@@ -30,7 +30,8 @@ import java.util.Base64;
 
 class TransformUtil {
 
-  private TransformUtil() {}
+  private TransformUtil() {
+  }
 
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private static final int EPOCH_YEAR = EPOCH.getYear();

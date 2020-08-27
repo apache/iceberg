@@ -23,7 +23,8 @@ import java.util.Map;
 
 public class PropertyUtil {
 
-  private PropertyUtil() {}
+  private PropertyUtil() {
+  }
 
   public static boolean propertyAsBoolean(Map<String, String> properties,
                                           String property, boolean defaultValue) {

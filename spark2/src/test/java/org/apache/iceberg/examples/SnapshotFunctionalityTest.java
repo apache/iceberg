@@ -124,7 +124,7 @@ public class SnapshotFunctionalityTest {
     Iterator<Snapshot> beforeIterator = table.snapshots().iterator();
     List<Snapshot> beforeSnapshots = IteratorUtils.toList(beforeIterator);
 
-    //Delete the 2 oldest snapshots
+    // Delete the 2 oldest snapshots
     table.expireSnapshots().expireOlderThan(secondLatestTimestamp).commit();
     table.refresh();
 

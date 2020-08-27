@@ -207,8 +207,8 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
     // keep any existing manifests as-is that were not processed
     keptManifests.clear();
     currentManifests.stream()
-      .filter(manifest -> !rewrittenManifests.contains(manifest) && !deletedManifests.contains(manifest))
-      .forEach(manifest -> keptManifests.add(manifest));
+        .filter(manifest -> !rewrittenManifests.contains(manifest) && !deletedManifests.contains(manifest))
+        .forEach(manifest -> keptManifests.add(manifest));
   }
 
   private void reset() {

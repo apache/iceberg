@@ -31,7 +31,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class JsonUtil {
 
-  private JsonUtil() {}
+  private JsonUtil() {
+  }
 
   private static final JsonFactory FACTORY = new JsonFactory();
   private static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);

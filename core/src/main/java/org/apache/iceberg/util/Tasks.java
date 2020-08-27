@@ -42,7 +42,8 @@ import org.slf4j.LoggerFactory;
 public class Tasks {
   private static final Logger LOG = LoggerFactory.getLogger(Tasks.class);
 
-  private Tasks() {}
+  private Tasks() {
+  }
 
   public static class UnrecoverableException extends RuntimeException {
     public UnrecoverableException(String message) {

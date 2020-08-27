@@ -24,15 +24,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.DataWriter;
-import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -122,28 +119,10 @@ public class TestSplitScan {
     File file = temp.newFile();
     Assert.assertTrue(file.delete());
 
-    switch (fileFormat) {
-      case AVRO:
-        try (FileAppender<Record> appender = Avro.write(Files.localOutput(file))
-            .schema(SCHEMA)
-            .createWriterFunc(DataWriter::create)
-            .named(fileFormat.name())
-            .build()) {
-          appender.addAll(records);
-        }
-        break;
-      case PARQUET:
-        try (FileAppender<Record> appender = Parquet.write(Files.localOutput(file))
-            .schema(SCHEMA)
-            .createWriterFunc(GenericParquetWriter::buildWriter)
-            .named(fileFormat.name())
-            .set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, String.valueOf(SPLIT_SIZE))
-            .build()) {
-          appender.addAll(records);
-        }
-        break;
-      default:
-        throw new UnsupportedOperationException("Cannot write format: " + fileFormat);
+    GenericAppenderFactory factory = new GenericAppenderFactory(SCHEMA).set(
+        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, String.valueOf(SPLIT_SIZE));
+    try (FileAppender<Record> appender = factory.newAppender(Files.localOutput(file), fileFormat)) {
+      appender.addAll(records);
     }
     return file;
   }

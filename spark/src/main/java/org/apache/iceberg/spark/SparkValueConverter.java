@@ -39,7 +39,8 @@ import org.apache.spark.sql.catalyst.util.DateTimeUtils;
  */
 public class SparkValueConverter {
 
-  private SparkValueConverter() {}
+  private SparkValueConverter() {
+  }
 
   public static Record convert(Schema schema, Row row) {
     return convert(schema.asStruct(), row);

@@ -38,7 +38,8 @@ import org.apache.iceberg.types.Types;
 
 public class AvroSchemaUtil {
 
-  private AvroSchemaUtil() {}
+  private AvroSchemaUtil() {
+  }
 
   // Original Iceberg field name corresponding to a sanitized Avro name
   public static final String ICEBERG_FIELD_NAME_PROP = "iceberg-field-name";

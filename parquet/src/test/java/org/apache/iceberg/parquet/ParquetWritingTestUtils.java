@@ -40,7 +40,8 @@ import static org.apache.iceberg.Files.localOutput;
  */
 class ParquetWritingTestUtils {
 
-  private ParquetWritingTestUtils() {}
+  private ParquetWritingTestUtils() {
+  }
 
   static File writeRecords(TemporaryFolder temp, Schema schema, GenericData.Record... records) throws IOException {
     return writeRecords(temp, schema, Collections.emptyMap(), null, records);

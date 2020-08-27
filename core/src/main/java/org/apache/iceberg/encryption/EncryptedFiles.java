@@ -53,5 +53,6 @@ public class EncryptedFiles {
     return encryptedOutput(encryptedOutputFile, BaseEncryptionKeyMetadata.fromByteArray(keyMetadata));
   }
 
-  private EncryptedFiles() {}
+  private EncryptedFiles() {
+  }
 }

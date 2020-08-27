@@ -44,7 +44,8 @@ import org.apache.iceberg.types.Types;
 
 public class FlinkValueReaders {
 
-  private FlinkValueReaders() {}
+  private FlinkValueReaders() {
+  }
 
   static ValueReader<StringData> strings() {
     return StringReader.INSTANCE;

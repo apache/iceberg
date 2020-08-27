@@ -30,7 +30,8 @@ import org.apache.iceberg.util.UnicodeUtil;
 
 public class Comparators {
 
-  private Comparators() {}
+  private Comparators() {
+  }
 
   private static final ImmutableMap<Type.PrimitiveType, Comparator<?>> COMPARATORS = ImmutableMap
       .<Type.PrimitiveType, Comparator<?>>builder()

@@ -33,17 +33,12 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.DataWriter;
-import org.apache.iceberg.data.orc.GenericOrcWriter;
-import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.data.GenericsHelpers;
@@ -191,33 +186,9 @@ public class TestFilteredScan {
     // create records using the table's schema
     this.records = testRecords(tableSchema);
 
-    switch (fileFormat) {
-      case AVRO:
-        try (FileAppender<Record> writer = Avro.write(localOutput(testFile))
-            .createWriterFunc(DataWriter::create)
-            .schema(tableSchema)
-            .build()) {
-          writer.addAll(records);
-        }
-        break;
-
-      case PARQUET:
-        try (FileAppender<Record> writer = Parquet.write(localOutput(testFile))
-            .createWriterFunc(GenericParquetWriter::buildWriter)
-            .schema(tableSchema)
-            .build()) {
-          writer.addAll(records);
-        }
-        break;
-
-      case ORC:
-        try (FileAppender<Record> writer = ORC.write(localOutput(testFile))
-            .createWriterFunc(GenericOrcWriter::buildWriter)
-            .schema(tableSchema)
-            .build()) {
-          writer.addAll(records);
-        }
-        break;
+    try (FileAppender<Record> writer = new GenericAppenderFactory(tableSchema).newAppender(
+        localOutput(testFile), fileFormat)) {
+      writer.addAll(records);
     }
 
     DataFile file = DataFiles.builder(PartitionSpec.unpartitioned())

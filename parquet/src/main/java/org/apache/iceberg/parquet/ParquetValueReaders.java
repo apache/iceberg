@@ -340,6 +340,17 @@ public class ParquetValueReaders {
     }
   }
 
+  public static class ByteArrayReader extends ParquetValueReaders.PrimitiveReader<byte[]> {
+    public ByteArrayReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public byte[] read(byte[] ignored) {
+      return column.nextBinary().getBytes();
+    }
+  }
+
   private static class OptionReader<T> implements ParquetValueReader<T> {
     private final int definitionLevel;
     private final ParquetValueReader<T> reader;
@@ -686,7 +697,7 @@ public class ParquetValueReaders {
 
       for (int i = 0; i < readers.length; i += 1) {
         set(intermediate, i, readers[i].read(get(intermediate, i)));
-        //setters[i].set(intermediate, i, get(intermediate, i));
+        // setters[i].set(intermediate, i, get(intermediate, i));
       }
 
       return buildStruct(intermediate);

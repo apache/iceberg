@@ -37,7 +37,8 @@ import org.junit.Assert;
 
 public class TestHelpers {
 
-  private TestHelpers() {}
+  private TestHelpers() {
+  }
 
   public static <T> T assertAndUnwrap(Expression expr, Class<T> expected) {
     Assert.assertTrue("Expression should have expected type: " + expected,
