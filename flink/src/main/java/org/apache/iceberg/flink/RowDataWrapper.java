@@ -35,13 +35,13 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.UUIDUtil;
 
-class RowDataWrapper implements StructLike {
+public class RowDataWrapper implements StructLike {
 
   private final LogicalType[] types;
   private final PositionalGetter<?>[] getters;
   private RowData rowData = null;
 
-  RowDataWrapper(RowType rowType, Types.StructType struct) {
+  public RowDataWrapper(RowType rowType, Types.StructType struct) {
     int size = rowType.getFieldCount();
 
     types = (LogicalType[]) Array.newInstance(LogicalType.class, size);
@@ -53,7 +53,7 @@ class RowDataWrapper implements StructLike {
     }
   }
 
-  RowDataWrapper wrap(RowData data) {
+  public RowDataWrapper wrap(RowData data) {
     this.rowData = data;
     return this;
   }

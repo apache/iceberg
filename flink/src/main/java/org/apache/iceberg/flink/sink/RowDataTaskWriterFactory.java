@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.flink;
+package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -31,6 +31,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.data.FlinkAvroWriter;
 import org.apache.iceberg.flink.data.FlinkOrcWriter;
 import org.apache.iceberg.flink.data.FlinkParquetWriters;
@@ -46,7 +47,7 @@ import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
+public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final Schema schema;
   private final RowType flinkSchema;
   private final PartitionSpec spec;
@@ -59,15 +60,15 @@ class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
   private transient OutputFileFactory outputFileFactory;
 
-  RowDataTaskWriterFactory(Schema schema,
-                           RowType flinkSchema,
-                           PartitionSpec spec,
-                           LocationProvider locations,
-                           FileIO io,
-                           EncryptionManager encryptionManager,
-                           long targetFileSizeBytes,
-                           FileFormat format,
-                           Map<String, String> tableProperties) {
+  public RowDataTaskWriterFactory(Schema schema,
+                                  RowType flinkSchema,
+                                  PartitionSpec spec,
+                                  LocationProvider locations,
+                                  FileIO io,
+                                  EncryptionManager encryptionManager,
+                                  long targetFileSizeBytes,
+                                  FileFormat format,
+                                  Map<String, String> tableProperties) {
     this.schema = schema;
     this.flinkSchema = flinkSchema;
     this.spec = spec;
@@ -117,12 +118,12 @@ class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     }
   }
 
-  static class FlinkFileAppenderFactory implements FileAppenderFactory<RowData> {
+  public static class FlinkFileAppenderFactory implements FileAppenderFactory<RowData> {
     private final Schema schema;
     private final RowType flinkSchema;
     private final Map<String, String> props;
 
-    FlinkFileAppenderFactory(Schema schema, RowType flinkSchema, Map<String, String> props) {
+    public FlinkFileAppenderFactory(Schema schema, RowType flinkSchema, Map<String, String> props) {
       this.schema = schema;
       this.flinkSchema = flinkSchema;
       this.props = props;

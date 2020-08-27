@@ -39,6 +39,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.flink.sink.RowDataTaskWriterFactory;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
@@ -58,21 +59,21 @@ public class SimpleDataUtil {
   private SimpleDataUtil() {
   }
 
-  static final Schema SCHEMA = new Schema(
+  public static final Schema SCHEMA = new Schema(
       Types.NestedField.optional(1, "id", Types.IntegerType.get()),
       Types.NestedField.optional(2, "data", Types.StringType.get())
   );
 
-  static final TableSchema FLINK_SCHEMA = TableSchema.builder()
+  public static final TableSchema FLINK_SCHEMA = TableSchema.builder()
       .field("id", DataTypes.INT())
       .field("data", DataTypes.STRING())
       .build();
 
-  static final RowType ROW_TYPE = (RowType) FLINK_SCHEMA.toRowDataType().getLogicalType();
+  public static final RowType ROW_TYPE = (RowType) FLINK_SCHEMA.toRowDataType().getLogicalType();
 
-  static final Record RECORD = GenericRecord.create(SCHEMA);
+  public static final Record RECORD = GenericRecord.create(SCHEMA);
 
-  static Table createTable(String path, Map<String, String> properties, boolean partitioned) {
+  public static Table createTable(String path, Map<String, String> properties, boolean partitioned) {
     PartitionSpec spec;
     if (partitioned) {
       spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
@@ -82,19 +83,19 @@ public class SimpleDataUtil {
     return new HadoopTables().create(SCHEMA, spec, properties, path);
   }
 
-  static Record createRecord(Integer id, String data) {
+  public static Record createRecord(Integer id, String data) {
     Record record = RECORD.copy();
     record.setField("id", id);
     record.setField("data", data);
     return record;
   }
 
-  static RowData createRowData(Integer id, String data) {
+  public static RowData createRowData(Integer id, String data) {
     return GenericRowData.of(id, StringData.fromString(data));
   }
 
-  static DataFile writeFile(Schema schema, PartitionSpec spec, Configuration conf,
-                            String location, String filename, List<RowData> rows)
+  public static DataFile writeFile(Schema schema, PartitionSpec spec, Configuration conf,
+                                   String location, String filename, List<RowData> rows)
       throws IOException {
     Path path = new Path(location, filename);
     FileFormat fileFormat = FileFormat.fromFileName(filename);
@@ -115,7 +116,7 @@ public class SimpleDataUtil {
         .build();
   }
 
-  static void assertTableRows(String tablePath, List<RowData> expected) throws IOException {
+  public static void assertTableRows(String tablePath, List<RowData> expected) throws IOException {
     List<Record> expectedRecords = Lists.newArrayList();
     for (RowData row : expected) {
       Integer id = row.isNullAt(0) ? null : row.getInt(0);
@@ -125,7 +126,7 @@ public class SimpleDataUtil {
     assertTableRecords(tablePath, expectedRecords);
   }
 
-  static void assertTableRecords(String tablePath, List<Record> expected) throws IOException {
+  public static void assertTableRecords(String tablePath, List<Record> expected) throws IOException {
     Preconditions.checkArgument(expected != null, "expected records shouldn't be null");
     Table newTable = new HadoopTables().load(tablePath);
     try (CloseableIterable<Record> iterable = (CloseableIterable<Record>) IcebergGenerics.read(newTable).build()) {
