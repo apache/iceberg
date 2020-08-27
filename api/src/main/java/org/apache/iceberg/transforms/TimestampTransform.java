@@ -37,10 +37,6 @@ abstract class TimestampTransform implements Transform<Long, Integer> {
 
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
 
-  private ChronoUnit granularity;
-  private String name;
-  private ZoneOffset zoneOffset;
-
   @SuppressWarnings("unchecked")
   static TimestampTransform get(Type type, String name, ZoneOffset zoneOffset) {
     if (type.typeId() == Type.TypeID.TIMESTAMP) {
@@ -61,6 +57,10 @@ abstract class TimestampTransform implements Transform<Long, Integer> {
     throw new UnsupportedOperationException(
         "TimestampTransform cannot transform type: " + type);
   }
+
+  private final ChronoUnit granularity;
+  private final String name;
+  private final ZoneOffset zoneOffset;
 
   private TimestampTransform(ChronoUnit granularity, String name, ZoneOffset zoneOffset) {
     this.granularity = granularity;
