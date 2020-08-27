@@ -102,19 +102,6 @@ abstract class BaseAction<R> implements Action<R> {
     return buildValidDataFileDF(spark, table().toString());
   }
 
-  private static class ReadManifest implements FlatMapFunction<ManifestFileBean, String> {
-    private final Broadcast<FileIO> io;
-
-    ReadManifest(Broadcast<FileIO> io) {
-      this.io = io;
-    }
-
-    @Override
-    public Iterator<String> call(ManifestFileBean manifest) {
-      return new ClosingIterator<>(ManifestFiles.readPaths(manifest, io.getValue()).iterator());
-    }
-  }
-
   protected Dataset<Row> buildValidDataFileDF(SparkSession spark, String tableName) {
     JavaSparkContext context = new JavaSparkContext(spark.sparkContext());
     Broadcast<FileIO> ioBroadcast = context.broadcast(SparkUtil.serializableFileIO(table()));
@@ -123,6 +110,7 @@ abstract class BaseAction<R> implements Action<R> {
     Dataset<ManifestFileBean> allManifests = spark.read().format("iceberg").load(allManifestsMetadataTable)
         .selectExpr("path", "length", "partition_spec_id as partitionSpecId", "added_snapshot_id as addedSnapshotId")
         .dropDuplicates("path")
+        .repartition(spark.sessionState().conf().numShufflePartitions()) // avoid adaptive execution combining tasks
         .as(Encoders.bean(ManifestFileBean.class));
 
     return allManifests.flatMap(new ReadManifest(ioBroadcast), Encoders.STRING()).toDF("file_path");
@@ -154,5 +142,18 @@ abstract class BaseAction<R> implements Action<R> {
     Dataset<Row> otherMetadataFileDF = buildOtherMetadataFileDF(spark, ops);
 
     return manifestDF.union(otherMetadataFileDF).union(manifestListDF);
+  }
+
+  private static class ReadManifest implements FlatMapFunction<ManifestFileBean, String> {
+    private final Broadcast<FileIO> io;
+
+    ReadManifest(Broadcast<FileIO> io) {
+      this.io = io;
+    }
+
+    @Override
+    public Iterator<String> call(ManifestFileBean manifest) {
+      return new ClosingIterator<>(ManifestFiles.readPaths(manifest, io.getValue()).iterator());
+    }
   }
 }
