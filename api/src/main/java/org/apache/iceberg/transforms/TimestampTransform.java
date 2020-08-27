@@ -23,6 +23,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.Locale;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expression;
@@ -43,15 +44,16 @@ abstract class TimestampTransform implements Transform<Long, Integer> {
   @SuppressWarnings("unchecked")
   static TimestampTransform get(Type type, String name, ZoneOffset zoneOffset) {
     if (type.typeId() == Type.TypeID.TIMESTAMP) {
-      switch (name.toUpperCase()) {
-        case "YEAR":
-          return new TimestampTransform.TimestampYear(name.toLowerCase(), zoneOffset);
-        case "MONTH":
-          return new TimestampTransform.TimestampMonth(name.toLowerCase(), zoneOffset);
-        case "DAY":
-          return new TimestampTransform.TimestampDay(name.toLowerCase(), zoneOffset);
-        case "HOUR":
-          return new TimestampTransform.TimestampHour(name.toLowerCase(), zoneOffset);
+      String lowerName = name.toLowerCase(Locale.ENGLISH);
+      switch (lowerName) {
+        case "year":
+          return new TimestampTransform.TimestampYear(lowerName, zoneOffset);
+        case "month":
+          return new TimestampTransform.TimestampMonth(lowerName, zoneOffset);
+        case "day":
+          return new TimestampTransform.TimestampDay(lowerName, zoneOffset);
+        case "hour":
+          return new TimestampTransform.TimestampHour(lowerName, zoneOffset);
         default:
           throw new UnsupportedOperationException("Unsupported timestamp method: " + name);
       }
