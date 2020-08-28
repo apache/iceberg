@@ -71,11 +71,10 @@ public final class Catalogs {
     if (catalog.isPresent()) {
       Preconditions.checkArgument(tableIdentifier != null, "Table identifier not set");
       return catalog.get().loadTable(TableIdentifier.parse(tableIdentifier));
-    } else {
-      Preconditions.checkArgument(tableLocation != null, "Table location not set");
-      return new HadoopTables(conf).load(tableLocation);
     }
 
+    Preconditions.checkArgument(tableLocation != null, "Table location not set");
+    return new HadoopTables(conf).load(tableLocation);
   }
 
   @VisibleForTesting
@@ -101,16 +100,15 @@ public final class Catalogs {
           String warehouseLocation = conf.get(InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION);
 
           catalog = (warehouseLocation != null) ? new HadoopCatalog(conf, warehouseLocation) : new HadoopCatalog(conf);
-          break;
+          LOG.info("Loaded Hadoop catalog {}", catalog);
+          return Optional.of(catalog);
         case HIVE:
           catalog = HiveCatalogs.loadCatalog(conf);
-          break;
+          LOG.info("Loaded Hive Metastore catalog {}", catalog);
+          return Optional.of(catalog);
         default:
           throw new NoSuchNamespaceException("Catalog " + catalogName + " is not supported.");
       }
-
-      LOG.info("Catalog is used: {}", catalog);
-      return Optional.of(catalog);
     }
 
     LOG.info("No catalog is used");

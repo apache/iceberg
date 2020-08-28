@@ -78,6 +78,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       .build();
 
   private final HiveClientPool metaClients;
+  private final String fullName;
   private final String database;
   private final String tableName;
   private final Configuration conf;
@@ -87,13 +88,18 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
   protected HiveTableOperations(Configuration conf, HiveClientPool metaClients,
                                 String catalogName, String database, String table) {
-    super(catalogName + "." + database + "." + table);
     this.conf = conf;
     this.metaClients = metaClients;
+    this.fullName = catalogName + "." + database + "." + table;
     this.database = database;
     this.tableName = table;
     this.lockAcquireTimeout =
         conf.getLong(HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS, HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT);
+  }
+
+  @Override
+  protected String fullName() {
+    return fullName;
   }
 
   @Override
@@ -132,7 +138,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   }
 
   @Override
-  protected String doCommit(TableMetadata base, TableMetadata metadata) {
+  protected void doCommit(TableMetadata base, TableMetadata metadata) {
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
 
     boolean threw = true;
@@ -188,8 +194,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         });
       }
       threw = false;
-      return newMetadataLocation;
-
     } catch (org.apache.hadoop.hive.metastore.api.AlreadyExistsException e) {
       throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);
 

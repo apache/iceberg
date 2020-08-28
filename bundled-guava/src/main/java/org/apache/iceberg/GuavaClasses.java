@@ -25,7 +25,6 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
-import com.google.common.base.Stopwatch;
 import com.google.common.base.Throwables;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.FluentIterable;
@@ -82,7 +81,6 @@ public class GuavaClasses {
     Multimaps.class.getName();
     Ordering.class.getName();
     Sets.class.getName();
-    Stopwatch.class.getName();
     Streams.class.getName();
     Hasher.class.getName();
     HashFunction.class.getName();

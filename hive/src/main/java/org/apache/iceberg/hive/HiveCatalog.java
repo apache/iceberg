@@ -147,7 +147,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
       return true;
 
     } catch (NoSuchTableException | NoSuchObjectException e) {
-      LOG.debug("Skipping drop, table does not exist: {}", identifier, e);
+      LOG.info("Skipping drop, table does not exist: {}", identifier, e);
       return false;
 
     } catch (TException e) {
@@ -184,7 +184,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
         return null;
       });
 
-      LOG.info("Renamed table from: {}, to: {}", from, to);
+      LOG.info("Renamed table from {}, to {}", from, to);
 
     } catch (NoSuchObjectException e) {
       throw new NoSuchTableException("Table does not exist: %s", from);
@@ -245,7 +245,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
           .map(Namespace::of)
           .collect(Collectors.toList());
 
-      LOG.debug("Listing of namespace: {} resulted in the following namespaces: {}", namespace, namespaces);
+      LOG.debug("Listing namespace {} returned tables: {}", namespace, namespaces);
       return namespaces;
 
     } catch (TException e) {
@@ -301,11 +301,13 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     Database database = convertToDatabase(namespace, parameter);
 
     boolean result = alterHiveDataBase(namespace, database);
+
     if (LOG.isDebugEnabled()) {
-      LOG.debug("Set properties for: {} to: {} resulted: {}",
-          namespace,
-          Joiner.on(",").withKeyValueSeparator("=").join(properties),
-          result);
+      if (result) {
+        LOG.debug("Successfully set properties for {}", namespace);
+      } else {
+        LOG.debug("Failed to set properties for {}", namespace);
+      }
     }
 
     return result;
@@ -320,7 +322,13 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     Database database = convertToDatabase(namespace, parameter);
 
     boolean result = alterHiveDataBase(namespace, database);
-    LOG.debug("Remove properties: {} from: {} resulted: {}", properties, namespace, result);
+    if (LOG.isDebugEnabled()) {
+      if (result) {
+        LOG.debug("Successfully remove properties {} from {}", properties, namespace);
+      } else {
+        LOG.debug("Failed to remove properties for {}", properties, namespace);
+      }
+    }
 
     return result;
   }
@@ -356,11 +364,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     try {
       Database database = clients.run(client -> client.getDatabase(namespace.level(0)));
       Map<String, String> metadata = convertToMetadata(database);
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("For namespace: {} loaded metadata: {}",
-            namespace,
-            Joiner.on(",").withKeyValueSeparator("=").join(metadata));
-      }
+      LOG.debug("Loaded metadata for namespace {}", namespace);
       return metadata;
 
     } catch (NoSuchObjectException | UnknownDBException e) {

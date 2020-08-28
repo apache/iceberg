@@ -90,7 +90,7 @@ public class HadoopTables implements Tables, Configurable {
       }
     }
 
-    LOG.info("Table loaded by HadoopTables: {}", result);
+    LOG.info("Table location loaded: {}", result.location());
     return result;
   }
 
