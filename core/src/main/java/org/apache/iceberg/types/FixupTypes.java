@@ -17,32 +17,23 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark;
+package org.apache.iceberg.types;
 
 import java.util.List;
 import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types;
 
 /**
- * This is used to fix primitive types to match a table schema. Some types, like binary and fixed,
- * are converted to the same Spark type. Conversion back can produce only one, which may not be
- * correct. This uses a reference schema to override types that were lost in round-trip conversion.
+ * This is used to fix primitive types to match a table schema. This uses a reference schema to
+ * override types that were lost in round-trip conversion.
  */
-class FixupTypes extends TypeUtil.CustomOrderSchemaVisitor<Type> {
+public abstract class FixupTypes extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   private final Schema referenceSchema;
   private Type sourceType;
 
-  static Schema fixup(Schema schema, Schema referenceSchema) {
-    return new Schema(TypeUtil.visit(schema,
-        new FixupTypes(referenceSchema)).asStructType().fields());
-  }
-
-  private FixupTypes(Schema referenceSchema) {
+  public FixupTypes(Schema referenceSchema) {
     this.referenceSchema = referenceSchema;
     this.sourceType = referenceSchema.asStruct();
   }
@@ -156,20 +147,13 @@ class FixupTypes extends TypeUtil.CustomOrderSchemaVisitor<Type> {
       return primitive; // already correct
     }
 
-    switch (primitive.typeId()) {
-      case STRING:
-        if (sourceType.typeId() == Type.TypeID.UUID) {
-          return sourceType;
-        }
-        break;
-      case BINARY:
-        if (sourceType.typeId() == Type.TypeID.FIXED) {
-          return sourceType;
-        }
-        break;
-      default:
+    if (fixupPrimitive(primitive, sourceType)) {
+      return sourceType;
     }
+
     // nothing to fix up, let validation catch promotion errors
     return primitive;
   }
+
+  protected abstract boolean fixupPrimitive(Type.PrimitiveType type, Type source);
 }

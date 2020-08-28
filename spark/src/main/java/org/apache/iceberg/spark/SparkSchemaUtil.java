@@ -163,7 +163,7 @@ public class SparkSchemaUtil {
     // reassign ids to match the base schema
     Schema schema = TypeUtil.reassignIds(new Schema(struct.fields()), baseSchema);
     // fix types that can't be represented in Spark (UUID and Fixed)
-    return FixupTypes.fixup(schema, baseSchema);
+    return SparkFixupTypes.fixup(schema, baseSchema);
   }
 
   /**
