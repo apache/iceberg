@@ -68,17 +68,14 @@ public final class Catalogs {
   private static Table loadTable(Configuration conf, String tableIdentifier, String tableLocation) {
     Optional<Catalog> catalog = loadCatalog(conf);
 
-    Table table;
     if (catalog.isPresent()) {
       Preconditions.checkArgument(tableIdentifier != null, "Table identifier not set");
-      table = catalog.get().loadTable(TableIdentifier.parse(tableIdentifier));
+      return catalog.get().loadTable(TableIdentifier.parse(tableIdentifier));
     } else {
       Preconditions.checkArgument(tableLocation != null, "Table location not set");
-      table = new HadoopTables(conf).load(tableLocation);
+      return new HadoopTables(conf).load(tableLocation);
     }
 
-    LOG.info("Table loaded by catalog: [{}]", table);
-    return table;
   }
 
   @VisibleForTesting
@@ -91,7 +88,7 @@ public final class Catalogs {
               .build()
               .newInstance();
       Catalog catalog = loader.load(conf);
-      LOG.info("Dynamic catalog is used: [{}]", catalog);
+      LOG.info("Loaded catalog {} using {}", catalog, catalogLoaderClass);
       return Optional.of(catalog);
     }
 
@@ -112,7 +109,7 @@ public final class Catalogs {
           throw new NoSuchNamespaceException("Catalog " + catalogName + " is not supported.");
       }
 
-      LOG.info("Catalog is used: [{}]", catalog);
+      LOG.info("Catalog is used: {}", catalog);
       return Optional.of(catalog);
     }
 

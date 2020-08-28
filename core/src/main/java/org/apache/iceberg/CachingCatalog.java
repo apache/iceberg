@@ -28,8 +28,11 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class CachingCatalog implements Catalog {
+  private static final Logger LOG = LoggerFactory.getLogger(CachingCatalog.class);
 
   public static Catalog wrap(Catalog catalog) {
     return wrap(catalog, true);
@@ -63,7 +66,10 @@ public class CachingCatalog implements Catalog {
 
   @Override
   public Table loadTable(TableIdentifier ident) {
-    return tableCache.get(canonicalizeIdentifier(ident), catalog::loadTable);
+    Table result = tableCache.get(canonicalizeIdentifier(ident), catalog::loadTable);
+    LOG.info("Table loaded by catalog: {}", result);
+
+    return result;
   }
 
   @Override

@@ -227,7 +227,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     private CloseableIterable<T> open(FileScanTask currentTask, Schema readSchema) {
       DataFile file = currentTask.file();
-      LOG.debug("Opening [{}] for read", file);
       // TODO we should make use of FileIO to create inputFile
       InputFile inputFile = HadoopInputFile.fromLocation(file.path(), context.getConfiguration());
       CloseableIterable<T> iterable;

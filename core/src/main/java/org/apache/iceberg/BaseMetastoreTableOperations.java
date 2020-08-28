@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -31,6 +32,7 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Stopwatch;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -46,12 +48,18 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   private static final String METADATA_FOLDER_NAME = "metadata";
 
+  private String fullName;
   private TableMetadata currentMetadata = null;
   private String currentMetadataLocation = null;
   private boolean shouldRefresh = true;
   private int version = -1;
 
-  protected BaseMetastoreTableOperations() {
+  protected BaseMetastoreTableOperations(String fullName) {
+    this.fullName = fullName;
+  }
+
+  protected String fullName() {
+    return fullName;
   }
 
   @Override
@@ -101,12 +109,25 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
       return;
     }
 
-    doCommit(base, metadata);
+    Stopwatch stopwatch = Stopwatch.createStarted();
+    String newMetadataLocation = doCommit(base, metadata);
     deleteRemovedMetadataFiles(base, metadata);
     requestRefresh();
+    stopwatch.stop();
+
+    LOG.info("Successfully committed to table: {} in: {} ms: {}",
+        fullName,
+        newMetadataLocation,
+        stopwatch.elapsed(TimeUnit.MILLISECONDS));
   }
 
-  protected void doCommit(TableMetadata base, TableMetadata metadata) {
+  /**
+   * Executes the commit in the Metastore
+   * @param base The base table metadata
+   * @param metadata The new table metadata
+   * @return The new metadata location
+   */
+  protected String doCommit(TableMetadata base, TableMetadata metadata) {
     throw new UnsupportedOperationException("Not implemented: doCommit");
   }
 

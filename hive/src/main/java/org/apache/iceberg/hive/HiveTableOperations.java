@@ -78,7 +78,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       .build();
 
   private final HiveClientPool metaClients;
-  private final String fullName;
   private final String database;
   private final String tableName;
   private final Configuration conf;
@@ -88,9 +87,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
   protected HiveTableOperations(Configuration conf, HiveClientPool metaClients,
                                 String catalogName, String database, String table) {
+    super(catalogName + "." + database + "." + table);
     this.conf = conf;
     this.metaClients = metaClients;
-    this.fullName = catalogName + "." + database + "." + table;
     this.database = database;
     this.tableName = table;
     this.lockAcquireTimeout =
@@ -111,7 +110,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     String metadataLocation = null;
     try {
       Table table = metaClients.run(client -> client.getTable(database, tableName));
-      validateTableIsIceberg(table, fullName);
+      validateTableIsIceberg(table, fullName());
 
       metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
 
@@ -130,11 +129,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     }
 
     refreshFromMetadataLocation(metadataLocation);
-    LOG.debug("Refreshed [{}]", fullName);
   }
 
   @Override
-  protected void doCommit(TableMetadata base, TableMetadata metadata) {
+  protected String doCommit(TableMetadata base, TableMetadata metadata) {
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
 
     boolean threw = true;
@@ -144,11 +142,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       // TODO add lock heart beating for cases where default lock timeout is too low.
       Table tbl;
       if (base != null) {
-        LOG.info("Committing existing table [{}]", fullName);
+        LOG.debug("Committing existing table: {}", fullName());
         tbl = metaClients.run(client -> client.getTable(database, tableName));
         tbl.setSd(storageDescriptor(metadata)); // set to pickup any schema changes
       } else {
-        LOG.info("Committing new table [{}]", fullName);
+        LOG.debug("Committing new table: {}", fullName());
         final long currentTimeMillis = System.currentTimeMillis();
         tbl = new Table(tableName,
             database,
@@ -190,7 +188,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         });
       }
       threw = false;
-      LOG.info("Commit successful for [{}] with new metadata location [{}]", fullName, newMetadataLocation);
+      return newMetadataLocation;
 
     } catch (org.apache.hadoop.hive.metastore.api.AlreadyExistsException e) {
       throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);

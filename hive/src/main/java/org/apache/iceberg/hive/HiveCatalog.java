@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
 import org.apache.hadoop.hive.metastore.api.Database;
@@ -44,6 +45,7 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -73,7 +75,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     this.conf = new Configuration(conf);
     // before building the client pool, overwrite the configuration's URIs if the argument is non-null
     if (uri != null) {
-      this.conf.set("hive.metastore.uris", uri);
+      this.conf.set(HiveConf.ConfVars.METASTOREURIS.varname, uri);
     }
 
     this.clients = new HiveClientPool(clientPoolSize, this.conf);
@@ -93,7 +95,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
           .map(t -> TableIdentifier.of(namespace, t))
           .collect(Collectors.toList());
 
-      LOG.debug("Listing of namespace [{}] resulted in the following tables: [{}]", namespace, tableIdentifiers);
+      LOG.debug("Listing of namespace: {} resulted in the following tables: {}", namespace, tableIdentifiers);
       return tableIdentifiers;
 
     } catch (UnknownDBException e) {
@@ -141,11 +143,11 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
         dropTableData(ops.io(), lastMetadata);
       }
 
-      LOG.info("Table is dropped [{}]", identifier);
+      LOG.info("Dropped table: {}", identifier);
       return true;
 
     } catch (NoSuchTableException | NoSuchObjectException e) {
-      LOG.debug("Unable to drop missing table: [{}]", identifier, e);
+      LOG.debug("Skipping drop, table does not exist: {}", identifier, e);
       return false;
 
     } catch (TException e) {
@@ -182,7 +184,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
         return null;
       });
 
-      LOG.info("Renamed table from: [{}], to: [{}]", from, to);
+      LOG.info("Renamed table from: {}, to: {}", from, to);
 
     } catch (NoSuchObjectException e) {
       throw new NoSuchTableException("Table does not exist: %s", from);
@@ -213,7 +215,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
         return null;
       });
 
-      LOG.info("Created namespace: [{}]", namespace);
+      LOG.info("Created namespace: {}", namespace);
 
     } catch (AlreadyExistsException e) {
       throw new org.apache.iceberg.exceptions.AlreadyExistsException(e, "Namespace '%s' already exists!",
@@ -243,7 +245,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
           .map(Namespace::of)
           .collect(Collectors.toList());
 
-      LOG.debug("Listing of namespace [{}] resulted in the following namespaces: [{}]", namespace, namespaces);
+      LOG.debug("Listing of namespace: {} resulted in the following namespaces: {}", namespace, namespaces);
       return namespaces;
 
     } catch (TException e) {
@@ -271,7 +273,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
         return null;
       });
 
-      LOG.info("Dropped namespace: [{}]", namespace);
+      LOG.info("Dropped namespace: {}", namespace);
       return true;
 
     } catch (InvalidOperationException e) {
@@ -300,7 +302,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
     boolean result = alterHiveDataBase(namespace, database);
     if (LOG.isDebugEnabled()) {
-      LOG.debug("Set properties for [{}] to [{}] resulted [{}]",
+      LOG.debug("Set properties for: {} to: {} resulted: {}",
           namespace,
           Joiner.on(",").withKeyValueSeparator("=").join(properties),
           result);
@@ -318,7 +320,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     Database database = convertToDatabase(namespace, parameter);
 
     boolean result = alterHiveDataBase(namespace, database);
-    LOG.debug("Remove properties [{}] from [{}] resulted [{}]", properties, namespace, result);
+    LOG.debug("Remove properties: {} from: {} resulted: {}", properties, namespace, result);
 
     return result;
   }
@@ -355,7 +357,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
       Database database = clients.run(client -> client.getDatabase(namespace.level(0)));
       Map<String, String> metadata = convertToMetadata(database);
       if (LOG.isDebugEnabled()) {
-        LOG.debug("For namespace [{}] loaded metadata: [{}]",
+        LOG.debug("For namespace: {} loaded metadata: {}",
             namespace,
             Joiner.on(",").withKeyValueSeparator("=").join(metadata));
       }
@@ -495,14 +497,17 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     super.finalize();
     if (!closed) {
       close(); // releasing resources is more important than printing the warning
-      String trace = Joiner.on("\\n\t").join(
+      String trace = Joiner.on("\n\t").join(
           Arrays.copyOfRange(createStack, 1, createStack.length));
-      LOG.warn("Unclosed input stream created by:\\n\t{}", trace);
+      LOG.warn("Unclosed input stream created by:\n\t{}", trace);
     }
   }
 
   @Override
   public String toString() {
-    return "HiveCatalog [name=" + name + ", location=" + this.conf.get("hive.metastore.uris") + "]";
+    return MoreObjects.toStringHelper(this)
+        .add("name", name)
+        .add("uri", this.conf.get(HiveConf.ConfVars.METASTOREURIS.varname))
+        .toString();
   }
 }
