@@ -105,9 +105,7 @@ public class FlinkSink {
       return this;
     }
 
-    private DataStream<RowData> convert() {
-      Preconditions.checkArgument(rowInput != null, "The DataStream<Row> to convert shouldn't be null");
-
+    private DataStream<RowData> convertToRowDataStream() {
       RowType rowType;
       DataType[] fieldDataTypes;
       if (tableSchema != null) {
@@ -126,14 +124,16 @@ public class FlinkSink {
     @SuppressWarnings("unchecked")
     public DataStreamSink<RowData> build() {
       Preconditions.checkArgument(rowInput != null || rowDataInput != null,
-          "Should initialize input DataStream first with DataStream<Row> or DataStream<RowData>");
+          "Neither Builder.forRow(..) nor Builder.forRowData(..) is called, " +
+              "please use one of them to initialize the input DataStream.");
       Preconditions.checkArgument(rowInput == null || rowDataInput == null,
-          "Could only initialize input DataStream with either DataStream<Row> or DataStream<RowData>");
+          "Both Builder.forRow(..) and Builder.forRowData(..) are called," +
+              "please use only one of them to initialize the input DataStream.");
       Preconditions.checkNotNull(table, "Table shouldn't be null");
       Preconditions.checkNotNull(tableLoader, "Table loader shouldn't be null");
       Preconditions.checkNotNull(hadoopConf, "Hadoop configuration shouldn't be null");
 
-      DataStream<RowData> inputStream = rowInput != null ? convert() : rowDataInput;
+      DataStream<RowData> inputStream = rowInput != null ? convertToRowDataStream() : rowDataInput;
 
       IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, tableSchema);
       IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, hadoopConf);

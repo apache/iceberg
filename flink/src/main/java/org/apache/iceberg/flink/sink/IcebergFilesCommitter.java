@@ -100,16 +100,16 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   @Override
   public void initializeState(StateInitializationContext context) throws Exception {
     super.initializeState(context);
-    flinkJobId = getContainingTask().getEnvironment().getJobID().toString();
+    this.flinkJobId = getContainingTask().getEnvironment().getJobID().toString();
 
     // Open the table loader and load the table.
-    tableLoader.open(hadoopConf.get());
-    table = tableLoader.loadTable();
-    maxCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
+    this.tableLoader.open(hadoopConf.get());
+    this.table = tableLoader.loadTable();
+    this.maxCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
-    checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
+    this.checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     if (context.isRestored()) {
-      maxCommittedCheckpointId = getMaxCommittedCheckpointId(table, flinkJobId);
+      this.maxCommittedCheckpointId = getMaxCommittedCheckpointId(table, flinkJobId);
       // In the restoring path, it should have one valid snapshot for current flink job at least, so the max committed
       // checkpoint id should be positive. If it's not positive, that means someone might have removed or expired the
       // iceberg snapshot, in that case we should throw an exception in case of committing duplicated data files into
@@ -119,7 +119,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
       SortedMap<Long, List<DataFile>> restoredDataFiles = checkpointsState.get().iterator().next();
       // Only keep the uncommitted data files in the cache.
-      dataFilesPerCheckpoint.putAll(restoredDataFiles.tailMap(maxCommittedCheckpointId + 1));
+      this.dataFilesPerCheckpoint.putAll(restoredDataFiles.tailMap(maxCommittedCheckpointId + 1));
     }
   }
 
@@ -152,7 +152,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     // Besides, we need to maintain the max-committed-checkpoint-id to be increasing.
     if (checkpointId > maxCommittedCheckpointId) {
       commitUpToCheckpoint(checkpointId);
-      maxCommittedCheckpointId = checkpointId;
+      this.maxCommittedCheckpointId = checkpointId;
     }
   }
 

@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.flink.table.data.RowData;
@@ -118,7 +119,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     }
   }
 
-  public static class FlinkFileAppenderFactory implements FileAppenderFactory<RowData> {
+  public static class FlinkFileAppenderFactory implements FileAppenderFactory<RowData>, Serializable {
     private final Schema schema;
     private final RowType flinkSchema;
     private final Map<String, String> props;
