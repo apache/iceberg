@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
@@ -41,6 +42,7 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -66,7 +68,6 @@ public class TestIcebergFilesCommitter {
 
   private final FileFormat format;
 
-  // TODO Add Parquet unit test once those readers and writers are ready.
   @Parameterized.Parameters(name = "format = {0}")
   public static Object[][] parameters() {
     return new Object[][] {
@@ -89,7 +90,8 @@ public class TestIcebergFilesCommitter {
     Assert.assertTrue("Should create the table directory correctly.", new File(tablePath).mkdir());
 
     // Construct the iceberg table.
-    table = SimpleDataUtil.createTable(tablePath, ImmutableMap.of(), false);
+    Map<String, String> props = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name());
+    table = SimpleDataUtil.createTable(tablePath, props, false);
   }
 
   @Test

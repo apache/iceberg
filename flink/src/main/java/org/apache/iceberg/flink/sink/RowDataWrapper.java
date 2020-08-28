@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.flink;
+package org.apache.iceberg.flink.sink;
 
 import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
@@ -35,13 +35,13 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.UUIDUtil;
 
-public class RowDataWrapper implements StructLike {
+class RowDataWrapper implements StructLike {
 
   private final LogicalType[] types;
   private final PositionalGetter<?>[] getters;
   private RowData rowData = null;
 
-  public RowDataWrapper(RowType rowType, Types.StructType struct) {
+  RowDataWrapper(RowType rowType, Types.StructType struct) {
     int size = rowType.getFieldCount();
 
     types = (LogicalType[]) Array.newInstance(LogicalType.class, size);
@@ -53,7 +53,7 @@ public class RowDataWrapper implements StructLike {
     }
   }
 
-  public RowDataWrapper wrap(RowData data) {
+  RowDataWrapper wrap(RowData data) {
     this.rowData = data;
     return this;
   }
