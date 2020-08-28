@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.parquet;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
@@ -30,6 +31,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
@@ -689,5 +691,26 @@ public class Parquet {
     protected ReadSupport<T> getReadSupport() {
       return new ParquetReadSupport<>(schema, readSupport, callInit, nameMapping);
     }
+  }
+
+  /**
+   * @param inputFiles   an {@link Iterable} of parquet files. The order of iteration determines the order in which
+   *                     content of files are read and written to the @param outputFile
+   * @param outputFile   the output parquet file containing all the data from @param inputFiles
+   * @param rowGroupSize the row group size to use when writing the @param outputFile
+   * @param schema       the schema of the data
+   * @param metadata     extraMetadata to write at the footer of the @param outputFile
+   */
+  public static void concat(Iterable<File> inputFiles, File outputFile, int rowGroupSize, Schema schema,
+                            Map<String, String> metadata) throws IOException {
+    OutputFile file = Files.localOutput(outputFile);
+    ParquetFileWriter writer = new ParquetFileWriter(
+            ParquetIO.file(file), ParquetSchemaUtil.convert(schema, "table"),
+            ParquetFileWriter.Mode.CREATE, rowGroupSize, 0);
+    writer.start();
+    for (File inputFile : inputFiles) {
+      writer.appendFile(ParquetIO.file(Files.localInput(inputFile)));
+    }
+    writer.end(metadata);
   }
 }
