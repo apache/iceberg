@@ -21,7 +21,7 @@ package org.apache.iceberg.flink.sink;
 
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Function;
+import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -70,9 +70,9 @@ public class FlinkSink {
    * @return {@link Builder} to connect the iceberg table.
    */
   public static <T> Builder builderFor(DataStream<T> input,
-                                       Function<T, RowData> mapper,
+                                       MapFunction<T, RowData> mapper,
                                        TypeInformation<RowData> outputType) {
-    DataStream<RowData> dataStream = input.map(mapper::apply, outputType);
+    DataStream<RowData> dataStream = input.map(mapper, outputType);
     return forRowData(dataStream);
   }
 
