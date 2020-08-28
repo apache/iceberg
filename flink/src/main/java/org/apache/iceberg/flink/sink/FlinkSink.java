@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -31,9 +32,7 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
 import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo;
 import org.apache.flink.table.types.DataType;
-import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
-import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.flink.types.Row;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
@@ -59,25 +58,60 @@ public class FlinkSink {
   private FlinkSink() {
   }
 
-  public static Builder forRow(DataStream<Row> input) {
-    return new Builder().forRow(input);
+  /**
+   * Initialize a {@link Builder} to export the data from generic input data stream into iceberg table. We use
+   * {@link RowData} inside the sink connector, so users need to provide a mapper function and a
+   * {@link TypeInformation} to convert those generic records to a RowData DataStream.
+   *
+   * @param input      the generic source input data stream.
+   * @param mapper     function to convert the generic data to {@link RowData}
+   * @param outputType to define the {@link TypeInformation} for the input data.
+   * @param <T>        the data type of records.
+   * @return {@link Builder} to connect the iceberg table.
+   */
+  public static <T> Builder builderFor(DataStream<T> input,
+                                       Function<T, RowData> mapper,
+                                       TypeInformation<RowData> outputType) {
+    DataStream<RowData> dataStream = input.map(mapper::apply, outputType);
+    return forRowData(dataStream);
   }
 
+  /**
+   * Initialize a {@link Builder} to export the data from input data stream with {@link Row}s into iceberg table. We use
+   * {@link RowData} inside the sink connector, so users need to provide a {@link TableSchema} for builder to convert
+   * those {@link Row}s to a {@link RowData} DataStream.
+   *
+   * @param input       the source input data stream with {@link Row}s.
+   * @param tableSchema defines the {@link TypeInformation} for input data.
+   * @return {@link Builder} to connect the iceberg table.
+   */
+  public static Builder forRow(DataStream<Row> input, TableSchema tableSchema) {
+    RowType rowType = (RowType) tableSchema.toRowDataType().getLogicalType();
+    DataType[] fieldDataTypes = tableSchema.getFieldDataTypes();
+
+    DataFormatConverters.RowConverter rowConverter = new DataFormatConverters.RowConverter(fieldDataTypes);
+    return builderFor(input, rowConverter::toInternal, RowDataTypeInfo.of(rowType))
+        .tableSchema(tableSchema);
+  }
+
+  /**
+   * Initialize a {@link Builder} to export the data from input data stream with {@link RowData}s into iceberg table.
+   *
+   * @param input the source input data stream with {@link RowData}s.
+   * @return {@link Builder} to connect the iceberg table.
+   */
   public static Builder forRowData(DataStream<RowData> input) {
     return new Builder().forRowData(input);
   }
 
   public static class Builder {
-    private DataStream<Row> rowInput = null;
     private DataStream<RowData> rowDataInput = null;
     private TableLoader tableLoader;
     private Configuration hadoopConf;
     private Table table;
     private TableSchema tableSchema;
 
-    private Builder forRow(DataStream<Row> newRowInput) {
-      this.rowInput = newRowInput;
-      return this;
+    private Builder() {
     }
 
     private Builder forRowData(DataStream<RowData> newRowDataInput) {
@@ -85,11 +119,27 @@ public class FlinkSink {
       return this;
     }
 
+    /**
+     * This iceberg {@link Table} instance is used for initializing {@link IcebergStreamWriter} which will write all
+     * the records into {@link DataFile}s and emit them to downstream operator. Providing a table would avoid so many
+     * table loading from each separate task.
+     *
+     * @param newTable the loaded iceberg table instance.
+     * @return {@link Builder} to connect the iceberg table.
+     */
     public Builder table(Table newTable) {
       this.table = newTable;
       return this;
     }
 
+    /**
+     * The table loader is used for loading tables in {@link IcebergFilesCommitter} lazily, we need this loader because
+     * {@link Table} is not serializable and could not just use the loaded table from Builder#table in the remote task
+     * manager.
+     *
+     * @param newTableLoader to load iceberg table inside tasks.
+     * @return {@link Builder} to connect the iceberg table.
+     */
     public Builder tableLoader(TableLoader newTableLoader) {
       this.tableLoader = newTableLoader;
       return this;
@@ -105,42 +155,20 @@ public class FlinkSink {
       return this;
     }
 
-    private DataStream<RowData> convertToRowDataStream() {
-      RowType rowType;
-      DataType[] fieldDataTypes;
-      if (tableSchema != null) {
-        rowType = (RowType) tableSchema.toRowDataType().getLogicalType();
-        fieldDataTypes = tableSchema.getFieldDataTypes();
-      } else {
-        rowType = FlinkSchemaUtil.convert(table.schema());
-        fieldDataTypes = TypeConversions.fromLogicalToDataType(rowType.getChildren().toArray(new LogicalType[0]));
-      }
-
-      DataFormatConverters.RowConverter rowConverter = new DataFormatConverters.RowConverter(fieldDataTypes);
-
-      return rowInput.map(rowConverter::toInternal, RowDataTypeInfo.of(rowType));
-    }
-
     @SuppressWarnings("unchecked")
     public DataStreamSink<RowData> build() {
-      Preconditions.checkArgument(rowInput != null || rowDataInput != null,
-          "Neither Builder.forRow(..) nor Builder.forRowData(..) is called, " +
-              "please use one of them to initialize the input DataStream.");
-      Preconditions.checkArgument(rowInput == null || rowDataInput == null,
-          "Both Builder.forRow(..) and Builder.forRowData(..) are called," +
-              "please use only one of them to initialize the input DataStream.");
+      Preconditions.checkArgument(rowDataInput != null,
+          "Please use forRowData() to initialize the input DataStream.");
       Preconditions.checkNotNull(table, "Table shouldn't be null");
       Preconditions.checkNotNull(tableLoader, "Table loader shouldn't be null");
       Preconditions.checkNotNull(hadoopConf, "Hadoop configuration shouldn't be null");
 
-      DataStream<RowData> inputStream = rowInput != null ? convertToRowDataStream() : rowDataInput;
-
       IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, tableSchema);
       IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, hadoopConf);
 
-      DataStream<Void> returnStream = inputStream
+      DataStream<Void> returnStream = rowDataInput
           .transform(ICEBERG_STREAM_WRITER_NAME, TypeInformation.of(DataFile.class), streamWriter)
-          .setParallelism(inputStream.getParallelism())
+          .setParallelism(rowDataInput.getParallelism())
           .transform(ICEBERG_FILES_COMMITTER_NAME, Types.VOID, filesCommitter)
           .setParallelism(1)
           .setMaxParallelism(1);

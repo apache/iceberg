@@ -152,7 +152,7 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
     );
     DataStream<Row> dataStream = env.addSource(new FiniteTestSource<>(rows), ROW_TYPE_INFO);
 
-    FlinkSink.forRow(dataStream)
+    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(table)
         .tableLoader(tableLoader)
         .tableSchema(tableSchema)
