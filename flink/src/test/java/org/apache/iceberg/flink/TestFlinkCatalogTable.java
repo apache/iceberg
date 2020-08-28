@@ -122,6 +122,20 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
   }
 
   @Test
+  public void testCreateTableLocation() {
+    Assume.assumeFalse("HadoopCatalog does not support creating table with location", isHadoopCatalog);
+
+    tEnv.executeSql("CREATE TABLE tl(id BIGINT) WITH ('location'='/tmp/location')");
+
+    Table table = table("tl");
+    Assert.assertEquals(
+        new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
+        table.schema().asStruct());
+    Assert.assertEquals("/tmp/location", table.location());
+    Assert.assertEquals(Maps.newHashMap(), table.properties());
+  }
+
+  @Test
   public void testCreatePartitionTable() throws TableNotExistException {
     tEnv.executeSql("CREATE TABLE tl(id BIGINT, dt STRING) PARTITIONED BY(dt)");
 
@@ -158,7 +172,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
   }
 
   @Test
-  public void testAlterTable() {
+  public void testAlterTable() throws TableNotExistException {
     tEnv.executeSql("CREATE TABLE tl(id BIGINT) WITH ('oldK'='oldV')");
     Map<String, String> properties = Maps.newHashMap();
     properties.put("oldK", "oldV");
@@ -171,6 +185,13 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     // update old
     tEnv.executeSql("ALTER TABLE tl SET('oldK'='oldV2')");
     properties.put("oldK", "oldV2");
+    Assert.assertEquals(properties, table("tl").properties());
+
+    // remove property
+    CatalogTable catalogTable = catalogTable("tl");
+    properties.remove("oldK");
+    tEnv.getCatalog(tEnv.getCurrentCatalog()).get().alterTable(
+        new ObjectPath(DATABASE, "tl"), catalogTable.copy(properties), false);
     Assert.assertEquals(properties, table("tl").properties());
   }
 
