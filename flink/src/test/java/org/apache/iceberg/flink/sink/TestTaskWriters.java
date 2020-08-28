@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.flink;
+package org.apache.iceberg.flink.sink;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,6 +35,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.data.RandomRowData;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -55,14 +56,15 @@ public class TestTaskWriters {
   @Rule
   public final TemporaryFolder tempFolder = new TemporaryFolder();
 
-  // TODO add Parquet unit test once the readers and writers are ready.
   @Parameterized.Parameters(name = "format = {0}, partitioned = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
         new Object[] {"avro", true},
         new Object[] {"avro", false},
         new Object[] {"orc", true},
-        new Object[] {"orc", false}
+        new Object[] {"orc", false},
+        new Object[] {"parquet", true},
+        new Object[] {"parquet", false}
     };
   }
 

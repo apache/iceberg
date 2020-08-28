@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.flink;
+package org.apache.iceberg.flink.sink;
 
 import java.lang.reflect.Array;
 import java.nio.ByteBuffer;

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.flink;
+package org.apache.iceberg.flink.sink;
 
 import java.io.File;
 import java.io.IOException;
@@ -45,6 +45,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -70,14 +71,15 @@ public class TestIcebergStreamWriter {
   private final FileFormat format;
   private final boolean partitioned;
 
-  // TODO add Parquet unit test once the readers and writers are ready.
   @Parameterized.Parameters(name = "format = {0}, partitioned = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
         new Object[] {"avro", true},
         new Object[] {"avro", false},
         new Object[] {"orc", true},
-        new Object[] {"orc", false}
+        new Object[] {"orc", false},
+        new Object[] {"parquet", true},
+        new Object[] {"parquet", false}
     };
   }
 
@@ -315,7 +317,7 @@ public class TestIcebergStreamWriter {
 
   private OneInputStreamOperatorTestHarness<RowData, DataFile> createIcebergStreamWriter(
       Table icebergTable, TableSchema flinkSchema) throws Exception {
-    IcebergStreamWriter<RowData> streamWriter = IcebergSinkUtil.createStreamWriter(icebergTable, flinkSchema);
+    IcebergStreamWriter<RowData> streamWriter = FlinkSink.createStreamWriter(icebergTable, flinkSchema);
     OneInputStreamOperatorTestHarness<RowData, DataFile> harness = new OneInputStreamOperatorTestHarness<>(
         streamWriter, 1, 1, 0);
 

@@ -51,7 +51,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
-class FlinkParquetWriters {
+public class FlinkParquetWriters {
   private FlinkParquetWriters() {
   }
 
@@ -207,6 +207,7 @@ class FlinkParquetWriters {
         " wrong precision %s", precision);
     return new IntegerDecimalWriter(desc, precision, scale);
   }
+
   private static ParquetValueWriters.PrimitiveWriter<DecimalData> decimalAsLong(ColumnDescriptor desc,
                                                                                 int precision, int scale) {
     Preconditions.checkArgument(precision <= 18, "Cannot write decimal value as long with precision larger than 18, " +

@@ -17,9 +17,10 @@
  * under the License.
  */
 
-package org.apache.iceberg.flink;
+package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.flink.table.data.RowData;
@@ -33,6 +34,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.flink.data.FlinkAvroWriter;
 import org.apache.iceberg.flink.data.FlinkOrcWriter;
+import org.apache.iceberg.flink.data.FlinkParquetWriters;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
@@ -42,9 +44,10 @@ import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.orc.ORC;
+import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
+public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final Schema schema;
   private final RowType flinkSchema;
   private final PartitionSpec spec;
@@ -55,17 +58,17 @@ class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final FileFormat format;
   private final FileAppenderFactory<RowData> appenderFactory;
 
-  private OutputFileFactory outputFileFactory;
+  private transient OutputFileFactory outputFileFactory;
 
-  RowDataTaskWriterFactory(Schema schema,
-                           RowType flinkSchema,
-                           PartitionSpec spec,
-                           LocationProvider locations,
-                           FileIO io,
-                           EncryptionManager encryptionManager,
-                           long targetFileSizeBytes,
-                           FileFormat format,
-                           Map<String, String> tableProperties) {
+  public RowDataTaskWriterFactory(Schema schema,
+                                  RowType flinkSchema,
+                                  PartitionSpec spec,
+                                  LocationProvider locations,
+                                  FileIO io,
+                                  EncryptionManager encryptionManager,
+                                  long targetFileSizeBytes,
+                                  FileFormat format,
+                                  Map<String, String> tableProperties) {
     this.schema = schema;
     this.flinkSchema = flinkSchema;
     this.spec = spec;
@@ -115,12 +118,12 @@ class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     }
   }
 
-  private static class FlinkFileAppenderFactory implements FileAppenderFactory<RowData> {
+  public static class FlinkFileAppenderFactory implements FileAppenderFactory<RowData>, Serializable {
     private final Schema schema;
     private final RowType flinkSchema;
     private final Map<String, String> props;
 
-    private FlinkFileAppenderFactory(Schema schema, RowType flinkSchema, Map<String, String> props) {
+    public FlinkFileAppenderFactory(Schema schema, RowType flinkSchema, Map<String, String> props) {
       this.schema = schema;
       this.flinkSchema = flinkSchema;
       this.props = props;
@@ -128,7 +131,6 @@ class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
     @Override
     public FileAppender<RowData> newAppender(OutputFile outputFile, FileFormat format) {
-      // TODO MetricsConfig will be used for building parquet RowData writer.
       MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
       try {
         switch (format) {
@@ -149,6 +151,14 @@ class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
                 .build();
 
           case PARQUET:
+            return Parquet.write(outputFile)
+                .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(flinkSchema, msgType))
+                .setAll(props)
+                .metricsConfig(metricsConfig)
+                .schema(schema)
+                .overwrite()
+                .build();
+
           default:
             throw new UnsupportedOperationException("Cannot write unknown file format: " + format);
         }
