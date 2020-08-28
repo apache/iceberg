@@ -65,11 +65,9 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 public class TestSparkTableUtil extends HiveTableBaseTest {
   private static final String TABLE_NAME = "hive_table";
   private static final String QUALIFIED_TABLE_NAME = String.format("%s.%s", HiveTableBaseTest.DB_NAME, TABLE_NAME);
-
+  private static final Path TABLE_LOCATION_PATH = HiveTableBaseTest.getTableLocationPath(TABLE_NAME);
+  private static final String TABLE_LOCATION_STR = TABLE_LOCATION_PATH.toString();
   private static SparkSession spark = null;
-
-  private static final Path tableLocationPath = HiveTableBaseTest.getTableLocationPath(TABLE_NAME);
-  private static final String tableLocationStr = tableLocationPath.toString();
 
   @BeforeClass
   public static void startSpark() {
@@ -103,7 +101,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
                     ")\n" +
                     "PARTITIONED BY (data string)\n" +
                     "STORED AS %s\n" +
-                    "LOCATION '%s'", QUALIFIED_TABLE_NAME, fileFormat, tableLocationStr)
+                    "LOCATION '%s'", QUALIFIED_TABLE_NAME, fileFormat, TABLE_LOCATION_STR)
     );
 
     List<SimpleRecord> expected = Lists.newArrayList(
@@ -125,7 +123,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
     sc.sql(String.format("DROP TABLE IF EXISTS %s", QUALIFIED_TABLE_NAME));
 
     // Delete the data corresponding to the table.
-    tableLocationPath.getFileSystem(HiveTableBaseTest.hiveConf).delete(tableLocationPath, true);
+    TABLE_LOCATION_PATH.getFileSystem(HiveTableBaseTest.hiveConf).delete(TABLE_LOCATION_PATH, true);
   }
 
   @RunWith(Parameterized.class)

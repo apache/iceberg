@@ -52,6 +52,7 @@ import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.OrcMetrics;
@@ -322,8 +323,7 @@ public class SparkTableUtil {
     } else if (format.contains("parquet")) {
       return listParquetPartition(partition, uri, spec, conf, metricsConfig, mapping);
     } else if (format.contains("orc")) {
-      // TODO: use NameMapping in listOrcPartition
-      return listOrcPartition(partition, uri, spec, conf, metricsConfig);
+      return listOrcPartition(partition, uri, spec, conf, metricsConfig, mapping);
     } else {
       throw new UnsupportedOperationException("Unknown partition format: " + format);
     }
@@ -396,7 +396,7 @@ public class SparkTableUtil {
 
   private static List<DataFile> listOrcPartition(Map<String, String> partitionPath, String partitionUri,
                                                  PartitionSpec spec, Configuration conf,
-                                                 MetricsConfig metricsSpec) {
+                                                 MetricsConfig metricsSpec, NameMapping mapping) {
     try {
       Path partition = new Path(partitionUri);
       FileSystem fs = partition.getFileSystem(conf);
@@ -404,7 +404,8 @@ public class SparkTableUtil {
       return Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
           .filter(FileStatus::isFile)
           .map(stat -> {
-            Metrics metrics = OrcMetrics.fromInputFile(HadoopInputFile.fromPath(stat.getPath(), conf), metricsSpec);
+            Metrics metrics = OrcMetrics.fromInputFile(HadoopInputFile.fromPath(stat.getPath(), conf),
+                metricsSpec, mapping);
             String partitionKey = spec.fields().stream()
                 .map(PartitionField::name)
                 .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
@@ -539,7 +540,8 @@ public class SparkTableUtil {
       Configuration conf = spark.sessionState().newHadoopConf();
       MetricsConfig metricsConfig = MetricsConfig.fromProperties(targetTable.properties());
       String nameMappingString = targetTable.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
-      NameMapping nameMapping = nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
+      NameMapping nameMapping = nameMappingString != null ?
+          NameMappingParser.fromJson(nameMappingString) : MappingUtil.create(targetTable.schema());
 
       List<DataFile> files = listPartition(
           partition, Util.uriToString(sourceTable.location()), format.get(), spec, conf, metricsConfig, nameMapping);
@@ -573,7 +575,8 @@ public class SparkTableUtil {
     int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(targetTable.properties());
     String nameMappingString = targetTable.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
-    NameMapping nameMapping = nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
+    NameMapping nameMapping = nameMappingString != null ?
+        NameMappingParser.fromJson(nameMappingString) : MappingUtil.create(targetTable.schema());
 
     JavaSparkContext sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     JavaRDD<SparkPartition> partitionRDD = sparkContext.parallelize(partitions, parallelism);
