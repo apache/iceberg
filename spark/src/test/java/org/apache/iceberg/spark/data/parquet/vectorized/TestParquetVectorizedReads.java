@@ -91,7 +91,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
         .build();
   }
 
-  private void assertRecordsMatch(
+  void assertRecordsMatch(
       Schema schema, int expectedSize, Iterable<GenericData.Record> expected, File testFile,
       boolean setAndCheckArrowValidityBuffer, boolean reuseContainers)
       throws IOException {

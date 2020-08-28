@@ -101,7 +101,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     LONG,
     FLOAT,
     DOUBLE,
-    TIMESTAMP_MILLIS
+    TIMESTAMP_MILLIS,
+    DICTIONARY
   }
 
   @Override
@@ -112,14 +113,15 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
   @Override
   public VectorHolder read(VectorHolder reuse, int numValsToRead) {
-    if (reuse == null) {
-      allocateFieldVector(this.vectorizedColumnIterator.producesDictionaryEncodedVector());
+    boolean dictEncoded = vectorizedColumnIterator.producesDictionaryEncodedVector();
+    if (reuse == null || (!dictEncoded && readType == ReadType.DICTIONARY) ||
+        (dictEncoded && readType != ReadType.DICTIONARY)) {
+      allocateFieldVector(dictEncoded);
       nullabilityHolder = new NullabilityHolder(batchSize);
     } else {
       vec.setValueCount(0);
       nullabilityHolder.reset();
     }
-    boolean dictEncoded = vectorizedColumnIterator.producesDictionaryEncodedVector();
     if (vectorizedColumnIterator.hasNext()) {
       if (dictEncoded) {
         vectorizedColumnIterator.nextBatchDictionaryIds((IntVector) vec, nullabilityHolder);
@@ -176,6 +178,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       this.vec = field.createVector(rootAlloc);
       ((IntVector) vec).allocateNew(batchSize);
       this.typeWidth = (int) IntVector.TYPE_WIDTH;
+      this.readType = ReadType.DICTIONARY;
     } else {
       PrimitiveType primitive = columnDescriptor.getPrimitiveType();
       Field arrowField = ArrowSchemaUtil.convert(icebergField);
