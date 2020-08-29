@@ -246,6 +246,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
           .collect(Collectors.toList());
 
       LOG.debug("Listing namespace {} returned tables: {}", namespace, namespaces);
+      
       return namespaces;
 
     } catch (TException e) {
