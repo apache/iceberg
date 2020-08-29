@@ -300,17 +300,11 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     parameter.putAll(properties);
     Database database = convertToDatabase(namespace, parameter);
 
-    boolean result = alterHiveDataBase(namespace, database);
+    alterHiveDataBase(namespace, database);
+    LOG.debug("Successfully set properties for {}", namespace);
 
-    if (LOG.isDebugEnabled()) {
-      if (result) {
-        LOG.debug("Successfully set properties for {}", namespace);
-      } else {
-        LOG.debug("Failed to set properties for {}", namespace);
-      }
-    }
-
-    return result;
+    // Always successful, otherwise exception is thrown
+    return true;
   }
 
   @Override
@@ -321,26 +315,19 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     properties.forEach(key -> parameter.put(key, null));
     Database database = convertToDatabase(namespace, parameter);
 
-    boolean result = alterHiveDataBase(namespace, database);
-    if (LOG.isDebugEnabled()) {
-      if (result) {
-        LOG.debug("Successfully remove properties {} from {}", properties, namespace);
-      } else {
-        LOG.debug("Failed to remove properties for {}", properties, namespace);
-      }
-    }
+    alterHiveDataBase(namespace, database);
+    LOG.debug("Successfully removed properties {} from {}", properties, namespace);
 
-    return result;
+    // Always successful, otherwise exception is thrown
+    return true;
   }
 
-  private boolean alterHiveDataBase(Namespace namespace,  Database database) {
+  private void alterHiveDataBase(Namespace namespace,  Database database) {
     try {
       clients.run(client -> {
         client.alterDatabase(namespace.level(0), database);
         return null;
       });
-
-      return true;
 
     } catch (NoSuchObjectException | UnknownDBException e) {
       throw new NoSuchNamespaceException(e, "Namespace does not exist: %s", namespace);
