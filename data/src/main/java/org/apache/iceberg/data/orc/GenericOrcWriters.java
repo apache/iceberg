@@ -35,6 +35,7 @@ import java.util.UUID;
 import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.orc.storage.common.type.HiveDecimal;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
@@ -267,7 +268,13 @@ public class GenericOrcWriters {
 
     @Override
     public void nonNullWrite(int rowId, ByteBuffer data, ColumnVector output) {
-      ((BytesColumnVector) output).setRef(rowId, data.array(), 0, data.array().length);
+      if (data.hasArray()) {
+        ((BytesColumnVector) output).setRef(rowId, data.array(),
+                data.arrayOffset() + data.position(), data.remaining());
+      } else {
+        byte[] rawData = ByteBuffers.toByteArray(data);
+        ((BytesColumnVector) output).setRef(rowId, rawData, 0, rawData.length);
+      }
     }
   }
 
@@ -280,6 +287,7 @@ public class GenericOrcWriters {
     }
 
     @Override
+    @SuppressWarnings("ByteBufferBackingArray")
     public void nonNullWrite(int rowId, UUID data, ColumnVector output) {
       ByteBuffer buffer = ByteBuffer.allocate(16);
       buffer.putLong(data.getMostSignificantBits());

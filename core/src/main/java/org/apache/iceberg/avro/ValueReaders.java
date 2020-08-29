@@ -272,6 +272,7 @@ public class ValueReaders {
     }
 
     @Override
+    @SuppressWarnings("ByteBufferBackingArray")
     public UUID read(Decoder decoder, Object ignored) throws IOException {
       ByteBuffer buffer = BUFFER.get();
       buffer.rewind();
