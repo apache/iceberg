@@ -234,12 +234,11 @@ public class GenericOrcWriters {
 
     @Override
     public void nonNullWrite(int rowId, ByteBuffer data, ColumnVector output) {
-      if (data != null && data.hasArray()) {
+      if (data.hasArray()) {
         ((BytesColumnVector) output).setRef(rowId, data.array(), data.arrayOffset() + data.position(), data.remaining());
       } else {
         byte[] rawData = ByteBuffers.toByteArray(data);
-        int length = rawData == null ? 0 : rawData.length;
-        ((BytesColumnVector) output).setRef(rowId, rawData, 0, length);
+        ((BytesColumnVector) output).setRef(rowId, rawData, 0, rawData.length);
       }
     }
   }
