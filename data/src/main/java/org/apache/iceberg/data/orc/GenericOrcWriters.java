@@ -35,6 +35,7 @@ import java.util.UUID;
 import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.orc.storage.common.type.HiveDecimal;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
@@ -44,6 +45,8 @@ import org.apache.orc.storage.ql.exec.vector.ListColumnVector;
 import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
 import org.apache.orc.storage.ql.exec.vector.MapColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
+
+import static org.apache.iceberg.util.ByteBuffers.copy;
 
 public class GenericOrcWriters {
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
@@ -231,13 +234,12 @@ public class GenericOrcWriters {
 
     @Override
     public void nonNullWrite(int rowId, ByteBuffer data, ColumnVector output) {
-      ByteBuffer dupe = data.duplicate();
-      if (dupe.hasArray()) {
-        ((BytesColumnVector) output).setRef(rowId, dupe.array(), dupe.arrayOffset(), dupe.remaining());
+      if (data != null && data.hasArray()) {
+        ((BytesColumnVector) output).setRef(rowId, data.array(), data.arrayOffset() + data.position(), data.remaining());
       } else {
-        byte[] bytes = new byte[dupe.remaining()];
-        dupe.get(bytes);
-        ((BytesColumnVector) output).setRef(rowId, bytes, 0, bytes.length);
+        byte[] rawData = ByteBuffers.toByteArray(data);
+        int length = rawData == null ? 0 : rawData.length;
+        ((BytesColumnVector) output).setRef(rowId, rawData, 0, length);
       }
     }
   }
