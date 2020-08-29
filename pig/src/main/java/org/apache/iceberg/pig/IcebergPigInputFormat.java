@@ -51,6 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.pig.data.DataByteArray;
 import org.apache.pig.impl.util.ObjectSerializer;
 import org.slf4j.Logger;
@@ -246,13 +247,7 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
     private Object convertPartitionValue(Type type, Object value) {
       if (type.typeId() == Types.BinaryType.get().typeId()) {
         ByteBuffer dupe = ((ByteBuffer) value).duplicate();
-        if (dupe.hasArray()) {
-          return new DataByteArray(dupe.array());
-        } else {
-          byte[] bytes = new byte[dupe.remaining()];
-          dupe.get(bytes);
-          return new DataByteArray(bytes);
-        }
+        return new DataByteArray(ByteBuffers.toByteArray(dupe));
       }
 
       return value;
