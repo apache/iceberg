@@ -46,8 +46,6 @@ import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
 import org.apache.orc.storage.ql.exec.vector.MapColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
 
-import static org.apache.iceberg.util.ByteBuffers.copy;
-
 public class GenericOrcWriters {
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
@@ -235,7 +233,8 @@ public class GenericOrcWriters {
     @Override
     public void nonNullWrite(int rowId, ByteBuffer data, ColumnVector output) {
       if (data.hasArray()) {
-        ((BytesColumnVector) output).setRef(rowId, data.array(), data.arrayOffset() + data.position(), data.remaining());
+        ((BytesColumnVector) output).setRef(rowId, data.array(),
+                data.arrayOffset() + data.position(), data.remaining());
       } else {
         byte[] rawData = ByteBuffers.toByteArray(data);
         ((BytesColumnVector) output).setRef(rowId, rawData, 0, rawData.length);

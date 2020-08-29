@@ -246,7 +246,7 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
 
     private Object convertPartitionValue(Type type, Object value) {
       if (type.typeId() == Types.BinaryType.get().typeId()) {
-        return new DataByteArray(ByteBuffers.toByteArray(((ByteBuffer) value)));
+        return new DataByteArray(ByteBuffers.toByteArray((ByteBuffer) value));
       }
 
       return value;
