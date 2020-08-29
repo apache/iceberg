@@ -17,6 +17,7 @@ com.github.ben-manes.caffeine:caffeine = 2.7.0
 org.apache.arrow:arrow-vector = 1.0.0
 org.apache.arrow:arrow-memory-netty = 1.0.0
 com.github.stephenc.findbugs:findbugs-annotations = 1.3.9-1
+org.scala-lang:scala-library = 2.12.10
 
 # test deps
 junit:junit = 4.12

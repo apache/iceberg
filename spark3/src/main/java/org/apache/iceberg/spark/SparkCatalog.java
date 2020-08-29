@@ -51,7 +51,6 @@ import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.NamespaceChange;
 import org.apache.spark.sql.connector.catalog.StagedTable;
-import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.catalog.TableChange.ColumnChange;
@@ -75,7 +74,8 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * To use a custom catalog that is not a Hive or Hadoop catalog, extend this class and override
  * {@link #buildIcebergCatalog(String, CaseInsensitiveStringMap)}.
  */
-public class SparkCatalog implements StagingTableCatalog, org.apache.spark.sql.connector.catalog.SupportsNamespaces {
+public class SparkCatalog extends BaseCatalog {
+
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
 
   private String catalogName = null;
