@@ -42,6 +42,10 @@ public class DateTimeUtil {
     return (int) ChronoUnit.DAYS.between(EPOCH_DAY, date);
   }
 
+  public static int daysFromInstant(Instant instant) {
+    return (int) ChronoUnit.DAYS.between(EPOCH, instant.atOffset(ZoneOffset.UTC));
+  }
+
   public static LocalTime timeFromMicros(long microFromMidnight) {
     return LocalTime.ofNanoOfDay(microFromMidnight * 1000);
   }
@@ -52,6 +56,10 @@ public class DateTimeUtil {
 
   public static LocalDateTime timestampFromMicros(long microsFromEpoch) {
     return ChronoUnit.MICROS.addTo(EPOCH, microsFromEpoch).toLocalDateTime();
+  }
+
+  public static long microsFromInstant(Instant instant) {
+    return ChronoUnit.MICROS.between(EPOCH, instant.atOffset(ZoneOffset.UTC));
   }
 
   public static long microsFromTimestamp(LocalDateTime dateTime) {

@@ -23,15 +23,18 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgumentFactory;
 import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
 import org.apache.iceberg.expressions.And;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.Not;
 import org.apache.iceberg.expressions.Or;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.Test;
 
@@ -207,7 +210,7 @@ public class TestHiveIcebergFilterFactory {
     SearchArgument arg = builder.startAnd().equals("date", PredicateLeaf.Type.DATE,
             Date.valueOf("2015-11-12")).end().build();
 
-    UnboundPredicate expected = Expressions.equal("date", 1447286400000000L);
+    UnboundPredicate expected = Expressions.equal("date", Literal.of("2015-11-12").to(Types.DateType.get()).value());
     UnboundPredicate actual = (UnboundPredicate) HiveIcebergFilterFactory.generateFilterExpression(arg);
 
     assertPredicatesMatch(expected, actual);
@@ -215,12 +218,14 @@ public class TestHiveIcebergFilterFactory {
 
   @Test
   public void testTimestampType() {
-    SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
-    SearchArgument arg = builder.startAnd().equals("timestamp", PredicateLeaf.Type.TIMESTAMP,
-            Timestamp.valueOf("2012-10-02 05:16:17.123")).end().build();
-    LocalDateTime dateTime = LocalDateTime.of(2012, 10, 2, 5, 16, 17, 123000000);
+    Literal<Long> timestampLiteral = Literal.of("2012-10-02T05:16:17.123456").to(Types.TimestampType.withoutZone());
+    long timestampMicros = timestampLiteral.value();
+    Timestamp ts = Timestamp.from(DateTimeUtil.timestampFromMicros(timestampMicros).toInstant(ZoneOffset.UTC));
 
-    UnboundPredicate expected = Expressions.equal("timestamp", DateTimeUtil.microsFromTimestamp(dateTime));
+    SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
+    SearchArgument arg = builder.startAnd().equals("timestamp", PredicateLeaf.Type.TIMESTAMP, ts).end().build();
+
+    UnboundPredicate expected = Expressions.equal("timestamp", timestampMicros);
     UnboundPredicate actual = (UnboundPredicate) HiveIcebergFilterFactory.generateFilterExpression(arg);
 
     assertPredicatesMatch(expected, actual);

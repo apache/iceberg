@@ -23,12 +23,13 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.apache.hadoop.hive.ql.io.sarg.ExpressionTree;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
+import org.apache.hadoop.hive.ql.io.sarg.SearchArgumentImpl;
 import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
+import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.util.DateTimeUtil;
@@ -112,6 +113,12 @@ public class HiveIcebergFilterFactory {
     }
   }
 
+  // PredicateLeafImpl has a work-around for Kryo serialization with java.util.Date objects where it converts values to
+  // Timestamp using Date#getTime. This conversion discards microseconds, so this is a necessary to avoid it.
+  private static final DynFields.UnboundField<?> LITERAL_FIELD = DynFields.builder()
+      .hiddenImpl(SearchArgumentImpl.PredicateLeafImpl.class, "literal")
+      .build();
+
   private static Object leafToLiteral(PredicateLeaf leaf) {
     switch (leaf.getType()) {
       case LONG:
@@ -120,9 +127,9 @@ public class HiveIcebergFilterFactory {
       case FLOAT:
         return leaf.getLiteral();
       case DATE:
+        return daysFromTimestamp((Timestamp) leaf.getLiteral());
       case TIMESTAMP:
-        // Hive converts a Date type to a Timestamp internally when retrieving literal
-        return timestampToUnixEpoch((Timestamp) leaf.getLiteral());
+        return microsFromTimestamp((Timestamp) LITERAL_FIELD.get(leaf));
       case DECIMAL:
         return hiveDecimalToBigDecimal((HiveDecimalWritable) leaf.getLiteral());
 
@@ -139,7 +146,7 @@ public class HiveIcebergFilterFactory {
       case STRING:
         return leaf.getLiteralList();
       case DATE:
-        return leaf.getLiteralList().stream().map(value -> dateToMicros((Date) value))
+        return leaf.getLiteralList().stream().map(value -> daysFromDate((Date) value))
                 .collect(Collectors.toList());
       case DECIMAL:
         return leaf.getLiteralList().stream()
@@ -147,22 +154,26 @@ public class HiveIcebergFilterFactory {
                 .collect(Collectors.toList());
       case TIMESTAMP:
         return leaf.getLiteralList().stream()
-                .map(value -> timestampToUnixEpoch((Timestamp) value))
+                .map(value -> microsFromTimestamp((Timestamp) value))
                 .collect(Collectors.toList());
       default:
         throw new UnsupportedOperationException("Unknown type: " + leaf.getType());
     }
   }
 
-  private static long dateToMicros(Date date) {
-    return TimeUnit.MILLISECONDS.toMicros(date.toInstant().toEpochMilli());
-  }
-
   private static BigDecimal hiveDecimalToBigDecimal(HiveDecimalWritable hiveDecimalWritable) {
     return hiveDecimalWritable.getHiveDecimal().bigDecimalValue().setScale(hiveDecimalWritable.scale());
   }
 
-  private static long timestampToUnixEpoch(Timestamp timestamp) {
-    return DateTimeUtil.microsFromTimestamp(timestamp.toLocalDateTime());
+  private static int daysFromDate(Date date) {
+    return DateTimeUtil.daysFromDate(date.toLocalDate());
+  }
+
+  private static int daysFromTimestamp(Timestamp timestamp) {
+    return DateTimeUtil.daysFromInstant(timestamp.toInstant());
+  }
+
+  private static long microsFromTimestamp(Timestamp timestamp) {
+    return DateTimeUtil.microsFromInstant(timestamp.toInstant());
   }
 }
