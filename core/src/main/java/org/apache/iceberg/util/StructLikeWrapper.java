@@ -73,11 +73,6 @@ public class StructLikeWrapper {
       return false;
     }
 
-    int len = struct.size();
-    if (len != that.struct.size()) {
-      return false;
-    }
-
     return comparator.compare(this.struct, that.struct) == 0;
   }
 

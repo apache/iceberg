@@ -176,7 +176,13 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
   @Override
   public Statistics estimateStatistics() {
-    if (filterExpressions == null || filterExpressions.isEmpty()) {
+    // its a fresh table, no data
+    if (table.currentSnapshot() == null) {
+      return new Stats(0L, 0L);
+    }
+
+    // estimate stats using snapshot summary only for partitioned tables (metadata tables are unpartitioned)
+    if (!table.spec().isUnpartitioned() && (filterExpressions == null || filterExpressions.isEmpty())) {
       LOG.debug("using table metadata to estimate table statistics");
       long totalRecords = PropertyUtil.propertyAsLong(table.currentSnapshot().summary(),
           SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);

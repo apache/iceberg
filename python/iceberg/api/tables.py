@@ -20,7 +20,7 @@ from .partition_spec import PartitionSpec
 
 class Tables(object):
 
-    def create(self, schema, table_identifier=None, spec=None, properties=None):
+    def create(self, schema, table_identifier, spec=None, properties=None, location=None):
         raise NotImplementedError()
 
     def load(self, table_identifier):

@@ -51,6 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.pig.data.DataByteArray;
 import org.apache.pig.impl.util.ObjectSerializer;
 import org.slf4j.Logger;
@@ -84,7 +85,7 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
 
     TableScan scan = table.newScan();
 
-    //Apply Filters
+    // Apply Filters
     Expression filterExpression =
         (Expression) ObjectSerializer.deserialize(context.getConfiguration().get(scope(ICEBERG_FILTER_EXPRESSION)));
     LOG.info("[{}]: iceberg filter expressions: {}", signature, filterExpression);
@@ -94,7 +95,7 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
       scan = scan.filter(filterExpression);
     }
 
-    //Wrap in Splits
+    // Wrap in Splits
     try (CloseableIterable<CombinedScanTask> tasks = scan.planTasks()) {
       tasks.forEach(scanTask -> splits.add(new IcebergSplit(scanTask)));
     }
@@ -245,8 +246,7 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
 
     private Object convertPartitionValue(Type type, Object value) {
       if (type.typeId() == Types.BinaryType.get().typeId()) {
-        ByteBuffer buffer = (ByteBuffer) value;
-        return new DataByteArray(buffer.get(new byte[buffer.remaining()]).array());
+        return new DataByteArray(ByteBuffers.toByteArray((ByteBuffer) value));
       }
 
       return value;

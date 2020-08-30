@@ -27,7 +27,8 @@ import org.apache.iceberg.exceptions.ValidationException;
  */
 public class ExpressionVisitors {
 
-  private ExpressionVisitors() {}
+  private ExpressionVisitors() {
+  }
 
   public abstract static class ExpressionVisitor<R> {
     public R alwaysTrue() {

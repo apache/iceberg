@@ -31,9 +31,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
+import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.MetricsModes;
+import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -41,6 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.UnicodeUtil;
 import org.apache.orc.BooleanColumnStatistics;
 import org.apache.orc.ColumnStatistics;
 import org.apache.orc.DateColumnStatistics;
@@ -56,35 +61,46 @@ import org.apache.orc.impl.ColumnStatisticsImpl;
 
 public class OrcMetrics {
 
+  private enum Bound {
+    LOWER, UPPER
+  }
+
   private OrcMetrics() {
   }
 
   public static Metrics fromInputFile(InputFile file) {
-    final Configuration config = (file instanceof HadoopInputFile) ?
-        ((HadoopInputFile) file).getConf() : new Configuration();
-    return fromInputFile(file, config);
+    return fromInputFile(file, MetricsConfig.getDefault());
   }
 
-  static Metrics fromInputFile(InputFile file, Configuration config) {
+  public static Metrics fromInputFile(InputFile file, MetricsConfig metricsConfig) {
+    final Configuration config = (file instanceof HadoopInputFile) ?
+        ((HadoopInputFile) file).getConf() : new Configuration();
+    return fromInputFile(file, config, metricsConfig);
+  }
+
+  static Metrics fromInputFile(InputFile file, Configuration config, MetricsConfig metricsConfig) {
     try (Reader orcReader = ORC.newFileReader(file, config)) {
-      return buildOrcMetrics(orcReader.getNumberOfRows(), orcReader.getSchema(), orcReader.getStatistics());
+      return buildOrcMetrics(orcReader.getNumberOfRows(), orcReader.getSchema(), orcReader.getStatistics(),
+          metricsConfig);
     } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to open file: %s", file.location());
     }
   }
 
-  static Metrics fromWriter(Writer writer) {
+  static Metrics fromWriter(Writer writer, MetricsConfig metricsConfig) {
     try {
-      return buildOrcMetrics(writer.getNumberOfRows(), writer.getSchema(), writer.getStatistics());
+      return buildOrcMetrics(writer.getNumberOfRows(), writer.getSchema(), writer.getStatistics(), metricsConfig);
     } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to get statistics from writer");
     }
   }
 
-  private static Metrics buildOrcMetrics(final long numOfRows, final TypeDescription orcSchema,
-                                         final ColumnStatistics[] colStats) {
+  private static Metrics buildOrcMetrics(long numOfRows, TypeDescription orcSchema,
+                                         ColumnStatistics[] colStats, MetricsConfig metricsConfig) {
     final Schema schema = ORCSchemaUtil.convert(orcSchema);
     final Set<Integer> statsColumns = statsColumns(orcSchema);
+    final MetricsConfig effectiveMetricsConfig = Optional.ofNullable(metricsConfig)
+        .orElseGet(MetricsConfig::getDefault);
     Map<Integer, Long> columnSizes = Maps.newHashMapWithExpectedSize(colStats.length);
     Map<Integer, Long> valueCounts = Maps.newHashMapWithExpectedSize(colStats.length);
     Map<Integer, Long> nullCounts = Maps.newHashMapWithExpectedSize(colStats.length);
@@ -100,8 +116,13 @@ public class OrcMetrics {
       if (icebergColOpt.isPresent()) {
         final Types.NestedField icebergCol = icebergColOpt.get();
         final int fieldId = icebergCol.fieldId();
+        final MetricsMode metricsMode = effectiveMetricsConfig.columnMode(icebergCol.name());
 
         columnSizes.put(fieldId, colStat.getBytesOnDisk());
+
+        if (metricsMode == MetricsModes.None.get()) {
+          continue;
+        }
 
         if (statsColumns.contains(fieldId)) {
           // Since ORC does not track null values nor repeated ones, the value count for columns in
@@ -115,12 +136,14 @@ public class OrcMetrics {
           }
           valueCounts.put(fieldId, colStat.getNumberOfValues() + nullCounts.get(fieldId));
 
-          Optional<ByteBuffer> orcMin = (colStat.getNumberOfValues() > 0) ?
-              fromOrcMin(icebergCol, colStat) : Optional.empty();
-          orcMin.ifPresent(byteBuffer -> lowerBounds.put(icebergCol.fieldId(), byteBuffer));
-          Optional<ByteBuffer> orcMax = (colStat.getNumberOfValues() > 0) ?
-              fromOrcMax(icebergCol, colStat) : Optional.empty();
-          orcMax.ifPresent(byteBuffer -> upperBounds.put(icebergCol.fieldId(), byteBuffer));
+          if (metricsMode != MetricsModes.Counts.get()) {
+            Optional<ByteBuffer> orcMin = (colStat.getNumberOfValues() > 0) ?
+                fromOrcMin(icebergCol.type(), colStat, metricsMode) : Optional.empty();
+            orcMin.ifPresent(byteBuffer -> lowerBounds.put(icebergCol.fieldId(), byteBuffer));
+            Optional<ByteBuffer> orcMax = (colStat.getNumberOfValues() > 0) ?
+                fromOrcMax(icebergCol.type(), colStat, metricsMode) : Optional.empty();
+            orcMax.ifPresent(byteBuffer -> upperBounds.put(icebergCol.fieldId(), byteBuffer));
+          }
         }
       }
     }
@@ -133,17 +156,17 @@ public class OrcMetrics {
         upperBounds);
   }
 
-  private static Optional<ByteBuffer> fromOrcMin(Types.NestedField column,
-                                                 ColumnStatistics columnStats) {
+  private static Optional<ByteBuffer> fromOrcMin(Type type, ColumnStatistics columnStats,
+                                                 MetricsMode metricsMode) {
     Object min = null;
     if (columnStats instanceof IntegerColumnStatistics) {
       min = ((IntegerColumnStatistics) columnStats).getMinimum();
-      if (column.type().typeId() == Type.TypeID.INTEGER) {
+      if (type.typeId() == Type.TypeID.INTEGER) {
         min = Math.toIntExact((long) min);
       }
     } else if (columnStats instanceof DoubleColumnStatistics) {
       min = ((DoubleColumnStatistics) columnStats).getMinimum();
-      if (column.type().typeId() == Type.TypeID.FLOAT) {
+      if (type.typeId() == Type.TypeID.FLOAT) {
         min = ((Double) min).floatValue();
       }
     } else if (columnStats instanceof StringColumnStatistics) {
@@ -152,7 +175,7 @@ public class OrcMetrics {
       min = Optional
           .ofNullable(((DecimalColumnStatistics) columnStats).getMinimum())
           .map(minStats -> minStats.bigDecimalValue()
-              .setScale(((Types.DecimalType) column.type()).scale()))
+              .setScale(((Types.DecimalType) type).scale()))
           .orElse(null);
     } else if (columnStats instanceof DateColumnStatistics) {
       min = Optional.ofNullable(minDayFromEpoch((DateColumnStatistics) columnStats)).orElse(null);
@@ -166,20 +189,21 @@ public class OrcMetrics {
       BooleanColumnStatistics booleanStats = (BooleanColumnStatistics) columnStats;
       min = booleanStats.getFalseCount() <= 0;
     }
-    return Optional.ofNullable(Conversions.toByteBuffer(column.type(), min));
+
+    return Optional.ofNullable(Conversions.toByteBuffer(type, truncateIfNeeded(Bound.LOWER, type, min, metricsMode)));
   }
 
-  private static Optional<ByteBuffer> fromOrcMax(Types.NestedField column,
-                                                 ColumnStatistics columnStats) {
+  private static Optional<ByteBuffer> fromOrcMax(Type type, ColumnStatistics columnStats,
+                                                 MetricsMode metricsMode) {
     Object max = null;
     if (columnStats instanceof IntegerColumnStatistics) {
       max = ((IntegerColumnStatistics) columnStats).getMaximum();
-      if (column.type().typeId() == Type.TypeID.INTEGER) {
+      if (type.typeId() == Type.TypeID.INTEGER) {
         max = Math.toIntExact((long) max);
       }
     } else if (columnStats instanceof DoubleColumnStatistics) {
       max = ((DoubleColumnStatistics) columnStats).getMaximum();
-      if (column.type().typeId() == Type.TypeID.FLOAT) {
+      if (type.typeId() == Type.TypeID.FLOAT) {
         max = ((Double) max).floatValue();
       }
     } else if (columnStats instanceof StringColumnStatistics) {
@@ -188,7 +212,7 @@ public class OrcMetrics {
       max = Optional
           .ofNullable(((DecimalColumnStatistics) columnStats).getMaximum())
           .map(maxStats -> maxStats.bigDecimalValue()
-              .setScale(((Types.DecimalType) column.type()).scale()))
+              .setScale(((Types.DecimalType) type).scale()))
           .orElse(null);
     } else if (columnStats instanceof DateColumnStatistics) {
       max = Optional.ofNullable(maxDayFromEpoch((DateColumnStatistics) columnStats)).orElse(null);
@@ -203,7 +227,29 @@ public class OrcMetrics {
       BooleanColumnStatistics booleanStats = (BooleanColumnStatistics) columnStats;
       max = booleanStats.getTrueCount() > 0;
     }
-    return Optional.ofNullable(Conversions.toByteBuffer(column.type(), max));
+    return Optional.ofNullable(Conversions.toByteBuffer(type, truncateIfNeeded(Bound.UPPER, type, max, metricsMode)));
+  }
+
+  private static Object truncateIfNeeded(Bound bound, Type type, Object value, MetricsMode metricsMode) {
+    // Out of the two types which could be truncated, string or binary, ORC only supports string bounds.
+    // Therefore, truncation will be applied if needed only on string type.
+    if (!(metricsMode instanceof MetricsModes.Truncate) || type.typeId() != Type.TypeID.STRING || value == null) {
+      return value;
+    }
+
+    CharSequence charSequence = (CharSequence) value;
+    MetricsModes.Truncate truncateMode = (MetricsModes.Truncate) metricsMode;
+    int truncateLength = truncateMode.length();
+
+    switch (bound) {
+      case UPPER:
+        return Optional.ofNullable(UnicodeUtil.truncateStringMax(Literal.of(charSequence), truncateLength))
+            .map(Literal::value).orElse(charSequence);
+      case LOWER:
+        return UnicodeUtil.truncateStringMin(Literal.of(charSequence), truncateLength).value();
+      default:
+        throw new RuntimeException("No other bound is defined.");
+    }
   }
 
   private static Set<Integer> statsColumns(TypeDescription schema) {

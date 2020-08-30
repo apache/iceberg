@@ -35,6 +35,7 @@ import java.util.UUID;
 import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.orc.storage.common.type.HiveDecimal;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
@@ -54,6 +55,14 @@ public class GenericOrcWriters {
 
   public static OrcValueWriter<Boolean> booleans() {
     return BooleanWriter.INSTANCE;
+  }
+
+  public static OrcValueWriter<Byte> bytes() {
+    return ByteWriter.INSTANCE;
+  }
+
+  public static OrcValueWriter<Short> shorts() {
+    return ShortWriter.INSTANCE;
   }
 
   public static OrcValueWriter<Integer> ints() {
@@ -88,8 +97,8 @@ public class GenericOrcWriters {
     return UUIDWriter.INSTANCE;
   }
 
-  public static OrcValueWriter<byte[]> fixed() {
-    return FixedWriter.INSTANCE;
+  public static OrcValueWriter<byte[]> byteArrays() {
+    return ByteArrayWriter.INSTANCE;
   }
 
   public static OrcValueWriter<LocalDate> dates() {
@@ -133,6 +142,34 @@ public class GenericOrcWriters {
     @Override
     public void nonNullWrite(int rowId, Boolean data, ColumnVector output) {
       ((LongColumnVector) output).vector[rowId] = data ? 1 : 0;
+    }
+  }
+
+  private static class ByteWriter implements OrcValueWriter<Byte> {
+    private static final OrcValueWriter<Byte> INSTANCE = new ByteWriter();
+
+    @Override
+    public Class<Byte> getJavaClass() {
+      return Byte.class;
+    }
+
+    @Override
+    public void nonNullWrite(int rowId, Byte data, ColumnVector output) {
+      ((LongColumnVector) output).vector[rowId] = data;
+    }
+  }
+
+  private static class ShortWriter implements OrcValueWriter<Short> {
+    private static final OrcValueWriter<Short> INSTANCE = new ShortWriter();
+
+    @Override
+    public Class<Short> getJavaClass() {
+      return Short.class;
+    }
+
+    @Override
+    public void nonNullWrite(int rowId, Short data, ColumnVector output) {
+      ((LongColumnVector) output).vector[rowId] = data;
     }
   }
 
@@ -231,7 +268,13 @@ public class GenericOrcWriters {
 
     @Override
     public void nonNullWrite(int rowId, ByteBuffer data, ColumnVector output) {
-      ((BytesColumnVector) output).setRef(rowId, data.array(), 0, data.array().length);
+      if (data.hasArray()) {
+        ((BytesColumnVector) output).setRef(rowId, data.array(),
+                data.arrayOffset() + data.position(), data.remaining());
+      } else {
+        byte[] rawData = ByteBuffers.toByteArray(data);
+        ((BytesColumnVector) output).setRef(rowId, rawData, 0, rawData.length);
+      }
     }
   }
 
@@ -244,6 +287,7 @@ public class GenericOrcWriters {
     }
 
     @Override
+    @SuppressWarnings("ByteBufferBackingArray")
     public void nonNullWrite(int rowId, UUID data, ColumnVector output) {
       ByteBuffer buffer = ByteBuffer.allocate(16);
       buffer.putLong(data.getMostSignificantBits());
@@ -252,8 +296,8 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class FixedWriter implements OrcValueWriter<byte[]> {
-    private static final OrcValueWriter<byte[]> INSTANCE = new FixedWriter();
+  private static class ByteArrayWriter implements OrcValueWriter<byte[]> {
+    private static final OrcValueWriter<byte[]> INSTANCE = new ByteArrayWriter();
 
     @Override
     public Class<byte[]> getJavaClass() {

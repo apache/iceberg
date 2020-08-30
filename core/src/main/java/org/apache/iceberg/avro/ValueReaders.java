@@ -43,6 +43,7 @@ import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.UUIDUtil;
 
 import static java.util.Collections.emptyIterator;
 
@@ -271,15 +272,14 @@ public class ValueReaders {
     }
 
     @Override
+    @SuppressWarnings("ByteBufferBackingArray")
     public UUID read(Decoder decoder, Object ignored) throws IOException {
       ByteBuffer buffer = BUFFER.get();
       buffer.rewind();
 
       decoder.readFixed(buffer.array(), 0, 16);
-      long mostSigBits = buffer.getLong();
-      long leastSigBits = buffer.getLong();
 
-      return new UUID(mostSigBits, leastSigBits);
+      return UUIDUtil.convert(buffer);
     }
   }
 

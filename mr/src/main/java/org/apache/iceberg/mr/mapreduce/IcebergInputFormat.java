@@ -126,7 +126,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       tasksIterable.forEach(task -> {
         if (applyResidual && (model == InputFormatConfig.InMemoryDataModel.HIVE ||
             model == InputFormatConfig.InMemoryDataModel.PIG)) {
-          //TODO: We do not support residual evaluation for HIVE and PIG in memory data model yet
+          // TODO: We do not support residual evaluation for HIVE and PIG in memory data model yet
           checkResiduals(task);
         }
         splits.add(new IcebergSplit(conf, task));
@@ -272,7 +272,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       switch (inMemoryDataModel) {
         case PIG:
         case HIVE:
-          //TODO implement value readers for Pig and Hive
+          // TODO implement value readers for Pig and Hive
           throw new UnsupportedOperationException("Avro support not yet supported for Pig and Hive");
         case GENERIC:
           avroReadBuilder.createReaderFunc(
@@ -296,7 +296,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       switch (inMemoryDataModel) {
         case PIG:
         case HIVE:
-          //TODO implement value readers for Pig and Hive
+          // TODO implement value readers for Pig and Hive
           throw new UnsupportedOperationException("Parquet support not yet supported for Pig and Hive");
         case GENERIC:
           parquetReadBuilder.createReaderFunc(
@@ -319,7 +319,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       switch (inMemoryDataModel) {
         case PIG:
         case HIVE:
-          //TODO: implement value readers for Pig and Hive
+          // TODO: implement value readers for Pig and Hive
           throw new UnsupportedOperationException("ORC support not yet supported for Pig and Hive");
         case GENERIC:
           orcReadBuilder.createReaderFunc(

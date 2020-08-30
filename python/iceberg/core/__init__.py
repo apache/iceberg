@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# flake8: noqa
 
 __all__ = ["BaseMetastoreTableOperations",
            "BaseMetastoreTables",
@@ -31,13 +32,13 @@ __all__ = ["BaseMetastoreTableOperations",
            "SchemaParser",
            "SchemaUpdate",
            "SnapshotParser",
-           "TableOperations",
            "SnapshotLogEntry",
            "TableMetadata",
            "TableMetadataParser",
            "TableOperations",
            "TableProperties"]
 
+from .table_operations import TableOperations  # out of order import to avoid circular deps
 from .base_metastore_table_operations import BaseMetastoreTableOperations
 from .base_metastore_tables import BaseMetastoreTables
 from .base_snapshot import BaseSnapshot
@@ -57,5 +58,4 @@ from .snapshot_parser import SnapshotParser
 from .table_metadata import (SnapshotLogEntry,
                              TableMetadata)
 from .table_metadata_parser import TableMetadataParser
-from .table_operations import TableOperations
 from .table_properties import TableProperties

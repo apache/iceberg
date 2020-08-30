@@ -20,6 +20,7 @@
 package org.apache.iceberg.util;
 
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FilterIterator;
 
 /**
  *

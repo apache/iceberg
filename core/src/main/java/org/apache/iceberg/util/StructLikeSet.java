@@ -21,6 +21,7 @@ package org.apache.iceberg.util;
 
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -148,5 +149,32 @@ public class StructLikeSet implements Set<StructLike> {
   @Override
   public void clear() {
     wrapperSet.clear();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    StructLikeSet that = (StructLikeSet) o;
+    if (!type.equals(that.type)) {
+      return false;
+    }
+
+    if (wrapperSet.size() != that.wrapperSet.size()) {
+      return false;
+    }
+
+    return containsAll(that);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(type) + wrapperSet.stream().mapToInt(StructLikeWrapper::hashCode).sum();
   }
 }

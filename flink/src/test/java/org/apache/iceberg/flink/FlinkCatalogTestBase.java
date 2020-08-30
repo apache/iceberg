@@ -31,6 +31,7 @@ import org.apache.flink.table.api.TableResult;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.ArrayUtils;
 import org.apache.flink.util.CloseableIterator;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -103,10 +104,9 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
 
     FlinkCatalogFactory factory = new FlinkCatalogFactory() {
       @Override
-      protected Catalog buildIcebergCatalog(String name, Map<String, String> options) {
-        // Flink hadoop configuration depends on system env, it is quiet hard to set from testing. So directly pass
-        // correct hadoop configuration.
-        return super.buildIcebergCatalog(name, options, hiveConf);
+      protected org.apache.flink.table.catalog.Catalog createCatalog(
+          String name, Map<String, String> properties, Configuration hadoopConf) {
+        return super.createCatalog(name, properties, hiveConf);
       }
     };
     tEnv.registerCatalog(

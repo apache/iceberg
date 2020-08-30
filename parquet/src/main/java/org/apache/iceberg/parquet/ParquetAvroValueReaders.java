@@ -22,7 +22,6 @@ package org.apache.iceberg.parquet;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -45,6 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.GroupType;
@@ -291,13 +291,7 @@ public class ParquetAvroValueReaders {
 
     @Override
     public UUID read(UUID ignored) {
-      ByteBuffer buffer = column.nextBinary().toByteBuffer();
-      buffer.order(ByteOrder.BIG_ENDIAN);
-
-      long mostSigBits = buffer.getLong();
-      long leastSigBits = buffer.getLong();
-
-      return new UUID(mostSigBits, leastSigBits);
+      return UUIDUtil.convert(column.nextBinary().toByteBuffer());
     }
   }
 

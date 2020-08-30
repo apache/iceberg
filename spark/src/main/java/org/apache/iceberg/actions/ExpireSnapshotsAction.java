@@ -27,6 +27,7 @@ import java.util.function.Consumer;
 import org.apache.iceberg.ExpireSnapshots;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -76,6 +77,8 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
   private Integer retainLastValue = null;
   private Consumer<String> deleteFunc = defaultDelete;
   private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
+  private Dataset<Row> expiredFiles = null;
+  private boolean streamResults = false;
 
   ExpireSnapshotsAction(SparkSession spark, Table table) {
     this.spark = spark;
@@ -89,8 +92,20 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
   }
 
   /**
+   * By default, all files to delete are brought to the driver at once which may be an issue with very long file lists.
+   * Set this to true to use toLocalIterator if you are running into memory issues when collecting
+   * the list of files to be deleted.
+   * @param stream whether to use toLocalIterator to stream results instead of collect.
+   * @return this for method chaining
+   */
+  public ExpireSnapshotsAction streamDeleteResults(boolean stream) {
+    this.streamResults = stream;
+    return this;
+  }
+
+  /**
    * An executor service used when deleting files. Only used during the local delete phase of this Spark action.
-   * Similar to {@link ExpireSnapshots#executeWith(ExecutorService)}
+   * Similar to {@link ExpireSnapshots#executeDeleteWith(ExecutorService)}
    * @param executorService the service to use
    * @return this for method chaining
    */
@@ -145,14 +160,19 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
     return this;
   }
 
-  @Override
-  public ExpireSnapshotsActionResult execute() {
-    Dataset<Row> originalFiles = null;
-    try {
+  /**
+   * Expires snapshots and commits the changes to the table, returning a Dataset of files to delete.
+   * <p>
+   * This does not delete data files. To delete data files, run {@link #execute()}.
+   * <p>
+   * This may be called before or after {@link #execute()} is called to return the expired file list.
+   *
+   * @return a Dataset of files that are no longer referenced by the table
+   */
+  public Dataset<Row> expire() {
+    if (expiredFiles == null) {
       // Metadata before Expiration
-      originalFiles = buildValidFileDF().persist();
-      // Action to trigger persist
-      originalFiles.count();
+      Dataset<Row> originalFiles = buildValidFileDF(ops.current());
 
       // Perform Expiration
       ExpireSnapshots expireSnaps = table.expireSnapshots().cleanExpiredFiles(false);
@@ -171,14 +191,20 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
       expireSnaps.commit();
 
       // Metadata after Expiration
-      Dataset<Row> validFiles = buildValidFileDF();
-      Dataset<Row> filesToDelete = originalFiles.except(validFiles);
+      Dataset<Row> validFiles = buildValidFileDF(ops.refresh());
 
-      return deleteFiles(filesToDelete.toLocalIterator());
-    } finally {
-      if (originalFiles != null) {
-        originalFiles.unpersist();
-      }
+      this.expiredFiles = originalFiles.except(validFiles);
+    }
+
+    return expiredFiles;
+  }
+
+  @Override
+  public ExpireSnapshotsActionResult execute() {
+    if (streamResults) {
+      return deleteFiles(expire().toLocalIterator());
+    } else {
+      return deleteFiles(expire().collectAsList().iterator());
     }
   }
 
@@ -186,23 +212,23 @@ public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResul
     return ds.select(new Column("file_path"), functions.lit(type).as("file_type"));
   }
 
-  private Dataset<Row> buildValidFileDF() {
-    return appendTypeString(buildValidDataFileDF(spark), DATA_FILE)
-        .union(appendTypeString(buildManifestFileDF(spark), MANIFEST))
-        .union(appendTypeString(buildManifestListDF(spark, table), MANIFEST_LIST));
+  private Dataset<Row> buildValidFileDF(TableMetadata metadata) {
+    return appendTypeString(buildValidDataFileDF(spark, metadata.metadataFileLocation()), DATA_FILE)
+        .union(appendTypeString(buildManifestFileDF(spark, metadata.metadataFileLocation()), MANIFEST))
+        .union(appendTypeString(buildManifestListDF(spark, metadata.metadataFileLocation()), MANIFEST_LIST));
   }
 
   /**
    * Deletes files passed to it based on their type.
-   * @param expiredFiles an Iterator of Spark Rows of the structure (path: String, type: String)
+   * @param expired an Iterator of Spark Rows of the structure (path: String, type: String)
    * @return Statistics on which files were deleted
    */
-  private ExpireSnapshotsActionResult deleteFiles(Iterator<Row> expiredFiles) {
+  private ExpireSnapshotsActionResult deleteFiles(Iterator<Row> expired) {
     AtomicLong dataFileCount = new AtomicLong(0L);
     AtomicLong manifestCount = new AtomicLong(0L);
     AtomicLong manifestListCount = new AtomicLong(0L);
 
-    Tasks.foreach(expiredFiles)
+    Tasks.foreach(expired)
         .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
         .executeWith(deleteExecutorService)
         .onFailure((fileInfo, exc) ->

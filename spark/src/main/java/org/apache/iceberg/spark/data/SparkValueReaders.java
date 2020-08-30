@@ -27,13 +27,13 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import org.apache.avro.io.Decoder;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
@@ -44,7 +44,8 @@ import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkValueReaders {
 
-  private SparkValueReaders() {}
+  private SparkValueReaders() {
+  }
 
   static ValueReader<UTF8String> strings() {
     return StringReader.INSTANCE;
@@ -133,15 +134,14 @@ public class SparkValueReaders {
     }
 
     @Override
+    @SuppressWarnings("ByteBufferBackingArray")
     public UTF8String read(Decoder decoder, Object reuse) throws IOException {
       ByteBuffer buffer = BUFFER.get();
       buffer.rewind();
 
       decoder.readFixed(buffer.array(), 0, 16);
-      long mostSigBits = buffer.getLong();
-      long leastSigBits = buffer.getLong();
 
-      return UTF8String.fromString(new UUID(mostSigBits, leastSigBits).toString());
+      return UTF8String.fromString(UUIDUtil.convert(buffer).toString());
     }
   }
 

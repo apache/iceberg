@@ -120,7 +120,7 @@ class SparkBatchWrite implements BatchWrite {
   protected FileFormat getFileFormat(Map<String, String> tableProperties, Map<String, String> options) {
     Optional<String> formatOption = Optional.ofNullable(options.get("write-format"));
     String formatString = formatOption
-        .orElse(tableProperties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT));
+        .orElseGet(() -> tableProperties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT));
     return FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
   }
 

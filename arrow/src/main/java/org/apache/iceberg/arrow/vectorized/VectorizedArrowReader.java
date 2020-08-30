@@ -101,7 +101,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     LONG,
     FLOAT,
     DOUBLE,
-    TIMESTAMP_MILLIS
+    TIMESTAMP_MILLIS,
+    DICTIONARY
   }
 
   @Override
@@ -112,14 +113,15 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
   @Override
   public VectorHolder read(VectorHolder reuse, int numValsToRead) {
-    if (reuse == null) {
-      allocateFieldVector(this.vectorizedColumnIterator.producesDictionaryEncodedVector());
+    boolean dictEncoded = vectorizedColumnIterator.producesDictionaryEncodedVector();
+    if (reuse == null || (!dictEncoded && readType == ReadType.DICTIONARY) ||
+        (dictEncoded && readType != ReadType.DICTIONARY)) {
+      allocateFieldVector(dictEncoded);
       nullabilityHolder = new NullabilityHolder(batchSize);
     } else {
       vec.setValueCount(0);
       nullabilityHolder.reset();
     }
-    boolean dictEncoded = vectorizedColumnIterator.producesDictionaryEncodedVector();
     if (vectorizedColumnIterator.hasNext()) {
       if (dictEncoded) {
         vectorizedColumnIterator.nextBatchDictionaryIds((IntVector) vec, nullabilityHolder);
@@ -176,6 +178,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       this.vec = field.createVector(rootAlloc);
       ((IntVector) vec).allocateNew(batchSize);
       this.typeWidth = (int) IntVector.TYPE_WIDTH;
+      this.readType = ReadType.DICTIONARY;
     } else {
       PrimitiveType primitive = columnDescriptor.getPrimitiveType();
       Field arrowField = ArrowSchemaUtil.convert(icebergField);
@@ -186,7 +189,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           case UTF8:
           case BSON:
             this.vec = arrowField.createVector(rootAlloc);
-            //TODO: Possibly use the uncompressed page size info to set the initial capacity
+            // TODO: Possibly use the uncompressed page size info to set the initial capacity
             vec.setInitialCapacity(batchSize * AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
             vec.allocateNewSafe();
             this.readType = ReadType.VARCHAR;
@@ -262,7 +265,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
             break;
           case BINARY:
             this.vec = arrowField.createVector(rootAlloc);
-            //TODO: Possibly use the uncompressed page size info to set the initial capacity
+            // TODO: Possibly use the uncompressed page size info to set the initial capacity
             vec.setInitialCapacity(batchSize * AVERAGE_VARIABLE_WIDTH_RECORD_SIZE);
             vec.allocateNewSafe();
             this.readType = ReadType.VARBINARY;
@@ -347,7 +350,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     }
 
     @Override
-    public void setBatchSize(int batchSize) {}
+    public void setBatchSize(int batchSize) {
+    }
   }
 
   /**
@@ -377,8 +381,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     }
 
     @Override
-    public void setBatchSize(int batchSize) {}
-
+    public void setBatchSize(int batchSize) {
+    }
   }
 
 }

@@ -42,7 +42,8 @@ public class ArrowSchemaUtil {
   private static final String ORIGINAL_TYPE = "originalType";
   private static final String MAP_TYPE = "mapType";
 
-  private ArrowSchemaUtil() { }
+  private ArrowSchemaUtil() {
+  }
 
   /**
    * Convert Iceberg schema to Arrow Schema.

@@ -41,7 +41,8 @@ public final class Catalogs {
   private static final String NAME = "name";
   private static final String LOCATION = "location";
 
-  private Catalogs() {}
+  private Catalogs() {
+  }
 
   /**
    * Load an Iceberg table using the catalog and table identifier (or table path) specified by the configuration.

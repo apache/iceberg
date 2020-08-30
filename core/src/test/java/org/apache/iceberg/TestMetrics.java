@@ -27,9 +27,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
@@ -57,6 +59,7 @@ import org.junit.Test;
 import static org.apache.iceberg.types.Conversions.fromByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+
 /**
  * Tests for Metrics.
  */
@@ -97,7 +100,11 @@ public abstract class TestMetrics {
 
   public abstract FileFormat fileFormat();
 
-  public abstract Metrics getMetrics(InputFile file);
+  public Metrics getMetrics(InputFile file) {
+    return getMetrics(file, MetricsConfig.getDefault());
+  }
+
+  public abstract Metrics getMetrics(InputFile file, MetricsConfig metricsConfig);
 
   public abstract InputFile writeRecords(Schema schema, Record... records) throws IOException;
 
@@ -264,18 +271,7 @@ public abstract class TestMetrics {
 
   @Test
   public void testMetricsForNestedStructFields() throws IOException {
-
-    Record leafStruct = GenericRecord.create(LEAF_STRUCT_TYPE);
-    leafStruct.setField("leafLongCol", 20L);
-    leafStruct.setField("leafBinaryCol", ByteBuffer.wrap("A".getBytes()));
-    Record nestedStruct = GenericRecord.create(NESTED_STRUCT_TYPE);
-    nestedStruct.setField("longCol", 100L);
-    nestedStruct.setField("leafStructCol", leafStruct);
-    Record record = GenericRecord.create(NESTED_SCHEMA);
-    record.setField("intCol", Integer.MAX_VALUE);
-    record.setField("nestedStructCol", nestedStruct);
-
-    InputFile recordsFile = writeRecords(NESTED_SCHEMA, record);
+    InputFile recordsFile = writeRecords(NESTED_SCHEMA, buildNestedTestRecord());
 
     Metrics metrics = getMetrics(recordsFile);
     Assert.assertEquals(1L, (long) metrics.recordCount());
@@ -288,6 +284,20 @@ public abstract class TestMetrics {
     assertCounts(6, 1L, 0L, metrics);
     assertBounds(6, BinaryType.get(),
         ByteBuffer.wrap("A".getBytes()), ByteBuffer.wrap("A".getBytes()), metrics);
+  }
+
+  private Record buildNestedTestRecord() {
+    Record leafStruct = GenericRecord.create(LEAF_STRUCT_TYPE);
+    leafStruct.setField("leafLongCol", 20L);
+    leafStruct.setField("leafBinaryCol", ByteBuffer.wrap("A".getBytes()));
+    Record nestedStruct = GenericRecord.create(NESTED_STRUCT_TYPE);
+    nestedStruct.setField("longCol", 100L);
+    nestedStruct.setField("leafStructCol", leafStruct);
+    Record record = GenericRecord.create(NESTED_SCHEMA);
+    record.setField("intCol", Integer.MAX_VALUE);
+    record.setField("nestedStructCol", nestedStruct);
+
+    return record;
   }
 
   @Test
@@ -438,7 +448,108 @@ public abstract class TestMetrics {
         ByteBuffer.wrap("A".getBytes()), ByteBuffer.wrap("A".getBytes()), metrics);
   }
 
-  private void assertCounts(int fieldId, Long valueCount, Long nullValueCount, Metrics metrics) {
+  @Test
+  public void testNoneMetricsMode() throws IOException {
+    InputFile recordsFile = writeRecords(NESTED_SCHEMA, buildNestedTestRecord());
+
+    Metrics metrics = getMetrics(recordsFile,
+        MetricsConfig.fromProperties(ImmutableMap.of("write.metadata.metrics.default", "none")));
+    Assert.assertEquals(1L, (long) metrics.recordCount());
+    Assert.assertTrue(metrics.columnSizes().values().stream().allMatch(Objects::nonNull));
+    assertCounts(1, null, null, metrics);
+    assertBounds(1, Types.IntegerType.get(), null, null, metrics);
+    assertCounts(3, null, null, metrics);
+    assertBounds(3, Types.LongType.get(), null, null, metrics);
+    assertCounts(5, null, null, metrics);
+    assertBounds(5, Types.LongType.get(), null, null, metrics);
+    assertCounts(6, null, null, metrics);
+    assertBounds(6, Types.BinaryType.get(), null, null, metrics);
+  }
+
+  @Test
+  public void testCountsMetricsMode() throws IOException {
+    InputFile recordsFile = writeRecords(NESTED_SCHEMA, buildNestedTestRecord());
+
+    Metrics metrics = getMetrics(recordsFile,
+        MetricsConfig.fromProperties(ImmutableMap.of("write.metadata.metrics.default", "counts")));
+    Assert.assertEquals(1L, (long) metrics.recordCount());
+    Assert.assertTrue(metrics.columnSizes().values().stream().allMatch(Objects::nonNull));
+    assertCounts(1, 1L, 0L, metrics);
+    assertBounds(1, Types.IntegerType.get(), null, null, metrics);
+    assertCounts(3, 1L, 0L, metrics);
+    assertBounds(3, Types.LongType.get(), null, null, metrics);
+    assertCounts(5, 1L, 0L, metrics);
+    assertBounds(5, Types.LongType.get(), null, null, metrics);
+    assertCounts(6, 1L, 0L, metrics);
+    assertBounds(6, Types.BinaryType.get(), null, null, metrics);
+  }
+
+  @Test
+  public void testFullMetricsMode() throws IOException {
+    InputFile recordsFile = writeRecords(NESTED_SCHEMA, buildNestedTestRecord());
+
+    Metrics metrics = getMetrics(recordsFile,
+        MetricsConfig.fromProperties(ImmutableMap.of("write.metadata.metrics.default", "full")));
+    Assert.assertEquals(1L, (long) metrics.recordCount());
+    Assert.assertTrue(metrics.columnSizes().values().stream().allMatch(Objects::nonNull));
+    assertCounts(1, 1L, 0L, metrics);
+    assertBounds(1, Types.IntegerType.get(), Integer.MAX_VALUE, Integer.MAX_VALUE, metrics);
+    assertCounts(3, 1L, 0L, metrics);
+    assertBounds(3, Types.LongType.get(), 100L, 100L, metrics);
+    assertCounts(5, 1L, 0L, metrics);
+    assertBounds(5, Types.LongType.get(), 20L, 20L, metrics);
+    assertCounts(6, 1L, 0L, metrics);
+    assertBounds(6, Types.BinaryType.get(),
+        ByteBuffer.wrap("A".getBytes()), ByteBuffer.wrap("A".getBytes()), metrics);
+  }
+
+  @Test
+  public void testTruncateStringMetricsMode() throws IOException {
+    String colName = "str_to_truncate";
+    Schema singleStringColSchema = new Schema(
+        required(1, colName, Types.StringType.get())
+    );
+
+    String value = "Lorem ipsum dolor sit amet";
+    Record record = GenericRecord.create(singleStringColSchema);
+    record.setField(colName, value);
+    InputFile recordsFile = writeRecords(singleStringColSchema, record);
+
+    Metrics metrics = getMetrics(recordsFile,
+        MetricsConfig.fromProperties(ImmutableMap.of("write.metadata.metrics.default", "truncate(10)")));
+
+    CharBuffer expectedMinBound = CharBuffer.wrap("Lorem ipsu");
+    CharBuffer expectedMaxBound = CharBuffer.wrap("Lorem ipsv");
+    Assert.assertEquals(1L, (long) metrics.recordCount());
+    Assert.assertTrue(metrics.columnSizes().values().stream().allMatch(Objects::nonNull));
+    assertCounts(1, 1L, 0L, metrics);
+    assertBounds(1, Types.StringType.get(), expectedMinBound, expectedMaxBound, metrics);
+  }
+
+  @Test
+  public void testTruncateBinaryMetricsMode() throws IOException {
+    String colName = "bin_to_truncate";
+    Schema singleBinaryColSchema = new Schema(
+        required(1, colName, Types.BinaryType.get())
+    );
+
+    byte[] value = new byte[]{ 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0x10, 0xA, 0xB};
+    Record record = GenericRecord.create(singleBinaryColSchema);
+    record.setField(colName, ByteBuffer.wrap(value));
+    InputFile recordsFile = writeRecords(singleBinaryColSchema, record);
+
+    Metrics metrics = getMetrics(recordsFile,
+        MetricsConfig.fromProperties(ImmutableMap.of("write.metadata.metrics.default", "truncate(5)")));
+
+    ByteBuffer expectedMinBounds = ByteBuffer.wrap(new byte[]{ 0x1, 0x2, 0x3, 0x4, 0x5 });
+    ByteBuffer expectedMaxBounds = ByteBuffer.wrap(new byte[]{ 0x1, 0x2, 0x3, 0x4, 0x6 });
+    Assert.assertEquals(1L, (long) metrics.recordCount());
+    Assert.assertTrue(metrics.columnSizes().values().stream().allMatch(Objects::nonNull));
+    assertCounts(1, 1L, 0L, metrics);
+    assertBounds(1, Types.BinaryType.get(), expectedMinBounds, expectedMaxBounds, metrics);
+  }
+
+  protected void assertCounts(int fieldId, Long valueCount, Long nullValueCount, Metrics metrics) {
     Map<Integer, Long> valueCounts = metrics.valueCounts();
     Map<Integer, Long> nullValueCounts = metrics.nullValueCounts();
     Assert.assertEquals(valueCount, valueCounts.get(fieldId));

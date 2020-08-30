@@ -33,7 +33,7 @@ Fast scan planning from a single node enables:
 
 ### Metadata filtering
 
-Iceberg uses two levels of metadata to track the files in a snasphot.
+Iceberg uses two levels of metadata to track the files in a snapshot.
 
 * **Manifest files** store a list of data files, along each data file's partition data and column-level stats
 * A **manifest list** stores the snapshot's list of manifests, along with the range of values for each partition field

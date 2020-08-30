@@ -25,7 +25,8 @@ class InheritableMetadataFactory {
 
   private static final InheritableMetadata EMPTY = new EmptyInheritableMetadata();
 
-  private InheritableMetadataFactory() {}
+  private InheritableMetadataFactory() {
+  }
 
   static InheritableMetadata empty() {
     return EMPTY;
@@ -84,7 +85,8 @@ class InheritableMetadataFactory {
 
   static class EmptyInheritableMetadata implements InheritableMetadata {
 
-    private EmptyInheritableMetadata() {}
+    private EmptyInheritableMetadata() {
+    }
 
     @Override
     public <F extends ContentFile<F>> ManifestEntry<F> apply(ManifestEntry<F> manifestEntry) {
