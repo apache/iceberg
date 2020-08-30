@@ -1,6 +1,7 @@
 *.swp
 .DS_Store
 .cache
+tmp/
 
 # intellij files
 .idea
@@ -35,10 +36,6 @@ sdist/
 .coverage
 coverage.xml
 .pytest_cache/
-spark/tmp/
-spark/spark-warehouse/
-spark2/spark-warehouse/
-spark3/spark-warehouse/
 
 # vscode/eclipse files
 .classpath
@@ -48,6 +45,10 @@ bin/
 
 # Hive/metastore files
 metastore_db/
+
+# Spark/metastore files
+spark-warehouse/
+derby.log
 
 # Python stuff
 python/.mypy_cache/
