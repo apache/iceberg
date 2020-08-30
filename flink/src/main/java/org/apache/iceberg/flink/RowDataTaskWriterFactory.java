@@ -125,8 +125,6 @@ class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
     @Override
     public FileAppender<RowData> newAppender(OutputFile outputFile, FileFormat format) {
-      // TODO MetricsConfig will be used for building parquet RowData writer.
-      // MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
       try {
         switch (format) {
           case AVRO:
