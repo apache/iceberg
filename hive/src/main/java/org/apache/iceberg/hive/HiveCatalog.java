@@ -301,6 +301,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     Database database = convertToDatabase(namespace, parameter);
 
     alterHiveDataBase(namespace, database);
+    LOG.debug("Successfully set properties {} for {}", properties.keySet(), namespace);
 
     // Always successful, otherwise exception is thrown
     return true;
@@ -315,6 +316,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     Database database = convertToDatabase(namespace, parameter);
 
     alterHiveDataBase(namespace, database);
+    LOG.debug("Successfully removed properties {} from {}", properties, namespace);
 
     // Always successful, otherwise exception is thrown
     return true;
