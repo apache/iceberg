@@ -300,17 +300,6 @@ public class FlinkCatalog extends AbstractCatalog {
     }
   }
 
-  private CatalogTable toCatalogTable(Table table) {
-    TableSchema schema = FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(table.schema()));
-    List<String> partitionKeys = toPartitionKeys(table.spec(), table.schema());
-
-    // NOTE: We can not create a IcebergCatalogTable, because Flink optimizer may use CatalogTableImpl to copy a new
-    // catalog table.
-    // Let's re-loading table from Iceberg catalog when creating source/sink operators.
-    // Iceberg does not have Table comment, so pass a null (Default comment value in Flink).
-    return new CatalogTableImpl(schema, partitionKeys, table.properties(), null);
-  }
-
   @Override
   public boolean tableExists(ObjectPath tablePath) throws CatalogException {
     return icebergCatalog.tableExists(toIdentifier(tablePath));
@@ -503,6 +492,17 @@ public class FlinkCatalog extends AbstractCatalog {
     }
 
     transaction.commitTransaction();
+  }
+
+  static CatalogTable toCatalogTable(Table table) {
+    TableSchema schema = FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(table.schema()));
+    List<String> partitionKeys = toPartitionKeys(table.spec(), table.schema());
+
+    // NOTE: We can not create a IcebergCatalogTable extends CatalogTable, because Flink optimizer may use
+    // CatalogTableImpl to copy a new catalog table.
+    // Let's re-loading table from Iceberg catalog when creating source/sink operators.
+    // Iceberg does not have Table comment, so pass a null (Default comment value in Flink).
+    return new CatalogTableImpl(schema, partitionKeys, table.properties(), null);
   }
 
   // ------------------------------ Unsupported methods ---------------------------------------------
