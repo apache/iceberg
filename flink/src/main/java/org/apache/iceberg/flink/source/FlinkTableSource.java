@@ -54,24 +54,24 @@ public class FlinkTableSource implements StreamTableSource<RowData>, Projectable
   private final CatalogLoader catalogLoader;
   private final Configuration hadoopConf;
   private final TableSchema schema;
-  private final Map<String, String> options;
+  private final Map<String, String> scanOptions;
   private final int[] projectedFields;
 
   public FlinkTableSource(
       TableIdentifier identifier, Table table, CatalogLoader catalogLoader, Configuration hadoopConf,
-      TableSchema schema, Map<String, String> options) {
-    this(identifier, table, catalogLoader, hadoopConf, schema, options, null);
+      TableSchema schema, Map<String, String> scanOptions) {
+    this(identifier, table, catalogLoader, hadoopConf, schema, scanOptions, null);
   }
 
   private FlinkTableSource(
       TableIdentifier identifier, Table table, CatalogLoader catalogLoader, Configuration hadoopConf,
-      TableSchema schema, Map<String, String> options, int[] projectedFields) {
+      TableSchema schema, Map<String, String> scanOptions, int[] projectedFields) {
     this.identifier = identifier;
     this.table = table;
     this.catalogLoader = catalogLoader;
     this.hadoopConf = hadoopConf;
     this.schema = schema;
-    this.options = options;
+    this.scanOptions = scanOptions;
     this.projectedFields = projectedFields;
   }
 
@@ -82,7 +82,7 @@ public class FlinkTableSource implements StreamTableSource<RowData>, Projectable
 
   @Override
   public TableSource<RowData> projectFields(int[] fields) {
-    return new FlinkTableSource(identifier, table, catalogLoader, hadoopConf, schema, options, fields);
+    return new FlinkTableSource(identifier, table, catalogLoader, hadoopConf, schema, scanOptions, fields);
   }
 
   @Override
@@ -95,8 +95,9 @@ public class FlinkTableSource implements StreamTableSource<RowData>, Projectable
                            .collect(Collectors.toList());
     }
     FlinkInputFormat inputFormat = FlinkInputFormat.builder().table(table)
-        .tableLoader(TableLoader.fromCatalog(catalogLoader, identifier)).hadoopConf(hadoopConf)
-        .select(projectNames).options(ScanOptions.of(options)).build();
+                                                   .tableLoader(TableLoader.fromCatalog(catalogLoader, identifier))
+                                                   .hadoopConf(hadoopConf).select(projectNames)
+                                                   .options(ScanOptions.of(scanOptions)).build();
     return execEnv.createInput(inputFormat, RowDataTypeInfo.of((RowType) getProducedDataType().getLogicalType()));
   }
 
