@@ -44,7 +44,7 @@ public class FlinkTableFactory implements StreamTableSinkFactory<RowData> {
     ObjectPath objectPath = new ObjectPath(identifier.getDatabaseName(), identifier.getObjectName());
     TableIdentifier icebergIdentifier = catalog.toIdentifier(objectPath);
     try {
-      Table table = catalog.getIcebergTable(objectPath);
+      Table table = catalog.loadIcebergTable(objectPath);
       return new IcebergTableSink(icebergIdentifier, table,
           catalog.getCatalogLoader(), catalog.getHadoopConf(),
           FlinkSchemaUtil.toSchema(table.schema()));

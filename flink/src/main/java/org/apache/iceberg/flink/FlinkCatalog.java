@@ -294,15 +294,7 @@ public class FlinkCatalog extends AbstractCatalog {
     return toCatalogTable(table);
   }
 
-  private Table loadIcebergTable(ObjectPath tablePath) throws TableNotExistException {
-    try {
-      return icebergCatalog.loadTable(toIdentifier(tablePath));
-    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
-      throw new TableNotExistException(getName(), tablePath, e);
-    }
-  }
-
-  Table getIcebergTable(ObjectPath tablePath) throws TableNotExistException {
+  Table loadIcebergTable(ObjectPath tablePath) throws TableNotExistException {
     try {
       return icebergCatalog.loadTable(toIdentifier(tablePath));
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
@@ -548,7 +540,7 @@ public class FlinkCatalog extends AbstractCatalog {
 
   @Override
   public void createPartition(ObjectPath tablePath, CatalogPartitionSpec partitionSpec, CatalogPartition partition,
-                              boolean ignoreIfExists) throws CatalogException {
+      boolean ignoreIfExists) throws CatalogException {
     throw new UnsupportedOperationException();
   }
 
@@ -560,7 +552,7 @@ public class FlinkCatalog extends AbstractCatalog {
 
   @Override
   public void alterPartition(ObjectPath tablePath, CatalogPartitionSpec partitionSpec, CatalogPartition newPartition,
-                             boolean ignoreIfNotExists) throws CatalogException {
+      boolean ignoreIfNotExists) throws CatalogException {
     throw new UnsupportedOperationException();
   }
 
@@ -599,27 +591,25 @@ public class FlinkCatalog extends AbstractCatalog {
 
   @Override
   public void alterTableStatistics(ObjectPath tablePath, CatalogTableStatistics tableStatistics,
-                                   boolean ignoreIfNotExists) throws CatalogException {
+      boolean ignoreIfNotExists) throws CatalogException {
     throw new UnsupportedOperationException();
   }
 
   @Override
   public void alterTableColumnStatistics(ObjectPath tablePath, CatalogColumnStatistics columnStatistics,
-                                         boolean ignoreIfNotExists) throws CatalogException {
+      boolean ignoreIfNotExists) throws CatalogException {
     throw new UnsupportedOperationException();
   }
 
   @Override
   public void alterPartitionStatistics(ObjectPath tablePath, CatalogPartitionSpec partitionSpec,
-                                       CatalogTableStatistics partitionStatistics, boolean ignoreIfNotExists)
-      throws CatalogException {
+      CatalogTableStatistics partitionStatistics, boolean ignoreIfNotExists) throws CatalogException {
     throw new UnsupportedOperationException();
   }
 
   @Override
   public void alterPartitionColumnStatistics(ObjectPath tablePath, CatalogPartitionSpec partitionSpec,
-                                             CatalogColumnStatistics columnStatistics, boolean ignoreIfNotExists)
-      throws CatalogException {
+      CatalogColumnStatistics columnStatistics, boolean ignoreIfNotExists) throws CatalogException {
     throw new UnsupportedOperationException();
   }
 
