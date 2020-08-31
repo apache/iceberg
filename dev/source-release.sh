@@ -68,7 +68,7 @@ tarball=$tag.tar.gz
 # archive (identical hashes) using the scm tag
 adds=" .baseline"  # prefixed with a blank space for each file name including the first one
 excludes="build|examples|jitpack.yml|python|site"
-archives=$(ls | grep -vE ${excludes})${adds}
+archives=$(ls | grep -vE ${excludes} | tr '\n' ' ')${adds}
 echo git archive list: ${archives}
 git archive $release_hash --prefix $tag/ -o $tarball ${archives}
 
