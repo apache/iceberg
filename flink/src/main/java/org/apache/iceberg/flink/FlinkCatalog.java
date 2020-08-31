@@ -288,11 +288,11 @@ public class FlinkCatalog extends AbstractCatalog {
 
   @Override
   public CatalogTable getTable(ObjectPath tablePath) throws TableNotExistException, CatalogException {
-    Table table = getIcebergTable(tablePath);
+    Table table = loadIcebergTable(tablePath);
     return toCatalogTable(table);
   }
 
-  private Table getIcebergTable(ObjectPath tablePath) throws TableNotExistException {
+  private Table loadIcebergTable(ObjectPath tablePath) throws TableNotExistException {
     try {
       return icebergCatalog.loadTable(toIdentifier(tablePath));
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
@@ -307,6 +307,7 @@ public class FlinkCatalog extends AbstractCatalog {
     // NOTE: We can not create a IcebergCatalogTable, because Flink optimizer may use CatalogTableImpl to copy a new
     // catalog table.
     // Let's re-loading table from Iceberg catalog when creating source/sink operators.
+    // Iceberg does not have Table comment, so pass a null (Default comment value in Flink).
     return new CatalogTableImpl(schema, partitionKeys, table.properties(), null);
   }
 
@@ -373,11 +374,13 @@ public class FlinkCatalog extends AbstractCatalog {
   public void alterTable(ObjectPath tablePath, CatalogBaseTable newTable, boolean ignoreIfNotExists)
       throws CatalogException, TableNotExistException {
     validateFlinkTable(newTable);
-    Table icebergTable = getIcebergTable(tablePath);
+    Table icebergTable = loadIcebergTable(tablePath);
     CatalogTable table = toCatalogTable(icebergTable);
 
     // Currently, Flink SQL only support altering table properties.
 
+    // For current Flink Catalog API, support for adding/removing/renaming columns cannot be done by comparing
+    // CatalogTable instances, unless the Flink schema contains Iceberg column IDs.
     if (!table.getSchema().equals(newTable.getSchema())) {
       throw new UnsupportedOperationException("Altering schema is not supported yet.");
     }
@@ -466,7 +469,7 @@ public class FlinkCatalog extends AbstractCatalog {
     // don't allow setting the snapshot and picking a commit at the same time because order is ambiguous and choosing
     // one order leads to different results
     Preconditions.checkArgument(setSnapshotId == null || pickSnapshotId == null,
-        "Cannot set the current the current snapshot ID and cherry-pick snapshot changes");
+        "Cannot set the current snapshot ID and cherry-pick snapshot changes");
 
     if (setSnapshotId != null) {
       long newSnapshotId = Long.parseLong(setSnapshotId);
