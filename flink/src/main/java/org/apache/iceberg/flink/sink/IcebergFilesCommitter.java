@@ -92,8 +92,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private transient long maxCommittedCheckpointId;
 
   // There're two cases that we restore from flink checkpoints: the first case is restoring from snapshot created by the
-  // same flink job; another case is restoring from snapshot created by another different job. For the second cases, we
-  // need the old flink job's id to find the max-committed-checkpoint-id when traversing iceberg table's snapshots.
+  // same flink job; another case is restoring from snapshot created by another different job. For the second case, we
+  // need to maintain the old flink job's id in flink state backend to find the max-committed-checkpoint-id when
+  // traversing iceberg table's snapshots.
   private static final ListStateDescriptor<String> JOB_ID_DESCRIPTOR = new ListStateDescriptor<>(
       "iceberg-flink-job-id", BasicTypeInfo.STRING_TYPE_INFO);
   private transient ListState<String> jobIdState;
@@ -120,11 +121,11 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     this.checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     this.jobIdState = context.getOperatorStateStore().getListState(JOB_ID_DESCRIPTOR);
     if (context.isRestored()) {
-      String checkpointJobId = jobIdState.get().iterator().next();
-      Preconditions.checkState(checkpointJobId != null && checkpointJobId.length() > 0,
+      String oldFlinkJobId = jobIdState.get().iterator().next();
+      Preconditions.checkState(oldFlinkJobId != null && oldFlinkJobId.length() > 0,
           "Flink job id parsed from checkpoint snapshot shouldn't be null or empty");
-      long oldMaxCommittedCheckpointId = getMaxCommittedCheckpointId(table, checkpointJobId);
-      if (flinkJobId.equals(checkpointJobId)) {
+      long oldMaxCommittedCheckpointId = getMaxCommittedCheckpointId(table, oldFlinkJobId);
+      if (flinkJobId.equals(oldFlinkJobId)) {
         this.maxCommittedCheckpointId = oldMaxCommittedCheckpointId;
       } else {
         this.maxCommittedCheckpointId = getMaxCommittedCheckpointId(table, flinkJobId);
@@ -136,7 +137,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       if (!uncommittedDataFiles.isEmpty()) {
         // Committed all uncommitted data files from the old flink job to iceberg table.
         long maxUncommittedCheckpointId = uncommittedDataFiles.lastKey();
-        commitUpToCheckpoint(table, uncommittedDataFiles, checkpointJobId, maxUncommittedCheckpointId);
+        commitUpToCheckpoint(table, uncommittedDataFiles, oldFlinkJobId, maxUncommittedCheckpointId);
       }
     }
   }
