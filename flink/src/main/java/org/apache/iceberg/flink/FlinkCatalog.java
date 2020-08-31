@@ -131,7 +131,7 @@ public class FlinkCatalog extends AbstractCatalog {
     return Namespace.of(namespace);
   }
 
-  public TableIdentifier toIdentifier(ObjectPath path) {
+  TableIdentifier toIdentifier(ObjectPath path) {
     return TableIdentifier.of(toNamespace(path.getDatabaseName()), path.getObjectName());
   }
 
