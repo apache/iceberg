@@ -98,4 +98,9 @@ public class FlinkSchemaUtil {
     }
     return builder.build();
   }
+
+  public static TableSchema toSchema(Schema schema) {
+    RowType rowType = convert(schema);
+    return toSchema(rowType);
+  }
 }
