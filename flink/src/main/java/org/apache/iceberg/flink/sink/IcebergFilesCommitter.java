@@ -121,15 +121,14 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     this.checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     this.jobIdState = context.getOperatorStateStore().getListState(JOB_ID_DESCRIPTOR);
     if (context.isRestored()) {
+      this.maxCommittedCheckpointId = getMaxCommittedCheckpointId(table, flinkJobId);
+
       String oldFlinkJobId = jobIdState.get().iterator().next();
       Preconditions.checkState(oldFlinkJobId != null && oldFlinkJobId.length() > 0,
           "Flink job id parsed from checkpoint snapshot shouldn't be null or empty");
-      long oldMaxCommittedCheckpointId = getMaxCommittedCheckpointId(table, oldFlinkJobId);
-      if (flinkJobId.equals(oldFlinkJobId)) {
-        this.maxCommittedCheckpointId = oldMaxCommittedCheckpointId;
-      } else {
-        this.maxCommittedCheckpointId = getMaxCommittedCheckpointId(table, flinkJobId);
-      }
+
+      long oldMaxCommittedCheckpointId = flinkJobId.equals(oldFlinkJobId) ?
+          maxCommittedCheckpointId : getMaxCommittedCheckpointId(table, oldFlinkJobId);
 
       NavigableMap<Long, List<DataFile>> uncommittedDataFiles = Maps
           .newTreeMap(checkpointsState.get().iterator().next())
