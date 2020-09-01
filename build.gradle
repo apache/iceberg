@@ -368,6 +368,7 @@ project(':iceberg-mr') {
       exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
     }
   }
+
   dependencies {
     compile project(':iceberg-api')
     compile project(':iceberg-core')
@@ -409,6 +410,58 @@ project(':iceberg-mr') {
       exclude group: 'org.codehaus.jettison', module: 'jettison'
       exclude group: 'org.apache.calcite.avatica'
     }
+  }
+}
+
+project(':iceberg-hive-runtime') {
+  apply plugin: 'com.github.johnrengelman.shadow'
+
+  tasks.jar.dependsOn tasks.shadowJar
+
+  configurations {
+    compile {
+      exclude group: 'com.github.stephenc.findbugs'
+      exclude group: 'commons-pool'
+      exclude group: 'javax.annotation'
+      exclude group: 'javax.xml.bind'      
+      exclude group: 'org.apache.commons'
+      exclude group: 'org.slf4j'
+      exclude group: 'org.xerial.snappy'
+    }
+  }
+
+  dependencies {
+    compile project(':iceberg-mr')
+  }
+  
+  shadowJar {
+    configurations = [project.configurations.compile]
+
+    zip64 true
+
+    // include the LICENSE and NOTICE files for the shaded Jar
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
+    // Relocate dependencies to avoid conflicts
+    relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
+    relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'  
+    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
+    relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
+    relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
+    relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
+    relocate 'shaded.parquet', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
+    relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
+    relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
+    relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
+
+    classifier null
+  }
+
+  jar {
+    enabled = false
   }
 }
 
