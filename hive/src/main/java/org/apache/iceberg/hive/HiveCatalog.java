@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
 import org.apache.hadoop.hive.metastore.api.Database;
@@ -44,6 +45,7 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -73,7 +75,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     this.conf = new Configuration(conf);
     // before building the client pool, overwrite the configuration's URIs if the argument is non-null
     if (uri != null) {
-      this.conf.set("hive.metastore.uris", uri);
+      this.conf.set(HiveConf.ConfVars.METASTOREURIS.varname, uri);
     }
 
     this.clients = new HiveClientPool(clientPoolSize, this.conf);
@@ -89,9 +91,12 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
     try {
       List<String> tables = clients.run(client -> client.getAllTables(database));
-      return tables.stream()
+      List<TableIdentifier> tableIdentifiers = tables.stream()
           .map(t -> TableIdentifier.of(namespace, t))
           .collect(Collectors.toList());
+
+      LOG.debug("Listing of namespace: {} resulted in the following tables: {}", namespace, tableIdentifiers);
+      return tableIdentifiers;
 
     } catch (UnknownDBException e) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
@@ -138,9 +143,11 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
         dropTableData(ops.io(), lastMetadata);
       }
 
+      LOG.info("Dropped table: {}", identifier);
       return true;
 
     } catch (NoSuchTableException | NoSuchObjectException e) {
+      LOG.info("Skipping drop, table does not exist: {}", identifier, e);
       return false;
 
     } catch (TException e) {
@@ -177,6 +184,8 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
         return null;
       });
 
+      LOG.info("Renamed table from {}, to {}", from, to);
+
     } catch (NoSuchObjectException e) {
       throw new NoSuchTableException("Table does not exist: %s", from);
 
@@ -206,6 +215,8 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
         return null;
       });
 
+      LOG.info("Created namespace: {}", namespace);
+
     } catch (AlreadyExistsException e) {
       throw new org.apache.iceberg.exceptions.AlreadyExistsException(e, "Namespace '%s' already exists!",
             namespace);
@@ -229,10 +240,13 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
       return ImmutableList.of();
     }
     try {
-      return clients.run(HiveMetaStoreClient::getAllDatabases)
+      List<Namespace> namespaces = clients.run(HiveMetaStoreClient::getAllDatabases)
           .stream()
           .map(Namespace::of)
           .collect(Collectors.toList());
+
+      LOG.debug("Listing namespace {} returned tables: {}", namespace, namespaces);
+      return namespaces;
 
     } catch (TException e) {
       throw new RuntimeException("Failed to list all namespace: " + namespace + " in Hive MataStore",  e);
@@ -259,6 +273,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
         return null;
       });
 
+      LOG.info("Dropped namespace: {}", namespace);
       return true;
 
     } catch (InvalidOperationException e) {
@@ -285,7 +300,11 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     parameter.putAll(properties);
     Database database = convertToDatabase(namespace, parameter);
 
-    return alterHiveDataBase(namespace, database);
+    alterHiveDataBase(namespace, database);
+    LOG.debug("Successfully set properties {} for {}", properties.keySet(), namespace);
+
+    // Always successful, otherwise exception is thrown
+    return true;
   }
 
   @Override
@@ -296,17 +315,19 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     properties.forEach(key -> parameter.put(key, null));
     Database database = convertToDatabase(namespace, parameter);
 
-    return alterHiveDataBase(namespace, database);
+    alterHiveDataBase(namespace, database);
+    LOG.debug("Successfully removed properties {} from {}", properties, namespace);
+
+    // Always successful, otherwise exception is thrown
+    return true;
   }
 
-  private boolean alterHiveDataBase(Namespace namespace,  Database database) {
+  private void alterHiveDataBase(Namespace namespace,  Database database) {
     try {
       clients.run(client -> {
         client.alterDatabase(namespace.level(0), database);
         return null;
       });
-
-      return true;
 
     } catch (NoSuchObjectException | UnknownDBException e) {
       throw new NoSuchNamespaceException(e, "Namespace does not exist: %s", namespace);
@@ -329,7 +350,9 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
     try {
       Database database = clients.run(client -> client.getDatabase(namespace.level(0)));
-      return convertToMetadata(database);
+      Map<String, String> metadata = convertToMetadata(database);
+      LOG.debug("Loaded metadata for namespace {} found {}", namespace, metadata.keySet());
+      return metadata;
 
     } catch (NoSuchObjectException | UnknownDBException e) {
       throw new NoSuchNamespaceException(e, "Namespace does not exist: %s", namespace);
@@ -469,5 +492,13 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
           Arrays.copyOfRange(createStack, 1, createStack.length));
       LOG.warn("Unclosed input stream created by:\n\t{}", trace);
     }
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("name", name)
+        .add("uri", this.conf.get(HiveConf.ConfVars.METASTOREURIS.varname))
+        .toString();
   }
 }

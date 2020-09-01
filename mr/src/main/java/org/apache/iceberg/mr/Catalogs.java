@@ -32,8 +32,11 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveCatalogs;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class Catalogs {
+  private static final Logger LOG = LoggerFactory.getLogger(Catalogs.class);
 
   private static final String HADOOP = "hadoop";
   private static final String HIVE = "hive";
@@ -83,28 +86,32 @@ public final class Catalogs {
               .impl(catalogLoaderClass)
               .build()
               .newInstance();
-      return Optional.of(loader.load(conf));
+      Catalog catalog = loader.load(conf);
+      LOG.info("Loaded catalog {} using {}", catalog, catalogLoaderClass);
+      return Optional.of(catalog);
     }
 
     String catalogName = conf.get(InputFormatConfig.CATALOG);
 
     if (catalogName != null) {
+      Catalog catalog;
       switch (catalogName.toLowerCase()) {
         case HADOOP:
           String warehouseLocation = conf.get(InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION);
 
-          if (warehouseLocation != null) {
-            return Optional.of(new HadoopCatalog(conf, warehouseLocation));
-          }
-
-          return Optional.of(new HadoopCatalog(conf));
+          catalog = (warehouseLocation != null) ? new HadoopCatalog(conf, warehouseLocation) : new HadoopCatalog(conf);
+          LOG.info("Loaded Hadoop catalog {}", catalog);
+          return Optional.of(catalog);
         case HIVE:
-          return Optional.of(HiveCatalogs.loadCatalog(conf));
+          catalog = HiveCatalogs.loadCatalog(conf);
+          LOG.info("Loaded Hive Metastore catalog {}", catalog);
+          return Optional.of(catalog);
         default:
           throw new NoSuchNamespaceException("Catalog " + catalogName + " is not supported.");
       }
     }
 
+    LOG.info("Catalog is not configured");
     return Optional.empty();
   }
 }
