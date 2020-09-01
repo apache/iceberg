@@ -71,9 +71,9 @@ public class TestFlinkInputFormat extends TestFlinkScan {
 
   @Override
   protected void assertResiduals(
-      Schema shcema, List<Row> results, List<Record> writeRecords, List<Record> filteredRecords) {
+      Schema schema, List<Row> results, List<Record> writeRecords, List<Record> filteredRecords) {
     // can not filter the data.
-    assertRecords(results, writeRecords, shcema);
+    assertRecords(results, writeRecords, schema);
   }
 
   @Override
