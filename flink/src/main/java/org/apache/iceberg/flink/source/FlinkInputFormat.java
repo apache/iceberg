@@ -106,8 +106,8 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
 
   @Override
   public void open(FlinkInputSplit split) {
-    this.iterator = new RowDataIterator(split.getTask(), io, encryption, projectedSchema,
-                                        options.getNameMapping(), options.isCaseSensitive());
+    this.iterator = new RowDataIterator(
+        split.getTask(), io, encryption, projectedSchema, options.getNameMapping(), options.isCaseSensitive());
   }
 
   @Override
@@ -223,9 +223,8 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
         TableSchema tableSchema = FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(icebergSchema));
         TableSchema.Builder builder = TableSchema.builder();
         for (String field : selectedFields) {
-          TableColumn column = tableSchema.getTableColumn(field).orElseThrow(
-              () -> new IllegalArgumentException(String.format("The field(%s) can not be found in the table schema: %s",
-                                                               field, tableSchema)));
+          TableColumn column = tableSchema.getTableColumn(field).orElseThrow(() -> new IllegalArgumentException(
+              String.format("The field(%s) can not be found in the table schema: %s", field, tableSchema)));
           builder.field(column.getName(), column.getType());
         }
         flinkProjectedSchema = builder.build();
@@ -237,7 +236,7 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
       }
 
       return new FlinkInputFormat(tableLoader, icebergProjectedSchema, io, encryption, filterExpressions, options,
-                                  new SerializableConfiguration(hadoopConf));
+          new SerializableConfiguration(hadoopConf));
     }
   }
 }

@@ -79,9 +79,8 @@ public class TestFlinkInputFormat extends TestFlinkScan {
   @Override
   protected void assertNestedProjection(Table table, List<Record> records) throws IOException {
     TableSchema projectedSchema = TableSchema.builder()
-                                   .field("nested", DataTypes.ROW(DataTypes.FIELD("f2", DataTypes.STRING())))
-                                   .field("data", DataTypes.STRING())
-                                   .build();
+        .field("nested", DataTypes.ROW(DataTypes.FIELD("f2", DataTypes.STRING())))
+        .field("data", DataTypes.STRING()).build();
     List<Row> result = run(builder.project(projectedSchema).build());
 
     List<Row> expected = Lists.newArrayList();
