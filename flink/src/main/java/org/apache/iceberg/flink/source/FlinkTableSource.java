@@ -39,8 +39,6 @@ import org.apache.flink.table.utils.TableConnectorUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.TableLoader;
 
 /**
@@ -49,26 +47,22 @@ import org.apache.iceberg.flink.TableLoader;
  */
 public class FlinkTableSource implements StreamTableSource<RowData>, ProjectableTableSource<RowData> {
 
-  private final TableIdentifier identifier;
   private final Table table;
-  private final CatalogLoader catalogLoader;
+  private final TableLoader loader;
   private final Configuration hadoopConf;
   private final TableSchema schema;
   private final Map<String, String> scanOptions;
   private final int[] projectedFields;
 
-  public FlinkTableSource(
-      TableIdentifier identifier, Table table, CatalogLoader catalogLoader, Configuration hadoopConf,
-      TableSchema schema, Map<String, String> scanOptions) {
-    this(identifier, table, catalogLoader, hadoopConf, schema, scanOptions, null);
+  public FlinkTableSource(Table table, TableLoader loader, Configuration hadoopConf, TableSchema schema,
+                          Map<String, String> scanOptions) {
+    this(table, loader, hadoopConf, schema, scanOptions, null);
   }
 
-  private FlinkTableSource(
-      TableIdentifier identifier, Table table, CatalogLoader catalogLoader, Configuration hadoopConf,
-      TableSchema schema, Map<String, String> scanOptions, int[] projectedFields) {
-    this.identifier = identifier;
+  private FlinkTableSource(Table table, TableLoader loader, Configuration hadoopConf, TableSchema schema,
+                           Map<String, String> scanOptions, int[] projectedFields) {
     this.table = table;
-    this.catalogLoader = catalogLoader;
+    this.loader = loader;
     this.hadoopConf = hadoopConf;
     this.schema = schema;
     this.scanOptions = scanOptions;
@@ -82,7 +76,7 @@ public class FlinkTableSource implements StreamTableSource<RowData>, Projectable
 
   @Override
   public TableSource<RowData> projectFields(int[] fields) {
-    return new FlinkTableSource(identifier, table, catalogLoader, hadoopConf, schema, scanOptions, fields);
+    return new FlinkTableSource(table, loader, hadoopConf, schema, scanOptions, fields);
   }
 
   @Override
@@ -95,7 +89,7 @@ public class FlinkTableSource implements StreamTableSource<RowData>, Projectable
                            .collect(Collectors.toList());
     }
     FlinkInputFormat inputFormat = FlinkInputFormat.builder().table(table)
-                                                   .tableLoader(TableLoader.fromCatalog(catalogLoader, identifier))
+                                                   .tableLoader(loader)
                                                    .hadoopConf(hadoopConf).select(projectNames)
                                                    .options(ScanOptions.of(scanOptions)).build();
     return execEnv.createInput(inputFormat, RowDataTypeInfo.of((RowType) getProducedDataType().getLogicalType()));
@@ -126,7 +120,7 @@ public class FlinkTableSource implements StreamTableSource<RowData>, Projectable
 
   @Override
   public String explainSource() {
-    String explain = "Iceberg table: " + identifier;
+    String explain = "Iceberg table: " + table.toString();
     if (projectedFields != null) {
       explain += ", ProjectedFields: " + Arrays.toString(projectedFields);
     }

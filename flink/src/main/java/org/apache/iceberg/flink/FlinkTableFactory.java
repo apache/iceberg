@@ -23,15 +23,12 @@ import java.util.List;
 import java.util.Map;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
-import org.apache.flink.table.catalog.ObjectIdentifier;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.factories.TableSourceFactory;
 import org.apache.flink.table.sources.TableSource;
 import org.apache.flink.table.utils.TableSchemaUtils;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.source.FlinkTableSource;
 
 /**
@@ -58,18 +55,17 @@ class FlinkTableFactory implements TableSourceFactory<RowData> {
 
   @Override
   public TableSource<RowData> createTableSource(Context context) {
-    ObjectIdentifier identifier = context.getObjectIdentifier();
-    ObjectPath objectPath = new ObjectPath(identifier.getDatabaseName(), identifier.getObjectName());
-    TableIdentifier icebergIdentifier = catalog.toIdentifier(objectPath);
+    ObjectPath objectPath = context.getObjectIdentifier().toObjectPath();
+    TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(context.getTable().getSchema());
     try {
-      Table table = catalog.getIcebergTable(objectPath);
-      // Excludes computed columns
-      TableSchema icebergSchema = TableSchemaUtils.getPhysicalSchema(context.getTable().getSchema());
-      return new FlinkTableSource(
-          icebergIdentifier, table, catalog.getCatalogLoader(), catalog.getHadoopConf(), icebergSchema,
-          context.getTable().getOptions());
+      return new FlinkTableSource(catalog.getIcebergTable(objectPath), createTableLoader(objectPath),
+                                  catalog.getHadoopConf(), tableSchema, context.getTable().getOptions());
     } catch (TableNotExistException e) {
-      throw new ValidationException(String.format("Iceberg Table(%s) not exist.", icebergIdentifier), e);
+      throw new ValidationException(String.format("Iceberg Table(%s) not exist.", objectPath), e);
     }
+  }
+
+  private TableLoader createTableLoader(ObjectPath objectPath) {
+    return TableLoader.fromCatalog(catalog.getCatalogLoader(), catalog.toIdentifier(objectPath));
   }
 }
