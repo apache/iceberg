@@ -205,7 +205,7 @@
 
 This binary artifact contains Apache Avro.
 
-Copyright: 2014-2017 The Apache Software Foundation.
+Copyright: 2014-2020 The Apache Software Foundation.
 Home page: https://parquet.apache.org/
 License: http://www.apache.org/licenses/LICENSE-2.0
 
@@ -213,52 +213,15 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 This binary artifact contains the Jackson JSON processor.
 
-Copyright: 2007-2019 Tatu Saloranta and other contributors
+Copyright: 2007-2020 Tatu Saloranta and other contributors
 Home page: http://jackson.codehaus.org/
 License: http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Paranamer.
-
-Copyright: 2000-2007 INRIA, France Telecom, 2006-2018 Paul Hammant & ThoughtWorks Inc
-Home page: https://github.com/paul-hammant/paranamer
-License: https://github.com/paul-hammant/paranamer/blob/master/LICENSE.txt (BSD)
-
-License text:
-| Portions copyright (c) 2006-2018 Paul Hammant & ThoughtWorks Inc
-| Portions copyright (c) 2000-2007 INRIA, France Telecom
-| All rights reserved.
-|
-| Redistribution and use in source and binary forms, with or without
-| modification, are permitted provided that the following conditions
-| are met:
-| 1. Redistributions of source code must retain the above copyright
-|    notice, this list of conditions and the following disclaimer.
-| 2. Redistributions in binary form must reproduce the above copyright
-|    notice, this list of conditions and the following disclaimer in the
-|    documentation and/or other materials provided with the distribution.
-| 3. Neither the name of the copyright holders nor the names of its
-|    contributors may be used to endorse or promote products derived from
-|    this software without specific prior written permission.
-|
-| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-| AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-| IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-| ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
-| LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-| CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-| SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-| INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-| CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-| ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
-| THE POSSIBILITY OF SUCH DAMAGE.
-
---------------------------------------------------------------------------------
-
 This binary artifact contains Apache Parquet.
 
-Copyright: 2014-2017 The Apache Software Foundation.
+Copyright: 2014-2020 The Apache Software Foundation.
 Home page: https://parquet.apache.org/
 License: http://www.apache.org/licenses/LICENSE-2.0
 
@@ -272,14 +235,6 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains code from Daniel Lemire's JavaFastPFOR project.
-
-Copyright: 2013 Daniel Lemire
-Home page: https://github.com/lemire/JavaFastPFOR
-License: Apache License Version 2.0 http://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
 This binary artifact contains fastutil.
 
 Copyright: 2002-2014 Sebastiano Vigna
@@ -290,7 +245,7 @@ License: http://www.apache.org/licenses/LICENSE-2.0.html
 
 This binary artifact contains Apache ORC.
 
-Copyright: 2013-2019 The Apache Software Foundation.
+Copyright: 2013-2020 The Apache Software Foundation.
 Home page: https://orc.apache.org/
 License: http://www.apache.org/licenses/LICENSE-2.0
 
@@ -298,58 +253,15 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 This binary artifact contains Apache Hive's storage API via ORC.
 
-Copyright: 2013-2019 The Apache Software Foundation.
+Copyright: 2013-2020 The Apache Software Foundation.
 Home page: https://hive.apache.org/
 License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Google protobuf via ORC.
-
-Copyright: 2008 Google Inc.
-Home page: https://developers.google.com/protocol-buffers
-License: https://github.com/protocolbuffers/protobuf/blob/master/LICENSE (BSD)
-
-License text:
-
-| Copyright 2008 Google Inc.  All rights reserved.
-|
-| Redistribution and use in source and binary forms, with or without
-| modification, are permitted provided that the following conditions are
-| met:
-|
-|     * Redistributions of source code must retain the above copyright
-| notice, this list of conditions and the following disclaimer.
-|     * Redistributions in binary form must reproduce the above
-| copyright notice, this list of conditions and the following disclaimer
-| in the documentation and/or other materials provided with the
-| distribution.
-|     * Neither the name of Google Inc. nor the names of its
-| contributors may be used to endorse or promote products derived from
-| this software without specific prior written permission.
-|
-| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-| "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-| LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-| A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-| OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-| SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-| LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-| DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-| THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-| (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-| OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-|
-| Code generated by the Protocol Buffer compiler is owned by the owner
-| of the input file used when generating it.  This code is not
-| standalone and requires a support library to be linked with it.  This
-| support library is itself covered by the above license.
-
---------------------------------------------------------------------------------
-
 This binary artifact contains Airlift Aircompressor.
 
-Copyright: 2011-2019 Aircompressor authors.
+Copyright: 2011-2020 Aircompressor authors.
 Home page: https://github.com/airlift/aircompressor
 License: http://www.apache.org/licenses/LICENSE-2.0
 
@@ -357,7 +269,7 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 This binary artifact contains Airlift Slice.
 
-Copyright: 2013-2019 Slice authors.
+Copyright: 2013-2020 Slice authors.
 Home page: https://github.com/airlift/slice
 License: http://www.apache.org/licenses/LICENSE-2.0
 
@@ -371,25 +283,9 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains code from Cloudera Kite.
-
-Copyright: 2013-2017 Cloudera Inc.
-Home page: https://kitesdk.org/
-License: http://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This binary artifact contains code from Presto.
-
-Copyright: 2016 Facebook and contributors
-Home page: https://prestodb.io/
-License: http://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
 This binary artifact contains Google Guava.
 
-Copyright: 2006-2019 The Guava Authors
+Copyright: 2006-2020 The Guava Authors
 Home page: https://github.com/google/guava
 License: http://www.apache.org/licenses/LICENSE-2.0
 
@@ -403,25 +299,9 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains findbugs-annotations by Stephen Connolly.
-
-Copyright: 2011-2016 Stephen Connolly, Greg Lucas
-Home page: https://github.com/stephenc/findbugs-annotations
-License: http://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This binary artifact contains Google j2objc Annotations.
-
-Copyright: Copyright 2012-2018 Google Inc.
-Home page: https://github.com/google/j2objc/tree/master/annotations
-License: http://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
 This binary artifact contains checkerframework checker-qual Annotations.
 
-Copyright: 2004-2019 the Checker Framework developers
+Copyright: 2004-2020 the Checker Framework developers
 Home page: https://github.com/typetools/checker-framework
 License: https://github.com/typetools/checker-framework/blob/master/LICENSE.txt (MIT license)
 
@@ -489,48 +369,8 @@ License text:
 
 This binary artifact contains Caffeine by Ben Manes.
 
-Copyright: 2014-2019 Ben Manes and contributors
+Copyright: 2014-2020 Ben Manes and contributors
 Home page: https://github.com/ben-manes/caffeine
-License: http://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This binary artifact contains Apache Arrow.
-
-Copyright: 2016-2019 The Apache Software Foundation.
-Home page: https://arrow.apache.org/
-License: http://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This binary artifact contains Netty's buffer library.
-
-Copyright: 2014-2020 The Netty Project
-Home page: https://netty.io/
-License: http://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This binary artifact contains Google FlatBuffers.
-
-Copyright: 2013-2020 Google Inc.
-Home page: https://google.github.io/flatbuffers/
-License: http://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This binary artifact contains Carrot Search Labs HPPC.
-
-Copyright: 2002-2019 Carrot Search s.c.
-Home page: http://labs.carrotsearch.com/hppc.html
-License: http://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This binary artifact contains code from Apache Lucene via Carrot Search HPPC.
-
-Copyright: 2011-2020 The Apache Software Foundation.
-Home page: https://lucene.apache.org/
 License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
@@ -540,6 +380,49 @@ This binary artifact contains Apache Yetus audience annotations.
 Copyright: 2008-2020 The Apache Software Foundation.
 Home page: https://yetus.apache.org/
 License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains Google protobuf.
+
+Copyright: 2008 Google Inc.
+Home page: https://developers.google.com/protocol-buffers
+License: https://github.com/protocolbuffers/protobuf/blob/master/LICENSE (BSD)
+
+License text:
+
+| Copyright 2008 Google Inc.  All rights reserved.
+|
+| Redistribution and use in source and binary forms, with or without
+| modification, are permitted provided that the following conditions are
+| met:
+|
+|     * Redistributions of source code must retain the above copyright
+| notice, this list of conditions and the following disclaimer.
+|     * Redistributions in binary form must reproduce the above
+| copyright notice, this list of conditions and the following disclaimer
+| in the documentation and/or other materials provided with the
+| distribution.
+|     * Neither the name of Google Inc. nor the names of its
+| contributors may be used to endorse or promote products derived from
+| this software without specific prior written permission.
+|
+| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+| "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+| LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+| A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+| OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+| SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+| LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+| DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+| THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+| (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+| OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+|
+| Code generated by the Protocol Buffer compiler is owned by the owner
+| of the input file used when generating it.  This code is not
+| standalone and requires a support library to be linked with it.  This
+| support library is itself covered by the above license.
 
 --------------------------------------------------------------------------------
 
@@ -578,4 +461,3 @@ License text:
 | LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 | NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 | SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
