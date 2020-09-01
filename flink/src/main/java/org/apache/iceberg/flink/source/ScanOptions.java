@@ -215,7 +215,7 @@ public class ScanOptions implements Serializable {
         }
       }
       return new ScanOptions(caseSensitive, snapshotId, startSnapshotId, endSnapshotId, asOfTimestamp, splitSize,
-                             splitLookback, splitOpenFileCost, nameMapping);
+          splitLookback, splitOpenFileCost, nameMapping);
     }
   }
 }

@@ -238,10 +238,10 @@ public abstract class TestFlinkScan extends AbstractTestBase {
     Thread.sleep(10);
     helper.appendToTable(RandomGenericData.generate(SCHEMA, 1, 0L));
 
-    assertRecords(executeWithOptions(table, null, null, snapshotId, null, null, null, null, null), expectedRecords,
-                  SCHEMA);
-    assertRecords(executeWithOptions(table, null, null, null, null, null, timestampMillis, null, null),
-                  expectedRecords, SCHEMA);
+    assertRecords(
+        executeWithOptions(table, null, null, snapshotId, null, null, null, null, null), expectedRecords, SCHEMA);
+    assertRecords(
+        executeWithOptions(table, null, null, null, null, null, timestampMillis, null, null), expectedRecords, SCHEMA);
   }
 
   @Test
@@ -275,8 +275,8 @@ public abstract class TestFlinkScan extends AbstractTestBase {
     List<Record> expected2 = Lists.newArrayList();
     expected2.addAll(records2);
     expected2.addAll(records3);
-    assertRecords(executeWithOptions(table, null, null, null, snapshotId1, snapshotId3, null, null, null), expected2,
-                  SCHEMA);
+    assertRecords(
+        executeWithOptions(table, null, null, null, snapshotId1, snapshotId3, null, null, null), expected2, SCHEMA);
   }
 
   @Test
@@ -289,8 +289,8 @@ public abstract class TestFlinkScan extends AbstractTestBase {
     new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(
         org.apache.iceberg.TestHelpers.Row.of("2020-03-20", 0), expectedRecords);
 
-    List<Row> rows = executeWithOptions(table, null, CatalogLoader.hadoop("new_catalog", newWarehouse), null, null,
-                                        null, null, null, null);
+    List<Row> rows = executeWithOptions(
+        table, null, CatalogLoader.hadoop("new_catalog", newWarehouse), null, null, null, null, null, null);
     assertRecords(rows, expectedRecords, SCHEMA);
   }
 
@@ -308,8 +308,9 @@ public abstract class TestFlinkScan extends AbstractTestBase {
         RandomGenericData.generate(SCHEMA, 2, 0L));
     helper.appendToTable(dataFile1, dataFile2);
     List<Expression> filters = Collections.singletonList(Expressions.equal("dt", "2020-03-20"));
-    assertRecords(executeWithOptions(table, null, null, null, null, null, null, filters, "dt='2020-03-20'"),
-                  expectedRecords, SCHEMA);
+    assertRecords(
+        executeWithOptions(table, null, null, null, null, null, null, filters, "dt='2020-03-20'"),
+        expectedRecords, SCHEMA);
   }
 
   @Test

@@ -85,13 +85,11 @@ public class FlinkTableSource implements StreamTableSource<RowData>, Projectable
     List<String> projectNames = null;
     if (projectedFields != null) {
       projectNames = Arrays.stream(projectedFields)
-                           .mapToObj(project -> icebergSchema.asStruct().fields().get(project).name())
-                           .collect(Collectors.toList());
+          .mapToObj(project -> icebergSchema.asStruct().fields().get(project).name())
+          .collect(Collectors.toList());
     }
-    FlinkInputFormat inputFormat = FlinkInputFormat.builder().table(table)
-                                                   .tableLoader(loader)
-                                                   .hadoopConf(hadoopConf).select(projectNames)
-                                                   .options(ScanOptions.of(scanOptions)).build();
+    FlinkInputFormat inputFormat = FlinkInputFormat.builder().table(table).tableLoader(loader).hadoopConf(hadoopConf)
+        .select(projectNames).options(ScanOptions.of(scanOptions)).build();
     return execEnv.createInput(inputFormat, RowDataTypeInfo.of((RowType) getProducedDataType().getLogicalType()));
   }
 

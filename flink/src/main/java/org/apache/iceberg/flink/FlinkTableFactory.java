@@ -58,8 +58,9 @@ class FlinkTableFactory implements TableSourceFactory<RowData> {
     ObjectPath objectPath = context.getObjectIdentifier().toObjectPath();
     TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(context.getTable().getSchema());
     try {
-      return new FlinkTableSource(catalog.getIcebergTable(objectPath), createTableLoader(objectPath),
-                                  catalog.getHadoopConf(), tableSchema, context.getTable().getOptions());
+      return new FlinkTableSource(
+          catalog.getIcebergTable(objectPath), createTableLoader(objectPath), catalog.getHadoopConf(), tableSchema,
+          context.getTable().getOptions());
     } catch (TableNotExistException e) {
       throw new ValidationException(String.format("Iceberg Table(%s) not exist.", objectPath), e);
     }

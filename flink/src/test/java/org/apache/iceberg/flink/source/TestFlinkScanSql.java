@@ -50,8 +50,9 @@ public class TestFlinkScanSql extends TestFlinkScan {
   public void before() throws IOException {
     super.before();
     tEnv = TableEnvironment.create(EnvironmentSettings.newInstance().useBlinkPlanner().inBatchMode().build());
-    tEnv.executeSql(String.format("create catalog iceberg_catalog with (" +
-                                  "'type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')", warehouse));
+    tEnv.executeSql(String.format(
+        "create catalog iceberg_catalog with ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
+        warehouse));
     tEnv.executeSql("use catalog iceberg_catalog");
     tEnv.getConfig().getConfiguration().set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
   }
