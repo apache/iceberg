@@ -99,7 +99,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         "Should fail if trying to get a nonexistent table",
         ValidationException.class,
         "Table `tl` was not found.",
-        () ->  tEnv.from("tl")
+        () -> tEnv.from("tl")
     );
     Assert.assertEquals(
         Collections.singletonList(TableColumn.of("id", DataTypes.BIGINT())),
@@ -211,42 +211,42 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Table table = table("tl");
 
     DataFile fileA = DataFiles.builder(table.spec())
-                               .withPath("/path/to/data-a.parquet")
-                               .withFileSizeInBytes(10)
-                               .withPartitionPath("c1=0") // easy way to set partition data for now
-                               .withRecordCount(1)
-                               .build();
+        .withPath("/path/to/data-a.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("c1=0") // easy way to set partition data for now
+        .withRecordCount(1)
+        .build();
     DataFile fileB = DataFiles.builder(table.spec())
-                               .withPath("/path/to/data-b.parquet")
-                               .withFileSizeInBytes(10)
-                               .withPartitionPath("c1=1") // easy way to set partition data for now
-                               .withRecordCount(1)
-                               .build();
+        .withPath("/path/to/data-b.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("c1=1") // easy way to set partition data for now
+        .withRecordCount(1)
+        .build();
     DataFile replacementFile = DataFiles.builder(table.spec())
-                                        .withPath("/path/to/data-a-replacement.parquet")
-                                        .withFileSizeInBytes(10)
-                                        .withPartitionPath("c1=0") // easy way to set partition data for now
-                                        .withRecordCount(1)
-                                        .build();
+        .withPath("/path/to/data-a-replacement.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("c1=0") // easy way to set partition data for now
+        .withRecordCount(1)
+        .build();
 
     table.newAppend()
-         .appendFile(fileA)
-         .commit();
+        .appendFile(fileA)
+        .commit();
     long snapshotId = table.currentSnapshot().snapshotId();
 
     // stage an overwrite that replaces FILE_A
     table.newReplacePartitions()
-         .addFile(replacementFile)
-         .stageOnly()
-         .commit();
+        .addFile(replacementFile)
+        .stageOnly()
+        .commit();
 
     Snapshot staged = Iterables.getLast(table.snapshots());
     Assert.assertEquals("Should find the staged overwrite snapshot", DataOperations.OVERWRITE, staged.operation());
 
     // add another append so that the original commit can't be fast-forwarded
     table.newAppend()
-         .appendFile(fileB)
-         .commit();
+        .appendFile(fileB)
+        .commit();
 
     // test cherry pick
     tEnv.executeSql(String.format("ALTER TABLE tl SET('cherry-pick-snapshot-id'='%s')", staged.snapshotId()));
@@ -261,8 +261,8 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     tbl.refresh();
     Set<CharSequence> expectedFilePaths = Arrays.stream(expectedFiles).map(DataFile::path).collect(Collectors.toSet());
     Set<CharSequence> actualFilePaths = StreamSupport.stream(tbl.newScan().planFiles().spliterator(), false)
-                                                     .map(FileScanTask::file).map(ContentFile::path)
-                                                     .collect(Collectors.toSet());
+        .map(FileScanTask::file).map(ContentFile::path)
+        .collect(Collectors.toSet());
     Assert.assertEquals("Files should match", expectedFilePaths, actualFilePaths);
   }
 
