@@ -111,7 +111,7 @@ public final class Catalogs {
       }
     }
 
-    LOG.info("No catalog is used");
+    LOG.info("Catalog is not configured");
     return Optional.empty();
   }
 }

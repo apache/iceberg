@@ -54,7 +54,12 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   protected BaseMetastoreTableOperations() {
   }
 
-  protected String fullName() {
+  /**
+   * The full name of the table used for logging purposes only. For example for HiveTableOperations it is
+   * catalogName + "." + database + "." + table.
+   * @return The full name
+   */
+  protected String tableName() {
     return null;
   }
 
@@ -111,7 +116,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     requestRefresh();
 
     LOG.info("Successfully committed to table {} in {} ms",
-        fullName(),
+        tableName(),
         System.currentTimeMillis() - start);
   }
 

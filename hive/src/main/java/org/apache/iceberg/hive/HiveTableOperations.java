@@ -98,7 +98,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   }
 
   @Override
-  protected String fullName() {
+  protected String tableName() {
     return fullName;
   }
 
@@ -116,7 +116,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     String metadataLocation = null;
     try {
       Table table = metaClients.run(client -> client.getTable(database, tableName));
-      validateTableIsIceberg(table, fullName());
+      validateTableIsIceberg(table, fullName);
 
       metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
 
@@ -148,11 +148,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       // TODO add lock heart beating for cases where default lock timeout is too low.
       Table tbl;
       if (base != null) {
-        LOG.debug("Committing existing table: {}", fullName());
+        LOG.debug("Committing existing table: {}", fullName);
         tbl = metaClients.run(client -> client.getTable(database, tableName));
         tbl.setSd(storageDescriptor(metadata)); // set to pickup any schema changes
       } else {
-        LOG.debug("Committing new table: {}", fullName());
+        LOG.debug("Committing new table: {}", fullName);
         final long currentTimeMillis = System.currentTimeMillis();
         tbl = new Table(tableName,
             database,
