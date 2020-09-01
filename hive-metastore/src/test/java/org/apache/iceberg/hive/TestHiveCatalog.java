@@ -24,7 +24,12 @@ import java.util.Map;
 import java.util.UUID;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.CachingCatalog;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.Transaction;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -35,7 +40,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -45,6 +52,132 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       "owner", "apache",
       "group", "iceberg",
       "comment", "iceberg  hiveCatalog test");
+
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
+
+  @Test
+  public void testCreateTableBuilder() throws Exception {
+    Schema schema = new Schema(
+        required(1, "id", Types.IntegerType.get(), "unique ID"),
+        required(2, "data", Types.StringType.get())
+    );
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .bucket("data", 16)
+        .build();
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+    String location = temp.newFolder("tbl").toString();
+
+    try {
+      Table table = catalog.buildTable(tableIdent, schema)
+          .withPartitionSpec(spec)
+          .withLocation(location)
+          .withProperty("key1", "value1")
+          .withProperty("key2", "value2")
+          .create();
+
+      Assert.assertEquals(location, table.location());
+      Assert.assertEquals(2, table.schema().columns().size());
+      Assert.assertEquals(1, table.spec().fields().size());
+      Assert.assertEquals("value1", table.properties().get("key1"));
+      Assert.assertEquals("value2", table.properties().get("key2"));
+    } finally {
+      catalog.dropTable(tableIdent);
+    }
+  }
+
+  @Test
+  public void testCreateTableWithCaching() throws Exception {
+    Schema schema = new Schema(
+        required(1, "id", Types.IntegerType.get(), "unique ID"),
+        required(2, "data", Types.StringType.get())
+    );
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .bucket("data", 16)
+        .build();
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+    String location = temp.newFolder("tbl").toString();
+    ImmutableMap<String, String> properties = ImmutableMap.of("key1", "value1", "key2", "value2");
+    Catalog cachingCatalog = CachingCatalog.wrap(catalog);
+
+    try {
+      Table table = cachingCatalog.createTable(tableIdent, schema, spec, location, properties);
+
+      Assert.assertEquals(location, table.location());
+      Assert.assertEquals(2, table.schema().columns().size());
+      Assert.assertEquals(1, table.spec().fields().size());
+      Assert.assertEquals("value1", table.properties().get("key1"));
+      Assert.assertEquals("value2", table.properties().get("key2"));
+    } finally {
+      cachingCatalog.dropTable(tableIdent);
+    }
+  }
+
+  @Test
+  public void testCreateTableTxnBuilder() throws Exception {
+    Schema schema = new Schema(
+        required(1, "id", Types.IntegerType.get(), "unique ID"),
+        required(2, "data", Types.StringType.get())
+    );
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+    String location = temp.newFolder("tbl").toString();
+
+    try {
+      Transaction txn = catalog.buildTable(tableIdent, schema)
+          .withLocation(location)
+          .createTransaction();
+      txn.commitTransaction();
+      Table table = catalog.loadTable(tableIdent);
+
+      Assert.assertEquals(location, table.location());
+      Assert.assertEquals(2, table.schema().columns().size());
+      Assert.assertTrue(table.spec().isUnpartitioned());
+    } finally {
+      catalog.dropTable(tableIdent);
+    }
+  }
+
+  @Test
+  public void testReplaceTxnBuilder() throws Exception {
+    Schema schema = new Schema(
+        required(1, "id", Types.IntegerType.get(), "unique ID"),
+        required(2, "data", Types.StringType.get())
+    );
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .bucket("data", 16)
+        .build();
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+    String location = temp.newFolder("tbl").toString();
+
+    try {
+      Transaction createTxn = catalog.buildTable(tableIdent, schema)
+          .withPartitionSpec(spec)
+          .withLocation(location)
+          .withProperty("key1", "value1")
+          .createOrReplaceTransaction();
+      createTxn.commitTransaction();
+
+      Table table = catalog.loadTable(tableIdent);
+      Assert.assertEquals(1, table.spec().fields().size());
+
+      String newLocation = temp.newFolder("tbl-2").toString();
+
+      Transaction replaceTxn = catalog.buildTable(tableIdent, schema)
+          .withProperty("key2", "value2")
+          .withLocation(newLocation)
+          .replaceTransaction();
+      replaceTxn.commitTransaction();
+
+      table = catalog.loadTable(tableIdent);
+      Assert.assertEquals(newLocation, table.location());
+      Assert.assertNull(table.currentSnapshot());
+      Assert.assertTrue(table.spec().isUnpartitioned());
+      Assert.assertEquals("value1", table.properties().get("key1"));
+      Assert.assertEquals("value2", table.properties().get("key2"));
+    } finally {
+      catalog.dropTable(tableIdent);
+    }
+  }
 
   @Test
   public void testCreateNamespace() throws TException {
