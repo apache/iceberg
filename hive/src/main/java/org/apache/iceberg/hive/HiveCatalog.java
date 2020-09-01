@@ -351,7 +351,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     try {
       Database database = clients.run(client -> client.getDatabase(namespace.level(0)));
       Map<String, String> metadata = convertToMetadata(database);
-      LOG.debug("Loaded metadata for namespace {}", namespace);
+      LOG.debug("Loaded metadata for namespace {} found {}", namespace, metadata.keySet());
       return metadata;
 
     } catch (NoSuchObjectException | UnknownDBException e) {
