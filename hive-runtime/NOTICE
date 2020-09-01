@@ -63,23 +63,6 @@ NOTICE file:
 
 --------------------------------------------------------------------------------
 
-This binary artifact includes Carrot Search Labs HPPC with the following in its
-NOTICE file:
-
-| ACKNOWLEDGEMENT
-| ===============
-|
-| HPPC borrowed code, ideas or both from:
-|
-|  * Apache Lucene, http://lucene.apache.org/
-|    (Apache license)
-|  * Fastutil, http://fastutil.di.unimi.it/
-|    (Apache license)
-|  * Koloboke, https://github.com/OpenHFT/Koloboke
-|    (Apache license)
-
---------------------------------------------------------------------------------
-
 This binary artifact includes Apache Yetus with the following in its NOTICE
 file:
 
