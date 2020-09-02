@@ -96,11 +96,12 @@ class StreamingReader extends Reader implements MicroBatchReader {
     }
 
     this.splitSize = Optional.ofNullable(splitSize())
-        .orElse(PropertyUtil.propertyAsLong(table.properties(), SPLIT_SIZE, SPLIT_SIZE_DEFAULT));
+        .orElseGet(() -> PropertyUtil.propertyAsLong(table.properties(), SPLIT_SIZE, SPLIT_SIZE_DEFAULT));
     this.splitLookback = Optional.ofNullable(splitLookback())
-        .orElse(PropertyUtil.propertyAsInt(table.properties(), SPLIT_LOOKBACK, SPLIT_LOOKBACK_DEFAULT));
+        .orElseGet(() -> PropertyUtil.propertyAsInt(table.properties(), SPLIT_LOOKBACK, SPLIT_LOOKBACK_DEFAULT));
     this.splitOpenFileCost = Optional.ofNullable(splitOpenFileCost())
-        .orElse(PropertyUtil.propertyAsLong(table.properties(), SPLIT_OPEN_FILE_COST, SPLIT_OPEN_FILE_COST_DEFAULT));
+        .orElseGet(() ->
+            PropertyUtil.propertyAsLong(table.properties(), SPLIT_OPEN_FILE_COST, SPLIT_OPEN_FILE_COST_DEFAULT));
   }
 
   @Override
@@ -110,7 +111,7 @@ class StreamingReader extends Reader implements MicroBatchReader {
 
     if (start.isPresent() && !StreamingOffset.START_OFFSET.equals(start.get())) {
       this.startOffset = (StreamingOffset) start.get();
-      this.endOffset = (StreamingOffset) end.orElse(calculateEndOffset(startOffset));
+      this.endOffset = (StreamingOffset) end.orElseGet(() -> calculateEndOffset(startOffset));
     } else {
       // If starting offset is "START_OFFSET" (there's no snapshot in the last batch), or starting
       // offset is not set, then we need to calculate the starting offset again.
@@ -149,7 +150,8 @@ class StreamingReader extends Reader implements MicroBatchReader {
   }
 
   @Override
-  public void stop() {}
+  public void stop() {
+  }
 
   @Override
   public boolean enableBatchRead() {
