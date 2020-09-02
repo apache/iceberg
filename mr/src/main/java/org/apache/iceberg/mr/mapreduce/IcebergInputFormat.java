@@ -111,6 +111,10 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     if (schemaStr != null) {
       scan.project(SchemaParser.fromJson(schemaStr));
     }
+    String[] columnsToProject = conf.getStrings(InputFormatConfig.COLUMN_PROJECTIONS, null);
+    if (columnsToProject != null) {
+      scan.select(columnsToProject);
+    }
 
     // TODO add a filter parser to get rid of Serialization
     Expression filter = SerializationUtil.deserializeFromBase64(conf.get(InputFormatConfig.FILTER_EXPRESSION));

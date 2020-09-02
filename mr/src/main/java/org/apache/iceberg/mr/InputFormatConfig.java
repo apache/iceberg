@@ -47,6 +47,7 @@ public class InputFormatConfig {
   public static final String CATALOG = "iceberg.mr.catalog";
   public static final String HADOOP_CATALOG_WAREHOUSE_LOCATION = "iceberg.mr.catalog.hadoop.warehouse.location";
   public static final String CATALOG_LOADER_CLASS = "iceberg.mr.catalog.loader.class";
+  public static final String COLUMN_PROJECTIONS = "iceberg.mr.column.projections";
 
   public static final String CATALOG_NAME = "iceberg.catalog";
   public static final String HADOOP_CATALOG = "hadoop.catalog";
@@ -90,6 +91,11 @@ public class InputFormatConfig {
 
     public ConfigBuilder schema(Schema schema) {
       conf.set(TABLE_SCHEMA, SchemaParser.toJson(schema));
+      return this;
+    }
+
+    public ConfigBuilder select(String[] columns) {
+      conf.setStrings(COLUMN_PROJECTIONS, columns);
       return this;
     }
 

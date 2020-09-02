@@ -29,6 +29,7 @@ import org.apache.hadoop.hive.ql.io.sarg.ConvertAstToSearchArg;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
 import org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc;
 import org.apache.hadoop.hive.ql.plan.TableScanDesc;
+import org.apache.hadoop.hive.serde2.ColumnProjectionUtils;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.iceberg.data.Record;
@@ -60,6 +61,9 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
         LOG.warn("Unable to create Iceberg filter, continuing without filter (will be applied by Hive later): ", e);
       }
     }
+
+    String[] readColumns = ColumnProjectionUtils.getReadColumnNames(job);
+    job.setStrings(InputFormatConfig.COLUMN_PROJECTIONS, readColumns);
 
     String location = job.get(InputFormatConfig.TABLE_LOCATION);
     return Arrays.stream(super.getSplits(job, numSplits))
