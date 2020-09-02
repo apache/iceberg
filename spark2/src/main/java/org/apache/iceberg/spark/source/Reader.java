@@ -331,28 +331,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   @Override
   public boolean enableBatchRead() {
     if (readUsingBatch == null) {
-      boolean allParquetFileScanTasks =
-          tasks().stream()
-              .allMatch(combinedScanTask -> !combinedScanTask.isDataTask() && combinedScanTask.files()
-                  .stream()
-                  .allMatch(fileScanTask -> fileScanTask.file().format().equals(
-                      FileFormat.PARQUET)));
-
-      boolean allOrcFileScanTasks =
-          tasks().stream()
-              .allMatch(combinedScanTask -> !combinedScanTask.isDataTask() && combinedScanTask.files()
-                  .stream()
-                  .allMatch(fileScanTask -> fileScanTask.file().format().equals(
-                      FileFormat.ORC)));
-
-      boolean atLeastOneColumn = lazySchema().columns().size() > 0;
-
-      boolean onlyPrimitives = lazySchema().columns().stream().allMatch(c -> c.type().isPrimitiveType());
-
-      boolean hasNoDeleteFiles = tasks().stream().noneMatch(TableScanUtil::hasDeletes);
-
-      this.readUsingBatch = batchReadsEnabled && hasNoDeleteFiles && (allOrcFileScanTasks ||
-          (allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives));
+      this.readUsingBatch = checkEnableBatchRead(tasks());
     }
     return readUsingBatch;
   }
@@ -413,6 +392,31 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     }
 
     return tasks;
+  }
+
+  protected boolean checkEnableBatchRead(List<CombinedScanTask> taskList) {
+    boolean allParquetFileScanTasks =
+        taskList.stream()
+            .allMatch(combinedScanTask -> !combinedScanTask.isDataTask() && combinedScanTask.files()
+                .stream()
+                .allMatch(fileScanTask -> fileScanTask.file().format().equals(
+                    FileFormat.PARQUET)));
+
+    boolean allOrcFileScanTasks =
+        taskList.stream()
+            .allMatch(combinedScanTask -> !combinedScanTask.isDataTask() && combinedScanTask.files()
+                .stream()
+                .allMatch(fileScanTask -> fileScanTask.file().format().equals(
+                    FileFormat.ORC)));
+
+    boolean atLeastOneColumn = lazySchema().columns().size() > 0;
+
+    boolean onlyPrimitives = lazySchema().columns().stream().allMatch(c -> c.type().isPrimitiveType());
+
+    boolean hasNoDeleteFiles = tasks().stream().noneMatch(TableScanUtil::hasDeletes);
+
+    return batchReadsEnabled && hasNoDeleteFiles && (allOrcFileScanTasks ||
+        (allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives));
   }
 
   @Override

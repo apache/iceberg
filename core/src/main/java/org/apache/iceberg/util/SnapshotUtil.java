@@ -73,11 +73,11 @@ public class SnapshotUtil {
     AtomicBoolean isAncestor = new AtomicBoolean(false);
     List<Long> snapshotIds = Lists.newArrayList(ancestorIds(table.snapshot(toSnapshotId),
         snapshotId -> {
-          if (snapshotId != fromSnapshotId) {
-            return table.snapshot(snapshotId);
-          } else {
+          if (snapshotId == fromSnapshotId) {
             isAncestor.set(true);
             return null;
+          } else {
+            return table.snapshot(snapshotId);
           }
         }));
     if (!isAncestor.get()) {

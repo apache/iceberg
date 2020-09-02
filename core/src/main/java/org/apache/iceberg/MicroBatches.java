@@ -177,11 +177,11 @@ public class MicroBatches {
      * @param startFileIndex A startFileIndex used to skip processed files.
      * @param targetSizeInBytes Used to control the size of MicroBatch, the processed file bytes must be smaller than
      *                         this size.
-     * @param isStarting Used to check where all the data file should be processed, or only added files.
+     * @param scanAllFiles Used to check whether all the data file should be processed, or only added files.
      * @return A MicroBatch.
      */
     private MicroBatch generateMicroBatch(List<Pair<ManifestFile, Integer>> indexedManifests,
-                                          int startFileIndex, long targetSizeInBytes, boolean isStarting) {
+                                          int startFileIndex, long targetSizeInBytes, boolean scanAllFiles) {
       if (indexedManifests.isEmpty()) {
         return new MicroBatch(snapshot.snapshotId(), startFileIndex, startFileIndex + 1, 0L,
             Collections.emptyList(), true);
@@ -195,7 +195,7 @@ public class MicroBatches {
       for (int idx = 0; idx < indexedManifests.size(); idx++) {
         currentFileIndex = indexedManifests.get(idx).second();
 
-        try (CloseableIterable<FileScanTask> taskIterable = open(indexedManifests.get(idx).first(), isStarting);
+        try (CloseableIterable<FileScanTask> taskIterable = open(indexedManifests.get(idx).first(), scanAllFiles);
             CloseableIterator<FileScanTask> taskIter = taskIterable.iterator()) {
           while (taskIter.hasNext()) {
             FileScanTask task = taskIter.next();
@@ -238,11 +238,11 @@ public class MicroBatches {
           tasks, isLastIndex);
     }
 
-    private CloseableIterable<FileScanTask> open(ManifestFile manifestFile, boolean isStarting) {
+    private CloseableIterable<FileScanTask> open(ManifestFile manifestFile, boolean scanAllFiles) {
       ManifestGroup manifestGroup = new ManifestGroup(io, ImmutableList.of(manifestFile))
           .specsById(specsById)
           .caseSensitive(caseSensitive);
-      if (!isStarting) {
+      if (!scanAllFiles) {
         manifestGroup = manifestGroup
             .filterManifestEntries(entry ->
                 entry.snapshotId() == snapshot.snapshotId() && entry.status() == ManifestEntry.Status.ADDED)

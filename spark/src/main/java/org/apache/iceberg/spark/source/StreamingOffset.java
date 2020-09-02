@@ -23,7 +23,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.io.StringWriter;
-import org.apache.iceberg.exceptions.RuntimeIOException;
+import java.io.UncheckedIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
@@ -31,16 +31,17 @@ import org.apache.spark.sql.sources.v2.reader.streaming.Offset;
 
 /**
  * An implementation of Spark Structured Streaming Offset, to track the current processed
- * files of Iceberg table. This StreamingOffset is combined by:
+ * files of Iceberg table. This StreamingOffset consists of:
  *
- * version: used to validate the version number of StreamingOffset when deserializing from json
- * string.
- * snapshot_id: used to record the current processed snapshot of Iceberg table.
- * index: used to record the index of scan files in this snapshot.
- * is_starting_snapshot: used to identify if this snapshot is a starting snapshot. For starting snapshot
- * we should scan all the files, not just incrementally add files.
- * last_index_of_snapshot: used to denote whether the current index is the last file of this snapshot,
- * to avoid revist the processed snapshot.
+ * version: The version of StreamingOffset. The offset was created with a version number used to validate
+ * when deserializing from json string.
+ * snapshot_id: The snapshot id of StreamingOffset, this is used to record the current processed snapshot of Iceberg
+ * table.
+ * index: The index of snapshot, this is used to record the processed data file index in this snapshot.
+ * scan_all_files: This is used to identify if we should scan all the files, not just incrementally add files in this
+ * snapshot.
+ * snapshot_fully_processed: This is used to denote whether the current snapshot is fully processed, to avoid revisiting
+ * the processed snapshot.
  */
 class StreamingOffset extends Offset {
   static final StreamingOffset START_OFFSET = new StreamingOffset(-1L, -1, false, true);
@@ -49,19 +50,19 @@ class StreamingOffset extends Offset {
   private static final String VERSION = "version";
   private static final String SNAPSHOT_ID = "snapshot_id";
   private static final String INDEX = "index";
-  private static final String IS_STARTING = "is_starting_snapshot";
-  private static final String LAST_INDEX_OF_SNAPSHOT = "last_index_of_snapshot";
+  private static final String SCAN_ALL_FILES = "scan_all_files";
+  private static final String SNAPSHOT_FULLY_PROCESSED = "snapshot_fully_processed";
 
   private final long snapshotId;
   private final int index;
-  private final boolean isStarting;
-  private final boolean lastIndexOfSnapshot;
+  private final boolean scanAllFiles;
+  private final boolean snapshotFullyProcessed;
 
-  StreamingOffset(long snapshotId, int index, boolean isStarting, boolean lastIndexOfSnapshot) {
+  StreamingOffset(long snapshotId, int index, boolean scanAllFiles, boolean snapshotFullyProcessed) {
     this.snapshotId = snapshotId;
     this.index = index;
-    this.isStarting = isStarting;
-    this.lastIndexOfSnapshot = lastIndexOfSnapshot;
+    this.scanAllFiles = scanAllFiles;
+    this.snapshotFullyProcessed = snapshotFullyProcessed;
   }
 
   static StreamingOffset fromJson(String json) {
@@ -71,17 +72,19 @@ class StreamingOffset extends Offset {
       JsonNode node = JsonUtil.mapper().readValue(json, JsonNode.class);
       int version = JsonUtil.getInt(VERSION, node);
       if (version != CURR_VERSION) {
-        throw new IOException("The version number in JSON string " + version + " is not a valid version number");
+        throw new IOException(String.format("Cannot deserialize a JSON offset from version %d. %d does not match " +
+            "this version of Iceberg %d and cannot be used. Please use a compatible version of Iceberg " +
+            "to read this offset", version, version, CURR_VERSION));
       }
 
       long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
       int index = JsonUtil.getInt(INDEX, node);
-      boolean isStarting = JsonUtil.getBool(IS_STARTING, node);
-      boolean lastIndexOfSnapshot = JsonUtil.getBool(LAST_INDEX_OF_SNAPSHOT, node);
+      boolean shouldScanAllFiles = JsonUtil.getBool(SCAN_ALL_FILES, node);
+      boolean snapshotFullyProcessed = JsonUtil.getBool(SNAPSHOT_FULLY_PROCESSED, node);
 
-      return new StreamingOffset(snapshotId, index, isStarting, lastIndexOfSnapshot);
+      return new StreamingOffset(snapshotId, index, shouldScanAllFiles, snapshotFullyProcessed);
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to parse StreamingOffset from JSON string %s", json);
+      throw new UncheckedIOException(String.format("Failed to parse StreamingOffset from JSON string %s", json), e);
     }
   }
 
@@ -94,12 +97,13 @@ class StreamingOffset extends Offset {
       generator.writeNumberField(VERSION, CURR_VERSION);
       generator.writeNumberField(SNAPSHOT_ID, snapshotId);
       generator.writeNumberField(INDEX, index);
-      generator.writeBooleanField(IS_STARTING, isStarting);
-      generator.writeBooleanField(LAST_INDEX_OF_SNAPSHOT, lastIndexOfSnapshot);
+      generator.writeBooleanField(SCAN_ALL_FILES, scanAllFiles);
+      generator.writeBooleanField(SNAPSHOT_FULLY_PROCESSED, snapshotFullyProcessed);
       generator.writeEndObject();
       generator.flush();
+
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write StreamingOffset to json");
+      throw new UncheckedIOException("Failed to write StreamingOffset to json", e);
     }
 
     return writer.toString();
@@ -113,12 +117,12 @@ class StreamingOffset extends Offset {
     return index;
   }
 
-  boolean isStartingSnapshotId() {
-    return isStarting;
+  boolean shouldScanAllFiles() {
+    return scanAllFiles;
   }
 
-  boolean isLastIndexOfSnapshot() {
-    return lastIndexOfSnapshot;
+  boolean isSnapshotFullyProcessed() {
+    return snapshotFullyProcessed;
   }
 
   @Override
@@ -127,8 +131,8 @@ class StreamingOffset extends Offset {
       StreamingOffset offset = (StreamingOffset) obj;
       return offset.snapshotId == snapshotId &&
           offset.index == index &&
-          offset.isStarting == isStarting &&
-          offset.lastIndexOfSnapshot == lastIndexOfSnapshot;
+          offset.scanAllFiles == scanAllFiles &&
+          offset.snapshotFullyProcessed == snapshotFullyProcessed;
     } else {
       return false;
     }
@@ -136,12 +140,12 @@ class StreamingOffset extends Offset {
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(snapshotId, index, isStarting, lastIndexOfSnapshot);
+    return Objects.hashCode(snapshotId, index, scanAllFiles, snapshotFullyProcessed);
   }
 
   @Override
   public String toString() {
-    return String.format("Streaming Offset[%d index (%d) is_starting_snapshot (%b) is_last_index_of_snapshot (%b)]",
-      snapshotId, index, isStarting, lastIndexOfSnapshot);
+    return String.format("Streaming Offset[%d index (%d) scan_all_files (%b) snapshot_fully_processed (%b)]",
+      snapshotId, index, scanAllFiles, snapshotFullyProcessed);
   }
 }

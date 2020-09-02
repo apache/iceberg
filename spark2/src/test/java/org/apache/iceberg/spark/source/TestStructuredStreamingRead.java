@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -40,9 +41,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
+import org.apache.spark.sql.streaming.DataStreamWriter;
+import org.apache.spark.sql.streaming.StreamingQuery;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -62,6 +66,7 @@ public class TestStructuredStreamingRead {
   private static Path parent = null;
   private static File tableLocation = null;
   private static Table table = null;
+  private static List<List<SimpleRecord>> expected = null;
 
   @Rule
   public ExpectedException exceptionRule = ExpectedException.none();
@@ -81,7 +86,7 @@ public class TestStructuredStreamingRead {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
     table = tables.create(SCHEMA, spec, tableLocation.toString());
 
-    List<List<SimpleRecord>> expected = Lists.newArrayList(
+    expected = Lists.newArrayList(
         Lists.newArrayList(new SimpleRecord(1, "1")),
         Lists.newArrayList(new SimpleRecord(2, "2")),
         Lists.newArrayList(new SimpleRecord(3, "3")),
@@ -313,15 +318,15 @@ public class TestStructuredStreamingRead {
     Assert.assertEquals("Start offset's snapshot id should be 1st snapshot id",
         snapshotIds.get(0).longValue(), start.snapshotId());
     Assert.assertEquals("Start offset's index should be the start index of 1st snapshot", 0, start.index());
-    Assert.assertTrue("Start offset's snapshot id should be a starting snapshot id", start.isStartingSnapshotId());
-    Assert.assertFalse("Start offset should not be the last index of 1st snapshot", start.isLastIndexOfSnapshot());
+    Assert.assertTrue("Start offset's snapshot should do a full table scan", start.shouldScanAllFiles());
+    Assert.assertFalse("Start offset should not fully process the snapshot", start.isSnapshotFullyProcessed());
 
     StreamingOffset end = (StreamingOffset) streamingReader.getEndOffset();
     Assert.assertEquals("End offset's snapshot should be the last snapshot id",
         snapshotIds.get(3).longValue(), end.snapshotId());
     Assert.assertEquals("End offset's index should be the last index", 1, end.index());
-    Assert.assertFalse("End offset's snapshot id should not a starting snapshot id", end.isStartingSnapshotId());
-    Assert.assertTrue("End offset should be the last index of 3rd snapshot", end.isLastIndexOfSnapshot());
+    Assert.assertFalse("End offset's snapshot should not do a full table scan", end.shouldScanAllFiles());
+    Assert.assertTrue("End offset should fully process the snapshot", end.isSnapshotFullyProcessed());
 
     streamingReader.setOffsetRange(Optional.of(end), Optional.empty());
     StreamingOffset end1 = (StreamingOffset) streamingReader.getEndOffset();
@@ -348,31 +353,18 @@ public class TestStructuredStreamingRead {
 
     streamingReader.setOffsetRange(Optional.empty(), Optional.empty());
     StreamingOffset start = (StreamingOffset) streamingReader.getStartOffset();
-    Assert.assertEquals("Start offset's snapshot id should be 1st snapshot id",
-        snapshotIds.get(0).longValue(), start.snapshotId());
-    Assert.assertEquals("Start offset's index should be the start index of 1st snapshot", 0, start.index());
-    Assert.assertTrue("Start offset's snapshot id should be a starting snapshot id", start.isStartingSnapshotId());
-    Assert.assertFalse("Start offset should not be the last index of 1st snapshot", start.isLastIndexOfSnapshot());
+    validateOffset(new StreamingOffset(snapshotIds.get(0), 0, true, false), start);
 
     StreamingOffset end = (StreamingOffset) streamingReader.getEndOffset();
-    Assert.assertEquals("End offset's snapshot should be the 2nd snapshot id",
-        snapshotIds.get(1).longValue(), end.snapshotId());
-    Assert.assertEquals("End offset's index should be the last index", 1, end.index());
-    Assert.assertFalse("End offset's snapshot id should not a starting snapshot id", end.isStartingSnapshotId());
-    Assert.assertTrue("End offset should be the last index of 2nd snapshot", end.isLastIndexOfSnapshot());
+    validateOffset(new StreamingOffset(snapshotIds.get(1), 1, false, true), end);
 
     streamingReader.setOffsetRange(Optional.of(end), Optional.empty());
     StreamingOffset end1 = (StreamingOffset) streamingReader.getEndOffset();
-    Assert.assertEquals("End offset's snapshot id should be last snapshot id",
-        snapshotIds.get(3).longValue(), end1.snapshotId());
-    Assert.assertEquals("End offset should be the last index of last snapshot", 1, end1.index());
-    Assert.assertFalse("End offset's snapshot id should not a starting snapshot id", end1.isStartingSnapshotId());
-    Assert.assertTrue("End offset should be the last index of last snapshot", end1.isLastIndexOfSnapshot());
+    validateOffset(new StreamingOffset(snapshotIds.get(3), 1, false, true), end1);
 
     streamingReader.setOffsetRange(Optional.of(end1), Optional.empty());
     StreamingOffset end2 = (StreamingOffset) streamingReader.getEndOffset();
-    Assert.assertEquals("End offset should be same to start offset since there's no more batches to consume",
-        end2, end1);
+    validateOffset(end2, end1);
   }
 
   @SuppressWarnings("unchecked")
@@ -394,26 +386,14 @@ public class TestStructuredStreamingRead {
 
     streamingReader.setOffsetRange(Optional.empty(), Optional.empty());
     StreamingOffset start = (StreamingOffset) streamingReader.getStartOffset();
-    Assert.assertEquals("Start offset's snapshot id should be 1st snapshot id",
-        snapshotIds.get(0).longValue(), start.snapshotId());
-    Assert.assertEquals("Start offset's index should be the start index of 1st snapshot", 0, start.index());
-    Assert.assertTrue("Start offset's snapshot id should be a starting snapshot id", start.isStartingSnapshotId());
-    Assert.assertFalse("Start offset should not be the last index of 1st snapshot", start.isLastIndexOfSnapshot());
+    validateOffset(new StreamingOffset(snapshotIds.get(0), 0, true, false), start);
 
     StreamingOffset end = (StreamingOffset) streamingReader.getEndOffset();
-    Assert.assertEquals("End offset's snapshot id should be 1st snapshot",
-        snapshotIds.get(0).longValue(), end.snapshotId());
-    Assert.assertEquals("End offset's index should be the last index", 1, end.index());
-    Assert.assertTrue("End offset's snapshot id should be a starting snapshot id", end.isStartingSnapshotId());
-    Assert.assertTrue("End offset should be the last index of 1st snapshot", end.isLastIndexOfSnapshot());
+    validateOffset(new StreamingOffset(snapshotIds.get(0), 1, true, true), end);
 
     streamingReader.setOffsetRange(Optional.of(end), Optional.empty());
     StreamingOffset end1 = (StreamingOffset) streamingReader.getEndOffset();
-    Assert.assertEquals("End offset's snapshot id should be 2nd snapshot",
-        snapshotIds.get(1).longValue(), end1.snapshotId());
-    Assert.assertEquals("End offset's index should be the last index", 1, end1.index());
-    Assert.assertFalse("End offset's snapshot id should not be a starting snapshot id", end1.isStartingSnapshotId());
-    Assert.assertTrue("End offset should be the last index of 2nd snapshot", end1.isLastIndexOfSnapshot());
+    validateOffset(new StreamingOffset(snapshotIds.get(1), 1, false, true), end1);
   }
 
   @SuppressWarnings("unchecked")
@@ -452,38 +432,91 @@ public class TestStructuredStreamingRead {
 
     streamingReader.setOffsetRange(Optional.empty(), Optional.empty());
     StreamingOffset start = (StreamingOffset) streamingReader.getStartOffset();
-    Assert.assertEquals("Start offset's snapshot id should be 2nd snapshot id",
-        snapshotIds.get(1).longValue(), start.snapshotId());
-    Assert.assertEquals("Start offset's index should be the start index of 2nd snapshot", 0, start.index());
-    Assert.assertTrue("Start offset's snapshot id should be a starting snapshot id", start.isStartingSnapshotId());
-    Assert.assertFalse("Start offset should not be the last index of 2nd snapshot", start.isLastIndexOfSnapshot());
+    validateOffset(new StreamingOffset(snapshotIds.get(1), 0, true, false), start);
 
     StreamingOffset end = (StreamingOffset) streamingReader.getEndOffset();
-    Assert.assertEquals("End offset's snapshot id should be 2nd snapshot",
-        snapshotIds.get(1).longValue(), end.snapshotId());
-    Assert.assertEquals("End offset's index should be the last index", 1, end.index());
-    Assert.assertTrue("End offset's snapshot id should be a starting snapshot id", end.isStartingSnapshotId());
-    Assert.assertFalse("End offset should not be the last index of 2nd snapshot", end.isLastIndexOfSnapshot());
+    validateOffset(new StreamingOffset(snapshotIds.get(1), 1, true, false), end);
 
     streamingReader.setOffsetRange(Optional.of(end), Optional.empty());
     StreamingOffset end1 = (StreamingOffset) streamingReader.getEndOffset();
-    Assert.assertEquals("End offset's snapshot id should be 3rd snapshot",
-        snapshotIds.get(2).longValue(), end1.snapshotId());
-    Assert.assertEquals("End offset's index should be the last index", 1, end1.index());
-    Assert.assertFalse("End offset's snapshot id should not be a starting snapshot id", end1.isStartingSnapshotId());
-    Assert.assertTrue("End offset should not be the last index of 3rd snapshot", end1.isLastIndexOfSnapshot());
+    validateOffset(new StreamingOffset(snapshotIds.get(2), 1, false, true), end1);
 
     streamingReader.setOffsetRange(Optional.of(end1), Optional.empty());
     StreamingOffset end2 = (StreamingOffset) streamingReader.getEndOffset();
-    Assert.assertEquals("End offset's snapshot id should be 4th snapshot",
-        snapshotIds.get(3).longValue(), end2.snapshotId());
-    Assert.assertEquals("End offset's index should be the last index", 1, end2.index());
-    Assert.assertFalse("End offset's snapshot id should not be a starting snapshot id", end2.isStartingSnapshotId());
-    Assert.assertTrue("End offset should not be the last index of 4th snapshot", end2.isLastIndexOfSnapshot());
+    validateOffset(new StreamingOffset(snapshotIds.get(3), 1, false, true), end2);
 
     streamingReader.setOffsetRange(Optional.of(end2), Optional.empty());
     StreamingOffset end3 = (StreamingOffset) streamingReader.getEndOffset();
-    Assert.assertEquals("End offset should be same to start offset since there's no more batches to consume",
-        end2, end3);
+    validateOffset(end2, end3);
+  }
+
+  @Test
+  public void testStreamingRead() {
+    Dataset<Row> read = spark.readStream()
+        .format("iceberg")
+        .load(tableLocation.toString());
+    DataStreamWriter<Row> streamWriter = read.writeStream()
+        .format("memory")
+        .outputMode("append")
+        .queryName("memoryStream");
+
+    try {
+      StreamingQuery query = streamWriter.start();
+      query.processAllAvailable();
+
+      List<SimpleRecord> actual = spark.table("memoryStream")
+          .as(Encoders.bean(SimpleRecord.class))
+          .collectAsList();
+      List<SimpleRecord> expectedResult = expected.stream().flatMap(List::stream).collect(Collectors.toList());
+      validateResult(expectedResult, actual);
+    } finally {
+      for (StreamingQuery query : spark.streams().active()) {
+        query.stop();
+      }
+    }
+  }
+
+  @Test
+  public void testStreamingReadWithSpecifiedSnapshotId() {
+    List<Long> snapshotIds = SnapshotUtil.currentAncestors(table);
+    Collections.reverse(snapshotIds);
+
+    Dataset<Row> read = spark.readStream()
+        .format("iceberg")
+        .option("starting-snapshot-id", snapshotIds.get(1).toString())
+        .load(tableLocation.toString());
+
+    try {
+      StreamingQuery query = read.writeStream()
+          .format("memory")
+          .outputMode("append")
+          .queryName("memoryStream1")
+          .start();
+
+      query.processAllAvailable();
+
+      List<SimpleRecord> actual = spark.table("memoryStream1")
+          .as(Encoders.bean(SimpleRecord.class))
+          .collectAsList();
+
+      List<SimpleRecord> expectedResult = expected.stream().flatMap(List::stream).collect(Collectors.toList());
+      validateResult(expectedResult, actual);
+    } finally {
+      for (StreamingQuery query : spark.streams().active()) {
+        query.stop();
+      }
+    }
+  }
+
+  private static void validateOffset(StreamingOffset expectedResult, StreamingOffset actualResult) {
+    Assert.assertEquals(String.format("Actual StreamingOffset %s doesn't equal to the expected StreamingOffset %s",
+        actualResult, expectedResult), expectedResult, actualResult);
+  }
+
+  private static void validateResult(List<SimpleRecord> expectedResult, List<SimpleRecord> actualResult) {
+    expectedResult.sort(Comparator.comparingInt(SimpleRecord::getId));
+    actualResult.sort(Comparator.comparingInt(SimpleRecord::getId));
+
+    Assert.assertEquals("Streaming result should be matched", expectedResult, actualResult);
   }
 }
