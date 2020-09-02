@@ -85,7 +85,7 @@ class StreamingReader extends Reader implements MicroBatchReader {
     this.table = table;
     this.maxSizePerBatch = options.get("max-size-per-batch").map(Long::parseLong).orElse(Long.MAX_VALUE);
     Preconditions.checkArgument(maxSizePerBatch > 0L,
-        "Option max-size-per-batch '%d' should > 0", maxSizePerBatch);
+        "Option max-size-per-batch '%s' should > 0", maxSizePerBatch);
 
     this.startSnapshotId = options.get("starting-snapshot-id").map(Long::parseLong).orElse(null);
     if (startSnapshotId != null) {
