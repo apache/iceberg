@@ -121,9 +121,9 @@ public class TestFlinkTableSink extends AbstractTestBase {
       tEnv = TableEnvironment.create(settingsBuilder.build());
     }
 
-    tEnv.executeSql(String.format("create catalog iceberg_catalog with (" +
-        "'type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')", warehouse));
-    tEnv.executeSql("use catalog iceberg_catalog");
+    sql("create catalog iceberg_catalog with ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
+        warehouse);
+    sql("use catalog iceberg_catalog");
 
     catalog.createTable(TableIdentifier.parse("default." + TABLE_NAME),
         SimpleDataUtil.SCHEMA,
@@ -150,8 +150,7 @@ public class TestFlinkTableSink extends AbstractTestBase {
     tEnv.createTemporaryView("sourceTable", sourceTable);
 
     // Redirect the records from source table to destination table.
-    String insertSQL = String.format("INSERT INTO %s SELECT id,data from sourceTable", TABLE_NAME);
-    executeSQLAndWaitResult(tEnv, insertSQL);
+    sql("INSERT INTO %s SELECT id,data from sourceTable", TABLE_NAME);
 
     // Assert the table records as expected.
     SimpleDataUtil.assertTableRows(tablePath, expected);
@@ -161,17 +160,17 @@ public class TestFlinkTableSink extends AbstractTestBase {
   public void testOverwriteTable() throws Exception {
     Assume.assumeFalse("Flink unbounded streaming does not support overwrite operation", isStreamingJob);
 
-    executeSQLAndWaitResult(tEnv, String.format("INSERT INTO %s SELECT 1, 'hello'", TABLE_NAME));
+    sql("INSERT INTO %s SELECT 1, 'hello'", TABLE_NAME);
     SimpleDataUtil.assertTableRows(tablePath, Lists.newArrayList(SimpleDataUtil.createRowData(1, "hello")));
 
-    executeSQLAndWaitResult(tEnv, String.format("INSERT OVERWRITE %s SELECT 2, 'world'", TABLE_NAME));
+    sql("INSERT OVERWRITE %s SELECT 2, 'world'", TABLE_NAME);
     SimpleDataUtil.assertTableRows(tablePath, Lists.newArrayList(SimpleDataUtil.createRowData(2, "world")));
     org.apache.iceberg.Table table = new HadoopTables().load(tablePath);
     Assert.assertEquals("overwrite", table.currentSnapshot().operation());
   }
 
-  private static void executeSQLAndWaitResult(TableEnvironment tEnv, String statement) {
-    tEnv.executeSql(statement).getJobClient().ifPresent(jobClient -> {
+  private void sql(String statement, Object... args) {
+    tEnv.executeSql(String.format(statement, args)).getJobClient().ifPresent(jobClient -> {
       try {
         jobClient.getJobExecutionResult(Thread.currentThread().getContextClassLoader()).get();
       } catch (InterruptedException | ExecutionException e) {

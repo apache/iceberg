@@ -26,12 +26,17 @@ import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.sinks.AppendStreamTableSink;
 import org.apache.flink.table.sinks.OverwritableTableSink;
+import org.apache.flink.table.sinks.PartitionableTableSink;
 import org.apache.flink.table.sinks.TableSink;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.util.Preconditions;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.flink.sink.FlinkSink;
 
+/**
+ * TODO we will need to implement the {@link PartitionableTableSink} if pull request #1393 get merged, that pr is the
+ * dependency because we need to get the partition keys from the catalog table.
+ */
 public class IcebergTableSink implements AppendStreamTableSink<RowData>, OverwritableTableSink {
   private final boolean isBounded;
   private final TableLoader tableLoader;
