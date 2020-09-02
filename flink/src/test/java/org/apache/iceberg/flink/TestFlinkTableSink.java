@@ -119,8 +119,8 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
     Table sourceTable = getTableEnv().fromValues(SimpleDataUtil.FLINK_SCHEMA.toRowDataType(),
         Expressions.row(1, "hello"),
         Expressions.row(2, "world"),
-        Expressions.row(3, "foo"),
-        Expressions.row(4, "bar")
+        Expressions.row(3, (String) null),
+        Expressions.row(null, "bar")
     );
     getTableEnv().createTemporaryView("sourceTable", sourceTable);
 
@@ -131,8 +131,8 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
     SimpleDataUtil.assertTableRecords(icebergTable, Lists.newArrayList(
         SimpleDataUtil.createRecord(1, "hello"),
         SimpleDataUtil.createRecord(2, "world"),
-        SimpleDataUtil.createRecord(3, "foo"),
-        SimpleDataUtil.createRecord(4, "bar")
+        SimpleDataUtil.createRecord(3, null),
+        SimpleDataUtil.createRecord(null, "bar")
     ));
   }
 

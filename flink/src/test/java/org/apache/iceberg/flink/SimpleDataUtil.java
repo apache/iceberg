@@ -65,8 +65,8 @@ public class SimpleDataUtil {
   );
 
   public static final TableSchema FLINK_SCHEMA = TableSchema.builder()
-      .field("id", DataTypes.INT().notNull())
-      .field("data", DataTypes.STRING().notNull())
+      .field("id", DataTypes.INT())
+      .field("data", DataTypes.STRING())
       .build();
 
   public static final RowType ROW_TYPE = (RowType) FLINK_SCHEMA.toRowDataType().getLogicalType();
