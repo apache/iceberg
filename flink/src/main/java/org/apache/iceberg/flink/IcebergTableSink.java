@@ -40,8 +40,8 @@ import org.apache.iceberg.flink.sink.FlinkSink;
 public class IcebergTableSink implements AppendStreamTableSink<RowData>, OverwritableTableSink {
   private final boolean isBounded;
   private final TableLoader tableLoader;
-  private final TableSchema tableSchema;
   private final Configuration hadoopConf;
+  private final TableSchema tableSchema;
 
   private boolean overwrite = false;
 

@@ -113,7 +113,7 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
         flinkCatalogs.computeIfAbsent(catalogName, k -> factory.createCatalog(k, config)));
 
     this.flinkDatabase = catalogName + "." + DATABASE;
-    this.icebergNamespace = Namespace.of(ArrayUtils.concat(baseNamespace, new String[] {DATABASE}));
+    this.icebergNamespace = Namespace.of(ArrayUtils.concat(baseNamespace, new String[] { DATABASE }));
   }
 
   protected TableEnvironment getTableEnv() {

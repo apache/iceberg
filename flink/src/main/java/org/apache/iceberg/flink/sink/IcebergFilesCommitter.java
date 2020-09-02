@@ -195,8 +195,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     int numFiles = 0;
     for (DataFile file : dataFiles) {
+      numFiles += 1;
       appendFiles.appendFile(file);
-      numFiles++;
     }
 
     commitOperation(appendFiles, numFiles, "append", checkpointId);
