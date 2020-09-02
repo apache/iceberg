@@ -106,7 +106,15 @@ public class TypeUtil {
   }
 
   public static Map<String, Integer> indexByName(Types.StructType struct) {
-    return visit(struct, new IndexByName());
+    IndexByName indexer = new IndexByName();
+    visit(struct, indexer);
+    return indexer.byName();
+  }
+
+  public static Map<Integer, String> indexNameById(Types.StructType struct) {
+    IndexByName indexer = new IndexByName();
+    visit(struct, indexer);
+    return indexer.byId();
   }
 
   public static Map<String, Integer> indexByLowerCaseName(Types.StructType struct) {

@@ -25,6 +25,7 @@ import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
@@ -32,32 +33,71 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
   private static final Joiner DOT = Joiner.on(".");
 
   private final Deque<String> fieldNames = Lists.newLinkedList();
+  private final Deque<String> shortFieldNames = Lists.newLinkedList();
   private final Map<String, Integer> nameToId = Maps.newHashMap();
+  private final Map<String, Integer> shortNameToId = Maps.newHashMap();
+
+  /**
+   * Returns a mapping from full field name to ID.
+   * <p>
+   * Short names for maps and lists are included for any name that does not conflict with a canonical name. For example,
+   * a list, 'l', of structs with field 'x' will produce short name 'l.x' in addition to canonical name 'l.element.x'.
+   *
+   * @return a map from name to field ID
+   */
+  public Map<String, Integer> byName() {
+    ImmutableMap.Builder<String, Integer> builder = ImmutableMap.builder();
+    builder.putAll(nameToId);
+    // add all short names that do not conflict with canonical names
+    shortNameToId.entrySet().stream()
+        .filter(entry -> !nameToId.containsKey(entry.getKey()))
+        .forEach(builder::put);
+    return builder.build();
+  }
+
+  /**
+   * Returns a mapping from field ID to full name.
+   * <p>
+   * Canonical names, not short names are returned, for example 'list.element.field' instead of 'list.field'.
+   *
+   * @return a map from field ID to name
+   */
+  public Map<Integer, String> byId() {
+    ImmutableMap.Builder<Integer, String> builder = ImmutableMap.builder();
+    nameToId.forEach((key, value) -> builder.put(value, key));
+    return builder.build();
+  }
 
   @Override
   public void beforeField(Types.NestedField field) {
     fieldNames.push(field.name());
+    shortFieldNames.push(field.name());
   }
 
   @Override
   public void afterField(Types.NestedField field) {
     fieldNames.pop();
+    shortFieldNames.pop();
   }
 
   @Override
   public void beforeListElement(Types.NestedField elementField) {
-    // only add "element" to the name if the element is not a struct, so that names are more natural
+    fieldNames.push(elementField.name());
+
+    // only add "element" to the short name if the element is not a struct, so that names are more natural
     // for example, locations.latitude instead of locations.element.latitude
     if (!elementField.type().isStructType()) {
-      beforeField(elementField);
+      shortFieldNames.push(elementField.name());
     }
   }
 
   @Override
   public void afterListElement(Types.NestedField elementField) {
+    fieldNames.pop();
+
     // only remove "element" if it was added
     if (!elementField.type().isStructType()) {
-      afterField(elementField);
+      shortFieldNames.pop();
     }
   }
 
@@ -73,17 +113,21 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
 
   @Override
   public void beforeMapValue(Types.NestedField valueField) {
+    fieldNames.push(valueField.name());
+
     // only add "value" to the name if the value is not a struct, so that names are more natural
     if (!valueField.type().isStructType()) {
-      beforeField(valueField);
+      shortFieldNames.push(valueField.name());
     }
   }
 
   @Override
   public void afterMapValue(Types.NestedField valueField) {
+    fieldNames.pop();
+
     // only remove "value" if it was added
     if (!valueField.type().isStructType()) {
-      afterField(valueField);
+      shortFieldNames.pop();
     }
   }
 
@@ -128,9 +172,15 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
     }
 
     Integer existingFieldId = nameToId.put(fullName, fieldId);
-    if (existingFieldId != null && !"element".equals(name) && !"value".equals(name)) {
-      throw new ValidationException(
-          "Invalid schema: multiple fields for name %s: %s and %s", fullName, existingFieldId, fieldId);
+    ValidationException.check(existingFieldId == null,
+        "Invalid schema: multiple fields for name %s: %s and %s", fullName, existingFieldId, fieldId);
+
+    // also track the short name, if this is a nested field
+    if (!shortFieldNames.isEmpty()) {
+      String shortName = DOT.join(DOT.join(shortFieldNames.descendingIterator()), name);
+      if (!shortNameToId.containsKey(shortName)) {
+        shortNameToId.put(shortName, fieldId);
+      }
     }
   }
 }
