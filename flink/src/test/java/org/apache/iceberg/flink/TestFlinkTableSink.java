@@ -19,13 +19,8 @@
 
 package org.apache.iceberg.flink;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
@@ -33,149 +28,126 @@ import org.apache.flink.table.api.Expressions;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
-import org.apache.flink.table.data.RowData;
-import org.apache.flink.test.util.AbstractTestBase;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.hadoop.HadoopCatalog;
-import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.Assert;
+import org.junit.After;
 import org.junit.Assume;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
-public class TestFlinkTableSink extends AbstractTestBase {
-  private static final Configuration CONF = new Configuration();
-
-  private static final String TABLE_NAME = "flink_table";
-
-  @Rule
-  public TemporaryFolder tempFolder = new TemporaryFolder();
-  private String tablePath;
+public class TestFlinkTableSink extends FlinkCatalogTestBase {
+  private static final String TABLE_NAME = "test_table";
   private TableEnvironment tEnv;
+  private org.apache.iceberg.Table icebergTable;
 
   private final FileFormat format;
-  private final int parallelism;
   private final boolean isStreamingJob;
 
-  @Parameterized.Parameters(name = "{index}: format={0}, parallelism={2}, isStreamingJob={3}")
-  public static Iterable<Object[]> data() {
-    return Arrays.asList(
-        new Object[] {"avro", 1, false},
-        new Object[] {"avro", 1, true},
-        new Object[] {"avro", 2, false},
-        new Object[] {"avro", 2, true},
-        new Object[] {"orc", 1, false},
-        new Object[] {"orc", 1, true},
-        new Object[] {"orc", 2, false},
-        new Object[] {"orc", 2, true},
-        new Object[] {"parquet", 1, false},
-        new Object[] {"parquet", 1, true},
-        new Object[] {"parquet", 2, false},
-        new Object[] {"parquet", 2, true}
-    );
+  @Parameterized.Parameters(name = "{index}: format={0}, isStreaming={1}, catalogName={2}, baseNamespace={3}")
+  public static Iterable<Object[]> parameters() {
+    List<Object[]> parameters = Lists.newArrayList();
+    for (FileFormat format : new FileFormat[] {FileFormat.ORC, FileFormat.AVRO, FileFormat.PARQUET}) {
+      for (Boolean isStreaming : new Boolean[] {true, false}) {
+        for (Object[] catalogParams : FlinkCatalogTestBase.parameters()) {
+          String catalogName = (String) catalogParams[0];
+          String[] baseNamespace = (String[]) catalogParams[1];
+          parameters.add(new Object[] {format, isStreaming, catalogName, baseNamespace});
+        }
+      }
+    }
+    return parameters;
   }
 
-  public TestFlinkTableSink(String format, int parallelism, boolean isStreamingJob) {
-    this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
-    this.parallelism = parallelism;
+  public TestFlinkTableSink(FileFormat format, Boolean isStreamingJob, String catalogName, String[] baseNamespace) {
+    super(catalogName, baseNamespace);
+    this.format = format;
     this.isStreamingJob = isStreamingJob;
   }
 
-  @Before
-  public void before() throws IOException {
-    File folder = tempFolder.newFolder();
-    String warehouse = folder.getAbsolutePath();
+  @Override
+  protected TableEnvironment getTableEnv() {
+    if (tEnv == null) {
+      synchronized (this) {
+        EnvironmentSettings.Builder settingsBuilder = EnvironmentSettings
+            .newInstance()
+            .useBlinkPlanner();
+        if (isStreamingJob) {
+          settingsBuilder.inStreamingMode();
+          StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+          env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
+          env.enableCheckpointing(400);
+          tEnv = StreamTableEnvironment.create(env, settingsBuilder.build());
+        } else {
+          settingsBuilder.inBatchMode();
+          tEnv = TableEnvironment.create(settingsBuilder.build());
+        }
+      }
+    }
+    return tEnv;
+  }
 
-    tablePath = warehouse.concat("/default/").concat(TABLE_NAME);
-    Assert.assertTrue("Should create the table path correctly.", new File(tablePath).mkdirs());
+  @Before
+  public void before() {
+    sql("CREATE DATABASE %s", flinkDatabase);
+    sql("USE CATALOG %s", catalogName);
+    sql("USE %s", DATABASE);
 
     Map<String, String> properties = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name());
-    Catalog catalog = new HadoopCatalog(CONF, warehouse);
+    this.icebergTable = validationCatalog
+        .createTable(TableIdentifier.of(icebergNamespace, TABLE_NAME),
+            SimpleDataUtil.SCHEMA,
+            PartitionSpec.unpartitioned(),
+            properties);
+  }
 
-    EnvironmentSettings.Builder settingsBuilder = EnvironmentSettings
-        .newInstance()
-        .inBatchMode()
-        .useBlinkPlanner();
-
-    if (isStreamingJob) {
-      settingsBuilder.inStreamingMode();
-      StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-      env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
-      env.enableCheckpointing(400);
-      env.setParallelism(parallelism);
-      tEnv = StreamTableEnvironment.create(env, settingsBuilder.build());
-    } else {
-      settingsBuilder.inBatchMode();
-      tEnv = TableEnvironment.create(settingsBuilder.build());
-    }
-
-    sql("create catalog iceberg_catalog with ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
-        warehouse);
-    sql("use catalog iceberg_catalog");
-
-    catalog.createTable(TableIdentifier.parse("default." + TABLE_NAME),
-        SimpleDataUtil.SCHEMA,
-        PartitionSpec.unpartitioned(),
-        properties);
+  @After
+  public void clean() {
+    sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME);
+    sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
   }
 
   @Test
   public void testStreamSQL() throws Exception {
-    List<RowData> expected = Lists.newArrayList(
-        SimpleDataUtil.createRowData(1, "hello"),
-        SimpleDataUtil.createRowData(2, "world"),
-        SimpleDataUtil.createRowData(3, "foo"),
-        SimpleDataUtil.createRowData(4, "bar")
-    );
-
     // Register the rows into a temporary table.
-    Table sourceTable = tEnv.fromValues(SimpleDataUtil.FLINK_SCHEMA.toRowDataType(),
+    Table sourceTable = getTableEnv().fromValues(SimpleDataUtil.FLINK_SCHEMA.toRowDataType(),
         Expressions.row(1, "hello"),
         Expressions.row(2, "world"),
         Expressions.row(3, "foo"),
         Expressions.row(4, "bar")
     );
-    tEnv.createTemporaryView("sourceTable", sourceTable);
+    getTableEnv().createTemporaryView("sourceTable", sourceTable);
 
     // Redirect the records from source table to destination table.
     sql("INSERT INTO %s SELECT id,data from sourceTable", TABLE_NAME);
 
     // Assert the table records as expected.
-    SimpleDataUtil.assertTableRows(tablePath, expected);
+    SimpleDataUtil.assertTableRecords(icebergTable, Lists.newArrayList(
+        SimpleDataUtil.createRecord(1, "hello"),
+        SimpleDataUtil.createRecord(2, "world"),
+        SimpleDataUtil.createRecord(3, "foo"),
+        SimpleDataUtil.createRecord(4, "bar")
+    ));
   }
 
   @Test
   public void testOverwriteTable() throws Exception {
     Assume.assumeFalse("Flink unbounded streaming does not support overwrite operation", isStreamingJob);
 
-    sql("INSERT INTO %s SELECT 1, 'hello'", TABLE_NAME);
-    SimpleDataUtil.assertTableRows(tablePath, Lists.newArrayList(SimpleDataUtil.createRowData(1, "hello")));
+    sql("INSERT INTO %s SELECT 1, 'a'", TABLE_NAME);
+    SimpleDataUtil.assertTableRecords(icebergTable, Lists.newArrayList(
+        SimpleDataUtil.createRecord(1, "a")
+    ));
 
-    sql("INSERT OVERWRITE %s SELECT 2, 'world'", TABLE_NAME);
-    SimpleDataUtil.assertTableRows(tablePath, Lists.newArrayList(SimpleDataUtil.createRowData(2, "world")));
-    org.apache.iceberg.Table table = new HadoopTables().load(tablePath);
-    Assert.assertEquals("overwrite", table.currentSnapshot().operation());
-  }
-
-  private void sql(String statement, Object... args) {
-    tEnv.executeSql(String.format(statement, args)).getJobClient().ifPresent(jobClient -> {
-      try {
-        jobClient.getJobExecutionResult(Thread.currentThread().getContextClassLoader()).get();
-      } catch (InterruptedException | ExecutionException e) {
-        throw new RuntimeException(e);
-      }
-    });
+    sql("INSERT OVERWRITE %s SELECT 2, 'b'", TABLE_NAME);
+    SimpleDataUtil.assertTableRecords(icebergTable, Lists.newArrayList(
+        SimpleDataUtil.createRecord(2, "b")
+    ));
   }
 }

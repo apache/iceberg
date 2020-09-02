@@ -83,8 +83,8 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         Arrays.asList(
             TableColumn.of("id", DataTypes.BIGINT()),
             TableColumn.of("strV", DataTypes.STRING())),
-        tEnv.from("tl").getSchema().getTableColumns());
-    Assert.assertTrue(tEnv.getCatalog(catalogName).get().tableExists(ObjectPath.fromString("db.tl")));
+        getTableEnv().from("tl").getSchema().getTableColumns());
+    Assert.assertTrue(getTableEnv().getCatalog(catalogName).get().tableExists(ObjectPath.fromString("db.tl")));
   }
 
   @Test
@@ -99,16 +99,16 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         "Should fail if trying to get a nonexistent table",
         ValidationException.class,
         "Table `tl` was not found.",
-        () -> tEnv.from("tl")
+        () -> getTableEnv().from("tl")
     );
     Assert.assertEquals(
         Collections.singletonList(TableColumn.of("id", DataTypes.BIGINT())),
-        tEnv.from("tl2").getSchema().getTableColumns());
+        getTableEnv().from("tl2").getSchema().getTableColumns());
   }
 
   @Test
   public void testCreateTable() throws TableNotExistException {
-    tEnv.executeSql("CREATE TABLE tl(id BIGINT)");
+    getTableEnv().executeSql("CREATE TABLE tl(id BIGINT)");
 
     Table table = table("tl");
     Assert.assertEquals(
@@ -125,7 +125,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
   public void testCreateTableLocation() {
     Assume.assumeFalse("HadoopCatalog does not support creating table with location", isHadoopCatalog);
 
-    tEnv.executeSql("CREATE TABLE tl(id BIGINT) WITH ('location'='/tmp/location')");
+    getTableEnv().executeSql("CREATE TABLE tl(id BIGINT) WITH ('location'='/tmp/location')");
 
     Table table = table("tl");
     Assert.assertEquals(
@@ -137,7 +137,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
   @Test
   public void testCreatePartitionTable() throws TableNotExistException {
-    tEnv.executeSql("CREATE TABLE tl(id BIGINT, dt STRING) PARTITIONED BY(dt)");
+    getTableEnv().executeSql("CREATE TABLE tl(id BIGINT, dt STRING) PARTITIONED BY(dt)");
 
     Table table = table("tl");
     Assert.assertEquals(
@@ -173,24 +173,24 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
   @Test
   public void testAlterTable() throws TableNotExistException {
-    tEnv.executeSql("CREATE TABLE tl(id BIGINT) WITH ('oldK'='oldV')");
+    getTableEnv().executeSql("CREATE TABLE tl(id BIGINT) WITH ('oldK'='oldV')");
     Map<String, String> properties = Maps.newHashMap();
     properties.put("oldK", "oldV");
 
     // new
-    tEnv.executeSql("ALTER TABLE tl SET('newK'='newV')");
+    getTableEnv().executeSql("ALTER TABLE tl SET('newK'='newV')");
     properties.put("newK", "newV");
     Assert.assertEquals(properties, table("tl").properties());
 
     // update old
-    tEnv.executeSql("ALTER TABLE tl SET('oldK'='oldV2')");
+    getTableEnv().executeSql("ALTER TABLE tl SET('oldK'='oldV2')");
     properties.put("oldK", "oldV2");
     Assert.assertEquals(properties, table("tl").properties());
 
     // remove property
     CatalogTable catalogTable = catalogTable("tl");
     properties.remove("oldK");
-    tEnv.getCatalog(tEnv.getCurrentCatalog()).get().alterTable(
+    getTableEnv().getCatalog(getTableEnv().getCurrentCatalog()).get().alterTable(
         new ObjectPath(DATABASE, "tl"), catalogTable.copy(properties), false);
     Assert.assertEquals(properties, table("tl").properties());
   }
@@ -199,14 +199,14 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
   public void testRelocateTable() {
     Assume.assumeFalse("HadoopCatalog does not support relocate table", isHadoopCatalog);
 
-    tEnv.executeSql("CREATE TABLE tl(id BIGINT)");
-    tEnv.executeSql("ALTER TABLE tl SET('location'='/tmp/location')");
+    getTableEnv().executeSql("CREATE TABLE tl(id BIGINT)");
+    getTableEnv().executeSql("ALTER TABLE tl SET('location'='/tmp/location')");
     Assert.assertEquals("/tmp/location", table("tl").location());
   }
 
   @Test
   public void testSetCurrentAndCherryPickSnapshotId() {
-    tEnv.executeSql("CREATE TABLE tl(c1 INT, c2 STRING, c3 STRING) PARTITIONED BY (c1)");
+    getTableEnv().executeSql("CREATE TABLE tl(c1 INT, c2 STRING, c3 STRING) PARTITIONED BY (c1)");
 
     Table table = table("tl");
 
@@ -249,11 +249,11 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         .commit();
 
     // test cherry pick
-    tEnv.executeSql(String.format("ALTER TABLE tl SET('cherry-pick-snapshot-id'='%s')", staged.snapshotId()));
+    getTableEnv().executeSql(String.format("ALTER TABLE tl SET('cherry-pick-snapshot-id'='%s')", staged.snapshotId()));
     validateTableFiles(table, fileB, replacementFile);
 
     // test set current snapshot
-    tEnv.executeSql(String.format("ALTER TABLE tl SET('current-snapshot-id'='%s')", snapshotId));
+    getTableEnv().executeSql(String.format("ALTER TABLE tl SET('current-snapshot-id'='%s')", snapshotId));
     validateTableFiles(table, fileA);
   }
 
@@ -271,6 +271,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
   }
 
   private CatalogTable catalogTable(String name) throws TableNotExistException {
-    return (CatalogTable) tEnv.getCatalog(tEnv.getCurrentCatalog()).get().getTable(new ObjectPath(DATABASE, name));
+    return (CatalogTable) getTableEnv().getCatalog(getTableEnv().getCurrentCatalog()).get()
+        .getTable(new ObjectPath(DATABASE, name));
   }
 }
