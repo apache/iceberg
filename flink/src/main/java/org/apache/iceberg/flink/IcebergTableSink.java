@@ -30,23 +30,15 @@ import org.apache.flink.table.sinks.AppendStreamTableSink;
 import org.apache.flink.table.sinks.TableSink;
 import org.apache.flink.table.types.DataType;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.sink.FlinkSink;
 
 public class IcebergTableSink implements AppendStreamTableSink<RowData> {
-  private final TableIdentifier tableIdentifier;
-  private final Table table;
-  private final CatalogLoader catalogLoader;
+  private final TableLoader tableLoader;
   private final TableSchema tableSchema;
   private final Configuration hadoopConf;
 
-  public IcebergTableSink(TableIdentifier tableIdentifier, Table table,
-                          CatalogLoader catalogLoader, Configuration hadoopConf,
-                          TableSchema tableSchema) {
-    this.tableIdentifier = tableIdentifier;
-    this.table = table;
-    this.catalogLoader = catalogLoader;
+  public IcebergTableSink(TableLoader tableLoader, Configuration hadoopConf, TableSchema tableSchema) {
+    this.tableLoader = tableLoader;
     this.hadoopConf = hadoopConf;
     this.tableSchema = tableSchema;
   }
@@ -54,8 +46,7 @@ public class IcebergTableSink implements AppendStreamTableSink<RowData> {
   @Override
   public DataStreamSink<?> consumeDataStream(DataStream<RowData> dataStream) {
     return FlinkSink.forRowData(dataStream)
-        .table(table)
-        .tableLoader(TableLoader.fromCatalog(catalogLoader, tableIdentifier))
+        .tableLoader(tableLoader)
         .hadoopConf(hadoopConf)
         .tableSchema(tableSchema)
         .build();

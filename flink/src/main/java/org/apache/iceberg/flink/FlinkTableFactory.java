@@ -21,15 +21,12 @@ package org.apache.iceberg.flink;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.flink.table.api.ValidationException;
-import org.apache.flink.table.catalog.ObjectIdentifier;
+import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.catalog.ObjectPath;
-import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.factories.StreamTableSinkFactory;
 import org.apache.flink.table.sinks.StreamTableSink;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.flink.table.utils.TableSchemaUtils;
 
 public class FlinkTableFactory implements StreamTableSinkFactory<RowData> {
   private final FlinkCatalog catalog;
@@ -40,17 +37,10 @@ public class FlinkTableFactory implements StreamTableSinkFactory<RowData> {
 
   @Override
   public StreamTableSink<RowData> createTableSink(Context context) {
-    ObjectIdentifier identifier = context.getObjectIdentifier();
-    ObjectPath objectPath = new ObjectPath(identifier.getDatabaseName(), identifier.getObjectName());
-    TableIdentifier icebergIdentifier = catalog.toIdentifier(objectPath);
-    try {
-      Table table = catalog.loadIcebergTable(objectPath);
-      return new IcebergTableSink(icebergIdentifier, table,
-          catalog.getCatalogLoader(), catalog.getHadoopConf(),
-          FlinkSchemaUtil.toSchema(table.schema()));
-    } catch (TableNotExistException e) {
-      throw new ValidationException(String.format("Iceberg table(%s) not exist.", icebergIdentifier), e);
-    }
+    ObjectPath objectPath = context.getObjectIdentifier().toObjectPath();
+    TableLoader tableLoader = createTableLoader(objectPath);
+    TableSchema tableSchema = getPhysicalSchema(context);
+    return new IcebergTableSink(tableLoader, catalog.getHadoopConf(), tableSchema);
   }
 
   @Override
@@ -61,5 +51,13 @@ public class FlinkTableFactory implements StreamTableSinkFactory<RowData> {
   @Override
   public List<String> supportedProperties() {
     throw new UnsupportedOperationException("Iceberg Table Factory can not be loaded from Java SPI");
+  }
+
+  private TableSchema getPhysicalSchema(Context context) {
+    return TableSchemaUtils.getPhysicalSchema(context.getTable().getSchema());
+  }
+
+  private TableLoader createTableLoader(ObjectPath objectPath) {
+    return TableLoader.fromCatalog(catalog.getCatalogLoader(), catalog.toIdentifier(objectPath));
   }
 }
