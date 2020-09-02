@@ -32,9 +32,7 @@ import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.Expressions;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableEnvironment;
-import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
-import org.apache.flink.table.api.config.TableConfigOptions;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.test.util.AbstractTestBase;
 import org.apache.hadoop.conf.Configuration;
@@ -124,7 +122,6 @@ public class TestFlinkTableSink extends AbstractTestBase {
     tEnv.executeSql(String.format("create catalog iceberg_catalog with (" +
         "'type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')", warehouse));
     tEnv.executeSql("use catalog iceberg_catalog");
-    tEnv.getConfig().getConfiguration().set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
 
     catalog.createTable(TableIdentifier.parse("default." + TABLE_NAME),
         SimpleDataUtil.SCHEMA,
@@ -152,15 +149,14 @@ public class TestFlinkTableSink extends AbstractTestBase {
 
     // Redirect the records from source table to destination table.
     String insertSQL = String.format("INSERT INTO %s SELECT id,data from sourceTable", TABLE_NAME);
-    TableResult result = tEnv.executeSql(insertSQL);
-    waitComplete(result);
+    executeSQLAndWaitResult(tEnv, insertSQL);
 
     // Assert the table records as expected.
     SimpleDataUtil.assertTableRows(tablePath, expected);
   }
 
-  private static void waitComplete(TableResult result) {
-    result.getJobClient().ifPresent(jobClient -> {
+  private static void executeSQLAndWaitResult(TableEnvironment tEnv, String statement) {
+    tEnv.executeSql(statement).getJobClient().ifPresent(jobClient -> {
       try {
         jobClient.getJobExecutionResult(Thread.currentThread().getContextClassLoader()).get();
       } catch (InterruptedException | ExecutionException e) {
