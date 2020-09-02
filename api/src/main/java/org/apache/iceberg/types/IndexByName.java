@@ -41,7 +41,7 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
    * Returns a mapping from full field name to ID.
    * <p>
    * Short names for maps and lists are included for any name that does not conflict with a canonical name. For example,
-   * a list, 'l', with of structs with field 'x' will produce short name 'l.x' in addition to 'l.element.x'.
+   * a list, 'l', of structs with field 'x' will produce short name 'l.x' in addition to canonical name 'l.element.x'.
    *
    * @return a map from name to field ID
    */
