@@ -25,17 +25,24 @@ import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.sinks.AppendStreamTableSink;
+import org.apache.flink.table.sinks.OverwritableTableSink;
 import org.apache.flink.table.sinks.TableSink;
 import org.apache.flink.table.types.DataType;
+import org.apache.flink.util.Preconditions;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.flink.sink.FlinkSink;
 
-public class IcebergTableSink implements AppendStreamTableSink<RowData> {
+public class IcebergTableSink implements AppendStreamTableSink<RowData>, OverwritableTableSink {
+  private final boolean isBounded;
   private final TableLoader tableLoader;
   private final TableSchema tableSchema;
   private final Configuration hadoopConf;
 
-  public IcebergTableSink(TableLoader tableLoader, Configuration hadoopConf, TableSchema tableSchema) {
+  private boolean overwrite = false;
+
+  public IcebergTableSink(boolean isBounded, TableLoader tableLoader, Configuration hadoopConf,
+                          TableSchema tableSchema) {
+    this.isBounded = isBounded;
     this.tableLoader = tableLoader;
     this.hadoopConf = hadoopConf;
     this.tableSchema = tableSchema;
@@ -43,10 +50,13 @@ public class IcebergTableSink implements AppendStreamTableSink<RowData> {
 
   @Override
   public DataStreamSink<?> consumeDataStream(DataStream<RowData> dataStream) {
+    Preconditions.checkState(!overwrite || isBounded, "Unbounded data stream don't support overwrite operation.");
+
     return FlinkSink.forRowData(dataStream)
         .tableLoader(tableLoader)
         .hadoopConf(hadoopConf)
         .tableSchema(tableSchema)
+        .overwrite(overwrite)
         .build();
   }
 
@@ -64,5 +74,10 @@ public class IcebergTableSink implements AppendStreamTableSink<RowData> {
   public TableSink<RowData> configure(String[] fieldNames, TypeInformation<?>[] fieldTypes) {
     // This method has been deprecated and it will be removed in future version, so left the empty implementation here.
     return this;
+  }
+
+  @Override
+  public void setOverwrite(boolean overwrite) {
+    this.overwrite = overwrite;
   }
 }

@@ -42,9 +42,11 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -153,6 +155,19 @@ public class TestFlinkTableSink extends AbstractTestBase {
 
     // Assert the table records as expected.
     SimpleDataUtil.assertTableRows(tablePath, expected);
+  }
+
+  @Test
+  public void testOverwriteTable() throws Exception {
+    Assume.assumeFalse("Flink unbounded streaming does not support overwrite operation", isStreamingJob);
+
+    executeSQLAndWaitResult(tEnv, String.format("INSERT INTO %s SELECT 1, 'hello'", TABLE_NAME));
+    SimpleDataUtil.assertTableRows(tablePath, Lists.newArrayList(SimpleDataUtil.createRowData(1, "hello")));
+
+    executeSQLAndWaitResult(tEnv, String.format("INSERT OVERWRITE %s SELECT 2, 'world'", TABLE_NAME));
+    SimpleDataUtil.assertTableRows(tablePath, Lists.newArrayList(SimpleDataUtil.createRowData(2, "world")));
+    org.apache.iceberg.Table table = new HadoopTables().load(tablePath);
+    Assert.assertEquals("overwrite", table.currentSnapshot().operation());
   }
 
   private static void executeSQLAndWaitResult(TableEnvironment tEnv, String statement) {

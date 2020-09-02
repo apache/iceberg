@@ -112,6 +112,7 @@ public class FlinkSink {
     private Configuration hadoopConf;
     private Table table;
     private TableSchema tableSchema;
+    private boolean overwrite = false;
 
     private Builder() {
     }
@@ -157,6 +158,11 @@ public class FlinkSink {
       return this;
     }
 
+    public Builder overwrite(boolean newOverwrite) {
+      this.overwrite = newOverwrite;
+      return this;
+    }
+
     @SuppressWarnings("unchecked")
     public DataStreamSink<RowData> build() {
       Preconditions.checkArgument(rowDataInput != null,
@@ -174,7 +180,7 @@ public class FlinkSink {
       }
 
       IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, tableSchema);
-      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, hadoopConf);
+      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, hadoopConf, overwrite);
 
       DataStream<Void> returnStream = rowDataInput
           .transform(ICEBERG_STREAM_WRITER_NAME, TypeInformation.of(DataFile.class), streamWriter)

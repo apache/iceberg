@@ -39,7 +39,9 @@ import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
@@ -70,6 +72,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // TableLoader to load iceberg table lazily.
   private final TableLoader tableLoader;
   private final SerializableConfiguration hadoopConf;
+  private final boolean replacePartitions;
 
   // A sorted map to maintain the completed data files for each pending checkpointId (which have not been committed
   // to iceberg table). We need a sorted map here because there's possible that few checkpoints snapshot failed, for
@@ -92,9 +95,10 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private static final ListStateDescriptor<SortedMap<Long, List<DataFile>>> STATE_DESCRIPTOR = buildStateDescriptor();
   private transient ListState<SortedMap<Long, List<DataFile>>> checkpointsState;
 
-  IcebergFilesCommitter(TableLoader tableLoader, Configuration hadoopConf) {
+  IcebergFilesCommitter(TableLoader tableLoader, Configuration hadoopConf, boolean replacePartitions) {
     this.tableLoader = tableLoader;
     this.hadoopConf = new SerializableConfiguration(hadoopConf);
+    this.replacePartitions = replacePartitions;
   }
 
   @Override
@@ -164,14 +168,49 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       pendingDataFiles.addAll(dataFiles);
     }
 
-    AppendFiles appendFiles = table.newAppend();
-    pendingDataFiles.forEach(appendFiles::appendFile);
-    appendFiles.set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));
-    appendFiles.set(FLINK_JOB_ID, flinkJobId);
-    appendFiles.commit();
+    if (replacePartitions) {
+      replacePartitions(pendingDataFiles, checkpointId);
+    } else {
+      append(pendingDataFiles, checkpointId);
+    }
 
     // Clear the committed data files from dataFilesPerCheckpoint.
     pendingFileMap.clear();
+  }
+
+  private void replacePartitions(List<DataFile> dataFiles, long checkpointId) {
+    ReplacePartitions dynamicOverwrite = table.newReplacePartitions();
+
+    int numFiles = 0;
+    for (DataFile file : dataFiles) {
+      numFiles += 1;
+      dynamicOverwrite.addFile(file);
+    }
+
+    commitOperation(dynamicOverwrite, numFiles, "dynamic partition overwrite", checkpointId);
+  }
+
+  private void append(List<DataFile> dataFiles, long checkpointId) {
+    AppendFiles appendFiles = table.newAppend();
+
+    int numFiles = 0;
+    for (DataFile file : dataFiles) {
+      appendFiles.appendFile(file);
+      numFiles++;
+    }
+
+    commitOperation(appendFiles, numFiles, "append", checkpointId);
+  }
+
+  private void commitOperation(SnapshotUpdate<?> operation, int numFiles, String description, long checkpointId) {
+    LOG.info("Committing {} with {} files to table {}", description, numFiles, table);
+    operation.set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));
+    operation.set(FLINK_JOB_ID, flinkJobId);
+
+    long start = System.currentTimeMillis();
+    operation.commit(); // abort is automatically called if this fails.
+    long duration = System.currentTimeMillis() - start;
+    LOG.info("Committed in {} ms", duration);
   }
 
   @Override
