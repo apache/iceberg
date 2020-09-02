@@ -19,12 +19,10 @@
 
 package org.apache.iceberg.flink;
 
-import java.util.Arrays;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.table.api.TableSchema;
-import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.sinks.AppendStreamTableSink;
 import org.apache.flink.table.sinks.TableSink;
@@ -64,18 +62,7 @@ public class IcebergTableSink implements AppendStreamTableSink<RowData> {
 
   @Override
   public TableSink<RowData> configure(String[] fieldNames, TypeInformation<?>[] fieldTypes) {
-    if (!Arrays.equals(tableSchema.getFieldNames(), fieldNames)) {
-      String expectedFieldNames = Arrays.toString(tableSchema.getFieldNames());
-      String actualFieldNames = Arrays.toString(fieldNames);
-      throw new ValidationException("The field names is mismatched. Expected: " +
-          expectedFieldNames + " But was: " + actualFieldNames);
-    }
-    if (!Arrays.equals(tableSchema.getFieldTypes(), fieldTypes)) {
-      String expectedFieldTypes = Arrays.toString(tableSchema.getFieldTypes());
-      String actualFieldTypes = Arrays.toString(fieldNames);
-      throw new ValidationException("Field types are mismatched. Expected: " +
-          expectedFieldTypes + " But was: " + actualFieldTypes);
-    }
+    // This method has been deprecated and it will be removed in future version, so left the empty implementation here.
     return this;
   }
 }
