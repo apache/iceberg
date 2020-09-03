@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.flink.table.api.TableSchema;
@@ -48,6 +49,7 @@ import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.catalog.stats.CatalogColumnStatistics;
 import org.apache.flink.table.catalog.stats.CatalogTableStatistics;
 import org.apache.flink.table.expressions.Expression;
+import org.apache.flink.table.factories.TableFactory;
 import org.apache.flink.util.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
@@ -129,7 +131,7 @@ public class FlinkCatalog extends AbstractCatalog {
     return Namespace.of(namespace);
   }
 
-  private TableIdentifier toIdentifier(ObjectPath path) {
+  TableIdentifier toIdentifier(ObjectPath path) {
     return TableIdentifier.of(toNamespace(path.getDatabaseName()), path.getObjectName());
   }
 
@@ -292,7 +294,7 @@ public class FlinkCatalog extends AbstractCatalog {
     return toCatalogTable(table);
   }
 
-  private Table loadIcebergTable(ObjectPath tablePath) throws TableNotExistException {
+  Table loadIcebergTable(ObjectPath tablePath) throws TableNotExistException {
     try {
       return icebergCatalog.loadTable(toIdentifier(tablePath));
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
@@ -503,6 +505,19 @@ public class FlinkCatalog extends AbstractCatalog {
     // Let's re-loading table from Iceberg catalog when creating source/sink operators.
     // Iceberg does not have Table comment, so pass a null (Default comment value in Flink).
     return new CatalogTableImpl(schema, partitionKeys, table.properties(), null);
+  }
+
+  @Override
+  public Optional<TableFactory> getTableFactory() {
+    return Optional.of(new FlinkTableFactory(this));
+  }
+
+  CatalogLoader getCatalogLoader() {
+    return catalogLoader;
+  }
+
+  Configuration getHadoopConf() {
+    return this.hadoopConf;
   }
 
   // ------------------------------ Unsupported methods ---------------------------------------------

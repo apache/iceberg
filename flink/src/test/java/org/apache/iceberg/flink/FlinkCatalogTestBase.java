@@ -65,16 +65,15 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
   }
 
   @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { "testhive", new String[0] },
-        new Object[] { "testhadoop", new String[0] },
-        new Object[] { "testhadoop_basenamespace", new String[] { "l0", "l1" }},
-    };
+  public static Iterable<Object[]> parameters() {
+    return Lists.newArrayList(
+        new Object[] {"testhive", new String[0]},
+        new Object[] {"testhadoop", new String[0]},
+        new Object[] {"testhadoop_basenamespace", new String[] {"l0", "l1"}}
+    );
   }
 
-  protected final TableEnvironment tEnv =
-      TableEnvironment.create(EnvironmentSettings.newInstance().useBlinkPlanner().inBatchMode().build());
+  private volatile TableEnvironment tEnv = null;
 
   protected final String catalogName;
   protected final String[] baseNamespace;
@@ -109,7 +108,7 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
         return super.createCatalog(name, properties, hiveConf);
       }
     };
-    tEnv.registerCatalog(
+    getTableEnv().registerCatalog(
         catalogName,
         flinkCatalogs.computeIfAbsent(catalogName, k -> factory.createCatalog(k, config)));
 
@@ -117,8 +116,22 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
     this.icebergNamespace = Namespace.of(ArrayUtils.concat(baseNamespace, new String[] { DATABASE }));
   }
 
+  protected TableEnvironment getTableEnv() {
+    if (tEnv == null) {
+      synchronized (this) {
+        if (tEnv == null) {
+          this.tEnv = TableEnvironment.create(EnvironmentSettings
+              .newInstance()
+              .useBlinkPlanner()
+              .inBatchMode().build());
+        }
+      }
+    }
+    return tEnv;
+  }
+
   public List<Object[]> sql(String query, Object... args) {
-    TableResult tableResult = tEnv.executeSql(String.format(query, args));
+    TableResult tableResult = getTableEnv().executeSql(String.format(query, args));
     tableResult.getJobClient().ifPresent(c -> {
       try {
         c.getJobExecutionResult(Thread.currentThread().getContextClassLoader()).get();

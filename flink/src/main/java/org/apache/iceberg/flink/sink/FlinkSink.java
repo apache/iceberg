@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.flink.sink;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Locale;
 import java.util.Map;
 import org.apache.flink.api.common.functions.MapFunction;
@@ -110,6 +112,7 @@ public class FlinkSink {
     private Configuration hadoopConf;
     private Table table;
     private TableSchema tableSchema;
+    private boolean overwrite = false;
 
     private Builder() {
     }
@@ -155,16 +158,29 @@ public class FlinkSink {
       return this;
     }
 
+    public Builder overwrite(boolean newOverwrite) {
+      this.overwrite = newOverwrite;
+      return this;
+    }
+
     @SuppressWarnings("unchecked")
     public DataStreamSink<RowData> build() {
       Preconditions.checkArgument(rowDataInput != null,
           "Please use forRowData() to initialize the input DataStream.");
-      Preconditions.checkNotNull(table, "Table shouldn't be null");
       Preconditions.checkNotNull(tableLoader, "Table loader shouldn't be null");
       Preconditions.checkNotNull(hadoopConf, "Hadoop configuration shouldn't be null");
 
+      if (table == null) {
+        tableLoader.open(hadoopConf);
+        try (TableLoader loader = tableLoader) {
+          this.table = loader.loadTable();
+        } catch (IOException e) {
+          throw new UncheckedIOException("Failed to load iceberg table from table loader: " + tableLoader, e);
+        }
+      }
+
       IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, tableSchema);
-      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, hadoopConf);
+      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, hadoopConf, overwrite);
 
       DataStream<Void> returnStream = rowDataInput
           .transform(ICEBERG_STREAM_WRITER_NAME, TypeInformation.of(DataFile.class), streamWriter)

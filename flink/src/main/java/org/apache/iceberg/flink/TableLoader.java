@@ -27,6 +27,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
  * Serializable loader to load an Iceberg {@link Table}.
@@ -71,6 +72,13 @@ public interface TableLoader extends Closeable, Serializable {
     @Override
     public void close() {
     }
+
+    @Override
+    public String toString() {
+      return MoreObjects.toStringHelper(this)
+          .add("location", location)
+          .toString();
+    }
   }
 
   class CatalogTableLoader implements TableLoader {
@@ -102,6 +110,14 @@ public interface TableLoader extends Closeable, Serializable {
       if (catalog instanceof Closeable) {
         ((Closeable) catalog).close();
       }
+    }
+
+    @Override
+    public String toString() {
+      return MoreObjects.toStringHelper(this)
+          .add("tableIdentifier", identifier)
+          .add("catalogLoader", catalogLoader)
+          .toString();
     }
   }
 }
