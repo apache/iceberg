@@ -67,8 +67,8 @@ class BaseTransaction implements Transaction {
   private final Consumer<String> enqueueDelete = deletedFiles::add;
   private TransactionType type;
   private TableMetadata base;
-  private TableMetadata lastBase;
   private TableMetadata current;
+  private boolean hasLastOpCommitted;
 
   BaseTransaction(String tableName, TableOperations ops, TransactionType type, TableMetadata start) {
     this.tableName = tableName;
@@ -80,7 +80,7 @@ class BaseTransaction implements Transaction {
     this.intermediateSnapshotIds = Sets.newHashSet();
     this.base = ops.current();
     this.type = type;
-    this.lastBase = null;
+    this.hasLastOpCommitted = true;
   }
 
   @Override
@@ -89,9 +89,9 @@ class BaseTransaction implements Transaction {
   }
 
   private void checkLastOperationCommitted(String operation) {
-    Preconditions.checkState(lastBase != current,
+    Preconditions.checkState(hasLastOpCommitted,
         "Cannot create new %s: last operation has not committed", operation);
-    this.lastBase = current;
+    this.hasLastOpCommitted = false;
   }
 
   @Override
@@ -200,7 +200,7 @@ class BaseTransaction implements Transaction {
 
   @Override
   public void commitTransaction() {
-    Preconditions.checkState(lastBase != current,
+    Preconditions.checkState(hasLastOpCommitted,
         "Cannot commit transaction: last operation has not committed");
 
     switch (type) {
@@ -453,6 +453,8 @@ class BaseTransaction implements Transaction {
       BaseTransaction.this.current = metadata;
 
       this.tempOps = ops.temp(metadata);
+
+      BaseTransaction.this.hasLastOpCommitted = true;
     }
 
     @Override
