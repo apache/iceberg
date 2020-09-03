@@ -59,9 +59,9 @@ public class TestDataTableScan extends TableTestBase {
 
   @Test
   public void testTableBothProjectAndSelect() {
-    AssertHelpers.assertThrows("Cannot project schema when selected columns is specified",
+    AssertHelpers.assertThrows("Cannot set projection schema when columns are selected",
         IllegalStateException.class, () -> table.newScan().select("id").project(SCHEMA.select("data")));
-    AssertHelpers.assertThrows("Cannot selected columns when project schema is specified",
+    AssertHelpers.assertThrows("Cannot select columns when projection schema is set",
         IllegalStateException.class, () -> table.newScan().project(SCHEMA.select("data")).select("id"));
   }
 
