@@ -95,6 +95,11 @@ public interface TableScan {
   TableScan includeColumnStats();
 
   /**
+   * Doc doc doc
+   */
+  TableScan withManifestProcessor(ManifestProcessor processor);
+
+  /**
    * Create a new {@link TableScan} from this that will read the given data columns. This produces
    * an expected schema that includes all fields that are either selected or used by this scan's
    * filter expression.

@@ -43,10 +43,13 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.DistributedManifestProcessor;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.InputPartition;
@@ -246,7 +249,11 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
         }
       }
 
-      try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
+      SparkSession spark = SparkSession.active();
+      FileIO io = SparkUtil.serializableFileIO(table);
+
+      try (CloseableIterable<CombinedScanTask> tasksIterable =
+          scan.withManifestProcessor(new DistributedManifestProcessor(spark, io)).planTasks()) {
         this.tasks = Lists.newArrayList(tasksIterable);
       }  catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to close table scan: %s", scan);

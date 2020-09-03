@@ -47,8 +47,10 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.DistributedManifestProcessor;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
@@ -378,7 +380,9 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
         }
       }
 
-      try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
+      FileIO io = SparkUtil.serializableFileIO(table);
+      try (CloseableIterable<CombinedScanTask> tasksIterable =
+        scan.withManifestProcessor(new DistributedManifestProcessor(SparkSession.active(), io)).planTasks()) {
         this.tasks = Lists.newArrayList(tasksIterable);
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to close table scan: %s", scan);

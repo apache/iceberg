@@ -86,7 +86,7 @@ public class DataTableScan extends BaseTableScan {
       manifestGroup = manifestGroup.planWith(ThreadPools.getWorkerPool());
     }
 
-    return manifestGroup.planFiles();
+    return manifestGroup.withProcessor(this.manifestProcessor).planFiles();
   }
 
   @Override

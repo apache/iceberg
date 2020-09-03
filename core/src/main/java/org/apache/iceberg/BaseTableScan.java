@@ -54,6 +54,7 @@ abstract class BaseTableScan implements TableScan {
   private final Table table;
   private final Schema schema;
   private final TableScanContext context;
+  protected ManifestProcessor manifestProcessor;
 
   protected BaseTableScan(TableOperations ops, Table table, Schema schema) {
     this(ops, table, schema, new TableScanContext());
@@ -64,6 +65,7 @@ abstract class BaseTableScan implements TableScan {
     this.table = table;
     this.schema = schema;
     this.context = context;
+    this.manifestProcessor = new LocalManifestProcessor(table.io());
   }
 
   protected TableOperations tableOps() {
@@ -130,6 +132,9 @@ abstract class BaseTableScan implements TableScan {
     return newRefinedScan(
         ops, table, schema, context.useSnapshotId(scanSnapshotId));
   }
+
+
+
 
   @Override
   public TableScan asOfTime(long timestampMillis) {
@@ -273,6 +278,12 @@ abstract class BaseTableScan implements TableScan {
         .add("ignoreResiduals", context.ignoreResiduals())
         .add("caseSensitive", context.caseSensitive())
         .toString();
+  }
+
+  @Override
+  public TableScan withManifestProcessor(ManifestProcessor processor) {
+    this.manifestProcessor = processor;
+    return this;
   }
 
   /**

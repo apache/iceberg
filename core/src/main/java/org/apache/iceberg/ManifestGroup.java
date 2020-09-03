@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Evaluator;
@@ -36,6 +35,7 @@ import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Function;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -61,6 +61,7 @@ class ManifestGroup {
   private List<String> columns;
   private boolean caseSensitive;
   private ExecutorService executorService;
+  private ManifestProcessor manifestProcessor;
 
   ManifestGroup(FileIO io, Iterable<ManifestFile> manifests) {
     this(io,
@@ -82,6 +83,12 @@ class ManifestGroup {
     this.caseSensitive = true;
     this.manifestPredicate = m -> true;
     this.manifestEntryPredicate = e -> true;
+    this.manifestProcessor = new LocalManifestProcessor(io);
+  }
+
+  ManifestGroup withProcessor(ManifestProcessor processor){
+    this.manifestProcessor = processor;
+    return this;
   }
 
   ManifestGroup specsById(Map<Integer, PartitionSpec> newSpecsById) {
@@ -169,20 +176,26 @@ class ManifestGroup {
       select(Streams.concat(columns.stream(), ManifestReader.STATS_COLUMNS.stream()).collect(Collectors.toList()));
     }
 
-    Iterable<CloseableIterable<FileScanTask>> tasks = entries((manifest, entries) -> {
-      int specId = manifest.partitionSpecId();
-      PartitionSpec spec = specsById.get(specId);
-      String schemaString = SchemaParser.toJson(spec.schema());
-      String specString = PartitionSpecParser.toJson(spec);
-      ResidualEvaluator residuals = residualCache.get(specId);
-      if (dropStats) {
-        return CloseableIterable.transform(entries, e -> new BaseFileScanTask(
-            e.file().copyWithoutStats(), deleteFiles.forEntry(e), schemaString, specString, residuals));
-      } else {
-        return CloseableIterable.transform(entries, e -> new BaseFileScanTask(
-            e.file().copy(), deleteFiles.forEntry(e), schemaString, specString, residuals));
-      }
-    });
+    LoadingCache<Integer, SpecCacheEntry> specCache = Caffeine.newBuilder().build(
+        specId -> {
+          PartitionSpec spec = specsById.get(specId);
+          return new SpecCacheEntry(SchemaParser.toJson(spec.schema()), PartitionSpecParser.toJson(spec),
+              residualCache.get(specId));
+        }
+    );
+
+    //Todo Make this cleaner (maybe go back to old method of two traversals?  Make api for BaseFileScanTask?
+    //This will have different performance characteristics than the old version since we are doing a look for every
+    // entry, but I think this will probably end up being essentially a noop with branch prediction since we look up
+    // the same thing over and over in order.
+    Iterable<CloseableIterable<FileScanTask>> tasks = entries(entries ->
+        CloseableIterable.transform(entries, e ->
+        {
+          SpecCacheEntry cached = specCache.get(e.file().specId());
+          DataFile file = (dropStats) ? e.file().copyWithoutStats() : e.file().copy();
+          return new BaseFileScanTask(file, deleteFiles.forEntry(e), cached.schemaString, cached.specString,
+              cached.residuals);
+        }));
 
     if (executorService != null) {
       return new ParallelIterable<>(tasks, executorService);
@@ -200,11 +213,32 @@ class ManifestGroup {
    * @return a CloseableIterable of manifest entries.
    */
   public CloseableIterable<ManifestEntry<DataFile>> entries() {
-    return CloseableIterable.concat(entries((manifest, entries) -> entries));
+    return CloseableIterable.concat(entries(entry -> entry));
+  }
+
+  /*
+  Generating the lambda in a static context allows us to ignore the serializability of this class
+   */
+  private static ManifestProcessor.Func<DataFile> generateManifestProcessorFunc(Map<Integer, PartitionSpec> specsById,
+      Expression dataFilter, Expression partitionFilter, boolean caseSensitive, List<String> columns, boolean ignoreDeleted) {
+    return (ManifestProcessor.Func<DataFile>) (manifest, processorIO) -> {
+      ManifestReader<DataFile> reader = ManifestFiles.read(manifest, processorIO, specsById)
+          .filterRows(dataFilter)
+          .filterPartitions(partitionFilter)
+          .caseSensitive(caseSensitive)
+          .select(columns);
+
+      CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
+      if (ignoreDeleted) {
+        entries = reader.liveEntries();
+      }
+      return entries;
+    };
   }
 
   private <T> Iterable<CloseableIterable<T>> entries(
-      BiFunction<ManifestFile, CloseableIterable<ManifestEntry<DataFile>>, CloseableIterable<T>> entryFn) {
+      Function<CloseableIterable<ManifestEntry<DataFile>>, CloseableIterable<T>> entryFn) {
+
     LoadingCache<Integer, ManifestEvaluator> evalCache = specsById == null ?
         null : Caffeine.newBuilder().build(specId -> {
           PartitionSpec spec = specsById.get(specId);
@@ -236,20 +270,13 @@ class ManifestGroup {
 
     matchingManifests = Iterables.filter(matchingManifests, manifestPredicate::test);
 
+    Iterable< CloseableIterable<ManifestEntry<DataFile>>> fileReader =
+        manifestProcessor.readManifests(matchingManifests, generateManifestProcessorFunc(specsById, dataFilter,
+            partitionFilter, caseSensitive, columns, ignoreDeleted));
+
     return Iterables.transform(
-        matchingManifests,
-        manifest -> {
-          ManifestReader<DataFile> reader = ManifestFiles.read(manifest, io, specsById)
-              .filterRows(dataFilter)
-              .filterPartitions(partitionFilter)
-              .caseSensitive(caseSensitive)
-              .select(columns);
-
-          CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
-          if (ignoreDeleted) {
-            entries = reader.liveEntries();
-          }
-
+        fileReader,
+        entries -> {
           if (ignoreExisting) {
             entries = CloseableIterable.filter(entries,
                 entry -> entry.status() != ManifestEntry.Status.EXISTING);
@@ -261,7 +288,21 @@ class ManifestGroup {
           }
 
           entries = CloseableIterable.filter(entries, manifestEntryPredicate);
-          return entryFn.apply(manifest, entries);
+          return entryFn.apply(entries);
         });
   }
+
+
+  private class SpecCacheEntry {
+    private final String schemaString;
+    private final String specString;
+    private final ResidualEvaluator residuals;
+
+    SpecCacheEntry(String schemaString, String specString, ResidualEvaluator residuals) {
+      this.schemaString = schemaString;
+      this.specString = specString;
+      this.residuals = residuals;
+    }
+  }
+
 }

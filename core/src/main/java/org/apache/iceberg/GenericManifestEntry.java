@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.io.Serializable;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -26,7 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.types.Types;
 
 class GenericManifestEntry<F extends ContentFile<F>>
-    implements ManifestEntry<F>, IndexedRecord, SpecificData.SchemaConstructable, StructLike {
+    implements ManifestEntry<F>, IndexedRecord, SpecificData.SchemaConstructable, StructLike, Serializable {
   private final org.apache.avro.Schema schema;
   private Status status = Status.EXISTING;
   private Long snapshotId = null;
