@@ -130,25 +130,31 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
   @Override
   public Table loadTable(TableIdentifier identifier) {
+    Table result;
     if (isValidIdentifier(identifier)) {
       TableOperations ops = newTableOps(identifier);
       if (ops.current() == null) {
         // the identifier may be valid for both tables and metadata tables
         if (isValidMetadataIdentifier(identifier)) {
-          return loadMetadataTable(identifier);
+          result = loadMetadataTable(identifier);
+
+        } else {
+          throw new NoSuchTableException("Table does not exist: %s", identifier);
         }
 
-        throw new NoSuchTableException("Table does not exist: %s", identifier);
+      } else {
+        result = new BaseTable(ops, fullTableName(name(), identifier));
       }
 
-      return new BaseTable(ops, fullTableName(name(), identifier));
-
     } else if (isValidMetadataIdentifier(identifier)) {
-      return loadMetadataTable(identifier);
+      result = loadMetadataTable(identifier);
 
     } else {
       throw new NoSuchTableException("Invalid table identifier: %s", identifier);
     }
+
+    LOG.info("Table loaded by catalog: {}", result);
+    return result;
   }
 
   private Table loadMetadataTable(TableIdentifier identifier) {

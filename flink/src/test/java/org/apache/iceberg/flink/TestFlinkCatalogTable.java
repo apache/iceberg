@@ -21,13 +21,30 @@ package org.apache.iceberg.flink;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableColumn;
+import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
+import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.ObjectPath;
+import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.ContentFile;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DataOperations;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
 import org.junit.Assert;
@@ -82,10 +99,178 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         "Should fail if trying to get a nonexistent table",
         ValidationException.class,
         "Table `tl` was not found.",
-        () ->  tEnv.from("tl")
+        () -> tEnv.from("tl")
     );
     Assert.assertEquals(
         Collections.singletonList(TableColumn.of("id", DataTypes.BIGINT())),
         tEnv.from("tl2").getSchema().getTableColumns());
+  }
+
+  @Test
+  public void testCreateTable() throws TableNotExistException {
+    tEnv.executeSql("CREATE TABLE tl(id BIGINT)");
+
+    Table table = table("tl");
+    Assert.assertEquals(
+        new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
+        table.schema().asStruct());
+    Assert.assertEquals(Maps.newHashMap(), table.properties());
+
+    CatalogTable catalogTable = catalogTable("tl");
+    Assert.assertEquals(TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
+    Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
+  }
+
+  @Test
+  public void testCreateTableLocation() {
+    Assume.assumeFalse("HadoopCatalog does not support creating table with location", isHadoopCatalog);
+
+    tEnv.executeSql("CREATE TABLE tl(id BIGINT) WITH ('location'='/tmp/location')");
+
+    Table table = table("tl");
+    Assert.assertEquals(
+        new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
+        table.schema().asStruct());
+    Assert.assertEquals("/tmp/location", table.location());
+    Assert.assertEquals(Maps.newHashMap(), table.properties());
+  }
+
+  @Test
+  public void testCreatePartitionTable() throws TableNotExistException {
+    tEnv.executeSql("CREATE TABLE tl(id BIGINT, dt STRING) PARTITIONED BY(dt)");
+
+    Table table = table("tl");
+    Assert.assertEquals(
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "dt", Types.StringType.get())).asStruct(),
+        table.schema().asStruct());
+    Assert.assertEquals(PartitionSpec.builderFor(table.schema()).identity("dt").build(), table.spec());
+    Assert.assertEquals(Maps.newHashMap(), table.properties());
+
+    CatalogTable catalogTable = catalogTable("tl");
+    Assert.assertEquals(
+        TableSchema.builder().field("id", DataTypes.BIGINT()).field("dt", DataTypes.STRING()).build(),
+        catalogTable.getSchema());
+    Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
+    Assert.assertEquals(Collections.singletonList("dt"), catalogTable.getPartitionKeys());
+  }
+
+  @Test
+  public void testLoadTransformPartitionTable() throws TableNotExistException {
+    Schema schema = new Schema(Types.NestedField.optional(0, "id", Types.LongType.get()));
+    validationCatalog.createTable(
+        TableIdentifier.of(icebergNamespace, "tl"), schema,
+        PartitionSpec.builderFor(schema).bucket("id", 100).build());
+
+    CatalogTable catalogTable = catalogTable("tl");
+    Assert.assertEquals(
+        TableSchema.builder().field("id", DataTypes.BIGINT()).build(),
+        catalogTable.getSchema());
+    Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
+    Assert.assertEquals(Collections.emptyList(), catalogTable.getPartitionKeys());
+  }
+
+  @Test
+  public void testAlterTable() throws TableNotExistException {
+    tEnv.executeSql("CREATE TABLE tl(id BIGINT) WITH ('oldK'='oldV')");
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("oldK", "oldV");
+
+    // new
+    tEnv.executeSql("ALTER TABLE tl SET('newK'='newV')");
+    properties.put("newK", "newV");
+    Assert.assertEquals(properties, table("tl").properties());
+
+    // update old
+    tEnv.executeSql("ALTER TABLE tl SET('oldK'='oldV2')");
+    properties.put("oldK", "oldV2");
+    Assert.assertEquals(properties, table("tl").properties());
+
+    // remove property
+    CatalogTable catalogTable = catalogTable("tl");
+    properties.remove("oldK");
+    tEnv.getCatalog(tEnv.getCurrentCatalog()).get().alterTable(
+        new ObjectPath(DATABASE, "tl"), catalogTable.copy(properties), false);
+    Assert.assertEquals(properties, table("tl").properties());
+  }
+
+  @Test
+  public void testRelocateTable() {
+    Assume.assumeFalse("HadoopCatalog does not support relocate table", isHadoopCatalog);
+
+    tEnv.executeSql("CREATE TABLE tl(id BIGINT)");
+    tEnv.executeSql("ALTER TABLE tl SET('location'='/tmp/location')");
+    Assert.assertEquals("/tmp/location", table("tl").location());
+  }
+
+  @Test
+  public void testSetCurrentAndCherryPickSnapshotId() {
+    tEnv.executeSql("CREATE TABLE tl(c1 INT, c2 STRING, c3 STRING) PARTITIONED BY (c1)");
+
+    Table table = table("tl");
+
+    DataFile fileA = DataFiles.builder(table.spec())
+        .withPath("/path/to/data-a.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("c1=0") // easy way to set partition data for now
+        .withRecordCount(1)
+        .build();
+    DataFile fileB = DataFiles.builder(table.spec())
+        .withPath("/path/to/data-b.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("c1=1") // easy way to set partition data for now
+        .withRecordCount(1)
+        .build();
+    DataFile replacementFile = DataFiles.builder(table.spec())
+        .withPath("/path/to/data-a-replacement.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("c1=0") // easy way to set partition data for now
+        .withRecordCount(1)
+        .build();
+
+    table.newAppend()
+        .appendFile(fileA)
+        .commit();
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    // stage an overwrite that replaces FILE_A
+    table.newReplacePartitions()
+        .addFile(replacementFile)
+        .stageOnly()
+        .commit();
+
+    Snapshot staged = Iterables.getLast(table.snapshots());
+    Assert.assertEquals("Should find the staged overwrite snapshot", DataOperations.OVERWRITE, staged.operation());
+
+    // add another append so that the original commit can't be fast-forwarded
+    table.newAppend()
+        .appendFile(fileB)
+        .commit();
+
+    // test cherry pick
+    tEnv.executeSql(String.format("ALTER TABLE tl SET('cherry-pick-snapshot-id'='%s')", staged.snapshotId()));
+    validateTableFiles(table, fileB, replacementFile);
+
+    // test set current snapshot
+    tEnv.executeSql(String.format("ALTER TABLE tl SET('current-snapshot-id'='%s')", snapshotId));
+    validateTableFiles(table, fileA);
+  }
+
+  private void validateTableFiles(Table tbl, DataFile... expectedFiles) {
+    tbl.refresh();
+    Set<CharSequence> expectedFilePaths = Arrays.stream(expectedFiles).map(DataFile::path).collect(Collectors.toSet());
+    Set<CharSequence> actualFilePaths = StreamSupport.stream(tbl.newScan().planFiles().spliterator(), false)
+        .map(FileScanTask::file).map(ContentFile::path)
+        .collect(Collectors.toSet());
+    Assert.assertEquals("Files should match", expectedFilePaths, actualFilePaths);
+  }
+
+  private Table table(String name) {
+    return validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, name));
+  }
+
+  private CatalogTable catalogTable(String name) throws TableNotExistException {
+    return (CatalogTable) tEnv.getCatalog(tEnv.getCurrentCatalog()).get().getTable(new ObjectPath(DATABASE, name));
   }
 }

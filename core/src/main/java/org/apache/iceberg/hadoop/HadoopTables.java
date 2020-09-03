@@ -46,12 +46,15 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Implementation of Iceberg tables that uses the Hadoop FileSystem
  * to store metadata and manifests.
  */
 public class HadoopTables implements Tables, Configurable {
+  private static final Logger LOG = LoggerFactory.getLogger(HadoopTables.class);
   private static final String METADATA_JSON = "metadata.json";
   private Configuration conf;
 
@@ -71,20 +74,24 @@ public class HadoopTables implements Tables, Configurable {
    */
   @Override
   public Table load(String location) {
+    Table result;
     Pair<String, MetadataTableType> parsedMetadataType = parseMetadataType(location);
 
     if (parsedMetadataType != null) {
       // Load a metadata table
-      return loadMetadataTable(parsedMetadataType.first(), parsedMetadataType.second());
+      result = loadMetadataTable(parsedMetadataType.first(), parsedMetadataType.second());
     } else {
       // Load a normal table
       TableOperations ops = newTableOps(location);
       if (ops.current() != null) {
-        return new BaseTable(ops, location);
+        result = new BaseTable(ops, location);
       } else {
         throw new NoSuchTableException("Table does not exist at location: " + location);
       }
     }
+
+    LOG.info("Table location loaded: {}", result.location());
+    return result;
   }
 
   /**

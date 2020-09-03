@@ -98,6 +98,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   }
 
   @Override
+  protected String tableName() {
+    return fullName;
+  }
+
+  @Override
   public FileIO io() {
     if (fileIO == null) {
       fileIO = new HadoopFileIO(conf);
@@ -143,9 +148,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       // TODO add lock heart beating for cases where default lock timeout is too low.
       Table tbl;
       if (base != null) {
+        LOG.debug("Committing existing table: {}", fullName);
         tbl = metaClients.run(client -> client.getTable(database, tableName));
         tbl.setSd(storageDescriptor(metadata)); // set to pickup any schema changes
       } else {
+        LOG.debug("Committing new table: {}", fullName);
         final long currentTimeMillis = System.currentTimeMillis();
         tbl = new Table(tableName,
             database,
