@@ -107,7 +107,8 @@ abstract class BaseTableScan implements TableScan {
       boolean ignoreResiduals, boolean caseSensitive, boolean colStats);
 
   /**
-   * If this is a data table scan, all of the filter columns are required.
+   * The {@link #filter(Expression)} is based on the table records. So the data table scan need select all of the
+   * filter columns, other scans don't need to.
    */
   protected boolean isDataTableScan() {
     return false;
