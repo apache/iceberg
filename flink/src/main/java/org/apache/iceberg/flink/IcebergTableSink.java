@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.flink;
 
+import java.util.Map;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
@@ -33,11 +34,7 @@ import org.apache.flink.util.Preconditions;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.flink.sink.FlinkSink;
 
-/**
- * TODO we will need to implement the {@link PartitionableTableSink} if pull request #1393 get merged, that pr is the
- * dependency because we need to get the partition keys from the catalog table.
- */
-public class IcebergTableSink implements AppendStreamTableSink<RowData>, OverwritableTableSink {
+public class IcebergTableSink implements AppendStreamTableSink<RowData>, OverwritableTableSink, PartitionableTableSink {
   private final boolean isBounded;
   private final TableLoader tableLoader;
   private final Configuration hadoopConf;
@@ -84,5 +81,10 @@ public class IcebergTableSink implements AppendStreamTableSink<RowData>, Overwri
   @Override
   public void setOverwrite(boolean overwrite) {
     this.overwrite = overwrite;
+  }
+
+  @Override
+  public void setStaticPartition(Map<String, String> partitions) {
+    // The flink's PartitionFanoutWriter will handle the static partition write policy automatically.
   }
 }

@@ -175,7 +175,7 @@ public class FlinkSink {
         try (TableLoader loader = tableLoader) {
           this.table = loader.loadTable();
         } catch (IOException e) {
-          throw new UncheckedIOException("Failed to load iceberg table.", e);
+          throw new UncheckedIOException("Failed to load iceberg table from table loader: " + tableLoader, e);
         }
       }
 

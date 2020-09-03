@@ -24,6 +24,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hive.HiveCatalog;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
  * Serializable loader to load an Iceberg {@link Catalog}.
@@ -33,10 +34,59 @@ public interface CatalogLoader extends Serializable {
   Catalog loadCatalog(Configuration hadoopConf);
 
   static CatalogLoader hadoop(String name, String warehouseLocation) {
-    return conf -> new HadoopCatalog(name, conf, warehouseLocation);
+    return new HadoopCatalogLoader(name, warehouseLocation);
   }
 
   static CatalogLoader hive(String name, String uri, int clientPoolSize) {
-    return conf -> new HiveCatalog(name, uri, clientPoolSize, conf);
+    return new HiveCatalogLoader(name, uri, clientPoolSize);
+  }
+
+  class HadoopCatalogLoader implements CatalogLoader {
+    private final String catalogName;
+    private final String warehouseLocation;
+
+    private HadoopCatalogLoader(String catalogName, String warehouseLocation) {
+      this.catalogName = catalogName;
+      this.warehouseLocation = warehouseLocation;
+    }
+
+    @Override
+    public Catalog loadCatalog(Configuration hadoopConf) {
+      return new HadoopCatalog(catalogName, hadoopConf, warehouseLocation);
+    }
+
+    @Override
+    public String toString() {
+      return MoreObjects.toStringHelper(this)
+          .add("catalogName", catalogName)
+          .add("warehouseLocation", warehouseLocation)
+          .toString();
+    }
+  }
+
+  class HiveCatalogLoader implements CatalogLoader {
+    private final String catalogName;
+    private final String uri;
+    private final int clientPoolSize;
+
+    private HiveCatalogLoader(String catalogName, String uri, int clientPoolSize) {
+      this.catalogName = catalogName;
+      this.uri = uri;
+      this.clientPoolSize = clientPoolSize;
+    }
+
+    @Override
+    public Catalog loadCatalog(Configuration hadoopConf) {
+      return new HiveCatalog(catalogName, uri, clientPoolSize, hadoopConf);
+    }
+
+    @Override
+    public String toString() {
+      return MoreObjects.toStringHelper(this)
+          .add("catalogName", catalogName)
+          .add("uri", uri)
+          .add("clientPoolSize", clientPoolSize)
+          .toString();
+    }
   }
 }
