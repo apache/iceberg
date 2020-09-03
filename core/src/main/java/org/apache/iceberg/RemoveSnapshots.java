@@ -138,10 +138,13 @@ class RemoveSnapshots implements ExpireSnapshots {
   private TableMetadata internalApply() {
     this.base = ops.refresh();
 
-    return base.removeSnapshotsIf(snapshot ->
+    TableMetadata updateMeta = base.removeSnapshotsIf(snapshot ->
         idsToRemove.contains(snapshot.snapshotId()) ||
         (expireOlderThan != null && snapshot.timestampMillis() < expireOlderThan &&
             !idsToRetain.contains(snapshot.snapshotId())));
+    List<Snapshot> updateSnapshots = updateMeta.snapshots();
+    List<Snapshot> baseSnapshots = base.snapshots();
+    return updateSnapshots.size() != baseSnapshots.size() ? updateMeta : base;
   }
 
   @Override
@@ -156,10 +159,7 @@ class RemoveSnapshots implements ExpireSnapshots {
         .onlyRetryOn(CommitFailedException.class)
         .run(item -> {
           TableMetadata updated = internalApply();
-          // only commit the updated metadata if at least one snapshot was removed
-          if (updated.snapshots().size() != base.snapshots().size()) {
-            ops.commit(base, updated);
-          }
+          ops.commit(base, updated);
         });
     LOG.info("Committed snapshot changes");
 
