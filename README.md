@@ -65,7 +65,7 @@ Iceberg table support is organized in library modules:
 * `iceberg-parquet` is an optional module for working with tables backed by Parquet files
 * `iceberg-arrow` is an optional module for reading Parquet into Arrow memory
 * `iceberg-orc` is an optional module for working with tables backed by ORC files
-* `iceberg-hive` is an implementation of iceberg tables backed by hive metastore thrift client
+* `iceberg-hive-metastore` is an implementation of Iceberg tables backed by the Hive metastore Thrift client
 * `iceberg-data` is an optional module for working with tables directly from JVM applications
 
 This project Iceberg also has modules for adding Iceberg support to processing engines:
