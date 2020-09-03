@@ -23,10 +23,14 @@ import java.io.IOException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
 public class TestMetadataTableScans extends TableTestBase {
@@ -159,11 +163,24 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   @Test
-  public void testDataFilesTableSelection() {
+  public void testDataFilesTableSelection() throws IOException {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
     Table dataFilesTable = new DataFilesTable(table.ops(), table);
 
-    AssertHelpers.assertThrows("FilesTableScan does not support selecting columns, please use project schema.",
-        UnsupportedOperationException.class, () -> dataFilesTable.newScan().select("file_path"));
+    TableScan scan = dataFilesTable.newScan()
+        .filter(Expressions.equal("id", 5))
+        .select("content", "record_count");
+    validateTaskScanResiduals(scan, false);
+    Types.StructType expected = new Schema(
+        optional(134, "content", Types.IntegerType.get(),
+                 "Contents of the file: 0=data, 1=position deletes, 2=equality deletes"),
+        required(103, "record_count", Types.LongType.get(), "Number of records in the file")
+    ).asStruct();
+    Assert.assertEquals(expected, scan.schema().asStruct());
   }
 
   private void validateTaskScanResiduals(TableScan scan, boolean ignoreResiduals) throws IOException {

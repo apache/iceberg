@@ -106,6 +106,13 @@ abstract class BaseTableScan implements TableScan {
       TableOperations ops, Snapshot snapshot, Expression rowFilter,
       boolean ignoreResiduals, boolean caseSensitive, boolean colStats);
 
+  /**
+   * If this is a data table scan, all of the filter columns are required.
+   */
+  protected boolean isDataTableScan() {
+    return false;
+  }
+
   @Override
   public Table table() {
     return table;
@@ -284,27 +291,27 @@ abstract class BaseTableScan implements TableScan {
   private Schema lazyColumnProjection() {
     Collection<String> selectedColumns = context.selectedColumns();
     if (selectedColumns != null) {
-      // select columns only works for data table scans, so it is OK to select on table.schema().
-
       Set<Integer> requiredFieldIds = Sets.newHashSet();
 
-      // all of the filter columns are required
-      requiredFieldIds.addAll(
-          Binder.boundReferences(table.schema().asStruct(),
-              Collections.singletonList(context.rowFilter()), context.caseSensitive()));
+      if (isDataTableScan()) {
+        // all of the filter columns are required
+        requiredFieldIds.addAll(
+            Binder.boundReferences(schema.asStruct(),
+                Collections.singletonList(context.rowFilter()), context.caseSensitive()));
+      }
 
       // all of the projection columns are required
       Set<Integer> selectedIds;
       if (context.caseSensitive()) {
-        selectedIds = TypeUtil.getProjectedIds(table.schema().select(selectedColumns));
+        selectedIds = TypeUtil.getProjectedIds(schema.select(selectedColumns));
       } else {
-        selectedIds = TypeUtil.getProjectedIds(table.schema().caseInsensitiveSelect(selectedColumns));
+        selectedIds = TypeUtil.getProjectedIds(schema.caseInsensitiveSelect(selectedColumns));
       }
       requiredFieldIds.addAll(selectedIds);
 
-      return TypeUtil.select(table.schema(), requiredFieldIds);
-    } else if (context.projectedSchema() != null) {
+      return TypeUtil.select(schema, requiredFieldIds);
 
+    } else if (context.projectedSchema() != null) {
       return context.projectedSchema();
     }
 

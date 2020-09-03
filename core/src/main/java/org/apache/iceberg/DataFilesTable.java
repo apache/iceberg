@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.util.Collection;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
@@ -84,12 +83,6 @@ public class DataFilesTable extends BaseMetadataTable {
     @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
       return new FilesTableScan(ops, table, schema, fileSchema, context);
-    }
-
-    @Override
-    public TableScan select(Collection<String> columns) {
-      throw new UnsupportedOperationException(
-          "FilesTableScan does not support selecting columns, please use project schema.");
     }
 
     @Override

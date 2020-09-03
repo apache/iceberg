@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.util.Collection;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.io.CloseableIterable;
@@ -35,12 +34,6 @@ abstract class BaseAllMetadataTableScan extends BaseTableScan {
 
   BaseAllMetadataTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
     super(ops, table, schema, context);
-  }
-
-  @Override
-  public TableScan select(Collection<String> columns) {
-    throw new UnsupportedOperationException(
-        "AllMetadataTableScan does not support selecting columns, please use project schema.");
   }
 
   @Override

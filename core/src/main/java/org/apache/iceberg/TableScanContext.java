@@ -120,7 +120,7 @@ final class TableScanContext {
   }
 
   TableScanContext selectColumns(Collection<String> columns) {
-    Preconditions.checkState(projectedSchema == null, "Cannot selected columns when project schema is specified.");
+    Preconditions.checkState(projectedSchema == null, "Cannot select columns when projection schema is set");
     return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
         caseSensitive, colStats, null, columns, options, fromSnapshotId, toSnapshotId);
   }
@@ -130,7 +130,7 @@ final class TableScanContext {
   }
 
   TableScanContext project(Schema schema) {
-    Preconditions.checkState(selectedColumns == null, "Cannot project schema when selected columns is specified.");
+    Preconditions.checkState(selectedColumns == null, "Cannot set projection schema when columns are selected");
     return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
         caseSensitive, colStats, schema, null, options, fromSnapshotId, toSnapshotId);
   }

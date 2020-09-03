@@ -94,4 +94,9 @@ public class DataTableScan extends BaseTableScan {
     return ops.current().propertyAsLong(
         TableProperties.SPLIT_SIZE, TableProperties.SPLIT_SIZE_DEFAULT);
   }
+
+  @Override
+  protected boolean isDataTableScan() {
+    return true;
+  }
 }
