@@ -240,7 +240,7 @@ project(':iceberg-flink') {
     compile project(':iceberg-data')
     compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
-    compile project(':iceberg-hive')
+    compile project(':iceberg-hive-metastore')
 
     compileOnly "org.apache.flink:flink-streaming-java_2.12"
     compileOnly "org.apache.flink:flink-streaming-java_2.12::tests"
@@ -261,7 +261,7 @@ project(':iceberg-flink') {
       exclude group: "org.apache.curator", module: 'curator-test'
     }
 
-    testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
 
@@ -299,7 +299,7 @@ project(':iceberg-flink') {
   }
 }
 
-project(':iceberg-hive') {
+project(':iceberg-hive-metastore') {
   dependencies {
     compile project(':iceberg-core')
 
@@ -373,7 +373,7 @@ project(':iceberg-mr') {
     compile project(':iceberg-api')
     compile project(':iceberg-core')
     compile project(':iceberg-data')
-    compile project(':iceberg-hive')
+    compile project(':iceberg-hive-metastore')
     compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
 
@@ -398,7 +398,7 @@ project(':iceberg-mr') {
     testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
-    testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
 
     testCompile("org.apache.avro:avro:1.9.2")
     testCompile("org.apache.calcite:calcite-core")
@@ -549,7 +549,7 @@ project(':iceberg-spark') {
     compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
     compile project(':iceberg-arrow')
-    compile project(':iceberg-hive')
+    compile project(':iceberg-hive-metastore')
     compile project(':iceberg-arrow')
 
     compileOnly "org.apache.avro:avro"
@@ -562,7 +562,7 @@ project(':iceberg-spark') {
     testCompile("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
-    testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
   }
@@ -603,7 +603,7 @@ if (jdkVersion == '8') {
       compile project(':iceberg-orc')
       compile project(':iceberg-parquet')
       compile project(':iceberg-arrow')
-      compile project(':iceberg-hive')
+      compile project(':iceberg-hive-metastore')
       compile project(':iceberg-spark')
 
       compileOnly "org.apache.avro:avro"
@@ -618,7 +618,7 @@ if (jdkVersion == '8') {
       testCompile("org.apache.hadoop:hadoop-minicluster") {
         exclude group: 'org.apache.avro', module: 'avro'
       }
-      testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
+      testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
       testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     }
 
@@ -709,7 +709,7 @@ project(':iceberg-spark3') {
     compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
     compile project(':iceberg-arrow')
-    compile project(':iceberg-hive')
+    compile project(':iceberg-hive-metastore')
     compile project(':iceberg-spark')
 
     compileOnly "org.apache.avro:avro"
@@ -725,7 +725,7 @@ project(':iceberg-spark3') {
     testCompile("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
-    testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
 
