@@ -33,9 +33,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.iceberg.BaseMetastoreCatalog;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
@@ -155,13 +153,6 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     }
 
     return Lists.newArrayList(tblIdents);
-  }
-
-  @Override
-  public Table createTable(
-      TableIdentifier identifier, Schema schema, PartitionSpec spec, String location, Map<String, String> properties) {
-    Preconditions.checkArgument(location == null, "Cannot set a custom location for a path-based table");
-    return super.createTable(identifier, schema, spec, null, properties);
   }
 
   @Override
@@ -332,5 +323,22 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
         .add("name", catalogName)
         .add("location", warehouseLocation)
         .toString();
+  }
+
+  @Override
+  public TableBuilder buildTable(TableIdentifier identifier, Schema schema) {
+    return new HadoopCatalogTableBuilder(identifier, schema);
+  }
+
+  private class HadoopCatalogTableBuilder extends BaseMetastoreCatalogTableBuilder {
+    private HadoopCatalogTableBuilder(TableIdentifier identifier, Schema schema) {
+      super(identifier, schema);
+    }
+
+    @Override
+    public TableBuilder withLocation(String location) {
+      Preconditions.checkArgument(location == null, "Cannot set a custom location for a path-based table");
+      return this;
+    }
   }
 }

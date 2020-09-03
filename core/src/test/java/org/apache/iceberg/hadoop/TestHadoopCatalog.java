@@ -43,6 +43,94 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   private static ImmutableMap<String, String> meta = ImmutableMap.of();
 
   @Test
+  public void testCreateTableBuilder() throws Exception {
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    Table table = catalog.buildTable(tableIdent, SCHEMA)
+        .withPartitionSpec(SPEC)
+        .withProperties(null)
+        .withProperty("key1", "value1")
+        .withProperties(ImmutableMap.of("key2", "value2"))
+        .create();
+
+    Assert.assertEquals(TABLE_SCHEMA.toString(), table.schema().toString());
+    Assert.assertEquals(1, table.spec().fields().size());
+    Assert.assertEquals("value1", table.properties().get("key1"));
+    Assert.assertEquals("value2", table.properties().get("key2"));
+  }
+
+  @Test
+  public void testCreateTableTxnBuilder() throws Exception {
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    Transaction txn = catalog.buildTable(tableIdent, SCHEMA)
+        .withPartitionSpec(null)
+        .createTransaction();
+    txn.commitTransaction();
+    Table table = catalog.loadTable(tableIdent);
+
+    Assert.assertEquals(TABLE_SCHEMA.toString(), table.schema().toString());
+    Assert.assertTrue(table.spec().isUnpartitioned());
+  }
+
+  @Test
+  public void testReplaceTxnBuilder() throws Exception {
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+
+    Transaction createTxn = catalog.buildTable(tableIdent, SCHEMA)
+        .withPartitionSpec(SPEC)
+        .withProperty("key1", "value1")
+        .createOrReplaceTransaction();
+
+    createTxn.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    createTxn.commitTransaction();
+
+    Table table = catalog.loadTable(tableIdent);
+    Assert.assertNotNull(table.currentSnapshot());
+
+    Transaction replaceTxn = catalog.buildTable(tableIdent, SCHEMA)
+        .withProperty("key2", "value2")
+        .replaceTransaction();
+    replaceTxn.commitTransaction();
+
+    table = catalog.loadTable(tableIdent);
+    Assert.assertNull(table.currentSnapshot());
+    Assert.assertTrue(table.spec().isUnpartitioned());
+    Assert.assertEquals("value1", table.properties().get("key1"));
+    Assert.assertEquals("value2", table.properties().get("key2"));
+  }
+
+  @Test
+  public void testTableBuilderWithLocation() throws Exception {
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+
+    AssertHelpers.assertThrows("Should reject a custom location",
+        IllegalArgumentException.class, "Cannot set a custom location for a path-based table",
+        () -> catalog.buildTable(tableIdent, SCHEMA).withLocation("custom").create());
+
+    AssertHelpers.assertThrows("Should reject a custom location",
+        IllegalArgumentException.class, "Cannot set a custom location for a path-based table",
+        () -> catalog.buildTable(tableIdent, SCHEMA).withLocation("custom").createTransaction());
+
+    AssertHelpers.assertThrows("Should reject a custom location",
+        IllegalArgumentException.class, "Cannot set a custom location for a path-based table",
+        () -> catalog.buildTable(tableIdent, SCHEMA).withLocation("custom").createOrReplaceTransaction());
+  }
+
+  @Test
   public void testBasicCatalog() throws Exception {
     Configuration conf = new Configuration();
     String warehousePath = temp.newFolder().getAbsolutePath();

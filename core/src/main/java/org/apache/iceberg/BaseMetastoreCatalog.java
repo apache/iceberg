@@ -31,9 +31,9 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -50,30 +50,12 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       PartitionSpec spec,
       String location,
       Map<String, String> properties) {
-    Preconditions.checkArgument(isValidIdentifier(identifier), "Invalid table identifier: %s", identifier);
 
-    TableOperations ops = newTableOps(identifier);
-    if (ops.current() != null) {
-      throw new AlreadyExistsException("Table already exists: " + identifier);
-    }
-
-    String baseLocation;
-    if (location != null) {
-      baseLocation = location;
-    } else {
-      baseLocation = defaultWarehouseLocation(identifier);
-    }
-
-    TableMetadata metadata = TableMetadata.newTableMetadata(
-        schema, spec, baseLocation, properties == null ? Maps.newHashMap() : properties);
-
-    try {
-      ops.commit(null, metadata);
-    } catch (CommitFailedException ignored) {
-      throw new AlreadyExistsException("Table was created concurrently: " + identifier);
-    }
-
-    return new BaseTable(ops, fullTableName(name(), identifier));
+    return buildTable(identifier, schema)
+        .withPartitionSpec(spec)
+        .withLocation(location)
+        .withProperties(properties)
+        .create();
   }
 
   @Override
@@ -83,17 +65,12 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       PartitionSpec spec,
       String location,
       Map<String, String> properties) {
-    Preconditions.checkArgument(isValidIdentifier(identifier), "Invalid table identifier: %s", identifier);
 
-    TableOperations ops = newTableOps(identifier);
-    if (ops.current() != null) {
-      throw new AlreadyExistsException("Table already exists: " + identifier);
-    }
-
-    String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
-    Map<String, String> tableProperties = properties != null ? properties : Maps.newHashMap();
-    TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, baseLocation, tableProperties);
-    return Transactions.createTableTransaction(identifier.toString(), ops, metadata);
+    return buildTable(identifier, schema)
+        .withPartitionSpec(spec)
+        .withLocation(location)
+        .withProperties(properties)
+        .createTransaction();
   }
 
   @Override
@@ -105,26 +82,15 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       Map<String, String> properties,
       boolean orCreate) {
 
-    TableOperations ops = newTableOps(identifier);
-    if (!orCreate && ops.current() == null) {
-      throw new NoSuchTableException("No such table: " + identifier);
-    }
-
-    Map<String, String> tableProperties = properties != null ? properties : Maps.newHashMap();
-
-    TableMetadata metadata;
-    if (ops.current() != null) {
-      String baseLocation = location != null ? location : ops.current().location();
-      metadata = ops.current().buildReplacement(schema, spec, baseLocation, tableProperties);
-    } else {
-      String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
-      metadata = TableMetadata.newTableMetadata(schema, spec, baseLocation, tableProperties);
-    }
+    TableBuilder tableBuilder = buildTable(identifier, schema)
+        .withPartitionSpec(spec)
+        .withLocation(location)
+        .withProperties(properties);
 
     if (orCreate) {
-      return Transactions.createOrReplaceTableTransaction(identifier.toString(), ops, metadata);
+      return tableBuilder.createOrReplaceTransaction();
     } else {
-      return Transactions.replaceTableTransaction(identifier.toString(), ops, metadata);
+      return tableBuilder.replaceTransaction();
     }
   }
 
@@ -155,6 +121,11 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
     LOG.info("Table loaded by catalog: {}", result);
     return result;
+  }
+
+  @Override
+  public TableBuilder buildTable(TableIdentifier identifier, Schema schema) {
+    return new BaseMetastoreCatalogTableBuilder(identifier, schema);
   }
 
   private Table loadMetadataTable(TableIdentifier identifier) {
@@ -217,6 +188,112 @@ public abstract class BaseMetastoreCatalog implements Catalog {
   protected abstract TableOperations newTableOps(TableIdentifier tableIdentifier);
 
   protected abstract String defaultWarehouseLocation(TableIdentifier tableIdentifier);
+
+  protected class BaseMetastoreCatalogTableBuilder implements TableBuilder {
+    private final TableIdentifier identifier;
+    private final Schema schema;
+    private final ImmutableMap.Builder<String, String> propertiesBuilder = ImmutableMap.builder();
+    private PartitionSpec spec = PartitionSpec.unpartitioned();
+    private String location = null;
+
+    public BaseMetastoreCatalogTableBuilder(TableIdentifier identifier, Schema schema) {
+      Preconditions.checkArgument(isValidIdentifier(identifier), "Invalid table identifier: %s", identifier);
+
+      this.identifier = identifier;
+      this.schema = schema;
+    }
+
+    @Override
+    public TableBuilder withPartitionSpec(PartitionSpec newSpec) {
+      this.spec = newSpec != null ? newSpec : PartitionSpec.unpartitioned();
+      return this;
+    }
+
+    @Override
+    public TableBuilder withLocation(String newLocation) {
+      this.location = newLocation;
+      return this;
+    }
+
+    @Override
+    public TableBuilder withProperties(Map<String, String> properties) {
+      if (properties != null) {
+        propertiesBuilder.putAll(properties);
+      }
+      return this;
+    }
+
+    @Override
+    public TableBuilder withProperty(String key, String value) {
+      propertiesBuilder.put(key, value);
+      return this;
+    }
+
+    @Override
+    public Table create() {
+      TableOperations ops = newTableOps(identifier);
+      if (ops.current() != null) {
+        throw new AlreadyExistsException("Table already exists: " + identifier);
+      }
+
+      String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
+      Map<String, String> properties = propertiesBuilder.build();
+      TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, baseLocation, properties);
+
+      try {
+        ops.commit(null, metadata);
+      } catch (CommitFailedException ignored) {
+        throw new AlreadyExistsException("Table was created concurrently: " + identifier);
+      }
+
+      return new BaseTable(ops, fullTableName(name(), identifier));
+    }
+
+    @Override
+    public Transaction createTransaction() {
+      TableOperations ops = newTableOps(identifier);
+      if (ops.current() != null) {
+        throw new AlreadyExistsException("Table already exists: " + identifier);
+      }
+
+      String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
+      Map<String, String> properties = propertiesBuilder.build();
+      TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, baseLocation, properties);
+      return Transactions.createTableTransaction(identifier.toString(), ops, metadata);
+    }
+
+    @Override
+    public Transaction replaceTransaction() {
+      return newReplaceTableTransaction(false);
+    }
+
+    @Override
+    public Transaction createOrReplaceTransaction() {
+      return newReplaceTableTransaction(true);
+    }
+
+    private Transaction newReplaceTableTransaction(boolean orCreate) {
+      TableOperations ops = newTableOps(identifier);
+      if (!orCreate && ops.current() == null) {
+        throw new NoSuchTableException("No such table: " + identifier);
+      }
+
+      TableMetadata metadata;
+      if (ops.current() != null) {
+        String baseLocation = location != null ? location : ops.current().location();
+        metadata = ops.current().buildReplacement(schema, spec, baseLocation, propertiesBuilder.build());
+      } else {
+        String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
+        metadata = TableMetadata.newTableMetadata(schema, spec, baseLocation, propertiesBuilder.build());
+      }
+
+      if (orCreate) {
+        return Transactions.createOrReplaceTableTransaction(identifier.toString(), ops, metadata);
+      } else {
+        return Transactions.replaceTableTransaction(identifier.toString(), ops, metadata);
+      }
+    }
+  }
 
   /**
    * Drops all data and metadata files referenced by TableMetadata.

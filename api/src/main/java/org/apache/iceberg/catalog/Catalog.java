@@ -303,4 +303,83 @@ public interface Catalog {
    * @throws NoSuchTableException if the table does not exist
    */
   Table loadTable(TableIdentifier identifier);
+
+  /**
+   * Instantiate a builder to either create a table or start a create/replace transaction.
+   *
+   * @param identifier a table identifier
+   * @param schema a schema
+   * @return the builder to create a table or start a create/replace transaction
+   */
+  default TableBuilder buildTable(TableIdentifier identifier, Schema schema) {
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement buildTable");
+  }
+
+  /**
+   * A builder used to create valid {@link Table tables} or start create/replace {@link Transaction transactions}.
+   * <p>
+   * Call {@link #buildTable(TableIdentifier, Schema)} to create a new builder.
+   */
+  interface TableBuilder {
+    /**
+     * Sets a partition spec for the table.
+     *
+     * @param spec a partition spec
+     * @return this for method chaining
+     */
+    TableBuilder withPartitionSpec(PartitionSpec spec);
+
+    /**
+     * Sets a location for the table.
+     *
+     * @param location a location
+     * @return this for method chaining
+     */
+    TableBuilder withLocation(String location);
+
+    /**
+     * Adds key/value properties to the table.
+     *
+     * @param properties key/value properties
+     * @return this for method chaining
+     */
+    TableBuilder withProperties(Map<String, String> properties);
+
+    /**
+     * Adds a key/value property to the table.
+     *
+     * @param key   a key
+     * @param value a value
+     * @return this for method chaining
+     */
+    TableBuilder withProperty(String key, String value);
+
+    /**
+     * Creates the table.
+     *
+     * @return the created table
+     */
+    Table create();
+
+    /**
+     * Starts a transaction to create the table.
+     *
+     * @return the {@link Transaction} to create the table
+     */
+    Transaction createTransaction();
+
+    /**
+     * Starts a transaction to replace the table.
+     *
+     * @return the {@link Transaction} to replace the table
+     */
+    Transaction replaceTransaction();
+
+    /**
+     * Starts a transaction to create or replace the table.
+     *
+     * @return the {@link Transaction} to create or replace the table
+     */
+    Transaction createOrReplaceTransaction();
+  }
 }
