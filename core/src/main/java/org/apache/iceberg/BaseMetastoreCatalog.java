@@ -205,9 +205,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
     @Override
     public TableBuilder withPartitionSpec(PartitionSpec newSpec) {
-      if (spec != null) {
-        this.spec = newSpec;
-      }
+      this.spec = newSpec != null ? newSpec : PartitionSpec.unpartitioned();
       return this;
     }
 
