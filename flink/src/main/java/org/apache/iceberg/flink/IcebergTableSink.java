@@ -52,7 +52,7 @@ public class IcebergTableSink implements AppendStreamTableSink<RowData>, Overwri
 
   @Override
   public DataStreamSink<?> consumeDataStream(DataStream<RowData> dataStream) {
-    Preconditions.checkState(!overwrite || isBounded, "Unbounded data stream don't support overwrite operation.");
+    Preconditions.checkState(!overwrite || isBounded, "Unbounded data stream doesn't support overwrite operation.");
 
     return FlinkSink.forRowData(dataStream)
         .tableLoader(tableLoader)

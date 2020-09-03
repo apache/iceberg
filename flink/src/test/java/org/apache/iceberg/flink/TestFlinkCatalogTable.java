@@ -108,7 +108,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
   @Test
   public void testCreateTable() throws TableNotExistException {
-    getTableEnv().executeSql("CREATE TABLE tl(id BIGINT)");
+    sql("CREATE TABLE tl(id BIGINT)");
 
     Table table = table("tl");
     Assert.assertEquals(
@@ -125,7 +125,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
   public void testCreateTableLocation() {
     Assume.assumeFalse("HadoopCatalog does not support creating table with location", isHadoopCatalog);
 
-    getTableEnv().executeSql("CREATE TABLE tl(id BIGINT) WITH ('location'='/tmp/location')");
+    sql("CREATE TABLE tl(id BIGINT) WITH ('location'='/tmp/location')");
 
     Table table = table("tl");
     Assert.assertEquals(
@@ -137,7 +137,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
   @Test
   public void testCreatePartitionTable() throws TableNotExistException {
-    getTableEnv().executeSql("CREATE TABLE tl(id BIGINT, dt STRING) PARTITIONED BY(dt)");
+    sql("CREATE TABLE tl(id BIGINT, dt STRING) PARTITIONED BY(dt)");
 
     Table table = table("tl");
     Assert.assertEquals(
@@ -173,17 +173,17 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
   @Test
   public void testAlterTable() throws TableNotExistException {
-    getTableEnv().executeSql("CREATE TABLE tl(id BIGINT) WITH ('oldK'='oldV')");
+    sql("CREATE TABLE tl(id BIGINT) WITH ('oldK'='oldV')");
     Map<String, String> properties = Maps.newHashMap();
     properties.put("oldK", "oldV");
 
     // new
-    getTableEnv().executeSql("ALTER TABLE tl SET('newK'='newV')");
+    sql("ALTER TABLE tl SET('newK'='newV')");
     properties.put("newK", "newV");
     Assert.assertEquals(properties, table("tl").properties());
 
     // update old
-    getTableEnv().executeSql("ALTER TABLE tl SET('oldK'='oldV2')");
+    sql("ALTER TABLE tl SET('oldK'='oldV2')");
     properties.put("oldK", "oldV2");
     Assert.assertEquals(properties, table("tl").properties());
 
@@ -199,14 +199,14 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
   public void testRelocateTable() {
     Assume.assumeFalse("HadoopCatalog does not support relocate table", isHadoopCatalog);
 
-    getTableEnv().executeSql("CREATE TABLE tl(id BIGINT)");
-    getTableEnv().executeSql("ALTER TABLE tl SET('location'='/tmp/location')");
+    sql("CREATE TABLE tl(id BIGINT)");
+    sql("ALTER TABLE tl SET('location'='/tmp/location')");
     Assert.assertEquals("/tmp/location", table("tl").location());
   }
 
   @Test
   public void testSetCurrentAndCherryPickSnapshotId() {
-    getTableEnv().executeSql("CREATE TABLE tl(c1 INT, c2 STRING, c3 STRING) PARTITIONED BY (c1)");
+    sql("CREATE TABLE tl(c1 INT, c2 STRING, c3 STRING) PARTITIONED BY (c1)");
 
     Table table = table("tl");
 
@@ -249,11 +249,11 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         .commit();
 
     // test cherry pick
-    getTableEnv().executeSql(String.format("ALTER TABLE tl SET('cherry-pick-snapshot-id'='%s')", staged.snapshotId()));
+    sql("ALTER TABLE tl SET('cherry-pick-snapshot-id'='%s')", staged.snapshotId());
     validateTableFiles(table, fileB, replacementFile);
 
     // test set current snapshot
-    getTableEnv().executeSql(String.format("ALTER TABLE tl SET('current-snapshot-id'='%s')", snapshotId));
+    sql("ALTER TABLE tl SET('current-snapshot-id'='%s')", snapshotId);
     validateTableFiles(table, fileA);
   }
 

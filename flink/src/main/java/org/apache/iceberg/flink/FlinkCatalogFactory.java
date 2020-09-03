@@ -66,7 +66,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
    * @param options Flink's catalog options
    * @return an Iceberg catalog loader
    */
-  static CatalogLoader createCatalogLoader(String name, Map<String, String> options) {
+  protected CatalogLoader createCatalogLoader(String name, Map<String, String> options) {
     String catalogType = options.getOrDefault(ICEBERG_CATALOG_TYPE, "hive");
     switch (catalogType) {
       case "hive":
