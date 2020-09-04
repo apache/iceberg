@@ -208,7 +208,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
     keptManifests.clear();
     currentManifests.stream()
         .filter(manifest -> !rewrittenManifests.contains(manifest) && !deletedManifests.contains(manifest))
-        .forEach(manifest -> keptManifests.add(manifest));
+        .forEach(keptManifests::add);
   }
 
   private void reset() {
@@ -247,7 +247,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests> imp
             }
           });
     } finally {
-      Tasks.foreach(writers.values()).executeWith(ThreadPools.getWorkerPool()).run(writer -> writer.close());
+      Tasks.foreach(writers.values()).executeWith(ThreadPools.getWorkerPool()).run(WriterWrapper::close);
     }
   }
 

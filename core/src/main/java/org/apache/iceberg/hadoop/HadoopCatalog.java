@@ -246,7 +246,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     try {
       return Stream.of(fs.listStatus(nsPath))
         .map(FileStatus::getPath)
-        .filter(path -> isNamespace(path))
+        .filter(this::isNamespace)
         .map(path -> append(namespace, path.getName()))
         .collect(Collectors.toList());
     } catch (IOException ioe) {

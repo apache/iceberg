@@ -150,7 +150,7 @@ class Writer implements DataSourceWriter {
     }
 
     if (!extraSnapshotMetadata.isEmpty()) {
-      extraSnapshotMetadata.forEach((key, value) -> operation.set(key, value));
+      extraSnapshotMetadata.forEach(operation::set);
     }
 
     if (isWapTable() && wapId != null) {
