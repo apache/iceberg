@@ -133,7 +133,7 @@ public class MappingUtil {
       }
 
       ImmutableMap.Builder<String, Integer> builder = ImmutableMap.builder();
-      fieldsToAdd.stream().forEach(field -> builder.put(field.name(), field.fieldId()));
+      fieldsToAdd.forEach(field -> builder.put(field.name(), field.fieldId()));
       Map<String, Integer> assignments = builder.build();
 
       // create a copy of fields that can be updated (append new fields, replace existing for reassignment)
