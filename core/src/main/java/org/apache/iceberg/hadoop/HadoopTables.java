@@ -96,7 +96,7 @@ public class HadoopTables implements Tables, Configurable {
    */
   private Pair<String, MetadataTableType> parseMetadataType(String location) {
     int hashIndex = location.lastIndexOf('#');
-    if (hashIndex != -1 & !location.endsWith("#")) {
+    if (hashIndex != -1 && !location.endsWith("#")) {
       String baseTable = location.substring(0, hashIndex);
       String metaTable = location.substring(hashIndex + 1);
       MetadataTableType type = MetadataTableType.from(metaTable);
