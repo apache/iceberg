@@ -56,7 +56,7 @@ import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE_DEFAULT;
 
 /**
- * A mirco-batch based Spark Structured Streaming reader for Iceberg table. It will track the added
+ * A micro-batch based Spark Structured Streaming reader for Iceberg table. It will track the added
  * files and generate tasks per batch to process newly added files. By default it will process
  * all the newly added files to the current snapshot in each batch, user could also set this
  * configuration "max-files-per-trigger" to control the number of files processed per batch.
