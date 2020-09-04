@@ -72,21 +72,21 @@ public class PartitionSpec implements Serializable {
   }
 
   /**
-   * @return the {@link Schema} for this spec.
+   * Returns the {@link Schema} for this spec.
    */
   public Schema schema() {
     return schema;
   }
 
   /**
-   * @return the ID of this spec
+   * Returns the ID of this spec.
    */
   public int specId() {
     return specId;
   }
 
   /**
-   * @return the list of {@link PartitionField partition fields} for this spec.
+   * Returns the list of {@link PartitionField partition fields} for this spec.
    */
   public List<PartitionField> fields() {
     return lazyFieldList();
@@ -101,6 +101,8 @@ public class PartitionSpec implements Serializable {
   }
 
   /**
+   * Returns the {@link PartitionField field} that partitions the given source field
+   *
    * @param fieldId a field id from the source schema
    * @return the {@link PartitionField field} that partitions the given source field
    */
@@ -109,7 +111,7 @@ public class PartitionSpec implements Serializable {
   }
 
   /**
-   * @return a {@link StructType} for partition data defined by this spec.
+   * Returns a {@link StructType} for partition data defined by this spec.
    */
   public StructType partitionType() {
     List<Types.NestedField> structFields = Lists.newArrayListWithExpectedSize(fields.length);

@@ -40,28 +40,28 @@ public class PartitionField implements Serializable {
   }
 
   /**
-   * @return the field id of the source field in the {@link PartitionSpec spec's} table schema
+   * Returns the field id of the source field in the {@link PartitionSpec spec's} table schema.
    */
   public int sourceId() {
     return sourceId;
   }
 
   /**
-   * @return the partition field id across all the table metadata's partition specs
+   * Returns the partition field id across all the table metadata's partition specs.
    */
   public int fieldId() {
     return fieldId;
   }
 
   /**
-   * @return the name of this partition field
+   * Returns the name of this partition field.
    */
   public String name() {
     return name;
   }
 
   /**
-   * @return the transform used to produce partition values from source values
+   * Returns the transform used to produce partition values from source values.
    */
   public Transform<?, ?> transform() {
     return transform;

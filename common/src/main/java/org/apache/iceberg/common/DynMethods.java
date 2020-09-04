@@ -102,14 +102,14 @@ public class DynMethods {
     }
 
     /**
-     * @return whether the method is a static method
+     * Returns whether the method is a static method.
      */
     public boolean isStatic() {
       return Modifier.isStatic(method.getModifiers());
     }
 
     /**
-     * @return whether the method is a noop
+     * Returns whether the method is a noop.
      */
     public boolean isNoop() {
       return this == NOOP;

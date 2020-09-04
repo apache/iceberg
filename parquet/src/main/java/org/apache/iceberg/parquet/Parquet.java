@@ -694,6 +694,8 @@ public class Parquet {
   }
 
   /**
+   * Combines several files into one
+   *
    * @param inputFiles   an {@link Iterable} of parquet files. The order of iteration determines the order in which
    *                     content of files are read and written to the @param outputFile
    * @param outputFile   the output parquet file containing all the data from @param inputFiles

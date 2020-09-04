@@ -23,6 +23,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FilterIterator;
 
 /**
+ * A Class for generic filters
  *
  * @param <T> the type of objects filtered by this Filter
  */
