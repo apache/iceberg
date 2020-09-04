@@ -106,14 +106,6 @@ abstract class BaseTableScan implements TableScan {
       TableOperations ops, Snapshot snapshot, Expression rowFilter,
       boolean ignoreResiduals, boolean caseSensitive, boolean colStats);
 
-  /**
-   * The {@link #filter(Expression)} is based on the table records. So the data table scan need select all of the
-   * filter columns, other scans don't need to.
-   */
-  protected boolean isDataTableScan() {
-    return false;
-  }
-
   @Override
   public Table table() {
     return table;
@@ -294,12 +286,10 @@ abstract class BaseTableScan implements TableScan {
     if (selectedColumns != null) {
       Set<Integer> requiredFieldIds = Sets.newHashSet();
 
-      if (isDataTableScan()) {
-        // all of the filter columns are required
-        requiredFieldIds.addAll(
-            Binder.boundReferences(schema.asStruct(),
-                Collections.singletonList(context.rowFilter()), context.caseSensitive()));
-      }
+      // all of the filter columns are required
+      requiredFieldIds.addAll(
+          Binder.boundReferences(schema.asStruct(),
+              Collections.singletonList(context.rowFilter()), context.caseSensitive()));
 
       // all of the projection columns are required
       Set<Integer> selectedIds;
