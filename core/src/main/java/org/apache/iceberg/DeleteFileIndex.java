@@ -361,7 +361,7 @@ class DeleteFileIndex {
                 deleteEntries.add(entry.copy());
               }
             } catch (IOException e) {
-              throw new RuntimeIOException("Failed to close", e);
+              throw new RuntimeIOException(e, "Failed to close");
             }
           });
 

@@ -135,12 +135,12 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       TableIdentifier baseTableIdentifier = TableIdentifier.of(identifier.namespace().levels());
       TableOperations ops = newTableOps(baseTableIdentifier);
       if (ops.current() == null) {
-        throw new NoSuchTableException("Table does not exist: " + baseTableIdentifier);
+        throw new NoSuchTableException("Table does not exist: %s", baseTableIdentifier);
       }
 
       return MetadataTableUtils.createMetadataTableInstance(ops, baseTableIdentifier, type);
     } else {
-      throw new NoSuchTableException("Table does not exist: " + identifier);
+      throw new NoSuchTableException("Table does not exist: %s", identifier);
     }
   }
 
@@ -216,7 +216,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     public Table create() {
       TableOperations ops = newTableOps(identifier);
       if (ops.current() != null) {
-        throw new AlreadyExistsException("Table already exists: " + identifier);
+        throw new AlreadyExistsException("Table already exists: %s", identifier);
       }
 
       String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
@@ -226,7 +226,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
       try {
         ops.commit(null, metadata);
       } catch (CommitFailedException ignored) {
-        throw new AlreadyExistsException("Table was created concurrently: " + identifier);
+        throw new AlreadyExistsException("Table was created concurrently: %s", identifier);
       }
 
       return new BaseTable(ops, fullTableName(name(), identifier));
@@ -236,7 +236,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     public Transaction createTransaction() {
       TableOperations ops = newTableOps(identifier);
       if (ops.current() != null) {
-        throw new AlreadyExistsException("Table already exists: " + identifier);
+        throw new AlreadyExistsException("Table already exists: %s", identifier);
       }
 
       String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
@@ -258,7 +258,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     private Transaction newReplaceTableTransaction(boolean orCreate) {
       TableOperations ops = newTableOps(identifier);
       if (!orCreate && ops.current() == null) {
-        throw new NoSuchTableException("No such table: " + identifier);
+        throw new NoSuchTableException("No such table: %s", identifier);
       }
 
       TableMetadata metadata;
@@ -351,7 +351,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
               }
             }
           } catch (IOException e) {
-            throw new RuntimeIOException(e, "Failed to read manifest file: " + manifest.path());
+            throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest.path());
           }
         });
   }

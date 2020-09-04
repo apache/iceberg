@@ -86,7 +86,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
         batch.reset();
       }
     } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Problem writing to ORC file " + file.location());
+      throw new RuntimeIOException(ioe, "Problem writing to ORC file %s", file.location());
     }
   }
 
@@ -138,7 +138,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
     try {
       writer = OrcFile.createWriter(locPath, options);
     } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Can't create file " + locPath);
+      throw new RuntimeIOException(ioe, "Can't create file %s", locPath);
     }
 
     metadata.forEach((key, value) -> writer.addUserMetadata(key, ByteBuffer.wrap(value)));

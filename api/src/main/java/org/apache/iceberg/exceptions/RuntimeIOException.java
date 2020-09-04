@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.exceptions;
 
+import com.google.errorprone.annotations.FormatMethod;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 
@@ -34,10 +35,12 @@ public class RuntimeIOException extends UncheckedIOException {
     super(cause);
   }
 
+  @FormatMethod
   public RuntimeIOException(IOException cause, String message, Object... args) {
     super(String.format(message, args), cause);
   }
 
+  @FormatMethod
   public RuntimeIOException(String message, Object...args) {
     super(new IOException(String.format(message, args)));
   }

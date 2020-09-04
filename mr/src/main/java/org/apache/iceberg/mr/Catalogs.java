@@ -107,7 +107,7 @@ public final class Catalogs {
           LOG.info("Loaded Hive Metastore catalog {}", catalog);
           return Optional.of(catalog);
         default:
-          throw new NoSuchNamespaceException("Catalog " + catalogName + " is not supported.");
+          throw new NoSuchNamespaceException("Catalog %s is not supported.", catalogName);
       }
     }
 

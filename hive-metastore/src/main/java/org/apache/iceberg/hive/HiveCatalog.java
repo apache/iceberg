@@ -277,7 +277,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
       return true;
 
     } catch (InvalidOperationException e) {
-      throw new NamespaceNotEmptyException("Namespace " + namespace + " is not empty. One or more tables exist.", e);
+      throw new NamespaceNotEmptyException(e, "Namespace %s is not empty. One or more tables exist.", namespace);
 
     } catch (NoSuchObjectException e) {
       return false;
