@@ -40,7 +40,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 /**
- * A sort order that defines how data files should be ordered in a table.
+ * A sort order that defines how data and delete files should be ordered in a table.
  */
 public class SortOrder implements Serializable {
   private static final SortOrder UNSORTED_ORDER = new SortOrder(new Schema(), 0, Collections.emptyList());

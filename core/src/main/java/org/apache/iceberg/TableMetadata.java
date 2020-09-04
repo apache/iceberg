@@ -658,7 +658,7 @@ public class TableMetadata implements Serializable {
     int freshSortOrderId = updatedSortOrder.isUnsorted() ? updatedSortOrder.orderId() : nextOrderId;
     SortOrder freshSortOrder = freshSortOrder(freshSortOrderId, freshSchema, updatedSortOrder);
 
-    // if the order already exists, use the same ID. otherwise, use 1 more than the highest ID.
+    // if the order already exists, use the same ID. otherwise, use the fresh order ID
     Optional<SortOrder> sameSortOrder = sortOrders.stream()
         .filter(sortOrder -> sortOrder.sameOrder(freshSortOrder))
         .findAny();

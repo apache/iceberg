@@ -625,7 +625,6 @@ public class Parquet {
         // Parquet should allow setting a filter inside its read support
         MessageType type;
         try (ParquetFileReader schemaReader = ParquetFileReader.open(ParquetIO.file(file))) {
-
           type = schemaReader.getFileMetaData().getSchema();
         } catch (IOException e) {
           throw new RuntimeIOException(e);

@@ -35,7 +35,7 @@ public class SortOrderParser {
   private static final String ORDER_ID = "order-id";
   private static final String FIELDS = "fields";
   private static final String DIRECTION = "direction";
-  private static final String NULL_ORDERING = "null-order";
+  private static final String NULL_ORDER = "null-order";
   private static final String TRANSFORM = "transform";
   private static final String SOURCE_ID = "source-id";
 
@@ -65,7 +65,7 @@ public class SortOrderParser {
       generator.writeStringField(TRANSFORM, field.transform().toString());
       generator.writeNumberField(SOURCE_ID, field.sourceId());
       generator.writeStringField(DIRECTION, toJson(field.direction()));
-      generator.writeStringField(NULL_ORDERING, toJson(field.nullOrder()));
+      generator.writeStringField(NULL_ORDER, toJson(field.nullOrder()));
       generator.writeEndObject();
     }
     generator.writeEndArray();
@@ -102,7 +102,7 @@ public class SortOrderParser {
       String directionAsString = JsonUtil.getString(DIRECTION, element);
       SortDirection direction = toDirection(directionAsString);
 
-      String nullOrderingAsString = JsonUtil.getString(NULL_ORDERING, element);
+      String nullOrderingAsString = JsonUtil.getString(NULL_ORDER, element);
       NullOrder nullOrder = toNullOrder(nullOrderingAsString);
 
       builder.addSortField(transform, sourceId, direction, nullOrder);
