@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -328,6 +329,14 @@ public interface Catalog {
      * @return this for method chaining
      */
     TableBuilder withPartitionSpec(PartitionSpec spec);
+
+    /**
+     * Sets a sort order for the table.
+     *
+     * @param sortOrder a sort order
+     * @return this for method chaining
+     */
+    TableBuilder withSortOrder(SortOrder sortOrder);
 
     /**
      * Sets a location for the table.

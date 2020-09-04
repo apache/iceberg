@@ -35,6 +35,7 @@ import java.util.UUID;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -71,6 +72,11 @@ public class TestTableMetadata {
   private static final int LAST_ASSIGNED_COLUMN_ID = 3;
 
   private static final PartitionSpec SPEC_5 = PartitionSpec.builderFor(TEST_SCHEMA).withSpecId(5).build();
+  private static final SortOrder SORT_ORDER_3 = SortOrder.builderFor(TEST_SCHEMA)
+      .withOrderId(3)
+      .asc("y", NullOrder.NULLS_FIRST)
+      .desc(Expressions.bucket("z", 4), NullOrder.NULLS_LAST)
+      .build();
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -95,7 +101,7 @@ public class TestTableMetadata {
 
     TableMetadata expected = new TableMetadata(null, 2, UUID.randomUUID().toString(), TEST_LOCATION,
         SEQ_NO, System.currentTimeMillis(), 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5),
-        ImmutableMap.of("property", "value"), currentSnapshotId,
+        3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), snapshotLog, ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(expected);
@@ -140,6 +146,7 @@ public class TestTableMetadata {
   @Test
   public void testBackwardCompat() throws Exception {
     PartitionSpec spec = PartitionSpec.builderFor(TEST_SCHEMA).identity("x").withSpecId(6).build();
+    SortOrder sortOrder = SortOrder.unsorted();
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
@@ -152,8 +159,8 @@ public class TestTableMetadata {
 
     TableMetadata expected = new TableMetadata(null, 1, null, TEST_LOCATION,
         0, System.currentTimeMillis(), 3, TEST_SCHEMA, 6, ImmutableList.of(spec),
-        ImmutableMap.of("property", "value"), currentSnapshotId,
-        Arrays.asList(previousSnapshot, currentSnapshot), ImmutableList.of(), ImmutableList.of());
+        TableMetadata.INITIAL_SORT_ORDER_ID, ImmutableList.of(sortOrder), ImmutableMap.of("property", "value"),
+        currentSnapshotId, Arrays.asList(previousSnapshot, currentSnapshot), ImmutableList.of(), ImmutableList.of());
 
     String asJson = toJsonWithoutSpecList(expected);
     TableMetadata metadata = TableMetadataParser
@@ -262,7 +269,7 @@ public class TestTableMetadata {
 
     TableMetadata base = new TableMetadata(null, 1, UUID.randomUUID().toString(), TEST_LOCATION,
         0, System.currentTimeMillis(), 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5),
-        ImmutableMap.of("property", "value"), currentSnapshotId,
+        3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
 
@@ -297,7 +304,7 @@ public class TestTableMetadata {
 
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
         TEST_LOCATION, 0, currentTimestamp - 80, 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5),
-        ImmutableMap.of("property", "value"), currentSnapshotId,
+        3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
 
@@ -342,7 +349,8 @@ public class TestTableMetadata {
 
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
         TEST_LOCATION, 0, currentTimestamp - 50, 3, TEST_SCHEMA, 5,
-        ImmutableList.of(SPEC_5), ImmutableMap.of("property", "value"), currentSnapshotId,
+        ImmutableList.of(SPEC_5), 3, ImmutableList.of(SORT_ORDER_3),
+        ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
 
@@ -392,7 +400,8 @@ public class TestTableMetadata {
 
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
         TEST_LOCATION, 0, currentTimestamp - 50, 3, TEST_SCHEMA, 2,
-        ImmutableList.of(SPEC_5), ImmutableMap.of("property", "value"), currentSnapshotId,
+        ImmutableList.of(SPEC_5), TableMetadata.INITIAL_SORT_ORDER_ID, ImmutableList.of(SortOrder.unsorted()),
+        ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
 
@@ -417,7 +426,8 @@ public class TestTableMetadata {
     AssertHelpers.assertThrows("Should reject v2 metadata without a UUID",
         IllegalArgumentException.class, "UUID is required in format v2",
         () -> new TableMetadata(null, 2, null, TEST_LOCATION, SEQ_NO, System.currentTimeMillis(),
-            LAST_ASSIGNED_COLUMN_ID, TEST_SCHEMA, SPEC_5.specId(), ImmutableList.of(SPEC_5), ImmutableMap.of(), -1L,
+            LAST_ASSIGNED_COLUMN_ID, TEST_SCHEMA, SPEC_5.specId(), ImmutableList.of(SPEC_5),
+            3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of(), -1L,
             ImmutableList.of(), ImmutableList.of(), ImmutableList.of())
     );
   }
@@ -429,7 +439,8 @@ public class TestTableMetadata {
         IllegalArgumentException.class, "Unsupported format version: v" + unsupportedVersion,
         () -> new TableMetadata(null, unsupportedVersion, null, TEST_LOCATION, SEQ_NO,
             System.currentTimeMillis(), LAST_ASSIGNED_COLUMN_ID, TEST_SCHEMA, SPEC_5.specId(), ImmutableList.of(SPEC_5),
-            ImmutableMap.of(), -1L, ImmutableList.of(), ImmutableList.of(), ImmutableList.of())
+            3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of(), -1L,
+            ImmutableList.of(), ImmutableList.of(), ImmutableList.of())
     );
   }
 

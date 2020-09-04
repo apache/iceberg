@@ -37,10 +37,17 @@ public interface Tables {
     return create(schema, spec, ImmutableMap.of(), tableIdentifier);
   }
 
-  Table create(Schema schema,
-               PartitionSpec spec,
-               Map<String, String> properties,
-               String tableIdentifier);
+  default Table create(Schema schema, PartitionSpec spec, Map<String, String> properties, String tableIdentifier) {
+    return create(schema, spec, SortOrder.unsorted(), properties, tableIdentifier);
+  }
+
+  default Table create(Schema schema,
+                       PartitionSpec spec,
+                       SortOrder order,
+                       Map<String, String> properties,
+                       String tableIdentifier) {
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement create with a sort order");
+  }
 
   Table load(String tableIdentifier);
 }

@@ -70,6 +70,16 @@ public class BaseTable implements Table, HasTableOperations {
   }
 
   @Override
+  public SortOrder sortOrder() {
+    return ops.current().sortOrder();
+  }
+
+  @Override
+  public Map<Integer, SortOrder> sortOrders() {
+    return ops.current().sortOrdersById();
+  }
+
+  @Override
   public Map<String, String> properties() {
     return ops.current().properties();
   }

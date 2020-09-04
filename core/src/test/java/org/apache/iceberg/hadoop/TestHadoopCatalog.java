@@ -27,6 +27,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
@@ -36,8 +37,14 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
+
+import static org.apache.iceberg.NullOrder.NULLS_FIRST;
+import static org.apache.iceberg.SortDirection.ASC;
 
 public class TestHadoopCatalog extends HadoopTableTestBase {
   private static ImmutableMap<String, String> meta = ImmutableMap.of();
@@ -128,6 +135,42 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     AssertHelpers.assertThrows("Should reject a custom location",
         IllegalArgumentException.class, "Cannot set a custom location for a path-based table",
         () -> catalog.buildTable(tableIdent, SCHEMA).withLocation("custom").createOrReplaceTransaction());
+  }
+
+  @Test
+  public void testCreateTableDefaultSortOrder() throws Exception {
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    Table table = catalog.createTable(tableIdent, SCHEMA, SPEC);
+
+    SortOrder sortOrder = table.sortOrder();
+    Assert.assertEquals("Order ID must match", 0, sortOrder.orderId());
+    Assert.assertTrue("Order must unsorted", sortOrder.isUnsorted());
+  }
+
+  @Test
+  public void testCreateTableCustomSortOrder() throws Exception {
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    SortOrder order = SortOrder.builderFor(SCHEMA)
+        .asc("id", NULLS_FIRST)
+        .build();
+    Table table = catalog.buildTable(tableIdent, SCHEMA)
+        .withPartitionSpec(SPEC)
+        .withSortOrder(order)
+        .create();
+
+    SortOrder sortOrder = table.sortOrder();
+    Assert.assertEquals("Order ID must match", 1, sortOrder.orderId());
+    Assert.assertEquals("Order must have 1 field", 1, sortOrder.fields().size());
+    Assert.assertEquals("Direction must match ", ASC, sortOrder.fields().get(0).direction());
+    Assert.assertEquals("Null order must match ", NULLS_FIRST, sortOrder.fields().get(0).nullOrder());
+    Transform<?, ?> transform = Transforms.identity(Types.IntegerType.get());
+    Assert.assertEquals("Transform must match", transform, sortOrder.fields().get(0).transform());
   }
 
   @Test
