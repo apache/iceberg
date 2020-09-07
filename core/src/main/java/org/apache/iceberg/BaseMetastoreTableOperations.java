@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -75,7 +76,14 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     try {
       doRefresh();
     } catch (NoSuchTableException e) {
-      LOG.warn("Could not find the table during refresh, setting current metadata to null", e);
+      // Adjust log level according to the type of exception, as it might be intentional to call
+      // the method without determining the type of table in prior (like SparkSessionCatalog),
+      // and in such case it may not be an error case if the table is not an Iceberg table.
+      if (e instanceof NoSuchIcebergTableException) {
+        LOG.debug("Could not find the table during refresh, setting current metadata to null", e);
+      } else {
+        LOG.warn("Could not find the table during refresh, setting current metadata to null", e);
+      }
       currentMetadata = null;
       currentMetadataLocation = null;
       version = -1;
