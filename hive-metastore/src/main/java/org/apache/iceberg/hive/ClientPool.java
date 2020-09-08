@@ -114,8 +114,9 @@ public abstract class ClientPool<C, E extends Exception> implements Closeable {
           if (!clients.isEmpty()) {
             return clients.removeFirst();
           } else if (currentSize < poolSize) {
+            C client = newClient();
             currentSize += 1;
-            return newClient();
+            return client;
           }
         }
       }
