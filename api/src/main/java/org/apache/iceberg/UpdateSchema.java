@@ -361,4 +361,27 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    *                                  change conflicts with other changes.
    */
   UpdateSchema moveAfter(String name, String afterName);
+
+
+  /**
+   * Applies all field additions and updates from the provided new schema to the existing schema so
+   * to create a union schema.
+   * <p>
+   * For fields with same canonical names in both schemas it is required that the widen types is
+   * supported using {@link UpdateSchema#updateColumn(String, Type.PrimitiveType)}
+   * <p>
+   * Only supports turning a previously required field into an optional one if it is marked
+   * optional in the provided new schema using {@link UpdateSchema#makeColumnOptional(String)}
+   * <p>
+   * Only supports updating existing field docs with fields docs from the provided new schema using
+   * {@link UpdateSchema#updateColumnDoc(String, String)}
+   *
+   * @param newSchema a schema used in conjunction with the existing schema to create a union schema
+   * @return this for method chaining
+   * @throws IllegalStateException If it encounters errors during provided schema traversal
+   * @throws IllegalArgumentException If name doesn't identify a column in the schema or if this
+   *                                  change introduces a type incompatibility or if it conflicts
+   *                                  with other additions, renames, or updates.
+   */
+  UpdateSchema unionByNameWith(Schema newSchema);
 }
