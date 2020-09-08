@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 /**
@@ -34,6 +35,7 @@ final class TableScanContext {
   private final boolean ignoreResiduals;
   private final boolean caseSensitive;
   private final boolean colStats;
+  private final Schema projectedSchema;
   private final Collection<String> selectedColumns;
   private final ImmutableMap<String, String> options;
   private final Long fromSnapshotId;
@@ -45,6 +47,7 @@ final class TableScanContext {
     this.ignoreResiduals = false;
     this.caseSensitive = true;
     this.colStats = false;
+    this.projectedSchema = null;
     this.selectedColumns = null;
     this.options = ImmutableMap.of();
     this.fromSnapshotId = null;
@@ -52,13 +55,15 @@ final class TableScanContext {
   }
 
   private TableScanContext(Long snapshotId, Expression rowFilter, boolean ignoreResiduals,
-                           boolean caseSensitive, boolean colStats, Collection<String> selectedColumns,
-                           ImmutableMap<String, String> options, Long fromSnapshotId, Long toSnapshotId) {
+                           boolean caseSensitive, boolean colStats, Schema projectedSchema,
+                           Collection<String> selectedColumns, ImmutableMap<String, String> options,
+                           Long fromSnapshotId, Long toSnapshotId) {
     this.snapshotId = snapshotId;
     this.rowFilter = rowFilter;
     this.ignoreResiduals = ignoreResiduals;
     this.caseSensitive = caseSensitive;
     this.colStats = colStats;
+    this.projectedSchema = projectedSchema;
     this.selectedColumns = selectedColumns;
     this.options = options;
     this.fromSnapshotId = fromSnapshotId;
@@ -71,7 +76,7 @@ final class TableScanContext {
 
   TableScanContext useSnapshotId(Long scanSnapshotId) {
     return new TableScanContext(scanSnapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, selectedColumns, options, fromSnapshotId, toSnapshotId);
+        caseSensitive, colStats, projectedSchema, selectedColumns, options, fromSnapshotId, toSnapshotId);
   }
 
   Expression rowFilter() {
@@ -80,7 +85,7 @@ final class TableScanContext {
 
   TableScanContext filterRows(Expression filter) {
     return new TableScanContext(snapshotId, filter, ignoreResiduals,
-        caseSensitive, colStats, selectedColumns, options, fromSnapshotId, toSnapshotId);
+        caseSensitive, colStats, projectedSchema, selectedColumns, options, fromSnapshotId, toSnapshotId);
   }
 
   boolean ignoreResiduals() {
@@ -89,7 +94,7 @@ final class TableScanContext {
 
   TableScanContext ignoreResiduals(boolean shouldIgnoreResiduals) {
     return new TableScanContext(snapshotId, rowFilter, shouldIgnoreResiduals,
-        caseSensitive, colStats, selectedColumns, options, fromSnapshotId, toSnapshotId);
+        caseSensitive, colStats, projectedSchema, selectedColumns, options, fromSnapshotId, toSnapshotId);
   }
 
   boolean caseSensitive() {
@@ -98,7 +103,7 @@ final class TableScanContext {
 
   TableScanContext setCaseSensitive(boolean isCaseSensitive) {
     return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        isCaseSensitive, colStats, selectedColumns, options, fromSnapshotId, toSnapshotId);
+        isCaseSensitive, colStats, projectedSchema, selectedColumns, options, fromSnapshotId, toSnapshotId);
   }
 
   boolean returnColumnStats() {
@@ -107,7 +112,7 @@ final class TableScanContext {
 
   TableScanContext shouldReturnColumnStats(boolean returnColumnStats) {
     return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, returnColumnStats, selectedColumns, options, fromSnapshotId, toSnapshotId);
+        caseSensitive, returnColumnStats, projectedSchema, selectedColumns, options, fromSnapshotId, toSnapshotId);
   }
 
   Collection<String> selectedColumns() {
@@ -115,8 +120,19 @@ final class TableScanContext {
   }
 
   TableScanContext selectColumns(Collection<String> columns) {
+    Preconditions.checkState(projectedSchema == null, "Cannot select columns when projection schema is set");
     return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, columns, options, fromSnapshotId, toSnapshotId);
+        caseSensitive, colStats, null, columns, options, fromSnapshotId, toSnapshotId);
+  }
+
+  Schema projectedSchema() {
+    return projectedSchema;
+  }
+
+  TableScanContext project(Schema schema) {
+    Preconditions.checkState(selectedColumns == null, "Cannot set projection schema when columns are selected");
+    return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
+        caseSensitive, colStats, schema, null, options, fromSnapshotId, toSnapshotId);
   }
 
   Map<String, String> options() {
@@ -128,7 +144,7 @@ final class TableScanContext {
     builder.putAll(options);
     builder.put(property, value);
     return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, selectedColumns, builder.build(), fromSnapshotId, toSnapshotId);
+        caseSensitive, colStats, projectedSchema, selectedColumns, builder.build(), fromSnapshotId, toSnapshotId);
   }
 
   Long fromSnapshotId() {
@@ -137,7 +153,7 @@ final class TableScanContext {
 
   TableScanContext fromSnapshotId(long id) {
     return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, selectedColumns, options, id, toSnapshotId);
+        caseSensitive, colStats, projectedSchema, selectedColumns, options, id, toSnapshotId);
   }
 
   Long toSnapshotId() {
@@ -146,6 +162,6 @@ final class TableScanContext {
 
   TableScanContext toSnapshotId(long id) {
     return new TableScanContext(snapshotId, rowFilter, ignoreResiduals,
-        caseSensitive, colStats, selectedColumns, options, fromSnapshotId, id);
+        caseSensitive, colStats, projectedSchema, selectedColumns, options, fromSnapshotId, id);
   }
 }
