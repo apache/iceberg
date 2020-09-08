@@ -73,17 +73,14 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   @Override
   public TableMetadata refresh() {
+    boolean currentMetadataWasAvailable = currentMetadata != null;
     try {
       doRefresh();
     } catch (NoSuchTableException e) {
-      // Adjust log level according to the type of exception, as it might be intentional to call
-      // the method without determining the type of table in prior (like SparkSessionCatalog),
-      // and in such case it may not be an error case if the table is not an Iceberg table.
-      if (e instanceof NoSuchIcebergTableException) {
-        LOG.debug("Could not find the table during refresh, setting current metadata to null", e);
-      } else {
+      if (currentMetadataWasAvailable) {
         LOG.warn("Could not find the table during refresh, setting current metadata to null", e);
       }
+
       currentMetadata = null;
       currentMetadataLocation = null;
       version = -1;
