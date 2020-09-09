@@ -58,7 +58,7 @@ public class FlinkSource {
    * Source builder to build {@link DataStream}.
    */
   public abstract static class Builder {
-    StreamExecutionEnvironment env;
+    private StreamExecutionEnvironment env;
     private Table table;
     private TableLoader tableLoader;
     private List<String> selectedFields;
@@ -67,8 +67,7 @@ public class FlinkSource {
     private List<Expression> filterExpressions;
     private org.apache.hadoop.conf.Configuration hadoopConf;
 
-    private Schema expectedSchema;
-    RowDataTypeInfo outputTypeInfo;
+    private RowDataTypeInfo rowTypeInfo;
 
     // -------------------------- Required options -------------------------------
 
@@ -119,8 +118,16 @@ public class FlinkSource {
       return this;
     }
 
+    StreamExecutionEnvironment getEnv() {
+      return env;
+    }
+
+    RowDataTypeInfo getRowTypeInfo() {
+      return rowTypeInfo;
+    }
+
     public FlinkInputFormat buildFormat() {
-      Preconditions.checkNotNull(tableLoader, "TableLoader should not be null.");
+      Preconditions.checkNotNull(tableLoader, "TableLoader should not be null");
 
       hadoopConf = hadoopConf == null ? FlinkCatalogFactory.clusterHadoopConf() : hadoopConf;
 
@@ -146,7 +153,7 @@ public class FlinkSource {
 
       if (projectedSchema != null && selectedFields != null) {
         throw new IllegalArgumentException(
-            "Cannot using both requestedSchema and projectedFields to project.");
+            "Cannot using both requestedSchema and projectedFields to project");
       }
 
       TableSchema projectedTableSchema = projectedSchema;
@@ -162,10 +169,10 @@ public class FlinkSource {
         projectedTableSchema = builder.build();
       }
 
-      outputTypeInfo = RowDataTypeInfo.of((RowType) (projectedTableSchema == null ? tableSchema : projectedTableSchema)
+      rowTypeInfo = RowDataTypeInfo.of((RowType) (projectedTableSchema == null ? tableSchema : projectedTableSchema)
               .toRowDataType().getLogicalType());
 
-      expectedSchema = icebergSchema;
+      Schema expectedSchema = icebergSchema;
       if (projectedTableSchema != null) {
         expectedSchema = FlinkSchemaUtil.convert(icebergSchema, projectedTableSchema);
       }
@@ -180,9 +187,9 @@ public class FlinkSource {
   private static final class BoundedBuilder extends Builder {
     @Override
     public DataStream<RowData> build() {
-      Preconditions.checkNotNull(env, "StreamExecutionEnvironment should not be null");
+      Preconditions.checkNotNull(getEnv(), "StreamExecutionEnvironment should not be null");
       FlinkInputFormat format = buildFormat();
-      return env.createInput(format, outputTypeInfo);
+      return getEnv().createInput(format, getRowTypeInfo());
     }
   }
 }
