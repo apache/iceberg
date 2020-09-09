@@ -50,6 +50,8 @@ import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.iceberg.MetadataTableUtils.createMetadataTableInstance;
+
 /**
  * Implementation of Iceberg tables that uses the Hadoop FileSystem
  * to store metadata and manifests.
@@ -119,30 +121,7 @@ public class HadoopTables implements Tables, Configurable {
       throw new NoSuchTableException("Table does not exist at location: " + location);
     }
 
-    Table baseTable = new BaseTable(ops, location);
-
-    switch (type) {
-      case ENTRIES:
-        return new ManifestEntriesTable(ops, baseTable);
-      case FILES:
-        return new DataFilesTable(ops, baseTable);
-      case HISTORY:
-        return new HistoryTable(ops, baseTable);
-      case SNAPSHOTS:
-        return new SnapshotsTable(ops, baseTable);
-      case MANIFESTS:
-        return new ManifestsTable(ops, baseTable);
-      case PARTITIONS:
-        return new PartitionsTable(ops, baseTable);
-      case ALL_DATA_FILES:
-        return new AllDataFilesTable(ops, baseTable);
-      case ALL_MANIFESTS:
-        return new AllManifestsTable(ops, baseTable);
-      case ALL_ENTRIES:
-        return new AllEntriesTable(ops, baseTable);
-      default:
-        throw new NoSuchTableException(String.format("Unknown metadata table type: %s for %s", type, location));
-    }
+    return createMetadataTableInstance(ops, location, type);
   }
 
   /**

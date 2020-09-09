@@ -23,21 +23,18 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.events.CreateSnapshotEvent;
-import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class CachingCatalog implements Catalog {
-  private static final Logger LOG = LoggerFactory.getLogger(CachingCatalog.class);
+import static org.apache.iceberg.MetadataTableUtils.createMetadataTableInstance;
+import static org.apache.iceberg.MetadataTableUtils.isValidMetadataIdentifier;
 
+public class CachingCatalog implements Catalog {
   public static Catalog wrap(Catalog catalog) {
     return wrap(catalog, true);
   }
@@ -53,34 +50,6 @@ public class CachingCatalog implements Catalog {
   private CachingCatalog(Catalog catalog, boolean caseSensitive) {
     this.catalog = catalog;
     this.caseSensitive = caseSensitive;
-
-    registerCachingCallbackListener();
-  }
-
-  private void registerCachingCallbackListener() {
-    Listeners.register(event -> {
-      ConcurrentMap<TableIdentifier, Table> cachedTablesMap = tableCache.asMap();
-
-      LOG.debug("Cached tables: {}", cachedTablesMap.keySet().stream()
-          .map(TableIdentifier::toString).collect(Collectors.joining(",")));
-
-      String baseTableName = event.tableName();
-      TableIdentifier identifier = TableIdentifier.parse(baseTableName);
-      LOG.debug("DEBUG: identifier to find: {}", identifier);
-
-      cachedTablesMap.entrySet().stream()
-          // only picks metadata tables from cached tables
-          .filter(entry -> MetadataTableType.from(entry.getKey().name()) != null)
-          // table name in event may contain additional namespaces whereas CachingCatalog
-          // doesn't. invalidating cache won't hurt much, hence compare a bit aggressively
-          // via comparing as post-fix.
-          .filter(entry ->
-              identifier.toLowerCase().toString().endsWith(entry.getKey().toLowerCase().namespace().toString())
-          ).forEach(entry -> {
-            LOG.debug("Refreshing cached metadata table: {}", entry.getKey());
-            tableCache.invalidate(entry.getKey());
-          });
-    }, CreateSnapshotEvent.class);
   }
 
   private TableIdentifier canonicalizeIdentifier(TableIdentifier tableIdentifier) {
@@ -98,7 +67,29 @@ public class CachingCatalog implements Catalog {
 
   @Override
   public Table loadTable(TableIdentifier ident) {
-    return tableCache.get(canonicalizeIdentifier(ident), catalog::loadTable);
+    TableIdentifier canonicalized = canonicalizeIdentifier(ident);
+    Table cached = tableCache.getIfPresent(canonicalized);
+    if (cached != null) {
+      return cached;
+    }
+
+    if (isValidMetadataIdentifier(canonicalized)) {
+      TableIdentifier originTableIdentifier = TableIdentifier.of(canonicalized.namespace().levels());
+      Table originTable = tableCache.get(originTableIdentifier, catalog::loadTable);
+
+      // share TableOperations instance of origin table for all metadata tables, so that metadata table instances are
+      // also refreshed as well when origin table instance is refreshed.
+      if (originTable instanceof HasTableOperations) {
+        TableOperations ops = ((HasTableOperations) originTable).operations();
+        MetadataTableType type = MetadataTableType.from(canonicalized.name());
+
+        Table metadataTable = createMetadataTableInstance(ops, originTableIdentifier, type);
+        tableCache.put(canonicalized, metadataTable);
+        return metadataTable;
+      }
+    }
+
+    return tableCache.get(canonicalized, catalog::loadTable);
   }
 
   @Override

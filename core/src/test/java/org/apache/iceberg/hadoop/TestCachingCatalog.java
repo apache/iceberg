@@ -21,6 +21,7 @@ package org.apache.iceberg.hadoop;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -38,14 +39,11 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     HadoopCatalog hadoopCatalog = new HadoopCatalog(conf, warehousePath);
     Catalog catalog = CachingCatalog.wrap(hadoopCatalog);
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
-    Table table = hadoopCatalog.buildTable(tableIdent, SCHEMA)
-        .withPartitionSpec(SPEC)
-        .withProperties(null)
-        .withProperty("key1", "value1")
-        .withProperties(ImmutableMap.of("key2", "value2"))
-        .create();
+    Table table = catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key2", "value2"));
 
     table.newAppend().appendFile(FILE_A).commit();
+
+    Snapshot oldSnapshot = table.currentSnapshot();
 
     TableIdentifier filesMetaTableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl", "files");
     Table filesMetaTable = catalog.loadTable(filesMetaTableIdent);
@@ -58,8 +56,15 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     Table filesMetaTable2 = catalog.loadTable(filesMetaTableIdent);
     Table manifestsMetaTable2 = catalog.loadTable(manifestsMetaTableIdent);
 
-    // relevant metadata table should be invalidated in the cache
-    Assert.assertNotEquals(filesMetaTable2, filesMetaTable);
-    Assert.assertNotEquals(manifestsMetaTable2, manifestsMetaTable);
+    // metadata tables are cached
+    Assert.assertEquals(filesMetaTable2, filesMetaTable);
+    Assert.assertEquals(manifestsMetaTable2, manifestsMetaTable);
+
+    // the current snapshot of origin table is updated after committing
+    Assert.assertNotEquals(table.currentSnapshot(), oldSnapshot);
+
+    // underlying table operation in metadata tables are shared with the origin table
+    Assert.assertEquals(filesMetaTable2.currentSnapshot(), table.currentSnapshot());
+    Assert.assertEquals(manifestsMetaTable2.currentSnapshot(), table.currentSnapshot());
   }
 }
