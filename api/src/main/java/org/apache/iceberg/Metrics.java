@@ -155,7 +155,14 @@ public class Metrics implements Serializable {
 
         // Write the value
         if (entry.getValue() != null) {
-          out.writeObject(entry.getValue().array());
+          // Copy the actual values from the buffer
+          ByteBuffer bb = entry.getValue();
+          byte[] bytes = new byte[bb.remaining()];
+          bb.get(bytes);
+          bb.position(bb.position() - bytes.length); // Restores the buffer position
+
+          // Write out the data
+          out.writeObject(bytes);
         } else {
           out.writeObject(null);
         }
