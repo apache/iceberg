@@ -44,7 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
  */
 public class TestFlinkInputFormat extends TestFlinkScan {
 
-  private FlinkInputFormat.Builder builder;
+  private FlinkSource.Builder builder;
 
   public TestFlinkInputFormat(String fileFormat) {
     super(fileFormat);
@@ -53,7 +53,7 @@ public class TestFlinkInputFormat extends TestFlinkScan {
   @Override
   public void before() throws IOException {
     super.before();
-    builder = FlinkInputFormat.builder().tableLoader(TableLoader.fromHadoopTable(warehouse + "/default/t"));
+    builder = FlinkSource.forBounded().tableLoader(TableLoader.fromHadoopTable(warehouse + "/default/t"));
   }
 
   @Override
@@ -66,7 +66,7 @@ public class TestFlinkInputFormat extends TestFlinkScan {
       builder.tableLoader(TableLoader.fromCatalog(loader, TableIdentifier.of("default", "t")));
     }
 
-    return run(builder.select(projectFields).filters(filters).options(options).build());
+    return run(builder.select(projectFields).filters(filters).options(options).buildFormat());
   }
 
   @Override
@@ -81,7 +81,7 @@ public class TestFlinkInputFormat extends TestFlinkScan {
     TableSchema projectedSchema = TableSchema.builder()
         .field("nested", DataTypes.ROW(DataTypes.FIELD("f2", DataTypes.STRING())))
         .field("data", DataTypes.STRING()).build();
-    List<Row> result = run(builder.project(projectedSchema).build());
+    List<Row> result = run(builder.project(projectedSchema).buildFormat());
 
     List<Row> expected = Lists.newArrayList();
     for (Record record : records) {
