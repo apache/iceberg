@@ -59,6 +59,7 @@ public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
   @Test
   public void testDefaultDatabase() {
     sql("USE CATALOG %s", catalogName);
+    sql("show tables");
 
     Assert.assertEquals("Should use the current catalog", getTableEnv().getCurrentCatalog(), catalogName);
     Assert.assertEquals("Should use the configured default namespace",
