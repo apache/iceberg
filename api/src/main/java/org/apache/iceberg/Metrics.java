@@ -24,8 +24,8 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.Map;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
  * Iceberg file format metrics.
@@ -194,7 +194,7 @@ public class Metrics implements Serializable {
       return null;
 
     } else {
-      Map<Integer, ByteBuffer> result = Maps.newHashMap();
+      Map<Integer, ByteBuffer> result = new HashMap<>(size);
 
       for (int i = 0; i < size; ++i) {
         Integer key = (Integer) in.readObject();
