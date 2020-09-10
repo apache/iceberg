@@ -138,31 +138,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         throw new NoSuchTableException("Table does not exist: " + baseTableIdentifier);
       }
 
-      Table baseTable = new BaseTable(ops, fullTableName(name(), baseTableIdentifier));
-
-      switch (type) {
-        case ENTRIES:
-          return new ManifestEntriesTable(ops, baseTable);
-        case FILES:
-          return new DataFilesTable(ops, baseTable);
-        case HISTORY:
-          return new HistoryTable(ops, baseTable);
-        case SNAPSHOTS:
-          return new SnapshotsTable(ops, baseTable);
-        case MANIFESTS:
-          return new ManifestsTable(ops, baseTable);
-        case PARTITIONS:
-          return new PartitionsTable(ops, baseTable);
-        case ALL_DATA_FILES:
-          return new AllDataFilesTable(ops, baseTable);
-        case ALL_MANIFESTS:
-          return new AllManifestsTable(ops, baseTable);
-        case ALL_ENTRIES:
-          return new AllEntriesTable(ops, baseTable);
-        default:
-          throw new NoSuchTableException("Unknown metadata table type: %s for %s", type, baseTableIdentifier);
-      }
-
+      return MetadataTableUtils.createMetadataTableInstance(ops, baseTableIdentifier, type);
     } else {
       throw new NoSuchTableException("Table does not exist: " + identifier);
     }

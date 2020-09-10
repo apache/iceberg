@@ -23,19 +23,11 @@ import java.util.Map;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.AllDataFilesTable;
-import org.apache.iceberg.AllEntriesTable;
-import org.apache.iceberg.AllManifestsTable;
 import org.apache.iceberg.BaseTable;
-import org.apache.iceberg.DataFilesTable;
-import org.apache.iceberg.HistoryTable;
-import org.apache.iceberg.ManifestEntriesTable;
-import org.apache.iceberg.ManifestsTable;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.PartitionsTable;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SnapshotsTable;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
@@ -119,30 +111,7 @@ public class HadoopTables implements Tables, Configurable {
       throw new NoSuchTableException("Table does not exist at location: " + location);
     }
 
-    Table baseTable = new BaseTable(ops, location);
-
-    switch (type) {
-      case ENTRIES:
-        return new ManifestEntriesTable(ops, baseTable);
-      case FILES:
-        return new DataFilesTable(ops, baseTable);
-      case HISTORY:
-        return new HistoryTable(ops, baseTable);
-      case SNAPSHOTS:
-        return new SnapshotsTable(ops, baseTable);
-      case MANIFESTS:
-        return new ManifestsTable(ops, baseTable);
-      case PARTITIONS:
-        return new PartitionsTable(ops, baseTable);
-      case ALL_DATA_FILES:
-        return new AllDataFilesTable(ops, baseTable);
-      case ALL_MANIFESTS:
-        return new AllManifestsTable(ops, baseTable);
-      case ALL_ENTRIES:
-        return new AllEntriesTable(ops, baseTable);
-      default:
-        throw new NoSuchTableException(String.format("Unknown metadata table type: %s for %s", type, location));
-    }
+    return MetadataTableUtils.createMetadataTableInstance(ops, location, type);
   }
 
   /**
