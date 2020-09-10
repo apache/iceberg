@@ -111,6 +111,12 @@ public class FlinkCatalog extends AbstractCatalog {
 
   @Override
   public void open() throws CatalogException {
+    // Create the default database if it does not exist.
+    try {
+      createDatabase(getDefaultDatabase(), ImmutableMap.of(), true);
+    } catch (DatabaseAlreadyExistException e) {
+      // Ignore the exception if it's already exist.
+    }
   }
 
   @Override
@@ -179,14 +185,17 @@ public class FlinkCatalog extends AbstractCatalog {
   @Override
   public void createDatabase(String name, CatalogDatabase database, boolean ignoreIfExists)
       throws DatabaseAlreadyExistException, CatalogException {
+    createDatabase(name, mergeComment(database.getProperties(), database.getComment()), ignoreIfExists);
+  }
+
+  private void createDatabase(String databaseName, Map<String, String> metadata, boolean ignoreIfExists)
+      throws DatabaseAlreadyExistException, CatalogException {
     if (asNamespaceCatalog != null) {
       try {
-        asNamespaceCatalog.createNamespace(
-            toNamespace(name),
-            mergeComment(database.getProperties(), database.getComment()));
+        asNamespaceCatalog.createNamespace(toNamespace(databaseName), metadata);
       } catch (AlreadyExistsException e) {
         if (!ignoreIfExists) {
-          throw new DatabaseAlreadyExistException(getName(), name, e);
+          throw new DatabaseAlreadyExistException(getName(), databaseName, e);
         }
       }
     } else {
