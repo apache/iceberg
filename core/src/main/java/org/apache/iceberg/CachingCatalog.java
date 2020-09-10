@@ -28,11 +28,6 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import static org.apache.iceberg.MetadataTableUtils.createMetadataTableInstance;
-import static org.apache.iceberg.MetadataTableUtils.isValidMetadataIdentifier;
 
 public class CachingCatalog implements Catalog {
   public static Catalog wrap(Catalog catalog) {
@@ -73,7 +68,7 @@ public class CachingCatalog implements Catalog {
       return cached;
     }
 
-    if (isValidMetadataIdentifier(canonicalized)) {
+    if (MetadataTableUtils.hasMetadataTableName(canonicalized)) {
       TableIdentifier originTableIdentifier = TableIdentifier.of(canonicalized.namespace().levels());
       Table originTable = tableCache.get(originTableIdentifier, catalog::loadTable);
 
@@ -83,7 +78,7 @@ public class CachingCatalog implements Catalog {
         TableOperations ops = ((HasTableOperations) originTable).operations();
         MetadataTableType type = MetadataTableType.from(canonicalized.name());
 
-        Table metadataTable = createMetadataTableInstance(ops, originTableIdentifier, type);
+        Table metadataTable = MetadataTableUtils.createMetadataTableInstance(ops, originTableIdentifier, type);
         tableCache.put(canonicalized, metadataTable);
         return metadataTable;
       }

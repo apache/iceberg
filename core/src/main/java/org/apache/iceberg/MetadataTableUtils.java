@@ -17,17 +17,12 @@ package org.apache.iceberg;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 
-public final class MetadataTableUtils {
-  private MetadataTableUtils() {}
-
-  public static boolean isValidMetadataIdentifier(TableIdentifier identifier) {
-    return MetadataTableType.from(identifier.name()) != null &&
-        isValidIdentifier(TableIdentifier.of(identifier.namespace().levels()));
+public class MetadataTableUtils {
+  private MetadataTableUtils() {
   }
 
-  private static boolean isValidIdentifier(TableIdentifier tableIdentifier) {
-    // by default allow all identifiers
-    return true;
+  public static boolean hasMetadataTableName(TableIdentifier identifier) {
+    return MetadataTableType.from(identifier.name()) != null;
   }
 
   public static Table createMetadataTableInstance(TableOperations originTableOps,

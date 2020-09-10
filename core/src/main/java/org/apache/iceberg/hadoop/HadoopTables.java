@@ -32,6 +32,7 @@ import org.apache.iceberg.HistoryTable;
 import org.apache.iceberg.ManifestEntriesTable;
 import org.apache.iceberg.ManifestsTable;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionsTable;
 import org.apache.iceberg.Schema;
@@ -49,8 +50,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.apache.iceberg.MetadataTableUtils.createMetadataTableInstance;
 
 /**
  * Implementation of Iceberg tables that uses the Hadoop FileSystem
@@ -121,7 +120,7 @@ public class HadoopTables implements Tables, Configurable {
       throw new NoSuchTableException("Table does not exist at location: " + location);
     }
 
-    return createMetadataTableInstance(ops, location, type);
+    return MetadataTableUtils.createMetadataTableInstance(ops, location, type);
   }
 
   /**

@@ -40,8 +40,6 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.MetadataTableUtils.createMetadataTableInstance;
-
 public abstract class BaseMetastoreCatalog implements Catalog {
   private static final Logger LOG = LoggerFactory.getLogger(BaseMetastoreCatalog.class);
 
@@ -140,7 +138,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         throw new NoSuchTableException("Table does not exist: " + baseTableIdentifier);
       }
 
-      return createMetadataTableInstance(ops, baseTableIdentifier, type);
+      return MetadataTableUtils.createMetadataTableInstance(ops, baseTableIdentifier, type);
     } else {
       throw new NoSuchTableException("Table does not exist: " + identifier);
     }
