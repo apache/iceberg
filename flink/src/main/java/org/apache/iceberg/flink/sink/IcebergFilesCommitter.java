@@ -137,7 +137,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       if (!uncommittedDataFiles.isEmpty()) {
         // Committed all uncommitted data files from the old flink job to iceberg table.
         long maxUncommittedCheckpointId = uncommittedDataFiles.lastKey();
-        commitUpToCheckpoint(table, uncommittedDataFiles, restoredFlinkJobId, maxUncommittedCheckpointId);
+        commitUpToCheckpoint(uncommittedDataFiles, restoredFlinkJobId, maxUncommittedCheckpointId);
       }
     }
   }
@@ -173,15 +173,14 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     // For step#4, we don't need to commit iceberg table again because in step#3 we've committed all the files,
     // Besides, we need to maintain the max-committed-checkpoint-id to be increasing.
     if (checkpointId > maxCommittedCheckpointId) {
-      commitUpToCheckpoint(table, dataFilesPerCheckpoint, flinkJobId, checkpointId);
+      commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, checkpointId);
       this.maxCommittedCheckpointId = checkpointId;
     }
   }
 
-  private static void commitUpToCheckpoint(Table table,
-                                           NavigableMap<Long, List<DataFile>> dataFilesMap,
-                                           String flinkJobId,
-                                           long checkpointId) {
+  private void commitUpToCheckpoint(NavigableMap<Long, List<DataFile>> dataFilesMap,
+                                    String newFlinkJobId,
+                                    long checkpointId) {
     NavigableMap<Long, List<DataFile>> pendingFileMap = dataFilesMap.headMap(checkpointId, true);
 
     List<DataFile> pendingDataFiles = Lists.newArrayList();
@@ -190,16 +189,16 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     }
 
     if (replacePartitions) {
-      replacePartitions(pendingDataFiles, checkpointId);
+      replacePartitions(pendingDataFiles, newFlinkJobId, checkpointId);
     } else {
-      append(pendingDataFiles, checkpointId);
+      append(pendingDataFiles, newFlinkJobId, checkpointId);
     }
 
     // Clear the committed data files from dataFilesPerCheckpoint.
     pendingFileMap.clear();
   }
 
-  private void replacePartitions(List<DataFile> dataFiles, long checkpointId) {
+  private void replacePartitions(List<DataFile> dataFiles, String newFlinkJobId, long checkpointId) {
     ReplacePartitions dynamicOverwrite = table.newReplacePartitions();
 
     int numFiles = 0;
@@ -208,10 +207,10 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       dynamicOverwrite.addFile(file);
     }
 
-    commitOperation(dynamicOverwrite, numFiles, "dynamic partition overwrite", checkpointId);
+    commitOperation(dynamicOverwrite, numFiles, "dynamic partition overwrite", newFlinkJobId, checkpointId);
   }
 
-  private void append(List<DataFile> dataFiles, long checkpointId) {
+  private void append(List<DataFile> dataFiles, String newFlinkJobId, long checkpointId) {
     AppendFiles appendFiles = table.newAppend();
 
     int numFiles = 0;
@@ -220,13 +219,14 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       appendFiles.appendFile(file);
     }
 
-    commitOperation(appendFiles, numFiles, "append", checkpointId);
+    commitOperation(appendFiles, numFiles, "append", newFlinkJobId, checkpointId);
   }
 
-  private void commitOperation(SnapshotUpdate<?> operation, int numFiles, String description, long checkpointId) {
+  private void commitOperation(SnapshotUpdate<?> operation, int numFiles, String description,
+                               String newFlinkJobId, long checkpointId) {
     LOG.info("Committing {} with {} files to table {}", description, numFiles, table);
     operation.set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));
-    operation.set(FLINK_JOB_ID, flinkJobId);
+    operation.set(FLINK_JOB_ID, newFlinkJobId);
 
     long start = System.currentTimeMillis();
     operation.commit(); // abort is automatically called if this fails.
@@ -245,7 +245,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     dataFilesPerCheckpoint.put(Long.MAX_VALUE, ImmutableList.copyOf(dataFilesOfCurrentCheckpoint));
     dataFilesOfCurrentCheckpoint.clear();
 
-    commitUpToCheckpoint(table, dataFilesPerCheckpoint, flinkJobId, Long.MAX_VALUE);
+    commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, Long.MAX_VALUE);
   }
 
   @Override
