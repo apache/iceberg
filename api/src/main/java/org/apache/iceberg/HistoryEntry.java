@@ -34,7 +34,7 @@ public interface HistoryEntry extends Serializable {
   long timestampMillis();
 
   /**
-   * Returns iD of the new current snapshot.
+   * Returns ID of the new current snapshot.
    */
   long snapshotId();
 }
