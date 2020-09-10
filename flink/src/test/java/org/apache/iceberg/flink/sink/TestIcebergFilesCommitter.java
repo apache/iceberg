@@ -346,7 +346,6 @@ public class TestIcebergFilesCommitter {
 
     // Redeploying flink job from external checkpoint.
     JobID newJobId = new JobID();
-    long newCheckpointId = 0;
     try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(newJobId)) {
       harness.setup();
       harness.initializeState(snapshot);
@@ -362,11 +361,11 @@ public class TestIcebergFilesCommitter {
       DataFile dataFile = writeDataFile("data-3", ImmutableList.of(row));
       harness.processElement(dataFile, ++timestamp);
 
-      harness.snapshot(++newCheckpointId, ++timestamp);
-      harness.notifyOfCompletedCheckpoint(newCheckpointId);
+      harness.snapshot(++checkpointId, ++timestamp);
+      harness.notifyOfCompletedCheckpoint(checkpointId);
       SimpleDataUtil.assertTableRows(tablePath, expectedRows);
       assertSnapshotSize(4);
-      assertMaxCommittedCheckpointId(newJobId, newCheckpointId);
+      assertMaxCommittedCheckpointId(newJobId, checkpointId);
     }
   }
 

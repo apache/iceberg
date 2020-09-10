@@ -46,6 +46,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -121,22 +122,22 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     this.checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     this.jobIdState = context.getOperatorStateStore().getListState(JOB_ID_DESCRIPTOR);
     if (context.isRestored()) {
-      this.maxCommittedCheckpointId = getMaxCommittedCheckpointId(table, flinkJobId);
-
-      String oldFlinkJobId = jobIdState.get().iterator().next();
-      Preconditions.checkState(oldFlinkJobId != null && oldFlinkJobId.length() > 0,
+      String restoredFlinkJobId = jobIdState.get().iterator().next();
+      Preconditions.checkState(!Strings.isNullOrEmpty(restoredFlinkJobId),
           "Flink job id parsed from checkpoint snapshot shouldn't be null or empty");
 
-      long oldMaxCommittedCheckpointId = flinkJobId.equals(oldFlinkJobId) ?
-          maxCommittedCheckpointId : getMaxCommittedCheckpointId(table, oldFlinkJobId);
+      // Since flink's checkpoint id will start from the max-committed-checkpoint-id + 1 in the new flink job even if
+      // it's restored from a snapshot created by another different flink job, so it's safe to assign the max committed
+      // checkpoint id from restored flink job to the current flink job.
+      this.maxCommittedCheckpointId = getMaxCommittedCheckpointId(table, restoredFlinkJobId);
 
       NavigableMap<Long, List<DataFile>> uncommittedDataFiles = Maps
           .newTreeMap(checkpointsState.get().iterator().next())
-          .tailMap(oldMaxCommittedCheckpointId, false);
+          .tailMap(maxCommittedCheckpointId, false);
       if (!uncommittedDataFiles.isEmpty()) {
         // Committed all uncommitted data files from the old flink job to iceberg table.
         long maxUncommittedCheckpointId = uncommittedDataFiles.lastKey();
-        commitUpToCheckpoint(table, uncommittedDataFiles, oldFlinkJobId, maxUncommittedCheckpointId);
+        commitUpToCheckpoint(table, uncommittedDataFiles, restoredFlinkJobId, maxUncommittedCheckpointId);
       }
     }
   }
