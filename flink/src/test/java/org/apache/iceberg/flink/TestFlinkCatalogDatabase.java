@@ -27,6 +27,7 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
 import org.junit.Assert;
@@ -147,16 +148,16 @@ public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
 
     if (isHadoopCatalog) {
       Assert.assertEquals("Should have 2 database", 2, databases.size());
-      Assert.assertArrayEquals("Should have db and default database",
-          new Object[] {"default", "db"}, new Object[] {databases.get(0)[0], databases.get(1)[0]});
+      Assert.assertEquals("Should have db and default database",
+          Sets.newHashSet("default", "db"), Sets.newHashSet(databases.get(0)[0], databases.get(1)[0]));
 
       if (baseNamespace.length > 0) {
         // test namespace not belongs to this catalog
         validationNamespaceCatalog.createNamespace(Namespace.of(baseNamespace[0], "UNKNOWN_NAMESPACE"));
         databases = sql("SHOW DATABASES");
         Assert.assertEquals("Should have 2 database", 2, databases.size());
-        Assert.assertArrayEquals("Should have db and default database",
-            new Object[] {"default", "db"}, new Object[] {databases.get(0)[0], databases.get(1)[0]});
+        Assert.assertEquals("Should have db and default database",
+            Sets.newHashSet("default", "db"), Sets.newHashSet(databases.get(0)[0], databases.get(1)[0]));
       }
     } else {
       // If there are multiple classes extends FlinkTestBase, TestHiveMetastore may loose the creation for default
