@@ -82,6 +82,11 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   }
 
   @Override
+  public void configureInputJobCredentials(TableDesc tableDesc, Map<String, String> secrets) {
+
+  }
+
+  @Override
   public void configureOutputJobProperties(TableDesc tableDesc, Map<String, String> map) {
 
   }

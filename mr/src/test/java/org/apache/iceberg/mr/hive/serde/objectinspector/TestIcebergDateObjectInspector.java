@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
-import java.sql.Date;
 import java.time.LocalDate;
-import org.apache.hadoop.hive.serde2.io.DateWritable;
+import org.apache.hadoop.hive.common.type.Date;
+import org.apache.hadoop.hive.serde2.io.DateWritableV2;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.DateObjectInspector;
@@ -42,7 +42,7 @@ public class TestIcebergDateObjectInspector {
     Assert.assertEquals(TypeInfoFactory.dateTypeInfo.getTypeName(), oi.getTypeName());
 
     Assert.assertEquals(Date.class, oi.getJavaPrimitiveClass());
-    Assert.assertEquals(DateWritable.class, oi.getPrimitiveWritableClass());
+    Assert.assertEquals(DateWritableV2.class, oi.getPrimitiveWritableClass());
 
     Assert.assertNull(oi.copyObject(null));
     Assert.assertNull(oi.getPrimitiveJavaObject(null));
@@ -52,7 +52,7 @@ public class TestIcebergDateObjectInspector {
     Date date = Date.valueOf("2020-01-01");
 
     Assert.assertEquals(date, oi.getPrimitiveJavaObject(local));
-    Assert.assertEquals(new DateWritable(date), oi.getPrimitiveWritableObject(local));
+    Assert.assertEquals(new DateWritableV2(date), oi.getPrimitiveWritableObject(local));
 
     Date copy = (Date) oi.copyObject(date);
 

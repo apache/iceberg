@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
-import java.sql.Date;
 import java.time.LocalDate;
-import org.apache.hadoop.hive.serde2.io.DateWritable;
+import org.apache.hadoop.hive.common.type.Date;
+import org.apache.hadoop.hive.serde2.io.DateWritableV2;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.DateObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
@@ -42,17 +42,17 @@ public final class IcebergDateObjectInspector extends AbstractPrimitiveJavaObjec
 
   @Override
   public Date getPrimitiveJavaObject(Object o) {
-    return o == null ? null : Date.valueOf((LocalDate) o);
+    return o == null ? null : Date.valueOf(o.toString());
   }
 
   @Override
-  public DateWritable getPrimitiveWritableObject(Object o) {
-    return o == null ? null : new DateWritable(DateTimeUtil.daysFromDate((LocalDate) o));
+  public DateWritableV2 getPrimitiveWritableObject(Object o) {
+    return o == null ? null : new DateWritableV2(DateTimeUtil.daysFromDate((LocalDate) o));
   }
 
   @Override
   public Object copyObject(Object o) {
-    return o == null ? null : new Date(((Date) o).getTime());
+    return o == null ? null : Date.valueOf(o.toString());
   }
 
 }

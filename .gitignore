@@ -52,3 +52,5 @@ derby.log
 
 # Python stuff
 python/.mypy_cache/
+
+hive2-metastore/src

@@ -362,6 +362,87 @@ project(':iceberg-hive-metastore') {
   }
 }
 
+
+project(':iceberg-hive2-metastore') {
+
+  task copyFilesFromHive3(type: Copy) {
+    copy {
+      from('../hive-metastore/src/main/java/')
+      into 'src/main/java/'
+    }
+    copy {
+      from('../hive-metastore/src/main/resources/')
+      into 'src/main/resources/'
+    }
+    copy {
+      from('../hive-metastore/src/test/java/')
+      into 'src/test/java/'
+    }
+    copy {
+      from('../hive-metastore/src/test/resources/')
+      into 'src/test/resources/'
+    }
+  }
+
+  dependencies {
+
+    compile project(':iceberg-core')
+
+    compileOnly "org.apache.avro:avro"
+
+    compileOnly("org.apache.hive:hive-metastore:2.3.7") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hbase'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'co.cask.tephra'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'org.eclipse.jetty.aggregate', module: 'jetty-all'
+      exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
+      exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
+      exclude group: 'com.tdunning', module: 'json'
+      exclude group: 'javax.transaction', module: 'transaction-api'
+      exclude group: 'com.zaxxer', module: 'HikariCP'
+    }
+
+    testCompile("org.apache.hive:hive-exec:2.3.7") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hive', module: 'hive-llap-tez'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'com.google.protobuf', module: 'protobuf-java'
+      exclude group: 'org.apache.calcite'
+      exclude group: 'org.apache.calcite.avatica'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
+
+    testCompile("org.apache.hive:hive-metastore:2.3.7") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hbase'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'co.cask.tephra'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'org.eclipse.jetty.aggregate', module: 'jetty-all'
+      exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
+      exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
+      exclude group: 'com.tdunning', module: 'json'
+      exclude group: 'javax.transaction', module: 'transaction-api'
+      exclude group: 'com.zaxxer', module: 'HikariCP'
+    }
+
+    compileOnly("org.apache.hadoop:hadoop-client:2.7.3") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+    }
+
+    testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+  }
+}
+
 project(':iceberg-mr') {
   configurations {
     testCompile {
@@ -404,7 +485,7 @@ project(':iceberg-mr') {
     testCompile("org.apache.calcite:calcite-core")
     testCompile("com.esotericsoftware:kryo-shaded:4.0.2")
     testCompile("com.fasterxml.jackson.core:jackson-annotations:2.6.5")
-    testCompile("com.klarna:hiverunner:5.2.1") {
+    testCompile("com.klarna:hiverunner:6.0.1") {
       exclude group: 'javax.jms', module: 'jms'
       exclude group: 'org.apache.hive', module: 'hive-exec'
       exclude group: 'org.codehaus.jettison', module: 'jettison'
@@ -603,8 +684,10 @@ if (jdkVersion == '8') {
       compile project(':iceberg-orc')
       compile project(':iceberg-parquet')
       compile project(':iceberg-arrow')
-      compile project(':iceberg-hive-metastore')
-      compile project(':iceberg-spark')
+      compile project(':iceberg-hive2-metastore')
+      compile(project(":iceberg-spark")) {
+        exclude module: "iceberg-hive-metastore"
+      }
 
       compileOnly "org.apache.avro:avro"
       compileOnly("org.apache.spark:spark-hive_2.11") {
@@ -613,12 +696,13 @@ if (jdkVersion == '8') {
 
       testCompile project(path: ':iceberg-spark', configuration: 'testArtifacts')
 
-      testCompile "org.apache.hadoop:hadoop-hdfs::tests"
-      testCompile "org.apache.hadoop:hadoop-common::tests"
-      testCompile("org.apache.hadoop:hadoop-minicluster") {
+      testCompile "org.apache.hadoop:hadoop-hdfs:2.7.3"
+      testCompile "org.apache.hadoop:hadoop-common:2.7.3"
+      testCompile("org.apache.hadoop:hadoop-minicluster:2.7.3") {
         exclude group: 'org.apache.avro', module: 'avro'
       }
-      testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
+
+      testCompile project(path: ':iceberg-hive2-metastore', configuration: 'testArtifacts')
       testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     }
 
@@ -709,7 +793,7 @@ project(':iceberg-spark3') {
     compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
     compile project(':iceberg-arrow')
-    compile project(':iceberg-hive-metastore')
+    compile project(':iceberg-hive2-metastore')
     compile project(':iceberg-spark')
 
     compileOnly "org.apache.avro:avro"
@@ -725,7 +809,7 @@ project(':iceberg-spark3') {
     testCompile("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
-    testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-hive2-metastore', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
 

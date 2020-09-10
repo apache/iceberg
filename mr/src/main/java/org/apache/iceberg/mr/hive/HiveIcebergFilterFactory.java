@@ -127,7 +127,7 @@ public class HiveIcebergFilterFactory {
       case FLOAT:
         return leaf.getLiteral();
       case DATE:
-        return daysFromTimestamp((Timestamp) leaf.getLiteral());
+        return daysFromDate((Date) leaf.getLiteral());
       case TIMESTAMP:
         return microsFromTimestamp((Timestamp) LITERAL_FIELD.get(leaf));
       case DECIMAL:
