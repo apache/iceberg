@@ -82,7 +82,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
 
   @Override
   CloseableIterator<InternalRow> open(FileScanTask task) {
-    SparkDeleteFilter deletes = new SparkDeleteFilter(io, task, tableSchema, expectedSchema);
+    SparkDeleteFilter deletes = new SparkDeleteFilter(task, tableSchema, expectedSchema);
 
     // schema or rows returned by readers
     Schema requiredSchema = deletes.requiredSchema();
@@ -214,17 +214,22 @@ class RowDataReader extends BaseDataReader<InternalRow> {
         JavaConverters.asScalaBufferConverter(attrs).asScala().toSeq());
   }
 
-  private static class SparkDeleteFilter extends DeleteFilter<InternalRow> {
+  private class SparkDeleteFilter extends DeleteFilter<InternalRow> {
     private final InternalRowWrapper asStructLike;
 
-    public SparkDeleteFilter(FileIO io, FileScanTask task, Schema tableSchema, Schema requestedSchema) {
-      super(io, task, tableSchema, requestedSchema);
+    public SparkDeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema) {
+      super(task, tableSchema, requestedSchema);
       this.asStructLike = new InternalRowWrapper(SparkSchemaUtil.convert(requiredSchema()));
     }
 
     @Override
     protected StructLike asStructLike(InternalRow row) {
       return asStructLike.wrap(row);
+    }
+
+    @Override
+    protected InputFile getInputFile(String location) {
+      return RowDataReader.this.getInputFile(location);
     }
   }
 }

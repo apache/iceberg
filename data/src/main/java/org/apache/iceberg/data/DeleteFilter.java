@@ -32,7 +32,6 @@ import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.deletes.Deletes;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -55,16 +54,14 @@ public abstract class DeleteFilter<T> {
       MetadataColumns.DELETE_FILE_POS);
 
   private final long setFilterThreshold;
-  private final FileIO io;
   private final DataFile dataFile;
   private final List<DeleteFile> posDeletes;
   private final List<DeleteFile> eqDeletes;
   private final Schema requiredSchema;
   private final Accessor<StructLike> posAccessor;
 
-  public DeleteFilter(FileIO io, FileScanTask task, Schema tableSchema, Schema requestedSchema) {
+  public DeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema) {
     this.setFilterThreshold = DEFAULT_SET_FILTER_THRESHOLD;
-    this.io = io;
     this.dataFile = task.file();
 
     ImmutableList.Builder<DeleteFile> posDeleteBuilder = ImmutableList.builder();
@@ -97,6 +94,8 @@ public abstract class DeleteFilter<T> {
   }
 
   protected abstract StructLike asStructLike(T record);
+
+  protected abstract InputFile getInputFile(String location);
 
   protected long pos(T record) {
     return (Long) posAccessor.get(asStructLike(record));
@@ -163,7 +162,7 @@ public abstract class DeleteFilter<T> {
   }
 
   private CloseableIterable<Record> openDeletes(DeleteFile deleteFile, DataFile dataFile, Schema deleteSchema) {
-    InputFile input = io.newInputFile(deleteFile.path().toString());
+    InputFile input = getInputFile(deleteFile.path().toString());
     switch (deleteFile.format()) {
       case AVRO:
         return Avro.read(input)
