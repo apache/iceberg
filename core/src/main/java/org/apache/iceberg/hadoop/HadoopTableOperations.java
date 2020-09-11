@@ -40,6 +40,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Pair;
@@ -262,7 +263,8 @@ public class HadoopTableOperations implements TableOperations {
     return new Path(new Path(location, "metadata"), filename);
   }
 
-  private Path versionHintFile() {
+  @VisibleForTesting
+  Path versionHintFile() {
     return metadataPath("version-hint.text");
   }
 
@@ -290,8 +292,10 @@ public class HadoopTableOperations implements TableOperations {
         return Integer.parseInt(in.readLine().replace("\n", ""));
       }
 
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to get file system for path: %s", versionHintFile);
+    } catch (Exception e) {
+      LOG.warn("Error reading version hint file {}", versionHintFile, e);
+      // We just assume corrupted metadata and start to read from the first version file
+      return 1;
     }
   }
 
