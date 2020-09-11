@@ -685,9 +685,7 @@ if (jdkVersion == '8') {
       compile project(':iceberg-parquet')
       compile project(':iceberg-arrow')
       compile project(':iceberg-hive2-metastore')
-      compile(project(":iceberg-spark")) {
-        exclude module: "iceberg-hive-metastore"
-      }
+      compile project(":iceberg-spark")
 
       compileOnly "org.apache.avro:avro"
       compileOnly("org.apache.spark:spark-hive_2.11") {

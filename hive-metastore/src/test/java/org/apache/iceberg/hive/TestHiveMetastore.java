@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -79,6 +80,15 @@ public class TestHiveMetastore {
     }
     if (hiveLocalDir != null) {
       hiveLocalDir.delete();
+    }
+
+    // remove raw store if exists
+    try {
+      Method cleanupRawStore = HiveMetaStore.class.getDeclaredMethod("cleanupRawStore");
+      cleanupRawStore.setAccessible(true);
+      cleanupRawStore.invoke(null);
+    } catch (Exception e) {
+      // no op
     }
   }
 
