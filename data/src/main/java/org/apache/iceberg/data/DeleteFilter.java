@@ -192,6 +192,10 @@ public abstract class DeleteFilter<T> {
 
   private static Schema fileProjection(Schema tableSchema, Schema requestedSchema,
                                        List<DeleteFile> posDeletes, List<DeleteFile> eqDeletes) {
+    if (posDeletes.isEmpty() && eqDeletes.isEmpty()) {
+      return requestedSchema;
+    }
+
     Set<Integer> requiredIds = Sets.newLinkedHashSet();
     if (!posDeletes.isEmpty()) {
       requiredIds.add(MetadataColumns.ROW_POSITION.fieldId());
