@@ -620,6 +620,7 @@ if (jdkVersion == '8') {
       }
       testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
       testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+      testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
     }
 
     test {
@@ -727,6 +728,7 @@ project(':iceberg-spark3') {
     }
     testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
   }
 
   test {

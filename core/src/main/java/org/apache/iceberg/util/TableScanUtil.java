@@ -31,6 +31,20 @@ public class TableScanUtil {
   private TableScanUtil() {
   }
 
+  public static boolean hasDeletes(CombinedScanTask task) {
+    for (FileScanTask fileTask : task.files()) {
+      if (hasDeletes(fileTask)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  public static boolean hasDeletes(FileScanTask task) {
+    return !task.deletes().isEmpty();
+  }
+
   public static CloseableIterable<FileScanTask> splitFiles(CloseableIterable<FileScanTask> tasks, long splitSize) {
     Iterable<FileScanTask> splitTasks = FluentIterable
         .from(tasks)

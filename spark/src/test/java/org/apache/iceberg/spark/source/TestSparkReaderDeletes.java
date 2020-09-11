@@ -17,39 +17,59 @@
  * under the License.
  */
 
-package org.apache.iceberg.data;
+package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TestHelpers.Row;
-import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.data.FileHelpers;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.spark.SparkStructLike;
+import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
+import org.apache.spark.sql.Dataset;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
-public class TestGenericReaderDeletes extends TableTestBase {
-  public TestGenericReaderDeletes() {
-    super(2 /* format v2 with delete files */);
-  }
-
+public abstract class TestSparkReaderDeletes extends SparkTestBase {
+  private static final Schema SCHEMA = new Schema(
+      Types.NestedField.required(1, "id", Types.IntegerType.get()),
+      Types.NestedField.required(2, "data", Types.StringType.get()));
+  private Table table = null;
   private List<Record> records = null;
   private DataFile dataFile = null;
 
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
+
   @Before
-  public void writeTestDataFile() throws IOException {
+  public void createTable() throws IOException {
+    this.table = catalog.createTable(TableIdentifier.of("default", "table"), SCHEMA);
+    TableOperations ops = ((BaseTable) table).operations();
+    TableMetadata meta = ops.current();
+    ops.commit(meta, meta.upgradeToFormatVersion(2));
+
     this.records = Lists.newArrayList();
 
     // records all use IDs that are in bucket id_bucket=0
@@ -67,6 +87,11 @@ public class TestGenericReaderDeletes extends TableTestBase {
     table.newAppend()
         .appendFile(dataFile)
         .commit();
+  }
+
+  @After
+  public void dropTable() {
+    catalog.dropTable(TableIdentifier.of("default", "table"));
   }
 
   @Test
@@ -110,8 +135,7 @@ public class TestGenericReaderDeletes extends TableTestBase {
         .commit();
 
     StructLikeSet expected = selectColumns(rowSetWithoutIds(29, 89, 122), "id");
-    // data is added by the reader to apply the eq deletes, use StructProjection to remove it from comparison
-    StructLikeSet actual = selectColumns(rowSet(table, "id"), "id");
+    StructLikeSet actual = rowSet(table, "id"); // data is added by the reader to apply the eq deletes
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
   }
@@ -240,15 +264,23 @@ public class TestGenericReaderDeletes extends TableTestBase {
     Assert.assertEquals("Table should contain expected rows", expected, actual);
   }
 
-  private static StructLikeSet rowSet(Table table) throws IOException {
+  private static StructLikeSet rowSet(Table table) {
     return rowSet(table, "*");
   }
 
-  private static StructLikeSet rowSet(Table table, String... columns) throws IOException {
-    StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
-    try (CloseableIterable<Record> reader = IcebergGenerics.read(table).select(columns).build()) {
-      reader.forEach(set::add);
-    }
+  private static StructLikeSet rowSet(Table table, String... columns) {
+    Dataset<org.apache.spark.sql.Row> df = spark.read()
+        .format("iceberg")
+        .load("default.table")
+        .selectExpr(columns);
+
+    Types.StructType projection = table.schema().select(columns).asStruct();
+    StructLikeSet set = StructLikeSet.create(projection);
+    df.collectAsList().stream().forEach(row -> {
+      SparkStructLike rowWrapper = new SparkStructLike(projection);
+      set.add(rowWrapper.wrap(row));
+    });
+
     return set;
   }
 
