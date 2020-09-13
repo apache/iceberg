@@ -37,7 +37,7 @@ INFRA:
   - "jitpack.yml"
   - "travis.yml"
 BUILD:
-  - "**gradle**"
+  - "*gradle*"
   - "versions.props"
 DOCS:
   - "/site"
