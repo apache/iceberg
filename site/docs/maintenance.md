@@ -17,6 +17,9 @@
 
 # Table Maintenance
 
+!!! Note
+    Maintenance operations require the `Table` instance. Please refer [Java API quickstart](/java-api-quickstart/#create-a-table) page to refer how to load an existing table.
+
 ## Recommended Maintenance
 
 ### Expire Snapshots
@@ -129,4 +132,3 @@ table.rewriteManifests()
 ```
 
 See the [`RewriteManifestsAction` Javadoc](/javadoc/master/org/apache/iceberg/actions/RewriteManifestsAction.html) to see more configuration options.
-

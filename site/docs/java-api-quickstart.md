@@ -41,6 +41,9 @@ import org.apache.iceberg.catalog.TableIdentifier;
 
 TableIdentifier name = TableIdentifier.of("logging", "logs");
 Table table = catalog.createTable(name, schema, spec);
+
+// or to load an existing table, use the following line
+// Table table = catalog.loadTable(name);
 ```
 
 The logs [schema](#create-a-schema) and [partition spec](#create-a-partition-spec) are created below.
@@ -69,6 +72,9 @@ import org.apache.iceberg.catalog.TableIdentifier;
 
 TableIdentifier name = TableIdentifier.of("logging", "logs");
 Table table = catalog.createTable(name, schema, spec);
+
+// or to load an existing table, use the following line
+// Table table = catalog.loadTable(name);
 ```
 
 The logs [schema](#create-a-schema) and [partition spec](#create-a-partition-spec) are created below.
@@ -88,6 +94,9 @@ import org.apache.iceberg.Table;
 Configuration conf = new Configuration():
 HadoopTables tables = new HadoopTables(conf);
 Table table = tables.create(schema, spec, table_location);
+
+// or to load an existing table, use the following line
+// Table table = tables.load(table_location);
 ```
 
 !!! Warning
