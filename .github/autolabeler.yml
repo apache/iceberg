@@ -73,6 +73,7 @@ SPARK:
   - "/spark2"
   - "/spark3"
 FLINK:
+  - "/flink-runtime"
   - "/flink"
 MR:
   - "/mr"
