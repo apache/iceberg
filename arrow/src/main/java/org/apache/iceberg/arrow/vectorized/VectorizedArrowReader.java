@@ -339,7 +339,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   public static VectorizedArrowReader positions() {
-    return PositionVectorReader.INSTANCE;
+    return new PositionVectorReader();
   }
 
   private static final class NullVectorReader extends VectorizedArrowReader {
@@ -365,7 +365,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   private static final class PositionVectorReader extends VectorizedArrowReader {
-    private static final PositionVectorReader INSTANCE = new PositionVectorReader();
     private long rowStart;
 
     @Override
