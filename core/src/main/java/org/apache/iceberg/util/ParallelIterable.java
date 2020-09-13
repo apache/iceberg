@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -98,6 +99,22 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
 
       for (int i = 0; i < taskFutures.length; i += 1) {
         if (taskFutures[i] == null || taskFutures[i].isDone()) {
+          if (taskFutures[i] != null) {
+            // check for task failure and re-throw any exception
+            try {
+              taskFutures[i].get();
+            } catch (ExecutionException e) {
+              if (e.getCause() instanceof RuntimeException) {
+                // rethrow a runtime exception
+                throw (RuntimeException) e.getCause();
+              } else {
+                throw new RuntimeException("Failed while running parallel task", e.getCause());
+              }
+            } catch (InterruptedException e) {
+              throw new RuntimeException("Interrupted while running parallel task", e);
+            }
+          }
+
           taskFutures[i] = submitNextTask();
         }
 
