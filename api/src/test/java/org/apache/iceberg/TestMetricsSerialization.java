@@ -56,6 +56,7 @@ public class TestMetricsSerialization {
     try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
       ObjectOutputStream objectOutputStream = new ObjectOutputStream(byteArrayOutputStream);
       objectOutputStream.writeObject(metrics);
+      objectOutputStream.flush();
 
       return byteArrayOutputStream.toByteArray();
     }
