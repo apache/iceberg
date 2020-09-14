@@ -40,6 +40,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Pair;
@@ -262,7 +263,8 @@ public class HadoopTableOperations implements TableOperations {
     return new Path(new Path(location, "metadata"), filename);
   }
 
-  private Path versionHintFile() {
+  @VisibleForTesting
+  Path versionHintFile() {
     return metadataPath("version-hint.text");
   }
 
@@ -277,21 +279,29 @@ public class HadoopTableOperations implements TableOperations {
     }
   }
 
-  private int readVersionHint() {
+  @VisibleForTesting
+  int readVersionHint() {
     Path versionHintFile = versionHintFile();
-    try {
-      FileSystem fs = Util.getFs(versionHintFile, conf);
-      if (!fs.exists(versionHintFile)) {
-        return 0;
-      }
+    FileSystem fs = Util.getFs(versionHintFile, conf);
 
-      try (InputStreamReader fsr = new InputStreamReader(fs.open(versionHintFile), StandardCharsets.UTF_8);
-           BufferedReader in = new BufferedReader(fsr)) {
-        return Integer.parseInt(in.readLine().replace("\n", ""));
-      }
+    try (InputStreamReader fsr = new InputStreamReader(fs.open(versionHintFile), StandardCharsets.UTF_8);
+         BufferedReader in = new BufferedReader(fsr)) {
+      return Integer.parseInt(in.readLine().replace("\n", ""));
 
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to get file system for path: %s", versionHintFile);
+    } catch (Exception e) {
+      LOG.warn("Error reading version hint file {}", versionHintFile, e);
+      try {
+        if (getMetadataFile(1) != null) {
+          // We just assume corrupted metadata and start to read from the first version file
+          return 1;
+        }
+      } catch (IOException io) {
+        // We log this error only on debug level since this is just a problem in recovery path
+        LOG.debug("Error trying to recover version-hint.txt data for {}", versionHintFile, e);
+      }
+      // We just return 0 as not able to recover easily
+      return 0;
+
     }
   }
 
