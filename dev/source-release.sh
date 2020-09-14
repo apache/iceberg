@@ -68,9 +68,9 @@ tarball=$tag.tar.gz
 # archive (identical hashes) using the scm tag
 adds=" .baseline"  # prefixed with a blank space for each file name including the first one
 excludes="build|examples|jitpack.yml|python|site"  # excluded as they are not of use for releasing jars
-echo WARNING! The following files/directories are to be excluded from git archive: ${excludes}
-archives=$(ls | grep -vE ${excludes} | tr '\n' ' ')${adds}
-echo git archive list: ${archives}
+echo "Excluded files and directories: ${excludes}"
+archives=$(git ls-tree --name-only -r HEAD | cut -d"/" -f1 | uniq | grep -vE ${excludes} | tr '\n' ' ')${adds}
+echo "Included files and directories: ${archives}"
 git archive $release_hash --prefix $tag/ -o $tarball ${archives}
 
 # sign the archive
