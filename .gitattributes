@@ -1,0 +1,35 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+# 
+#   http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+# Files marked as export-ignore will be ignored from the release's
+# built via `git archive`. This simplifies the release script and 
+# uses an industry standard as opposed to possibly hard to read
+# shell scripts with many flags. Unfortunately, directories themselves
+# won't recursively ignore, so we need the top level directories
+# as well as their files.
+/build         export-ignore
+/build/**      export-ignore
+/examples      export-ignore
+/examples/**   export-ignore
+jitpack.yml    export-ignore
+/python        export-ignore
+/python/**     export-ignore
+/site          export-ignore
+/site/**       export-ignore
+
