@@ -1,6 +1,10 @@
-/build/**       export-ignore
-/examples/**    export-ignore
+/build         export-ignore
+/build/**      export-ignore
+/examples      export-ignore
+/examples/**   export-ignore
 jitpack.yml    export-ignore
-/python/**      export-ignore
-/site/**        export-ignore
+/python        export-ignore
+/python/**     export-ignore
+/site          export-ignore
+/site/**       export-ignore
 
