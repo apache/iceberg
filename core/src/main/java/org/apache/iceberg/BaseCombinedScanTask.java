@@ -30,6 +30,7 @@ public class BaseCombinedScanTask implements CombinedScanTask {
   private final FileScanTask[] tasks;
 
   public BaseCombinedScanTask(FileScanTask... tasks) {
+    Preconditions.checkNotNull(tasks, "tasks cannot be null");
     this.tasks = tasks;
   }
 
