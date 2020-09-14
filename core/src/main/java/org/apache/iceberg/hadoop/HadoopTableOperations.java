@@ -294,7 +294,6 @@ public class HadoopTableOperations implements TableOperations {
         if (getMetadataFile(1) != null) {
           // We just assume corrupted metadata and start to read from the first version file
           return 1;
-
         }
       } catch (IOException io) {
         // We log this error only on debug level since this is just a problem in recovery path
