@@ -26,6 +26,7 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
+import org.apache.iceberg.util.ByteBuffers;
 
 /**
  * Iceberg file format metrics.
@@ -150,22 +151,9 @@ public class Metrics implements Serializable {
       out.writeInt(byteBufferMap.size());
 
       for (Map.Entry<Integer, ByteBuffer> entry : byteBufferMap.entrySet()) {
-        // Write the key
+        // Write the key and the value converted to byte[]
         out.writeObject(entry.getKey());
-
-        // Write the value
-        if (entry.getValue() != null) {
-          // Copy the actual values from the buffer
-          ByteBuffer bb = entry.getValue();
-          byte[] bytes = new byte[bb.remaining()];
-          bb.get(bytes);
-          bb.position(bb.position() - bytes.length); // Restores the buffer position
-
-          // Write out the data
-          out.writeObject(bytes);
-        } else {
-          out.writeObject(null);
-        }
+        out.writeObject(ByteBuffers.toByteArray(entry.getValue()));
       }
     }
   }
