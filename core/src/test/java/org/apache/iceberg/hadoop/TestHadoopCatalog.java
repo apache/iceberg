@@ -37,7 +37,6 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
-import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -457,6 +456,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     // Create a test table with multiple versions
     TableIdentifier tableId = TableIdentifier.of("tbl");
     Table table = catalog.createTable(tableId, SCHEMA, PartitionSpec.unpartitioned());
+    HadoopTableOperations tableOperations = (HadoopTableOperations) catalog.newTableOps(tableId);
 
     DataFile dataFile1 = DataFiles.builder(SPEC)
         .withPath("/a.parquet")
@@ -475,7 +475,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     long secondSnapshotId = table.currentSnapshot().snapshotId();
 
     // Get the version-hint.text file location
-    String versionHintLocation = ((HadoopTableOperations) catalog.newTableOps(tableId)).versionHintFile().toString();
+    String versionHintLocation = tableOperations.versionHintFile().toString();
 
     // Write old data to confirm that we are writing the correct file
     FileIO io = new HadoopFileIO(conf);
@@ -484,7 +484,8 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
       stream.write("1".getBytes(StandardCharsets.UTF_8));
     }
 
-    // Load the table and check the current snapshotId
+    // Check the result of the readVersionHint(), and load the table and check the current snapshotId
+    Assert.assertEquals(1, tableOperations.readVersionHint());
     Assert.assertEquals(secondSnapshotId, catalog.loadTable(tableId).currentSnapshot().snapshotId());
 
     // Write newer data to confirm that we are writing the correct file
@@ -493,24 +494,23 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
       stream.write("3".getBytes(StandardCharsets.UTF_8));
     }
 
-    // Load the table and check the current snapshotId
+    // Check the result of the readVersionHint(), and load the table and check the current snapshotId
+    Assert.assertEquals(3, tableOperations.readVersionHint());
     Assert.assertEquals(secondSnapshotId, catalog.loadTable(tableId).currentSnapshot().snapshotId());
 
     // Write an empty version hint file
     io.deleteFile(versionHintLocation);
     io.newOutputFile(versionHintLocation).create().close();
 
-    // Load the table and check the current snapshotId
+    // Check the result of the readVersionHint(), and load the table and check the current snapshotId
+    Assert.assertEquals(1, tableOperations.readVersionHint());
     Assert.assertEquals(secondSnapshotId, catalog.loadTable(tableId).currentSnapshot().snapshotId());
 
     // Just delete the file - double check that we have manipulated the correct file
     io.deleteFile(versionHintLocation);
 
-    // Check that exception is thrown
-    AssertHelpers.assertThrows(
-        "Should not be able to find the table",
-        NoSuchTableException.class,
-        "Table does not exist: tbl",
-        () -> catalog.loadTable(tableId));
+    // Check the result of the readVersionHint(), and load the table and check the current snapshotId
+    Assert.assertEquals(1, tableOperations.readVersionHint());
+    Assert.assertEquals(secondSnapshotId, catalog.loadTable(tableId).currentSnapshot().snapshotId());
   }
 }

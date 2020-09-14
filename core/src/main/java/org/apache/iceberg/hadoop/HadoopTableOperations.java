@@ -279,13 +279,11 @@ public class HadoopTableOperations implements TableOperations {
     }
   }
 
-  private int readVersionHint() {
+  @VisibleForTesting
+  int readVersionHint() {
     Path versionHintFile = versionHintFile();
     try {
       FileSystem fs = Util.getFs(versionHintFile, conf);
-      if (!fs.exists(versionHintFile)) {
-        return 0;
-      }
 
       try (InputStreamReader fsr = new InputStreamReader(fs.open(versionHintFile), StandardCharsets.UTF_8);
            BufferedReader in = new BufferedReader(fsr)) {
@@ -294,8 +292,17 @@ public class HadoopTableOperations implements TableOperations {
 
     } catch (Exception e) {
       LOG.warn("Error reading version hint file {}", versionHintFile, e);
-      // We just assume corrupted metadata and start to read from the first version file
-      return 1;
+      try {
+        if (getMetadataFile(1) != null) {
+          // We just assume corrupted metadata and start to read from the first version file
+          return 1;
+        }
+      } catch (IOException io) {
+        // We log this error only on debug level since this is just a problem in recovery path
+        LOG.debug("Error trying to recover version-hint.txt data for {}", versionHintFile, e);
+      }
+      // We just return 0 as not able to recover easily
+      return 0;
     }
   }
 
