@@ -50,14 +50,14 @@ import org.apache.iceberg.util.DateTimeUtil;
 abstract class DataIterator<T> implements CloseableIterator<T> {
 
   private final Iterator<FileScanTask> tasks;
-  private final FileIO fileIo;
+  private final FileIO io;
   private final EncryptionManager encryption;
 
   private CloseableIterator<T> currentIterator;
 
-  DataIterator(CombinedScanTask task, FileIO fileIo, EncryptionManager encryption) {
+  DataIterator(CombinedScanTask task, FileIO io, EncryptionManager encryption) {
     this.tasks = task.files().iterator();
-    this.fileIo = fileIo;
+    this.io = io;
     this.encryption = encryption;
     this.currentIterator = CloseableIterator.empty();
   }
@@ -65,7 +65,7 @@ abstract class DataIterator<T> implements CloseableIterator<T> {
   InputFile getInputFile(FileScanTask task) {
     Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
     return encryption.decrypt(EncryptedFiles.encryptedInput(
-        fileIo.newInputFile(task.file().path().toString()),
+        io.newInputFile(task.file().path().toString()),
         task.file().keyMetadata()));
   }
 

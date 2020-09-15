@@ -59,10 +59,10 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
       List<Expression> filterExpressions, ScanOptions options, SerializableConfiguration serializableConf) {
     this.tableLoader = tableLoader;
     this.projectedSchema = projectedSchema;
-    this.options = options;
-    this.filterExpressions = filterExpressions;
     this.io = io;
     this.encryption = encryption;
+    this.filterExpressions = filterExpressions;
+    this.options = options;
     this.serializableConf = serializableConf;
   }
 

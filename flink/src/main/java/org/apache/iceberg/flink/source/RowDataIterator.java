@@ -47,9 +47,9 @@ class RowDataIterator extends DataIterator<RowData> {
   private final String nameMapping;
   private final boolean caseSensitive;
 
-  RowDataIterator(CombinedScanTask task, FileIO fileIo, EncryptionManager encryption, Schema projectedSchema,
+  RowDataIterator(CombinedScanTask task, FileIO io, EncryptionManager encryption, Schema projectedSchema,
                   String nameMapping, boolean caseSensitive) {
-    super(task, fileIo, encryption);
+    super(task, io, encryption);
     this.projectedSchema = projectedSchema;
     this.nameMapping = nameMapping;
     this.caseSensitive = caseSensitive;

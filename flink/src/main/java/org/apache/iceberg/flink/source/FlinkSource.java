@@ -29,6 +29,7 @@ import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -65,7 +66,7 @@ public class FlinkSource {
     private TableSchema projectedSchema;
     private ScanOptions options = ScanOptions.builder().build();
     private List<Expression> filterExpressions;
-    private org.apache.hadoop.conf.Configuration hadoopConf;
+    private Configuration hadoopConf;
 
     private RowDataTypeInfo rowTypeInfo;
 
@@ -108,7 +109,7 @@ public class FlinkSource {
       return this;
     }
 
-    public Builder hadoopConf(org.apache.hadoop.conf.Configuration newConf) {
+    public Builder hadoopConf(Configuration newConf) {
       this.hadoopConf = newConf;
       return this;
     }
