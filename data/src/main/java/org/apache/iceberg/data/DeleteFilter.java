@@ -131,7 +131,7 @@ public abstract class DeleteFilter<T> {
       StructProjection projectRow = StructProjection.create(requiredSchema, deleteSchema);
 
       Iterable<CloseableIterable<Record>> deleteRecords = Iterables.transform(deletes,
-          delete -> openDeletes(delete, dataFile, deleteSchema));
+          delete -> openDeletes(delete, deleteSchema));
       StructLikeSet deleteSet = Deletes.toEqualitySet(
           // copy the delete records because they will be held in a set
           CloseableIterable.transform(CloseableIterable.concat(deleteRecords), Record::copy),
@@ -149,8 +149,7 @@ public abstract class DeleteFilter<T> {
       return records;
     }
 
-    List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes,
-        delete -> openPosDeletes(delete, dataFile));
+    List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes, this::openPosDeletes);
 
     // if there are fewer deletes than a reasonable number to keep in memory, use a set
     if (posDeletes.stream().mapToLong(DeleteFile::recordCount).sum() < setFilterThreshold) {
@@ -162,11 +161,11 @@ public abstract class DeleteFilter<T> {
     return Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(dataFile.path(), deletes));
   }
 
-  private CloseableIterable<Record> openPosDeletes(DeleteFile file, DataFile dataFile) {
-    return openDeletes(file, dataFile, POS_DELETE_SCHEMA);
+  private CloseableIterable<Record> openPosDeletes(DeleteFile file) {
+    return openDeletes(file, POS_DELETE_SCHEMA);
   }
 
-  private CloseableIterable<Record> openDeletes(DeleteFile deleteFile, DataFile dataFile, Schema deleteSchema) {
+  private CloseableIterable<Record> openDeletes(DeleteFile deleteFile, Schema deleteSchema) {
     InputFile input = getInputFile(deleteFile.path().toString());
     switch (deleteFile.format()) {
       case AVRO:
