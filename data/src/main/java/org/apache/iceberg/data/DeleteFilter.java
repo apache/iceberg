@@ -190,7 +190,7 @@ public abstract class DeleteFilter<T> {
       case ORC:
       default:
         throw new UnsupportedOperationException(String.format(
-            "Cannot read %s file: %s", deleteFile.format().name(), deleteFile.path()));
+            "Cannot read deletes, %s is not a supported format: %s", deleteFile.format().name(), deleteFile.path()));
     }
   }
 

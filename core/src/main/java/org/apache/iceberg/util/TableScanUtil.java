@@ -32,13 +32,7 @@ public class TableScanUtil {
   }
 
   public static boolean hasDeletes(CombinedScanTask task) {
-    for (FileScanTask fileTask : task.files()) {
-      if (hasDeletes(fileTask)) {
-        return true;
-      }
-    }
-
-    return false;
+    return task.files().stream().anyMatch(TableScanUtil::hasDeletes);
   }
 
   public static boolean hasDeletes(FileScanTask task) {

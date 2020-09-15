@@ -207,6 +207,9 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     String expectedSchemaString = SchemaParser.toJson(lazySchema());
     String nameMappingString = table.properties().get(DEFAULT_NAME_MAPPING);
 
+    ValidationException.check(tasks().stream().noneMatch(TableScanUtil::hasDeletes),
+        "Cannot scan table %s: cannot apply required delete files", table);
+
     List<InputPartition<ColumnarBatch>> readTasks = Lists.newArrayList();
     for (CombinedScanTask task : tasks()) {
       readTasks.add(new ReadTask<>(
@@ -388,9 +391,6 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
         throw new RuntimeIOException(e, "Failed to close table scan: %s", scan);
       }
     }
-
-    ValidationException.check(tasks.stream().noneMatch(TableScanUtil::hasDeletes),
-        "Cannot scan table %s: cannot apply required delete files", table);
 
     return tasks;
   }
