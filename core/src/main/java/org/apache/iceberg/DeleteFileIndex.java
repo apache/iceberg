@@ -76,7 +76,7 @@ class DeleteFileIndex {
     ImmutableMap.Builder<Integer, Types.StructType> builder = ImmutableMap.builder();
     specsById.forEach((specId, spec) -> builder.put(specId, spec.partitionType()));
     this.partitionTypeById = builder.build();
-    this.wrapperById = Maps.newHashMap();
+    this.wrapperById = Maps.newConcurrentMap();
     this.globalSeqs = globalSeqs;
     this.globalDeletes = globalDeletes;
     this.sortedDeletesByPartition = sortedDeletesByPartition;
