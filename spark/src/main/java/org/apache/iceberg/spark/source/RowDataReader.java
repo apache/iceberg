@@ -217,7 +217,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
   private class SparkDeleteFilter extends DeleteFilter<InternalRow> {
     private final InternalRowWrapper asStructLike;
 
-    public SparkDeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema) {
+    SparkDeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema) {
       super(task, tableSchema, requestedSchema);
       this.asStructLike = new InternalRowWrapper(SparkSchemaUtil.convert(requiredSchema()));
     }
