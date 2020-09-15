@@ -44,21 +44,4 @@ public class FlinkInputSplit implements InputSplit {
   CombinedScanTask getTask() {
     return task;
   }
-
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    }
-    if (o == null || getClass() != o.getClass()) {
-      return false;
-    }
-    FlinkInputSplit that = (FlinkInputSplit) o;
-    return splitNumber == that.splitNumber;
-  }
-
-  @Override
-  public int hashCode() {
-    return splitNumber;
-  }
 }

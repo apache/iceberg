@@ -57,35 +57,35 @@ class FlinkSplitGenerator {
   private List<CombinedScanTask> tasks() {
     TableScan scan = table
         .newScan()
-        .caseSensitive(options.isCaseSensitive())
+        .caseSensitive(options.caseSensitive())
         .project(projectedSchema);
 
-    if (options.getSnapshotId() != null) {
-      scan = scan.useSnapshot(options.getSnapshotId());
+    if (options.snapshotId() != null) {
+      scan = scan.useSnapshot(options.snapshotId());
     }
 
-    if (options.getAsOfTimestamp() != null) {
-      scan = scan.asOfTime(options.getAsOfTimestamp());
+    if (options.asOfTimestamp() != null) {
+      scan = scan.asOfTime(options.asOfTimestamp());
     }
 
-    if (options.getStartSnapshotId() != null) {
-      if (options.getEndSnapshotId() != null) {
-        scan = scan.appendsBetween(options.getStartSnapshotId(), options.getEndSnapshotId());
+    if (options.startSnapshotId() != null) {
+      if (options.endSnapshotId() != null) {
+        scan = scan.appendsBetween(options.startSnapshotId(), options.endSnapshotId());
       } else {
-        scan = scan.appendsAfter(options.getStartSnapshotId());
+        scan = scan.appendsAfter(options.startSnapshotId());
       }
     }
 
-    if (options.getSplitSize() != null) {
-      scan = scan.option(TableProperties.SPLIT_SIZE, options.getSplitSize().toString());
+    if (options.splitSize() != null) {
+      scan = scan.option(TableProperties.SPLIT_SIZE, options.splitSize().toString());
     }
 
-    if (options.getSplitLookback() != null) {
-      scan = scan.option(TableProperties.SPLIT_LOOKBACK, options.getSplitLookback().toString());
+    if (options.splitLookback() != null) {
+      scan = scan.option(TableProperties.SPLIT_LOOKBACK, options.splitLookback().toString());
     }
 
-    if (options.getSplitOpenFileCost() != null) {
-      scan = scan.option(TableProperties.SPLIT_OPEN_FILE_COST, options.getSplitOpenFileCost().toString());
+    if (options.splitOpenFileCost() != null) {
+      scan = scan.option(TableProperties.SPLIT_OPEN_FILE_COST, options.splitOpenFileCost().toString());
     }
 
     if (filterExpressions != null) {

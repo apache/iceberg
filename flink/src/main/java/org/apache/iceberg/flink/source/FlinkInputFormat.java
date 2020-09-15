@@ -100,7 +100,7 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   @Override
   public void open(FlinkInputSplit split) {
     this.iterator = new RowDataIterator(
-        split.getTask(), io, encryption, projectedSchema, options.getNameMapping(), options.isCaseSensitive());
+        split.getTask(), io, encryption, projectedSchema, options.nameMapping(), options.caseSensitive());
   }
 
   @Override

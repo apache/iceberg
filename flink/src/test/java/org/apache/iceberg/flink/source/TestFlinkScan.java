@@ -49,7 +49,6 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataConverter;
 import org.apache.iceberg.hadoop.HadoopCatalog;
@@ -78,10 +77,8 @@ public abstract class TestFlinkScan extends AbstractTestBase {
           .bucket("id", 1)
           .build();
 
-  // before variables
-  private Configuration conf;
-  String warehouse;
   private HadoopCatalog catalog;
+  protected String warehouse;
 
   // parametrized variables
   private final FileFormat fileFormat;
@@ -99,23 +96,21 @@ public abstract class TestFlinkScan extends AbstractTestBase {
   public void before() throws IOException {
     File warehouseFile = TEMPORARY_FOLDER.newFolder();
     Assert.assertTrue(warehouseFile.delete());
-    conf = new Configuration();
+    // before variables
+    Configuration conf = new Configuration();
     warehouse = "file:" + warehouseFile;
     catalog = new HadoopCatalog(conf, warehouse);
   }
 
   private List<Row> execute(Table table) throws IOException {
-    return executeWithOptions(table, null, null, null, null, null, null, null, null);
+    return execute(table, ScanOptions.builder().build());
   }
 
-  private List<Row> execute(Table table, List<String> projectFields) throws IOException {
-    return executeWithOptions(table, projectFields, null, null, null, null, null, null, null);
-  }
+  protected abstract List<Row> execute(Table table, List<String> projectFields) throws IOException;
 
-  protected abstract List<Row> executeWithOptions(
-      Table table, List<String> projectFields, CatalogLoader loader, Long snapshotId,
-      Long startSnapshotId, Long endSnapshotId, Long asOfTimestamp, List<Expression> filters, String sqlFilter)
-      throws IOException;
+  protected abstract List<Row> execute(Table table, ScanOptions options) throws IOException;
+
+  protected abstract List<Row> execute(Table table, List<Expression> filters, String sqlFilter) throws IOException;
 
   /**
    * The Flink SQL has no residuals, because there will be operator to filter all the data that should be filtered.
@@ -239,9 +234,9 @@ public abstract class TestFlinkScan extends AbstractTestBase {
     helper.appendToTable(RandomGenericData.generate(SCHEMA, 1, 0L));
 
     assertRecords(
-        executeWithOptions(table, null, null, snapshotId, null, null, null, null, null), expectedRecords, SCHEMA);
+        execute(table, ScanOptions.builder().snapshotId(snapshotId).build()), expectedRecords, SCHEMA);
     assertRecords(
-        executeWithOptions(table, null, null, null, null, null, timestampMillis, null, null), expectedRecords, SCHEMA);
+        execute(table, ScanOptions.builder().asOfTimestamp(timestampMillis).build()), expectedRecords, SCHEMA);
   }
 
   @Test
@@ -270,28 +265,13 @@ public abstract class TestFlinkScan extends AbstractTestBase {
     expected1.addAll(records2);
     expected1.addAll(records3);
     expected1.addAll(records4);
-    assertRecords(executeWithOptions(table, null, null, null, snapshotId1, null, null, null, null), expected1, SCHEMA);
+    assertRecords(execute(table, ScanOptions.builder().startSnapshotId(snapshotId1).build()), expected1, SCHEMA);
 
     List<Record> expected2 = Lists.newArrayList();
     expected2.addAll(records2);
     expected2.addAll(records3);
-    assertRecords(
-        executeWithOptions(table, null, null, null, snapshotId1, snapshotId3, null, null, null), expected2, SCHEMA);
-  }
-
-  @Test
-  public void testCustomCatalog() throws IOException {
-    String newWarehouse = TEMPORARY_FOLDER.newFolder().toURI().toString();
-    Table table = new HadoopCatalog(conf, newWarehouse).createTable(TableIdentifier.of("default", "t"), SCHEMA);
-
-    List<Record> expectedRecords = RandomGenericData.generate(SCHEMA, 1, 0L);
-    expectedRecords.get(0).set(2, "2020-03-20");
-    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(
-        org.apache.iceberg.TestHelpers.Row.of("2020-03-20", 0), expectedRecords);
-
-    List<Row> rows = executeWithOptions(
-        table, null, CatalogLoader.hadoop("new_catalog", newWarehouse), null, null, null, null, null, null);
-    assertRecords(rows, expectedRecords, SCHEMA);
+    assertRecords(execute(table, ScanOptions.builder().startSnapshotId(snapshotId1).endSnapshotId(snapshotId3).build()),
+        expected2, SCHEMA);
   }
 
   @Test
@@ -308,9 +288,7 @@ public abstract class TestFlinkScan extends AbstractTestBase {
         RandomGenericData.generate(SCHEMA, 2, 0L));
     helper.appendToTable(dataFile1, dataFile2);
     List<Expression> filters = Collections.singletonList(Expressions.equal("dt", "2020-03-20"));
-    assertRecords(
-        executeWithOptions(table, null, null, null, null, null, null, filters, "dt='2020-03-20'"),
-        expectedRecords, SCHEMA);
+    assertRecords(execute(table, filters, "dt='2020-03-20'"), expectedRecords, SCHEMA);
   }
 
   @Test
@@ -334,9 +312,7 @@ public abstract class TestFlinkScan extends AbstractTestBase {
     helper.appendToTable(dataFile1, dataFile2);
 
     List<Expression> filters = Arrays.asList(Expressions.equal("dt", "2020-03-20"), Expressions.equal("id", 123));
-    assertResiduals(
-        SCHEMA, executeWithOptions(table, null, null, null, null, null, null, filters, "dt='2020-03-20' and id=123"),
-        writeRecords, expectedRecords);
+    assertResiduals(SCHEMA, execute(table, filters, "dt='2020-03-20' and id=123"), writeRecords, expectedRecords);
   }
 
   @Test

@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
@@ -31,10 +32,8 @@ import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -53,20 +52,24 @@ public class TestFlinkInputFormat extends TestFlinkScan {
   @Override
   public void before() throws IOException {
     super.before();
-    builder = FlinkSource.forBounded().tableLoader(TableLoader.fromHadoopTable(warehouse + "/default/t"));
+    builder = FlinkSource.forRowData().tableLoader(TableLoader.fromHadoopTable(warehouse + "/default/t"));
   }
 
   @Override
-  protected List<Row> executeWithOptions(
-      Table table, List<String> projectFields, CatalogLoader loader, Long snapshotId, Long startSnapshotId,
-      Long endSnapshotId, Long asOfTimestamp, List<Expression> filters, String sqlFilter) throws IOException {
-    ScanOptions options = ScanOptions.builder().snapshotId(snapshotId).startSnapshotId(startSnapshotId)
-        .endSnapshotId(endSnapshotId).asOfTimestamp(asOfTimestamp).build();
-    if (loader != null) {
-      builder.tableLoader(TableLoader.fromCatalog(loader, TableIdentifier.of("default", "t")));
-    }
+  protected List<Row> execute(Table table, List<String> projectFields) throws IOException {
+    Schema projected = new Schema(projectFields.stream().map(f ->
+        table.schema().asStruct().field(f)).collect(Collectors.toList()));
+    return run(builder.project(FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(projected))).buildFormat());
+  }
 
-    return run(builder.select(projectFields).filters(filters).options(options).buildFormat());
+  @Override
+  protected List<Row> execute(Table table, ScanOptions options) throws IOException {
+    return run(builder.options(options).buildFormat());
+  }
+
+  @Override
+  protected List<Row> execute(Table table, List<Expression> filters, String sqlFilter) throws IOException {
+    return run(builder.filters(filters).buildFormat());
   }
 
   @Override

@@ -31,6 +31,8 @@ public class ScanOptions implements Serializable {
 
   private static final long serialVersionUID = 1L;
 
+  public static final long UNBOUNDED_PRECEDING = -1L;
+
   public static final ConfigOption<Long> SNAPSHOT_ID =
       ConfigOptions.key("snapshot-id").longType().defaultValue(null);
 
@@ -79,39 +81,39 @@ public class ScanOptions implements Serializable {
     this.nameMapping = nameMapping;
   }
 
-  public boolean isCaseSensitive() {
+  public boolean caseSensitive() {
     return caseSensitive;
   }
 
-  public Long getSnapshotId() {
+  public Long snapshotId() {
     return snapshotId;
   }
 
-  public Long getStartSnapshotId() {
+  public Long startSnapshotId() {
     return startSnapshotId;
   }
 
-  public Long getEndSnapshotId() {
+  public Long endSnapshotId() {
     return endSnapshotId;
   }
 
-  public Long getAsOfTimestamp() {
+  public Long asOfTimestamp() {
     return asOfTimestamp;
   }
 
-  public Long getSplitSize() {
+  public Long splitSize() {
     return splitSize;
   }
 
-  public Integer getSplitLookback() {
+  public Integer splitLookback() {
     return splitLookback;
   }
 
-  public Long getSplitOpenFileCost() {
+  public Long splitOpenFileCost() {
     return splitOpenFileCost;
   }
 
-  public String getNameMapping() {
+  public String nameMapping() {
     return nameMapping;
   }
 
@@ -119,8 +121,8 @@ public class ScanOptions implements Serializable {
     return new Builder();
   }
 
-  public static ScanOptions of(Map<String, String> options) {
-    return builder().options(options).build();
+  public static ScanOptions fromProperties(Map<String, String> properties) {
+    return builder().options(properties).build();
   }
 
   public static final class Builder {
@@ -137,9 +139,9 @@ public class ScanOptions implements Serializable {
     private Builder() {
     }
 
-    public Builder options(Map<String, String> options) {
+    public Builder options(Map<String, String> properties) {
       Configuration config = new Configuration();
-      options.forEach(config::setString);
+      properties.forEach(config::setString);
       this.caseSensitive = config.get(CASE_SENSITIVE);
       this.snapshotId = config.get(SNAPSHOT_ID);
       this.asOfTimestamp = config.get(AS_OF_TIMESTAMP);
@@ -148,7 +150,7 @@ public class ScanOptions implements Serializable {
       this.splitSize = config.get(SPLIT_SIZE);
       this.splitLookback = config.get(SPLIT_LOOKBACK);
       this.splitOpenFileCost = config.get(SPLIT_FILE_OPEN_COST);
-      this.nameMapping = options.get(DEFAULT_NAME_MAPPING);
+      this.nameMapping = properties.get(DEFAULT_NAME_MAPPING);
       return this;
     }
 
