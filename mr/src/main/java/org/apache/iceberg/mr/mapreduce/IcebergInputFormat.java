@@ -111,9 +111,9 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     if (schemaStr != null) {
       scan.project(SchemaParser.fromJson(schemaStr));
     }
-    String[] columnsToProject = conf.getStrings(InputFormatConfig.COLUMN_PROJECTIONS, null);
-    if (columnsToProject != null) {
-      scan.select(columnsToProject);
+    String[] selectedColumns = conf.getStrings(InputFormatConfig.SELECTED_COLUMNS);
+    if (selectedColumns != null) {
+      scan.select(selectedColumns);
     }
 
     // TODO add a filter parser to get rid of Serialization
@@ -177,9 +177,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       CombinedScanTask task = ((IcebergSplit) split).task();
       this.context = newContext;
       this.tasks = task.files().iterator();
-      this.tableSchema = SchemaParser.fromJson(conf.get(InputFormatConfig.TABLE_SCHEMA));
-      String readSchemaStr = conf.get(InputFormatConfig.READ_SCHEMA);
-      this.expectedSchema = readSchemaStr != null ? SchemaParser.fromJson(readSchemaStr) : tableSchema;
+      this.tableSchema = InputFormatConfig.tableSchema(conf);
+      this.expectedSchema = readSchema(conf, tableSchema);
       this.reuseContainers = conf.getBoolean(InputFormatConfig.REUSE_CONTAINERS, false);
       this.caseSensitive = conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, true);
       this.inMemoryDataModel = conf.getEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL,
@@ -344,6 +343,17 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       } else {
         return Collections.emptyMap();
       }
+    }
+
+    private static Schema readSchema(Configuration conf, Schema tableSchema) {
+      Schema readSchema = InputFormatConfig.readSchema(conf);
+
+      if (readSchema != null) {
+        return readSchema;
+      }
+
+      String[] selectedColumns = InputFormatConfig.selectedColumns(conf);
+      return selectedColumns != null ? tableSchema.select(selectedColumns) : tableSchema;
     }
   }
 

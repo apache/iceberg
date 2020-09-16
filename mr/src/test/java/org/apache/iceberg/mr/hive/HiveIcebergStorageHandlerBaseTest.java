@@ -57,13 +57,14 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   private static final Schema CUSTOMER_SCHEMA = new Schema(
           required(1, "customer_id", Types.LongType.get()),
-          required(2, "first_name", Types.StringType.get())
+          required(2, "first_name", Types.StringType.get()),
+          required(3, "last_name", Types.StringType.get())
   );
 
   private static final List<Record> CUSTOMER_RECORDS = TestHelper.RecordsBuilder.newInstance(CUSTOMER_SCHEMA)
-          .add(0L, "Alice")
-          .add(1L, "Bob")
-          .add(2L, "Trudy")
+          .add(0L, "Alice", "Brown")
+          .add(1L, "Bob", "Green")
+          .add(2L, "Trudy", "Pink")
           .build();
 
   private static final Schema ORDER_SCHEMA = new Schema(
@@ -128,17 +129,17 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     List<Object[]> rows = shell.executeStatement("SELECT * FROM default.customers");
 
     Assert.assertEquals(3, rows.size());
-    Assert.assertArrayEquals(new Object[] {0L, "Alice"}, rows.get(0));
-    Assert.assertArrayEquals(new Object[] {1L, "Bob"}, rows.get(1));
-    Assert.assertArrayEquals(new Object[] {2L, "Trudy"}, rows.get(2));
+    Assert.assertArrayEquals(new Object[] {0L, "Alice", "Brown"}, rows.get(0));
+    Assert.assertArrayEquals(new Object[] {1L, "Bob", "Green"}, rows.get(1));
+    Assert.assertArrayEquals(new Object[] {2L, "Trudy", "Pink"}, rows.get(2));
 
     // Adding the ORDER BY clause will cause Hive to spawn a local MR job this time.
     List<Object[]> descRows = shell.executeStatement("SELECT * FROM default.customers ORDER BY customer_id DESC");
 
     Assert.assertEquals(3, descRows.size());
-    Assert.assertArrayEquals(new Object[] {2L, "Trudy"}, descRows.get(0));
-    Assert.assertArrayEquals(new Object[] {1L, "Bob"}, descRows.get(1));
-    Assert.assertArrayEquals(new Object[] {0L, "Alice"}, descRows.get(2));
+    Assert.assertArrayEquals(new Object[] {2L, "Trudy", "Pink"}, descRows.get(0));
+    Assert.assertArrayEquals(new Object[] {1L, "Bob", "Green"}, descRows.get(1));
+    Assert.assertArrayEquals(new Object[] {0L, "Alice", "Brown"}, descRows.get(2));
   }
 
   @Test
@@ -155,6 +156,52 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Assert.assertArrayEquals(new Object[] {0L, "Alice", 100L, 11.11d}, rows.get(0));
     Assert.assertArrayEquals(new Object[] {0L, "Alice", 101L, 22.22d}, rows.get(1));
     Assert.assertArrayEquals(new Object[] {1L, "Bob", 102L, 33.33d}, rows.get(2));
+  }
+
+  @Test
+  public void testColumnSelection() throws IOException {
+    createTable("customers", CUSTOMER_SCHEMA, CUSTOMER_RECORDS);
+
+    List<Object[]> outOfOrderColumns = shell
+            .executeStatement("SELECT first_name, customer_id, last_name FROM default.customers");
+
+    Assert.assertEquals(3, outOfOrderColumns.size());
+    Assert.assertArrayEquals(new Object[] {"Alice", 0L, "Brown"}, outOfOrderColumns.get(0));
+    Assert.assertArrayEquals(new Object[] {"Bob", 1L, "Green"}, outOfOrderColumns.get(1));
+    Assert.assertArrayEquals(new Object[] {"Trudy", 2L, "Pink"}, outOfOrderColumns.get(2));
+
+    List<Object[]> allButFirstColumn = shell.executeStatement("SELECT first_name, last_name FROM default.customers");
+
+    Assert.assertEquals(3, allButFirstColumn.size());
+    Assert.assertArrayEquals(new Object[] {"Alice", "Brown"}, allButFirstColumn.get(0));
+    Assert.assertArrayEquals(new Object[] {"Bob", "Green"}, allButFirstColumn.get(1));
+    Assert.assertArrayEquals(new Object[] {"Trudy", "Pink"}, allButFirstColumn.get(2));
+
+    List<Object[]> allButMiddleColumn = shell.executeStatement("SELECT customer_id, last_name FROM default.customers");
+
+    Assert.assertEquals(3, allButMiddleColumn.size());
+    Assert.assertArrayEquals(new Object[] {0L, "Brown"}, allButMiddleColumn.get(0));
+    Assert.assertArrayEquals(new Object[] {1L, "Green"}, allButMiddleColumn.get(1));
+    Assert.assertArrayEquals(new Object[] {2L, "Pink"}, allButMiddleColumn.get(2));
+
+    List<Object[]> allButLastColumn = shell.executeStatement("SELECT customer_id, first_name FROM default.customers");
+
+    Assert.assertEquals(3, allButLastColumn.size());
+    Assert.assertArrayEquals(new Object[] {0L, "Alice"}, allButLastColumn.get(0));
+    Assert.assertArrayEquals(new Object[] {1L, "Bob"}, allButLastColumn.get(1));
+    Assert.assertArrayEquals(new Object[] {2L, "Trudy"}, allButLastColumn.get(2));
+  }
+
+  @Test
+  public void selectSameColumnTwice() throws IOException {
+    createTable("customers", CUSTOMER_SCHEMA, CUSTOMER_RECORDS);
+
+    List<Object[]> columns = shell.executeStatement("SELECT first_name, first_name FROM default.customers");
+
+    Assert.assertEquals(3, columns.size());
+    Assert.assertArrayEquals(new Object[] {"Alice", "Alice"}, columns.get(0));
+    Assert.assertArrayEquals(new Object[] {"Bob", "Bob"}, columns.get(1));
+    Assert.assertArrayEquals(new Object[] {"Trudy", "Trudy"}, columns.get(2));
   }
 
   protected void createTable(String tableName, Schema schema, List<Record> records)

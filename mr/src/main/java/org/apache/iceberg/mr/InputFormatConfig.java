@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.mr;
 
+import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
@@ -47,7 +48,7 @@ public class InputFormatConfig {
   public static final String CATALOG = "iceberg.mr.catalog";
   public static final String HADOOP_CATALOG_WAREHOUSE_LOCATION = "iceberg.mr.catalog.hadoop.warehouse.location";
   public static final String CATALOG_LOADER_CLASS = "iceberg.mr.catalog.loader.class";
-  public static final String COLUMN_PROJECTIONS = "iceberg.mr.column.projections";
+  public static final String SELECTED_COLUMNS = "iceberg.mr.selected.columns";
 
   public static final String CATALOG_NAME = "iceberg.catalog";
   public static final String HADOOP_CATALOG = "hadoop.catalog";
@@ -94,8 +95,13 @@ public class InputFormatConfig {
       return this;
     }
 
-    public ConfigBuilder select(String[] columns) {
-      conf.setStrings(COLUMN_PROJECTIONS, columns);
+    public ConfigBuilder select(List<String> columns) {
+      conf.setStrings(SELECTED_COLUMNS, columns.toArray(new String[0]));
+      return this;
+    }
+
+    public ConfigBuilder select(String... columns) {
+      conf.setStrings(SELECTED_COLUMNS, columns);
       return this;
     }
 
@@ -167,6 +173,24 @@ public class InputFormatConfig {
       conf.setBoolean(InputFormatConfig.SKIP_RESIDUAL_FILTERING, true);
       return this;
     }
+  }
+
+  public static Schema tableSchema(Configuration conf) {
+    return schema(conf, InputFormatConfig.TABLE_SCHEMA);
+  }
+
+  public static Schema readSchema(Configuration conf) {
+    return schema(conf, InputFormatConfig.READ_SCHEMA);
+  }
+
+  public static String[] selectedColumns(Configuration conf) {
+    String[] readColumns = conf.getStrings(InputFormatConfig.SELECTED_COLUMNS);
+    return readColumns != null && readColumns.length > 0 ? readColumns : null;
+  }
+
+  private static Schema schema(Configuration conf, String key) {
+    String json = conf.get(key);
+    return json == null ? null : SchemaParser.fromJson(json);
   }
 
 }
