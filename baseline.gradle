@@ -69,6 +69,7 @@ subprojects {
           '-Xep:PreferSafeLoggingPreconditions:OFF',
           '-Xep:PreferSafeLoggableExceptions:OFF',
           '-Xep:Slf4jLogsafeArgs:OFF',
+          '-Xep:RawTypes:OFF',
           // subclasses are not equal
           '-Xep:EqualsGetClass:OFF',
           // patterns that are allowed
