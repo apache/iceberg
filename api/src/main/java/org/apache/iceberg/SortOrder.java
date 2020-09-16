@@ -58,28 +58,28 @@ public class SortOrder implements Serializable {
   }
 
   /**
-   * @return the {@link Schema} for this sort order
+   * Returns the {@link Schema} for this sort order
    */
   public Schema schema() {
     return schema;
   }
 
   /**
-   * @return the ID of this sort order
+   * Returns the ID of this sort order
    */
   public int orderId() {
     return orderId;
   }
 
   /**
-   * @return the list of {@link SortField sort fields} for this sort order
+   * Returns the list of {@link SortField sort fields} for this sort order
    */
   public List<SortField> fields() {
     return lazyFieldList();
   }
 
   /**
-   * @return true if the sort order is unsorted
+   * Returns true if the sort order is unsorted
    */
   public boolean isUnsorted() {
     return fields.length < 1;
