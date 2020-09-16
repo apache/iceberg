@@ -38,7 +38,6 @@ import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.data.RowData;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
@@ -248,42 +247,6 @@ public class TestIcebergFilesCommitter {
   }
 
   @Test
-  public void testRecoveryFromInvalidSnapshot() throws Exception {
-    long checkpointId = 0;
-    long timestamp = 0;
-    OperatorSubtaskState snapshot;
-
-    JobID jobId = new JobID();
-    try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(jobId)) {
-      harness.setup();
-      harness.open();
-
-      assertSnapshotSize(0);
-      assertMaxCommittedCheckpointId(jobId, -1L);
-
-      RowData row = SimpleDataUtil.createRowData(1, "hello");
-      DataFile dataFile = writeDataFile("data-1", ImmutableList.of(row));
-
-      harness.processElement(dataFile, ++timestamp);
-      snapshot = harness.snapshot(++checkpointId, ++timestamp);
-      assertMaxCommittedCheckpointId(jobId, -1L);
-      SimpleDataUtil.assertTableRows(tablePath, ImmutableList.of());
-    }
-
-    // Restore from the given snapshot
-    try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(jobId)) {
-      harness.setup();
-      AssertHelpers.assertThrows("Could not restore because there's no valid snapshot.",
-          IllegalStateException.class,
-          "There should be an existing iceberg snapshot for current flink job",
-          () -> {
-            harness.initializeState(snapshot);
-            return null;
-          });
-    }
-  }
-
-  @Test
   public void testRecoveryFromValidSnapshot() throws Exception {
     long checkpointId = 0;
     long timestamp = 0;
@@ -330,6 +293,79 @@ public class TestIcebergFilesCommitter {
       SimpleDataUtil.assertTableRows(tablePath, expectedRows);
       assertSnapshotSize(2);
       assertMaxCommittedCheckpointId(jobId, checkpointId);
+    }
+  }
+
+  @Test
+  public void testRecoveryFromSnapshotWithoutCompletedNotification() throws Exception {
+    // We've two steps in checkpoint: 1. snapshotState(ckp); 2. notifyCheckpointComplete(ckp). It's possible that we
+    // flink job will restore from a checkpoint with only step#1 finished.
+    long checkpointId = 0;
+    long timestamp = 0;
+    OperatorSubtaskState snapshot;
+    List<RowData> expectedRows = Lists.newArrayList();
+    JobID jobId = new JobID();
+    try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(jobId)) {
+      harness.setup();
+      harness.open();
+
+      assertSnapshotSize(0);
+      assertMaxCommittedCheckpointId(jobId, -1L);
+
+      RowData row = SimpleDataUtil.createRowData(1, "hello");
+      expectedRows.add(row);
+      DataFile dataFile = writeDataFile("data-1", ImmutableList.of(row));
+      harness.processElement(dataFile, ++timestamp);
+
+      snapshot = harness.snapshot(++checkpointId, ++timestamp);
+      SimpleDataUtil.assertTableRows(tablePath, ImmutableList.of());
+      assertMaxCommittedCheckpointId(jobId, -1L);
+    }
+
+    try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(jobId)) {
+      harness.setup();
+      harness.initializeState(snapshot);
+      harness.open();
+
+      SimpleDataUtil.assertTableRows(tablePath, expectedRows);
+      assertMaxCommittedCheckpointId(jobId, checkpointId);
+
+      harness.snapshot(++checkpointId, ++timestamp);
+      harness.notifyOfCompletedCheckpoint(checkpointId);
+      SimpleDataUtil.assertTableRows(tablePath, expectedRows);
+      assertSnapshotSize(2);
+      assertMaxCommittedCheckpointId(jobId, checkpointId);
+
+      RowData row = SimpleDataUtil.createRowData(2, "world");
+      expectedRows.add(row);
+      DataFile dataFile = writeDataFile("data-2", ImmutableList.of(row));
+      harness.processElement(dataFile, ++timestamp);
+
+      snapshot = harness.snapshot(++checkpointId, ++timestamp);
+    }
+
+    // Redeploying flink job from external checkpoint.
+    JobID newJobId = new JobID();
+    try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(newJobId)) {
+      harness.setup();
+      harness.initializeState(snapshot);
+      harness.open();
+
+      assertMaxCommittedCheckpointId(newJobId, -1);
+      assertMaxCommittedCheckpointId(jobId, checkpointId);
+      SimpleDataUtil.assertTableRows(tablePath, expectedRows);
+      assertSnapshotSize(3);
+
+      RowData row = SimpleDataUtil.createRowData(3, "foo");
+      expectedRows.add(row);
+      DataFile dataFile = writeDataFile("data-3", ImmutableList.of(row));
+      harness.processElement(dataFile, ++timestamp);
+
+      harness.snapshot(++checkpointId, ++timestamp);
+      harness.notifyOfCompletedCheckpoint(checkpointId);
+      SimpleDataUtil.assertTableRows(tablePath, expectedRows);
+      assertSnapshotSize(4);
+      assertMaxCommittedCheckpointId(newJobId, checkpointId);
     }
   }
 
