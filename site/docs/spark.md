@@ -278,16 +278,8 @@ To load a table as a DataFrame, use `table`:
 val df = spark.table("prod.db.table")
 ```
 
-To configure the `DataFrameReader`, use a reader directly:
-
-```sql
-val df = spark.read
-    .option("split-size", "268435456")
-    .table("prod.db.table")
-```
-
 !!! Warning
-    When reading with DataFrames in Spark 3, use `table` to load a table by name from a catalog.
+    When reading with DataFrames in Spark 3, use `table` to load a table by name from a catalog unless `option` is also required.
     Using `format("iceberg")` loads an isolated table reference that is not refreshed when other queries update the table.
 
 
@@ -302,21 +294,28 @@ To select a specific table snapshot or the snapshot at some time, Iceberg suppor
 // time travel to October 26, 1986 at 01:21:00
 spark.read
     .option("as-of-timestamp", "499162860000")
-    .table("prod.db.table")
+    .format("iceberg")
+    .load("path/to/table")
 ```
 
 ```scala
 // time travel to snapshot with ID 10963874102873L
 spark.read
     .option("snapshot-id", 10963874102873L)
-    .table("prod.db.table")
+    .format("iceberg")
+    .load("path/to/table")
 ```
+
+!!! Note
+    Spark does not currently support using `option` with `table` in DataFrameReader commands. All options will be silently 
+    ignored. Do not use `table` when attempting to time-travel or use other options. Options will be supported with `table`
+    in [Spark 3.1 - SPARK-32592](https://issues.apache.org/jira/browse/SPARK-32592).
 
 Time travel is not yet supported by Spark's SQL syntax.
 
 ### Spark 2.4
 
-Spark 2.4 requires using the DataFrame reader with `iceberg` as a format, becuase 2.4 does not support catalogs:
+Spark 2.4 requires using the DataFrame reader with `iceberg` as a format, because 2.4 does not support catalogs:
 
 ```scala
 // named metastore table
