@@ -37,6 +37,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -484,8 +485,8 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
       stream.write("1".getBytes(StandardCharsets.UTF_8));
     }
 
-    // Check the result of the readVersionHint(), and load the table and check the current snapshotId
-    Assert.assertEquals(1, tableOperations.readVersionHint());
+    // Check the result of the versionHint(), and load the table and check the current snapshotId
+    Assert.assertEquals(1, tableOperations.versionHint());
     Assert.assertEquals(secondSnapshotId, catalog.loadTable(tableId).currentSnapshot().snapshotId());
 
     // Write newer data to confirm that we are writing the correct file
@@ -494,23 +495,42 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
       stream.write("3".getBytes(StandardCharsets.UTF_8));
     }
 
-    // Check the result of the readVersionHint(), and load the table and check the current snapshotId
-    Assert.assertEquals(3, tableOperations.readVersionHint());
+    // Check the result of the versionHint(), and load the table and check the current snapshotId
+    Assert.assertEquals(3, tableOperations.versionHint());
     Assert.assertEquals(secondSnapshotId, catalog.loadTable(tableId).currentSnapshot().snapshotId());
 
     // Write an empty version hint file
     io.deleteFile(versionHintLocation);
     io.newOutputFile(versionHintLocation).create().close();
 
-    // Check the result of the readVersionHint(), and load the table and check the current snapshotId
-    Assert.assertEquals(1, tableOperations.readVersionHint());
+    // Check the result of the versionHint(), and load the table and check the current snapshotId
+    Assert.assertEquals(3, tableOperations.versionHint());
     Assert.assertEquals(secondSnapshotId, catalog.loadTable(tableId).currentSnapshot().snapshotId());
 
     // Just delete the file - double check that we have manipulated the correct file
     io.deleteFile(versionHintLocation);
 
-    // Check the result of the readVersionHint(), and load the table and check the current snapshotId
-    Assert.assertEquals(1, tableOperations.readVersionHint());
+    // Check the result of the versionHint(), and load the table and check the current snapshotId
+    Assert.assertEquals(3, tableOperations.versionHint());
     Assert.assertEquals(secondSnapshotId, catalog.loadTable(tableId).currentSnapshot().snapshotId());
+
+    // Remove the first version file, and see if we can recover
+    io.deleteFile(tableOperations.getMetadataFile(1).toString());
+
+    // Check the result of the versionHint(), and load the table and check the current snapshotId
+    Assert.assertEquals(3, tableOperations.versionHint());
+    Assert.assertEquals(secondSnapshotId, catalog.loadTable(tableId).currentSnapshot().snapshotId());
+
+    // Remove all the version files, and see if we can recover. Hint... not :)
+    io.deleteFile(tableOperations.getMetadataFile(2).toString());
+    io.deleteFile(tableOperations.getMetadataFile(3).toString());
+
+    // Check that we got 0 versionHint, and a NoSuchTableException is thrown when trying to load the table
+    Assert.assertEquals(0, tableOperations.versionHint());
+    AssertHelpers.assertThrows(
+        "Should not be able to find the table",
+        NoSuchTableException.class,
+        "Table does not exist: tbl",
+        () -> catalog.loadTable(tableId));
   }
 }
