@@ -307,9 +307,9 @@ spark.read
 ```
 
 !!! Note
-  Spark does not currently support using `option` with `table` in DataFrameReader commands. All options will be silently 
-  ignored. Do not use `table` when attempting to time-travel or use other options. Options will be supported with `table`
-  in [Spark 3.1 - SPARK-32592](https://issues.apache.org/jira/browse/SPARK-32592).
+    Spark does not currently support using `option` with `table` in DataFrameReader commands. All options will be silently 
+    ignored. Do not use `table` when attempting to time-travel or use other options. Options will be supported with `table`
+    in [Spark 3.1 - SPARK-32592](https://issues.apache.org/jira/browse/SPARK-32592).
 
 Time travel is not yet supported by Spark's SQL syntax.
 
