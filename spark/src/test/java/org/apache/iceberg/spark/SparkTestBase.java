@@ -65,6 +65,7 @@ public class SparkTestBase {
     try {
       catalog.createNamespace(Namespace.of("default"));
     } catch (AlreadyExistsException ignored) {
+      // the default namespace already exists. ignore the create error
     }
   }
 

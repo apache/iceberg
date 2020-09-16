@@ -229,7 +229,7 @@ public abstract class DeleteFilter<T> {
       columns.add(field);
     }
 
-    if (requiredIds.contains(MetadataColumns.ROW_POSITION.fieldId())) {
+    if (missingIds.contains(MetadataColumns.ROW_POSITION.fieldId())) {
       columns.add(MetadataColumns.ROW_POSITION);
     }
 
