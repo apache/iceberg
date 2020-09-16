@@ -80,7 +80,7 @@ public class HadoopTables implements Tables, Configurable {
       if (ops.current() != null) {
         result = new BaseTable(ops, location);
       } else {
-        throw new NoSuchTableException("Table does not exist at location: " + location);
+        throw new NoSuchTableException("Table does not exist at location: %s", location);
       }
     }
 
