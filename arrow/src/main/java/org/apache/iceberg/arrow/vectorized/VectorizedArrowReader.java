@@ -366,18 +366,25 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
   private static final class PositionVectorReader extends VectorizedArrowReader {
     private long rowStart;
+    private NullabilityHolder nulls;
 
     @Override
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
       Field arrowField = ArrowSchemaUtil.convert(MetadataColumns.ROW_POSITION);
       FieldVector vec = arrowField.createVector(ArrowAllocation.rootAllocator());
-      ((BigIntVector) vec).allocateNew(numValsToRead);
-      for (int i = 0; i < numValsToRead; i += 1) {
-        vec.getDataBuffer().setLong(i * Long.BYTES, rowStart + i);
+
+      if (reuse != null) {
+        vec.setValueCount(0);
+        nulls.reset();
+      } else {
+        ((BigIntVector) vec).allocateNew(numValsToRead);
+        for (int i = 0; i < numValsToRead; i += 1) {
+          vec.getDataBuffer().setLong(i * Long.BYTES, rowStart + i);
+          nulls = new NullabilityHolder(numValsToRead);
+        }
       }
 
       vec.setValueCount(numValsToRead);
-      NullabilityHolder nulls = new NullabilityHolder(numValsToRead);
       nulls.setNotNulls(0, numValsToRead);
 
       return new VectorHolder.PositionVectorHolder(vec, MetadataColumns.ROW_POSITION.type(), nulls);
