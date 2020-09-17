@@ -21,6 +21,8 @@ package org.apache.iceberg.actions;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.URLDecoder;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -33,7 +35,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Tasks;
@@ -45,10 +46,12 @@ import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.expressions.UserDefinedFunction;
 import org.apache.spark.sql.functions;
 import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.util.SerializableConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,7 +73,12 @@ import org.slf4j.LoggerFactory;
 public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
 
   private static final Logger LOG = LoggerFactory.getLogger(RemoveOrphanFilesAction.class);
-  private static final UserDefinedFunction filename = functions.udf((String path) -> {
+
+  private static final String URI_DETAIL = "URI_DETAIL";
+  private static final String FILE_PATH = "file_path";
+  private static final String FILE_PATH_ONLY = "file_path_only";
+
+  private static final UserDefinedFunction filenameUDF = functions.udf((String path) -> {
     int lastIndex = path.lastIndexOf(File.separator);
     if (lastIndex == -1) {
       return path;
@@ -78,6 +86,20 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
       return path.substring(lastIndex + 1);
     }
   }, DataTypes.StringType);
+
+  private static final UserDefinedFunction decodeUDF = functions.udf((String fullyQualifiedPath) -> {
+    return URLDecoder.decode(fullyQualifiedPath, "UTF-8");
+  }, DataTypes.StringType);
+
+  /**
+   * Transform a file path to
+   * {@code Dataset<Row<file_path_no_scheme_authority, file_path_with_scheme_authority>>}
+   */
+  private static final UserDefinedFunction addFilePathOnlyUDF = functions.udf((String fullyQualifiedPath) -> {
+    Path path = new Path(fullyQualifiedPath);
+    // only_path, fully qualified path
+    return RowFactory.create(path.toUri().getPath(), path.toUri().toString());
+  }, DataTypes.createStructType(fileDetailStructType().fields()));
 
   private final SparkSession spark;
   private final JavaSparkContext sparkContext;
@@ -147,16 +169,10 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
   public List<String> execute() {
     Dataset<Row> validDataFileDF = buildValidDataFileDF(spark);
     Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(spark, table, ops);
-    Dataset<Row> validFileDF = validDataFileDF.union(validMetadataFileDF);
-    Dataset<Row> actualFileDF = buildActualFileDF();
+    Dataset<Row> validFileDF = addFilePathOnlyColumn(validDataFileDF.union(validMetadataFileDF));
+    Dataset<Row> actualFileDF = addFilePathOnlyColumn(buildActualFileDF());
 
-    Column nameEqual = filename.apply(actualFileDF.col("file_path"))
-        .equalTo(filename.apply(validFileDF.col("file_path")));
-    Column actualContains = actualFileDF.col("file_path").contains(validFileDF.col("file_path"));
-    Column joinCond = nameEqual.and(actualContains);
-    List<String> orphanFiles = actualFileDF.join(validFileDF, joinCond, "leftanti")
-        .as(Encoders.STRING())
-        .collectAsList();
+    List<String> orphanFiles = findOrphanFiles(validFileDF, actualFileDF);
 
     Tasks.foreach(orphanFiles)
         .noRetry()
@@ -226,7 +242,7 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
         listDirRecursively(subDir, predicate, conf, maxDepth - 1, maxDirectSubDirs, remainingSubDirs, matchingFiles);
       }
     } catch (IOException e) {
-      throw new RuntimeIOException(e);
+      throw new UncheckedIOException(e);
     }
   }
 
@@ -253,5 +269,55 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
 
       return files.iterator();
     };
+  }
+
+  protected static List<String> findOrphanFiles(
+      Dataset<Row> validFileDF,
+      Dataset<Row> actualFileDF) {
+    Column nameEqual = filenameUDF.apply(actualFileDF.col(FILE_PATH_ONLY))
+        .equalTo(filenameUDF.apply(validFileDF.col(FILE_PATH_ONLY)));
+
+    Column pathContains = actualFileDF.col(FILE_PATH_ONLY)
+        .contains(validFileDF.col(FILE_PATH_ONLY));
+
+    Column joinCond = nameEqual.and(pathContains);
+    Column decodeFilepath = decodeUDF.apply(actualFileDF.col(FILE_PATH));
+    return actualFileDF.join(validFileDF, joinCond, "leftanti").select(decodeFilepath)
+        .as(Encoders.STRING())
+        .collectAsList();
+  }
+
+  /**
+   * From
+   * <pre>{@code
+   * Dataset<Row<file_path_with_scheme_authority>>
+   *    will be transformed to
+   *    Dataset<Row<file_path_no_scheme_authority, file_path_with_scheme_authority>>
+   *  }</pre>
+   *
+   * This is required to compare the valid and all files to find the orphan files.
+   * Based on the result data set, only path will be compared while comparing valid and all files path.
+   * As in the case of hadoop, s3, there could be different authority names to access same path, which can give us files
+   * which are part of metadata and not orphan.
+   *
+   * @param filePathWithSchemeAndAuthority : complete file path, can include scheme, authority and path.
+   * @return : {@code file_path_no_scheme_authority, file_path}
+   */
+  protected static Dataset<Row> addFilePathOnlyColumn(Dataset<Row> filePathWithSchemeAndAuthority) {
+    String selectExprFormat = "%s.%s as %s";
+    return filePathWithSchemeAndAuthority.withColumn(URI_DETAIL,
+        addFilePathOnlyUDF.apply(
+            filePathWithSchemeAndAuthority.apply(FILE_PATH)
+        )).selectExpr(
+            String.format(selectExprFormat, URI_DETAIL, FILE_PATH_ONLY, FILE_PATH_ONLY), // file path only
+            String.format(selectExprFormat, URI_DETAIL, FILE_PATH, FILE_PATH)); // fully qualified path
+  }
+
+  static StructType fileDetailStructType() {
+    StructType customStructType = new StructType();
+    customStructType = customStructType.add(FILE_PATH_ONLY, DataTypes.StringType, false);
+    customStructType = customStructType.add(FILE_PATH, DataTypes.StringType, false);
+
+    return customStructType;
   }
 }
