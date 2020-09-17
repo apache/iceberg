@@ -44,4 +44,25 @@ public interface RowDelta extends SnapshotUpdate<RowDelta> {
    * @return this for method chaining
    */
   RowDelta addDeletes(DeleteFile deletes);
+
+  /**
+   * Set the snapshot ID used to produce delete files.
+   * <p>
+   * Validations will check changes after this snapshot ID.
+   *
+   * @param snapshotId a snapshot ID
+   * @return this for method chaining
+   */
+  RowDelta validateFromSnapshot(long snapshotId);
+
+  /**
+   * Add data file paths that must not be deleted for this RowDelta to succeed.
+   * <p>
+   * If any path has been removed from the table since the snapshot passed to {@link #validateFromSnapshot(long)}, the
+   * operation will fail with a {@link org.apache.iceberg.exceptions.ValidationException}.
+   *
+   * @param referencedFiles file paths that are referenced by a position delete file
+   * @return this for method chaining
+   */
+  RowDelta validateDataFilesExist(Iterable<? extends CharSequence> referencedFiles);
 }

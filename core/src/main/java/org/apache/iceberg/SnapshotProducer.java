@@ -140,12 +140,25 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    */
   protected abstract List<ManifestFile> apply(TableMetadata metadataToUpdate);
 
+  /**
+   * Validate the current metadata.
+   * <p>
+   * Child operations can override this to add custom validation.
+   *
+   * @param currentMetadata current table metadata to validate
+   */
+  protected void validate(TableMetadata currentMetadata) {
+  }
+
   @Override
   public Snapshot apply() {
     this.base = refresh();
     Long parentSnapshotId = base.currentSnapshot() != null ?
         base.currentSnapshot().snapshotId() : null;
     long sequenceNumber = base.nextSequenceNumber();
+
+    // run validations from the child operation
+    validate(base);
 
     List<ManifestFile> manifests = apply(base);
 

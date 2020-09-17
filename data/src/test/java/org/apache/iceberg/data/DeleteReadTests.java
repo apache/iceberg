@@ -160,11 +160,12 @@ public abstract class DeleteReadTests {
         Pair.of(dataFile.path(), 6L) // id = 122
     );
 
-    DeleteFile posDeletes = FileHelpers.writeDeleteFile(
+    Pair<DeleteFile, Set<CharSequence>> posDeletes = FileHelpers.writeDeleteFile(
         table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
 
     table.newRowDelta()
-        .addDeletes(posDeletes)
+        .addDeletes(posDeletes.first())
+        .validateDataFilesExist(posDeletes.second())
         .commit();
 
     StructLikeSet expected = rowSetWithoutIds(29, 89, 122);
@@ -191,12 +192,13 @@ public abstract class DeleteReadTests {
         Pair.of(dataFile.path(), 5L) // id = 121
     );
 
-    DeleteFile posDeletes = FileHelpers.writeDeleteFile(
+    Pair<DeleteFile, Set<CharSequence>> posDeletes = FileHelpers.writeDeleteFile(
         table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
 
     table.newRowDelta()
         .addDeletes(eqDeletes)
-        .addDeletes(posDeletes)
+        .addDeletes(posDeletes.first())
+        .validateDataFilesExist(posDeletes.second())
         .commit();
 
     StructLikeSet expected = rowSetWithoutIds(29, 89, 121, 122);

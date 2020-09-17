@@ -82,7 +82,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
   }
 
   @Override
-  public List<ManifestFile> apply(TableMetadata base) {
+  protected void validate(TableMetadata base) {
     if (validateAddedFilesMatchOverwriteFilter) {
       PartitionSpec spec = writeSpec();
       Expression rowFilter = rowFilter();
@@ -124,7 +124,5 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
             conflictDetectionFilter, newFile.path());
       }
     }
-
-    return super.apply(base);
   }
 }

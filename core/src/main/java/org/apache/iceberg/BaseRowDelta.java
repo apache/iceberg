@@ -19,8 +19,17 @@
 
 package org.apache.iceberg;
 
-public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta {
-  public BaseRowDelta(String tableName, TableOperations ops) {
+import java.util.Set;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.SnapshotUtil;
+
+class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta {
+  private final Set<CharSequence> referencedDataFiles = CharSequenceSet.empty();
+  private Long validationSnapshotId = null; // check all versions by default
+
+  BaseRowDelta(String tableName, TableOperations ops) {
     super(tableName, ops);
   }
 
@@ -44,5 +53,33 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
   public RowDelta addDeletes(DeleteFile deletes) {
     add(deletes);
     return this;
+  }
+
+  @Override
+  public RowDelta validateFromSnapshot(long snapshotId) {
+    this.validationSnapshotId = snapshotId;
+    return this;
+  }
+
+  @Override
+  public RowDelta validateDataFilesExist(Iterable<? extends CharSequence> referencedFiles) {
+    referencedFiles.forEach(referencedDataFiles::add);
+    return this;
+  }
+
+  @Override
+  protected void validate(TableMetadata base) {
+    if (referencedDataFiles.isEmpty()) {
+      return;
+    }
+
+    Set<CharSequence> removedDataFiles = CharSequenceSet.empty();
+    SnapshotUtil.removedDataFiles(validationSnapshotId, base.currentSnapshot().snapshotId(), base::snapshot).stream()
+        .map(DataFile::path)
+        .forEach(removedDataFiles::add);
+    Set<CharSequence> missingDataFiles = Sets.intersection(referencedDataFiles, removedDataFiles);
+
+    ValidationException.check(missingDataFiles.isEmpty(),
+        "Cannot commit deletes for missing data files: %s", removedDataFiles);
   }
 }

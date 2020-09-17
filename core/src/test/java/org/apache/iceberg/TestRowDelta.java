@@ -19,7 +19,9 @@
 
 package org.apache.iceberg;
 
+import com.google.common.collect.ImmutableList;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.junit.Assert;
 import org.junit.Test;
@@ -53,6 +55,52 @@ public class TestRowDelta extends V2TableTestBase {
         ids(snap.snapshotId(), snap.snapshotId()),
         files(FILE_A_DELETES, FILE_B_DELETES),
         statuses(Status.ADDED, Status.ADDED));
+  }
+
+  @Test
+  public void testValidateDataFilesExist() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    // test changes to the table back to the snapshot where FILE_A and FILE_B existed
+    long validateFromSnapshotId = table.currentSnapshot().snapshotId();
+
+    table.newDelete()
+        .deleteFile(FILE_A)
+        .commit();
+
+    long deleteSnapshotId = table.currentSnapshot().snapshotId();
+
+    AssertHelpers.assertThrows("Should fail to add FILE_A_DELETES because FILE_A is missing",
+        ValidationException.class, "Cannot commit deletes for missing data files",
+        () -> table.newRowDelta()
+            .addDeletes(FILE_A_DELETES)
+            .validateFromSnapshot(validateFromSnapshotId)
+            .validateDataFilesExist(ImmutableList.of(FILE_A.path()))
+            .commit());
+
+    Assert.assertEquals("Table state should not be modified by failed RowDelta operation",
+        deleteSnapshotId, table.currentSnapshot().snapshotId());
+
+    Assert.assertEquals("Table should not have any delete manifests",
+        0, table.currentSnapshot().deleteManifests().size());
+
+    table.newRowDelta()
+        .addDeletes(FILE_B_DELETES)
+        .validateDataFilesExist(ImmutableList.of(FILE_B.path()))
+        .validateFromSnapshot(validateFromSnapshotId)
+        .commit();
+
+    Assert.assertEquals("Table should have one new delete manifest",
+        1, table.currentSnapshot().deleteManifests().size());
+    ManifestFile deletes = table.currentSnapshot().deleteManifests().get(0);
+    validateDeleteManifest(deletes,
+        seqs(3),
+        ids(table.currentSnapshot().snapshotId()),
+        files(FILE_B_DELETES),
+        statuses(Status.ADDED));
   }
 
   @Test
