@@ -311,18 +311,22 @@ public class HadoopTableOperations implements TableOperations {
       return Integer.parseInt(in.readLine().replace("\n", ""));
 
     } catch (Exception e) {
-      LOG.debug("Error reading version hint file {}", versionHintFile, e);
       try {
+        if (fs.exists(metadataRoot())) {
+          LOG.warn("Error reading version hint file {}", versionHintFile, e);
+        }
+
         // List the metadata directory to find the version files, and try to recover the max available version
         FileStatus[] files = fs.listStatus(metadataRoot(), name -> VERSION_PATTERN.matcher(name.getName()).matches());
         int maxVersion = 0;
 
         for (FileStatus file : files) {
-          version = version(file.getPath().getName());
-          if (version > maxVersion && getMetadataFile(version) != null) {
-            maxVersion = version;
+          int currentVersion = version(file.getPath().getName());
+          if (currentVersion > maxVersion && getMetadataFile(currentVersion) != null) {
+            maxVersion = currentVersion;
           }
         }
+
         return maxVersion;
       } catch (IOException io) {
         // We log this error only on debug level since this is just a problem in recovery path
