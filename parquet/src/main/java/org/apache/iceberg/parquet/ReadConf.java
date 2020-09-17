@@ -88,7 +88,7 @@ class ReadConf<T> {
     this.shouldSkip = new boolean[rowGroups.size()];
 
     // Fetch all row groups starting positions to compute the row offsets of the filtered row groups
-    Map<Long, Long> offsetToStartPos = generateOffsetToStartPos();
+    Map<Long, Long> offsetToStartPos = generateOffsetToStartPos(rowGroups);
     this.startRowPositions = new long[rowGroups.size()];
 
     ParquetMetricsRowGroupFilter statsFilter = null;
@@ -165,20 +165,16 @@ class ReadConf<T> {
     return shouldSkip;
   }
 
-  private Map<Long, Long> generateOffsetToStartPos() {
-
+  private Map<Long, Long> generateOffsetToStartPos(List<BlockMetaData> rowGroups) {
     Map<Long, Long> offsetToStartPos = new HashMap<>();
 
-    try(ParquetFileReader fileReader = newReader(this.file, ParquetReadOptions.builder().build())) {
-      long curRowCount = 0;
-      for (int i = 0; i < fileReader.getRowGroups().size(); i += 1) {
-        BlockMetaData meta = fileReader.getRowGroups().get(i);
-        offsetToStartPos.put(meta.getStartingPos(), curRowCount);
-        curRowCount += meta.getRowCount();
-      }
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to open Parquet file: %s", file.location());
+    long curRowCount = 0;
+    for (int i = 0; i < rowGroups.size(); i += 1) {
+      BlockMetaData meta = rowGroups.get(i);
+      offsetToStartPos.put(meta.getStartingPos(), curRowCount);
+      curRowCount += meta.getRowCount();
     }
+
     return offsetToStartPos;
   }
 
