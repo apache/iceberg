@@ -193,6 +193,16 @@ Iceberg does not support streaming read or batch read in flink now, it's still w
 
 Iceberg support both `INSERT INTO` and `INSERT OVERWRITE` in flink 1.11 now.
 
+Notice: we could execute the following sql command to switch the execute type from 'streaming' mode to 'batch' mode, and vice versa:
+
+```sql
+-- Execute the flink job in streaming mode for current session context
+SET execution.type = streaming
+
+-- Execute the flink job in batch mode for current session context
+SET execution.type = batch
+```
+
 ### `INSERT INTO`
 
 To append new data to a table with a flink streaming job, use `INSERT INTO`:
@@ -217,6 +227,9 @@ Iceberg also support overwriting given partitions by the `select` values:
 ```sql
 INSERT OVERWRITE hive_catalog.default.sample PARTITION(data='a') SELECT 6;
 ```
+
+For a partitioned iceberg table, when all the partition columns are set a value in `PARTITION` clause, it is inserting into a static partition, otherwise if partial partition columns (prefix part of all partition columns) are set a value in `PARTITION` clause, it is writing the query result into a dynamic partition.
+For an unpartitioned iceberg table, its data will be completely overwritten by `INSERT OVERWRITE`.
 
 ## Reading with DataStream
 
