@@ -449,112 +449,68 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   }
 
   @Test
-  public void testVersionHintFile() throws Exception {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+  public void testVersionHintFileErrorWithFile() throws Exception {
+    addVersionsToTable(table);
 
-    // Create a test table with multiple versions
-    TableIdentifier tableId = TableIdentifier.of("tbl");
-    Table table = catalog.createTable(tableId, SCHEMA, PartitionSpec.unpartitioned());
-    HadoopTableOperations tableOperations = (HadoopTableOperations) catalog.newTableOps(tableId);
+    HadoopTableOperations tableOperations = (HadoopTableOperations) TABLES.newTableOps(tableLocation);
 
-    DataFile dataFile1 = DataFiles.builder(SPEC)
-        .withPath("/a.parquet")
-        .withFileSizeInBytes(10)
-        .withRecordCount(1)
-        .build();
-
-    DataFile dataFile2 = DataFiles.builder(SPEC)
-        .withPath("/b.parquet")
-        .withFileSizeInBytes(10)
-        .withRecordCount(1)
-        .build();
-
-    table.newAppend().appendFile(dataFile1).commit();
-    table.newAppend().appendFile(dataFile2).commit();
     long secondSnapshotId = table.currentSnapshot().snapshotId();
 
-    // Get the version-hint.text file location
-    String versionHintLocation = tableOperations.versionHintFile().toString();
-
     // Write old data to confirm that we are writing the correct file
-    FileIO io = new HadoopFileIO(conf);
-    io.deleteFile(versionHintLocation);
-    try (PositionOutputStream stream = io.newOutputFile(versionHintLocation).create()) {
+    FileIO io = table.io();
+    io.deleteFile(versionHintFile.getPath());
+    try (PositionOutputStream stream = io.newOutputFile(versionHintFile.getPath()).create()) {
       stream.write("1".getBytes(StandardCharsets.UTF_8));
     }
 
     // Check the result of the versionHint(), and load the table and check the current snapshotId
     Assert.assertEquals(1, tableOperations.versionHint());
-    Assert.assertEquals(secondSnapshotId, catalog.loadTable(tableId).currentSnapshot().snapshotId());
+    Assert.assertEquals(secondSnapshotId, TABLES.load(tableLocation).currentSnapshot().snapshotId());
 
     // Write newer data to confirm that we are writing the correct file
-    io.deleteFile(versionHintLocation);
-    try (PositionOutputStream stream = io.newOutputFile(versionHintLocation).create()) {
+    io.deleteFile(versionHintFile.getPath());
+    try (PositionOutputStream stream = io.newOutputFile(versionHintFile.getPath()).create()) {
       stream.write("3".getBytes(StandardCharsets.UTF_8));
     }
 
     // Check the result of the versionHint(), and load the table and check the current snapshotId
     Assert.assertEquals(3, tableOperations.versionHint());
-    Assert.assertEquals(secondSnapshotId, catalog.loadTable(tableId).currentSnapshot().snapshotId());
+    Assert.assertEquals(secondSnapshotId, TABLES.load(tableLocation).currentSnapshot().snapshotId());
 
     // Write an empty version hint file
-    io.deleteFile(versionHintLocation);
-    io.newOutputFile(versionHintLocation).create().close();
+    io.deleteFile(versionHintFile.getPath());
+    io.newOutputFile(versionHintFile.getPath()).create().close();
 
     // Check the result of the versionHint(), and load the table and check the current snapshotId
     Assert.assertEquals(3, tableOperations.versionHint());
-    Assert.assertEquals(secondSnapshotId, catalog.loadTable(tableId).currentSnapshot().snapshotId());
+    Assert.assertEquals(secondSnapshotId, TABLES.load(tableLocation).currentSnapshot().snapshotId());
 
-    // Just delete the file - double check that we have manipulated the correct file
-    io.deleteFile(versionHintLocation);
+    // Just delete the file
+    io.deleteFile(versionHintFile.getPath());
 
     // Check the result of the versionHint(), and load the table and check the current snapshotId
     Assert.assertEquals(3, tableOperations.versionHint());
-    Assert.assertEquals(secondSnapshotId, catalog.loadTable(tableId).currentSnapshot().snapshotId());
+    Assert.assertEquals(secondSnapshotId, TABLES.load(tableLocation).currentSnapshot().snapshotId());
   }
 
   @Test
-  public void testVersionHintFileRecovery() throws Exception {
-    Configuration conf = new Configuration();
-    String warehousePath = temp.newFolder().getAbsolutePath();
-    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+  public void testVersionHintFileMissingMetadata() throws Exception {
+    addVersionsToTable(table);
 
-    // Create a test table with multiple versions
-    TableIdentifier tableId = TableIdentifier.of("tbl");
-    Table table = catalog.createTable(tableId, SCHEMA, PartitionSpec.unpartitioned());
-    HadoopTableOperations tableOperations = (HadoopTableOperations) catalog.newTableOps(tableId);
+    HadoopTableOperations tableOperations = (HadoopTableOperations) TABLES.newTableOps(tableLocation);
 
-    DataFile dataFile1 = DataFiles.builder(SPEC)
-        .withPath("/a.parquet")
-        .withFileSizeInBytes(10)
-        .withRecordCount(1)
-        .build();
-
-    DataFile dataFile2 = DataFiles.builder(SPEC)
-        .withPath("/b.parquet")
-        .withFileSizeInBytes(10)
-        .withRecordCount(1)
-        .build();
-
-    table.newAppend().appendFile(dataFile1).commit();
-    table.newAppend().appendFile(dataFile2).commit();
     long secondSnapshotId = table.currentSnapshot().snapshotId();
 
-    // Get the version-hint.text file location
-    String versionHintLocation = tableOperations.versionHintFile().toString();
-
     // Write old data to confirm that we are writing the correct file
-    FileIO io = new HadoopFileIO(conf);
-    io.deleteFile(versionHintLocation);
+    FileIO io = table.io();
+    io.deleteFile(versionHintFile.getPath());
 
     // Remove the first version file, and see if we can recover
     io.deleteFile(tableOperations.getMetadataFile(1).toString());
 
     // Check the result of the versionHint(), and load the table and check the current snapshotId
     Assert.assertEquals(3, tableOperations.versionHint());
-    Assert.assertEquals(secondSnapshotId, catalog.loadTable(tableId).currentSnapshot().snapshotId());
+    Assert.assertEquals(secondSnapshotId, TABLES.load(tableLocation).currentSnapshot().snapshotId());
 
     // Remove all the version files, and see if we can recover. Hint... not :)
     io.deleteFile(tableOperations.getMetadataFile(2).toString());
@@ -565,7 +521,24 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     AssertHelpers.assertThrows(
         "Should not be able to find the table",
         NoSuchTableException.class,
-        "Table does not exist: tbl",
-        () -> catalog.loadTable(tableId));
+        "Table does not exist",
+        () -> TABLES.load(tableLocation));
+  }
+
+  private static void addVersionsToTable(Table table) {
+    DataFile dataFile1 = DataFiles.builder(SPEC)
+        .withPath("/a.parquet")
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .build();
+
+    DataFile dataFile2 = DataFiles.builder(SPEC)
+        .withPath("/b.parquet")
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .build();
+
+    table.newAppend().appendFile(dataFile1).commit();
+    table.newAppend().appendFile(dataFile2).commit();
   }
 }
