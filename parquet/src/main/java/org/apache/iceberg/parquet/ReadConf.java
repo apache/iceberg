@@ -20,6 +20,7 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -166,20 +167,21 @@ class ReadConf<T> {
   }
 
   private Map<Long, Long> generateOffsetToStartPos() {
+    try (ParquetFileReader fileReader = newReader(file, ParquetReadOptions.builder().build())) {
+      Map<Long, Long> offsetToStartPos = new HashMap<>();
 
-    Map<Long, Long> offsetToStartPos = new HashMap<>();
-
-    try(ParquetFileReader fileReader = newReader(this.file, ParquetReadOptions.builder().build())) {
       long curRowCount = 0;
       for (int i = 0; i < fileReader.getRowGroups().size(); i += 1) {
         BlockMetaData meta = fileReader.getRowGroups().get(i);
         offsetToStartPos.put(meta.getStartingPos(), curRowCount);
         curRowCount += meta.getRowCount();
       }
+
+      return offsetToStartPos;
+
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to open Parquet file: %s", file.location());
+      throw new UncheckedIOException("Failed to create/close reader for file: " + file, e);
     }
-    return offsetToStartPos;
   }
 
   long[] startRowPositions() {
