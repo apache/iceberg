@@ -37,14 +37,13 @@ we only integrate iceberg with apache flink 1.11.x .
 
 ## Preparation
 
-To create iceberg table in flink, we recommend to use [Flink SQL Client](https://ci.apache.org/projects/flink/flink-docs-stable/dev/table/sqlClient.html) because it's easier
-for users to understand the concepts.
+To create iceberg table in flink, we recommend to use [Flink SQL Client](https://ci.apache.org/projects/flink/flink-docs-stable/dev/table/sqlClient.html) because it's easier for users to understand the concepts.
 
-Step.1 Downloading the flink 1.11.x binary package from the apache flink [download page](https://flink.apache.org/downloads.html).
+Step.1 Downloading the flink 1.11.x binary package from the apache flink [download page](https://flink.apache.org/downloads.html). We now use scala 2.12 to archive the apache iceberg-flink-runtime jar, so it's recommended to use flink 1.11 bundled with scala 2.12.
 
 ```bash
-wget https://downloads.apache.org/flink/flink-1.11.1/flink-1.11.1-bin-scala_2.11.tgz
-tar xzvf flink-1.11.1-bin-scala_2.11.tgz
+wget https://downloads.apache.org/flink/flink-1.11.1/flink-1.11.1-bin-scala_2.12.tgz
+tar xzvf flink-1.11.1-bin-scala_2.12.tgz
 ```
 
 Step.2 Start a standalone flink cluster within hadoop environment.
@@ -121,7 +120,7 @@ CREATE CATALOG hadoop_catalog WITH (
 
 * `warehouse`: the HDFS directory to store metadata files and data files. (Required)
 
-We could execute the sql command `USE CATALOG hive_catalog` to use one of the catalog.
+We could execute the sql command `USE CATALOG hive_catalog` to set the current catalog.
 
 ## DDL commands
 
@@ -145,9 +144,9 @@ CREATE TABLE hive_catalog.default.sample (
 
 Table create commands support the most commonly used [flink create clauses](https://ci.apache.org/projects/flink/flink-docs-release-1.11/dev/table/sql/create.html#create-table) now, including: 
 
-* `PARTITION BY (column1, column2, ...)` to configure partitioning.
+* `PARTITION BY (column1, column2, ...)` to configure partitioning, apache flink does not yet support hidden partitioning.
 * `COMMENT 'table document'` to set a table description.
-* `WITH ('key'='value', ...)` to set [table configuration](../configuration)
+* `WITH ('key'='value', ...)` to set [table configuration](../configuration) which will be stored in apache iceberg table properties.
 
 Currently, it does not support computed column, primary key and watermark definition etc.
 
