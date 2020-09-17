@@ -166,15 +166,19 @@ class ReadConf<T> {
   }
 
   private Map<Long, Long> generateOffsetToStartPos() {
-    ParquetFileReader fileReader = newReader(this.file, ParquetReadOptions.builder().build());
-    Map<Long, Long> offsetToStartPos = new HashMap<>();
-    long curRowCount = 0;
-    for (int i = 0; i < fileReader.getRowGroups().size(); i += 1) {
-      BlockMetaData meta = fileReader.getRowGroups().get(i);
-      offsetToStartPos.put(meta.getStartingPos(), curRowCount);
-      curRowCount += meta.getRowCount();
-    }
 
+    Map<Long, Long> offsetToStartPos = new HashMap<>();
+
+    try(ParquetFileReader fileReader = newReader(this.file, ParquetReadOptions.builder().build())) {
+      long curRowCount = 0;
+      for (int i = 0; i < fileReader.getRowGroups().size(); i += 1) {
+        BlockMetaData meta = fileReader.getRowGroups().get(i);
+        offsetToStartPos.put(meta.getStartingPos(), curRowCount);
+        curRowCount += meta.getRowCount();
+      }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to open Parquet file: %s", file.location());
+    }
     return offsetToStartPos;
   }
 
