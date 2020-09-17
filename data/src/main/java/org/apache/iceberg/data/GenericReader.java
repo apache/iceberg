@@ -20,26 +20,16 @@
 package org.apache.iceberg.data;
 
 import java.io.Serializable;
-import java.util.Collection;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
-import org.apache.iceberg.Accessor;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
-import org.apache.iceberg.deletes.Deletes;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -51,23 +41,11 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Multimap;
-import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PartitionUtil;
-import org.apache.iceberg.util.StructLikeSet;
-import org.apache.iceberg.util.StructProjection;
-import org.apache.parquet.Preconditions;
 
 class GenericReader implements Serializable {
-  private static final Schema POS_DELETE_SCHEMA = new Schema(
-      MetadataColumns.DELETE_FILE_PATH,
-      MetadataColumns.DELETE_FILE_POS);
-
   private final FileIO io;
   private final Schema tableSchema;
   private final Schema projection;
@@ -92,65 +70,14 @@ class GenericReader implements Serializable {
   }
 
   public CloseableIterable<Record> open(FileScanTask task) {
-    List<DeleteFile> posDeletes = Lists.newArrayList();
-    List<DeleteFile> eqDeletes = Lists.newArrayList();
-    for (DeleteFile delete : task.deletes()) {
-      switch (delete.content()) {
-        case POSITION_DELETES:
-          posDeletes.add(delete);
-          break;
-        case EQUALITY_DELETES:
-          eqDeletes.add(delete);
-          break;
-        default:
-          throw new UnsupportedOperationException("Unknown delete file content: " + delete.content());
-      }
-    }
+    DeleteFilter<Record> deletes = new GenericDeleteFilter(io, task, tableSchema, projection);
+    Schema readSchema = deletes.requiredSchema();
 
-    Schema fileProjection = fileProjection(posDeletes, eqDeletes);
-
-    CloseableIterable<Record> records = openFile(task, fileProjection);
-    records = applyPosDeletes(records, fileProjection, task.file().path(), posDeletes, task.file());
-    records = applyEqDeletes(records, fileProjection, eqDeletes, task.file());
-    records = applyResidual(records, fileProjection, task.residual());
+    CloseableIterable<Record> records = openFile(task, readSchema);
+    records = deletes.filter(records);
+    records = applyResidual(records, readSchema, task.residual());
 
     return records;
-  }
-
-  private Schema fileProjection(List<DeleteFile> posDeletes, List<DeleteFile> eqDeletes) {
-    Set<Integer> requiredIds = Sets.newLinkedHashSet();
-    if (!posDeletes.isEmpty()) {
-      requiredIds.add(MetadataColumns.ROW_POSITION.fieldId());
-    }
-
-    for (DeleteFile eqDelete : eqDeletes) {
-      requiredIds.addAll(eqDelete.equalityFieldIds());
-    }
-
-    Set<Integer> missingIds = Sets.newLinkedHashSet(Sets.difference(requiredIds, TypeUtil.getProjectedIds(projection)));
-
-    if (missingIds.isEmpty()) {
-      return projection;
-    }
-
-    // TODO: support adding nested columns. this will currently fail when finding nested columns to add
-    List<Types.NestedField> columns = Lists.newArrayList(projection.columns());
-    for (int fieldId : missingIds) {
-      if (fieldId == MetadataColumns.ROW_POSITION.fieldId()) {
-        continue; // add _pos at the end
-      }
-
-      Types.NestedField field = tableSchema.asStruct().field(fieldId);
-      Preconditions.checkArgument(field != null, "Cannot find required field for ID %s", fieldId);
-
-      columns.add(field);
-    }
-
-    if (requiredIds.contains(MetadataColumns.ROW_POSITION.fieldId())) {
-      columns.add(MetadataColumns.ROW_POSITION);
-    }
-
-    return new Schema(columns);
   }
 
   private CloseableIterable<Record> applyResidual(CloseableIterable<Record> records, Schema recordSchema,
@@ -164,95 +91,6 @@ class GenericReader implements Serializable {
     return records;
   }
 
-  private CloseableIterable<Record> applyEqDeletes(CloseableIterable<Record> records, Schema recordSchema,
-                                                   List<DeleteFile> eqDeletes, DataFile dataFile) {
-    if (eqDeletes.isEmpty()) {
-      return records;
-    }
-
-    Multimap<Set<Integer>, DeleteFile> filesByDeleteIds = Multimaps.newMultimap(Maps.newHashMap(), Lists::newArrayList);
-    for (DeleteFile delete : eqDeletes) {
-      filesByDeleteIds.put(Sets.newHashSet(delete.equalityFieldIds()), delete);
-    }
-
-    CloseableIterable<Record> filteredRecords = records;
-    for (Map.Entry<Set<Integer>, Collection<DeleteFile>> entry : filesByDeleteIds.asMap().entrySet()) {
-      Set<Integer> ids = entry.getKey();
-      Iterable<DeleteFile> deletes = entry.getValue();
-
-      Schema deleteSchema = TypeUtil.select(recordSchema, ids);
-
-      // a wrapper to translate from generic objects to internal representations
-      InternalRecordWrapper asStructLike = new InternalRecordWrapper(recordSchema.asStruct());
-
-      // a projection to select and reorder fields of the file schema to match the delete rows
-      StructProjection projectRow = StructProjection.create(recordSchema, deleteSchema);
-
-      Iterable<CloseableIterable<Record>> deleteRecords = Iterables.transform(deletes,
-          delete -> openDeletes(delete, dataFile, deleteSchema));
-      StructLikeSet deleteSet = Deletes.toEqualitySet(
-          // copy the delete records because they will be held in a set
-          CloseableIterable.transform(CloseableIterable.concat(deleteRecords), Record::copy),
-          deleteSchema.asStruct());
-
-      filteredRecords = Deletes.filter(filteredRecords,
-          record -> projectRow.wrap(asStructLike.wrap(record)), deleteSet);
-    }
-
-    return filteredRecords;
-  }
-
-  private CloseableIterable<Record> applyPosDeletes(CloseableIterable<Record> records, Schema recordSchema,
-                                                    CharSequence file, List<DeleteFile> posDeletes, DataFile dataFile) {
-    if (posDeletes.isEmpty()) {
-      return records;
-    }
-
-    Accessor<StructLike> posAccessor = recordSchema.accessorForField(MetadataColumns.ROW_POSITION.fieldId());
-    Function<Record, Long> posGetter = record -> (Long) posAccessor.get(record);
-    List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes,
-        delete -> openPosDeletes(delete, dataFile));
-
-    // if there are fewer deletes than a reasonable number to keep in memory, use a set
-    if (posDeletes.stream().mapToLong(DeleteFile::recordCount).sum() < 100_000L) {
-      return Deletes.filter(records, posGetter, Deletes.toPositionSet(file, CloseableIterable.concat(deletes)));
-    }
-
-    return Deletes.streamingFilter(records, posGetter, Deletes.deletePositions(file, deletes));
-  }
-
-  private CloseableIterable<Record> openPosDeletes(DeleteFile file, DataFile dataFile) {
-    return openDeletes(file, dataFile, POS_DELETE_SCHEMA);
-  }
-
-  private CloseableIterable<Record> openDeletes(DeleteFile deleteFile, DataFile dataFile, Schema deleteSchema) {
-    InputFile input = io.newInputFile(deleteFile.path().toString());
-    switch (deleteFile.format()) {
-      case AVRO:
-        return Avro.read(input)
-            .project(deleteSchema)
-            .reuseContainers()
-            .createReaderFunc(DataReader::create)
-            .build();
-
-      case PARQUET:
-        Parquet.ReadBuilder builder = Parquet.read(input)
-            .project(deleteSchema)
-            .reuseContainers()
-            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(deleteSchema, fileSchema));
-
-        if (deleteFile.content() == FileContent.POSITION_DELETES) {
-          builder.filter(Expressions.equal(MetadataColumns.DELETE_FILE_PATH.name(), dataFile.path()));
-        }
-
-        return builder.build();
-
-      case ORC:
-      default:
-        throw new UnsupportedOperationException(String.format(
-            "Cannot read %s file: %s", deleteFile.format().name(), deleteFile.path()));
-    }
-  }
 
   private CloseableIterable<Record> openFile(FileScanTask task, Schema fileProjection) {
     InputFile input = io.newInputFile(task.file().path().toString());
