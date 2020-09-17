@@ -666,167 +666,99 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
   @Test
   public void testFindOrphanFilesWithSameAuthority() throws Exception {
-    executeTest(
-        HDFS_SERVICENAME_USER_LOG_DATA_DUMMY_FILE,
-        3,
-        HDFS_SERVICENAME_USER_LOG_DATA_DUMMY_FILE,
-        3,
-        HDFS_SERVICENAME_USER_LOG_DATA_ORPHAN_FILE,
-        4);
+    executeTest(HDFS_SERVICENAME_USER_LOG_DATA_DUMMY_FILE, 3,
+        HDFS_SERVICENAME_USER_LOG_DATA_DUMMY_FILE, 3,
+        HDFS_SERVICENAME_USER_LOG_DATA_ORPHAN_FILE, 4);
   }
 
   @Test
   public void testFindOrphanFilesWithValidFileHasNoAuthority() throws Exception {
-    executeTest(
-        HDFS_USER_LOG_DATA_DUMMY_FILE,
-        4,
-        HDFS_SERVICENAME_USER_LOG_DATA_DUMMY_FILE,
-        4,
-        HDFS_SERVICENAME_USER_LOG_DATA_ORPHAN_FILE,
-        4);
+    executeTest(HDFS_USER_LOG_DATA_DUMMY_FILE, 4, HDFS_SERVICENAME_USER_LOG_DATA_DUMMY_FILE, 4,
+        HDFS_SERVICENAME_USER_LOG_DATA_ORPHAN_FILE, 4);
   }
 
   @Test
   public void testFindOrphanFilesWithDifferentAuthority() throws Exception {
-    executeTest(
-        HDFS_SERVICENAME_USER_LOG_DATA_DUMMY_FILE,
-        4,
-        HDFS_SERVICENAME1_USER_LOG_DATA_DUMMY_FILE,
-        4,
-        HDFS_SERVICENAME1_USER_LOG_DATA_ORPHAN_FILE,
-        4);
+    executeTest(HDFS_SERVICENAME_USER_LOG_DATA_DUMMY_FILE, 4,
+        HDFS_SERVICENAME1_USER_LOG_DATA_DUMMY_FILE, 4,
+        HDFS_SERVICENAME1_USER_LOG_DATA_ORPHAN_FILE, 4);
   }
 
   @Test
   public void testFindOrphanFilesWithValidFilesHasThreeForwardSlashes() throws URISyntaxException {
-    executeTest(
-        HDFS_THREE_FWD_SLASHES_USER_LOG_DATA_DUMMY_FILE,
-        4,
-        HDFS_SERVICENAME_USER_LOG_DATA_DUMMY_FILE,
-        4,
-        HDFS_SERVICENAME_USER_LOG_DATA_ORPHAN_FILE,
-        4);
+    executeTest(HDFS_THREE_FWD_SLASHES_USER_LOG_DATA_DUMMY_FILE, 4,
+        HDFS_SERVICENAME_USER_LOG_DATA_DUMMY_FILE, 4,
+        HDFS_SERVICENAME_USER_LOG_DATA_ORPHAN_FILE, 4);
   }
 
   @Test
   public void testFindOrphanFilesWithActualFilesHasThreeForwardSlashes() throws URISyntaxException {
-    executeTest(
-        HDFS_USER_LOG_DATA_DUMMY_FILE,
-        4,
-        HDFS_THREE_FWD_SLASHES_USER_LOG_DATA_DUMMY_FILE,
-        4,
-        HDFS_THREE_FWD_SLASHES_USER_LOG_DATA_ORPHAN_FILE,
-        4);
+    executeTest(HDFS_USER_LOG_DATA_DUMMY_FILE, 4,
+        HDFS_THREE_FWD_SLASHES_USER_LOG_DATA_DUMMY_FILE, 4,
+        HDFS_THREE_FWD_SLASHES_USER_LOG_DATA_ORPHAN_FILE, 4);
   }
 
   @Test
   public void testFindOrphanFilesWithActualFilesHasHostPort() throws URISyntaxException {
-    executeTest(
-        HDFS_USER_LOG_DATA_DUMMY_FILE,
-        4,
-        HDFS_HOST_PORT_USER_LOG_DATA_DUMMY_FILE,
-        4,
-        HDFS_HOST_PORT_USER_LOG_DATA_ORPHAN_FILE,
-        4);
+    executeTest(HDFS_USER_LOG_DATA_DUMMY_FILE, 4, HDFS_HOST_PORT_USER_LOG_DATA_DUMMY_FILE, 4,
+        HDFS_HOST_PORT_USER_LOG_DATA_ORPHAN_FILE, 4);
   }
 
   @Test
   public void testFindOrphanFilesWithValiFilesHasAuthoritydAndActualFilesHasHostPort() throws URISyntaxException {
-    executeTest(
-        HDFS_SERVICENAME_USER_LOG_DATA_DUMMY_FILE,
-        4,
-        HDFS_HOST_PORT_USER_LOG_DATA_DUMMY_FILE,
-        4,
-        HDFS_HOST_PORT_USER_LOG_DATA_ORPHAN_FILE,
-        4);
+    executeTest(HDFS_SERVICENAME_USER_LOG_DATA_DUMMY_FILE, 4,
+        HDFS_HOST_PORT_USER_LOG_DATA_DUMMY_FILE, 4,
+        HDFS_HOST_PORT_USER_LOG_DATA_ORPHAN_FILE, 4);
   }
 
   @Test
   public void testFindOrphanFilesWithValidFilesHasNoScheme() throws URISyntaxException {
-    executeTest(
-        USER_LOG_DATA_DUMMY_FILE,
-        4,
-        HDFS_SERVICENAME_USER_LOG_DATA_DUMMY_FILE,
-        4,
-        HDFS_SERVICENAME_USER_LOG_DATA_ORPHAN_FILE,
-        4);
+    executeTest(USER_LOG_DATA_DUMMY_FILE, 4, HDFS_SERVICENAME_USER_LOG_DATA_DUMMY_FILE, 4,
+        HDFS_SERVICENAME_USER_LOG_DATA_ORPHAN_FILE, 4);
   }
 
   @Test
   public void testFindOrphanFilesWithSimilarFiles() throws URISyntaxException {
-    executeTest(
-        USER_LOG_DATA_DUMMY_FILE,
-        4,
-        HDFS_SERVICENAME_USER_LOG_DATA_DUMMY_FILE,
-        4,
-        HDFS_SERVICENAME_USER_LOG_DATA_ORPHAN_FILE,
-        4);
+    executeTest(USER_LOG_DATA_DUMMY_FILE, 4, HDFS_SERVICENAME_USER_LOG_DATA_DUMMY_FILE, 4,
+        HDFS_SERVICENAME_USER_LOG_DATA_ORPHAN_FILE, 4);
   }
 
   @Test
   public void testFindOrphanFilesWithSimilarFilesAndActualFilesHasAuthority() throws URISyntaxException {
-    executeTest(
-        HDFS_USER_LOG_DATA_DUMMY_FILE,
-        4,
-        HDFS_SERVICENAME_USER_LOG_DATA_DUMMY_FILE,
-        4,
-        null,
-        0);
+    executeTest(HDFS_USER_LOG_DATA_DUMMY_FILE, 4, HDFS_SERVICENAME_USER_LOG_DATA_DUMMY_FILE, 4,
+        null, 0);
   }
 
   @Test
   public void testFindOrphanFilesWithSimilarFilesAndValidFilesHasNoScheme() throws URISyntaxException {
-    executeTest(
-        USER_LOG_DATA_DUMMY_FILE,
-        4,
-        HDFS_SERVICENAME_USER_LOG_DATA_DUMMY_FILE,
-        4,
-        null,
-        0);
+    executeTest(USER_LOG_DATA_DUMMY_FILE, 4, HDFS_SERVICENAME_USER_LOG_DATA_DUMMY_FILE, 4,
+        null, 0);
   }
 
   @Test
   public void testFindOrphanFilesWithSimilarFilesAndPathHasSpaceChars() throws URISyntaxException {
-    executeTest(
-        USER_LOG_DATA_SPACE_DUMMY_FILE,
-        4,
-        HDFS_SERVICENAME_USER_LOG_DATA_SPACE_DUMMY_FILE,
-        4,
-        null,
-        0);
+    executeTest(USER_LOG_DATA_SPACE_DUMMY_FILE, 4, HDFS_SERVICENAME_USER_LOG_DATA_SPACE_DUMMY_FILE, 4,
+        null, 0);
   }
 
   @Test
   public void testFindOrphanFilesWithPathHasSpaceChars() throws URISyntaxException, IOException {
-    executeTest(
-        USER_LOG_DATA_SPACE_DUMMY_FILE,
-        4,
-        HDFS_SERVICENAME_USER_LOG_DATA_SPACE_DUMMY_FILE,
-        4,
-        HDFS_SERVICENAME_USER_LOG_DATA_SPACE_ORPHAN_FILE,
-        4);
+    executeTest(USER_LOG_DATA_SPACE_DUMMY_FILE, 4,
+        HDFS_SERVICENAME_USER_LOG_DATA_SPACE_DUMMY_FILE, 4,
+        HDFS_SERVICENAME_USER_LOG_DATA_SPACE_ORPHAN_FILE, 4);
   }
 
   @Test
   public void testFindOrphanFilesWithSimilarFilesAndPathHasSpecialChars() throws URISyntaxException {
-    executeTest(
-        USER_LOG_DATA_SPECIAL_DUMMY_FILE,
-        4,
-        HDFS_SERVICENAME_USER_LOG_DATA_SPECIAL_DUMMY_FILE,
-        4,
-        HDFS_SERVICENAME_USER_LOG_DATA_SPECIAL_ORPHAN_FILE,
-        4);
+    executeTest(USER_LOG_DATA_SPECIAL_DUMMY_FILE, 4,
+        HDFS_SERVICENAME_USER_LOG_DATA_SPECIAL_DUMMY_FILE, 4,
+        HDFS_SERVICENAME_USER_LOG_DATA_SPECIAL_ORPHAN_FILE, 4);
   }
 
   @Test
   public void testFindOrphanFilesWithPathHasSpecialChars() throws URISyntaxException {
-    executeTest(
-        USER_LOG_DATA_SPECIAL_DUMMY_FILE,
-        4,
-        HDFS_SERVICENAME_USER_LOG_DATA_SPECIAL_DUMMY_FILE,
-        4,
-        null,
-        0);
+    executeTest(USER_LOG_DATA_SPECIAL_DUMMY_FILE, 4,
+        HDFS_SERVICENAME_USER_LOG_DATA_SPECIAL_DUMMY_FILE, 4, null, 0);
   }
 
   private static StructType constructStructureWithString() {

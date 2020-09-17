@@ -51,6 +51,7 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.expressions.UserDefinedFunction;
 import org.apache.spark.sql.functions;
 import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.util.SerializableConfiguration;
 import org.slf4j.Logger;
@@ -77,6 +78,10 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
   private static final String URI_DETAIL = "URI_DETAIL";
   private static final String FILE_PATH = "file_path";
   private static final String FILE_PATH_ONLY = "file_path_only";
+  private static final StructType FILE_DETAIL_STRUCT =  new StructType(new StructField[] {
+      DataTypes.createStructField(FILE_PATH_ONLY, DataTypes.StringType, false),
+      DataTypes.createStructField(FILE_PATH, DataTypes.StringType, false)
+  });
 
   private static final UserDefinedFunction filenameUDF = functions.udf((String path) -> {
     int lastIndex = path.lastIndexOf(File.separator);
@@ -99,7 +104,7 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
     Path path = new Path(fullyQualifiedPath);
     // only_path, fully qualified path
     return RowFactory.create(path.toUri().getPath(), path.toUri().toString());
-  }, DataTypes.createStructType(fileDetailStructType().fields()));
+  }, FILE_DETAIL_STRUCT);
 
   private final SparkSession spark;
   private final JavaSparkContext sparkContext;
@@ -311,13 +316,5 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
         )).selectExpr(
             String.format(selectExprFormat, URI_DETAIL, FILE_PATH_ONLY, FILE_PATH_ONLY), // file path only
             String.format(selectExprFormat, URI_DETAIL, FILE_PATH, FILE_PATH)); // fully qualified path
-  }
-
-  static StructType fileDetailStructType() {
-    StructType customStructType = new StructType();
-    customStructType = customStructType.add(FILE_PATH_ONLY, DataTypes.StringType, false);
-    customStructType = customStructType.add(FILE_PATH, DataTypes.StringType, false);
-
-    return customStructType;
   }
 }
