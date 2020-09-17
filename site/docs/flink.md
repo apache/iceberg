@@ -25,7 +25,7 @@ we only integrate iceberg with apache flink 1.11.x .
 | [SQL create catalog](#creating-catalogs-and-using-catalogs)            | ✔️                 |                                                        |
 | [SQL create database](#create-database)                                | ✔️                 |                                                        |
 | [SQL create table](#create-table)                                      | ✔️                 |                                                        |
-| [SQL alter table](#alter-table)                                        | ✔️                 |                                                        |
+| [SQL alter table](#alter-table)                                        | ✔️                 | Only support altering table properties, Columns/PartitionKey changes are not supported now|
 | [SQL drop_table](#drop-table)                                          | ✔️                 |                                                        |
 | [SQL select](#querying-with-sql)                                       |  ️                 |                                                        |
 | [SQL insert into](#insert-into)                                        | ✔️ ️               | Support both streaming and batch mode                  |
@@ -177,14 +177,6 @@ ALTER TABLE hive_catalog.default.sample SET ('write.format.default'='avro')
 ALTER TABLE hive_catalog.default.sample RENAME TO hive_catalog.default.new_sample;
 ```
 
-### Adding/Removing/Renaming table columns
-
-Iceberg does not support adding/removing/renaming table columns now.
-
-### Altering tables' partition keys.
-
-Iceberg does not support altering partition keys now.
-
 ### `DROP TABLE`
 
 To delete a table, run:
@@ -206,18 +198,18 @@ Iceberg support both `INSERT INTO` and `INSERT OVERWRITE` in flink 1.11 now.
 To append new data to a table with a flink streaming job, use `INSERT INTO`:
 
 ```sql
-INSERT INTO hive_catalog.default.sample VALUES 1, 'a';
+INSERT INTO hive_catalog.default.sample VALUES (1, 'a');
 INSERT INTO hive_catalog.default.sample SELECT id, data from other_kafka_table;
 ```
 
 ### `INSERT OVERWRITE`
 
-To replace data in the table with the result of a query, use `INSERT OVERWRITE`. Overwrites are atomic operations for Iceberg tables.
+To replace data in the table with the result of a query, use `INSERT OVERWRITE` in batch job (flink streaming job does not support `INSERT OVERWRITE`). Overwrites are atomic operations for Iceberg tables.
 
 Partitions that have rows produced by the SELECT query will be replaced, for example:
 
 ```sql
-INSERT OVERWRITE hive_catalog.default.sample VALUES 1, 'a'
+INSERT OVERWRITE sample VALUES (1, 'a');
 ```
 
 Iceberg also support overwriting given partitions by the `select` values:
@@ -246,7 +238,7 @@ DataStream<RowData> input = ... ;
 Configuration hadoopConf = new Configuration();
 TableLoader tableLoader = TableLoader.fromHadooptable("hdfs://nn:8020/warehouse/path");
 
-FlinkSink.forRowData(dataStream)
+FlinkSink.forRowData(input)
     .tableLoader(tableLoader)
     .hadoopConf(hadoopConf)
     .build();
@@ -267,7 +259,7 @@ DataStream<RowData> input = ... ;
 Configuration hadoopConf = new Configuration();
 TableLoader tableLoader = TableLoader.fromHadooptable("hdfs://nn:8020/warehouse/path");
 
-FlinkSink.forRowData(dataStream)
+FlinkSink.forRowData(input)
     .tableLoader(tableLoader)
     .overwrite(true)
     .hadoopConf(hadoopConf)
@@ -279,3 +271,13 @@ env.execute("Test Iceberg DataStream");
 ## Inspecting tables.
 
 Iceberg does not support inspecting table in flink sql now, we need to use [iceberg's Java API](../api) to read iceberg's meta data to get those table information.
+
+## Future improvement.
+
+There are some features that we do not yet support in the current flink iceberg integration work:
+
+* Don't support creating iceberg table with hidden partitioning. [Discussion](http://mail-archives.apache.org/mod_mbox/flink-dev/202008.mbox/%3cCABi+2jQCo3MsOa4+ywaxV5J-Z8TGKNZDX-pQLYB-dG+dVUMiMw@mail.gmail.com%3e) in flink mail list.
+* Don't support creating iceberg table with computed column.
+* Don't support creating iceberg table with watermark.
+* Don't support adding columns, removing columns, renaming columns, changing columns. [FLINK-19062](https://issues.apache.org/jira/browse/FLINK-19062) is tracking this.
+* Don't support flink read iceberg table in batch or streaming mode. [#1346](https://github.com/apache/iceberg/pull/1346) and [#1293](https://github.com/apache/iceberg/pull/1293) are tracking this. 
