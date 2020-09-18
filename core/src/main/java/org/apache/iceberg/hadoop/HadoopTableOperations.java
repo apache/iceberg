@@ -25,8 +25,11 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.LocationProviders;
@@ -55,6 +58,7 @@ import org.slf4j.LoggerFactory;
  */
 public class HadoopTableOperations implements TableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HadoopTableOperations.class);
+  private static final Pattern VERSION_PATTERN = Pattern.compile("v([^\\.]*)\\..*");
 
   private final Configuration conf;
   private final Path location;
@@ -91,7 +95,7 @@ public class HadoopTableOperations implements TableOperations {
 
   @Override
   public TableMetadata refresh() {
-    int ver = version != null ? version : readVersionHint();
+    int ver = version != null ? version : findVersion();
     try {
       Path metadataFile = getMetadataFile(ver);
       if (version == null && metadataFile == null && ver == 0) {
@@ -230,7 +234,8 @@ public class HadoopTableOperations implements TableOperations {
     };
   }
 
-  private Path getMetadataFile(int metadataVersion) throws IOException {
+  @VisibleForTesting
+  Path getMetadataFile(int metadataVersion) throws IOException {
     for (TableMetadataParser.Codec codec : TableMetadataParser.Codec.values()) {
       Path metadataFile = metadataFilePath(metadataVersion, codec);
       FileSystem fs = getFileSystem(metadataFile, conf);
@@ -260,7 +265,24 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   private Path metadataPath(String filename) {
-    return new Path(new Path(location, "metadata"), filename);
+    return new Path(metadataRoot(), filename);
+  }
+
+  private Path metadataRoot() {
+    return new Path(location, "metadata");
+  }
+
+  private int version(String fileName) {
+    Matcher matcher = VERSION_PATTERN.matcher(fileName);
+    if (!matcher.matches()) {
+      return -1;
+    }
+    String versionNumber = matcher.group(1);
+    try {
+      return Integer.parseInt(versionNumber);
+    } catch (NumberFormatException ne) {
+      return -1;
+    }
   }
 
   @VisibleForTesting
@@ -280,7 +302,7 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @VisibleForTesting
-  int readVersionHint() {
+  int findVersion() {
     Path versionHintFile = versionHintFile();
     FileSystem fs = Util.getFs(versionHintFile, conf);
 
@@ -289,19 +311,30 @@ public class HadoopTableOperations implements TableOperations {
       return Integer.parseInt(in.readLine().replace("\n", ""));
 
     } catch (Exception e) {
-      LOG.warn("Error reading version hint file {}", versionHintFile, e);
       try {
-        if (getMetadataFile(1) != null) {
-          // We just assume corrupted metadata and start to read from the first version file
-          return 1;
+        if (fs.exists(metadataRoot())) {
+          LOG.warn("Error reading version hint file {}", versionHintFile, e);
+        } else {
+          LOG.debug("Metadata for table not found in directory {}", metadataRoot(), e);
+          return 0;
         }
-      } catch (IOException io) {
-        // We log this error only on debug level since this is just a problem in recovery path
-        LOG.debug("Error trying to recover version-hint.txt data for {}", versionHintFile, e);
-      }
-      // We just return 0 as not able to recover easily
-      return 0;
 
+        // List the metadata directory to find the version files, and try to recover the max available version
+        FileStatus[] files = fs.listStatus(metadataRoot(), name -> VERSION_PATTERN.matcher(name.getName()).matches());
+        int maxVersion = 0;
+
+        for (FileStatus file : files) {
+          int currentVersion = version(file.getPath().getName());
+          if (currentVersion > maxVersion && getMetadataFile(currentVersion) != null) {
+            maxVersion = currentVersion;
+          }
+        }
+
+        return maxVersion;
+      } catch (IOException io) {
+        LOG.warn("Error trying to recover version-hint.txt data for {}", versionHintFile, e);
+        return 0;
+      }
     }
   }
 
