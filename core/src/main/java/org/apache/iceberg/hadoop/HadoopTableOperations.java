@@ -95,7 +95,7 @@ public class HadoopTableOperations implements TableOperations {
 
   @Override
   public TableMetadata refresh() {
-    int ver = version != null ? version : versionHint();
+    int ver = version != null ? version : findVersion();
     try {
       Path metadataFile = getMetadataFile(ver);
       if (version == null && metadataFile == null && ver == 0) {
@@ -302,7 +302,7 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   @VisibleForTesting
-  int versionHint() {
+  int findVersion() {
     Path versionHintFile = versionHintFile();
     FileSystem fs = Util.getFs(versionHintFile, conf);
 
