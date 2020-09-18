@@ -19,9 +19,19 @@
 
 package org.apache.iceberg;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Map;
+import org.apache.avro.io.BinaryDecoder;
+import org.apache.avro.io.BinaryEncoder;
+import org.apache.avro.io.DatumWriter;
+import org.apache.avro.io.DecoderFactory;
+import org.apache.avro.io.EncoderFactory;
 import org.apache.iceberg.ManifestReader.FileType;
+import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.avro.GenericAvroReader;
+import org.apache.iceberg.avro.GenericAvroWriter;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
@@ -29,6 +39,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class ManifestFiles {
   private ManifestFiles() {
@@ -147,6 +158,33 @@ public class ManifestFiles {
         return new ManifestWriter.V2DeleteWriter(spec, outputFile, snapshotId);
     }
     throw new UnsupportedOperationException("Cannot write manifest for table version: " + formatVersion);
+  }
+
+  private static org.apache.avro.Schema getManifestAvroSchema() {
+    return AvroSchemaUtil.convert(ManifestFile.schema(), ImmutableMap.of(
+        ManifestFile.schema().asStruct(), GenericManifestFile.class.getName(),
+        ManifestFile.PARTITION_SUMMARY_TYPE, GenericPartitionFieldSummary.class.getName()
+    ));
+  }
+
+  public static byte[] encode(ManifestFile manifestFile) throws IOException {
+    try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+      BinaryEncoder encoder = EncoderFactory.get().binaryEncoder(out, null);
+      DatumWriter<GenericManifestFile> writer = new GenericAvroWriter<>(getManifestAvroSchema());
+      writer.write((GenericManifestFile) manifestFile, encoder);
+      encoder.flush();
+      return out.toByteArray();
+    }
+  }
+
+  public static ManifestFile decode(byte[] manifestData) throws IOException {
+    try (ByteArrayInputStream in = new ByteArrayInputStream(manifestData, 0, manifestData.length)) {
+      BinaryDecoder binaryDecoder = DecoderFactory.get().binaryDecoder(in, null);
+      org.apache.avro.Schema avroSchema = getManifestAvroSchema();
+      GenericAvroReader<GenericManifestFile> reader = new GenericAvroReader<>(avroSchema);
+      reader.setSchema(avroSchema);
+      return reader.read(null, binaryDecoder);
+    }
   }
 
   static ManifestReader<?> open(ManifestFile manifest, FileIO io) {
