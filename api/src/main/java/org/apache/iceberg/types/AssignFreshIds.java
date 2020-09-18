@@ -26,12 +26,12 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
-  private final Schema schema;
+  private final Schema visitingSchema;
   private final Schema baseSchema;
   private final TypeUtil.NextID nextId;
 
   AssignFreshIds(TypeUtil.NextID nextId) {
-    this.schema = null;
+    this.visitingSchema = null;
     this.baseSchema = null;
     this.nextId = nextId;
   }
@@ -39,12 +39,12 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   /**
    * Replaces the ids in a schema with ids from a base schema, or uses nextId to assign a fresh ids.
    *
-   * @param schema current schema that will have ids replaced (for id to name lookup)
+   * @param visitingSchema current schema that will have ids replaced (for id to name lookup)
    * @param baseSchema base schema to assign existing ids from
    * @param nextId new id assigner
    */
-  AssignFreshIds(Schema schema, Schema baseSchema, TypeUtil.NextID nextId) {
-    this.schema = schema;
+  AssignFreshIds(Schema visitingSchema, Schema baseSchema, TypeUtil.NextID nextId) {
+    this.visitingSchema = visitingSchema;
     this.baseSchema = baseSchema;
     this.nextId = nextId;
   }
@@ -61,8 +61,8 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   }
 
   private String name(int id) {
-    if (schema != null) {
-      return schema.findColumnName(id);
+    if (visitingSchema != null) {
+      return visitingSchema.findColumnName(id);
     }
 
     return null;
