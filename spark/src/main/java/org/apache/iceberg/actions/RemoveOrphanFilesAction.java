@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.actions;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URLDecoder;
@@ -76,21 +75,14 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
   private static final Logger LOG = LoggerFactory.getLogger(RemoveOrphanFilesAction.class);
 
   private static final String URI_DETAIL = "URI_DETAIL";
+  private static final String FILE_NAME = "file_name";
   private static final String FILE_PATH = "file_path";
   private static final String FILE_PATH_ONLY = "file_path_only";
   private static final StructType FILE_DETAIL_STRUCT =  new StructType(new StructField[] {
+      DataTypes.createStructField(FILE_NAME, DataTypes.StringType, false),
       DataTypes.createStructField(FILE_PATH_ONLY, DataTypes.StringType, false),
       DataTypes.createStructField(FILE_PATH, DataTypes.StringType, false)
   });
-
-  private static final UserDefinedFunction filenameUDF = functions.udf((String path) -> {
-    int lastIndex = path.lastIndexOf(File.separator);
-    if (lastIndex == -1) {
-      return path;
-    } else {
-      return path.substring(lastIndex + 1);
-    }
-  }, DataTypes.StringType);
 
   private static final UserDefinedFunction decodeUDF = functions.udf((String fullyQualifiedPath) -> {
     return URLDecoder.decode(fullyQualifiedPath, "UTF-8");
@@ -98,12 +90,15 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
 
   /**
    * Transform a file path to
-   * {@code Dataset<Row<file_path_no_scheme_authority, file_path_with_scheme_authority>>}
+   * {@code Dataset<Row<file_name, file_path_no_scheme_authority, file_path_with_scheme_authority>>}
    */
-  private static final UserDefinedFunction addFilePathOnlyUDF = functions.udf((String fullyQualifiedPath) -> {
-    Path path = new Path(fullyQualifiedPath);
+  private static final UserDefinedFunction addFileDetailsUDF = functions.udf((String fileLocation) -> {
+    Path fullyQualifiedPath = new Path(fileLocation);
+    String fileName = fullyQualifiedPath.getName();
+    String filePathOnly = fullyQualifiedPath.toUri().getPath();
+    String filePath = fullyQualifiedPath.toUri().toString();
     // only_path, fully qualified path
-    return RowFactory.create(path.toUri().getPath(), path.toUri().toString());
+    return RowFactory.create(fileName, filePathOnly, filePath);
   }, FILE_DETAIL_STRUCT);
 
   private final SparkSession spark;
@@ -279,8 +274,9 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
   protected static List<String> findOrphanFiles(
       Dataset<Row> validFileDF,
       Dataset<Row> actualFileDF) {
-    Column nameEqual = filenameUDF.apply(actualFileDF.col(FILE_PATH_ONLY))
-        .equalTo(filenameUDF.apply(validFileDF.col(FILE_PATH_ONLY)));
+
+    Column nameEqual = actualFileDF.col(FILE_NAME)
+        .equalTo(validFileDF.col(FILE_NAME));
 
     Column pathContains = actualFileDF.col(FILE_PATH_ONLY)
         .contains(validFileDF.col(FILE_PATH_ONLY));
@@ -297,7 +293,7 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
    * <pre>{@code
    * Dataset<Row<file_path_with_scheme_authority>>
    *    will be transformed to
-   *    Dataset<Row<file_path_no_scheme_authority, file_path_with_scheme_authority>>
+   *    Dataset<Row<file_name, file_path_no_scheme_authority, file_path_with_scheme_authority>>
    *  }</pre>
    *
    * This is required to compare the valid and all files to find the orphan files.
@@ -306,14 +302,15 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
    * which are part of metadata and not orphan.
    *
    * @param filePathWithSchemeAndAuthority : complete file path, can include scheme, authority and path.
-   * @return : {@code file_path_no_scheme_authority, file_path}
+   * @return : {@code file_name, file_path_no_scheme_authority, file_path}
    */
   protected static Dataset<Row> addFilePathOnlyColumn(Dataset<Row> filePathWithSchemeAndAuthority) {
     String selectExprFormat = "%s.%s as %s";
     return filePathWithSchemeAndAuthority.withColumn(URI_DETAIL,
-        addFilePathOnlyUDF.apply(
+        addFileDetailsUDF.apply(
             filePathWithSchemeAndAuthority.apply(FILE_PATH)
         )).selectExpr(
+            String.format(selectExprFormat, URI_DETAIL, FILE_NAME, FILE_NAME), // file name
             String.format(selectExprFormat, URI_DETAIL, FILE_PATH_ONLY, FILE_PATH_ONLY), // file path only
             String.format(selectExprFormat, URI_DETAIL, FILE_PATH, FILE_PATH)); // fully qualified path
   }
