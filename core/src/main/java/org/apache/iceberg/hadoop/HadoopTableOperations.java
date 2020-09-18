@@ -314,6 +314,9 @@ public class HadoopTableOperations implements TableOperations {
       try {
         if (fs.exists(metadataRoot())) {
           LOG.warn("Error reading version hint file {}", versionHintFile, e);
+        } else {
+          LOG.debug("Metadata for table not found in directory {}", metadataRoot(), e);
+          return 0;
         }
 
         // List the metadata directory to find the version files, and try to recover the max available version
@@ -329,8 +332,7 @@ public class HadoopTableOperations implements TableOperations {
 
         return maxVersion;
       } catch (IOException io) {
-        // We log this error only on debug level since this is just a problem in recovery path
-        LOG.debug("Error trying to recover version-hint.txt data for {}", versionHintFile, e);
+        LOG.warn("Error trying to recover version-hint.txt data for {}", versionHintFile, e);
         return 0;
       }
     }
