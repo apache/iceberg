@@ -150,7 +150,7 @@ public class TestReplaceTransaction extends TableTestBase {
     Assert.assertEquals("Version should be 2", 2L, (long) version());
     Assert.assertNull("Table should not have a current snapshot", table.currentSnapshot());
     Assert.assertEquals("Schema should use new schema, not compatible with previous",
-        new Schema(required(1, "obj_id", Types.IntegerType.get())).asStruct(),
+        new Schema(required(3, "obj_id", Types.IntegerType.get())).asStruct(),
         table.schema().asStruct());
   }
 

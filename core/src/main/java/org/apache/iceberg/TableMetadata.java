@@ -622,32 +622,26 @@ public class TableMetadata implements Serializable {
     ValidationException.check(formatVersion > 1 || PartitionSpec.hasSequentialIds(updatedPartitionSpec),
         "Spec does not use sequential IDs that are required in v1: %s", updatedPartitionSpec);
 
-    AtomicInteger nextLastColumnId = new AtomicInteger(0);
-    Schema freshSchema = TypeUtil.assignFreshIds(updatedSchema, nextLastColumnId::incrementAndGet);
+    AtomicInteger newLastColumnId = new AtomicInteger(lastColumnId);
+    Schema freshSchema = TypeUtil.assignFreshIds(updatedSchema, schema, newLastColumnId::incrementAndGet);
 
-    int nextSpecId = TableMetadata.INITIAL_SPEC_ID;
-    for (Integer specId : specsById.keySet()) {
-      if (nextSpecId <= specId) {
-        nextSpecId = specId + 1;
-      }
-    }
+    // determine the next spec id
+    OptionalInt maxSpecId = specs.stream().mapToInt(PartitionSpec::specId).max();
+    int nextSpecId = maxSpecId.orElse(TableMetadata.INITIAL_SPEC_ID) + 1;
 
     // rebuild the partition spec using the new column ids
     PartitionSpec freshSpec = freshSpec(nextSpecId, freshSchema, updatedPartitionSpec);
 
     // if the spec already exists, use the same ID. otherwise, use 1 more than the highest ID.
-    int specId = nextSpecId;
-    for (PartitionSpec spec : specs) {
-      if (freshSpec.compatibleWith(spec)) {
-        specId = spec.specId();
-        break;
-      }
-    }
+    int specId = specs.stream()
+        .filter(freshSpec::compatibleWith)
+        .findFirst()
+        .map(PartitionSpec::specId)
+        .orElse(nextSpecId);
 
-    ImmutableList.Builder<PartitionSpec> builder = ImmutableList.<PartitionSpec>builder()
-        .addAll(specs);
+    ImmutableList.Builder<PartitionSpec> specListBuilder = ImmutableList.<PartitionSpec>builder().addAll(specs);
     if (!specsById.containsKey(specId)) {
-      builder.add(freshSpec);
+      specListBuilder.add(freshSpec);
     }
 
     // determine the next order id
@@ -674,8 +668,8 @@ public class TableMetadata implements Serializable {
     newProperties.putAll(updatedProperties);
 
     return new TableMetadata(null, formatVersion, uuid, newLocation,
-        lastSequenceNumber, System.currentTimeMillis(), nextLastColumnId.get(), freshSchema,
-        specId, builder.build(), orderId, sortOrdersBuilder.build(), ImmutableMap.copyOf(newProperties),
+        lastSequenceNumber, System.currentTimeMillis(), newLastColumnId.get(), freshSchema,
+        specId, specListBuilder.build(), orderId, sortOrdersBuilder.build(), ImmutableMap.copyOf(newProperties),
         -1, snapshots, ImmutableList.of(), addPreviousFile(file, lastUpdatedMillis, newProperties));
   }
 
