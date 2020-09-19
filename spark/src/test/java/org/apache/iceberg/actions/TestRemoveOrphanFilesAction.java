@@ -41,11 +41,14 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -100,9 +103,31 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
       optional(2, "c2", Types.StringType.get()),
       optional(3, "c3", Types.StringType.get())
   );
+  private static final Schema SCHEMA_WITH_SPACE_ESCAPED = new Schema(
+      optional(1, "c1", Types.IntegerType.get()),
+      optional(2, "`c2 with space`", Types.StringType.get()),
+      optional(3, "`c3 with space`", Types.StringType.get())
+  );
+
+
+  private static final Schema SCHEMA_WITH_SPACE = new Schema(
+      optional(1, "c1", Types.IntegerType.get()),
+      optional(2, "c2 with space", Types.StringType.get()),
+      optional(3, "c3 with space", Types.StringType.get())
+  );
   private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
       .truncate("c2", 2)
       .identity("c3")
+      .build();
+
+  private static final PartitionSpec SPEC_WITH_SPACE = PartitionSpec.builderFor(SCHEMA_WITH_SPACE)
+      .truncate("c2 with space", 2)
+      .identity("c3 with space")
+      .build();
+
+  private static final PartitionSpec SPEC_WITH_SPACE_ESCAPED = PartitionSpec.builderFor(SCHEMA_WITH_SPACE_ESCAPED)
+      .truncate("`c2 with space`", 2)
+      .identity("`c3 with space`")
       .build();
 
   @Rule
@@ -390,6 +415,84 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   }
 
   @Test
+  public void testOlderThanTimestampWithPartitionWithWhitSpace()
+      throws InterruptedException, IOException, AnalysisException {
+    String partitionCol1 = "c2 with space";
+    String partitionCol2 = "c3 with space";
+    String spacedTableName = "whitespacetable_with_space";
+
+    List<Row> record1 = Lists.newArrayList(RowFactory.create(Integer.valueOf(1), "AA AA", "BB BB"));
+    List<Row> record2 = Lists.newArrayList(RowFactory.create(Integer.valueOf(2), "CC CC", "DD DD"));
+
+    Dataset<Row> df1 = spark.createDataFrame(record1, SparkSchemaUtil.convert(SCHEMA));
+    Dataset<Row> df2 = spark.createDataFrame(record2, SparkSchemaUtil.convert(SCHEMA));
+
+    df1.withColumnRenamed("c2", partitionCol1)
+        .withColumnRenamed("c3", partitionCol2)
+        .write().mode("overwrite").partitionBy(partitionCol1, partitionCol2).format("parquet")
+        .saveAsTable(spacedTableName);
+
+    File icebergLocation = temp.newFolder("partitioned_table_with_space");
+
+    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
+    Table table = tables.create(SparkSchemaUtil.schemaForTable(spark, spacedTableName),
+        SparkSchemaUtil.specForTable(spark, spacedTableName),
+        ImmutableMap.of(),
+        icebergLocation.getCanonicalPath());
+
+    df1.withColumnRenamed("c2", partitionCol1)
+        .withColumnRenamed("c3", partitionCol2)
+        .write().mode("overwrite").partitionBy(partitionCol1, partitionCol2).format("parquet")
+        .save(icebergLocation.getCanonicalPath() + "/data");
+
+    df2.withColumnRenamed("c2", partitionCol1)
+        .withColumnRenamed("c3", partitionCol2)
+        .write().mode("overwrite").partitionBy(partitionCol1, partitionCol2).format("parquet")
+        .save(icebergLocation.getCanonicalPath() + "/data");
+
+    df2.withColumnRenamed("c2", partitionCol1)
+        .withColumnRenamed("c3", partitionCol2)
+        .write().mode("overwrite").partitionBy(partitionCol1, partitionCol2).format("iceberg")
+        .save(icebergLocation.toString());
+
+    List<Row> initialResult = spark.read().format("iceberg").load(icebergLocation.toString())
+        .withColumnRenamed(partitionCol1, "c2")
+        .withColumnRenamed(partitionCol2, "c3")
+        .as(RowEncoder.apply(SparkSchemaUtil.convert(SCHEMA)))
+        .collectAsList();
+
+    Assert.assertEquals("should match only 1 record after insert", initialResult, record2);
+
+    Thread.sleep(1000);
+
+    long timestamp = System.currentTimeMillis();
+
+    Thread.sleep(1000);
+
+    // add another orphan file, as now there are 3 files, but 2 should be removed.
+    df2.withColumnRenamed("c2", partitionCol1)
+        .withColumnRenamed("c3", partitionCol2)
+        .write().mode("append").partitionBy(partitionCol1, partitionCol2).format("parquet")
+        .save(icebergLocation.getCanonicalPath() + "/data");
+
+    Actions actions = Actions.forTable(table);
+
+    List<String> result = actions.removeOrphanFiles()
+        .olderThan(timestamp)
+        .execute();
+
+    Assert.assertEquals("Should delete only 2 files", 2, result.size());
+
+    List<Row> resultsAfterRemove = spark.read().format("iceberg").load(icebergLocation.toString())
+        .withColumnRenamed(partitionCol1, "c2")
+        .withColumnRenamed(partitionCol2, "c3")
+        .as(RowEncoder.apply(SparkSchemaUtil.convert(SCHEMA)))
+        .collectAsList();
+
+    Assert.assertEquals("should match records after remove", initialResult, resultsAfterRemove);
+  }
+
+  @Test
   public void testRemoveUnreachableMetadataVersionFiles() throws InterruptedException {
     Map<String, String> props = Maps.newHashMap();
     props.put(TableProperties.WRITE_NEW_DATA_LOCATION, tableLocation);
@@ -504,15 +607,6 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .as(Encoders.bean(ThreeColumnRecord.class))
         .collectAsList();
     Assert.assertEquals("Rows must match", records, actualRecords);
-  }
-
-  private List<String> snapshotFiles(long snapshotId) {
-    return spark.read().format("iceberg")
-        .option("snapshot-id", snapshotId)
-        .load(tableLocation + "#files")
-        .select("file_path")
-        .as(Encoders.STRING())
-        .collectAsList();
   }
 
   @Test
@@ -759,6 +853,16 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   public void testFindOrphanFilesWithPathHasSpecialChars() throws URISyntaxException {
     executeTest(USER_LOG_DATA_SPECIAL_DUMMY_FILE, 4,
         HDFS_SERVICENAME_USER_LOG_DATA_SPECIAL_DUMMY_FILE, 4, null, 0);
+  }
+
+
+  private List<String> snapshotFiles(long snapshotId) {
+    return spark.read().format("iceberg")
+        .option("snapshot-id", snapshotId)
+        .load(tableLocation + "#files")
+        .select("file_path")
+        .as(Encoders.STRING())
+        .collectAsList();
   }
 
   private static StructType constructStructureWithString() {

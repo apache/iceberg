@@ -21,7 +21,6 @@ package org.apache.iceberg.actions;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.net.URLDecoder;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -73,32 +72,25 @@ import org.slf4j.LoggerFactory;
 public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
 
   private static final Logger LOG = LoggerFactory.getLogger(RemoveOrphanFilesAction.class);
-
   private static final String URI_DETAIL = "URI_DETAIL";
   private static final String FILE_NAME = "file_name";
   private static final String FILE_PATH = "file_path";
   private static final String FILE_PATH_ONLY = "file_path_only";
   private static final StructType FILE_DETAIL_STRUCT =  new StructType(new StructField[] {
       DataTypes.createStructField(FILE_NAME, DataTypes.StringType, false),
-      DataTypes.createStructField(FILE_PATH_ONLY, DataTypes.StringType, false),
-      DataTypes.createStructField(FILE_PATH, DataTypes.StringType, false)
+      DataTypes.createStructField(FILE_PATH_ONLY, DataTypes.StringType, false)
   });
-
-  private static final UserDefinedFunction decodeUDF = functions.udf((String fullyQualifiedPath) -> {
-    return URLDecoder.decode(fullyQualifiedPath, "UTF-8");
-  }, DataTypes.StringType);
 
   /**
    * Transform a file path to
-   * {@code Dataset<Row<file_name, file_path_no_scheme_authority, file_path_with_scheme_authority>>}
+   * {@code Dataset<Row<file_name, file_path_no_scheme_authority>>}
    */
   private static final UserDefinedFunction addFileDetailsUDF = functions.udf((String fileLocation) -> {
     Path fullyQualifiedPath = new Path(fileLocation);
     String fileName = fullyQualifiedPath.getName();
     String filePathOnly = fullyQualifiedPath.toUri().getPath();
-    String filePath = fullyQualifiedPath.toUri().toString();
-    // only_path, fully qualified path
-    return RowFactory.create(fileName, filePathOnly, filePath);
+    // file_name, only file path
+    return RowFactory.create(fileName, filePathOnly);
   }, FILE_DETAIL_STRUCT);
 
   private final SparkSession spark;
@@ -271,10 +263,7 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
     };
   }
 
-  protected static List<String> findOrphanFiles(
-      Dataset<Row> validFileDF,
-      Dataset<Row> actualFileDF) {
-
+  protected static List<String> findOrphanFiles(Dataset<Row> validFileDF, Dataset<Row> actualFileDF) {
     Column nameEqual = actualFileDF.col(FILE_NAME)
         .equalTo(validFileDF.col(FILE_NAME));
 
@@ -282,8 +271,7 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
         .contains(validFileDF.col(FILE_PATH_ONLY));
 
     Column joinCond = nameEqual.and(pathContains);
-    Column decodeFilepath = decodeUDF.apply(actualFileDF.col(FILE_PATH));
-    return actualFileDF.join(validFileDF, joinCond, "leftanti").select(decodeFilepath)
+    return actualFileDF.join(validFileDF, joinCond, "leftanti").select(FILE_PATH)
         .as(Encoders.STRING())
         .collectAsList();
   }
@@ -312,6 +300,6 @@ public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
         )).selectExpr(
             String.format(selectExprFormat, URI_DETAIL, FILE_NAME, FILE_NAME), // file name
             String.format(selectExprFormat, URI_DETAIL, FILE_PATH_ONLY, FILE_PATH_ONLY), // file path only
-            String.format(selectExprFormat, URI_DETAIL, FILE_PATH, FILE_PATH)); // fully qualified path
+            String.format(FILE_PATH)); // fully qualified path
   }
 }
