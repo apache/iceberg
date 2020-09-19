@@ -133,14 +133,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   protected abstract String operation();
 
   /**
-   * Apply the update's changes to the base table metadata and return the new manifest list.
-   *
-   * @param metadataToUpdate the base table metadata to apply changes to
-   * @return a manifest list for the new snapshot.
-   */
-  protected abstract List<ManifestFile> apply(TableMetadata metadataToUpdate);
-
-  /**
    * Validate the current metadata.
    * <p>
    * Child operations can override this to add custom validation.
@@ -149,6 +141,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    */
   protected void validate(TableMetadata currentMetadata) {
   }
+
+  /**
+   * Apply the update's changes to the base table metadata and return the new manifest list.
+   *
+   * @param metadataToUpdate the base table metadata to apply changes to
+   * @return a manifest list for the new snapshot.
+   */
+  protected abstract List<ManifestFile> apply(TableMetadata metadataToUpdate);
 
   @Override
   public Snapshot apply() {
