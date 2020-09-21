@@ -67,8 +67,13 @@ public class TestRowDelta extends V2TableTestBase {
     // test changes to the table back to the snapshot where FILE_A and FILE_B existed
     long validateFromSnapshotId = table.currentSnapshot().snapshotId();
 
-    table.newDelete()
+    table.newOverwrite()
         .deleteFile(FILE_A)
+        .addFile(FILE_A2)
+        .commit();
+
+    table.newDelete()
+        .deleteFile(FILE_B)
         .commit();
 
     long deleteSnapshotId = table.currentSnapshot().snapshotId();

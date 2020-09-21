@@ -88,27 +88,6 @@ public class SnapshotUtil {
     return ancestorIds;
   }
 
-  public static List<DataFile> removedDataFiles(Long baseSnapshotId, long latestSnapshotId,
-                                                Function<Long, Snapshot> lookup) {
-    List<DataFile> deletedFiles = Lists.newArrayList();
-
-    Long currentSnapshotId = latestSnapshotId;
-    while (currentSnapshotId != null && !currentSnapshotId.equals(baseSnapshotId)) {
-      Snapshot currentSnapshot = lookup.apply(currentSnapshotId);
-
-      if (currentSnapshot == null) {
-        throw new ValidationException(
-            "Cannot determine history between read snapshot %s and current %s",
-            baseSnapshotId, currentSnapshotId);
-      }
-
-      Iterables.addAll(deletedFiles, currentSnapshot.deletedFiles());
-      currentSnapshotId = currentSnapshot.parentId();
-    }
-
-    return deletedFiles;
-  }
-
   public static List<DataFile> newFiles(Long baseSnapshotId, long latestSnapshotId, Function<Long, Snapshot> lookup) {
     List<DataFile> newFiles = Lists.newArrayList();
 
