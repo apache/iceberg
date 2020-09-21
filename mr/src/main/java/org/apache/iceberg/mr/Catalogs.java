@@ -19,9 +19,15 @@
 
 package org.apache.iceberg.mr;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PartitionSpecParser;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -75,6 +81,49 @@ public final class Catalogs {
 
     Preconditions.checkArgument(tableLocation != null, "Table location not set");
     return new HadoopTables(conf).load(tableLocation);
+  }
+
+  public static Table createTable(Configuration conf, Properties props) {
+    String schemaString = props.getProperty(InputFormatConfig.TABLE_SCHEMA);
+    Preconditions.checkNotNull(schemaString, "Table schema not set");
+    Schema schema = SchemaParser.fromJson(props.getProperty(InputFormatConfig.TABLE_SCHEMA));
+
+    String specString = props.getProperty(InputFormatConfig.PARTITION_SPEC);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    if (specString != null) {
+      spec = PartitionSpecParser.fromJson(schema, specString);
+    }
+
+    String location = props.getProperty(LOCATION);
+
+    Map<String, String> map = new HashMap<>(props.size());
+    props.forEach((k, v) -> map.put(k.toString(), v.toString()));
+
+    Optional<Catalog> catalog = loadCatalog(conf);
+
+    if (catalog.isPresent()) {
+      String name = props.getProperty(NAME);
+      Preconditions.checkNotNull(name, "Table identifier not set");
+      return catalog.get().createTable(TableIdentifier.parse(name), schema, spec, location, map);
+    }
+
+    Preconditions.checkNotNull(location, "Table location not set");
+    return new HadoopTables(conf).create(schema, spec, map, location);
+  }
+
+  public static boolean dropTable(Configuration conf, Properties props) {
+    String location = props.getProperty(LOCATION);
+
+    Optional<Catalog> catalog = loadCatalog(conf);
+
+    if (catalog.isPresent()) {
+      String name = props.getProperty(NAME);
+      Preconditions.checkNotNull(name, "Table identifier not set");
+      return catalog.get().dropTable(TableIdentifier.parse(name));
+    }
+
+    Preconditions.checkNotNull(location, "Table location not set");
+    return new HadoopTables(conf).dropTable(location);
   }
 
   @VisibleForTesting
