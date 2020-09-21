@@ -33,6 +33,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.iceberg.BaseMetastoreCatalog;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -197,8 +198,9 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     try {
       if (purge && lastMetadata != null) {
         // Since the data files and the metadata files may store in different locations,
+        // Since the data files and the metadata files may store in different locations,
         // so it has to call dropTableData to force delete the data file.
-        dropTableData(ops.io(), lastMetadata);
+        CatalogUtil.dropTableData(ops.io(), lastMetadata);
       }
       fs.delete(tablePath, true /* recursive */);
       return true;

@@ -19,11 +19,13 @@
 
 package org.apache.iceberg.hadoop;
 
+import java.io.IOException;
 import java.util.Map;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.PartitionSpec;
@@ -36,6 +38,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Tables;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -142,6 +145,36 @@ public class HadoopTables implements Tables, Configurable {
     ops.commit(null, metadata);
 
     return new BaseTable(ops, location);
+  }
+
+  public boolean dropTable(String location) {
+    return dropTable(location, true);
+  }
+
+  public boolean dropTable(String location, boolean purge) {
+    // Just for checking if the table exists or not
+    load(location);
+
+    TableOperations ops = newTableOps(location);
+    TableMetadata lastMetadata;
+    if (purge && ops.current() != null) {
+      lastMetadata = ops.current();
+    } else {
+      lastMetadata = null;
+    }
+
+    try {
+      if (purge && lastMetadata != null) {
+        // Since the data files and the metadata files may store in different locations,
+        // so it has to call dropTableData to force delete the data file.
+        CatalogUtil.dropTableData(ops.io(), lastMetadata);
+      }
+      Path tablePath = new Path(location);
+      Util.getFs(tablePath, conf).delete(tablePath, true /* recursive */);
+      return true;
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to delete file: %s", location);
+    }
   }
 
   @VisibleForTesting

@@ -36,6 +36,7 @@ import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.UnknownDBException;
 import org.apache.iceberg.BaseMetastoreCatalog;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
@@ -140,7 +141,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
       });
 
       if (purge && lastMetadata != null) {
-        dropTableData(ops.io(), lastMetadata);
+        CatalogUtil.dropTableData(ops.io(), lastMetadata);
       }
 
       LOG.info("Dropped table: {}", identifier);
