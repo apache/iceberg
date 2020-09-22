@@ -105,10 +105,12 @@ public final class Catalogs {
   /**
    * Creates an Iceberg table using the catalog specified by the configuration.
    * The properties should contain the following values:
-   *  - Table identifier ({@link Catalogs#NAME}) or table path ({@link Catalogs#LOCATION}) is required
-   *  - Table schema ({@link InputFormatConfig#TABLE_SCHEMA}) is required
-   *  - Partition specification ({@link InputFormatConfig#PARTITION_SPEC}) is optional. Table will be unpartitioned if
+   * <p><ul>
+   * <li>Table identifier ({@link Catalogs#NAME}) or table path ({@link Catalogs#LOCATION}) is required
+   * <li>Table schema ({@link InputFormatConfig#TABLE_SCHEMA}) is required
+   * <li>Partition specification ({@link InputFormatConfig#PARTITION_SPEC}) is optional. Table will be unpartitioned if
    *  not provided
+   * </ul><p>
    * Other properties will be handled over to the Table creation. The controlling properties above will not be
    * propagated.
    * @param conf a Hadoop conf
