@@ -54,7 +54,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
   private static final int NUM_ROWS = 200_000;
   static final int BATCH_SIZE = 10_000;
 
-  private static final Function<GenericData.Record, GenericData.Record> IDENTITY = record -> record;
+  static final Function<GenericData.Record, GenericData.Record> IDENTITY = record -> record;
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
