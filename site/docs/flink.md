@@ -102,10 +102,10 @@ CREATE CATALOG hive_catalog WITH (
 ```
 
 * `type`: Please just use `iceberg` for iceberg table format. (Required)
-* `catalog-type`: Required. Iceberg currently support `hive` or `hadoop` catalog type. (Required)
+* `catalog-type`: Iceberg currently support `hive` or `hadoop` catalog type. (Required)
 * `uri`: The Hive metastore's thrift URI. (Required)
 * `clients`: The Hive metastore client pool size, default value is 2. (Optional)
-* `property-version`: Optional. version number to describe the property version. This property can be used for backwards compatibility in case the property format changes. The currently property version is `1`. (Optional)
+* `property-version`: Version number to describe the property version. This property can be used for backwards compatibility in case the property format changes. The currently property version is `1`. (Optional)
 
 Iceberg also supports a directory-based catalog in HDFS that can be configured using `'catalog-type'='hadoop'`:
 
@@ -118,7 +118,7 @@ CREATE CATALOG hadoop_catalog WITH (
 );
 ```
 
-* `warehouse`: the HDFS directory to store metadata files and data files. (Required)
+* `warehouse`: The HDFS directory to store metadata files and data files. (Required)
 
 We could execute the sql command `USE CATALOG hive_catalog` to set the current catalog.
 
