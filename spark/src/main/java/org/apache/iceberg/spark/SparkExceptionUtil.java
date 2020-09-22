@@ -42,7 +42,8 @@ public class SparkExceptionUtil {
    */
   @FormatMethod
   public static RuntimeException toUncheckedException(final Throwable cause, final String message,
-      final Object... args) {
+                                                      final Object... args) {
+    // Parameters are required to be final to help @FormatMethod do static analysis
     if (cause instanceof RuntimeException) {
       return (RuntimeException) cause;
 
