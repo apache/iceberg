@@ -122,7 +122,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
     } catch (NoSuchObjectException e) {
       if (currentMetadataLocation() != null) {
-        throw new NoSuchTableException(String.format("No such table: %s.%s", database, tableName));
+        throw new NoSuchTableException("No such table: %s.%s", database, tableName);
       }
 
     } catch (TException e) {
@@ -283,13 +283,13 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
     // timeout and do not have lock acquired
     if (timeout && !state.equals(LockState.ACQUIRED)) {
-      throw new CommitFailedException(String.format("Timed out after %s ms waiting for lock on %s.%s",
-          duration, database, tableName));
+      throw new CommitFailedException("Timed out after %s ms waiting for lock on %s.%s",
+          duration, database, tableName);
     }
 
     if (!state.equals(LockState.ACQUIRED)) {
-      throw new CommitFailedException(String.format("Could not acquire the lock on %s.%s, " +
-          "lock request ended in state %s", database, tableName, state));
+      throw new CommitFailedException("Could not acquire the lock on %s.%s, " +
+          "lock request ended in state %s", database, tableName, state);
     }
     return lockId;
   }

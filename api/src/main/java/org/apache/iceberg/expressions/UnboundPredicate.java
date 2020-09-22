@@ -136,9 +136,8 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
     Literal<T> lit = literal().to(boundTerm.type());
 
     if (lit == null) {
-      throw new ValidationException(String.format(
-          "Invalid value for conversion to type %s: %s (%s)",
-          boundTerm.type(), literal().value(), literal().value().getClass().getName()));
+      throw new ValidationException("Invalid value for conversion to type %s: %s (%s)",
+          boundTerm.type(), literal().value(), literal().value().getClass().getName());
 
     } else if (lit == Literals.aboveMax()) {
       switch (op()) {

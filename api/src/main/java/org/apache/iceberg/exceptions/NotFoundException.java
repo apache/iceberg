@@ -19,14 +19,18 @@
 
 package org.apache.iceberg.exceptions;
 
+import com.google.errorprone.annotations.FormatMethod;
+
 /**
  * Exception raised when attempting to read a file that does not exist.
  */
 public class NotFoundException extends RuntimeException {
+  @FormatMethod
   public NotFoundException(String message, Object... args) {
     super(String.format(message, args));
   }
 
+  @FormatMethod
   public NotFoundException(Throwable cause, String message, Object... args) {
     super(String.format(message, args), cause);
   }

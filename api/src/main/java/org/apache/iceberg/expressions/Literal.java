@@ -72,7 +72,7 @@ public interface Literal<T> extends Serializable {
   }
 
   /**
-   * @return the value wrapped by this literal
+   * Returns the value wrapped by this literal.
    */
   T value();
 

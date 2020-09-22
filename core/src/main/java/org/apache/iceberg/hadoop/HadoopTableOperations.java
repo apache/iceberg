@@ -157,7 +157,7 @@ public class HadoopTableOperations implements TableOperations {
       }
     } catch (IOException e) {
       throw new RuntimeIOException(e,
-          "Failed to check if next version exists: " + finalMetadataFile);
+          "Failed to check if next version exists: %s", finalMetadataFile);
     }
 
     // this rename operation is the atomic commit operation

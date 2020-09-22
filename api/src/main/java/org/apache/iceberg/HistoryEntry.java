@@ -29,12 +29,12 @@ import java.io.Serializable;
  */
 public interface HistoryEntry extends Serializable {
   /**
-   * @return the timestamp in milliseconds of the change
+   * Returns the timestamp in milliseconds of the change.
    */
   long timestampMillis();
 
   /**
-   * @return ID of the new current snapshot
+   * Returns ID of the new current snapshot.
    */
   long snapshotId();
 }

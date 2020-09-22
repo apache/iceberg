@@ -110,14 +110,14 @@ public class DynFields {
     }
 
     /**
-     * @return whether the field is a static field
+     * Returns whether the field is a static field.
      */
     public boolean isStatic() {
       return Modifier.isStatic(field.getModifiers());
     }
 
     /**
-     * @return whether the field is always null
+     * Returns whether the field is always null.
      */
     public boolean isAlwaysNull() {
       return this == AlwaysNull.INSTANCE;

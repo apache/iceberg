@@ -131,7 +131,7 @@ public class PartitionSpecParser {
     try {
       return fromJsonFields(schema, specId, JsonUtil.mapper().readValue(json, JsonNode.class));
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to parse partition spec fields: " + json);
+      throw new RuntimeIOException(e, "Failed to parse partition spec fields: %s", json);
     }
   }
 

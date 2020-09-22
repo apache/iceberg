@@ -80,7 +80,7 @@ public class HadoopTables implements Tables, Configurable {
       if (ops.current() != null) {
         result = new BaseTable(ops, location);
       } else {
-        throw new NoSuchTableException("Table does not exist at location: " + location);
+        throw new NoSuchTableException("Table does not exist at location: %s", location);
       }
     }
 
@@ -96,7 +96,7 @@ public class HadoopTables implements Tables, Configurable {
    */
   private Pair<String, MetadataTableType> parseMetadataType(String location) {
     int hashIndex = location.lastIndexOf('#');
-    if (hashIndex != -1 & !location.endsWith("#")) {
+    if (hashIndex != -1 && !location.endsWith("#")) {
       String baseTable = location.substring(0, hashIndex);
       String metaTable = location.substring(hashIndex + 1);
       MetadataTableType type = MetadataTableType.from(metaTable);
@@ -109,7 +109,7 @@ public class HadoopTables implements Tables, Configurable {
   private Table loadMetadataTable(String location, MetadataTableType type) {
     TableOperations ops = newTableOps(location);
     if (ops.current() == null) {
-      throw new NoSuchTableException("Table does not exist at location: " + location);
+      throw new NoSuchTableException("Table does not exist at location: %s", location);
     }
 
     return MetadataTableUtils.createMetadataTableInstance(ops, location, type);
@@ -132,7 +132,7 @@ public class HadoopTables implements Tables, Configurable {
 
     TableOperations ops = newTableOps(location);
     if (ops.current() != null) {
-      throw new AlreadyExistsException("Table already exists at location: " + location);
+      throw new AlreadyExistsException("Table already exists at location: %s", location);
     }
 
     Map<String, String> tableProps = properties == null ? ImmutableMap.of() : properties;

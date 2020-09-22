@@ -30,6 +30,8 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
  */
 public interface InputFile {
   /**
+   * Returns the total length of the file, in bytes
+   *
    * @return the total length of the file, in bytes
    * @throws RuntimeIOException If the implementation throws an {@link IOException}
    */

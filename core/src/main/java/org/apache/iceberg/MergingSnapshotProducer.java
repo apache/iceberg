@@ -327,7 +327,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         this.cachedNewManifest = writer.toManifestFile();
         this.hasNewFiles = false;
       } catch (IOException e) {
-        throw new RuntimeIOException("Failed to close manifest writer", e);
+        throw new RuntimeIOException(e, "Failed to close manifest writer");
       }
     }
 
@@ -360,7 +360,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         this.cachedNewDeleteManifest = writer.toManifestFile();
         this.hasNewDeleteFiles = false;
       } catch (IOException e) {
-        throw new RuntimeIOException("Failed to close manifest writer", e);
+        throw new RuntimeIOException(e, "Failed to close manifest writer");
       }
     }
 

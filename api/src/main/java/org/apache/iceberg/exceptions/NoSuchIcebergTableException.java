@@ -19,14 +19,18 @@
 
 package org.apache.iceberg.exceptions;
 
+import com.google.errorprone.annotations.FormatMethod;
+
 /**
  * NoSuchTableException thrown when a table is found but it is not an Iceberg table.
  */
 public class NoSuchIcebergTableException extends NoSuchTableException {
+  @FormatMethod
   public NoSuchIcebergTableException(String message, Object... args) {
     super(message, args);
   }
 
+  @FormatMethod
   public static void check(boolean test, String message, Object... args) {
     if (!test) {
       throw new NoSuchIcebergTableException(message, args);

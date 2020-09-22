@@ -172,7 +172,7 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
             }
           }
         } catch (IOException e) {
-          throw new RuntimeIOException("Failed to close manifest reader", e);
+          throw new RuntimeIOException(e, "Failed to close manifest reader");
         }
       }
       threw = false;

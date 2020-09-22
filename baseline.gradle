@@ -65,9 +65,11 @@ subprojects {
           // error-prone is slow, don't run on tests
           '-XepExcludedPaths:.*/test/.*',
           // specific to Palantir
+          '-Xep:FinalClass:OFF',
           '-Xep:PreferSafeLoggingPreconditions:OFF',
           '-Xep:PreferSafeLoggableExceptions:OFF',
           '-Xep:Slf4jLogsafeArgs:OFF',
+          '-Xep:RawTypes:OFF',
           // subclasses are not equal
           '-Xep:EqualsGetClass:OFF',
           // patterns that are allowed

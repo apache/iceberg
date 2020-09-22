@@ -300,7 +300,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       return filterManifestWithDeletedFiles(metricsEvaluator, manifest, reader);
 
     } catch (IOException e) {
-      throw new RuntimeIOException("Failed to close manifest: " + manifest, e);
+      throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest);
     }
   }
 
@@ -422,7 +422,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       return filtered;
 
     } catch (IOException e) {
-      throw new RuntimeIOException("Failed to close manifest writer", e);
+      throw new RuntimeIOException(e, "Failed to close manifest writer");
     }
   }
 

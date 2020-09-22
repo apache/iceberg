@@ -694,12 +694,14 @@ public class Parquet {
   }
 
   /**
+   * Combines several files into one
+   *
    * @param inputFiles   an {@link Iterable} of parquet files. The order of iteration determines the order in which
-   *                     content of files are read and written to the @param outputFile
-   * @param outputFile   the output parquet file containing all the data from @param inputFiles
-   * @param rowGroupSize the row group size to use when writing the @param outputFile
+   *                     content of files are read and written to the {@code outputFile}
+   * @param outputFile   the output parquet file containing all the data from {@code inputFiles}
+   * @param rowGroupSize the row group size to use when writing the {@code outputFile}
    * @param schema       the schema of the data
-   * @param metadata     extraMetadata to write at the footer of the @param outputFile
+   * @param metadata     extraMetadata to write at the footer of the {@code outputFile}
    */
   public static void concat(Iterable<File> inputFiles, File outputFile, int rowGroupSize, Schema schema,
                             Map<String, String> metadata) throws IOException {

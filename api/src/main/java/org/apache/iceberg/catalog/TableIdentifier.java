@@ -64,14 +64,14 @@ public class TableIdentifier {
   }
 
   /**
-   * @return the identifier namespace
+   * Returns the identifier namespace.
    */
   public Namespace namespace() {
     return namespace;
   }
 
   /**
-   * @return the identifier name
+   * Returns the identifier name.
    */
   public String name() {
     return name;

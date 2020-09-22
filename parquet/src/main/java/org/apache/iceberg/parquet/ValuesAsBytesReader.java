@@ -92,8 +92,7 @@ public class ValuesAsBytesReader extends ValuesReader {
   }
 
   /**
-   *
-   * @return 1 if true, 0 otherwise
+   * Returns 1 if true, 0 otherwise.
    */
   public final int readBooleanAsInt() {
     if (bitOffset == 0) {

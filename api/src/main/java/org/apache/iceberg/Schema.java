@@ -127,7 +127,7 @@ public class Schema implements Serializable {
   }
 
   /**
-   * @return a List of the {@link NestedField columns} in this Schema.
+   * Returns a List of the {@link NestedField columns} in this Schema.
    */
   public List<NestedField> columns() {
     return struct.fields();

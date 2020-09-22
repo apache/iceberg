@@ -32,7 +32,7 @@ public class Exceptions {
       closeable.close();
     } catch (IOException e) {
       if (!suppressExceptions) {
-        throw new RuntimeIOException("Failed calling close", e);
+        throw new RuntimeIOException(e, "Failed calling close");
       }
       // otherwise, ignore the exception
     }

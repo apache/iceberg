@@ -246,7 +246,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     try {
       return Stream.of(fs.listStatus(nsPath))
         .map(FileStatus::getPath)
-        .filter(path -> isNamespace(path))
+        .filter(this::isNamespace)
         .map(path -> append(namespace, path.getName()))
         .collect(Collectors.toList());
     } catch (IOException ioe) {
@@ -270,7 +270,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
     try {
       if (fs.listStatusIterator(nsPath).hasNext()) {
-        throw new NamespaceNotEmptyException("Namespace " + namespace + " is not empty.");
+        throw new NamespaceNotEmptyException("Namespace %s is not empty.", namespace);
       }
 
       return fs.delete(nsPath, false /* recursive */);

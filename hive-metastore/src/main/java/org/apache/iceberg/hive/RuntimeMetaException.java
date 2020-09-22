@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.hive;
 
+import com.google.errorprone.annotations.FormatMethod;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 
 /**
@@ -29,10 +30,12 @@ public class RuntimeMetaException extends RuntimeException {
     super(cause);
   }
 
+  @FormatMethod
   public RuntimeMetaException(MetaException cause, String message, Object... args) {
     super(String.format(message, args), cause);
   }
 
+  @FormatMethod
   public RuntimeMetaException(Throwable throwable, String message, Object... args) {
     super(String.format(message, args), throwable);
   }

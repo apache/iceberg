@@ -53,21 +53,21 @@ public class SortField implements Serializable {
   }
 
   /**
-   * @return the field id of the source field in the {@link SortOrder sort order's} table schema
+   * Returns the field id of the source field in the {@link SortOrder sort order's} table schema
    */
   public int sourceId() {
     return sourceId;
   }
 
   /**
-   * @return the sort direction
+   * Returns the sort direction
    */
   public SortDirection direction() {
     return direction;
   }
 
   /**
-   * @return the null order
+   * Returns the null order
    */
   public NullOrder nullOrder() {
     return nullOrder;

@@ -508,8 +508,7 @@ public class SparkTableUtil {
     TableIdentifier sourceTableIdentWithDB = new TableIdentifier(sourceTableIdent.table(), Some.apply(db));
 
     if (!catalog.tableExists(sourceTableIdentWithDB)) {
-      throw new org.apache.iceberg.exceptions.NoSuchTableException(
-          String.format("Table %s does not exist", sourceTableIdentWithDB));
+      throw new org.apache.iceberg.exceptions.NoSuchTableException("Table %s does not exist", sourceTableIdentWithDB);
     }
 
     try {
