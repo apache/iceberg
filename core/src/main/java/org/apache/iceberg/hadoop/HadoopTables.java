@@ -147,10 +147,26 @@ public class HadoopTables implements Tables, Configurable {
     return new BaseTable(ops, location);
   }
 
+  /**
+   * Drop a table and delete all data and metadata files. Throws NoSuchTableException if the table does not exists.
+   *
+   * @param location a path URI (e.g. hdfs:///warehouse/my_table)
+   * @return true if the table was dropped
+   */
   public boolean dropTable(String location) {
     return dropTable(location, true);
   }
 
+  /**
+   * Drop a table; optionally delete data and metadata files.
+   * <p>
+   * If purge is set to true the implementation should delete all data and metadata files.
+   * Throws NoSuchTableException if the table does not exists.
+   *
+   * @param location a path URI (e.g. hdfs:///warehouse/my_table)
+   * @param purge if true, delete all data and metadata files in the table
+   * @return true if the table was dropped
+   */
   public boolean dropTable(String location, boolean purge) {
     // Just for checking if the table exists or not
     load(location);

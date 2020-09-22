@@ -20,6 +20,7 @@
 package org.apache.iceberg.mr;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Optional;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
@@ -109,6 +110,7 @@ public class TestCatalogs {
     properties.put("location", temp.toString() + "/hadoop_tables");
     properties.put(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(SCHEMA));
     properties.put(InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(SPEC));
+    properties.put("dummy", "test");
 
     Catalogs.createTable(conf, properties);
 
@@ -118,6 +120,7 @@ public class TestCatalogs {
     Assert.assertEquals(properties.getProperty("location"), table.location());
     Assert.assertEquals(SchemaParser.toJson(SCHEMA), SchemaParser.toJson(table.schema()));
     Assert.assertEquals(PartitionSpecParser.toJson(SPEC), PartitionSpecParser.toJson(table.spec()));
+    Assert.assertEquals(Collections.singletonMap("dummy", "test"), table.properties());
 
     AssertHelpers.assertThrows(
         "Should complain about table location not set", NullPointerException.class,
@@ -155,6 +158,7 @@ public class TestCatalogs {
     properties.put("name", identifier.toString());
     properties.put(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(SCHEMA));
     properties.put(InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(SPEC));
+    properties.put("dummy", "test");
 
     Catalogs.createTable(conf, properties);
 
@@ -163,6 +167,7 @@ public class TestCatalogs {
 
     Assert.assertEquals(SchemaParser.toJson(SCHEMA), SchemaParser.toJson(table.schema()));
     Assert.assertEquals(PartitionSpecParser.toJson(SPEC), PartitionSpecParser.toJson(table.spec()));
+    Assert.assertEquals(Collections.singletonMap("dummy", "test"), table.properties());
 
     AssertHelpers.assertThrows(
         "Should complain about table identifier not set", NullPointerException.class,
