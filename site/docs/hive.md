@@ -56,7 +56,7 @@ Pushdown of the Hive SQL `WHERE` clause has been implemented so that these filte
 The projection of columns from the HiveSQL `SELECT` clause down to the Iceberg readers to reduce the number of columns read is currently being worked on.
 
 ### Time travel and system tables
-Support for accesing Iceberg's time travel feature and other system tables isn't currently supported but there is a plan to add this soon.
+Support for accesing Iceberg's time travel feature and other system tables isn't currently supported but there is a plan to add this in the future.
 
 ## Hive write support
 Iceberg intends to support the creation of, and writing into, Iceberg tables from Hive. This is currently being worked on and is still considered experimental.
