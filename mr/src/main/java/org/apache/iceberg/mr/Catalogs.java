@@ -46,7 +46,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Class for catalog resolution and accessing the common functions for {@Catalog} API.
+ * Class for catalog resolution and accessing the common functions for {@link Catalog} API.
  * Catalog resolution happens in this order:
  * 1. Custom catalog if specified by {@link InputFormatConfig#CATALOG_LOADER_CLASS}
  * 2. Hadoop or Hive catalog if specified by {@link InputFormatConfig#CATALOG}
