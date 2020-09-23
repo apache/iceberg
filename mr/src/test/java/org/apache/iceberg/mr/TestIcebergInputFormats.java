@@ -72,11 +72,11 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 @RunWith(Parameterized.class)
 public class TestIcebergInputFormats {
 
-  private static final List<TestInputFormat.Factory<Record>> TESTED_INPUT_FORMATS = ImmutableList.of(
+  public static final List<TestInputFormat.Factory<Record>> TESTED_INPUT_FORMATS = ImmutableList.of(
           TestInputFormat.newFactory("IcebergInputFormat", TestIcebergInputFormat::create),
           TestInputFormat.newFactory("MapredIcebergInputFormat", TestMapredIcebergInputFormat::create));
 
-  private static final List<String> TESTED_FILE_FORMATS = ImmutableList.of("avro", "orc", "parquet");
+  public static final List<String> TESTED_FILE_FORMATS = ImmutableList.of("avro", "orc", "parquet");
 
   private static final Schema SCHEMA = new Schema(
           required(1, "data", Types.StringType.get()),
@@ -370,7 +370,7 @@ public class TestIcebergInputFormats {
     testInputFormat.create(builder.conf()).validate(expectedRecords);
   }
 
-  private abstract static class TestInputFormat<T> {
+  public abstract static class TestInputFormat<T> {
 
     private final List<IcebergSplit> splits;
     private final List<T> records;
