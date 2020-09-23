@@ -72,7 +72,7 @@ This project Iceberg also has modules for adding Iceberg support to processing e
 
 * `iceberg-spark2` is an implementation of Spark's Datasource V2 API in 2.4 for Iceberg (use iceberg-spark-runtime for a shaded version)
 * `iceberg-spark3` is an implementation of Spark's Datasource V2 API in 3.0 for Iceberg (use iceberg-spark3-runtime for a shaded version)
-* `iceberg-flink` contains classes for integrating with Apache Flink
+* `iceberg-flink` contains classes for integrating with Apache Flink (use iceberg-flink-runtime for a shaded version)
 * `iceberg-mr` contains an InputFormat and other classes for integrating with Apache Hive
 * `iceberg-pig` is an implementation of Pig's LoadFunc API for Iceberg
 
