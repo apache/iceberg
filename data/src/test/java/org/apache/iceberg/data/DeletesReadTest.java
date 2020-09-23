@@ -20,6 +20,7 @@
 package org.apache.iceberg.data;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
@@ -27,8 +28,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableTestBase;
-import org.apache.iceberg.TestHelpers.Row;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -37,37 +37,17 @@ import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
 import org.junit.Assert;
-import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
-public class TestGenericReaderDeletes extends TableTestBase {
-  public TestGenericReaderDeletes() {
-    super(2 /* format v2 with delete files */);
-  }
+public abstract class DeletesReadTest {
+  protected Table table;
+  protected List<Record> records;
+  protected DataFile dataFile;
 
-  private List<Record> records = null;
-  private DataFile dataFile = null;
-
-  @Before
-  public void writeTestDataFile() throws IOException {
-    this.records = Lists.newArrayList();
-
-    // records all use IDs that are in bucket id_bucket=0
-    GenericRecord record = GenericRecord.create(table.schema());
-    records.add(record.copy("id", 29, "data", "a"));
-    records.add(record.copy("id", 43, "data", "b"));
-    records.add(record.copy("id", 61, "data", "c"));
-    records.add(record.copy("id", 89, "data", "d"));
-    records.add(record.copy("id", 100, "data", "e"));
-    records.add(record.copy("id", 121, "data", "f"));
-    records.add(record.copy("id", 122, "data", "g"));
-
-    this.dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), Row.of(0), records);
-
-    table.newAppend()
-        .appendFile(dataFile)
-        .commit();
-  }
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
 
   @Test
   public void testEqualityDeletes() throws IOException {
@@ -80,7 +60,7 @@ public class TestGenericReaderDeletes extends TableTestBase {
     );
 
     DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, deleteRowSchema);
+        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), dataDeletes, deleteRowSchema);
 
     table.newRowDelta()
         .addDeletes(eqDeletes)
@@ -90,6 +70,22 @@ public class TestGenericReaderDeletes extends TableTestBase {
     StructLikeSet actual = rowSet(table);
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
+  }
+
+  protected void generateTestData() throws IOException {
+    this.records = new ArrayList<>();
+
+    // records all use IDs that are in bucket id_bucket=0
+    GenericRecord record = GenericRecord.create(table.schema());
+    records.add(record.copy("id", 29, "data", "a"));
+    records.add(record.copy("id", 43, "data", "b"));
+    records.add(record.copy("id", 61, "data", "c"));
+    records.add(record.copy("id", 89, "data", "d"));
+    records.add(record.copy("id", 100, "data", "e"));
+    records.add(record.copy("id", 121, "data", "f"));
+    records.add(record.copy("id", 122, "data", "g"));
+
+    this.dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), records);
   }
 
   @Test
@@ -103,7 +99,7 @@ public class TestGenericReaderDeletes extends TableTestBase {
     );
 
     DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, deleteRowSchema);
+        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), dataDeletes, deleteRowSchema);
 
     table.newRowDelta()
         .addDeletes(eqDeletes)
@@ -125,7 +121,7 @@ public class TestGenericReaderDeletes extends TableTestBase {
     );
 
     DeleteFile posDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
+        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), deletes);
 
     table.newRowDelta()
         .addDeletes(posDeletes)
@@ -148,7 +144,7 @@ public class TestGenericReaderDeletes extends TableTestBase {
     );
 
     DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, dataSchema);
+        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), dataDeletes, dataSchema);
 
     List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
         Pair.of(dataFile.path(), 3L), // id = 89
@@ -156,7 +152,7 @@ public class TestGenericReaderDeletes extends TableTestBase {
     );
 
     DeleteFile posDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
+        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), deletes);
 
     table.newRowDelta()
         .addDeletes(eqDeletes)
@@ -180,7 +176,7 @@ public class TestGenericReaderDeletes extends TableTestBase {
     );
 
     DeleteFile dataEqDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, dataSchema);
+        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), dataDeletes, dataSchema);
 
     Schema idSchema = table.schema().select("id");
     Record idDelete = GenericRecord.create(idSchema);
@@ -190,7 +186,7 @@ public class TestGenericReaderDeletes extends TableTestBase {
     );
 
     DeleteFile idEqDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), Row.of(0), idDeletes, idSchema);
+        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), idDeletes, idSchema);
 
     table.newRowDelta()
         .addDeletes(dataEqDeletes)
@@ -213,7 +209,7 @@ public class TestGenericReaderDeletes extends TableTestBase {
     // add a new data file with a record where data is null
     Record record = GenericRecord.create(table.schema());
     DataFile dataFileWithNull = FileHelpers.writeDataFile(
-        table, Files.localOutput(temp.newFile()), Row.of(0),
+        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0),
         Lists.newArrayList(record.copy("id", 131, "data", null)));
 
     table.newAppend()
@@ -228,7 +224,7 @@ public class TestGenericReaderDeletes extends TableTestBase {
     );
 
     DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, dataSchema);
+        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), dataDeletes, dataSchema);
 
     table.newRowDelta()
         .addDeletes(eqDeletes)
@@ -269,4 +265,5 @@ public class TestGenericReaderDeletes extends TableTestBase {
         .forEach(set::add);
     return set;
   }
+
 }
