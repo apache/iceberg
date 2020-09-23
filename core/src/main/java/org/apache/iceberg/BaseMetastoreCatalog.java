@@ -324,6 +324,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         .run(io::deleteFile);
   }
 
+  @SuppressWarnings("DangerousStringInternUsage")
   private static void deleteFiles(FileIO io, Set<ManifestFile> allManifests) {
     // keep track of deleted files in a map that can be cleaned up when memory runs low
     Map<String, Boolean> deletedFiles = new MapMaker()
