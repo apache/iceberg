@@ -18,7 +18,7 @@
 # Hive
 
 ## Hive Read Support
-Iceberg supports the reading of Iceberg tables from (Hive)[https://hive.apache.org] by using a (StorageHandler)[https://cwiki.apache.org/confluence/display/Hive/StorageHandlers]. 
+Iceberg supports the reading of Iceberg tables from [Hive](https://hive.apache.org) by using a [StorageHandler](https://cwiki.apache.org/confluence/display/Hive/StorageHandlers). 
 
 ### Table Creation
 This section explains the various steps needed in order to overlay a Hive table "on top of" an existing Iceberg table.
@@ -26,19 +26,31 @@ This section explains the various steps needed in order to overlay a Hive table 
 #### Create an Iceberg Table
 The first step is to create an Iceberg table using the Spark/Java/Python API. For the purposes of this documentation we will assume that the table is called `table_a` and that the base location of the table is `s3://some_bucket/some_path/table_a`.
 
-#### Create A Hive Table
-Now overlay a Hive table over this Iceberg table by issuing Hive DDL like so:
+#### Add the Iceberg Hive Runtime jar file to the Hive classpath
+The `HiveIcebergStorageHandler` and supporting classes need to be made available on Hive's classpath. For example, if using Hive 2.x and the Hive shell, this can be achieved by issuing a statement like so:
+```sql
+add jar /path/to/iceberg-hive-runtime.jar;
+```
+There are many others ways to achieve this including adding the jar file to Hive's auxillary classpath (so it is available by default) - please refer to Hive's documentation for more information.
+
+#### Create a Hive Table
+Now overlay a Hive table on top of this Iceberg table by issuing Hive DDL like so:
 ```sql
 CREATE EXTERNAL TABLE table_a 
 STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' 
 LOCATION 's3://some_bucket/some_path/table_a';
 ```
-You should now be able to issue Hive SQL `SELECT` queries using the above table and see the results returned.
+
+#### Query the Iceberg table via Hive
+You should now be able to issue Hive SQL `SELECT` queries using the above table and see the results returned from the underlying Iceberg table. Both the Map Reduce and Tez query execution engines are supported.
+```sql
+SELECT * from table_a;
+```
 
 ### Features
 
 #### Predicate pushdown
-Pushdown of the Hive SQL `WHERE` clause has been implemented so that filters are pushed to the Iceberg TableScan level as well as the Parquet and ORC Readers.
+Pushdown of the Hive SQL `WHERE` clause has been implemented so that these filters are used at the Iceberg TableScan level as well as by the Parquet and ORC Readers.
 
 #### Column selection
 The projection of columns from the HiveSQL `SELECT` clause down to the Iceberg readers to reduce the number of columns read is currently being worked on.
