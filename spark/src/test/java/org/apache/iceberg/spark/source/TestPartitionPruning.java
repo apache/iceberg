@@ -1,19 +1,37 @@
 /*
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package org.apache.iceberg.spark.source;
 
+import java.io.File;
+import java.io.IOException;
+import java.net.URI;
+import java.sql.Timestamp;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.Path;
@@ -42,19 +60,6 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-import java.io.File;
-import java.io.IOException;
-import java.net.URI;
-import java.sql.Timestamp;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 @RunWith(Parameterized.class)
 public abstract class TestPartitionPruning {
@@ -289,60 +294,61 @@ public abstract class TestPartitionPruning {
         .collect(Collectors.toSet());
     return new HashSet<>(Sets.symmetricDifference(allFilePaths, filePaths));
   }
-}
 
-class CountOpenLocalFileSystem extends RawLocalFileSystem {
-  public static String scheme = String.format("TestIdentityPartitionData%dfs",
-      new Random().nextInt());
-  public static ConcurrentHashMap<String, Long> pathToNumOpenCalled = new ConcurrentHashMap<>();
+  public static class CountOpenLocalFileSystem extends RawLocalFileSystem {
+    public static String scheme = String.format("TestIdentityPartitionData%dfs",
+        new Random().nextInt());
+    public static ConcurrentHashMap<String, Long> pathToNumOpenCalled = new ConcurrentHashMap<>();
 
-  public static void resetCount() {
-    pathToNumOpenCalled.clear();
-  }
-
-  public static String convertPath(String absPath) {
-    return scheme + "://" + absPath;
-  }
-
-  public static String convertPath(File file) {
-    return convertPath(file.getAbsolutePath());
-  }
-
-  public static String stripScheme(String pathWithScheme) {
-    if (!pathWithScheme.startsWith(scheme + ":")) {
-      throw new IllegalArgumentException("Received unexpected path: " + pathWithScheme);
+    public static void resetCount() {
+      pathToNumOpenCalled.clear();
     }
 
-    int idxToCut = scheme.length() + 1;
-    while (pathWithScheme.charAt(idxToCut) == '/') {
-      idxToCut++;
+    public static String convertPath(String absPath) {
+      return scheme + "://" + absPath;
     }
 
-    // leave the last '/'
-    idxToCut--;
+    public static String convertPath(File file) {
+      return convertPath(file.getAbsolutePath());
+    }
 
-    return pathWithScheme.substring(idxToCut);
-  }
+    public static String stripScheme(String pathWithScheme) {
+      if (!pathWithScheme.startsWith(scheme + ":")) {
+        throw new IllegalArgumentException("Received unexpected path: " + pathWithScheme);
+      }
 
-  @Override
-  public URI getUri() {
-    return URI.create(scheme + ":///");
-  }
+      int idxToCut = scheme.length() + 1;
+      while (pathWithScheme.charAt(idxToCut) == '/') {
+        idxToCut++;
+      }
 
-  @Override
-  public String getScheme() {
-    return scheme;
-  }
+      // leave the last '/'
+      idxToCut--;
 
-  @Override
-  public FSDataInputStream open(Path f, int bufferSize) throws IOException {
-    String path = f.toUri().getPath();
-    pathToNumOpenCalled.compute(path, (ignored, v) -> {
-      if (v == null)
-        return 1L;
-      else
-        return v + 1;
-    });
-    return super.open(f, bufferSize);
+      return pathWithScheme.substring(idxToCut);
+    }
+
+    @Override
+    public URI getUri() {
+      return URI.create(scheme + ":///");
+    }
+
+    @Override
+    public String getScheme() {
+      return scheme;
+    }
+
+    @Override
+    public FSDataInputStream open(Path f, int bufferSize) throws IOException {
+      String path = f.toUri().getPath();
+      pathToNumOpenCalled.compute(path, (ignored, v) -> {
+        if (v == null) {
+          return 1L;
+        } else {
+          return v + 1;
+        }
+      });
+      return super.open(f, bufferSize);
+    }
   }
 }
