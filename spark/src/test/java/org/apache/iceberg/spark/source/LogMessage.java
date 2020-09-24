@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.spark.source;
 
-import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LogMessage {
@@ -29,7 +29,7 @@ public class LogMessage {
     return new LogMessage(idCounter.getAndIncrement(), date, "DEBUG", message);
   }
 
-  static LogMessage debug(String date, String message, Timestamp timestamp) {
+  static LogMessage debug(String date, String message, Instant timestamp) {
     return new LogMessage(idCounter.getAndIncrement(), date, "DEBUG", message, timestamp);
   }
 
@@ -37,7 +37,7 @@ public class LogMessage {
     return new LogMessage(idCounter.getAndIncrement(), date, "INFO", message);
   }
 
-  static LogMessage info(String date, String message, Timestamp timestamp) {
+  static LogMessage info(String date, String message, Instant timestamp) {
     return new LogMessage(idCounter.getAndIncrement(), date, "INFO", message, timestamp);
   }
 
@@ -45,7 +45,7 @@ public class LogMessage {
     return new LogMessage(idCounter.getAndIncrement(), date, "ERROR", message);
   }
 
-  static LogMessage error(String date, String message, Timestamp timestamp) {
+  static LogMessage error(String date, String message, Instant timestamp) {
     return new LogMessage(idCounter.getAndIncrement(), date, "ERROR", message, timestamp);
   }
 
@@ -53,7 +53,7 @@ public class LogMessage {
     return new LogMessage(idCounter.getAndIncrement(), date, "WARN", message);
   }
 
-  static LogMessage warn(String date, String message, Timestamp timestamp) {
+  static LogMessage warn(String date, String message, Instant timestamp) {
     return new LogMessage(idCounter.getAndIncrement(), date, "WARN", message, timestamp);
   }
 
@@ -61,7 +61,7 @@ public class LogMessage {
   private String date;
   private String level;
   private String message;
-  private Timestamp timestamp;
+  private Instant timestamp;
 
   private LogMessage(int id, String date, String level, String message) {
     this.id = id;
@@ -70,7 +70,7 @@ public class LogMessage {
     this.message = message;
   }
 
-  private LogMessage(int id, String date, String level, String message, Timestamp timestamp) {
+  private LogMessage(int id, String date, String level, String message, Instant timestamp) {
     this.id = id;
     this.date = date;
     this.level = level;
@@ -110,11 +110,11 @@ public class LogMessage {
     this.message = message;
   }
 
-  public Timestamp getTimestamp() {
+  public Instant getTimestamp() {
     return timestamp;
   }
 
-  public void setTimestamp(Timestamp timestamp) {
+  public void setTimestamp(Instant timestamp) {
     this.timestamp = timestamp;
   }
 }

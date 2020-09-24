@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -30,6 +31,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
@@ -40,17 +42,24 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -86,23 +95,26 @@ public abstract class TestPartitionPruning {
   }
 
   private static SparkSession spark = null;
+  private static JavaSparkContext sparkContext = null;
 
   private static Transform<Object, Integer> bucketTransform = Transforms.bucket(Types.IntegerType.get(), 3);
   private static Transform<Object, Object> truncateTransform = Transforms.truncate(Types.StringType.get(), 5);
-  private static Transform<Object, Integer> hourTransform = Transforms.hour(Types.TimestampType.withZone());
+  private static Transform<Object, Integer> hourTransform = Transforms.hour(Types.TimestampType.withoutZone());
 
   @BeforeClass
   public static void startSpark() {
     TestPartitionPruning.spark = SparkSession.builder().master("local[2]").getOrCreate();
-    String optionKey = String.format("fs.%s.impl", CountOpenLocalFileSystem.scheme);
+    TestPartitionPruning.sparkContext = new JavaSparkContext(spark.sparkContext());
 
+    String optionKey = String.format("fs.%s.impl", CountOpenLocalFileSystem.scheme);
     CONF.set(optionKey, CountOpenLocalFileSystem.class.getName());
     spark.conf().set(optionKey, CountOpenLocalFileSystem.class.getName());
+    spark.conf().set("spark.sql.session.timeZone", "UTC");
     spark.udf().register("bucket3", (Integer num) -> bucketTransform.apply(num), DataTypes.IntegerType);
     spark.udf().register("truncate5", (String str) -> truncateTransform.apply(str), DataTypes.StringType);
     // NOTE: date transforms take the type long, not Timestamp
     spark.udf().register("hour", (Timestamp ts) -> hourTransform.apply(
-        (Long) org.apache.spark.sql.catalyst.util.DateTimeUtils.fromJavaTimestamp(ts)),
+        org.apache.spark.sql.catalyst.util.DateTimeUtils.fromJavaTimestamp(ts)),
         DataTypes.IntegerType);
   }
 
@@ -122,17 +134,22 @@ public abstract class TestPartitionPruning {
   );
 
   private static final List<LogMessage> LOGS = ImmutableList.of(
-      LogMessage.debug("2020-02-02", "debug event 1", Timestamp.valueOf("2020-02-02 00:00:00")),
-      LogMessage.info("2020-02-02", "info event 1", Timestamp.valueOf("2020-02-02 01:00:00")),
-      LogMessage.debug("2020-02-02", "debug event 2", Timestamp.valueOf("2020-02-02 02:00:00")),
-      LogMessage.info("2020-02-03", "info event 2", Timestamp.valueOf("2020-02-03 00:00:00")),
-      LogMessage.debug("2020-02-03", "debug event 3", Timestamp.valueOf("2020-02-03 01:00:00")),
-      LogMessage.info("2020-02-03", "info event 3", Timestamp.valueOf("2020-02-03 02:00:00")),
-      LogMessage.error("2020-02-03", "error event 1", Timestamp.valueOf("2020-02-03 03:00:00")),
-      LogMessage.debug("2020-02-04", "debug event 4", Timestamp.valueOf("2020-02-04 01:00:00")),
-      LogMessage.warn("2020-02-04", "warn event 1", Timestamp.valueOf("2020-02-04 02:00:00")),
-      LogMessage.debug("2020-02-04", "debug event 5", Timestamp.valueOf("2020-02-04 03:00:00"))
+      LogMessage.debug("2020-02-02", "debug event 1", getInstant("2020-02-02T00:00:00")),
+      LogMessage.info("2020-02-02", "info event 1", getInstant("2020-02-02T01:00:00")),
+      LogMessage.debug("2020-02-02", "debug event 2", getInstant("2020-02-02T02:00:00")),
+      LogMessage.info("2020-02-03", "info event 2", getInstant("2020-02-03T00:00:00")),
+      LogMessage.debug("2020-02-03", "debug event 3", getInstant("2020-02-03T01:00:00")),
+      LogMessage.info("2020-02-03", "info event 3", getInstant("2020-02-03T02:00:00")),
+      LogMessage.error("2020-02-03", "error event 1", getInstant("2020-02-03T03:00:00")),
+      LogMessage.debug("2020-02-04", "debug event 4", getInstant("2020-02-04T01:00:00")),
+      LogMessage.warn("2020-02-04", "warn event 1", getInstant("2020-02-04T02:00:00")),
+      LogMessage.debug("2020-02-04", "debug event 5", getInstant("2020-02-04T03:00:00"))
   );
+
+  private static Instant getInstant(String timestampWithoutZone) {
+    Long epochMicros = (Long) Literal.of(timestampWithoutZone).to(Types.TimestampType.withoutZone()).value();
+    return Instant.ofEpochMilli(TimeUnit.MICROSECONDS.toMillis(epochMicros));
+  }
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -205,15 +222,14 @@ public abstract class TestPartitionPruning {
     String filterCond;
     if (spark.version().startsWith("2")) {
       // Looks like from Spark 2 we need to compare timestamp with timestamp to push down the filter.
-      filterCond = "timestamp >= to_timestamp('2020-02-03 01:00:00')";
+      filterCond = "timestamp >= to_timestamp('2020-02-03T01:00:00')";
     } else {
-      filterCond = "timestamp >= '2020-02-03 01:00:00'";
+      filterCond = "timestamp >= '2020-02-03T01:00:00'";
     }
     Predicate<Row> partCondition = (Row r) -> {
       int hourValue = r.getInt(4);
-      Timestamp ts = Timestamp.valueOf("2020-02-03 01:00:00");
-      Integer hourValueToFilter = hourTransform.apply(
-              (Long) org.apache.spark.sql.catalyst.util.DateTimeUtils.fromJavaTimestamp(ts));
+      Instant instant = getInstant("2020-02-03T01:00:00");
+      Integer hourValueToFilter = hourTransform.apply(TimeUnit.MILLISECONDS.toMicros(instant.toEpochMilli()));
       return hourValue >= hourValueToFilter;
     };
 
@@ -269,7 +285,23 @@ public abstract class TestPartitionPruning {
   }
 
   private Dataset<Row> createTestDataset() {
-    return spark.createDataFrame(LOGS, LogMessage.class)
+    List<InternalRow> rows = LOGS.stream().map(logMessage -> {
+      Object[] underlying = new Object[] {
+          logMessage.getId(),
+          UTF8String.fromString(logMessage.getDate()),
+          UTF8String.fromString(logMessage.getLevel()),
+          UTF8String.fromString(logMessage.getMessage()),
+          // discard the nanoseconds part to simplify
+          TimeUnit.MILLISECONDS.toMicros(logMessage.getTimestamp().toEpochMilli())
+      };
+      return new GenericInternalRow(underlying);
+    }).collect(Collectors.toList());
+
+    JavaRDD<InternalRow> rdd = sparkContext.parallelize(rows);
+    Dataset<Row> df = spark.internalCreateDataFrame(JavaRDD.toRDD(rdd), SparkSchemaUtil.convert(LOG_SCHEMA), false);
+
+    return df
+        .selectExpr("id", "date", "level", "message", "timestamp")
         .selectExpr("id", "date", "level", "message", "timestamp", "bucket3(id) AS bucket_id",
             "truncate5(message) AS truncated_message", "hour(timestamp) AS ts_hour");
   }
