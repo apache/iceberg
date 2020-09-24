@@ -49,7 +49,7 @@ import org.apache.iceberg.util.DateTimeUtil;
  */
 abstract class DataIterator<T> implements CloseableIterator<T> {
 
-  private final Iterator<FileScanTask> tasks;
+  private Iterator<FileScanTask> tasks;
   private final FileIO io;
   private final EncryptionManager encryption;
 
@@ -101,12 +101,8 @@ abstract class DataIterator<T> implements CloseableIterator<T> {
   @Override
   public void close() throws IOException {
     // close the current iterator
-    this.currentIterator.close();
-
-    // exhaust the task iterator
-    while (tasks.hasNext()) {
-      tasks.next();
-    }
+    currentIterator.close();
+    tasks = null;
   }
 
   static Object convertConstant(Type type, Object value) {
