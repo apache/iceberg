@@ -161,11 +161,16 @@ public abstract class TestPartitionPruning {
 
   @Test
   public void testPartitionPruningBucketingInteger() {
-    String filterCond = "id in (3, 7)";
+    final int[] ids = new int[]{
+        LOGS.get(3).getId(),
+        LOGS.get(7).getId()
+    };
+    String condForIds = Arrays.stream(ids).mapToObj(String::valueOf)
+        .collect(Collectors.joining(",", "(", ")"));
+    String filterCond = "id in " + condForIds;
     Predicate<Row> partCondition = (Row r) -> {
       int bucketId = r.getInt(2);
-      int[] expectedIds = new int[]{ 3, 7 };
-      Set<Integer> buckets = Arrays.stream(expectedIds).map(bucketTransform::apply)
+      Set<Integer> buckets = Arrays.stream(ids).map(bucketTransform::apply)
           .boxed().collect(Collectors.toSet());
       return buckets.contains(bucketId);
     };
@@ -228,6 +233,7 @@ public abstract class TestPartitionPruning {
         .filter(filterCond)
         .orderBy("id")
         .collectAsList();
+    Assert.assertFalse("Expected rows should be not empty", expected.isEmpty());
 
     // remove records which may be recorded during storing to table
     CountOpenLocalFileSystem.resetRecordsInPathPrefix(originTableLocation.getAbsolutePath());
@@ -240,6 +246,8 @@ public abstract class TestPartitionPruning {
         .filter(filterCond)
         .orderBy("id")
         .collectAsList();
+    Assert.assertFalse("Actual rows should not be empty", actual.isEmpty());
+
     Assert.assertEquals("Rows should match", expected, actual);
 
     assertAccessOnDataFiles(originTableLocation, table, partCondition);
