@@ -171,11 +171,11 @@ public class TestManageSnapshotsProcedures extends SparkExtensionsTestBase {
         () -> sql("CALL %s.custom.rollback_to_snapshot('n', 't', 1L)", catalogName));
 
     AssertHelpers.assertThrows("Should reject calls without all required args",
-        AnalysisException.class, "argument 'snapshot_id' is missing",
+        AnalysisException.class, "Missing required parameters",
         () -> sql("CALL %s.system.rollback_to_snapshot('n', 't')", catalogName));
 
     AssertHelpers.assertThrows("Should reject calls with invalid arg types",
-        AnalysisException.class, "Wrong arg type for 'snapshot_id': expected LongType",
+        AnalysisException.class, "Wrong arg type for snapshot_id: expected LongType",
         () -> sql("CALL %s.system.rollback_to_snapshot('n', 't', 2.2)", catalogName));
 
     AssertHelpers.assertThrows("Should reject empty namespace",
@@ -276,11 +276,11 @@ public class TestManageSnapshotsProcedures extends SparkExtensionsTestBase {
         () -> sql("CALL %s.custom.cherrypick_snapshot('n', 't', 1L)", catalogName));
 
     AssertHelpers.assertThrows("Should reject calls without all required args",
-        AnalysisException.class, "argument 'snapshot_id' is missing",
+        AnalysisException.class, "Missing required parameters",
         () -> sql("CALL %s.system.cherrypick_snapshot('n', 't')", catalogName));
 
     AssertHelpers.assertThrows("Should reject calls with invalid arg types",
-        AnalysisException.class, "Wrong arg type for 'snapshot_id': expected LongType",
+        AnalysisException.class, "Wrong arg type for snapshot_id: expected LongType",
         () -> sql("CALL %s.system.cherrypick_snapshot('n', 't', 2.2)", catalogName));
 
     AssertHelpers.assertThrows("Should reject empty namespace",

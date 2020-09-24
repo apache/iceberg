@@ -28,6 +28,7 @@ import org.apache.spark.sql.connector.catalog.ProcedureCatalog;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 
+// TODO: case sensitivity?
 abstract class BaseCatalog implements StagingTableCatalog, ProcedureCatalog, SupportsNamespaces {
 
   @Override
