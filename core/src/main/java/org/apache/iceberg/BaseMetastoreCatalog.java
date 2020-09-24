@@ -286,7 +286,9 @@ public abstract class BaseMetastoreCatalog implements Catalog {
    *
    * @param io a FileIO to use for deletes
    * @param metadata the last valid TableMetadata instance for a dropped table.
+   * @deprecated will be removed in 0.11.0; use CatalogUtil.dropTableData instead.
    */
+  @Deprecated
   protected static void dropTableData(FileIO io, TableMetadata metadata) {
     // Reads and deletes are done using Tasks.foreach(...).suppressFailureWhenFinished to complete
     // as much of the delete work as possible and avoid orphaned data or manifest files.

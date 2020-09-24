@@ -87,6 +87,10 @@ public class TestHadoopTables {
 
     Assert.assertEquals(0, dataDir.listFiles().length);
     Assert.assertFalse(tableDir.exists());
+
+    AssertHelpers.assertThrows(
+        "Should complain about missing table", NoSuchTableException.class,
+        "Table does not exist", () -> TABLES.dropTable(tableDir.toURI().toString()));
   }
 
   @Test
@@ -102,6 +106,10 @@ public class TestHadoopTables {
 
     Assert.assertEquals(1, dataDir.listFiles().length);
     Assert.assertFalse(tableDir.exists());
+
+    AssertHelpers.assertThrows(
+        "Should complain about missing table", NoSuchTableException.class,
+        "Table does not exist", () -> TABLES.dropTable(tableDir.toURI().toString()));
   }
 
   @Test

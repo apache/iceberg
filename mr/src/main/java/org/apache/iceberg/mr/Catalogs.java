@@ -20,13 +20,10 @@
 package org.apache.iceberg.mr;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
@@ -42,15 +39,19 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveCatalogs;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * Class for catalog resolution and accessing the common functions for {@link Catalog} API.
+ * <p>
  * Catalog resolution happens in this order:
- * 1. Custom catalog if specified by {@link InputFormatConfig#CATALOG_LOADER_CLASS}
- * 2. Hadoop or Hive catalog if specified by {@link InputFormatConfig#CATALOG}
- * 3. Hadoop Tables
+ * <ol>
+ * <li>Custom catalog if specified by {@link InputFormatConfig#CATALOG_LOADER_CLASS}
+ * <li>Hadoop or Hive catalog if specified by {@link InputFormatConfig#CATALOG}
+ * <li>Hadoop Tables
+ * </ol>
  */
 public final class Catalogs {
   private static final Logger LOG = LoggerFactory.getLogger(Catalogs.class);
@@ -61,9 +62,8 @@ public final class Catalogs {
   private static final String NAME = "name";
   private static final String LOCATION = "location";
 
-  private static final Set<String> PROPERTIES_TO_REMOVE = Stream
-      .of(InputFormatConfig.TABLE_SCHEMA, InputFormatConfig.PARTITION_SPEC, LOCATION, NAME)
-      .collect(Collectors.toCollection(HashSet::new));
+  private static final Set<String> PROPERTIES_TO_REMOVE =
+      ImmutableSet.of(InputFormatConfig.TABLE_SCHEMA, InputFormatConfig.PARTITION_SPEC, LOCATION, NAME);
 
   private Catalogs() {
   }
@@ -79,8 +79,10 @@ public final class Catalogs {
 
   /**
    * Load an Iceberg table using the catalog specified by the configuration.
+   * <p>
    * The table identifier ({@link Catalogs#NAME}) or table path ({@link Catalogs#LOCATION}) should be specified by
    * the controlling properties.
+   * <p>
    * Used by HiveIcebergSerDe and HiveIcebergStorageHandler
    * @param conf a Hadoop
    * @param props the controlling properties
@@ -104,8 +106,9 @@ public final class Catalogs {
 
   /**
    * Creates an Iceberg table using the catalog specified by the configuration.
+   * <p>
    * The properties should contain the following values:
-   * <p><ul>
+   * <ul>
    * <li>Table identifier ({@link Catalogs#NAME}) or table path ({@link Catalogs#LOCATION}) is required
    * <li>Table schema ({@link InputFormatConfig#TABLE_SCHEMA}) is required
    * <li>Partition specification ({@link InputFormatConfig#PARTITION_SPEC}) is optional. Table will be unpartitioned if
@@ -152,6 +155,7 @@ public final class Catalogs {
 
   /**
    * Drops an Iceberg table using the catalog specified by the configuration.
+   * <p>
    * The table identifier ({@link Catalogs#NAME}) or table path ({@link Catalogs#LOCATION}) should be specified by
    * the controlling properties.
    * @param conf a Hadoop conf

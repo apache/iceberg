@@ -20,6 +20,7 @@
 package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
@@ -38,7 +39,6 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Tables;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -148,10 +148,11 @@ public class HadoopTables implements Tables, Configurable {
   }
 
   /**
-   * Drop a table and delete all data and metadata files. Throws NoSuchTableException if the table does not exists.
+   * Drop a table and delete all data and metadata files.
    *
    * @param location a path URI (e.g. hdfs:///warehouse/my_table)
    * @return true if the table was dropped
+   * @throws NoSuchTableException if the table does not exists.
    */
   public boolean dropTable(String location) {
     return dropTable(location, true);
@@ -161,22 +162,21 @@ public class HadoopTables implements Tables, Configurable {
    * Drop a table; optionally delete data and metadata files.
    * <p>
    * If purge is set to true the implementation should delete all data and metadata files.
-   * Throws NoSuchTableException if the table does not exists.
    *
    * @param location a path URI (e.g. hdfs:///warehouse/my_table)
    * @param purge if true, delete all data and metadata files in the table
    * @return true if the table was dropped
+   * @throws NoSuchTableException if the table does not exists.
    */
   public boolean dropTable(String location, boolean purge) {
-    // Just for checking if the table exists or not
-    load(location);
-
     TableOperations ops = newTableOps(location);
-    TableMetadata lastMetadata;
-    if (purge && ops.current() != null) {
-      lastMetadata = ops.current();
+    TableMetadata lastMetadata = null;
+    if (ops.current() != null) {
+      if (purge) {
+        lastMetadata = ops.current();
+      }
     } else {
-      lastMetadata = null;
+      throw new NoSuchTableException("Table does not exist at location: %s, so it can not be dropped", location);
     }
 
     try {
@@ -189,7 +189,7 @@ public class HadoopTables implements Tables, Configurable {
       Util.getFs(tablePath, conf).delete(tablePath, true /* recursive */);
       return true;
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to delete file: %s", location);
+      throw new UncheckedIOException("Failed to delete file: " + location, e);
     }
   }
 
