@@ -34,4 +34,8 @@ public class TestHiveIcebergStorageHandlerWithHiveCatalog extends HiveIcebergSto
     // The Hive catalog has already created the Hive table so there's no need to issue another
     // 'CREATE TABLE ...' statement.
   }
+
+  protected boolean needToCheckSnapshotLocation() {
+    return true;
+  }
 }

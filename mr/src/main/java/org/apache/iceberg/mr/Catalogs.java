@@ -59,8 +59,8 @@ public final class Catalogs {
   private static final String HADOOP = "hadoop";
   private static final String HIVE = "hive";
 
-  private static final String NAME = "name";
-  private static final String LOCATION = "location";
+  public static final String NAME = "name";
+  public static final String LOCATION = "location";
 
   private static final Set<String> PROPERTIES_TO_REMOVE =
       ImmutableSet.of(InputFormatConfig.TABLE_SCHEMA, InputFormatConfig.PARTITION_SPEC, LOCATION, NAME);
@@ -175,6 +175,15 @@ public final class Catalogs {
 
     Preconditions.checkNotNull(location, "Table location not set");
     return new HadoopTables(conf).dropTable(location);
+  }
+
+  /**
+   * Returns true if the table is still accessible without Hive table present
+   * @param conf a Hadoop conf
+   * @return true if the Catalog is not HiveCatalog
+   */
+  public static boolean canWorkWithoutHive(Configuration conf) {
+    return !HIVE.equalsIgnoreCase(conf.get(InputFormatConfig.CATALOG));
   }
 
   @VisibleForTesting

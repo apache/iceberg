@@ -36,7 +36,6 @@ import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.mr.mapred.Container;
 
 public class HiveIcebergSerDe extends AbstractSerDe {
-
   private ObjectInspector inspector;
 
   @Override

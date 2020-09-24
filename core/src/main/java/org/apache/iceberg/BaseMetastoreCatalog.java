@@ -26,6 +26,7 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
@@ -213,8 +214,15 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     @Override
     public Table create() {
       TableOperations ops = newTableOps(identifier);
-      if (ops.current() != null) {
-        throw new AlreadyExistsException("Table already exists: %s", identifier);
+      try {
+        if (ops.current() != null) {
+          throw new AlreadyExistsException("Table already exists: %s", identifier);
+        }
+      } catch (NoSuchIcebergTableException ne) {
+        // TableOperations has 2 ways to signal missing metadata
+        // HadoopTables/HadoopCatalog returns null,
+        // HiveCatalog return null if the table does not exists, but throws NoSuchIcebergTableException if the table
+        // exists, but not an Iceberg table. When creating from Hive we have to handle NoSuchIcebergTableException too.
       }
 
       String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);

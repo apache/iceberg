@@ -71,6 +71,7 @@ import org.slf4j.LoggerFactory;
 public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HiveTableOperations.class);
 
+  public static final String TABLE_FROM_HIVE = "iceberg.table.from.hive";
   private static final String HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
   private static final long HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
   private static final DynMethods.UnboundMethod ALTER_TABLE = DynMethods.builder("alter_table")
@@ -142,6 +143,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
+    boolean updateTable = base != null || metadata.propertyAsBoolean(TABLE_FROM_HIVE, false);
+
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
     boolean hiveEngineEnabled = hiveEngineEnabled(metadata, conf);
 
@@ -151,7 +154,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       lockId = Optional.of(acquireLock());
       // TODO add lock heart beating for cases where default lock timeout is too low.
       Table tbl;
-      if (base != null) {
+      if (updateTable) {
         LOG.debug("Committing existing table: {}", fullName);
         tbl = metaClients.run(client -> client.getTable(database, tableName));
         tbl.setSd(storageDescriptor(metadata, hiveEngineEnabled)); // set to pickup any schema changes
@@ -191,7 +194,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
       setParameters(newMetadataLocation, tbl);
 
-      if (base != null) {
+      if (updateTable) {
         metaClients.run(client -> {
           EnvironmentContext envContext = new EnvironmentContext(
               ImmutableMap.of(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE)

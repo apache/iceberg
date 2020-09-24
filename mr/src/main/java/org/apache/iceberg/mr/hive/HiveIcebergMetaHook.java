@@ -1,0 +1,161 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.apache.iceberg.mr.hive;
+
+import java.util.HashSet;
+import java.util.Properties;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.metastore.HiveMetaHook;
+import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.PartitionSpecParser;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.hive.HiveTableOperations;
+import org.apache.iceberg.mr.Catalogs;
+import org.apache.iceberg.mr.InputFormatConfig;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class HiveIcebergMetaHook implements HiveMetaHook {
+  private static final Logger LOG = LoggerFactory.getLogger(HiveIcebergMetaHook.class);
+  private static final Set<String> PARAMETERS_TO_REMOVE = Stream
+      .of(InputFormatConfig.TABLE_SCHEMA, InputFormatConfig.PARTITION_SPEC, Catalogs.LOCATION, Catalogs.NAME)
+      .collect(Collectors.toCollection(HashSet::new));
+  private static final Set<String> PROPERTIES_TO_REMOVE = Stream
+      .of(InputFormatConfig.HIVE_DELETE_BACKING_TABLE, "storage_handler", "EXTERNAL")
+      .collect(Collectors.toCollection(HashSet::new));
+
+  private final Configuration conf;
+  private Table icebergTable = null;
+  private Properties catalogProperties;
+  private boolean deleteIcebergTable;
+
+  public HiveIcebergMetaHook(Configuration conf) {
+    this.conf = conf;
+  }
+
+  @Override
+  public void preCreateTable(org.apache.hadoop.hive.metastore.api.Table hmsTable) {
+    catalogProperties = getCatalogProperties(hmsTable);
+    try {
+      icebergTable = Catalogs.loadTable(conf, catalogProperties);
+
+      Preconditions.checkArgument(catalogProperties.getProperty(InputFormatConfig.TABLE_SCHEMA) == null,
+          "Iceberg table already created - can not use provided schema");
+      Preconditions.checkArgument(catalogProperties.getProperty(InputFormatConfig.PARTITION_SPEC) == null,
+          "Iceberg table already created - can not use provided partition specification");
+
+      LOG.info("Iceberg table already exists {}", icebergTable);
+    } catch (NoSuchTableException nte) {
+      String schemaString = catalogProperties.getProperty(InputFormatConfig.TABLE_SCHEMA);
+      Preconditions.checkNotNull(schemaString, "Please provide a table schema");
+      // Just check if it is parsable, and later use for partition specification parsing
+      Schema schema = SchemaParser.fromJson(schemaString);
+
+      String specString = catalogProperties.getProperty(InputFormatConfig.PARTITION_SPEC);
+      if (specString != null) {
+        // Just check if it is parsable
+        PartitionSpecParser.fromJson(schema, schemaString);
+      }
+
+      // Allow purging table data if the table is created now and not set otherwise
+      if (hmsTable.getParameters().get(InputFormatConfig.HIVE_DELETE_BACKING_TABLE) == null) {
+        hmsTable.getParameters().put(InputFormatConfig.HIVE_DELETE_BACKING_TABLE, "TRUE");
+      }
+
+      // Set the table type even for non HiveCatalog based tables
+      hmsTable.getParameters().put(BaseMetastoreTableOperations.TABLE_TYPE_PROP,
+          BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase());
+
+      // Remove creation related properties
+      PARAMETERS_TO_REMOVE.forEach(hmsTable.getParameters()::remove);
+    }
+  }
+
+  @Override
+  public void rollbackCreateTable(org.apache.hadoop.hive.metastore.api.Table hmsTable) {
+    // do nothing
+  }
+
+  @Override
+  public void commitCreateTable(org.apache.hadoop.hive.metastore.api.Table hmsTable) {
+    if (icebergTable == null) {
+      catalogProperties.put(HiveTableOperations.TABLE_FROM_HIVE, true);
+      LOG.info("Iceberg table creation with the following properties {}", catalogProperties.keySet());
+      Catalogs.createTable(conf, catalogProperties);
+    }
+  }
+
+  @Override
+  public void preDropTable(org.apache.hadoop.hive.metastore.api.Table hmsTable) throws MetaException {
+    catalogProperties = getCatalogProperties(hmsTable);
+    deleteIcebergTable = hmsTable.getParameters() != null &&
+        "TRUE".equalsIgnoreCase(hmsTable.getParameters().get(InputFormatConfig.HIVE_DELETE_BACKING_TABLE));
+
+    if (!deleteIcebergTable) {
+      if (!Catalogs.canWorkWithoutHive(conf)) {
+        // This should happen only if someone were manually removing this property from the table, or
+        // added the table from outside of Hive
+        throw new MetaException("Can not drop Hive table and keep Iceberg table data when using HiveCatalog. " +
+            "Please add " + InputFormatConfig.HIVE_DELETE_BACKING_TABLE + "='TRUE' to TBLPROPERTIES " +
+            "of the Hive table to enable dropping");
+      }
+    }
+  }
+
+  @Override
+  public void rollbackDropTable(org.apache.hadoop.hive.metastore.api.Table hmsTable) {
+    // do nothing
+  }
+
+  @Override
+  public void commitDropTable(org.apache.hadoop.hive.metastore.api.Table hmsTable, boolean deleteData) {
+    if (deleteData && deleteIcebergTable) {
+      LOG.info("Dropping with purge all the data for table {}.{}", hmsTable.getDbName(), hmsTable.getTableName());
+      Catalogs.dropTable(conf, catalogProperties);
+    }
+  }
+
+  private Properties getCatalogProperties(org.apache.hadoop.hive.metastore.api.Table hmsTable) {
+    Properties properties = new Properties();
+    properties.putAll(hmsTable.getParameters());
+
+    if (properties.get(Catalogs.LOCATION) == null &&
+        hmsTable.getSd() != null && hmsTable.getSd().getLocation() != null) {
+      properties.put(Catalogs.LOCATION, hmsTable.getSd().getLocation());
+    }
+
+    if (properties.get(Catalogs.NAME) == null) {
+      properties.put(Catalogs.NAME, hmsTable.getDbName() + "." + hmsTable.getTableName());
+    }
+
+    // Remove creation related properties
+    PROPERTIES_TO_REMOVE.forEach(properties::remove);
+
+    return properties;
+  }
+}
