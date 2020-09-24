@@ -19,35 +19,33 @@
 
 package org.apache.iceberg.mr.hive;
 
-import java.util.HashSet;
 import java.util.Properties;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.HiveMetaHook;
 import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hive.HiveTableOperations;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class HiveIcebergMetaHook implements HiveMetaHook {
   private static final Logger LOG = LoggerFactory.getLogger(HiveIcebergMetaHook.class);
-  private static final Set<String> PARAMETERS_TO_REMOVE = Stream
-      .of(InputFormatConfig.TABLE_SCHEMA, InputFormatConfig.PARTITION_SPEC, Catalogs.LOCATION, Catalogs.NAME)
-      .collect(Collectors.toCollection(HashSet::new));
-  private static final Set<String> PROPERTIES_TO_REMOVE = Stream
-      .of(InputFormatConfig.HIVE_DELETE_BACKING_TABLE, "storage_handler", "EXTERNAL")
-      .collect(Collectors.toCollection(HashSet::new));
+  private static final Set<String> PARAMETERS_TO_REMOVE = ImmutableSet
+      .of(InputFormatConfig.TABLE_SCHEMA, InputFormatConfig.PARTITION_SPEC, Catalogs.LOCATION, Catalogs.NAME);
+  private static final Set<String> PROPERTIES_TO_REMOVE = ImmutableSet
+      .of(InputFormatConfig.HIVE_DELETE_BACKING_TABLE, hive_metastoreConstants.META_TABLE_STORAGE, "EXTERNAL");
 
   private final Configuration conf;
   private Table icebergTable = null;
@@ -60,9 +58,9 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
 
   @Override
   public void preCreateTable(org.apache.hadoop.hive.metastore.api.Table hmsTable) {
-    catalogProperties = getCatalogProperties(hmsTable);
+    this.catalogProperties = getCatalogProperties(hmsTable);
     try {
-      icebergTable = Catalogs.loadTable(conf, catalogProperties);
+      this.icebergTable = Catalogs.loadTable(conf, catalogProperties);
 
       Preconditions.checkArgument(catalogProperties.getProperty(InputFormatConfig.TABLE_SCHEMA) == null,
           "Iceberg table already created - can not use provided schema");
@@ -105,15 +103,14 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
   public void commitCreateTable(org.apache.hadoop.hive.metastore.api.Table hmsTable) {
     if (icebergTable == null) {
       catalogProperties.put(HiveTableOperations.TABLE_FROM_HIVE, true);
-      LOG.info("Iceberg table creation with the following properties {}", catalogProperties.keySet());
       Catalogs.createTable(conf, catalogProperties);
     }
   }
 
   @Override
   public void preDropTable(org.apache.hadoop.hive.metastore.api.Table hmsTable) throws MetaException {
-    catalogProperties = getCatalogProperties(hmsTable);
-    deleteIcebergTable = hmsTable.getParameters() != null &&
+    this.catalogProperties = getCatalogProperties(hmsTable);
+    this.deleteIcebergTable = hmsTable.getParameters() != null &&
         "TRUE".equalsIgnoreCase(hmsTable.getParameters().get(InputFormatConfig.HIVE_DELETE_BACKING_TABLE));
 
     if (!deleteIcebergTable) {
@@ -140,6 +137,17 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
     }
   }
 
+  /**
+   * Calculates the properties we would like to send to the catalog.
+   * <ul>
+   * <li>The base of the properties is the properties store at the Hive Metastore for the given table
+   * <li>We add the {@link Catalogs#LOCATION} as the table location
+   * <li>We add the {@link Catalogs#NAME} as TableIdentifier defined by the database name and table name
+   * <li>We remove the Hive Metastore specific parameters
+   * </ul>
+   * @param hmsTable Table for which we are calculating the properties
+   * @return The properties we can provide for Iceberg functions, like {@link Catalogs}
+   */
   private Properties getCatalogProperties(org.apache.hadoop.hive.metastore.api.Table hmsTable) {
     Properties properties = new Properties();
     properties.putAll(hmsTable.getParameters());
@@ -150,7 +158,7 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
     }
 
     if (properties.get(Catalogs.NAME) == null) {
-      properties.put(Catalogs.NAME, hmsTable.getDbName() + "." + hmsTable.getTableName());
+      properties.put(Catalogs.NAME, TableIdentifier.of(hmsTable.getDbName(), hmsTable.getTableName()).toString());
     }
 
     // Remove creation related properties
