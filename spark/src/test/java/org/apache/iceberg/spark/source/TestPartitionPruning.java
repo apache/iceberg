@@ -53,7 +53,6 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.types.DataTypes;
 import org.junit.AfterClass;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -145,26 +144,8 @@ public abstract class TestPartitionPruning {
       .truncate("message", 5)
       .hour("timestamp")
       .build();
-  private Table table = null;
-  private Dataset<Row> logs = null;
 
-  @Before
-  public void setupTable() throws Exception {
-    File location = temp.newFolder("logs");
-    Assert.assertTrue("Temp folder should exist", location.exists());
-
-    String trackedLocation = CountOpenLocalFileSystem.convertPath(location);
-
-    Map<String, String> properties = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format);
-    this.table = TABLES.create(LOG_SCHEMA, spec, properties, trackedLocation);
-    this.logs = spark.createDataFrame(LOGS, LogMessage.class)
-        .selectExpr("id", "date", "level", "message", "timestamp", "bucket3(id) AS bucket_id",
-            "truncate5(message) AS truncated_message", "hour(timestamp) AS ts_hour");
-
-    logs.orderBy("date", "level", "bucket_id", "truncated_message", "ts_hour")
-        .select("id", "date", "level", "message", "timestamp")
-        .write().format("iceberg").mode("append").save(trackedLocation);
-  }
+  private Random random = new Random();
 
   @Test
   public void testPartitionPruningIdentityString() {
@@ -235,13 +216,21 @@ public abstract class TestPartitionPruning {
   }
 
   private void runTest(String filterCond, Predicate<Row> partCondition) {
+    File originTableLocation = createTempDir();
+    Assert.assertTrue("Temp folder should exist", originTableLocation.exists());
+
+    Table table = createTable(originTableLocation);
+    Dataset<Row> logs = createTestDataset();
+    saveTestDatasetToTable(logs, table);
+
     List<Row> expected = logs
         .select("id", "date", "level", "message", "timestamp")
         .filter(filterCond)
         .orderBy("id")
         .collectAsList();
 
-    CountOpenLocalFileSystem.resetCount();
+    // remove records which may be recorded during storing to table
+    CountOpenLocalFileSystem.resetRecordsInPathPrefix(originTableLocation.getAbsolutePath());
 
     List<Row> actual = spark.read()
         .format("iceberg")
@@ -253,11 +242,41 @@ public abstract class TestPartitionPruning {
         .collectAsList();
     Assert.assertEquals("Rows should match", expected, actual);
 
-    assertAccessOnDataFiles(partCondition);
+    assertAccessOnDataFiles(originTableLocation, table, partCondition);
   }
 
-  private void assertAccessOnDataFiles(Predicate<Row> partCondition) {
-    Set<String> readFilesInQuery = new HashSet<>(CountOpenLocalFileSystem.pathToNumOpenCalled.keySet());
+  private File createTempDir() {
+    try {
+      int rand = random.nextInt(1000000);
+      return temp.newFolder(String.format("logs-%d", rand));
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private Table createTable(File originTableLocation) {
+    String trackedTableLocation = CountOpenLocalFileSystem.convertPath(originTableLocation);
+    Map<String, String> properties = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format);
+    return TABLES.create(LOG_SCHEMA, spec, properties, trackedTableLocation);
+  }
+
+  private Dataset<Row> createTestDataset() {
+    return spark.createDataFrame(LOGS, LogMessage.class)
+        .selectExpr("id", "date", "level", "message", "timestamp", "bucket3(id) AS bucket_id",
+            "truncate5(message) AS truncated_message", "hour(timestamp) AS ts_hour");
+  }
+
+  private void saveTestDatasetToTable(Dataset<Row> logs, Table table) {
+    logs.orderBy("date", "level", "bucket_id", "truncated_message", "ts_hour")
+        .select("id", "date", "level", "message", "timestamp")
+        .write().format("iceberg").mode("append").save(table.location());
+  }
+
+  private void assertAccessOnDataFiles(File originTableLocation, Table table, Predicate<Row> partCondition) {
+    // only use files in current table location to avoid side-effects on concurrent test runs
+    Set<String> readFilesInQuery = CountOpenLocalFileSystem.pathToNumOpenCalled.keySet()
+        .stream().filter(path -> path.startsWith(originTableLocation.getAbsolutePath()))
+        .collect(Collectors.toSet());
 
     List<Row> files = spark.read().format("iceberg").load(table.location() + "#files").collectAsList();
 
@@ -300,10 +319,6 @@ public abstract class TestPartitionPruning {
         new Random().nextInt());
     public static ConcurrentHashMap<String, Long> pathToNumOpenCalled = new ConcurrentHashMap<>();
 
-    public static void resetCount() {
-      pathToNumOpenCalled.clear();
-    }
-
     public static String convertPath(String absPath) {
       return scheme + "://" + absPath;
     }
@@ -326,6 +341,12 @@ public abstract class TestPartitionPruning {
       idxToCut--;
 
       return pathWithScheme.substring(idxToCut);
+    }
+
+    public static void resetRecordsInPathPrefix(String pathPrefix) {
+      pathToNumOpenCalled.keySet().stream()
+          .filter(p -> p.startsWith(pathPrefix))
+          .forEach(key -> pathToNumOpenCalled.remove(key));
     }
 
     @Override
