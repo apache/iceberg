@@ -35,6 +35,7 @@ import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.EnvironmentContext;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.hadoop.hive.metastore.api.LockComponent;
 import org.apache.hadoop.hive.metastore.api.LockLevel;
 import org.apache.hadoop.hive.metastore.api.LockRequest;
@@ -167,6 +168,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
             null,
             TableType.EXTERNAL_TABLE.toString());
         tbl.getParameters().put("EXTERNAL", "TRUE"); // using the external table type also requires this
+        tbl.getParameters().put(hive_metastoreConstants.META_TABLE_STORAGE,
+            "org.apache.iceberg.mr.hive.HiveIcebergStorageHandler");
       }
 
       String metadataLocation = tbl.getParameters().get(METADATA_LOCATION_PROP);
@@ -241,10 +244,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     final StorageDescriptor storageDescriptor = new StorageDescriptor();
     storageDescriptor.setCols(columns(metadata.schema()));
     storageDescriptor.setLocation(metadata.location());
-    storageDescriptor.setOutputFormat("org.apache.hadoop.mapred.FileOutputFormat");
-    storageDescriptor.setInputFormat("org.apache.hadoop.mapred.FileInputFormat");
     SerDeInfo serDeInfo = new SerDeInfo();
-    serDeInfo.setSerializationLib("org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe");
+    serDeInfo.setSerializationLib("org.apache.iceberg.mr.hive.HiveIcebergSerDe");
     storageDescriptor.setSerdeInfo(serDeInfo);
     return storageDescriptor;
   }
