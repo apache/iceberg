@@ -162,8 +162,6 @@ public abstract class TestPartitionPruning {
       .hour("timestamp")
       .build();
 
-  private Random random = new Random();
-
   @Test
   public void testPartitionPruningIdentityString() {
     String filterCond = "date >= '2020-02-03' AND level = 'DEBUG'";
@@ -271,8 +269,7 @@ public abstract class TestPartitionPruning {
 
   private File createTempDir() {
     try {
-      int rand = random.nextInt(1000000);
-      return temp.newFolder(String.format("logs-%d", rand));
+      return temp.newFolder();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
