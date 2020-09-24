@@ -52,7 +52,6 @@ import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.OrcMetrics;
@@ -540,8 +539,7 @@ public class SparkTableUtil {
       Configuration conf = spark.sessionState().newHadoopConf();
       MetricsConfig metricsConfig = MetricsConfig.fromProperties(targetTable.properties());
       String nameMappingString = targetTable.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
-      NameMapping nameMapping = nameMappingString != null ?
-          NameMappingParser.fromJson(nameMappingString) : MappingUtil.create(targetTable.schema());
+      NameMapping nameMapping = nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
 
       List<DataFile> files = listPartition(
           partition, Util.uriToString(sourceTable.location()), format.get(), spec, conf, metricsConfig, nameMapping);
@@ -575,8 +573,7 @@ public class SparkTableUtil {
     int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(targetTable.properties());
     String nameMappingString = targetTable.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
-    NameMapping nameMapping = nameMappingString != null ?
-        NameMappingParser.fromJson(nameMappingString) : MappingUtil.create(targetTable.schema());
+    NameMapping nameMapping = nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
 
     JavaSparkContext sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     JavaRDD<SparkPartition> partitionRDD = sparkContext.parallelize(partitions, parallelism);

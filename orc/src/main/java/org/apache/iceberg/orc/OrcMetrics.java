@@ -105,13 +105,23 @@ public class OrcMetrics {
                                          final NameMapping mapping) {
     final TypeDescription orcSchemaWithIds = (!ORCSchemaUtil.hasIds(orcSchema) && mapping != null) ?
         ORCSchemaUtil.applyNameMapping(orcSchema, mapping) : orcSchema;
-    final Schema schema = ORCSchemaUtil.convert(orcSchemaWithIds);
     final Set<Integer> statsColumns = statsColumns(orcSchemaWithIds);
     final MetricsConfig effectiveMetricsConfig = Optional.ofNullable(metricsConfig)
         .orElseGet(MetricsConfig::getDefault);
     Map<Integer, Long> columnSizes = Maps.newHashMapWithExpectedSize(colStats.length);
     Map<Integer, Long> valueCounts = Maps.newHashMapWithExpectedSize(colStats.length);
     Map<Integer, Long> nullCounts = Maps.newHashMapWithExpectedSize(colStats.length);
+
+    if (!ORCSchemaUtil.hasIds(orcSchemaWithIds)) {
+      return new Metrics(numOfRows,
+          columnSizes,
+          valueCounts,
+          nullCounts,
+          null,
+          null);
+    }
+
+    final Schema schema = ORCSchemaUtil.convert(orcSchemaWithIds);
     Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
     Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
 
