@@ -290,11 +290,13 @@ public abstract class TestPartitionPruning {
 
     // We don't check "all" data files bound to the condition are being read, as data files can be pruned on
     // other conditions like lower/upper bound of columns.
-    Assert.assertFalse("Some of data files in partition range should be read.",
+    Assert.assertFalse("Some of data files in partition range should be read. " +
+        "Read files in query: " + readFilesInQuery + " / data files in partition range: " + filesToRead,
         Sets.intersection(filesToRead, readFilesInQuery).isEmpty());
 
     // Data files which aren't bound to the condition shouldn't be read.
-    Assert.assertTrue("Data files outside of partition range should not be read.",
+    Assert.assertTrue("Data files outside of partition range should not be read. " +
+        "Read files in query: " + readFilesInQuery + " / data files outside of partition range: " + filesToNotRead,
         Sets.intersection(filesToNotRead, readFilesInQuery).isEmpty());
   }
 
