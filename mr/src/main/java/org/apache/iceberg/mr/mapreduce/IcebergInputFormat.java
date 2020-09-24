@@ -260,7 +260,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     @SuppressWarnings("unchecked")
     private CloseableIterable<T> open(FileScanTask currentTask, Schema readSchema) {
-      CloseableIterable<T> iter;
       switch (inMemoryDataModel) {
         case PIG:
         case HIVE:
@@ -269,13 +268,10 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
         case GENERIC:
           DeleteFilter deletes = new GenericDeleteFilter(io, currentTask, tableSchema, readSchema);
           Schema requiredSchema = deletes.requiredSchema();
-          iter = deletes.filter(openTask(currentTask, requiredSchema));
-          break;
+          return deletes.filter(openTask(currentTask, requiredSchema));
         default:
           throw new UnsupportedOperationException("Unsupported memory model");
       }
-
-      return iter;
     }
 
     private CloseableIterable<T> applyResidualFiltering(CloseableIterable<T> iter, Expression residual,

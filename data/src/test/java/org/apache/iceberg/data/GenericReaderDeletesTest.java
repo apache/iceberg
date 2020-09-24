@@ -23,30 +23,35 @@ import java.io.File;
 import java.io.IOException;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TestTables;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.util.StructLikeSet;
 import org.junit.After;
 import org.junit.Before;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public class GenericReaderDeletesTest extends DeletesReadTest {
-  // Schema passed to create tables
-  public static final Schema SCHEMA = new Schema(
-      required(1, "id", Types.IntegerType.get()),
-      required(2, "data", Types.StringType.get())
-  );
 
-  // Partition spec used to create tables
-  static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
-      .bucket("data", 16)
-      .build();
+  @Override
+  public Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException {
+    File tableDir = temp.newFolder();
+    tableDir.delete();
+
+    return TestTables.create(tableDir, name, schema, spec, 2);
+  }
+
+  @Override
+  public StructLikeSet rowSet(Table table, String... columns) throws IOException {
+    StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
+    try (CloseableIterable<Record> reader = IcebergGenerics.read(table).select(columns).build()) {
+      reader.forEach(set::add);
+    }
+    return set;
+  }
 
   @Before
   public void writeTestDataFile() throws IOException {
-    File tableDir = temp.newFolder();
-    tableDir.delete();
-    this.table = TestTables.create(tableDir, "test", SCHEMA, SPEC, 2);
+    this.table = createTable("test", SCHEMA, SPEC);
     generateTestData();
     table.newAppend()
         .appendFile(dataFile)

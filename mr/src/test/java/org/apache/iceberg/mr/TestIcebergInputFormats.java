@@ -72,11 +72,11 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 @RunWith(Parameterized.class)
 public class TestIcebergInputFormats {
 
-  public static final List<TestInputFormat.Factory<Record>> TESTED_INPUT_FORMATS = ImmutableList.of(
+  private static final List<TestInputFormat.Factory<Record>> TESTED_INPUT_FORMATS = ImmutableList.of(
           TestInputFormat.newFactory("IcebergInputFormat", TestIcebergInputFormat::create),
           TestInputFormat.newFactory("MapredIcebergInputFormat", TestMapredIcebergInputFormat::create));
 
-  public static final List<String> TESTED_FILE_FORMATS = ImmutableList.of("avro", "orc", "parquet");
+  private static final List<String> TESTED_FILE_FORMATS = ImmutableList.of("avro", "orc", "parquet");
 
   private static final Schema SCHEMA = new Schema(
           required(1, "data", Types.StringType.get()),
@@ -451,13 +451,13 @@ public class TestIcebergInputFormats {
     }
   }
 
-  private static final class TestIcebergInputFormat<T> extends TestInputFormat<T> {
+  public static final class TestIcebergInputFormat<T> extends TestInputFormat<T> {
 
     private TestIcebergInputFormat(List<IcebergSplit> splits, List<T> records) {
       super(splits, records);
     }
 
-    private static <T> TestIcebergInputFormat<T> create(Configuration conf) {
+    static <T> TestIcebergInputFormat<T> create(Configuration conf) {
       TaskAttemptContext context = new TaskAttemptContextImpl(conf, new TaskAttemptID());
       IcebergInputFormat<T> inputFormat = new IcebergInputFormat<>();
       List<InputSplit> splits = inputFormat.getSplits(context);

@@ -20,18 +20,18 @@
 package org.apache.iceberg.data;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TestHelpers;
-import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
@@ -41,13 +41,29 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import static org.apache.iceberg.types.Types.NestedField.required;
+
 public abstract class DeletesReadTest {
+  // Schema passed to create tables
+  public static final Schema SCHEMA = new Schema(
+      required(1, "id", Types.IntegerType.get()),
+      required(2, "data", Types.StringType.get())
+  );
+
+  // Partition spec used to create tables
+  public static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
+      .bucket("data", 16)
+      .build();
+
   protected Table table;
-  protected List<Record> records;
   protected DataFile dataFile;
+
+  private List<Record> records;
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
+
+  public abstract Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException;
 
   @Test
   public void testEqualityDeletes() throws IOException {
@@ -60,7 +76,7 @@ public abstract class DeletesReadTest {
     );
 
     DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), dataDeletes, deleteRowSchema);
+        table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, deleteRowSchema);
 
     table.newRowDelta()
         .addDeletes(eqDeletes)
@@ -73,7 +89,7 @@ public abstract class DeletesReadTest {
   }
 
   protected void generateTestData() throws IOException {
-    this.records = new ArrayList<>();
+    this.records = Lists.newArrayList();
 
     // records all use IDs that are in bucket id_bucket=0
     GenericRecord record = GenericRecord.create(table.schema());
@@ -85,7 +101,7 @@ public abstract class DeletesReadTest {
     records.add(record.copy("id", 121, "data", "f"));
     records.add(record.copy("id", 122, "data", "g"));
 
-    this.dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), records);
+    this.dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), Row.of(0), records);
   }
 
   @Test
@@ -99,7 +115,7 @@ public abstract class DeletesReadTest {
     );
 
     DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), dataDeletes, deleteRowSchema);
+        table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, deleteRowSchema);
 
     table.newRowDelta()
         .addDeletes(eqDeletes)
@@ -121,7 +137,7 @@ public abstract class DeletesReadTest {
     );
 
     DeleteFile posDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), deletes);
+        table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
 
     table.newRowDelta()
         .addDeletes(posDeletes)
@@ -144,7 +160,7 @@ public abstract class DeletesReadTest {
     );
 
     DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), dataDeletes, dataSchema);
+        table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, dataSchema);
 
     List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
         Pair.of(dataFile.path(), 3L), // id = 89
@@ -152,7 +168,7 @@ public abstract class DeletesReadTest {
     );
 
     DeleteFile posDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), deletes);
+        table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
 
     table.newRowDelta()
         .addDeletes(eqDeletes)
@@ -176,7 +192,7 @@ public abstract class DeletesReadTest {
     );
 
     DeleteFile dataEqDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), dataDeletes, dataSchema);
+        table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, dataSchema);
 
     Schema idSchema = table.schema().select("id");
     Record idDelete = GenericRecord.create(idSchema);
@@ -186,7 +202,7 @@ public abstract class DeletesReadTest {
     );
 
     DeleteFile idEqDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), idDeletes, idSchema);
+        table, Files.localOutput(temp.newFile()), Row.of(0), idDeletes, idSchema);
 
     table.newRowDelta()
         .addDeletes(dataEqDeletes)
@@ -209,7 +225,7 @@ public abstract class DeletesReadTest {
     // add a new data file with a record where data is null
     Record record = GenericRecord.create(table.schema());
     DataFile dataFileWithNull = FileHelpers.writeDataFile(
-        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0),
+        table, Files.localOutput(temp.newFile()), Row.of(0),
         Lists.newArrayList(record.copy("id", 131, "data", null)));
 
     table.newAppend()
@@ -224,7 +240,7 @@ public abstract class DeletesReadTest {
     );
 
     DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
-        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), dataDeletes, dataSchema);
+        table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, dataSchema);
 
     table.newRowDelta()
         .addDeletes(eqDeletes)
@@ -236,17 +252,11 @@ public abstract class DeletesReadTest {
     Assert.assertEquals("Table should contain expected rows", expected, actual);
   }
 
-  private static StructLikeSet rowSet(Table table) throws IOException {
-    return rowSet(table, "*");
+  private StructLikeSet rowSet(Table tbl) throws IOException {
+    return rowSet(tbl, "*");
   }
 
-  private static StructLikeSet rowSet(Table table, String... columns) throws IOException {
-    StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
-    try (CloseableIterable<Record> reader = IcebergGenerics.read(table).select(columns).build()) {
-      reader.forEach(set::add);
-    }
-    return set;
-  }
+  public abstract StructLikeSet rowSet(Table tbl, String... columns) throws IOException;
 
   private StructLikeSet selectColumns(StructLikeSet rows, String... columns) {
     Schema projection = table.schema().select(columns);
@@ -265,5 +275,4 @@ public abstract class DeletesReadTest {
         .forEach(set::add);
     return set;
   }
-
 }

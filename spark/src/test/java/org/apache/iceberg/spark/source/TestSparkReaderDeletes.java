@@ -22,7 +22,9 @@ package org.apache.iceberg.spark.source;
 import java.io.IOException;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
@@ -31,8 +33,11 @@ import org.apache.iceberg.data.DeletesReadTest;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkStructLike;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.StructLikeSet;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.After;
@@ -43,9 +48,6 @@ import org.junit.BeforeClass;
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 
 public abstract class TestSparkReaderDeletes extends DeletesReadTest {
-  private static final Schema SCHEMA = new Schema(
-      Types.NestedField.required(1, "id", Types.IntegerType.get()),
-      Types.NestedField.required(2, "data", Types.StringType.get()));
 
   private static TestHiveMetastore metastore = null;
   protected static SparkSession spark = null;
@@ -84,13 +86,9 @@ public abstract class TestSparkReaderDeletes extends DeletesReadTest {
   }
 
   @Before
-  public void createTable() throws IOException {
-    this.table = catalog.createTable(TableIdentifier.of("default", "table"), SCHEMA);
-    TableOperations ops = ((BaseTable) table).operations();
-    TableMetadata meta = ops.current();
-    ops.commit(meta, meta.upgradeToFormatVersion(2));
+  public void prepareData() throws IOException {
+    this.table = createTable("table", SCHEMA, SPEC);
 
-    this.records = Lists.newArrayList();
     generateTestData();
 
     table.newAppend()
@@ -101,5 +99,32 @@ public abstract class TestSparkReaderDeletes extends DeletesReadTest {
   @After
   public void dropTable() {
     catalog.dropTable(TableIdentifier.of("default", "table"));
+  }
+
+  @Override
+  public Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException {
+    Table table = catalog.createTable(TableIdentifier.of("default", name), schema);
+    TableOperations ops = ((BaseTable) table).operations();
+    TableMetadata meta = ops.current();
+    ops.commit(meta, meta.upgradeToFormatVersion(2));
+
+    return table;
+  }
+
+  @Override
+  public StructLikeSet rowSet(Table table, String... columns) {
+    Dataset<Row> df = spark.read()
+        .format("iceberg")
+        .load("default.table")
+        .selectExpr(columns);
+
+    Types.StructType projection = table.schema().select(columns).asStruct();
+    StructLikeSet set = StructLikeSet.create(projection);
+    df.collectAsList().forEach(row -> {
+      SparkStructLike rowWrapper = new SparkStructLike(projection);
+      set.add(rowWrapper.wrap(row));
+    });
+
+    return set;
   }
 }
