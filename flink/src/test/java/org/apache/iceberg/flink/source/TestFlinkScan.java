@@ -67,21 +67,21 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 @RunWith(Parameterized.class)
 public abstract class TestFlinkScan extends AbstractTestBase {
 
-  private static final Schema SCHEMA = new Schema(
+  protected static final Schema SCHEMA = new Schema(
           required(1, "data", Types.StringType.get()),
           required(2, "id", Types.LongType.get()),
           required(3, "dt", Types.StringType.get()));
 
-  private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
+  protected static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
           .identity("dt")
           .bucket("id", 1)
           .build();
 
-  private HadoopCatalog catalog;
+  protected HadoopCatalog catalog;
   protected String warehouse;
 
   // parametrized variables
-  private final FileFormat fileFormat;
+  protected final FileFormat fileFormat;
 
   @Parameterized.Parameters(name = "format={0}")
   public static Object[] parameters() {
@@ -111,21 +111,6 @@ public abstract class TestFlinkScan extends AbstractTestBase {
   protected abstract List<Row> execute(Table table, ScanOptions options) throws IOException;
 
   protected abstract List<Row> execute(Table table, List<Expression> filters, String sqlFilter) throws IOException;
-
-  /**
-   * The Flink SQL has no residuals, because there will be operator to filter all the data that should be filtered.
-   * But the FlinkInputFormat can't.
-   */
-  protected abstract void assertResiduals(Schema schema, List<Row> results, List<Record> writeRecords,
-                                          List<Record> filteredRecords) throws IOException;
-
-  /**
-   * Schema: [data, nested[f1, f2, f3], id]
-   * Projection: [nested.f2, data]
-   * The Flink SQL output: [f2, data]
-   * The FlinkInputFormat output: [nested[f2], data].
-   */
-  protected abstract void assertNestedProjection(Table table, List<Record> records) throws IOException;
 
   @Test
   public void testUnpartitionedTable() throws Exception {
@@ -230,7 +215,7 @@ public abstract class TestFlinkScan extends AbstractTestBase {
     long timestampMillis = table.currentSnapshot().timestampMillis();
 
     // produce another timestamp
-    Thread.sleep(10);
+    waitUntilAfter(10);
     helper.appendToTable(RandomGenericData.generate(SCHEMA, 1, 0L));
 
     assertRecords(
@@ -258,14 +243,7 @@ public abstract class TestFlinkScan extends AbstractTestBase {
     long snapshotId3 = table.currentSnapshot().snapshotId();
 
     // snapshot 4
-    List<Record> records4 = RandomGenericData.generate(SCHEMA, 1, 0L);
     helper.appendToTable(RandomGenericData.generate(SCHEMA, 1, 0L));
-
-    List<Record> expected1 = Lists.newArrayList();
-    expected1.addAll(records2);
-    expected1.addAll(records3);
-    expected1.addAll(records4);
-    assertRecords(execute(table, ScanOptions.builder().startSnapshotId(snapshotId1).build()), expected1, SCHEMA);
 
     List<Record> expected2 = Lists.newArrayList();
     expected2.addAll(records2);
@@ -289,30 +267,6 @@ public abstract class TestFlinkScan extends AbstractTestBase {
     helper.appendToTable(dataFile1, dataFile2);
     List<Expression> filters = Collections.singletonList(Expressions.equal("dt", "2020-03-20"));
     assertRecords(execute(table, filters, "dt='2020-03-20'"), expectedRecords, SCHEMA);
-  }
-
-  @Test
-  public void testResiduals() throws Exception {
-    Table table = catalog.createTable(TableIdentifier.of("default", "t"), SCHEMA, SPEC);
-
-    List<Record> writeRecords = RandomGenericData.generate(SCHEMA, 2, 0L);
-    writeRecords.get(0).set(1, 123L);
-    writeRecords.get(0).set(2, "2020-03-20");
-    writeRecords.get(1).set(1, 456L);
-    writeRecords.get(1).set(2, "2020-03-20");
-
-    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
-
-    List<Record> expectedRecords = Lists.newArrayList();
-    expectedRecords.add(writeRecords.get(0));
-
-    DataFile dataFile1 = helper.writeFile(TestHelpers.Row.of("2020-03-20", 0), writeRecords);
-    DataFile dataFile2 = helper.writeFile(TestHelpers.Row.of("2020-03-21", 0),
-        RandomGenericData.generate(SCHEMA, 2, 0L));
-    helper.appendToTable(dataFile1, dataFile2);
-
-    List<Expression> filters = Arrays.asList(Expressions.equal("dt", "2020-03-20"), Expressions.equal("id", 123));
-    assertResiduals(SCHEMA, execute(table, filters, "dt='2020-03-20' and id=123"), writeRecords, expectedRecords);
   }
 
   @Test
@@ -346,24 +300,6 @@ public abstract class TestFlinkScan extends AbstractTestBase {
     assertRecords(execute(table), records, typesSchema);
   }
 
-  @Test
-  public void testNestedProjection() throws Exception {
-    Schema schema = new Schema(
-        required(1, "data", Types.StringType.get()),
-        required(2, "nested", Types.StructType.of(
-            Types.NestedField.required(3, "f1", Types.StringType.get()),
-            Types.NestedField.required(4, "f2", Types.StringType.get()),
-            Types.NestedField.required(5, "f3", Types.LongType.get()))),
-        required(6, "id", Types.LongType.get()));
-
-    Table table = catalog.createTable(TableIdentifier.of("default", "t"), schema);
-
-    List<Record> writeRecords = RandomGenericData.generate(schema, 2, 0L);
-    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(writeRecords);
-
-    assertNestedProjection(table, writeRecords);
-  }
-
   static void assertRecords(List<Row> results, List<Record> expectedRecords, Schema schema) {
     List<Row> expected = Lists.newArrayList();
     @SuppressWarnings("unchecked")
@@ -381,5 +317,12 @@ public abstract class TestFlinkScan extends AbstractTestBase {
     expected.sort(Comparator.comparing(Row::toString));
     results.sort(Comparator.comparing(Row::toString));
     Assert.assertEquals(expected, results);
+  }
+
+  private static void waitUntilAfter(long timestampMillis) {
+    long current = System.currentTimeMillis();
+    while (current <= timestampMillis) {
+      current = System.currentTimeMillis();
+    }
   }
 }

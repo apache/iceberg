@@ -32,11 +32,18 @@ import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.data.GenericAppenderHelper;
+import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
+import org.junit.Test;
+
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 /**
  * Test {@link FlinkInputFormat}.
@@ -72,22 +79,33 @@ public class TestFlinkInputFormat extends TestFlinkScan {
     return run(builder.filters(filters).buildFormat());
   }
 
-  @Override
-  protected void assertResiduals(
-      Schema schema, List<Row> results, List<Record> writeRecords, List<Record> filteredRecords) {
-    // can not filter the data.
-    assertRecords(results, writeRecords, schema);
-  }
+  @Test
+  public void testNestedProjection() throws Exception {
+    Schema schema = new Schema(
+        required(1, "data", Types.StringType.get()),
+        required(2, "nested", Types.StructType.of(
+            Types.NestedField.required(3, "f1", Types.StringType.get()),
+            Types.NestedField.required(4, "f2", Types.StringType.get()),
+            Types.NestedField.required(5, "f3", Types.LongType.get()))),
+        required(6, "id", Types.LongType.get()));
 
-  @Override
-  protected void assertNestedProjection(Table table, List<Record> records) throws IOException {
+    Table table = catalog.createTable(TableIdentifier.of("default", "t"), schema);
+
+    List<Record> writeRecords = RandomGenericData.generate(schema, 2, 0L);
+    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(writeRecords);
+
+    // Schema: [data, nested[f1, f2, f3], id]
+    // Projection: [nested.f2, data]
+    // The Flink SQL output: [f2, data]
+    // The FlinkInputFormat output: [nested[f2], data]
+
     TableSchema projectedSchema = TableSchema.builder()
         .field("nested", DataTypes.ROW(DataTypes.FIELD("f2", DataTypes.STRING())))
         .field("data", DataTypes.STRING()).build();
     List<Row> result = run(builder.project(projectedSchema).buildFormat());
 
     List<Row> expected = Lists.newArrayList();
-    for (Record record : records) {
+    for (Record record : writeRecords) {
       Row nested = Row.of(((Record) record.get(1)).get(1));
       expected.add(Row.of(nested, record.get(0)));
     }
