@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
@@ -36,6 +37,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -46,6 +48,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -61,6 +64,9 @@ public abstract class TestDataSourceOptions {
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
+
+  @Rule
+  public ExpectedException thrown = ExpectedException.none();
 
   @BeforeClass
   public static void startSpark() {
@@ -387,5 +393,173 @@ public abstract class TestDataSourceOptions {
 
     Assert.assertTrue(table.currentSnapshot().summary().get("extra-key").equals("someValue"));
     Assert.assertTrue(table.currentSnapshot().summary().get("another-key").equals("anotherValue"));
+  }
+
+  @Test
+  public void testReadWithCustomSnapshotId() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+    HadoopTables tables = new HadoopTables(CONF);
+    tables.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
+
+
+    Pair<Integer, Dataset<Row>> [] versionedData = (Pair<Integer, Dataset<Row>>[]) Arrays.stream(new int[] {1, 2, 3, 4})
+            .mapToObj(i -> Pair.of(Integer.valueOf(i), spark.createDataFrame(Lists.newArrayList(
+            new SimpleRecord(1, Integer.toString(i))
+    ), SimpleRecord.class))).toArray(Pair[]::new);
+
+    Arrays.stream(versionedData).forEach(pair -> pair.second().select("id", "data").write()
+            .format("iceberg")
+            .mode("overwrite")
+            .option("snapshot-property.external-id", pair.first().toString())
+            .save(tableLocation));
+
+    Arrays.stream(versionedData).forEach(pair ->
+        Assert.assertEquals(pair.second().as(Encoders.bean(SimpleRecord.class)).collectAsList(), spark.read()
+              .option("snapshot-property.external-id", pair.first().toString())
+              .format("iceberg")
+              .load(tableLocation)
+              .as(Encoders.bean(SimpleRecord.class))
+              .collectAsList()));
+  }
+
+  @Test
+  public void testReadWithoutIdentifierOptions() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+    HadoopTables tables = new HadoopTables(CONF);
+    Table table = tables.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
+
+
+    Pair<Integer, Dataset<Row>> [] versionedData = (Pair<Integer, Dataset<Row>>[]) Arrays.stream(new int[] {1, 2, 3, 4})
+            .mapToObj(i -> Pair.of(Integer.valueOf(i), spark.createDataFrame(Lists.newArrayList(
+                    new SimpleRecord(1, Integer.toString(i))
+            ), SimpleRecord.class))).toArray(Pair[]::new);
+
+    Arrays.stream(versionedData).forEach(pair -> pair.second().select("id", "data").write()
+            .format("iceberg")
+            .mode("overwrite")
+            .option("snapshot-property.external-id", pair.first().toString())
+            .save(tableLocation));
+
+    table.refresh();
+    Long latestSnapshotId = table.currentSnapshot().snapshotId();
+
+    Assert.assertEquals(spark.read()
+            .option("snapshot-id", latestSnapshotId)
+            .format("iceberg")
+            .load(tableLocation)
+            .as(Encoders.bean(SimpleRecord.class))
+            .collectAsList(), spark.read()
+            .format("iceberg")
+            .load(tableLocation)
+            .as(Encoders.bean(SimpleRecord.class))
+            .collectAsList());
+  }
+
+  @Test
+  public void testReadThrowsWithMultipleIdentifiers() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+    HadoopTables tables = new HadoopTables(CONF);
+    tables.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
+
+
+    Pair<Integer, Dataset<Row>> [] versionedData = (Pair<Integer, Dataset<Row>> []) Arrays
+            .stream(new int[] {1, 2, 3, 4})
+            .mapToObj(i -> Pair.of(Integer.valueOf(i), spark.createDataFrame(Lists.newArrayList(
+                    new SimpleRecord(1, Integer.toString(i))
+            ), SimpleRecord.class))).toArray(Pair[]::new);
+
+    Arrays.stream(versionedData).forEach(pair -> pair.second().select("id", "data").write()
+            .format("iceberg")
+            .mode("overwrite")
+            .option("snapshot-property.external-id", pair.first().toString())
+            .save(tableLocation));
+    testReadThrowsWithMultipleIdentifiers(versionedData, tableLocation, "snapshot-id");
+    testReadThrowsWithMultipleIdentifiers(versionedData, tableLocation, "as-of-timestamp");
+    testReadThrowsWithMultipleIdentifiers(versionedData, tableLocation, "start-snapshot-id");
+  }
+
+  private void testReadThrowsWithMultipleIdentifiers(Pair<Integer, Dataset<Row>> [] versionedData,
+                                                     String tableLocation,
+                                                     String identifierKey) {
+
+    Arrays.stream(versionedData).forEach(pair -> {
+      thrown.expect(IllegalArgumentException.class);
+      thrown.expectMessage("when one of  snapshot-id or as-of-timestamp " +
+              "or (start-snapshot-id / end-snapshot-id) is specified");
+      spark.read()
+              .option(identifierKey, pair.first().toString())
+              .option("snapshot-property.external-id", pair.first().toString())
+              .format("iceberg")
+              .load(tableLocation)
+              .as(Encoders.bean(SimpleRecord.class))
+              .collectAsList(); });
+  }
+
+  @Test
+  public void testReadThrowsWithNonexistentCustomKey() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+    HadoopTables tables = new HadoopTables(CONF);
+    tables.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
+
+
+    Pair<Integer, Dataset<Row>> [] versionedData = (Pair<Integer, Dataset<Row>> []) Arrays
+            .stream(new int[] {1, 2, 3, 4})
+            .mapToObj(i -> Pair.of(Integer.valueOf(i), spark.createDataFrame(Lists.newArrayList(
+                    new SimpleRecord(1, Integer.toString(i))
+            ), SimpleRecord.class))).toArray(Pair[]::new);
+
+    Arrays.stream(versionedData).forEach(pair -> pair.second().select("id", "data").write()
+            .format("iceberg")
+            .mode("overwrite")
+            .option("snapshot-property.external-id", pair.first().toString())
+            .save(tableLocation));
+
+    Arrays.stream(versionedData).forEach(pair -> {
+      thrown.expect(IllegalArgumentException.class);
+      thrown.expectMessage("does not exist in snapshot metadata");
+      spark.read()
+              .option("snapshot-property.nonexistent-key", pair.first().toString())
+              .format("iceberg")
+              .load(tableLocation)
+              .as(Encoders.bean(SimpleRecord.class))
+              .collectAsList(); });
+  }
+
+  @Test
+  public void testReadWithNonUniqueCustomId() throws IOException {
+    // If multiple snapshot id's have the same value given a custom id key,
+    // retrieve the latest matching one in the snapshot history.
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+    HadoopTables tables = new HadoopTables(CONF);
+    Table table = tables.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
+
+    Pair<Integer, Dataset<Row>> [] versionedData = (Pair<Integer, Dataset<Row>> []) Arrays
+            .stream(new int[] {1, 2, 3, 4})
+            .mapToObj(i -> Pair.of(Integer.valueOf(i), spark.createDataFrame(Lists.newArrayList(
+                    new SimpleRecord(1, Integer.toString(i))
+            ), SimpleRecord.class))).toArray(Pair[]::new);
+
+    Arrays.stream(versionedData).forEach(pair -> pair.second().select("id", "data").write()
+            .format("iceberg")
+            .mode("overwrite")
+            .option("snapshot-property.external-id", "1")
+            .save(tableLocation));
+
+    table.refresh();
+    Long lastSnapshotId = table.currentSnapshot().snapshotId();
+
+    Assert.assertEquals(spark.read()
+                    .format("iceberg")
+                    .option("snapshot-id", lastSnapshotId)
+                    .load(tableLocation)
+                    .as(Encoders.bean(SimpleRecord.class))
+                    .collectAsList(),
+            spark.read()
+                    .option("snapshot-custom-id-key", "snapshot-property.external-id")
+                    .option("snapshot-property.external-id", "1")
+                    .format("iceberg")
+                    .load(tableLocation)
+                    .as(Encoders.bean(SimpleRecord.class))
+                    .collectAsList());
   }
 }

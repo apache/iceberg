@@ -116,6 +116,7 @@ spark.read
 | split-size      | As per table property | Overrides this table's read.split.target-size and read.split.metadata-target-size         |
 | lookback        | As per table property | Overrides this table's read.split.planning-lookback                                       |
 | file-open-cost  | As per table property | Overrides this table's read.split.open-file-cost                                          |
+| snapshot-property._custom_key_   | (latest) | A custom identifier with which to select the snapshot to read.                        |
 
 ### Write options
 

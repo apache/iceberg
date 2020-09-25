@@ -24,6 +24,9 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -32,6 +35,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -81,6 +85,8 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
   private final Table table;
   private final Long snapshotId;
+  private final String customSnapshotId;
+  private final String customSnapshotIdKey;
   private final Long startSnapshotId;
   private final Long endSnapshotId;
   private final Long asOfTimestamp;
@@ -124,6 +130,28 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     } else {
       if (startSnapshotId == null && endSnapshotId != null) {
         throw new IllegalArgumentException("Cannot only specify option end-snapshot-id to do incremental scan");
+      }
+    }
+    // If custom id key provided then it must be prefixed with SnapshotSummary.EXTRA_METADATA_PREFIX
+    // Can only supply one snapshot custom property at a time.
+    List<Map.Entry<String, String>> snapshotProperties = options
+            .asMap()
+            .entrySet()
+            .stream()
+            .filter(o -> o.getKey()
+                    .startsWith(SnapshotSummary.EXTRA_METADATA_PREFIX))
+            .collect(Collectors.toList());
+    if (snapshotProperties.size() > 1) {
+      throw new IllegalArgumentException("Can only specify one snapshot property to read with. Got: " +
+              snapshotProperties.toString());
+    }
+    this.customSnapshotIdKey = snapshotProperties.size() == 1 ? snapshotProperties.get(0).getKey() : null;
+    this.customSnapshotId = snapshotProperties.size() == 1 ? snapshotProperties.get(0).getValue() : null;
+    if (snapshotId != null || asOfTimestamp != null || startSnapshotId != null || endSnapshotId != null) {
+      if (customSnapshotIdKey != null) {
+        throw new IllegalArgumentException("Cannot specify " +
+                customSnapshotIdKey +
+                " when one of  snapshot-id or as-of-timestamp or (start-snapshot-id / end-snapshot-id) is specified");
       }
     }
 
@@ -365,6 +393,18 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
         } else {
           scan = scan.appendsAfter(startSnapshotId);
         }
+      }
+
+      if (customSnapshotId != null) {
+        scan = scan.useSnapshot(StreamSupport
+                .stream(table.snapshots().spliterator(), false)
+                .filter(s -> Optional.ofNullable(s.summary()
+                        .get(customSnapshotIdKey.substring(SnapshotSummary.EXTRA_METADATA_PREFIX.length())))
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "property " + customSnapshotIdKey + "does not exist in snapshot metadata"))
+                        .equals(customSnapshotId))
+                .reduce((left, right) -> right)
+                .map(Snapshot::snapshotId).orElse(null));
       }
 
       if (splitSize != null) {

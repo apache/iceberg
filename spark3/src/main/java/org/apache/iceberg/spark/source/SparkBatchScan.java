@@ -23,12 +23,16 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -70,6 +74,8 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   private final boolean localityPreferred;
   private final Schema expectedSchema;
   private final List<Expression> filterExpressions;
+  private final String customSnapshotId;
+  private final String customSnapshotIdKey;
   private final Long snapshotId;
   private final Long startSnapshotId;
   private final Long endSnapshotId;
@@ -93,7 +99,27 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     this.caseSensitive = caseSensitive;
     this.expectedSchema = expectedSchema;
     this.filterExpressions = filters;
-    this.snapshotId = Spark3Util.propertyAsLong(options, "snapshot-id", null);
+    this.snapshotId = Optional.ofNullable(Spark3Util.propertyAsLong(options,
+            "snapshot-id",
+            null))
+            .orElseGet(() -> Optional.ofNullable(options.get("snapshot-custom-id-key"))
+                    .map(k -> Optional.of(k)
+                            .filter(t -> t.startsWith(SnapshotSummary.EXTRA_METADATA_PREFIX))
+                            .orElseThrow(() -> new IllegalArgumentException(
+                                    "provided value for snapshot-custom-id-key must be prefixed with " +
+                                            SnapshotSummary.EXTRA_METADATA_PREFIX)))
+                    .flatMap(ik -> Optional.ofNullable(options.get(ik))
+                            .map(va -> (Optional<Long>) StreamSupport
+                                    .stream(table.snapshots().spliterator(), false)
+                                    .filter(s -> Optional.ofNullable(s.summary()
+                                            .get(ik.substring(SnapshotSummary.EXTRA_METADATA_PREFIX.length())))
+                                            .orElseThrow(() -> new IllegalArgumentException(
+                                                    "property " + ik + "does not exist in snapshot metadata"))
+                                            .equals(va))
+                                    .reduce((left, right) -> right)
+                                    .map(Snapshot::snapshotId))
+                            .orElseThrow(() -> new IllegalArgumentException("please specify a value for " + ik))
+                    ).orElse(null));
     this.asOfTimestamp = Spark3Util.propertyAsLong(options, "as-of-timestamp", null);
 
     if (snapshotId != null && asOfTimestamp != null) {
@@ -111,6 +137,27 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
       }
     } else if (startSnapshotId == null && endSnapshotId != null) {
       throw new IllegalArgumentException("Cannot only specify option end-snapshot-id to do incremental scan");
+    }
+    // If custom id key provided then it must be prefixed with SnapshotSummary.EXTRA_METADATA_PREFIX
+    // Can only supply one snapshot custom property at a time.
+    List<Map.Entry<String, String>> snapshotProperties = options
+            .entrySet()
+            .stream()
+            .filter(o -> o.getKey()
+                    .startsWith(SnapshotSummary.EXTRA_METADATA_PREFIX))
+            .collect(Collectors.toList());
+    if (snapshotProperties.size() > 1) {
+      throw new IllegalArgumentException("Can only specify one snapshot property to read with. Got: " +
+              snapshotProperties.toString());
+    }
+    this.customSnapshotIdKey = snapshotProperties.size() == 1 ? snapshotProperties.get(0).getKey() : null;
+    this.customSnapshotId = snapshotProperties.size() == 1 ? snapshotProperties.get(0).getValue() : null;
+    if (snapshotId != null || asOfTimestamp != null || startSnapshotId != null || endSnapshotId != null) {
+      if (customSnapshotId != null) {
+        throw new IllegalArgumentException("Cannot specify " +
+                customSnapshotIdKey +
+                " when one of  snapshot-id or as-of-timestamp or (start-snapshot-id / end-snapshot-id) is specified");
+      }
     }
 
     // look for split behavior overrides in options
@@ -229,6 +276,18 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
         } else {
           scan = scan.appendsAfter(startSnapshotId);
         }
+      }
+
+      if (customSnapshotId != null) {
+        scan = scan.useSnapshot(StreamSupport
+                .stream(table.snapshots().spliterator(), false)
+                .filter(s -> Optional.ofNullable(s.summary()
+                        .get(customSnapshotIdKey.substring(SnapshotSummary.EXTRA_METADATA_PREFIX.length())))
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "property " + customSnapshotIdKey + "does not exist in snapshot metadata"))
+                        .equals(customSnapshotId))
+                .reduce((left, right) -> right)
+                .map(Snapshot::snapshotId).orElse(null));
       }
 
       if (splitSize != null) {
