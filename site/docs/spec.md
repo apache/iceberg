@@ -698,14 +698,17 @@ This serialization scheme is for storing single values as individual binary valu
 ### Version 2
 
 Writing v1 metadata:
+
 * Table metadata field `last-sequence-number` should not be written.
 * Snapshot field `sequence-number` should not be written.
 
 Reading v1 metadata:
+
 * Table metadata field `last-sequence-number` must default to 0.
 * Snapshot field `sequence-number` must default to 0.
 
 Writing v2 metadata:
+
 * Table metadata added required field `last-sequence-number`.
 * Table metadata now requires field `table-uuid`.
 * Table metadata now requires field `partition-specs`.
