@@ -84,6 +84,7 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   private final int batchSize;
 
   // lazy variables
+  private StructType readSchema = null;
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
 
   SparkBatchScan(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryption, boolean caseSensitive,
@@ -130,7 +131,10 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
   @Override
   public StructType readSchema() {
-    return SparkSchemaUtil.convert(expectedSchema);
+    if (readSchema == null) {
+      this.readSchema = SparkSchemaUtil.convert(expectedSchema);
+    }
+    return readSchema;
   }
 
   @Override
@@ -220,12 +224,8 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     }
 
     SparkBatchScan that = (SparkBatchScan) o;
-    // compare Spark schemas to ignore field ids
-    StructType thisSchema = SparkSchemaUtil.convert(expectedSchema);
-    StructType thatSchema = SparkSchemaUtil.convert(that.expectedSchema);
-    return caseSensitive == that.caseSensitive &&
-        table.toString().equals(that.table.toString()) &&
-        thisSchema.equals(thatSchema) &&
+    return table.toString().equals(that.table.toString()) &&
+        readSchema().equals(that.readSchema()) && // compare Spark schemas to ignore field ids
         filterExpressions.toString().equals(that.filterExpressions.toString()) &&
         Objects.equals(snapshotId, that.snapshotId) &&
         Objects.equals(startSnapshotId, that.startSnapshotId) &&
@@ -235,10 +235,9 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
   @Override
   public int hashCode() {
-    StructType sparkSchema = SparkSchemaUtil.convert(expectedSchema);
     return Objects.hash(
-        table.toString(), caseSensitive, sparkSchema, filterExpressions.toString(), snapshotId, startSnapshotId,
-        endSnapshotId, asOfTimestamp);
+        table.toString(), readSchema(), filterExpressions.toString(), snapshotId, startSnapshotId, endSnapshotId,
+        asOfTimestamp);
   }
 
   private List<CombinedScanTask> tasks() {
