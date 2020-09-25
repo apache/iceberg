@@ -157,18 +157,28 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
       this.localityPreferred = false;
     }
 
-    this.schema = table.schema();
+    this.schema = getTableSchema();
     this.caseSensitive = caseSensitive;
     this.readTimestampWithoutZone = readConf.handleTimestampWithoutZone();
+  }
+
+  private Schema getTableSchema() {
+    if (snapshotId != null) {
+      return table.schemaForSnapshot(snapshotId);
+    } else if (asOfTimestamp != null) {
+      return table.schemaForSnapshotAsOfTime(asOfTimestamp);
+    } else {
+      return table.schema();
+    }
   }
 
   private Schema lazySchema() {
     if (schema == null) {
       if (requestedSchema != null) {
         // the projection should include all columns that will be returned, including those only used in filters
-        this.schema = SparkSchemaUtil.prune(table.schema(), requestedSchema, filterExpression(), caseSensitive);
+        this.schema = SparkSchemaUtil.prune(getTableSchema(), requestedSchema, filterExpression(), caseSensitive);
       } else {
-        this.schema = table.schema();
+        this.schema = getTableSchema();
       }
     }
     return schema;

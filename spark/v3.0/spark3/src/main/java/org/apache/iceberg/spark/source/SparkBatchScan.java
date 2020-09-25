@@ -130,6 +130,16 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     return readSchema;
   }
 
+  private Schema getTableSchema() {
+    if (snapshotId != null) {
+      return table.schemaForSnapshot(snapshotId);
+    } else if (asOfTimestamp != null) {
+      return table.schemaForSnapshotAsOfTime(asOfTimestamp);
+    } else {
+      return table.schema();
+    }
+  }
+
   @Override
   public InputPartition[] planInputPartitions() {
     String expectedSchemaString = SchemaParser.toJson(expectedSchema);
