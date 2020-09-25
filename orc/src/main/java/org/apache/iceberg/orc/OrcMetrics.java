@@ -40,6 +40,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
@@ -73,15 +74,19 @@ public class OrcMetrics {
   }
 
   public static Metrics fromInputFile(InputFile file, MetricsConfig metricsConfig) {
-    final Configuration config = (file instanceof HadoopInputFile) ?
-        ((HadoopInputFile) file).getConf() : new Configuration();
-    return fromInputFile(file, config, metricsConfig);
+    return fromInputFile(file, metricsConfig, null);
   }
 
-  static Metrics fromInputFile(InputFile file, Configuration config, MetricsConfig metricsConfig) {
+  public static Metrics fromInputFile(InputFile file, MetricsConfig metricsConfig, NameMapping mapping) {
+    final Configuration config = (file instanceof HadoopInputFile) ?
+        ((HadoopInputFile) file).getConf() : new Configuration();
+    return fromInputFile(file, config, metricsConfig, mapping);
+  }
+
+  static Metrics fromInputFile(InputFile file, Configuration config, MetricsConfig metricsConfig, NameMapping mapping) {
     try (Reader orcReader = ORC.newFileReader(file, config)) {
       return buildOrcMetrics(orcReader.getNumberOfRows(), orcReader.getSchema(), orcReader.getStatistics(),
-          metricsConfig);
+          metricsConfig, mapping);
     } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to open file: %s", file.location());
     }
@@ -89,27 +94,40 @@ public class OrcMetrics {
 
   static Metrics fromWriter(Writer writer, MetricsConfig metricsConfig) {
     try {
-      return buildOrcMetrics(writer.getNumberOfRows(), writer.getSchema(), writer.getStatistics(), metricsConfig);
+      return buildOrcMetrics(writer.getNumberOfRows(), writer.getSchema(), writer.getStatistics(), metricsConfig, null);
     } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to get statistics from writer");
     }
   }
 
-  private static Metrics buildOrcMetrics(long numOfRows, TypeDescription orcSchema,
-                                         ColumnStatistics[] colStats, MetricsConfig metricsConfig) {
-    final Schema schema = ORCSchemaUtil.convert(orcSchema);
-    final Set<Integer> statsColumns = statsColumns(orcSchema);
+  private static Metrics buildOrcMetrics(final long numOfRows, final TypeDescription orcSchema,
+                                         final ColumnStatistics[] colStats, final MetricsConfig metricsConfig,
+                                         final NameMapping mapping) {
+    final TypeDescription orcSchemaWithIds = (!ORCSchemaUtil.hasIds(orcSchema) && mapping != null) ?
+        ORCSchemaUtil.applyNameMapping(orcSchema, mapping) : orcSchema;
+    final Set<Integer> statsColumns = statsColumns(orcSchemaWithIds);
     final MetricsConfig effectiveMetricsConfig = Optional.ofNullable(metricsConfig)
         .orElseGet(MetricsConfig::getDefault);
     Map<Integer, Long> columnSizes = Maps.newHashMapWithExpectedSize(colStats.length);
     Map<Integer, Long> valueCounts = Maps.newHashMapWithExpectedSize(colStats.length);
     Map<Integer, Long> nullCounts = Maps.newHashMapWithExpectedSize(colStats.length);
+
+    if (!ORCSchemaUtil.hasIds(orcSchemaWithIds)) {
+      return new Metrics(numOfRows,
+          columnSizes,
+          valueCounts,
+          nullCounts,
+          null,
+          null);
+    }
+
+    final Schema schema = ORCSchemaUtil.convert(orcSchemaWithIds);
     Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
     Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
 
     for (int i = 0; i < colStats.length; i++) {
       final ColumnStatistics colStat = colStats[i];
-      final TypeDescription orcCol = orcSchema.findSubtype(i);
+      final TypeDescription orcCol = orcSchemaWithIds.findSubtype(i);
       final Optional<Types.NestedField> icebergColOpt = ORCSchemaUtil.icebergID(orcCol)
           .map(schema::findField);
 
@@ -261,7 +279,8 @@ public class OrcMetrics {
     public Set<Integer> record(TypeDescription record, List<String> names, List<Set<Integer>> fields) {
       ImmutableSet.Builder<Integer> result = ImmutableSet.builder();
       fields.stream().filter(Objects::nonNull).forEach(result::addAll);
-      record.getChildren().stream().map(ORCSchemaUtil::fieldId).forEach(result::add);
+      record.getChildren().stream().map(ORCSchemaUtil::icebergID).filter(Optional::isPresent)
+          .map(Optional::get).forEach(result::add);
       return result.build();
     }
   }
