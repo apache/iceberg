@@ -20,7 +20,6 @@
 package org.apache.iceberg.flink;
 
 import java.util.Arrays;
-import java.util.Map;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
@@ -45,37 +44,37 @@ public class IcebergTableSource implements StreamTableSource<RowData>, Projectab
   private final TableLoader loader;
   private final Configuration hadoopConf;
   private final TableSchema schema;
-  private final Map<String, String> scanOptions;
+  private final ScanOptions options;
   private final int[] projectedFields;
 
   public IcebergTableSource(TableLoader loader, Configuration hadoopConf, TableSchema schema,
-                            Map<String, String> scanOptions) {
-    this(loader, hadoopConf, schema, scanOptions, null);
+                            ScanOptions options) {
+    this(loader, hadoopConf, schema, options, null);
   }
 
   private IcebergTableSource(TableLoader loader, Configuration hadoopConf, TableSchema schema,
-                             Map<String, String> scanOptions, int[] projectedFields) {
+                             ScanOptions options, int[] projectedFields) {
     this.loader = loader;
     this.hadoopConf = hadoopConf;
     this.schema = schema;
-    this.scanOptions = scanOptions;
+    this.options = options;
     this.projectedFields = projectedFields;
   }
 
   @Override
   public boolean isBounded() {
-    return true;
+    return FlinkSource.isBounded(options);
   }
 
   @Override
   public TableSource<RowData> projectFields(int[] fields) {
-    return new IcebergTableSource(loader, hadoopConf, schema, scanOptions, fields);
+    return new IcebergTableSource(loader, hadoopConf, schema, options, fields);
   }
 
   @Override
   public DataStream<RowData> getDataStream(StreamExecutionEnvironment execEnv) {
     return FlinkSource.forRowData().env(execEnv).tableLoader(loader).hadoopConf(hadoopConf)
-        .project(getProjectedSchema()).options(ScanOptions.fromProperties(scanOptions)).build();
+        .project(getProjectedSchema()).options(options).build();
   }
 
   @Override

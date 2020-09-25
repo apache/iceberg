@@ -29,6 +29,7 @@ import org.apache.flink.table.factories.TableSourceFactory;
 import org.apache.flink.table.sinks.TableSink;
 import org.apache.flink.table.sources.TableSource;
 import org.apache.flink.table.utils.TableSchemaUtils;
+import org.apache.iceberg.flink.source.ScanOptions;
 
 public class FlinkTableFactory implements TableSinkFactory<RowData>, TableSourceFactory<RowData> {
   private final FlinkCatalog catalog;
@@ -42,7 +43,8 @@ public class FlinkTableFactory implements TableSinkFactory<RowData>, TableSource
     ObjectPath objectPath = context.getObjectIdentifier().toObjectPath();
     TableLoader tableLoader = createTableLoader(objectPath);
     TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(context.getTable().getSchema());
-    return new IcebergTableSource(tableLoader, catalog.getHadoopConf(), tableSchema, context.getTable().getOptions());
+    return new IcebergTableSource(tableLoader, catalog.getHadoopConf(), tableSchema,
+        ScanOptions.fromProperties(context.getTable().getOptions()));
   }
 
   @Override

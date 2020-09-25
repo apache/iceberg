@@ -156,11 +156,15 @@ public class FlinkSource {
     public DataStream<RowData> build() {
       Preconditions.checkNotNull(env, "StreamExecutionEnvironment should not be null");
       FlinkInputFormat format = buildFormat();
-      if (options.startSnapshotId() != null && options.endSnapshotId() == null) {
-        throw new UnsupportedOperationException("The Unbounded mode is not supported yet");
-      } else {
+      if (isBounded(options)) {
         return env.createInput(format, rowTypeInfo);
+      } else {
+        throw new UnsupportedOperationException("The Unbounded mode is not supported yet");
       }
     }
+  }
+
+  public static boolean isBounded(ScanOptions options) {
+    return options.startSnapshotId() == null || options.endSnapshotId() != null;
   }
 }
