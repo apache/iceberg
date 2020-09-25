@@ -171,9 +171,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         tbl.getParameters().put("EXTERNAL", "TRUE"); // using the external table type also requires this
       }
 
-      // If TableProperties.ENGINE_HIVE_ENABLED set the required properties on the table to be able to query from Hive
-      if (metadata.propertyAsBoolean(TableProperties.ENGINE_HIVE_ENABLED,
-          TableProperties.ENGINE_HIVE_ENABLED_DEFAULT)) {
+      // If  needed set the required properties on the table to be able to query from Hive
+      if (hiveEngineEnabled(metadata, conf)) {
         tbl.getParameters().put(hive_metastoreConstants.META_TABLE_STORAGE,
             "org.apache.iceberg.mr.hive.HiveIcebergStorageHandler");
         tbl.getSd().getSerdeInfo().setSerializationLib("org.apache.iceberg.mr.hive.HiveIcebergSerDe");
@@ -330,5 +329,28 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         "Not an iceberg table: %s (type=%s)", fullName, tableType);
     NoSuchIcebergTableException.check(table.getParameters().get(METADATA_LOCATION_PROP) != null,
         "Not an iceberg table: %s missing %s", fullName, METADATA_LOCATION_PROP);
+  }
+
+  /**
+   * Returns if the hive engine related values should be enabled on the table, or not.
+   * <p>
+   * The decision is made like this:
+   * <ol>
+   * <li>Table property value {@link TableProperties#ENGINE_HIVE_ENABLED}
+   * <li>If the table property is not set then check the hive-site.xml property value
+   * {@link TableProperties#ENGINE_HIVE_ENABLED_HIVE_CONF}
+   * <li>If none of the above is enabled then use the default value {@link TableProperties#ENGINE_HIVE_ENABLED_DEFAULT}
+   * </ol>
+   * @param metadata Table metadata to use
+   * @param conf The hive configuration to use
+   * @return if the hive engine related values should be enabled or not
+   */
+  private static boolean hiveEngineEnabled(TableMetadata metadata, Configuration conf) {
+    if (metadata.properties().get(TableProperties.ENGINE_HIVE_ENABLED) != null) {
+      // We know that the property is set, so default value will not be used,
+      return metadata.propertyAsBoolean(TableProperties.ENGINE_HIVE_ENABLED, false);
+    }
+
+    return conf.getBoolean(TableProperties.ENGINE_HIVE_ENABLED_HIVE_CONF, TableProperties.ENGINE_HIVE_ENABLED_DEFAULT);
   }
 }

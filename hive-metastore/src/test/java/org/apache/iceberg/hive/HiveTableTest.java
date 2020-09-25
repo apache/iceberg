@@ -334,39 +334,66 @@ public class HiveTableTest extends HiveTableBaseTest {
     // Default already created
     org.apache.hadoop.hive.metastore.api.Table hmsTable = metastoreClient.getTable(DB_NAME, TABLE_NAME);
 
-    Assert.assertNull(hmsTable.getParameters().get(hive_metastoreConstants.META_TABLE_STORAGE));
-    Assert.assertEquals("org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe",
-        hmsTable.getSd().getSerdeInfo().getSerializationLib());
-    Assert.assertEquals("org.apache.hadoop.mapred.FileInputFormat", hmsTable.getSd().getInputFormat());
-    Assert.assertEquals("org.apache.hadoop.mapred.FileOutputFormat", hmsTable.getSd().getOutputFormat());
+    assertHiveEnabled(hmsTable, false);
 
     catalog.dropTable(TABLE_IDENTIFIER);
 
+    // Enable by hive-conf
+    hiveConf.set(TableProperties.ENGINE_HIVE_ENABLED_HIVE_CONF, "true");
+
+    catalog.createTable(TABLE_IDENTIFIER, schema, PartitionSpec.unpartitioned());
+    hmsTable = metastoreClient.getTable(DB_NAME, TABLE_NAME);
+
+    assertHiveEnabled(hmsTable, true);
+
+    catalog.dropTable(TABLE_IDENTIFIER);
+
+    // Disable by hive-conf
+    hiveConf.set(TableProperties.ENGINE_HIVE_ENABLED_HIVE_CONF, "false");
+
+    catalog.createTable(TABLE_IDENTIFIER, schema, PartitionSpec.unpartitioned());
+    hmsTable = metastoreClient.getTable(DB_NAME, TABLE_NAME);
+
+    assertHiveEnabled(hmsTable, false);
+
+    catalog.dropTable(TABLE_IDENTIFIER);
+
+    // Enabled by table property - also check that the hive-conf is ignored
     Map<String, String> tableProperties = new HashMap<>();
+    tableProperties.put(TableProperties.ENGINE_HIVE_ENABLED, "true");
+    hiveConf.set(TableProperties.ENGINE_HIVE_ENABLED_HIVE_CONF, "false");
 
-    // Disabled
-    tableProperties.put(TableProperties.ENGINE_HIVE_ENABLED, "false");
     catalog.createTable(TABLE_IDENTIFIER, schema, PartitionSpec.unpartitioned(), tableProperties);
     hmsTable = metastoreClient.getTable(DB_NAME, TABLE_NAME);
 
-    Assert.assertNull(hmsTable.getParameters().get(hive_metastoreConstants.META_TABLE_STORAGE));
-    Assert.assertEquals("org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe",
-        hmsTable.getSd().getSerdeInfo().getSerializationLib());
-    Assert.assertEquals("org.apache.hadoop.mapred.FileInputFormat", hmsTable.getSd().getInputFormat());
-    Assert.assertEquals("org.apache.hadoop.mapred.FileOutputFormat", hmsTable.getSd().getOutputFormat());
+    assertHiveEnabled(hmsTable, true);
 
     catalog.dropTable(TABLE_IDENTIFIER);
 
-    // Enabled
-    tableProperties.put(TableProperties.ENGINE_HIVE_ENABLED, "true");
+    // Disabled by table property - also check that the hive-conf is ignored
+    tableProperties.put(TableProperties.ENGINE_HIVE_ENABLED, "false");
+    hiveConf.set(TableProperties.ENGINE_HIVE_ENABLED_HIVE_CONF, "true");
+
     catalog.createTable(TABLE_IDENTIFIER, schema, PartitionSpec.unpartitioned(), tableProperties);
     hmsTable = metastoreClient.getTable(DB_NAME, TABLE_NAME);
 
-    Assert.assertEquals("org.apache.iceberg.mr.hive.HiveIcebergStorageHandler",
-        hmsTable.getParameters().get(hive_metastoreConstants.META_TABLE_STORAGE));
-    Assert.assertEquals("org.apache.iceberg.mr.hive.HiveIcebergSerDe",
-        hmsTable.getSd().getSerdeInfo().getSerializationLib());
-    Assert.assertNull(hmsTable.getSd().getInputFormat());
-    Assert.assertNull(hmsTable.getSd().getOutputFormat());
+    assertHiveEnabled(hmsTable, false);
+  }
+
+  private void assertHiveEnabled(org.apache.hadoop.hive.metastore.api.Table hmsTable, boolean expected) {
+    if (expected) {
+      Assert.assertEquals("org.apache.iceberg.mr.hive.HiveIcebergStorageHandler",
+          hmsTable.getParameters().get(hive_metastoreConstants.META_TABLE_STORAGE));
+      Assert.assertEquals("org.apache.iceberg.mr.hive.HiveIcebergSerDe",
+          hmsTable.getSd().getSerdeInfo().getSerializationLib());
+      Assert.assertNull(hmsTable.getSd().getInputFormat());
+      Assert.assertNull(hmsTable.getSd().getOutputFormat());
+    } else {
+      Assert.assertNull(hmsTable.getParameters().get(hive_metastoreConstants.META_TABLE_STORAGE));
+      Assert.assertEquals("org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe",
+          hmsTable.getSd().getSerdeInfo().getSerializationLib());
+      Assert.assertEquals("org.apache.hadoop.mapred.FileInputFormat", hmsTable.getSd().getInputFormat());
+      Assert.assertEquals("org.apache.hadoop.mapred.FileOutputFormat", hmsTable.getSd().getOutputFormat());
+    }
   }
 }
