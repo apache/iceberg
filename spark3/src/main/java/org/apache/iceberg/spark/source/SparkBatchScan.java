@@ -99,27 +99,7 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     this.caseSensitive = caseSensitive;
     this.expectedSchema = expectedSchema;
     this.filterExpressions = filters;
-    this.snapshotId = Optional.ofNullable(Spark3Util.propertyAsLong(options,
-            "snapshot-id",
-            null))
-            .orElseGet(() -> Optional.ofNullable(options.get("snapshot-custom-id-key"))
-                    .map(k -> Optional.of(k)
-                            .filter(t -> t.startsWith(SnapshotSummary.EXTRA_METADATA_PREFIX))
-                            .orElseThrow(() -> new IllegalArgumentException(
-                                    "provided value for snapshot-custom-id-key must be prefixed with " +
-                                            SnapshotSummary.EXTRA_METADATA_PREFIX)))
-                    .flatMap(ik -> Optional.ofNullable(options.get(ik))
-                            .map(va -> (Optional<Long>) StreamSupport
-                                    .stream(table.snapshots().spliterator(), false)
-                                    .filter(s -> Optional.ofNullable(s.summary()
-                                            .get(ik.substring(SnapshotSummary.EXTRA_METADATA_PREFIX.length())))
-                                            .orElseThrow(() -> new IllegalArgumentException(
-                                                    "property " + ik + "does not exist in snapshot metadata"))
-                                            .equals(va))
-                                    .reduce((left, right) -> right)
-                                    .map(Snapshot::snapshotId))
-                            .orElseThrow(() -> new IllegalArgumentException("please specify a value for " + ik))
-                    ).orElse(null));
+    this.snapshotId = Spark3Util.propertyAsLong(options, "snapshot-id", null);
     this.asOfTimestamp = Spark3Util.propertyAsLong(options, "as-of-timestamp", null);
 
     if (snapshotId != null && asOfTimestamp != null) {

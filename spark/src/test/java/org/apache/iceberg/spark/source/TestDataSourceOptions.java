@@ -555,7 +555,6 @@ public abstract class TestDataSourceOptions {
                     .as(Encoders.bean(SimpleRecord.class))
                     .collectAsList(),
             spark.read()
-                    .option("snapshot-custom-id-key", "snapshot-property.external-id")
                     .option("snapshot-property.external-id", "1")
                     .format("iceberg")
                     .load(tableLocation)
