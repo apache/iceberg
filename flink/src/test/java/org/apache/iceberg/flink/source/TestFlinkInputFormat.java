@@ -96,19 +96,26 @@ public class TestFlinkInputFormat extends TestFlinkScan {
   }
 
   private List<Row> run(FlinkInputFormat inputFormat) throws IOException {
-    FlinkInputSplit[] splits = inputFormat.createInputSplits(0);
-    List<Row> results = Lists.newArrayList();
-
     RowType rowType = FlinkSchemaUtil.convert(inputFormat.projectedSchema());
 
     DataStructureConverter<Object, Object> converter = DataStructureConverters.getConverter(
         TypeConversions.fromLogicalToDataType(rowType));
 
+    return getRows(inputFormat).stream()
+        .map(converter::toExternal)
+        .map(Row.class::cast)
+        .collect(Collectors.toList());
+  }
+
+  public static List<RowData> getRows(FlinkInputFormat inputFormat) throws IOException {
+    FlinkInputSplit[] splits = inputFormat.createInputSplits(0);
+    List<RowData> results = Lists.newArrayList();
+
     for (FlinkInputSplit s : splits) {
       inputFormat.open(s);
       while (!inputFormat.reachedEnd()) {
         RowData row = inputFormat.nextRecord(null);
-        results.add((Row) converter.toExternal(row));
+        results.add(row);
       }
     }
     inputFormat.close();

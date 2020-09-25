@@ -149,8 +149,8 @@ public class FlinkSource {
         expectedSchema = FlinkSchemaUtil.convert(icebergSchema, projectedSchema);
       }
 
-      return new FlinkInputFormat(tableLoader, expectedSchema, io, encryption, filterExpressions, options,
-          new SerializableConfiguration(hadoopConf));
+      return new FlinkInputFormat(tableLoader, icebergSchema, expectedSchema, io, encryption, filterExpressions,
+          options, new SerializableConfiguration(hadoopConf));
     }
 
     public DataStream<RowData> build() {

@@ -24,6 +24,8 @@ import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.util.Utf8;
 import org.apache.flink.table.data.DecimalData;
@@ -32,11 +34,13 @@ import org.apache.flink.table.data.TimestampData;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.encryption.EncryptedFiles;
+import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
@@ -50,23 +54,35 @@ import org.apache.iceberg.util.DateTimeUtil;
 abstract class DataIterator<T> implements CloseableIterator<T> {
 
   private Iterator<FileScanTask> tasks;
-  private final FileIO io;
-  private final EncryptionManager encryption;
+  private final Map<String, InputFile> inputFiles;
 
   private CloseableIterator<T> currentIterator;
 
   DataIterator(CombinedScanTask task, FileIO io, EncryptionManager encryption) {
     this.tasks = task.files().iterator();
-    this.io = io;
-    this.encryption = encryption;
+
+    Stream<EncryptedInputFile> encrypted = task.files().stream()
+        .flatMap(fileScanTask -> Stream.concat(Stream.of(fileScanTask.file()), fileScanTask.deletes().stream()))
+        .map(file -> EncryptedFiles.encryptedInput(io.newInputFile(file.path().toString()), file.keyMetadata()));
+
+    // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
+    Iterable<InputFile> decryptedFiles = encryption.decrypt(encrypted::iterator);
+
+    ImmutableMap.Builder<String, InputFile> inputFileBuilder = ImmutableMap.builder();
+    decryptedFiles.forEach(decrypted -> inputFileBuilder.put(decrypted.location(), decrypted));
+    this.inputFiles = inputFileBuilder.build();
+
     this.currentIterator = CloseableIterator.empty();
   }
 
   InputFile getInputFile(FileScanTask task) {
     Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
-    return encryption.decrypt(EncryptedFiles.encryptedInput(
-        io.newInputFile(task.file().path().toString()),
-        task.file().keyMetadata()));
+
+    return inputFiles.get(task.file().path().toString());
+  }
+
+  InputFile getInputFile(String location) {
+    return inputFiles.get(location);
   }
 
   @Override
