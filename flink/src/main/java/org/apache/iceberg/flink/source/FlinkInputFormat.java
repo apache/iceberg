@@ -42,14 +42,17 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   private static final long serialVersionUID = 1L;
 
   private final TableLoader tableLoader;
+  private final Schema tableSchema;
   private final FileIO io;
   private final EncryptionManager encryption;
   private final ScanContext context;
 
   private transient RowDataIterator iterator;
 
-  FlinkInputFormat(TableLoader tableLoader, FileIO io, EncryptionManager encryption, ScanContext context) {
+  FlinkInputFormat(TableLoader tableLoader, Schema tableSchema, FileIO io, EncryptionManager encryption,
+                   ScanContext context) {
     this.tableLoader = tableLoader;
+    this.tableSchema = tableSchema;
     this.io = io;
     this.encryption = encryption;
     this.context = context;
@@ -88,7 +91,8 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   @Override
   public void open(FlinkInputSplit split) {
     this.iterator = new RowDataIterator(
-        split.getTask(), io, encryption, context.projectedSchema(), context.nameMapping(), context.caseSensitive());
+        split.getTask(), io, encryption, tableSchema, context.projectedSchema(), context.nameMapping(),
+        context.caseSensitive());
   }
 
   @Override

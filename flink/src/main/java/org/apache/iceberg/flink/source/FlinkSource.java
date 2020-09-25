@@ -180,7 +180,7 @@ public class FlinkSource {
       context = context.project(projectedSchema == null ? icebergSchema :
           FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
 
-      return new FlinkInputFormat(tableLoader, io, encryption, context);
+      return new FlinkInputFormat(tableLoader, icebergSchema, io, encryption, context);
     }
 
     public DataStream<RowData> build() {

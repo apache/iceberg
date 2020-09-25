@@ -22,6 +22,7 @@ package org.apache.iceberg.flink.source;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
@@ -104,6 +105,22 @@ public class TestFlinkInputFormat extends TestFlinkScan {
   }
 
   private List<Row> runFormat(FlinkInputFormat inputFormat) throws IOException {
+    return getRows(inputFormat);
+  }
+
+  public static List<RowData> getRowData(FlinkInputFormat inputFormat) throws IOException {
+    RowType rowType = FlinkSchemaUtil.convert(inputFormat.projectedSchema());
+
+    DataStructureConverter<Object, Object> converter = DataStructureConverters.getConverter(
+        TypeConversions.fromLogicalToDataType(rowType));
+
+    return getRows(inputFormat).stream()
+        .map(converter::toInternal)
+        .map(RowData.class::cast)
+        .collect(Collectors.toList());
+  }
+
+  public static List<Row> getRows(FlinkInputFormat inputFormat) throws IOException {
     FlinkInputSplit[] splits = inputFormat.createInputSplits(0);
     List<Row> results = Lists.newArrayList();
 
