@@ -151,8 +151,7 @@ public class HadoopTables implements Tables, Configurable {
    * Drop a table and delete all data and metadata files.
    *
    * @param location a path URI (e.g. hdfs:///warehouse/my_table)
-   * @return true if the table was dropped
-   * @throws NoSuchTableException if the table does not exists.
+   * @return true if the table was dropped, false if it did not exist
    */
   public boolean dropTable(String location) {
     return dropTable(location, true);
@@ -165,8 +164,7 @@ public class HadoopTables implements Tables, Configurable {
    *
    * @param location a path URI (e.g. hdfs:///warehouse/my_table)
    * @param purge if true, delete all data and metadata files in the table
-   * @return true if the table was dropped
-   * @throws NoSuchTableException if the table does not exists.
+   * @return true if the table was dropped, false if it did not exist
    */
   public boolean dropTable(String location, boolean purge) {
     TableOperations ops = newTableOps(location);
@@ -176,7 +174,7 @@ public class HadoopTables implements Tables, Configurable {
         lastMetadata = ops.current();
       }
     } else {
-      throw new NoSuchTableException("Table does not exist at location: %s, so it can not be dropped", location);
+      return false;
     }
 
     try {
