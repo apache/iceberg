@@ -49,6 +49,7 @@ import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -168,8 +169,16 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
             null,
             TableType.EXTERNAL_TABLE.toString());
         tbl.getParameters().put("EXTERNAL", "TRUE"); // using the external table type also requires this
+      }
+
+      // If TableProperties.ENGINE_HIVE_ENABLED set the required properties on the table to be able to query from Hive
+      if (metadata.propertyAsBoolean(TableProperties.ENGINE_HIVE_ENABLED,
+          TableProperties.ENGINE_HIVE_ENABLED_DEFAULT)) {
         tbl.getParameters().put(hive_metastoreConstants.META_TABLE_STORAGE,
             "org.apache.iceberg.mr.hive.HiveIcebergStorageHandler");
+        tbl.getSd().getSerdeInfo().setSerializationLib("org.apache.iceberg.mr.hive.HiveIcebergSerDe");
+        tbl.getSd().setInputFormat(null);
+        tbl.getSd().setOutputFormat(null);
       }
 
       String metadataLocation = tbl.getParameters().get(METADATA_LOCATION_PROP);
@@ -244,8 +253,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     final StorageDescriptor storageDescriptor = new StorageDescriptor();
     storageDescriptor.setCols(columns(metadata.schema()));
     storageDescriptor.setLocation(metadata.location());
+    storageDescriptor.setOutputFormat("org.apache.hadoop.mapred.FileOutputFormat");
+    storageDescriptor.setInputFormat("org.apache.hadoop.mapred.FileInputFormat");
     SerDeInfo serDeInfo = new SerDeInfo();
-    serDeInfo.setSerializationLib("org.apache.iceberg.mr.hive.HiveIcebergSerDe");
+    serDeInfo.setSerializationLib("org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe");
     storageDescriptor.setSerdeInfo(serDeInfo);
     return storageDescriptor;
   }

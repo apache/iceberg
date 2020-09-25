@@ -22,19 +22,23 @@ package org.apache.iceberg.hive;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.Namespace;
@@ -325,4 +329,44 @@ public class HiveTableTest extends HiveTableBaseTest {
     metastoreClient.dropDatabase(NON_DEFAULT_DATABASE, true, true, true);
   }
 
+  @Test
+  public void testEngineHiveEnabled() throws TException {
+    // Default already created
+    org.apache.hadoop.hive.metastore.api.Table hmsTable = metastoreClient.getTable(DB_NAME, TABLE_NAME);
+
+    Assert.assertNull(hmsTable.getParameters().get(hive_metastoreConstants.META_TABLE_STORAGE));
+    Assert.assertEquals("org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe",
+        hmsTable.getSd().getSerdeInfo().getSerializationLib());
+    Assert.assertEquals("org.apache.hadoop.mapred.FileInputFormat", hmsTable.getSd().getInputFormat());
+    Assert.assertEquals("org.apache.hadoop.mapred.FileOutputFormat", hmsTable.getSd().getOutputFormat());
+
+    catalog.dropTable(TABLE_IDENTIFIER);
+
+    Map<String, String> tableProperties = new HashMap<>();
+
+    // Disabled
+    tableProperties.put(TableProperties.ENGINE_HIVE_ENABLED, "false");
+    catalog.createTable(TABLE_IDENTIFIER, schema, PartitionSpec.unpartitioned(), tableProperties);
+    hmsTable = metastoreClient.getTable(DB_NAME, TABLE_NAME);
+
+    Assert.assertNull(hmsTable.getParameters().get(hive_metastoreConstants.META_TABLE_STORAGE));
+    Assert.assertEquals("org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe",
+        hmsTable.getSd().getSerdeInfo().getSerializationLib());
+    Assert.assertEquals("org.apache.hadoop.mapred.FileInputFormat", hmsTable.getSd().getInputFormat());
+    Assert.assertEquals("org.apache.hadoop.mapred.FileOutputFormat", hmsTable.getSd().getOutputFormat());
+
+    catalog.dropTable(TABLE_IDENTIFIER);
+
+    // Enabled
+    tableProperties.put(TableProperties.ENGINE_HIVE_ENABLED, "true");
+    catalog.createTable(TABLE_IDENTIFIER, schema, PartitionSpec.unpartitioned(), tableProperties);
+    hmsTable = metastoreClient.getTable(DB_NAME, TABLE_NAME);
+
+    Assert.assertEquals("org.apache.iceberg.mr.hive.HiveIcebergStorageHandler",
+        hmsTable.getParameters().get(hive_metastoreConstants.META_TABLE_STORAGE));
+    Assert.assertEquals("org.apache.iceberg.mr.hive.HiveIcebergSerDe",
+        hmsTable.getSd().getSerdeInfo().getSerializationLib());
+    Assert.assertNull(hmsTable.getSd().getInputFormat());
+    Assert.assertNull(hmsTable.getSd().getOutputFormat());
+  }
 }
