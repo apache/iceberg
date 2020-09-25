@@ -20,10 +20,20 @@
 package org.apache.iceberg.hadoop;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
@@ -38,7 +48,7 @@ import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.SortDirection.ASC;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-public class TestHadoopTablesSortOrder {
+public class TestHadoopTables {
 
   private static final HadoopTables TABLES = new HadoopTables();
   private static final Schema SCHEMA = new Schema(
@@ -48,12 +58,54 @@ public class TestHadoopTablesSortOrder {
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
-  private String tableLocation = null;
+  private File tableDir = null;
 
   @Before
   public void setupTableLocation() throws Exception {
-    File tableDir = temp.newFolder();
-    this.tableLocation = tableDir.toURI().toString();
+    tableDir = temp.newFolder();
+  }
+
+  @Test
+  public void testDropTable() {
+    TABLES.create(SCHEMA, tableDir.toURI().toString());
+    TABLES.dropTable(tableDir.toURI().toString());
+    AssertHelpers.assertThrows(
+        "Should complain about missing table", NoSuchTableException.class,
+        "Table does not exist", () -> TABLES.load(tableDir.toURI().toString()));
+  }
+
+  @Test
+  public void testDropTableWithPurge() throws IOException {
+    File dataDir = temp.newFolder();
+
+    createDummyTable(tableDir, dataDir);
+
+    TABLES.dropTable(tableDir.toURI().toString(), true);
+    AssertHelpers.assertThrows(
+        "Should complain about missing table", NoSuchTableException.class,
+        "Table does not exist", () -> TABLES.load(tableDir.toURI().toString()));
+
+    Assert.assertEquals(0, dataDir.listFiles().length);
+    Assert.assertFalse(tableDir.exists());
+
+    Assert.assertFalse(TABLES.dropTable(tableDir.toURI().toString()));
+  }
+
+  @Test
+  public void testDropTableWithoutPurge() throws IOException {
+    File dataDir = temp.newFolder();
+
+    createDummyTable(tableDir, dataDir);
+
+    TABLES.dropTable(tableDir.toURI().toString(), false);
+    AssertHelpers.assertThrows(
+        "Should complain about missing table", NoSuchTableException.class,
+        "Table does not exist", () -> TABLES.load(tableDir.toURI().toString()));
+
+    Assert.assertEquals(1, dataDir.listFiles().length);
+    Assert.assertFalse(tableDir.exists());
+
+    Assert.assertFalse(TABLES.dropTable(tableDir.toURI().toString()));
   }
 
   @Test
@@ -61,7 +113,7 @@ public class TestHadoopTablesSortOrder {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
         .bucket("data", 16)
         .build();
-    Table table = TABLES.create(SCHEMA, spec, tableLocation);
+    Table table = TABLES.create(SCHEMA, spec, tableDir.toURI().toString());
 
     SortOrder sortOrder = table.sortOrder();
     Assert.assertEquals("Order ID must match", 0, sortOrder.orderId());
@@ -76,7 +128,7 @@ public class TestHadoopTablesSortOrder {
     SortOrder order = SortOrder.builderFor(SCHEMA)
         .asc("id", NULLS_FIRST)
         .build();
-    Table table = TABLES.create(SCHEMA, spec, order, Maps.newHashMap(), tableLocation);
+    Table table = TABLES.create(SCHEMA, spec, order, Maps.newHashMap(), tableDir.toURI().toString());
 
     SortOrder sortOrder = table.sortOrder();
     Assert.assertEquals("Order ID must match", 1, sortOrder.orderId());
@@ -85,5 +137,23 @@ public class TestHadoopTablesSortOrder {
     Assert.assertEquals("Null order must match ", NULLS_FIRST, sortOrder.fields().get(0).nullOrder());
     Transform<?, ?> transform = Transforms.identity(Types.IntegerType.get());
     Assert.assertEquals("Transform must match", transform, sortOrder.fields().get(0).transform());
+  }
+
+  private static void createDummyTable(File tableDir, File dataDir) throws IOException {
+    Table table = TABLES.create(SCHEMA, tableDir.toURI().toString());
+    AppendFiles append = table.newAppend();
+    String data = dataDir.getPath() + "/data.parquet";
+    Files.write(Paths.get(data), new ArrayList<>(), StandardCharsets.UTF_8);
+    DataFile dataFile = DataFiles.builder(PartitionSpec.unpartitioned())
+        .withPath(data)
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .build();
+    append.appendFile(dataFile);
+    append.commit();
+
+    // Make sure that the data file and the manifest dir is created
+    Assert.assertEquals(1, dataDir.listFiles().length);
+    Assert.assertEquals(1, tableDir.listFiles().length);
   }
 }

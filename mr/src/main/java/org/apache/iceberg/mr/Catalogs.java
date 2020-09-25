@@ -19,9 +19,16 @@
 
 package org.apache.iceberg.mr;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PartitionSpecParser;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -32,9 +39,20 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveCatalogs;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Class for catalog resolution and accessing the common functions for {@link Catalog} API.
+ * <p>
+ * Catalog resolution happens in this order:
+ * <ol>
+ * <li>Custom catalog if specified by {@link InputFormatConfig#CATALOG_LOADER_CLASS}
+ * <li>Hadoop or Hive catalog if specified by {@link InputFormatConfig#CATALOG}
+ * <li>Hadoop Tables
+ * </ol>
+ */
 public final class Catalogs {
   private static final Logger LOG = LoggerFactory.getLogger(Catalogs.class);
 
@@ -44,15 +62,14 @@ public final class Catalogs {
   private static final String NAME = "name";
   private static final String LOCATION = "location";
 
+  private static final Set<String> PROPERTIES_TO_REMOVE =
+      ImmutableSet.of(InputFormatConfig.TABLE_SCHEMA, InputFormatConfig.PARTITION_SPEC, LOCATION, NAME);
+
   private Catalogs() {
   }
 
   /**
    * Load an Iceberg table using the catalog and table identifier (or table path) specified by the configuration.
-   * Catalog resolution happens in this order:
-   * 1. Custom catalog if specified by {@link InputFormatConfig#CATALOG_LOADER_CLASS}
-   * 2. Hadoop or Hive catalog if specified by {@link InputFormatConfig#CATALOG}
-   * 3. Hadoop Tables
    * @param conf a Hadoop conf
    * @return an Iceberg table
    */
@@ -60,7 +77,17 @@ public final class Catalogs {
     return loadTable(conf, conf.get(InputFormatConfig.TABLE_IDENTIFIER), conf.get(InputFormatConfig.TABLE_LOCATION));
   }
 
-  // For use in HiveIcebergSerDe and HiveIcebergStorageHandler
+  /**
+   * Load an Iceberg table using the catalog specified by the configuration.
+   * <p>
+   * The table identifier ({@link Catalogs#NAME}) or table path ({@link Catalogs#LOCATION}) should be specified by
+   * the controlling properties.
+   * <p>
+   * Used by HiveIcebergSerDe and HiveIcebergStorageHandler
+   * @param conf a Hadoop
+   * @param props the controlling properties
+   * @return an Iceberg table
+   */
   public static Table loadTable(Configuration conf, Properties props) {
     return loadTable(conf, props.getProperty(NAME), props.getProperty(LOCATION));
   }
@@ -75,6 +102,79 @@ public final class Catalogs {
 
     Preconditions.checkArgument(tableLocation != null, "Table location not set");
     return new HadoopTables(conf).load(tableLocation);
+  }
+
+  /**
+   * Creates an Iceberg table using the catalog specified by the configuration.
+   * <p>
+   * The properties should contain the following values:
+   * <ul>
+   * <li>Table identifier ({@link Catalogs#NAME}) or table path ({@link Catalogs#LOCATION}) is required
+   * <li>Table schema ({@link InputFormatConfig#TABLE_SCHEMA}) is required
+   * <li>Partition specification ({@link InputFormatConfig#PARTITION_SPEC}) is optional. Table will be unpartitioned if
+   *  not provided
+   * </ul><p>
+   * Other properties will be handled over to the Table creation. The controlling properties above will not be
+   * propagated.
+   * @param conf a Hadoop conf
+   * @param props the controlling properties
+   * @return the created Iceberg table
+   */
+  public static Table createTable(Configuration conf, Properties props) {
+    String schemaString = props.getProperty(InputFormatConfig.TABLE_SCHEMA);
+    Preconditions.checkNotNull(schemaString, "Table schema not set");
+    Schema schema = SchemaParser.fromJson(props.getProperty(InputFormatConfig.TABLE_SCHEMA));
+
+    String specString = props.getProperty(InputFormatConfig.PARTITION_SPEC);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    if (specString != null) {
+      spec = PartitionSpecParser.fromJson(schema, specString);
+    }
+
+    String location = props.getProperty(LOCATION);
+
+    // Create a table property map without the controlling properties
+    Map<String, String> map = new HashMap<>(props.size());
+    for (Object key : props.keySet()) {
+      if (!PROPERTIES_TO_REMOVE.contains(key)) {
+        map.put(key.toString(), props.get(key).toString());
+      }
+    }
+
+    Optional<Catalog> catalog = loadCatalog(conf);
+
+    if (catalog.isPresent()) {
+      String name = props.getProperty(NAME);
+      Preconditions.checkNotNull(name, "Table identifier not set");
+      return catalog.get().createTable(TableIdentifier.parse(name), schema, spec, location, map);
+    }
+
+    Preconditions.checkNotNull(location, "Table location not set");
+    return new HadoopTables(conf).create(schema, spec, map, location);
+  }
+
+  /**
+   * Drops an Iceberg table using the catalog specified by the configuration.
+   * <p>
+   * The table identifier ({@link Catalogs#NAME}) or table path ({@link Catalogs#LOCATION}) should be specified by
+   * the controlling properties.
+   * @param conf a Hadoop conf
+   * @param props the controlling properties
+   * @return the created Iceberg table
+   */
+  public static boolean dropTable(Configuration conf, Properties props) {
+    String location = props.getProperty(LOCATION);
+
+    Optional<Catalog> catalog = loadCatalog(conf);
+
+    if (catalog.isPresent()) {
+      String name = props.getProperty(NAME);
+      Preconditions.checkNotNull(name, "Table identifier not set");
+      return catalog.get().dropTable(TableIdentifier.parse(name));
+    }
+
+    Preconditions.checkNotNull(location, "Table location not set");
+    return new HadoopTables(conf).dropTable(location);
   }
 
   @VisibleForTesting
