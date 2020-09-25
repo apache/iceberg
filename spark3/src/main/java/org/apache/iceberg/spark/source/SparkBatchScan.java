@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
@@ -206,6 +207,38 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     }
 
     return new Stats(sizeInBytes, numRows);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    SparkBatchScan that = (SparkBatchScan) o;
+    // compare Spark schemas to ignore field ids
+    StructType thisSchema = SparkSchemaUtil.convert(expectedSchema);
+    StructType thatSchema = SparkSchemaUtil.convert(that.expectedSchema);
+    return caseSensitive == that.caseSensitive &&
+        table.toString().equals(that.table.toString()) &&
+        thisSchema.equals(thatSchema) &&
+        filterExpressions.toString().equals(that.filterExpressions.toString()) &&
+        Objects.equals(snapshotId, that.snapshotId) &&
+        Objects.equals(startSnapshotId, that.startSnapshotId) &&
+        Objects.equals(endSnapshotId, that.endSnapshotId) &&
+        Objects.equals(asOfTimestamp, that.asOfTimestamp);
+  }
+
+  @Override
+  public int hashCode() {
+    StructType sparkSchema = SparkSchemaUtil.convert(expectedSchema);
+    return Objects.hash(
+        table.toString(), caseSensitive, sparkSchema, filterExpressions.toString(), snapshotId, startSnapshotId,
+        endSnapshotId, asOfTimestamp);
   }
 
   private List<CombinedScanTask> tasks() {
