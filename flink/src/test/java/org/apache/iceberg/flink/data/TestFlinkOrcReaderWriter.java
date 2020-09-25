@@ -61,7 +61,7 @@ public class TestFlinkOrcReaderWriter extends DataTest {
 
     try (CloseableIterable<RowData> reader = ORC.read(Files.localInput(recordsFile))
         .project(schema)
-        .createReaderFunc(type -> FlinkOrcReader.buildReader(schema, type))
+        .createReaderFunc(type -> new FlinkOrcReader(schema, type))
         .build()) {
       Iterator<Record> expected = expectedRecords.iterator();
       Iterator<RowData> rows = reader.iterator();
