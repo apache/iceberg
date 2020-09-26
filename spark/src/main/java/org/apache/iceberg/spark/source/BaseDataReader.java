@@ -29,6 +29,7 @@ import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedInputFile;
@@ -38,6 +39,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.spark.rdd.InputFileBlockHolder;
@@ -58,9 +60,12 @@ abstract class BaseDataReader<T> implements Closeable {
 
   BaseDataReader(CombinedScanTask task, FileIO io, EncryptionManager encryptionManager) {
     this.tasks = task.files().iterator();
-    Stream<EncryptedInputFile> encrypted = task.files().stream()
-        .flatMap(fileScanTask -> Stream.concat(Stream.of(fileScanTask.file()), fileScanTask.deletes().stream()))
-        .map(file -> EncryptedFiles.encryptedInput(io.newInputFile(file.path().toString()), file.keyMetadata()));
+    Map<CharSequence, DeleteFile> uniqueDeleteFileMap = Maps.newHashMap();
+    task.files().forEach(files -> files.deletes()
+        .forEach(deleteFile -> uniqueDeleteFileMap.put(deleteFile.path(), deleteFile)));
+    Stream<EncryptedInputFile> encrypted = Stream.concat(task.files().stream()
+        .map(fileScanTask -> fileScanTask.file()), uniqueDeleteFileMap.values().stream())
+        .map(file ->  EncryptedFiles.encryptedInput(io.newInputFile(file.path().toString()), file.keyMetadata()));
 
     // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
     Iterable<InputFile> decryptedFiles = encryptionManager.decrypt(encrypted::iterator);
