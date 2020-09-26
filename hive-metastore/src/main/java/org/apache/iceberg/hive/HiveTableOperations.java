@@ -55,6 +55,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -142,6 +143,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
+    boolean hiveEngineEnabled = hiveEngineEnabled(metadata, conf);
 
     boolean threw = true;
     Optional<Long> lockId = Optional.empty();
@@ -152,7 +154,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       if (base != null) {
         LOG.debug("Committing existing table: {}", fullName);
         tbl = metaClients.run(client -> client.getTable(database, tableName));
-        tbl.setSd(storageDescriptor(metadata)); // set to pickup any schema changes
+        tbl.setSd(storageDescriptor(metadata, hiveEngineEnabled)); // set to pickup any schema changes
       } else {
         LOG.debug("Committing new table: {}", fullName);
         final long currentTimeMillis = System.currentTimeMillis();
@@ -162,7 +164,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
             (int) currentTimeMillis / 1000,
             (int) currentTimeMillis / 1000,
             Integer.MAX_VALUE,
-            storageDescriptor(metadata),
+            storageDescriptor(metadata, hiveEngineEnabled),
             Collections.emptyList(),
             new HashMap<>(),
             null,
@@ -171,13 +173,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         tbl.getParameters().put("EXTERNAL", "TRUE"); // using the external table type also requires this
       }
 
-      // If  needed set the required properties on the table to be able to query from Hive
-      if (hiveEngineEnabled(metadata, conf)) {
+      // If needed set the 'storate_handler' property to enable query from Hive
+      if (hiveEngineEnabled) {
         tbl.getParameters().put(hive_metastoreConstants.META_TABLE_STORAGE,
             "org.apache.iceberg.mr.hive.HiveIcebergStorageHandler");
-        tbl.getSd().getSerdeInfo().setSerializationLib("org.apache.iceberg.mr.hive.HiveIcebergSerDe");
-        tbl.getSd().setInputFormat(null);
-        tbl.getSd().setOutputFormat(null);
       }
 
       String metadataLocation = tbl.getParameters().get(METADATA_LOCATION_PROP);
@@ -247,15 +246,21 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     tbl.setParameters(parameters);
   }
 
-  private StorageDescriptor storageDescriptor(TableMetadata metadata) {
+  private StorageDescriptor storageDescriptor(TableMetadata metadata, boolean hiveEngineEnabled) {
 
     final StorageDescriptor storageDescriptor = new StorageDescriptor();
     storageDescriptor.setCols(columns(metadata.schema()));
     storageDescriptor.setLocation(metadata.location());
-    storageDescriptor.setOutputFormat("org.apache.hadoop.mapred.FileOutputFormat");
-    storageDescriptor.setInputFormat("org.apache.hadoop.mapred.FileInputFormat");
     SerDeInfo serDeInfo = new SerDeInfo();
-    serDeInfo.setSerializationLib("org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe");
+    if (hiveEngineEnabled) {
+      storageDescriptor.setInputFormat(null);
+      storageDescriptor.setOutputFormat(null);
+      serDeInfo.setSerializationLib("org.apache.iceberg.mr.hive.HiveIcebergSerDe");
+    } else {
+      storageDescriptor.setOutputFormat("org.apache.hadoop.mapred.FileOutputFormat");
+      storageDescriptor.setInputFormat("org.apache.hadoop.mapred.FileInputFormat");
+      serDeInfo.setSerializationLib("org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe");
+    }
     storageDescriptor.setSerdeInfo(serDeInfo);
     return storageDescriptor;
   }
@@ -338,7 +343,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
    * <ol>
    * <li>Table property value {@link TableProperties#ENGINE_HIVE_ENABLED}
    * <li>If the table property is not set then check the hive-site.xml property value
-   * {@link TableProperties#ENGINE_HIVE_ENABLED_HIVE_CONF}
+   * {@link ConfigProperties#ENGINE_HIVE_ENABLED}
    * <li>If none of the above is enabled then use the default value {@link TableProperties#ENGINE_HIVE_ENABLED_DEFAULT}
    * </ol>
    * @param metadata Table metadata to use
@@ -351,6 +356,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       return metadata.propertyAsBoolean(TableProperties.ENGINE_HIVE_ENABLED, false);
     }
 
-    return conf.getBoolean(TableProperties.ENGINE_HIVE_ENABLED_HIVE_CONF, TableProperties.ENGINE_HIVE_ENABLED_DEFAULT);
+    return conf.getBoolean(ConfigProperties.ENGINE_HIVE_ENABLED, TableProperties.ENGINE_HIVE_ENABLED_DEFAULT);
   }
 }

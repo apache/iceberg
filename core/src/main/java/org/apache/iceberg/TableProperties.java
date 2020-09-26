@@ -128,6 +128,5 @@ public class TableProperties {
   public static final boolean SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT = false;
 
   public static final String ENGINE_HIVE_ENABLED = "engine.hive.enabled";
-  public static final String ENGINE_HIVE_ENABLED_HIVE_CONF = "iceberg.engine.hive.enabled";
   public static final boolean ENGINE_HIVE_ENABLED_DEFAULT = false;
 }
