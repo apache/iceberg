@@ -332,7 +332,13 @@ public class HiveTableTest extends HiveTableBaseTest {
 
   @Test
   public void testEngineHiveEnabledDefault() throws TException {
-    // Default already created
+    // Drop the previously created table to make place for the new one
+    catalog.dropTable(TABLE_IDENTIFIER);
+
+    // Unset in hive-conf
+    hiveConf.unset(ConfigProperties.ENGINE_HIVE_ENABLED);
+
+    catalog.createTable(TABLE_IDENTIFIER, schema, PartitionSpec.unpartitioned());
     org.apache.hadoop.hive.metastore.api.Table hmsTable = metastoreClient.getTable(DB_NAME, TABLE_NAME);
 
     assertHiveEnabled(hmsTable, false);
