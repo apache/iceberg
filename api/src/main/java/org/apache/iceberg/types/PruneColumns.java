@@ -29,7 +29,7 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   private final Set<Integer> selected;
 
   PruneColumns(Set<Integer> selected) {
-    Preconditions.checkNotNull(selected, "Selected cannot be null");
+    Preconditions.checkNotNull(selected, "Selected field ids cannot be null");
     this.selected = selected;
   }
 
