@@ -21,6 +21,7 @@ package org.apache.iceberg.parquet;
 
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
