@@ -32,6 +32,7 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
   private final Set<Integer> selectedIds;
 
   PruneColumns(Set<Integer> selectedIds) {
+    Preconditions.checkNotNull(selectedIds, "Selected field ids cannot be null");
     this.selectedIds = selectedIds;
   }
 
