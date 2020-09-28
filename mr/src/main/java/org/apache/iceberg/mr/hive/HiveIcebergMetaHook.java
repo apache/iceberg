@@ -77,7 +77,7 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
       String specString = catalogProperties.getProperty(InputFormatConfig.PARTITION_SPEC);
       if (specString != null) {
         // Just check if it is parsable
-        PartitionSpecParser.fromJson(schema, schemaString);
+        PartitionSpecParser.fromJson(schema, specString);
       }
 
       // Allow purging table data if the table is created now and not set otherwise

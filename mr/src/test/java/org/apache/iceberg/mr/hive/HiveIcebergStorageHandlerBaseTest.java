@@ -37,6 +37,7 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
@@ -98,7 +99,11 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   private static final PartitionSpec SPEC = PartitionSpec.unpartitioned();
 
-  protected static TestHiveMetastore metastore;
+  private static final PartitionSpec IDENTITY_SPEC =
+      PartitionSpec.builderFor(CUSTOMER_SCHEMA).identity("customer_id").build();
+
+  // before variables
+  protected TestHiveMetastore metastore;
 
   private TestTables testTables;
 
@@ -252,6 +257,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
         (location != null ? "LOCATION '" + location + "' " : "") +
         "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" + SchemaParser.toJson(CUSTOMER_SCHEMA) + "', " +
+        "'" + InputFormatConfig.PARTITION_SPEC + "'='" + PartitionSpecParser.toJson(IDENTITY_SPEC) + "', " +
         "'dummy'='test')");
 
     Properties properties = new Properties();
@@ -263,6 +269,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     // Check the Iceberg table data
     org.apache.iceberg.Table icebergTable = Catalogs.loadTable(shell.getHiveConf(), properties);
     Assert.assertEquals(SchemaParser.toJson(CUSTOMER_SCHEMA), SchemaParser.toJson(icebergTable.schema()));
+    Assert.assertEquals(PartitionSpecParser.toJson(IDENTITY_SPEC), PartitionSpecParser.toJson(icebergTable.spec()));
     Map<String, String> expectedIcebergProperties = new HashMap<>(2);
     expectedIcebergProperties.put("dummy", "test");
     expectedIcebergProperties.put(HiveTableOperations.TABLE_FROM_HIVE, "true");
@@ -308,6 +315,96 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
           Catalogs.loadTable(shell.getHiveConf(), properties);
         }
     );
+  }
+
+  @Test
+  public void testCreateTableWithoutSpec() throws TException {
+    // We need the location for HadoopTable based tests only
+    String location = locationForCreateTable(temp.getRoot().getPath(), "customers");
+    shell.executeStatement("CREATE EXTERNAL TABLE customers " +
+        "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+        (location != null ? "LOCATION '" + location + "' " : "") +
+        "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" + SchemaParser.toJson(CUSTOMER_SCHEMA) + "')");
+
+    Properties properties = new Properties();
+    properties.put(Catalogs.NAME, TableIdentifier.of("default", "customers").toString());
+    if (location != null) {
+      properties.put(Catalogs.LOCATION, location);
+    }
+
+    // Check the Iceberg table partition data
+    org.apache.iceberg.Table icebergTable = Catalogs.loadTable(shell.getHiveConf(), properties);
+    Assert.assertEquals(PartitionSpecParser.toJson(SPEC), PartitionSpecParser.toJson(icebergTable.spec()));
+
+    // Check the HMS table parameters
+    IMetaStoreClient client = null;
+    org.apache.hadoop.hive.metastore.api.Table hmsTable;
+    try {
+      client = new HiveMetaStoreClient(metastore.hiveConf());
+      hmsTable = client.getTable("default", "customers");
+    } finally {
+      if (client != null) {
+        client.close();
+      }
+    }
+
+    Map<String, String> hmsParams = hmsTable.getParameters();
+
+    // Just check that the PartitionSpec is not set in the metadata
+    Assert.assertNull(hmsParams.get(InputFormatConfig.PARTITION_SPEC));
+
+    if (needToCheckSnapshotLocation()) {
+      Assert.assertEquals(6, hmsParams.size());
+    } else {
+      Assert.assertEquals(5, hmsParams.size());
+    }
+
+    shell.executeStatement("DROP TABLE customers");
+  }
+
+  @Test
+  public void testCreateTableWithUnpartitionedSpec() throws TException {
+    // We need the location for HadoopTable based tests only
+    String location = locationForCreateTable(temp.getRoot().getPath(), "customers");
+    shell.executeStatement("CREATE EXTERNAL TABLE customers " +
+        "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+        (location != null ? "LOCATION '" + location + "' " : "") +
+        "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" + SchemaParser.toJson(CUSTOMER_SCHEMA) + "', " +
+        "'" + InputFormatConfig.PARTITION_SPEC + "'='" + PartitionSpecParser.toJson(SPEC) + "')");
+
+    Properties properties = new Properties();
+    properties.put(Catalogs.NAME, TableIdentifier.of("default", "customers").toString());
+    if (location != null) {
+      properties.put(Catalogs.LOCATION, location);
+    }
+
+    // Check the Iceberg table partition data
+    org.apache.iceberg.Table icebergTable = Catalogs.loadTable(shell.getHiveConf(), properties);
+    Assert.assertEquals(PartitionSpecParser.toJson(SPEC), PartitionSpecParser.toJson(icebergTable.spec()));
+
+    // Check the HMS table parameters
+    IMetaStoreClient client = null;
+    org.apache.hadoop.hive.metastore.api.Table hmsTable;
+    try {
+      client = new HiveMetaStoreClient(metastore.hiveConf());
+      hmsTable = client.getTable("default", "customers");
+    } finally {
+      if (client != null) {
+        client.close();
+      }
+    }
+
+    Map<String, String> hmsParams = hmsTable.getParameters();
+
+    // Just check that the PartitionSpec is not set in the metadata
+    Assert.assertNull(hmsParams.get(InputFormatConfig.PARTITION_SPEC));
+    if (needToCheckSnapshotLocation()) {
+      Assert.assertEquals(6, hmsParams.size());
+    } else {
+      Assert.assertEquals(5, hmsParams.size());
+    }
+
+    shell.executeStatement("DROP TABLE customers");
   }
 
   @Test
