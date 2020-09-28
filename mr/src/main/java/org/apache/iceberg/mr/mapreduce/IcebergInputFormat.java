@@ -53,9 +53,10 @@ import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.hadoop.HadoopInputFile;
+import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
@@ -165,6 +166,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private Iterator<FileScanTask> tasks;
     private T currentRow;
     private CloseableIterator<T> currentIterator;
+    private FileIO fileIO;
 
     @Override
     public void initialize(InputSplit split, TaskAttemptContext newContext) {
@@ -172,6 +174,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       // For now IcebergInputFormat does its own split planning and does not accept FileSplit instances
       CombinedScanTask task = ((IcebergSplit) split).task();
       this.context = newContext;
+      this.fileIO = new HadoopFileIO(this.context.getConfiguration());
       this.tasks = task.files().iterator();
       this.tableSchema = SchemaParser.fromJson(conf.get(InputFormatConfig.TABLE_SCHEMA));
       String readSchemaStr = conf.get(InputFormatConfig.READ_SCHEMA);
@@ -227,8 +230,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     private CloseableIterable<T> open(FileScanTask currentTask, Schema readSchema) {
       DataFile file = currentTask.file();
-      // TODO we should make use of FileIO to create inputFile
-      InputFile inputFile = HadoopInputFile.fromLocation(file.path(), context.getConfiguration());
+      InputFile inputFile = fileIO.newInputFile(file.path().toString());
       CloseableIterable<T> iterable;
       switch (file.format()) {
         case AVRO:
