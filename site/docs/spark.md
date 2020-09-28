@@ -519,6 +519,59 @@ data.writeTo("prod.db.table")
     .createOrReplace()
 ```
 
+## Writing against partitioned table
+
+Iceberg requires the data to be sorted according to the partition spec in prior to write against partitioned table.
+This applies both Writing with SQL and Writing with DataFrames.
+
+Assuming we would like to write the data against below sample table:
+
+```sql
+CREATE TABLE prod.db.sample (
+    id bigint,
+    data string,
+    category string,
+    ts timestamp)
+USING iceberg
+PARTITIONED BY (bucket(16, id), days(ts), category)
+```
+
+then your data needs to be sorted by `bucket(16, id), days(ts), category` before writing to the table, like below:
+
+```scala
+val sorted = data.sortWithinPartitions(expr("iceberg_bucket16(id)"), expr("iceberg_days(ts)"), col("category"))
+```
+
+You can create a temporary view from the resulting DataFrame to write with SQL, or write with Dataframe directly.
+
+If the partition spec of the table consists of `transformation` (non-identity), you need to register the Iceberg
+transform function in Spark to specify it during sort. For example, to register `iceberg_bucket16` function in above query:
+
+```scala
+import org.apache.iceberg.transforms.Transforms
+import org.apache.iceberg.types.Types
+import org.apache.spark.sql.types.IntegerType
+import org.apache.spark.sql.types.StringType
+
+// Load the bucket transform from Iceberg to use as a UDF.
+// Here the source type is `Types.LongType`, and matching Java type is `java.lang.Long`.
+val bucketTransform = Transforms.bucket[java.lang.Long](Types.LongType.get(), 16)
+
+// Needed because Scala has trouble with the Java transform type.
+// The return type of `bucket` transform is int, so the method's return type is.
+def bucketFunc(id: Long): Int = bucketTransform.apply(id)
+
+// create and register a UDF
+spark.udf.register("iceberg_bucket16", bucketFunc _)
+```
+
+You can find all available methods in [Transforms](/javadoc/master/index.html?org/apache/iceberg/transforms/Transforms.html),
+which are associated with methods in [PartitionSpec.Builder](/javadoc/master/index.html?org/apache/iceberg/PartitionSpec.Builder.html).
+The method name is equivalent to the transform in supported partition transforms.
+
+As you see the example, to initialize the transform function and register as a UDF, you need to provide the source type,
+and the matching Java type, and the return type. [Partitioning in Spec](/spec/#partition-transforms) describes source type
+and return type of the transform.
 
 ## Inspecting tables
 
