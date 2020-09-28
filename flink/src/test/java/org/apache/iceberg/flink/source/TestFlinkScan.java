@@ -29,6 +29,10 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import org.apache.flink.table.api.TableColumn;
+import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.conversion.DataStructureConverter;
 import org.apache.flink.table.data.conversion.DataStructureConverters;
@@ -53,7 +57,9 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataConverter;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.Assert;
@@ -102,22 +108,47 @@ public abstract class TestFlinkScan extends AbstractTestBase {
     catalog = new HadoopCatalog(conf, warehouse);
   }
 
-  private List<Row> execute(Table table) throws IOException {
-    return execute(table, ScanOptions.builder().build());
+  private List<Row> runWithProjection(String... projected) throws IOException {
+    TableSchema.Builder builder = TableSchema.builder();
+    TableSchema schema = FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(
+        catalog.loadTable(TableIdentifier.of("default", "t")).schema()));
+    for (String field : projected) {
+      TableColumn column = schema.getTableColumn(field).get();
+      builder.field(column.getName(), column.getType());
+    }
+    return run(FlinkSource.forRowData().project(builder.build()), Maps.newHashMap(), "", projected);
   }
 
-  protected abstract List<Row> execute(Table table, List<String> projectFields) throws IOException;
+  protected List<Row> runWithFilter(Expression filter, String sqlFilter) throws IOException {
+    FlinkSource.Builder builder = FlinkSource.forRowData().filters(Collections.singletonList(filter));
+    return run(builder, Maps.newHashMap(), sqlFilter, "*");
+  }
 
-  protected abstract List<Row> execute(Table table, ScanOptions options) throws IOException;
+  private List<Row> runWithOptions(Map<String, String> options) throws IOException {
+    FlinkSource.Builder builder = FlinkSource.forRowData();
+    Optional.ofNullable(options.get("snapshot-id")).ifPresent(value -> builder.snapshotId(Long.parseLong(value)));
+    Optional.ofNullable(options.get("start-snapshot-id"))
+        .ifPresent(value -> builder.startSnapshotId(Long.parseLong(value)));
+    Optional.ofNullable(options.get("end-snapshot-id"))
+        .ifPresent(value -> builder.endSnapshotId(Long.parseLong(value)));
+    Optional.ofNullable(options.get("as-of-timestamp"))
+        .ifPresent(value -> builder.asOfTimestamp(Long.parseLong(value)));
+    return run(builder, options, "", "*");
+  }
 
-  protected abstract List<Row> execute(Table table, List<Expression> filters, String sqlFilter) throws IOException;
+  private List<Row> run() throws IOException {
+    return run(FlinkSource.forRowData(), Maps.newHashMap(), "", "*");
+  }
+
+  protected abstract List<Row> run(FlinkSource.Builder formatBuilder, Map<String, String> sqlOptions, String sqlFilter,
+                                   String... sqlSelectedFields) throws IOException;
 
   @Test
   public void testUnpartitionedTable() throws Exception {
     Table table = catalog.createTable(TableIdentifier.of("default", "t"), SCHEMA);
     List<Record> expectedRecords = RandomGenericData.generate(SCHEMA, 2, 0L);
     new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(expectedRecords);
-    assertRecords(execute(table), expectedRecords, SCHEMA);
+    assertRecords(run(), expectedRecords, SCHEMA);
   }
 
   @Test
@@ -127,7 +158,7 @@ public abstract class TestFlinkScan extends AbstractTestBase {
     expectedRecords.get(0).set(2, "2020-03-20");
     new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(
         org.apache.iceberg.TestHelpers.Row.of("2020-03-20", 0), expectedRecords);
-    assertRecords(execute(table), expectedRecords, SCHEMA);
+    assertRecords(run(), expectedRecords, SCHEMA);
   }
 
   @Test
@@ -136,7 +167,7 @@ public abstract class TestFlinkScan extends AbstractTestBase {
     List<Record> inputRecords = RandomGenericData.generate(SCHEMA, 1, 0L);
     new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(
         org.apache.iceberg.TestHelpers.Row.of("2020-03-20", 0), inputRecords);
-    assertRows(execute(table, Collections.singletonList("data")), Row.of(inputRecords.get(0).get(0)));
+    assertRows(runWithProjection("data"), Row.of(inputRecords.get(0).get(0)));
   }
 
   @Test
@@ -186,9 +217,9 @@ public abstract class TestFlinkScan extends AbstractTestBase {
     validateIdentityPartitionProjections(table, Arrays.asList("message", "level", "dt"), inputRecords);
   }
 
-  private void validateIdentityPartitionProjections(Table table, List<String> projectedFields,
-      List<Record> inputRecords) throws IOException {
-    List<Row> rows = execute(table, projectedFields);
+  private void validateIdentityPartitionProjections(
+      Table table, List<String> projectedFields, List<Record> inputRecords) throws IOException {
+    List<Row> rows = runWithProjection(projectedFields.toArray(new String[0]));
 
     for (int pos = 0; pos < inputRecords.size(); pos++) {
       Record inputRecord = inputRecords.get(pos);
@@ -215,13 +246,16 @@ public abstract class TestFlinkScan extends AbstractTestBase {
     long timestampMillis = table.currentSnapshot().timestampMillis();
 
     // produce another timestamp
-    waitUntilAfter(10);
+    waitUntilAfter(System.currentTimeMillis() + 10);
     helper.appendToTable(RandomGenericData.generate(SCHEMA, 1, 0L));
 
     assertRecords(
-        execute(table, ScanOptions.builder().snapshotId(snapshotId).build()), expectedRecords, SCHEMA);
+        runWithOptions(ImmutableMap.<String, String>builder().put("snapshot-id", Long.toString(snapshotId)).build()),
+        expectedRecords, SCHEMA);
     assertRecords(
-        execute(table, ScanOptions.builder().asOfTimestamp(timestampMillis).build()), expectedRecords, SCHEMA);
+        runWithOptions(
+            ImmutableMap.<String, String>builder().put("as-of-timestamp", Long.toString(timestampMillis)).build()),
+        expectedRecords, SCHEMA);
   }
 
   @Test
@@ -248,7 +282,9 @@ public abstract class TestFlinkScan extends AbstractTestBase {
     List<Record> expected2 = Lists.newArrayList();
     expected2.addAll(records2);
     expected2.addAll(records3);
-    assertRecords(execute(table, ScanOptions.builder().startSnapshotId(snapshotId1).endSnapshotId(snapshotId3).build()),
+    assertRecords(runWithOptions(ImmutableMap.<String, String>builder()
+            .put("start-snapshot-id", Long.toString(snapshotId1))
+            .put("end-snapshot-id", Long.toString(snapshotId3)).build()),
         expected2, SCHEMA);
   }
 
@@ -265,8 +301,8 @@ public abstract class TestFlinkScan extends AbstractTestBase {
     DataFile dataFile2 = helper.writeFile(TestHelpers.Row.of("2020-03-21", 0),
         RandomGenericData.generate(SCHEMA, 2, 0L));
     helper.appendToTable(dataFile1, dataFile2);
-    List<Expression> filters = Collections.singletonList(Expressions.equal("dt", "2020-03-20"));
-    assertRecords(execute(table, filters, "dt='2020-03-20'"), expectedRecords, SCHEMA);
+    assertRecords(runWithFilter(Expressions.equal("dt", "2020-03-20"), "where dt='2020-03-20'"), expectedRecords,
+        SCHEMA);
   }
 
   @Test
@@ -297,7 +333,7 @@ public abstract class TestFlinkScan extends AbstractTestBase {
       appender.appendToTable(partition, Collections.singletonList(record));
     }
 
-    assertRecords(execute(table), records, typesSchema);
+    assertRecords(run(), records, typesSchema);
   }
 
   static void assertRecords(List<Row> results, List<Record> expectedRecords, Schema schema) {

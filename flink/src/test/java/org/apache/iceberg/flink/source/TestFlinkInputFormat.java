@@ -21,7 +21,7 @@ package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
@@ -36,7 +36,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -50,8 +49,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
  */
 public class TestFlinkInputFormat extends TestFlinkScan {
 
-  private FlinkSource.Builder builder;
-
   public TestFlinkInputFormat(String fileFormat) {
     super(fileFormat);
   }
@@ -59,24 +56,17 @@ public class TestFlinkInputFormat extends TestFlinkScan {
   @Override
   public void before() throws IOException {
     super.before();
-    builder = FlinkSource.forRowData().tableLoader(TableLoader.fromHadoopTable(warehouse + "/default/t"));
+  }
+
+  private TableLoader loader() {
+    return TableLoader.fromHadoopTable(warehouse + "/default/t");
   }
 
   @Override
-  protected List<Row> execute(Table table, List<String> projectFields) throws IOException {
-    Schema projected = new Schema(projectFields.stream().map(f ->
-        table.schema().asStruct().field(f)).collect(Collectors.toList()));
-    return run(builder.project(FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(projected))).buildFormat());
-  }
-
-  @Override
-  protected List<Row> execute(Table table, ScanOptions options) throws IOException {
-    return run(builder.options(options).buildFormat());
-  }
-
-  @Override
-  protected List<Row> execute(Table table, List<Expression> filters, String sqlFilter) throws IOException {
-    return run(builder.filters(filters).buildFormat());
+  protected List<Row> run(
+      FlinkSource.Builder formatBuilder, Map<String, String> sqlOptions, String sqlFilter, String... sqlSelectedFields)
+      throws IOException {
+    return runFormat(formatBuilder.tableLoader(loader()).buildFormat());
   }
 
   @Test
@@ -102,7 +92,7 @@ public class TestFlinkInputFormat extends TestFlinkScan {
     TableSchema projectedSchema = TableSchema.builder()
         .field("nested", DataTypes.ROW(DataTypes.FIELD("f2", DataTypes.STRING())))
         .field("data", DataTypes.STRING()).build();
-    List<Row> result = run(builder.project(projectedSchema).buildFormat());
+    List<Row> result = runFormat(FlinkSource.forRowData().tableLoader(loader()).project(projectedSchema).buildFormat());
 
     List<Row> expected = Lists.newArrayList();
     for (Record record : writeRecords) {
@@ -113,7 +103,7 @@ public class TestFlinkInputFormat extends TestFlinkScan {
     assertRows(result, expected);
   }
 
-  private List<Row> run(FlinkInputFormat inputFormat) throws IOException {
+  private List<Row> runFormat(FlinkInputFormat inputFormat) throws IOException {
     FlinkInputSplit[] splits = inputFormat.createInputSplits(0);
     List<Row> results = Lists.newArrayList();
 

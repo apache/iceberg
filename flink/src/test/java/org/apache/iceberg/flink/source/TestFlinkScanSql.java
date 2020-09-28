@@ -20,8 +20,8 @@
 package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.config.TableConfigOptions;
@@ -61,27 +61,12 @@ public class TestFlinkScanSql extends TestFlinkScan {
   }
 
   @Override
-  protected List<Row> execute(Table table, List<String> projectFields) throws IOException {
-    String sql = String.format("select %s from t", String.join(",", projectFields));
-    return executeSQL(sql);
-  }
+  protected List<Row> run(FlinkSource.Builder formatBuilder, Map<String, String> sqlOptions, String sqlFilter,
+                          String... sqlSelectedFields) {
+    String select = String.join(",", sqlSelectedFields);
 
-  @Override
-  protected List<Row> execute(Table table, ScanOptions options) throws IOException {
     StringBuilder builder = new StringBuilder();
-
-    if (options.snapshotId() != null) {
-      builder.append(optionToKv(ScanOptions.SNAPSHOT_ID.key(), options.snapshotId())).append(",");
-    }
-    if (options.startSnapshotId() != null) {
-      builder.append(optionToKv(ScanOptions.START_SNAPSHOT_ID.key(), options.startSnapshotId())).append(",");
-    }
-    if (options.endSnapshotId() != null) {
-      builder.append(optionToKv(ScanOptions.END_SNAPSHOT_ID.key(), options.endSnapshotId())).append(",");
-    }
-    if (options.asOfTimestamp() != null) {
-      builder.append(optionToKv(ScanOptions.AS_OF_TIMESTAMP.key(), options.asOfTimestamp())).append(",");
-    }
+    sqlOptions.forEach((key, value) -> builder.append(optionToKv(key, value)).append(","));
 
     String optionStr = builder.toString();
 
@@ -93,13 +78,7 @@ public class TestFlinkScanSql extends TestFlinkScan {
       optionStr = String.format("/*+ OPTIONS(%s)*/", optionStr);
     }
 
-    String sql = String.format("select * from t %s", optionStr);
-    return executeSQL(sql);
-  }
-
-  @Override
-  protected List<Row> execute(Table table, List<Expression> filters, String sqlFilter) throws IOException {
-    String sql = String.format("select * from t where %s", sqlFilter);
+    String sql = String.format("select %s from t %s %s", select, optionStr, sqlFilter);
     return executeSQL(sql);
   }
 
@@ -123,8 +102,8 @@ public class TestFlinkScanSql extends TestFlinkScan {
         RandomGenericData.generate(SCHEMA, 2, 0L));
     helper.appendToTable(dataFile1, dataFile2);
 
-    List<Expression> filters = Arrays.asList(Expressions.equal("dt", "2020-03-20"), Expressions.equal("id", 123));
-    assertRecords(execute(table, filters, "dt='2020-03-20' and id=123"), expectedRecords, SCHEMA);
+    Expression filter = Expressions.and(Expressions.equal("dt", "2020-03-20"), Expressions.equal("id", 123));
+    assertRecords(runWithFilter(filter, "where dt='2020-03-20' and id=123"), expectedRecords, SCHEMA);
   }
 
   private List<Row> executeSQL(String sql) {

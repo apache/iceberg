@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink;
 
 import java.util.Arrays;
+import java.util.Map;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
@@ -33,7 +34,6 @@ import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.utils.TableConnectorUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.flink.source.FlinkSource;
-import org.apache.iceberg.flink.source.ScanOptions;
 
 /**
  * Flink Iceberg table source.
@@ -44,16 +44,16 @@ public class IcebergTableSource implements StreamTableSource<RowData>, Projectab
   private final TableLoader loader;
   private final Configuration hadoopConf;
   private final TableSchema schema;
-  private final ScanOptions options;
+  private final Map<String, String> options;
   private final int[] projectedFields;
 
   public IcebergTableSource(TableLoader loader, Configuration hadoopConf, TableSchema schema,
-                            ScanOptions options) {
+                            Map<String, String> options) {
     this(loader, hadoopConf, schema, options, null);
   }
 
   private IcebergTableSource(TableLoader loader, Configuration hadoopConf, TableSchema schema,
-                             ScanOptions options, int[] projectedFields) {
+                             Map<String, String> options, int[] projectedFields) {
     this.loader = loader;
     this.hadoopConf = hadoopConf;
     this.schema = schema;
@@ -74,7 +74,7 @@ public class IcebergTableSource implements StreamTableSource<RowData>, Projectab
   @Override
   public DataStream<RowData> getDataStream(StreamExecutionEnvironment execEnv) {
     return FlinkSource.forRowData().env(execEnv).tableLoader(loader).hadoopConf(hadoopConf)
-        .project(getProjectedSchema()).options(options).build();
+        .project(getProjectedSchema()).properties(options).build();
   }
 
   @Override
