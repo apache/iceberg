@@ -101,6 +101,10 @@ subprojects {
     options.encoding = "UTF-8"
   }
 
+  javadoc {
+    options.encoding = 'UTF-8'
+  }
+
   ext {
     jmhVersion = '1.21'
   }
