@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -80,6 +81,15 @@ public class TestHiveMetastore {
     if (hiveLocalDir != null) {
       hiveLocalDir.delete();
     }
+
+    // remove raw store if exists
+    try {
+      Method cleanupRawStore = HiveMetaStore.class.getDeclaredMethod("cleanupRawStore");
+      cleanupRawStore.setAccessible(true);
+      cleanupRawStore.invoke(null);
+    } catch (Exception e) {
+      // no op
+    }
   }
 
   public HiveConf hiveConf() {
@@ -94,8 +104,24 @@ public class TestHiveMetastore {
   private TServer newThriftServer(TServerSocket socket, HiveConf conf) throws Exception {
     HiveConf serverConf = new HiveConf(conf);
     serverConf.set(HiveConf.ConfVars.METASTORECONNECTURLKEY.varname, "jdbc:derby:" + getDerbyPath() + ";create=true");
-    HiveMetaStore.HMSHandler baseHandler = new HiveMetaStore.HMSHandler("new db based metaserver", serverConf);
-    IHMSHandler handler = RetryingHMSHandler.getProxy(serverConf, baseHandler, false);
+
+    // create the metastore handlers based on whether we're working with Hive2 or Hive3 dependencies
+    // we need to do this because there is a breaking API change between Hive2 and Hive3
+    HiveMetaStore.HMSHandler baseHandler;
+    IHMSHandler handler;
+    if (MetastoreUtil.hive3PresentOnClasspath()) {
+      baseHandler = (HiveMetaStore.HMSHandler) Class
+              .forName(HiveMetaStore.HMSHandler.class.getName())
+              .getConstructor(String.class, Configuration.class)
+              .newInstance("new db based metaserver", serverConf);
+      handler = (IHMSHandler) Class
+              .forName(RetryingHMSHandler.class.getName())
+              .getDeclaredMethod("getProxy", Configuration.class, IHMSHandler.class, boolean.class)
+              .invoke(null, serverConf, baseHandler, false);
+    } else {
+      baseHandler = new HiveMetaStore.HMSHandler("new db based metaserver", serverConf);
+      handler = RetryingHMSHandler.getProxy(serverConf, baseHandler, false);
+    }
 
     TThreadPoolServer.Args args = new TThreadPoolServer.Args(socket)
         .processor(new TSetIpAddressProcessor<>(handler))

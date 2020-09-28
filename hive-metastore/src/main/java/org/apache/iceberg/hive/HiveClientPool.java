@@ -41,7 +41,16 @@ public class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> 
   @Override
   protected HiveMetaStoreClient newClient()  {
     try {
-      return new HiveMetaStoreClient(hiveConf);
+      // create the metastore client based on whether we're working with Hive2 or Hive3 dependencies
+      // we need to do this because there is a breaking API change between Hive2 and Hive3
+      if (MetastoreUtil.hive3PresentOnClasspath()) {
+        return (HiveMetaStoreClient) Class
+                .forName(HiveMetaStoreClient.class.getName())
+                .getConstructor(Configuration.class)
+                .newInstance(hiveConf);
+      } else {
+        return new HiveMetaStoreClient(hiveConf);
+      }
     } catch (MetaException e) {
       throw new RuntimeMetaException(e, "Failed to connect to Hive Metastore");
     } catch (Throwable t) {

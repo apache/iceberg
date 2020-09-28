@@ -23,10 +23,13 @@ import java.util.List;
 import javax.annotation.Nullable;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.DateObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.hive.MetastoreUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -72,7 +75,20 @@ public final class IcebergObjectInspector extends TypeUtil.SchemaVisitor<ObjectI
         primitiveTypeInfo = TypeInfoFactory.booleanTypeInfo;
         break;
       case DATE:
-        return IcebergDateObjectInspector.get();
+        // create the correct inspector based on whether we're working with Hive2 or Hive3 dependencies
+        // we need to do this because there is a breaking API change in DateObjectInspector between Hive2 and Hive3
+        if (MetastoreUtil.hive3PresentOnClasspath()) {
+          try {
+            return (DateObjectInspector) Class
+                    .forName("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspectorHive3")
+                    .getMethod("get")
+                    .invoke(null);
+          } catch (Exception e) {
+            throw new RuntimeException("Unable to instantiate Hive3 date object inspector", e);
+          }
+        } else {
+          return IcebergDateObjectInspector.get();
+        }
       case DECIMAL:
         Types.DecimalType type = (Types.DecimalType) primitiveType;
         return IcebergDecimalObjectInspector.get(type.precision(), type.scale());
@@ -96,6 +112,18 @@ public final class IcebergObjectInspector extends TypeUtil.SchemaVisitor<ObjectI
         break;
       case TIMESTAMP:
         boolean adjustToUTC = ((Types.TimestampType) primitiveType).shouldAdjustToUTC();
+        // create the correct inspector based on whether we're working with Hive2 or Hive3 dependencies
+        // we need to do this b/c there is a breaking API change in TimestampObjectInspector between Hive2 and Hive3
+        if (MetastoreUtil.hive3PresentOnClasspath()) {
+          try {
+            return (TimestampObjectInspector) Class
+                    .forName("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampObjectInspectorHive3")
+                    .getMethod("get", boolean.class)
+                    .invoke(null, adjustToUTC);
+          } catch (Exception e) {
+            throw new RuntimeException("Unable to instantiate Hive3 timestamp object inspector", e);
+          }
+        }
         return IcebergTimestampObjectInspector.get(adjustToUTC);
 
       case TIME:
