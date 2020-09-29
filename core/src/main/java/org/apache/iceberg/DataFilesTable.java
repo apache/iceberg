@@ -59,8 +59,8 @@ public class DataFilesTable extends BaseMetadataTable {
   public Schema schema() {
     Schema schema = new Schema(DataFile.getType(table.spec().partitionType()).fields());
     if (table.spec().fields().size() < 1) {
-      // avoid returning an empty struct, which is not always supported. instead, drop the partition field (id 102)
-      return TypeUtil.selectNot(schema, Sets.newHashSet(102));
+      // avoid returning an empty struct, which is not always supported. instead, drop the partition field
+      return TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.PARTITION_ID));
     } else {
       return schema;
     }
