@@ -34,6 +34,8 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A Flink Catalog factory implementation that creates {@link FlinkCatalog}.
@@ -54,22 +56,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
  */
 public class FlinkCatalogFactory implements CatalogFactory {
 
+  private static final Logger LOGGER = LoggerFactory.getLogger(FlinkCatalogFactory.class);
   // Can not just use "type", it conflicts with CATALOG_TYPE.
   public static final String ICEBERG_CATALOG_TYPE = "catalog-type";
-  public static final String ICEBERG_CATALOG_TYPE_HIVE = "hive";
-  public static final String ICEBERG_CATALOG_TYPE_HADOOP = "hadoop";
-
   public static final String HIVE_URI = "uri";
   public static final String HIVE_CLIENT_POOL_SIZE = "clients";
   public static final String HADOOP_WAREHOUSE_LOCATION = "warehouse";
-
   public static final String HIVE_SITE_PATH = "hive-site-path";
-  public static final String HIVE_SITE_SCHEMA_FILE = "file";
-  public static final String HIVE_SITE_SCHEMA_HDFS = "hdfs";
 
   public static final String DEFAULT_DATABASE = "default-database";
   public static final String BASE_NAMESPACE = "base-namespace";
-
 
   /**
    * Create an Iceberg {@link org.apache.iceberg.catalog.Catalog} loader to be used by this Flink catalog adapter.
@@ -79,14 +75,14 @@ public class FlinkCatalogFactory implements CatalogFactory {
    * @return an Iceberg catalog loader
    */
   protected CatalogLoader createCatalogLoader(String name, Map<String, String> options) {
-    String catalogType = options.getOrDefault(ICEBERG_CATALOG_TYPE, ICEBERG_CATALOG_TYPE_HIVE);
+    String catalogType = options.getOrDefault(ICEBERG_CATALOG_TYPE, "hive");
     switch (catalogType) {
-      case ICEBERG_CATALOG_TYPE_HIVE:
+      case "hive":
         int clientPoolSize = Integer.parseInt(options.getOrDefault(HIVE_CLIENT_POOL_SIZE, "2"));
         String uri = options.get(HIVE_URI);
         return CatalogLoader.hive(name, uri, clientPoolSize);
 
-      case ICEBERG_CATALOG_TYPE_HADOOP:
+      case "hadoop":
         String warehouseLocation = options.get(HADOOP_WAREHOUSE_LOCATION);
         return CatalogLoader.hadoop(name, warehouseLocation);
 
@@ -119,8 +115,8 @@ public class FlinkCatalogFactory implements CatalogFactory {
   @Override
   public Catalog createCatalog(String name, Map<String, String> properties) {
     Configuration configuration = clusterHadoopConf();
-    String catalogType = properties.get(ICEBERG_CATALOG_TYPE);
-    if (catalogType.equals(ICEBERG_CATALOG_TYPE_HIVE)) {
+    String catalogType  = properties.get(ICEBERG_CATALOG_TYPE);
+    if (catalogType.equals("hive")) {
       loadHiveConf(configuration, properties);
     }
     return createCatalog(name, properties, configuration);
@@ -143,44 +139,22 @@ public class FlinkCatalogFactory implements CatalogFactory {
   private void loadHiveConf(Configuration configuration, Map<String, String> properties) {
     String hiveConfPath = properties.get(HIVE_SITE_PATH);
     Path path = new Path(hiveConfPath);
-    String schema = getSchema(path);
-    // We can add more storage support later，like s3
-    switch (schema) {
-      case HIVE_SITE_SCHEMA_HDFS:
-        downloadFromHdfs(configuration, path);
-        break;
-      case HIVE_SITE_SCHEMA_FILE:
-        loadLocalHiveConf(configuration, hiveConfPath);
-        break;
-      default:
-        throw new UnsupportedOperationException(
-            "Unsupported FileSystem for schema :" + schema);
-    }
-  }
-
-  private String getSchema(Path path) {
-    String schema = path.toUri().getScheme();
-    if (schema == null) {
-      // for case :  /tmp/hive-site.xml
-      return HIVE_SITE_SCHEMA_FILE;
+    if (hiveConfPath.startsWith("hdfs")) {
+      download(configuration, path);
     } else {
-      return schema;
+      File file = new File(hiveConfPath);
+      if (!file.exists()) {
+        LOGGER.error("{} doesn't exist. if in application mode ," +
+                " please provide a hdfs path for hive-site.xml", hiveConfPath);
+      } else {
+        configuration.addResource(path);
+      }
     }
   }
 
-  private void loadLocalHiveConf(Configuration configuration, String localHiveSitePath) {
-    File file = new File(localHiveSitePath);
-    if (!file.exists()) {
-      throw new RuntimeException(localHiveSitePath + " doesn't exist. if in application mode ," +
-          " please provide a hdfs path for hive-site.xml");
-    } else {
-      configuration.addResource(localHiveSitePath);
-    }
-  }
-
-  private void downloadFromHdfs(Configuration configuration, Path hdfsHiveSitePath) {
+  private void download(Configuration configuration, Path hdfsHiveSitePath) {
     try {
-      File tmpFile = File.createTempFile("hive-site.xml-", ".tmp");
+      File tmpFile = File.createTempFile("hive-site.xml-", "");
       FileSystem fs = FileSystem.get(configuration);
       Path sourcePath = fs.makeQualified(hdfsHiveSitePath);
       if (!fs.exists(sourcePath)) {
@@ -190,7 +164,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
       fs.copyToLocalFile(sourcePath, destPath);
       configuration.addResource(destPath);
     } catch (IOException e) {
-      throw new RuntimeException("copy hive-site.xml  to local error ", e);
+      LOGGER.error("copy hive-site.xml from hdfs to local error :", e);
     }
   }
 }
