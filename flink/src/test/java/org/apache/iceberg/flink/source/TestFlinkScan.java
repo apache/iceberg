@@ -246,7 +246,7 @@ public abstract class TestFlinkScan extends AbstractTestBase {
     long timestampMillis = table.currentSnapshot().timestampMillis();
 
     // produce another timestamp
-    waitUntilAfter(System.currentTimeMillis() + 10);
+    waitUntilAfter(timestampMillis);
     helper.appendToTable(RandomGenericData.generate(SCHEMA, 1, 0L));
 
     assertRecords(
