@@ -582,21 +582,10 @@ PARTITIONED BY (bucket(16, id))
 You need to register the function to deal with bucket, like below:
 
 ```scala
-import org.apache.iceberg.transforms.Transforms
-import org.apache.iceberg.types.Types
-import org.apache.spark.sql.types.IntegerType
-import org.apache.spark.sql.types.StringType
+import org.apache.iceberg.spark.IcebergSpark
+import org.apache.spark.sql.types.DataTypes
 
-// Load the bucket transform from Iceberg to use as a UDF.
-// Here the source type is `Types.LongType`, and matching Java type is `java.lang.Long`.
-val bucketTransform = Transforms.bucket[java.lang.Long](Types.LongType.get(), 16)
-
-// Needed because Scala has trouble with the Java transform type.
-// The return type of `bucket` transform is int, so the method's return type is.
-def bucketFunc(id: Long): Int = bucketTransform.apply(id)
-
-// create and register a UDF
-spark.udf.register("iceberg_bucket16", bucketFunc _)
+IcebergSpark.registerBucketUDF(spark, "iceberg_bucket16", DataTypes.LongType, 16)
 ```
 
 !!! Note
