@@ -34,7 +34,7 @@ import org.apache.iceberg.types.Types;
 
 public final class IcebergObjectInspector extends TypeUtil.SchemaVisitor<ObjectInspector> {
 
-  // get the correct inspectors based on whether we're working with Hive2 or Hive3 dependencies
+  // get the correct inspectors depending on whether we're working with Hive2 or Hive3 dependencies
   // we need to do this because there is a breaking API change in Date/TimestampObjectInspector between Hive2 and Hive3
   private static final DynMethods.StaticMethod DATE_INSPECTOR = DynMethods.builder("get")
       .impl("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspectorHive3", null)
