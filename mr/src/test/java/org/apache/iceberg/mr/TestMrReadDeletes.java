@@ -34,15 +34,14 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
 public class TestMrReadDeletes extends DeletesReadTest {
+  private final Configuration conf = new Configuration();
+  private final HadoopTables tables = new HadoopTables(conf);
   private TestHelper helper;
-  private InputFormatConfig.ConfigBuilder builder;
-  private Configuration conf;
 
   // parametrized variables
   private final TestIcebergInputFormats.TestInputFormat.Factory<Record> testInputFormat;
@@ -60,11 +59,16 @@ public class TestMrReadDeletes extends DeletesReadTest {
     };
   }
 
+  public TestMrReadDeletes(String inputFormat, FileFormat fileFormat) {
+    this.testInputFormat = TestIcebergInputFormats.TestInputFormat.newFactory(inputFormat,
+        TestIcebergInputFormats.TestIcebergInputFormat::create);
+    this.fileFormat = fileFormat;
+  }
+
   @Override
   public Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException {
     Table table;
-    conf = new Configuration();
-    HadoopTables tables = new HadoopTables(conf);
+
     File location = temp.newFolder(testInputFormat.name(), fileFormat.name());
     Assert.assertTrue(location.delete());
     helper = new TestHelper(conf, tables, location.toString(), schema, spec, fileFormat, temp);
@@ -78,26 +82,17 @@ public class TestMrReadDeletes extends DeletesReadTest {
   }
 
   @Override
+  protected void dropTable(String name) {
+    tables.dropTable(helper.table().location());
+  }
+
+  @Override
   public StructLikeSet rowSet(Table table, String... columns) {
+    InputFormatConfig.ConfigBuilder builder = new InputFormatConfig.ConfigBuilder(conf).readFrom(table.location());
     Schema projected = table.schema().select(columns);
     StructLikeSet set = StructLikeSet.create(projected.asStruct());
     set.addAll(testInputFormat.create(builder.project(projected).conf()).getRecords());
 
     return set;
-  }
-
-  public TestMrReadDeletes(String inputFormat, FileFormat fileFormat) {
-    this.testInputFormat = TestIcebergInputFormats.TestInputFormat.newFactory(inputFormat,
-        TestIcebergInputFormats.TestIcebergInputFormat::create);
-    this.fileFormat = fileFormat;
-  }
-
-  @Before
-  public void prepareData() throws IOException {
-    this.table = createTable(null, SCHEMA, SPEC);
-    generateTestData();
-    helper.appendToTable(dataFile);
-
-    builder = new InputFormatConfig.ConfigBuilder(conf).readFrom(table.location());
   }
 }

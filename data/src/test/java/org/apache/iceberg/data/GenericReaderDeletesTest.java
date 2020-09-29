@@ -28,7 +28,6 @@ import org.apache.iceberg.TestTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.After;
-import org.junit.Before;
 
 public class GenericReaderDeletesTest extends DeletesReadTest {
 
@@ -41,21 +40,17 @@ public class GenericReaderDeletesTest extends DeletesReadTest {
   }
 
   @Override
+  protected void dropTable(String name) throws IOException {
+    TestTables.clearTables();
+  }
+
+  @Override
   public StructLikeSet rowSet(Table table, String... columns) throws IOException {
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
     try (CloseableIterable<Record> reader = IcebergGenerics.read(table).select(columns).build()) {
       reader.forEach(set::add);
     }
     return set;
-  }
-
-  @Before
-  public void writeTestDataFile() throws IOException {
-    this.table = createTable("test", SCHEMA, SPEC);
-    generateTestData();
-    table.newAppend()
-        .appendFile(dataFile)
-        .commit();
   }
 
   @After

@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.source;
 
-import java.io.IOException;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.PartitionSpec;
@@ -40,9 +39,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
-import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
@@ -85,24 +82,8 @@ public abstract class TestSparkReaderDeletes extends DeletesReadTest {
     spark = null;
   }
 
-  @Before
-  public void prepareData() throws IOException {
-    this.table = createTable("table", SCHEMA, SPEC);
-
-    generateTestData();
-
-    table.newAppend()
-        .appendFile(dataFile)
-        .commit();
-  }
-
-  @After
-  public void dropTable() {
-    catalog.dropTable(TableIdentifier.of("default", "table"));
-  }
-
   @Override
-  public Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException {
+  public Table createTable(String name, Schema schema, PartitionSpec spec) {
     Table table = catalog.createTable(TableIdentifier.of("default", name), schema);
     TableOperations ops = ((BaseTable) table).operations();
     TableMetadata meta = ops.current();
@@ -112,10 +93,15 @@ public abstract class TestSparkReaderDeletes extends DeletesReadTest {
   }
 
   @Override
+  public void dropTable(String name) {
+    catalog.dropTable(TableIdentifier.of("default", name));
+  }
+
+  @Override
   public StructLikeSet rowSet(Table table, String... columns) {
     Dataset<Row> df = spark.read()
         .format("iceberg")
-        .load("default.table")
+        .load(TableIdentifier.of("default", testTableName).toString())
         .selectExpr(columns);
 
     Types.StructType projection = table.schema().select(columns).asStruct();

@@ -264,9 +264,9 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
         case PIG:
         case HIVE:
           // TODO implement value readers for Pig and Hive
-          throw new UnsupportedOperationException("Avro support not yet supported for Pig and Hive");
+          throw new UnsupportedOperationException("Pig and Hive are not supported for any format");
         case GENERIC:
-          DeleteFilter deletes = new GenericDeleteFilter(io, currentTask, tableSchema, readSchema);
+          DeleteFilter deletes = new GenericDeleteFilter(fileIO, currentTask, tableSchema, readSchema);
           Schema requiredSchema = deletes.requiredSchema();
           return deletes.filter(openTask(currentTask, requiredSchema));
         default:

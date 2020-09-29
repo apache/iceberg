@@ -36,7 +36,9 @@ import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -55,6 +57,7 @@ public abstract class DeletesReadTest {
       .bucket("data", 16)
       .build();
 
+  protected final String testTableName = "test";
   protected Table table;
   protected DataFile dataFile;
 
@@ -63,7 +66,23 @@ public abstract class DeletesReadTest {
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
-  public abstract Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException;
+  @Before
+  public void prepareData() throws IOException {
+    this.table = createTable(testTableName, SCHEMA, SPEC);
+    generateTestData();
+    table.newAppend()
+        .appendFile(dataFile)
+        .commit();
+  }
+
+  @After
+  public void cleanup() throws IOException {
+    dropTable(testTableName);
+  }
+
+  protected abstract Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException;
+
+  protected abstract void dropTable(String name) throws IOException;
 
   @Test
   public void testEqualityDeletes() throws IOException {
