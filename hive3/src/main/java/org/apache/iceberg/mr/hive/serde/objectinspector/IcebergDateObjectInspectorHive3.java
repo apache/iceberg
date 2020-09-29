@@ -28,7 +28,7 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.iceberg.util.DateTimeUtil;
 
 public final class IcebergDateObjectInspectorHive3 extends AbstractPrimitiveJavaObjectInspector
-                                              implements DateObjectInspector {
+    implements DateObjectInspector {
 
   private static final IcebergDateObjectInspectorHive3 INSTANCE = new IcebergDateObjectInspectorHive3();
 

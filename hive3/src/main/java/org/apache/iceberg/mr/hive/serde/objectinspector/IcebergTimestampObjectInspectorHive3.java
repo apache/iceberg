@@ -29,7 +29,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectIn
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 
 public abstract class IcebergTimestampObjectInspectorHive3 extends AbstractPrimitiveJavaObjectInspector
-                                                      implements TimestampObjectInspector {
+    implements TimestampObjectInspector {
 
   private static final IcebergTimestampObjectInspectorHive3 INSTANCE_WITH_ZONE =
       new IcebergTimestampObjectInspectorHive3() {
@@ -37,7 +37,7 @@ public abstract class IcebergTimestampObjectInspectorHive3 extends AbstractPrimi
         LocalDateTime toLocalDateTime(Object o) {
           return ((OffsetDateTime) o).toLocalDateTime();
         }
-  };
+      };
 
   private static final IcebergTimestampObjectInspectorHive3 INSTANCE_WITHOUT_ZONE =
       new IcebergTimestampObjectInspectorHive3() {
@@ -45,7 +45,7 @@ public abstract class IcebergTimestampObjectInspectorHive3 extends AbstractPrimi
         LocalDateTime toLocalDateTime(Object o) {
           return (LocalDateTime) o;
         }
-  };
+      };
 
   public static IcebergTimestampObjectInspectorHive3 get(boolean adjustToUTC) {
     return adjustToUTC ? INSTANCE_WITH_ZONE : INSTANCE_WITHOUT_ZONE;
