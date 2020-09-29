@@ -66,7 +66,7 @@ public class TestMrReadDeletes extends DeletesReadTest {
   }
 
   @Override
-  public Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException {
+  protected Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException {
     Table table;
 
     File location = temp.newFolder(testInputFormat.name(), fileFormat.name());

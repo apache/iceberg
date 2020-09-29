@@ -83,7 +83,7 @@ public abstract class TestSparkReaderDeletes extends DeletesReadTest {
   }
 
   @Override
-  public Table createTable(String name, Schema schema, PartitionSpec spec) {
+  protected Table createTable(String name, Schema schema, PartitionSpec spec) {
     Table table = catalog.createTable(TableIdentifier.of("default", name), schema);
     TableOperations ops = ((BaseTable) table).operations();
     TableMetadata meta = ops.current();
@@ -93,7 +93,7 @@ public abstract class TestSparkReaderDeletes extends DeletesReadTest {
   }
 
   @Override
-  public void dropTable(String name) {
+  protected void dropTable(String name) {
     catalog.dropTable(TableIdentifier.of("default", name));
   }
 

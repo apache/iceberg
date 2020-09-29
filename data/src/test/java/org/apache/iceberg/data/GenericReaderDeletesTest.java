@@ -32,7 +32,7 @@ import org.junit.After;
 public class GenericReaderDeletesTest extends DeletesReadTest {
 
   @Override
-  public Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException {
+  protected Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException {
     File tableDir = temp.newFolder();
     tableDir.delete();
 

@@ -370,7 +370,7 @@ public class TestIcebergInputFormats {
     testInputFormat.create(builder.conf()).validate(expectedRecords);
   }
 
-  public abstract static class TestInputFormat<T> {
+  abstract static class TestInputFormat<T> {
 
     private final List<IcebergSplit> splits;
     private final List<T> records;

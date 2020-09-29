@@ -263,8 +263,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       switch (inMemoryDataModel) {
         case PIG:
         case HIVE:
-          // TODO implement value readers for Pig and Hive
-          throw new UnsupportedOperationException("Pig and Hive are not supported for any format");
+          // TODO: Support Pig and Hive object models for IcebergInputFormat
+          throw new UnsupportedOperationException("Pig and Hive object models are not supported.");
         case GENERIC:
           DeleteFilter deletes = new GenericDeleteFilter(fileIO, currentTask, tableSchema, readSchema);
           Schema requiredSchema = deletes.requiredSchema();
