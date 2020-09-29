@@ -89,6 +89,11 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
       hmsTable.getParameters().put(BaseMetastoreTableOperations.TABLE_TYPE_PROP,
           BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase());
 
+      if (!Catalogs.canWorkWithoutHive(conf)) {
+        // Mark, that the table creating started from Hive. See: {@link HiveTableOperations} for usage
+        hmsTable.getParameters().put(HiveTableOperations.TABLE_CREATION_FROM_HIVE, "TRUE");
+      }
+
       // Remove creation related properties
       PARAMETERS_TO_REMOVE.forEach(hmsTable.getParameters()::remove);
     }
@@ -102,7 +107,6 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
   @Override
   public void commitCreateTable(org.apache.hadoop.hive.metastore.api.Table hmsTable) {
     if (icebergTable == null) {
-      catalogProperties.put(HiveTableOperations.TABLE_FROM_HIVE, true);
       Catalogs.createTable(conf, catalogProperties);
     }
   }

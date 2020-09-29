@@ -23,6 +23,7 @@ import com.klarna.hiverunner.HiveShell;
 import com.klarna.hiverunner.StandaloneHiveRunner;
 import com.klarna.hiverunner.annotations.HiveSQL;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -270,10 +271,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     org.apache.iceberg.Table icebergTable = Catalogs.loadTable(shell.getHiveConf(), properties);
     Assert.assertEquals(SchemaParser.toJson(CUSTOMER_SCHEMA), SchemaParser.toJson(icebergTable.schema()));
     Assert.assertEquals(PartitionSpecParser.toJson(IDENTITY_SPEC), PartitionSpecParser.toJson(icebergTable.spec()));
-    Map<String, String> expectedIcebergProperties = new HashMap<>(2);
-    expectedIcebergProperties.put("dummy", "test");
-    expectedIcebergProperties.put(HiveTableOperations.TABLE_FROM_HIVE, "true");
-    Assert.assertEquals(expectedIcebergProperties, icebergTable.properties());
+    Assert.assertEquals(Collections.singletonMap("dummy", "test"), icebergTable.properties());
 
     // Check the HMS table parameters
     IMetaStoreClient client = null;
