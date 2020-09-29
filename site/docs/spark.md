@@ -521,10 +521,13 @@ data.writeTo("prod.db.table")
 
 ## Writing against partitioned table
 
-Iceberg requires the data to be sorted according to the partition spec in prior to write against partitioned table.
-This applies both Writing with SQL and Writing with DataFrames.
+Iceberg requires the data to be sorted according to the partition spec per task (Spark partition) in prior to write
+against partitioned table. This applies both Writing with SQL and Writing with DataFrames.
 
-Assuming we would like to write the data against below sample table:
+!!! Note
+    Both global sort (`orderBy`/`sort`) and local sort (`sortWithinPartitions`) will respect the requirement.
+
+Let's go through writing the data against below sample table:
 
 ```sql
 CREATE TABLE prod.db.sample (
@@ -533,19 +536,45 @@ CREATE TABLE prod.db.sample (
     category string,
     ts timestamp)
 USING iceberg
-PARTITIONED BY (bucket(16, id), days(ts), category)
+PARTITIONED BY (days(ts), category)
 ```
 
-then your data needs to be sorted by `bucket(16, id), days(ts), category` before writing to the table, like below:
+To write data to the sample table, your data needs to be sorted by `days(ts), category`.
+
+If you're inserting data with SQL statement, you can use `ORDER BY` to achieve it, like below:
+
+```sql
+INSERT INTO prod.db.sample
+SELECT id, data, category, ts FROM another_table
+ORDER BY ts, category
+```
+
+If you're inserting data with DataFrame, you can use either `orderBy`/`sort` to trigger global sort, or `sortWithinPartitions`
+to trigger local sort. Local sort for example:
 
 ```scala
-val sorted = data.sortWithinPartitions(expr("iceberg_bucket16(id)"), expr("iceberg_days(ts)"), col("category"))
+data.sortWithinPartitions("ts", "category")
+    .writeTo("prod.db.sample")
+    .append()
 ```
 
-You can create a temporary view from the resulting DataFrame to write with SQL, or write with Dataframe directly.
+You can simply add the original column to the sort condition for the most partition transformations, except `bucket`.
 
-If the partition spec of the table consists of `transformation` (non-identity), you need to register the Iceberg
-transform function in Spark to specify it during sort. For example, to register `iceberg_bucket16` function in above query:
+For `bucket` partition transformation, you need to register the Iceberg transform function in Spark to specify it during sort.
+
+Let's go through another sample table having bucket partition:
+
+```sql
+CREATE TABLE prod.db.sample (
+    id bigint,
+    data string,
+    category string,
+    ts timestamp)
+USING iceberg
+PARTITIONED BY (bucket(16, id))
+```
+
+You need to register the function to deal with bucket, like below:
 
 ```scala
 import org.apache.iceberg.transforms.Transforms
@@ -565,13 +594,23 @@ def bucketFunc(id: Long): Int = bucketTransform.apply(id)
 spark.udf.register("iceberg_bucket16", bucketFunc _)
 ```
 
-You can find all available methods in [Transforms](/javadoc/master/index.html?org/apache/iceberg/transforms/Transforms.html),
-which are associated with methods in [PartitionSpec.Builder](/javadoc/master/index.html?org/apache/iceberg/PartitionSpec.Builder.html).
-The method name is equivalent to the transform in supported partition transforms.
+Here we just registered the bucket function as `iceberg_bucket16`, which can be used in sort clause.
 
-As you see the example, to initialize the transform function and register as a UDF, you need to provide the source type,
-and the matching Java type, and the return type. [Partitioning in Spec](/spec/#partition-transforms) describes source type
-and return type of the transform.
+If you're inserting data with SQL statement, you can use the function like below:
+
+```sql
+INSERT INTO prod.db.sample
+SELECT id, data, category, ts FROM another_table
+ORDER BY iceberg_bucket16(id)
+```
+
+If you're inserting data with DataFrame, you can use the function like below:
+
+```scala
+data.sortWithinPartitions(expr("iceberg_bucket16(id)"))
+    .writeTo("prod.db.sample")
+    .append()
+```
 
 ## Inspecting tables
 
