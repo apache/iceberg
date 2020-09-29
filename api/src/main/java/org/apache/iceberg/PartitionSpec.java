@@ -134,13 +134,7 @@ public class PartitionSpec implements Serializable {
           Class<?>[] classes = new Class<?>[fields.length];
           for (int i = 0; i < fields.length; i += 1) {
             PartitionField field = fields[i];
-            if (field.transform() instanceof UnknownTransform) {
-              classes[i] = Object.class;
-            } else {
-              Type sourceType = schema.findType(field.sourceId());
-              Type result = field.transform().getResultType(sourceType);
-              classes[i] = result.typeId().javaClass();
-            }
+            classes[i] = javaClass(field);
           }
 
           this.lazyJavaClasses = classes;
@@ -149,6 +143,16 @@ public class PartitionSpec implements Serializable {
     }
 
     return lazyJavaClasses;
+  }
+
+  Class<?> javaClass(PartitionField field) {
+    if (field.transform() instanceof UnknownTransform) {
+      return Object.class;
+    } else {
+      Type sourceType = schema.findType(field.sourceId());
+      Type result = field.transform().getResultType(sourceType);
+      return result.typeId().javaClass();
+    }
   }
 
   @SuppressWarnings("unchecked")
