@@ -50,7 +50,7 @@ public class TestIcebergSparkSqlExtensionsParser {
   public static void startSpark() {
     TestIcebergSparkSqlExtensionsParser.spark = SparkSession.builder()
         .master("local[2]")
-        .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
+        .config("spark.sql.extensions", IcebergSparkSessionExtensions.class.getName())
         .getOrCreate();
     TestIcebergSparkSqlExtensionsParser.parser = spark.sessionState().sqlParser();
   }

@@ -32,7 +32,6 @@ object ResolveProcedures extends Rule[LogicalPlan] {
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     case CallStatement(nameParts, args) =>
       val (catalog, ident) = resolveCatalog(nameParts)
-
       val procedure = catalog.asProcedureCatalog.loadProcedure(ident)
 
       validateParams(procedure)
