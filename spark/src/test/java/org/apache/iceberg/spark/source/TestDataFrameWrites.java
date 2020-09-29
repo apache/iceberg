@@ -23,20 +23,27 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.stream.Collectors;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -51,6 +58,7 @@ import org.apache.spark.TaskContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
+import org.apache.spark.sql.Column;
 import org.apache.spark.sql.DataFrameWriter;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -69,6 +77,9 @@ import org.junit.runners.Parameterized;
 import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsSafe;
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.junit.Assert.fail;
 
 @RunWith(Parameterized.class)
 public abstract class TestDataFrameWrites extends AvroDataTest {
@@ -121,6 +132,48 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
       "{\"optionalField\": \"d3\", \"requiredField\": \"bid_103\"}",
       "{\"optionalField\": \"d4\", \"requiredField\": \"bid_104\"}");
 
+  private static class LocalizedTestData {
+
+    String PARTITION_COLUMN = "locality";
+    String INTEGER_COLUMN = "i";
+
+    String AP_LOCALITY = "IND";
+    String US_LOCALITY = "USA";
+    String UNKNOWN_LOCALITY = "UNKNOWN";
+
+    Schema SCHEMA = new Schema(Types.StructType.of(
+        required(100, "id", Types.LongType.get()),
+        required(101, PARTITION_COLUMN, Types.StringType.get()),
+        optional(103, INTEGER_COLUMN, Types.IntegerType.get())
+    ).fields());
+
+    private org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(SCHEMA.asStruct(), "test");
+
+    public List<Record> records() {
+      Record r1 = new Record(avroSchema);
+      r1.put("id", 123L);
+      r1.put(PARTITION_COLUMN, AP_LOCALITY);
+      r1.put(INTEGER_COLUMN, 1);
+
+      Record r2 = new Record(avroSchema);
+      r2.put("id", 234L);
+      r2.put(PARTITION_COLUMN, US_LOCALITY);
+      r2.put(INTEGER_COLUMN, 2);
+
+      Record r3 = new Record(avroSchema);
+      r3.put("id", 345L);
+      r3.put(PARTITION_COLUMN, AP_LOCALITY);
+      r3.put(INTEGER_COLUMN, 3);
+
+      Record r4 = new Record(avroSchema);
+      r4.put("id", 456L);
+      r4.put(PARTITION_COLUMN, UNKNOWN_LOCALITY);
+      r4.put(INTEGER_COLUMN, 4);
+
+      return Arrays.asList(r1, r2, r3, r4);
+    }
+  }
+
   @BeforeClass
   public static void startSpark() {
     TestDataFrameWrites.spark = SparkSession.builder().master("local[2]").getOrCreate();
@@ -152,6 +205,172 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
     writeAndValidateWithLocations(table, location, tablePropertyDataLocation);
   }
 
+  @Test
+  public void testWritePartitionedData() throws IOException {
+    Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
+    PartitionSpec partitionSpec = PartitionSpec.builderFor(schema).identity("l").build();
+    List<Record> expected = RandomData.generateList(schema, 100, 0L);
+    // Make id unique so we can sort them for asserting equal
+    for (int i = 0; i < 100; i++) {
+      expected.get(i).put("id", Long.valueOf(i));
+    }
+    writeAndValidatePartitionedWrite(schema, partitionSpec, expected);
+  }
+
+  @Test
+  public void testWriteUnpartitionedDataFailsInLocalizedStore() throws IOException {
+    File location = createTableFolder();
+    Table table = createTable(new Schema(SUPPORTED_PRIMITIVES.fields()), location);
+    table.updateProperties().set(
+        TableProperties.LOCALIZED_STORE_ENABLED, "true")
+        .set(TableProperties.LOCALIZED_STORE_PARTITION_FIELD_NAME, "id")
+        .commit();
+
+    try {
+      writeAndValidateWithLocations(table, location, new File(location, "data"));
+      fail();
+    } catch (Exception e) {
+      Throwable cause = e.getCause();
+      Assert.assertTrue(
+          "Writing unpartitioned data to localized store should fail",
+          cause.getMessage().contains("Unpartitioned data is not supported for localized store")
+      );
+    }
+  }
+
+  @Test
+  public void testWriteLocalityPartitionedDataInLocalizedStore() throws IOException {
+    LocalizedTestData data = new LocalizedTestData();
+    Schema schema = data.SCHEMA;
+    List<Record> expected = data.records();
+
+    Map<String, File> localityToFileLocation = new HashMap<>();
+    localityToFileLocation.put(data.US_LOCALITY, temp.newFolder("new-us-west-data-location"));
+    localityToFileLocation.put(data.AP_LOCALITY, temp.newFolder("new-ap-south-data-location"));
+
+    PartitionSpec partitionSpec = PartitionSpec.builderFor(schema)
+        .identity(data.PARTITION_COLUMN)
+        .build();
+    File location = createTableFolder();
+    Table table = createTable(schema, partitionSpec, location);
+
+    UpdateProperties updateProperties = table.updateProperties()
+            .set(TableProperties.DEFAULT_FILE_FORMAT, format)
+            .set(TableProperties.LOCALIZED_STORE_ENABLED, "true")
+            .set(TableProperties.LOCALIZED_STORE_PARTITION_FIELD_NAME, data.PARTITION_COLUMN);
+    localityToFileLocation.forEach((locality, dataLoc) -> {
+      updateProperties.set(
+              TableProperties.LOCALIZED_STORE_DATA_LOCATION_PREFIX + locality,
+              dataLoc.getAbsolutePath());
+    });
+    updateProperties.commit();
+
+    writePartitionedDataAndCheckRead(table, schema, partitionSpec, location, expected);
+
+    table.currentSnapshot().addedFiles().forEach(f -> {
+      assert partitionSpec.fields().size() == 1;
+      String localityValue = f.partition().get(0, String.class);
+
+      File expectedDataLocationPath;
+      if (localityValue.equals(data.UNKNOWN_LOCALITY)) {
+        // Default to data dir in table location
+        expectedDataLocationPath = new File(location, "data");
+      } else {
+        // Otherwise, locations provided in the table properties
+        expectedDataLocationPath = localityToFileLocation.get(localityValue);
+      }
+      assertDirectoryHasFile(expectedDataLocationPath, f);
+    });
+    assertDataPathHasPartitionEncoding(table, partitionSpec
+            .fields()
+            .stream()
+            .map(PartitionField::name)
+            .collect(Collectors.toList()));
+  }
+
+  @Test
+  public void testWriteInvalidPartitionColumnInDataLocalizedStore() throws IOException {
+    LocalizedTestData data = new LocalizedTestData();
+    Schema schema = data.SCHEMA;
+    List<Record> expected = data.records();
+
+    PartitionSpec partitionSpec = PartitionSpec.builderFor(schema)
+            .identity(data.INTEGER_COLUMN)
+            .build();
+    File location = createTableFolder();
+    Table table = createTable(schema, partitionSpec, location);
+    UpdateProperties updateProperties = table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format);
+
+    // Set localized store to table properties
+    updateProperties
+            .set(TableProperties.LOCALIZED_STORE_ENABLED, "true")
+            .set(TableProperties.LOCALIZED_STORE_PARTITION_FIELD_NAME, data.INTEGER_COLUMN);
+    updateProperties.commit();
+
+    try {
+      writePartitionedDataAndCheckRead(table, schema, partitionSpec, location, expected);
+      fail();
+    } catch (Exception e) {
+      Throwable cause = e.getCause();
+      Assert.assertTrue(
+              "Writing locality partition should fail on integer type",
+              cause.getMessage().contains(
+                      String.format("Locality partition field %s should be String, but found class class java.lang.Integer", data.INTEGER_COLUMN))
+      );
+    }
+  }
+
+  private void writePartitionedDataAndCheckRead(Table table, Schema originalSchema, PartitionSpec partitionSpec, File location, List<Record> expected) throws IOException {
+    Schema tableSchema = table.schema(); // use the table schema because ids are reassigned
+
+    Dataset<Row> df = createDataset(expected, tableSchema);
+
+    // Need to sort within the source partition columns (not the transformed ones)
+    Column[] sourcePartitionColumns = partitionSpec.fields().stream()
+        .map(PartitionField::sourceId)
+        .map(originalSchema::findColumnName)
+        .map(Column::new).toArray(Column[]::new);
+
+    DataFrameWriter<?> writer = df
+        .sortWithinPartitions(sourcePartitionColumns)
+        .write()
+        .format("iceberg")
+        .mode("overwrite");
+
+    writer.save(location.toString());
+
+    table.refresh();
+
+    Dataset<Row> result = spark.read()
+        .format("iceberg")
+        .load(location.toString());
+
+    // Assume first field is unique long id.
+    Iterator<Row> actualSorted = result.collectAsList().stream()
+        .sorted(Comparator.comparing(r -> (Long) r.get(0)))
+        .iterator();
+
+    Iterator<Record> expectedSorted = expected.stream()
+        .sorted(Comparator.comparing(r -> (Long) r.get(0)))
+        .iterator();
+
+    assertRecordsEqualRows(tableSchema, expectedSorted, actualSorted);
+  }
+
+  private void writeAndValidatePartitionedWrite(
+                                                Schema schema,
+                                                PartitionSpec partitionSpec,
+                                                List<Record> expected) throws IOException {
+
+    File location = createTableFolder();
+    Table table = createTable(schema, partitionSpec, location);
+    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
+
+    writePartitionedDataAndCheckRead(table, schema, partitionSpec, location, expected);
+    assertAddedDataLocation(table, new File(location, "data"));
+    assertDataPathHasPartitionEncoding(table, partitionSpec.fields().stream().map(PartitionField::name).collect(Collectors.toList()));
+  }
+
   private File createTableFolder() throws IOException {
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test");
@@ -160,8 +379,12 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
   }
 
   private Table createTable(Schema schema, File location) {
+    return createTable(schema, PartitionSpec.unpartitioned(), location);
+  }
+
+  private Table createTable(Schema schema, PartitionSpec partitionSpec, File location) {
     HadoopTables tables = new HadoopTables(CONF);
-    return tables.create(schema, PartitionSpec.unpartitioned(), location.toString());
+    return tables.create(schema, partitionSpec, location.toString());
   }
 
   private void writeAndValidateWithLocations(Table table, File location, File expectedDataDir) throws IOException {
@@ -178,18 +401,43 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
 
     Iterator<Record> expectedIter = expected.iterator();
     Iterator<Row> actualIter = actual.iterator();
+    assertRecordsEqualRows(tableSchema, expectedIter, actualIter);
+    assertAddedDataLocation(table, expectedDataDir);
+  }
+
+  private void assertRecordsEqualRows(Schema tableSchema, Iterator<Record> expectedIter, Iterator<Row> actualIter) {
     while (expectedIter.hasNext() && actualIter.hasNext()) {
       assertEqualsSafe(tableSchema.asStruct(), expectedIter.next(), actualIter.next());
     }
     Assert.assertEquals("Both iterators should be exhausted", expectedIter.hasNext(), actualIter.hasNext());
+  }
+
+  private void assertDataPathHasPartitionEncoding(Table table, List<String> derivedPartitionColumns) {
+    List<String> partitionPath = derivedPartitionColumns.stream().map(s -> s + "=").collect(Collectors.toList());
 
     table.currentSnapshot().addedFiles().forEach(dataFile ->
+      partitionPath.forEach(p ->
         Assert.assertTrue(
             String.format(
-                "File should have the parent directory %s, but has: %s.",
-                expectedDataDir.getAbsolutePath(),
-                dataFile.path()),
-            URI.create(dataFile.path().toString()).getPath().startsWith(expectedDataDir.getAbsolutePath())));
+                "File path should have partition encoding %s, but has: %s.",
+                derivedPartitionColumns.stream().collect(Collectors.joining(",")),
+                dataFile.path()), dataFile.path().toString().contains(p))
+      )
+    );
+  }
+
+  private void assertAddedDataLocation(Table table, File expectedDataDir) {
+    table.currentSnapshot().addedFiles().forEach(dataFile ->
+        assertDirectoryHasFile(expectedDataDir, dataFile));
+  }
+
+  private void assertDirectoryHasFile(File expectedDataDir, DataFile dataFile) {
+    Assert.assertTrue(
+        String.format(
+            "File should have the parent directory %s, but has: %s.",
+            expectedDataDir.getAbsolutePath(),
+            dataFile.path()),
+        URI.create(dataFile.path().toString()).getPath().startsWith(expectedDataDir.getAbsolutePath()));
   }
 
   private List<Row> readTable(String location) {
