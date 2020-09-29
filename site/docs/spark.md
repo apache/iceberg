@@ -525,7 +525,12 @@ Iceberg requires the data to be sorted according to the partition spec per task 
 against partitioned table. This applies both Writing with SQL and Writing with DataFrames.
 
 !!! Note
-    Both global sort (`orderBy`/`sort`) and local sort (`sortWithinPartitions`) will respect the requirement.
+    Explicit sort is necessary because Spark doesn't allow Iceberg to request a sort before writing as of Spark 3.0.
+    [SPARK-23889](https://issues.apache.org/jira/browse/SPARK-23889) is filed to enable Iceberg to require specific
+    distribution & sort order to Spark.
+
+!!! Note
+    Both global sort (`orderBy`/`sort`) and local sort (`sortWithinPartitions`) work for the requirement.
 
 Let's go through writing the data against below sample table:
 
@@ -593,6 +598,11 @@ def bucketFunc(id: Long): Int = bucketTransform.apply(id)
 // create and register a UDF
 spark.udf.register("iceberg_bucket16", bucketFunc _)
 ```
+
+!!! Note
+    Explicit registration of the function is necessary because Spark doesn't allow Iceberg to provide functions.
+    [SPARK-27658](https://issues.apache.org/jira/browse/SPARK-27658) is filed to enable Iceberg to provide functions
+    which can be used in query.
 
 Here we just registered the bucket function as `iceberg_bucket16`, which can be used in sort clause.
 
