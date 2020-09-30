@@ -31,7 +31,6 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.hive.HiveTableOperations;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -88,11 +87,6 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
       hmsTable.getParameters().put(BaseMetastoreTableOperations.TABLE_TYPE_PROP,
           BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase());
 
-      if (!Catalogs.canWorkWithoutHive(conf)) {
-        // Mark, that the table creating started from Hive. See: {@link HiveTableOperations} for usage
-        hmsTable.getParameters().put(HiveTableOperations.TABLE_CREATION_FROM_HIVE, "TRUE");
-      }
-
       // Remove creation related properties
       PARAMETERS_TO_REMOVE.forEach(hmsTable.getParameters()::remove);
     }
@@ -125,8 +119,11 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
   @Override
   public void commitDropTable(org.apache.hadoop.hive.metastore.api.Table hmsTable, boolean deleteData) {
     if (deleteData && deleteIcebergTable) {
-      LOG.info("Dropping with purge all the data for table {}.{}", hmsTable.getDbName(), hmsTable.getTableName());
-      Catalogs.dropTable(conf, catalogProperties);
+      if (Catalogs.canWorkWithoutHive(conf)) {
+        LOG.info("Dropping with purge all the data for table {}.{}", hmsTable.getDbName(), hmsTable.getTableName());
+        Catalogs.dropTable(conf, catalogProperties);
+      }
+      // TODO: remove data/metadata if HiveCatalog is used
     }
   }
 

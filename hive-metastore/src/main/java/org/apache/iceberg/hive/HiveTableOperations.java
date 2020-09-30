@@ -28,7 +28,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
@@ -60,7 +59,6 @@ import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
@@ -73,8 +71,6 @@ import org.slf4j.LoggerFactory;
 public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HiveTableOperations.class);
 
-  public static final String TABLE_CREATION_FROM_HIVE = "iceberg.table.creation.from.hive";
-  private static final Set<String> PARAMETERS_TO_REMOVE = ImmutableSet.of(TABLE_CREATION_FROM_HIVE);
   private static final String HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
   private static final long HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
   private static final DynMethods.UnboundMethod ALTER_TABLE = DynMethods.builder("alter_table")
@@ -158,9 +154,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       Table tbl;
       try {
         tbl = metaClients.run(client -> client.getTable(database, tableName));
-        if (base == null && tbl.getParameters().get(TABLE_CREATION_FROM_HIVE) == null) {
-          throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);
-        }
         updateHiveTable = true;
         LOG.debug("Committing existing table: {}", fullName);
         tbl.setSd(storageDescriptor(metadata, hiveEngineEnabled)); // set to pickup any schema changes
@@ -259,9 +252,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       parameters.put(PREVIOUS_METADATA_LOCATION_PROP, currentMetadataLocation());
     }
 
-    // Remove creation related properties
-    PARAMETERS_TO_REMOVE.forEach(parameters::remove);
-
     tbl.setParameters(parameters);
   }
 
@@ -348,16 +338,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   }
 
   static void validateTableIsIceberg(Table table, String fullName) {
-    if ("TRUE".equalsIgnoreCase(table.getParameters().get(TABLE_CREATION_FROM_HIVE))) {
-      // No check is needed. The table has been created from Hive (HiveIcebergMetaHook), and we are about to initialize
-      // the Iceberg metadata
-      return;
-    }
     String tableType = table.getParameters().get(TABLE_TYPE_PROP);
     NoSuchIcebergTableException.check(tableType != null && tableType.equalsIgnoreCase(ICEBERG_TABLE_TYPE_VALUE),
         "Not an iceberg table: %s (type=%s)", fullName, tableType);
-    NoSuchIcebergTableException.check(table.getParameters().get(METADATA_LOCATION_PROP) != null,
-        "Not an iceberg table: %s missing %s", fullName, METADATA_LOCATION_PROP);
   }
 
   /**

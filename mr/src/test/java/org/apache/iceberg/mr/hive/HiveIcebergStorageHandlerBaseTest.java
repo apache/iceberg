@@ -252,7 +252,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   }
 
   @Test
-  public void testCreateDropTable() throws TException {
+  public void testCreateDropTable() throws TException, IOException {
     // We need the location for HadoopTable based tests only
     String location = locationForCreateTable(temp.getRoot().getPath(), "customers");
     shell.executeStatement("CREATE EXTERNAL TABLE customers " +
@@ -306,14 +306,42 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Assert.assertEquals(BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(),
         hmsTable.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP));
 
-    shell.executeStatement("DROP TABLE customers");
+    if (Catalogs.canWorkWithoutHive(shell.getHiveConf())) {
+      shell.executeStatement("DROP TABLE customers");
 
-    // Check if the table was really dropped even from the Catalog
-    AssertHelpers.assertThrows("should throw exception", NoSuchTableException.class,
-        "Table does not exist", () -> {
-          Catalogs.loadTable(shell.getHiveConf(), properties);
+      // Check if the table was really dropped even from the Catalog
+      AssertHelpers.assertThrows("should throw exception", NoSuchTableException.class,
+          "Table does not exist", () -> {
+            Catalogs.loadTable(shell.getHiveConf(), properties);
+          }
+      );
+    } else {
+      // Check the HMS table parameters
+      Path hmsTableLocation;
+      try {
+        client = new HiveMetaStoreClient(metastore.hiveConf());
+        hmsTableLocation = new Path(client.getTable("default", "customers").getSd().getLocation());
+      } finally {
+        if (client != null) {
+          client.close();
         }
-    );
+      }
+
+      // Drop the table
+      shell.executeStatement("DROP TABLE customers");
+
+      // Check if we drop an exception when trying to drop the table
+      AssertHelpers.assertThrows("should throw exception", NoSuchTableException.class,
+          "Table does not exist", () -> {
+            Catalogs.loadTable(shell.getHiveConf(), properties);
+          }
+      );
+
+      // Check if the files are kept
+      FileSystem fs = Util.getFs(hmsTableLocation, shell.getHiveConf());
+      // TODO: files should be deleted
+      // Assert.assertEquals(0, fs.listStatus(hmsTableLocation).length);
+    }
   }
 
   @Test
