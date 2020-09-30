@@ -48,8 +48,9 @@ public class TestIcebergDateObjectInspectorHive3 {
     Assert.assertNull(oi.getPrimitiveJavaObject(null));
     Assert.assertNull(oi.getPrimitiveWritableObject(null));
 
-    LocalDate local = LocalDate.ofEpochDay(5005);
-    Date date = Date.ofEpochDay(5005);
+    int epochDays = 5005;
+    LocalDate local = LocalDate.ofEpochDay(epochDays);
+    Date date = Date.ofEpochDay(epochDays);
 
     Assert.assertEquals(date, oi.getPrimitiveJavaObject(local));
     Assert.assertEquals(new DateWritableV2(date), oi.getPrimitiveWritableObject(local));

@@ -52,8 +52,9 @@ public class TestIcebergTimestampObjectInspectorHive3 {
     Assert.assertNull(oi.getPrimitiveJavaObject(null));
     Assert.assertNull(oi.getPrimitiveWritableObject(null));
 
-    LocalDateTime local = LocalDateTime.ofInstant(Instant.ofEpochMilli(1601471970000L), ZoneId.of("UTC"));
-    Timestamp ts = Timestamp.ofEpochMilli(1601471970000L);
+    long epochMilli = 1601471970000L;
+    LocalDateTime local = LocalDateTime.ofInstant(Instant.ofEpochMilli(epochMilli), ZoneId.of("UTC"));
+    Timestamp ts = Timestamp.ofEpochMilli(epochMilli);
 
     Assert.assertEquals(ts, oi.getPrimitiveJavaObject(local));
     Assert.assertEquals(new TimestampWritableV2(ts), oi.getPrimitiveWritableObject(local));
@@ -83,9 +84,10 @@ public class TestIcebergTimestampObjectInspectorHive3 {
     Assert.assertNull(oi.getPrimitiveJavaObject(null));
     Assert.assertNull(oi.getPrimitiveWritableObject(null));
 
-    LocalDateTime local = LocalDateTime.ofInstant(Instant.ofEpochMilli(1601471970000L), ZoneId.of("UTC"));
+    long epochMilli = 1601471970000L;
+    LocalDateTime local = LocalDateTime.ofInstant(Instant.ofEpochMilli(epochMilli), ZoneId.of("UTC"));
     OffsetDateTime offsetDateTime = OffsetDateTime.of(local, ZoneOffset.ofHours(4));
-    Timestamp ts = Timestamp.ofEpochMilli(1601471970000L);
+    Timestamp ts = Timestamp.ofEpochMilli(epochMilli);
 
     Assert.assertEquals(ts, oi.getPrimitiveJavaObject(offsetDateTime));
     Assert.assertEquals(new TimestampWritableV2(ts), oi.getPrimitiveWritableObject(offsetDateTime));
