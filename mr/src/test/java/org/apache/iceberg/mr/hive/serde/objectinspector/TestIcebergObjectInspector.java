@@ -92,11 +92,11 @@ public class TestIcebergObjectInspector {
     Assert.assertEquals("date_field", dateField.getFieldName());
     Assert.assertEquals("date comment", dateField.getFieldComment());
     if (MetastoreUtil.hive3PresentOnClasspath()) {
-      Assert.assertEquals(
-              "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspectorHive3",
+      Assert.assertEquals("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspectorHive3",
               dateField.getFieldObjectInspector().getClass().getName());
     } else {
-      Assert.assertEquals(IcebergDateObjectInspector.get(), dateField.getFieldObjectInspector());
+      Assert.assertEquals("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspector",
+              dateField.getFieldObjectInspector().getClass().getName());
     }
 
     // decimal

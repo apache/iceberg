@@ -19,8 +19,10 @@
 
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import org.apache.hadoop.hive.common.type.Timestamp;
 import org.apache.hadoop.hive.serde2.io.TimestampWritableV2;
@@ -50,8 +52,8 @@ public class TestIcebergTimestampObjectInspectorHive3 {
     Assert.assertNull(oi.getPrimitiveJavaObject(null));
     Assert.assertNull(oi.getPrimitiveWritableObject(null));
 
-    LocalDateTime local = LocalDateTime.of(2020, 1, 1, 0, 0, 1, 500);
-    Timestamp ts = Timestamp.valueOf("2020-01-01 00:00:01.00000050");
+    LocalDateTime local = LocalDateTime.ofInstant(Instant.ofEpochMilli(1601471970000L), ZoneId.of("UTC"));
+    Timestamp ts = Timestamp.ofEpochMilli(1601471970000L);
 
     Assert.assertEquals(ts, oi.getPrimitiveJavaObject(local));
     Assert.assertEquals(new TimestampWritableV2(ts), oi.getPrimitiveWritableObject(local));
@@ -81,9 +83,9 @@ public class TestIcebergTimestampObjectInspectorHive3 {
     Assert.assertNull(oi.getPrimitiveJavaObject(null));
     Assert.assertNull(oi.getPrimitiveWritableObject(null));
 
-    LocalDateTime local = LocalDateTime.of(2020, 1, 1, 0, 0, 1, 500);
+    LocalDateTime local = LocalDateTime.ofInstant(Instant.ofEpochMilli(1601471970000L), ZoneId.of("UTC"));
     OffsetDateTime offsetDateTime = OffsetDateTime.of(local, ZoneOffset.ofHours(4));
-    Timestamp ts = Timestamp.valueOf("2020-01-01 00:00:01.00000050");
+    Timestamp ts = Timestamp.ofEpochMilli(1601471970000L);
 
     Assert.assertEquals(ts, oi.getPrimitiveJavaObject(offsetDateTime));
     Assert.assertEquals(new TimestampWritableV2(ts), oi.getPrimitiveWritableObject(offsetDateTime));

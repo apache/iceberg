@@ -25,24 +25,24 @@ public class MetastoreUtil {
   // we are working against Hive3 dependencies
   private static final String HIVE3_UNIQUE_CLASS = "org.apache.hadoop.hive.serde2.io.DateWritableV2";
 
-  private static Boolean hive3PresentOnClasspath = null;
+  private static final boolean HIVE3_PRESENT_ON_CLASSPATH = detectHive3();
 
   private MetastoreUtil() {
   }
 
   /**
-   * Loads a Hive3-specific class to see if Hive3 is found on the classpath. Caches the result into a static variable.
    * @return true if Hive3 dependencies are found on classpath, false otherwise
    */
   public static boolean hive3PresentOnClasspath() {
-    if (hive3PresentOnClasspath == null) {
-      try {
-        Class.forName(HIVE3_UNIQUE_CLASS);
-        hive3PresentOnClasspath = true;
-      } catch (ClassNotFoundException e) {
-        hive3PresentOnClasspath = false;
-      }
+    return HIVE3_PRESENT_ON_CLASSPATH;
+  }
+
+  private static boolean detectHive3() {
+    try {
+      Class.forName(HIVE3_UNIQUE_CLASS);
+      return true;
+    } catch (ClassNotFoundException e) {
+      return false;
     }
-    return hive3PresentOnClasspath;
   }
 }
