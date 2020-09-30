@@ -738,12 +738,8 @@ public class TestMetricsRowGroupFilter {
     shouldRead = shouldRead(notIn("all_nulls", 1, 2));
     Assert.assertTrue("Should read: notIn on all nulls column", shouldRead);
 
-    // ORC-623: ORC seems to incorrectly skip a row group for a notIn(column, {X, ...}) predicate on a column which
-    // has only 1 non-null value X but also has nulls
-    if (format != FileFormat.ORC) {
-      shouldRead = shouldRead(notIn("some_nulls", "aaa", "some"));
-      Assert.assertTrue("Should read: notIn on some nulls column", shouldRead);
-    }
+    shouldRead = shouldRead(notIn("some_nulls", "aaa", "some"));
+    Assert.assertTrue("Should read: notIn on some nulls column", shouldRead);
 
     shouldRead = shouldRead(notIn("no_nulls", "aaa", ""));
     if (format == FileFormat.PARQUET) {
@@ -753,6 +749,12 @@ public class TestMetricsRowGroupFilter {
     } else {
       Assert.assertFalse("Should skip: notIn on no nulls column", shouldRead);
     }
+  }
+
+  @Test
+  public void testSomeNullsNotEq() {
+    boolean shouldRead = shouldRead(notEqual("some_nulls", "some"));
+    Assert.assertTrue("Should read: notEqual on some nulls column", shouldRead);
   }
 
   private boolean shouldRead(Expression expression) {
