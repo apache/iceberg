@@ -45,12 +45,17 @@ public class LocationProviders {
         TableProperties.OBJECT_STORE_ENABLED_DEFAULT)) {
       return new ObjectStoreLocationProvider(location, properties);
     } else if (PropertyUtil.propertyAsBoolean(properties,
-        TableProperties.LOCALIZED_STORE_ENABLED, TableProperties.LOCALIZED_STORE_ENABLED_DEFAULT)){
+            TableProperties.LOCALIZED_STORE_ENABLED,
+            TableProperties.LOCALIZED_STORE_ENABLED_DEFAULT)) {
       Map<String, String> localityToPath = properties.entrySet()
           .stream()
           .filter(entry -> entry.getKey().startsWith(LOCALIZED_STORE_DATA_LOCATION_PREFIX))
-          .collect(Collectors.toMap(entry -> entry.getKey().substring(LOCALIZED_STORE_DATA_LOCATION_PREFIX.length()), entry -> entry.getValue()));
-      String partitionFieldName = properties.get(TableProperties.LOCALIZED_STORE_PARTITION_FIELD_NAME);
+          .collect(Collectors.toMap(
+            entry -> entry.getKey()
+                    .substring(LOCALIZED_STORE_DATA_LOCATION_PREFIX.length()),
+            entry -> entry.getValue()));
+      String partitionFieldName = properties.get(
+              TableProperties.LOCALIZED_STORE_PARTITION_FIELD_NAME);
       return new LocalizedLocationProvider(location, partitionFieldName, localityToPath);
     } else {
       return new DefaultLocationProvider(location, properties);
@@ -120,7 +125,8 @@ public class LocationProviders {
     @Override
     public String newDataLocation(String filename) {
       throw new IllegalStateException(
-          String.format("Unpartitioned data is not supported for localized store. Found unpartitioned data file %s", filename));
+          String.format("Unpartitioned data is not supported for localized store. " +
+                  "Found unpartitioned data file %s", filename));
     }
   }
 
