@@ -110,7 +110,7 @@ public class IcebergSplit extends InputSplit implements org.apache.hadoop.mapred
     this.encryptionManager = SerializationUtil.deserializeFromBytes(encryptionManagerData);
   }
 
-  public FileIO fileIO() {
+  public FileIO io() {
     return io;
   }
 

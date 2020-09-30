@@ -176,7 +176,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       // For now IcebergInputFormat does its own split planning and does not accept FileSplit instances
       CombinedScanTask task = ((IcebergSplit) split).task();
       this.context = newContext;
-      this.io = ((IcebergSplit) split).fileIO();
+      this.io = ((IcebergSplit) split).io();
       this.encryptionManager = ((IcebergSplit) split).encryptionManager();
       this.tasks = task.files().iterator();
       this.tableSchema = SchemaParser.fromJson(conf.get(InputFormatConfig.TABLE_SCHEMA));
