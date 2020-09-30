@@ -380,8 +380,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         ((BigIntVector) vec).allocateNew(numValsToRead);
         for (int i = 0; i < numValsToRead; i += 1) {
           vec.getDataBuffer().setLong(i * Long.BYTES, rowStart + i);
-          nulls = new NullabilityHolder(numValsToRead);
         }
+        nulls = new NullabilityHolder(numValsToRead);
       }
 
       vec.setValueCount(numValsToRead);
