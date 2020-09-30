@@ -57,16 +57,18 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   private final Table icebergTable;
   private final StructType requestedSchema;
+  private final boolean refreshEagerly;
   private StructType lazyTableSchema = null;
   private SparkSession lazySpark = null;
 
-  public SparkTable(Table icebergTable) {
-    this(icebergTable, null);
+  public SparkTable(Table icebergTable, boolean refreshEagerly) {
+    this(icebergTable, null, refreshEagerly);
   }
 
-  public SparkTable(Table icebergTable, StructType requestedSchema) {
+  public SparkTable(Table icebergTable, StructType requestedSchema, boolean refreshEagerly) {
     this.icebergTable = icebergTable;
     this.requestedSchema = requestedSchema;
+    this.refreshEagerly = refreshEagerly;
 
     if (requestedSchema != null) {
       // convert the requested schema to throw an exception if any requested fields are unknown
@@ -135,6 +137,10 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   @Override
   public ScanBuilder newScanBuilder(CaseInsensitiveStringMap options) {
+    if (refreshEagerly) {
+      icebergTable.refresh();
+    }
+
     SparkScanBuilder scanBuilder = new SparkScanBuilder(sparkSession(), icebergTable, options);
 
     if (requestedSchema != null) {

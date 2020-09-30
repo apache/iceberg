@@ -458,4 +458,55 @@ public abstract class TestSparkDataWrite {
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
   }
+
+  @Test
+  public void testViewsReturnRecentResults() throws IOException {
+    File parent = temp.newFolder(format.toString());
+    File location = new File(parent, "test");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
+    tables.create(SCHEMA, spec, location.toString());
+
+    List<SimpleRecord> records = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b"),
+        new SimpleRecord(3, "c")
+    );
+
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+
+    df.select("id", "data").write()
+        .format("iceberg")
+        .option("write-format", format.toString())
+        .mode("append")
+        .save(location.toString());
+
+    Dataset<Row> query = spark.read()
+        .format("iceberg")
+        .load(location.toString())
+        .where("id = 1");
+    query.createOrReplaceTempView("tmp");
+
+    List<SimpleRecord> actual1 = spark.table("tmp").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> expected1 = Lists.newArrayList(
+        new SimpleRecord(1, "a")
+    );
+    Assert.assertEquals("Number of rows should match", expected1.size(), actual1.size());
+    Assert.assertEquals("Result rows should match", expected1, actual1);
+
+    df.select("id", "data").write()
+        .format("iceberg")
+        .option("write-format", format.toString())
+        .mode("append")
+        .save(location.toString());
+
+    List<SimpleRecord> actual2 = spark.table("tmp").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> expected2 = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(1, "a")
+    );
+    Assert.assertEquals("Number of rows should match", expected2.size(), actual2.size());
+    Assert.assertEquals("Result rows should match", expected2, actual2);
+  }
 }
