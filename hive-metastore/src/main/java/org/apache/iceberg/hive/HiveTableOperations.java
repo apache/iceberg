@@ -201,21 +201,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
       setParameters(newMetadataLocation, tbl);
 
-      Table newTable = tbl;
-      if (updateHiveTable) {
-        metaClients.run(client -> {
-          EnvironmentContext envContext = new EnvironmentContext(
-              ImmutableMap.of(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE)
-          );
-          ALTER_TABLE.invoke(client, database, tableName, newTable, envContext);
-          return null;
-        });
-      } else {
-        metaClients.run(client -> {
-          client.createTable(newTable);
-          return null;
-        });
-      }
+      persistTable(tbl, updateHiveTable);
       threw = false;
     } catch (org.apache.hadoop.hive.metastore.api.AlreadyExistsException e) {
       throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);
@@ -239,6 +225,23 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         io().deleteFile(newMetadataLocation);
       }
       unlock(lockId);
+    }
+  }
+
+  private void persistTable(Table hmsTable, boolean updateHiveTable) throws TException, InterruptedException {
+    if (updateHiveTable) {
+      metaClients.run(client -> {
+        EnvironmentContext envContext = new EnvironmentContext(
+            ImmutableMap.of(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE)
+        );
+        ALTER_TABLE.invoke(client, database, tableName, hmsTable, envContext);
+        return null;
+      });
+    } else {
+      metaClients.run(client -> {
+        client.createTable(hmsTable);
+        return null;
+      });
     }
   }
 

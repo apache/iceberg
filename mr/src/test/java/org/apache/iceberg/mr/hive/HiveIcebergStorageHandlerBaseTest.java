@@ -24,11 +24,12 @@ import com.klarna.hiverunner.StandaloneHiveRunner;
 import com.klarna.hiverunner.annotations.HiveSQL;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.metadata.Hive;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
@@ -45,7 +46,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.hive.HiveTableOperations;
+import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
@@ -297,7 +298,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     // General metadata checks
     Assert.assertEquals(6, hmsParams.size());
     Assert.assertEquals("test", hmsParams.get("dummy"));
-    Assert.assertEquals("TRUE", hmsParams.get(InputFormatConfig.HIVE_DELETE_BACKING_TABLE));
+    Assert.assertEquals("TRUE", hmsParams.get(InputFormatConfig.EXTERNAL_TABLE_PURGE));
     Assert.assertEquals("TRUE", hmsParams.get("EXTERNAL"));
     Assert.assertNotNull(hmsParams.get(hive_metastoreConstants.DDL_TIME));
     Assert.assertEquals(HiveIcebergStorageHandler.class.getName(),
@@ -406,14 +407,14 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   }
 
   @Test
-  public void testDeleteBackingTable() throws TException {
+  public void testDeleteBackingTable() throws TException, IOException {
     // We need the location for HadoopTable based tests only
     String location = locationForCreateTable(temp.getRoot().getPath(), "customers");
     shell.executeStatement("CREATE EXTERNAL TABLE customers " +
         "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
         (location != null ? "LOCATION '" + location + "' " : "") +
         "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" + SchemaParser.toJson(CUSTOMER_SCHEMA) + "', " +
-        "'" + InputFormatConfig.HIVE_DELETE_BACKING_TABLE + "'='FALSE')");
+        "'" + InputFormatConfig.EXTERNAL_TABLE_PURGE + "'='FALSE')");
 
     Properties properties = new Properties();
     properties.put(Catalogs.NAME, TableIdentifier.of("default", "customers").toString());
@@ -430,31 +431,35 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       // Cleanup the test table
       Catalogs.dropTable(shell.getHiveConf(), properties);
     } else {
-      // Check if we drop an exception when trying to drop the table
-      AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
-          "Can not drop Hive table and keep Iceberg table data when using HiveCatalog", () -> {
-            shell.executeStatement("DROP TABLE customers");
-          }
-      );
-
-      // Check if the table remains
-      Catalogs.loadTable(shell.getHiveConf(), properties);
-
-      // Reset the purge parameter
+      // Check the HMS table parameters
       IMetaStoreClient client = null;
+      Path hmsTableLocation;
       try {
         client = new HiveMetaStoreClient(metastore.hiveConf());
-        org.apache.hadoop.hive.metastore.api.Table hmsTable = client.getTable("default", "customers");
-        hmsTable.getParameters().put(InputFormatConfig.HIVE_DELETE_BACKING_TABLE, "TRUE");
-        client.alter_table(hmsTable.getDbName(), hmsTable.getTableName(), hmsTable);
+        hmsTableLocation = new Path(client.getTable("default", "customers").getSd().getLocation());
       } finally {
         if (client != null) {
           client.close();
         }
       }
 
-      // Drop it successfully
+      // Drop the table
       shell.executeStatement("DROP TABLE customers");
+
+      // Check if we drop an exception when trying to drop the table
+      AssertHelpers.assertThrows("should throw exception", NoSuchTableException.class,
+          "Table does not exist", () -> {
+            Catalogs.loadTable(shell.getHiveConf(), properties);
+          }
+      );
+
+      // Check if the files are kept
+      FileSystem fs = Util.getFs(hmsTableLocation, shell.getHiveConf());
+      Assert.assertEquals(1, fs.listStatus(hmsTableLocation).length);
+      Assert.assertEquals(1, fs.listStatus(new Path(hmsTableLocation, "metadata")).length);
+
+      // Cleanup
+      fs.delete(hmsTableLocation, true);
     }
   }
 

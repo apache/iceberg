@@ -23,7 +23,6 @@ import java.util.Properties;
 import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.HiveMetaHook;
-import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.PartitionSpecParser;
@@ -45,7 +44,7 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
   private static final Set<String> PARAMETERS_TO_REMOVE = ImmutableSet
       .of(InputFormatConfig.TABLE_SCHEMA, InputFormatConfig.PARTITION_SPEC, Catalogs.LOCATION, Catalogs.NAME);
   private static final Set<String> PROPERTIES_TO_REMOVE = ImmutableSet
-      .of(InputFormatConfig.HIVE_DELETE_BACKING_TABLE, hive_metastoreConstants.META_TABLE_STORAGE, "EXTERNAL");
+      .of(InputFormatConfig.EXTERNAL_TABLE_PURGE, hive_metastoreConstants.META_TABLE_STORAGE, "EXTERNAL");
 
   private final Configuration conf;
   private Table icebergTable = null;
@@ -81,8 +80,8 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
       }
 
       // Allow purging table data if the table is created now and not set otherwise
-      if (hmsTable.getParameters().get(InputFormatConfig.HIVE_DELETE_BACKING_TABLE) == null) {
-        hmsTable.getParameters().put(InputFormatConfig.HIVE_DELETE_BACKING_TABLE, "TRUE");
+      if (hmsTable.getParameters().get(InputFormatConfig.EXTERNAL_TABLE_PURGE) == null) {
+        hmsTable.getParameters().put(InputFormatConfig.EXTERNAL_TABLE_PURGE, "TRUE");
       }
 
       // Set the table type even for non HiveCatalog based tables
@@ -112,20 +111,10 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
   }
 
   @Override
-  public void preDropTable(org.apache.hadoop.hive.metastore.api.Table hmsTable) throws MetaException {
+  public void preDropTable(org.apache.hadoop.hive.metastore.api.Table hmsTable) {
     this.catalogProperties = getCatalogProperties(hmsTable);
     this.deleteIcebergTable = hmsTable.getParameters() != null &&
-        "TRUE".equalsIgnoreCase(hmsTable.getParameters().get(InputFormatConfig.HIVE_DELETE_BACKING_TABLE));
-
-    if (!deleteIcebergTable) {
-      if (!Catalogs.canWorkWithoutHive(conf)) {
-        // This should happen only if someone were manually removing this property from the table, or
-        // added the table from outside of Hive
-        throw new MetaException("Can not drop Hive table and keep Iceberg table data when using HiveCatalog. " +
-            "Please add " + InputFormatConfig.HIVE_DELETE_BACKING_TABLE + "='TRUE' to TBLPROPERTIES " +
-            "of the Hive table to enable dropping");
-      }
-    }
+        "TRUE".equalsIgnoreCase(hmsTable.getParameters().get(InputFormatConfig.EXTERNAL_TABLE_PURGE));
   }
 
   @Override
