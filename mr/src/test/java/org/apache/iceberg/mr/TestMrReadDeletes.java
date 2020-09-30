@@ -21,6 +21,8 @@ package org.apache.iceberg.mr;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.FileFormat;
@@ -30,7 +32,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.data.DeletesReadTest;
-import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
@@ -44,7 +45,7 @@ public class TestMrReadDeletes extends DeletesReadTest {
   private TestHelper helper;
 
   // parametrized variables
-  private final TestIcebergInputFormats.TestInputFormat.Factory<Record> testInputFormat;
+  private final String inputFormat;
   private final FileFormat fileFormat;
 
   @Parameterized.Parameters
@@ -60,8 +61,7 @@ public class TestMrReadDeletes extends DeletesReadTest {
   }
 
   public TestMrReadDeletes(String inputFormat, FileFormat fileFormat) {
-    this.testInputFormat = TestIcebergInputFormats.TestInputFormat.newFactory(inputFormat,
-        TestIcebergInputFormats.TestIcebergInputFormat::create);
+    this.inputFormat = inputFormat;
     this.fileFormat = fileFormat;
   }
 
@@ -69,7 +69,7 @@ public class TestMrReadDeletes extends DeletesReadTest {
   protected Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException {
     Table table;
 
-    File location = temp.newFolder(testInputFormat.name(), fileFormat.name());
+    File location = temp.newFolder(inputFormat, fileFormat.name());
     Assert.assertTrue(location.delete());
     helper = new TestHelper(conf, tables, location.toString(), schema, spec, fileFormat, temp);
     table = helper.createTable();
@@ -91,7 +91,13 @@ public class TestMrReadDeletes extends DeletesReadTest {
     InputFormatConfig.ConfigBuilder builder = new InputFormatConfig.ConfigBuilder(conf).readFrom(table.location());
     Schema projected = table.schema().select(columns);
     StructLikeSet set = StructLikeSet.create(projected.asStruct());
-    set.addAll(testInputFormat.create(builder.project(projected).conf()).getRecords());
+
+    set.addAll(TestIcebergInputFormats.TESTED_INPUT_FORMATS.stream()
+        .filter(recordFactory -> recordFactory.name().equals(inputFormat))
+        .map(recordFactory -> recordFactory.create(builder.project(projected).conf()).getRecords())
+        .flatMap(List::stream)
+        .collect(Collectors.toList())
+    );
 
     return set;
   }
