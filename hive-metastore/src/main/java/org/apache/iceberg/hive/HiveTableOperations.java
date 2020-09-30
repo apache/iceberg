@@ -177,6 +177,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       if (hiveEngineEnabled) {
         tbl.getParameters().put(hive_metastoreConstants.META_TABLE_STORAGE,
             "org.apache.iceberg.mr.hive.HiveIcebergStorageHandler");
+      } else {
+        tbl.getParameters().remove(hive_metastoreConstants.META_TABLE_STORAGE);
       }
 
       String metadataLocation = tbl.getParameters().get(METADATA_LOCATION_PROP);
