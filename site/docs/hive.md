@@ -18,27 +18,30 @@
 # Hive
 
 ## Hive read support
-Iceberg supports the reading of Iceberg tables from [Hive](https://hive.apache.org) by using a [StorageHandler](https://cwiki.apache.org/confluence/display/Hive/StorageHandlers). 
+Iceberg supports the reading of Iceberg tables from [Hive](https://hive.apache.org) by using a [StorageHandler](https://cwiki.apache.org/confluence/display/Hive/StorageHandlers). Please note that only Hive 2.x versions are currently supported.
 
 ### Table creation
-This section explains the various steps needed in order to overlay a Hive table "on top of" an existing Iceberg table.
-
-#### Create an Iceberg table
-The first step is to create an Iceberg table using the Spark/Java/Python API. For the purposes of this documentation we will assume that the table is called `table_a` and that the base location of the table is `s3://some_bucket/some_path/table_a`.
+This section explains the various steps needed in order to overlay a Hive table "on top of" an existing Iceberg table. Iceberg tables are created using either a [`Catalog`](/javadoc/master/index.html?org/apache/iceberg/catalog/Catalog.html) or an implementation of the [`Tables`](/javadoc/master/index.html?org/apache/iceberg/Tables.html) interface and Hive needs to be configured accordingly to read data from these different types of table.
 
 #### Add the Iceberg Hive Runtime jar file to the Hive classpath
-The `HiveIcebergStorageHandler` and supporting classes need to be made available on Hive's classpath. For example, if using Hive 2.x and the Hive shell, this can be achieved by issuing a statement like so:
+Regardless of the table type, the `HiveIcebergStorageHandler` and supporting classes need to be made available on Hive's classpath. These are provided by the `iceberg-hive-runtime` jar file. For example, if using the Hive shell, this can be achieved by issuing a statement like so:
 ```sql
 add jar /path/to/iceberg-hive-runtime.jar;
 ```
 There are many others ways to achieve this including adding the jar file to Hive's auxillary classpath (so it is available by default) - please refer to Hive's documentation for more information.
 
-#### Create a Hive table
+#### Using Hadoop Tables
+Iceberg tables created using `HadoopTables` are stored entirely in a directory in a filesytem like HDFS. 
+
+##### Create an Iceberg table
+The first step is to create an Iceberg table using the Spark/Java/Python API and `HadoopTables`. For the purposes of this documentation we will assume that the table is called `table_a` and that the table location is `hdfs://some_path/table_a`.
+
+##### Create a Hive table
 Now overlay a Hive table on top of this Iceberg table by issuing Hive DDL like so:
 ```sql
 CREATE EXTERNAL TABLE table_a 
 STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' 
-LOCATION 's3://some_bucket/some_path/table_a';
+LOCATION 'hdfs://some_bucket/some_path/table_a';
 ```
 
 #### Query the Iceberg table via Hive
@@ -51,12 +54,3 @@ SELECT * from table_a;
 
 #### Predicate pushdown
 Pushdown of the Hive SQL `WHERE` clause has been implemented so that these filters are used at the Iceberg TableScan level as well as by the Parquet and ORC Readers.
-
-#### Column selection
-The projection of columns from the HiveSQL `SELECT` clause down to the Iceberg readers to reduce the number of columns read is currently being worked on.
-
-### Time travel and system tables
-Support for accesing Iceberg's time travel feature and other system tables isn't currently supported but there is a plan to add this in the future.
-
-## Hive write support
-Iceberg intends to support the creation of, and writing into, Iceberg tables from Hive. This is currently being worked on and is still considered experimental.
