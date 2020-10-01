@@ -36,11 +36,11 @@ public class DataFilesTable extends BaseMetadataTable {
   private final Table table;
   private final String name;
 
-  public DataFilesTable(TableOperations ops, Table table) {
+  DataFilesTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".files");
   }
 
-  public DataFilesTable(TableOperations ops, Table table, String name) {
+  DataFilesTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
     this.name = name;
