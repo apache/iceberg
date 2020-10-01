@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import java.util.Map;
-
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.LocationProvider;
