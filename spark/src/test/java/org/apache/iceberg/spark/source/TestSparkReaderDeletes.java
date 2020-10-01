@@ -50,6 +50,8 @@ public abstract class TestSparkReaderDeletes extends DeletesReadTest {
   protected static SparkSession spark = null;
   protected static HiveCatalog catalog = null;
 
+  private String tableName;
+
   @BeforeClass
   public static void startMetastoreAndSpark() {
     metastore = new TestHiveMetastore();
@@ -84,7 +86,8 @@ public abstract class TestSparkReaderDeletes extends DeletesReadTest {
 
   @Override
   protected Table createTable(String name, Schema schema, PartitionSpec spec) {
-    Table table = catalog.createTable(TableIdentifier.of("default", name), schema);
+    this.tableName = name;
+    Table table = catalog.createTable(TableIdentifier.of("default", tableName), schema);
     TableOperations ops = ((BaseTable) table).operations();
     TableMetadata meta = ops.current();
     ops.commit(meta, meta.upgradeToFormatVersion(2));
@@ -101,7 +104,7 @@ public abstract class TestSparkReaderDeletes extends DeletesReadTest {
   public StructLikeSet rowSet(Table table, String... columns) {
     Dataset<Row> df = spark.read()
         .format("iceberg")
-        .load(TableIdentifier.of("default", testTableName).toString())
+        .load(TableIdentifier.of("default", tableName).toString())
         .selectExpr(columns);
 
     Types.StructType projection = table.schema().select(columns).asStruct();

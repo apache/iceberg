@@ -57,18 +57,17 @@ public abstract class DeletesReadTest {
       .bucket("data", 16)
       .build();
 
-  protected final String testTableName = "test";
   protected Table table;
 
-  private DataFile dataFile;
   private List<Record> records;
+  private DataFile dataFile;
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
   @Before
-  public void prepareData() throws IOException {
-    this.table = createTable(testTableName, SCHEMA, SPEC);
+  public void writeTestDataFile() throws IOException {
+    this.table = createTable("test", SCHEMA, SPEC);
     this.records = Lists.newArrayList();
 
     // records all use IDs that are in bucket id_bucket=0
@@ -82,6 +81,7 @@ public abstract class DeletesReadTest {
     records.add(record.copy("id", 122, "data", "g"));
 
     this.dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), Row.of(0), records);
+
     table.newAppend()
         .appendFile(dataFile)
         .commit();
@@ -89,7 +89,7 @@ public abstract class DeletesReadTest {
 
   @After
   public void cleanup() throws IOException {
-    dropTable(testTableName);
+    dropTable("test");
   }
 
   protected abstract Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException;
