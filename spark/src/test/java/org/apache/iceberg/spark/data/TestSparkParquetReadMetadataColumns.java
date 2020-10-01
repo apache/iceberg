@@ -106,7 +106,8 @@ public class TestSparkParquetReadMetadataColumns {
   }
 
   @Parameterized.Parameters(name =  "vectorized = {0}")
-  // Vectorized parquet reads not currently supported for metadata columns in Spark.
+  // Vectorized parquet reads not currently supported for reads with row
+  // position in the the _pos metadata column.
   // https://github.com/apache/iceberg/issues/1540
   public static Object[] parameters() {
     return new Object[] { false };
