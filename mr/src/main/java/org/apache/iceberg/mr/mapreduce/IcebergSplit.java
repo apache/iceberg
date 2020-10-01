@@ -27,6 +27,8 @@ import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.mr.InputFormatConfig;
@@ -86,7 +88,13 @@ public class IcebergSplit extends InputSplit implements org.apache.hadoop.mapred
     out.writeInt(data.length);
     out.write(data);
 
-    byte[] ioData = SerializationUtil.serializeToBytes(io);
+    byte[] ioData;
+    if (io instanceof HadoopFileIO) {
+      SerializableConfiguration serializableConf = new SerializableConfiguration(((HadoopFileIO) io).conf());
+      ioData = SerializationUtil.serializeToBytes(new HadoopFileIO(serializableConf::get));
+    } else {
+      ioData = SerializationUtil.serializeToBytes(io);
+    }
     out.writeInt(ioData.length);
     out.write(ioData);
 
