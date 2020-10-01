@@ -525,6 +525,24 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
         () -> TABLES.load(tableLocation));
   }
 
+  @Test
+  public void testTableName() throws Exception {
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    catalog.buildTable(tableIdent, SCHEMA)
+        .withPartitionSpec(SPEC)
+        .create();
+
+    Table table = catalog.loadTable(tableIdent);
+    Assert.assertEquals("Name must match", "hadoop.db.ns1.ns2.tbl", table.name());
+
+    TableIdentifier snapshotsTableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl", "snapshots");
+    Table snapshotsTable = catalog.loadTable(snapshotsTableIdent);
+    Assert.assertEquals("Name must match", "hadoop.db.ns1.ns2.tbl.snapshots", snapshotsTable.name());
+  }
+
   private static void addVersionsToTable(Table table) {
     DataFile dataFile1 = DataFiles.builder(SPEC)
         .withPath("/a.parquet")
