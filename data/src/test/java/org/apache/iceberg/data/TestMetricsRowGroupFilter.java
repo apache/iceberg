@@ -62,6 +62,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -138,14 +139,15 @@ public class TestMetricsRowGroupFilter {
     TOO_LONG_FOR_STATS_PARQUET = sb.toString();
   }
 
-  private static final File orcFile = new File("/tmp/stats-row-group-filter-test.orc");
-
-  private static final File parquetFile = new File("/tmp/stats-row-group-filter-test.parquet");
-  private static MessageType parquetSchema = null;
-  private static BlockMetaData rowGroupMetadata = null;
-
   private static final int INT_MIN_VALUE = 30;
   private static final int INT_MAX_VALUE = 79;
+
+  private File orcFile = null;
+  private MessageType parquetSchema = null;
+  private BlockMetaData rowGroupMetadata = null;
+
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
 
   @Before
   public void createInputFile() throws IOException {
@@ -162,9 +164,8 @@ public class TestMetricsRowGroupFilter {
   }
 
   public void createOrcInputFile() throws IOException {
-    if (orcFile.exists()) {
-      Assert.assertTrue(orcFile.delete());
-    }
+    this.orcFile = temp.newFile();
+    Assert.assertTrue(orcFile.delete());
 
     OutputFile outFile = Files.localOutput(orcFile);
     try (FileAppender<GenericRecord> appender = ORC.write(outFile)
@@ -201,9 +202,8 @@ public class TestMetricsRowGroupFilter {
   }
 
   private void createParquetInputFile() throws IOException {
-    if (parquetFile.exists()) {
-      Assert.assertTrue(parquetFile.delete());
-    }
+    File parquetFile = temp.newFile();
+    Assert.assertTrue(parquetFile.delete());
 
     // build struct field schema
     org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(_structFieldType);
