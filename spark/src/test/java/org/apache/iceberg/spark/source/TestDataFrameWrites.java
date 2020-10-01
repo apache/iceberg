@@ -170,7 +170,7 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
   }
 
   @Test
-  public void testWriteLocalityPartitionedDataInLocalizedStore() throws IOException {
+  public void testWriteWithDynamicallyLoadedLocationProvider() throws IOException {
     Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
     PartitionSpec partitionSpec = PartitionSpec.builderFor(schema).identity("b").build();
     List<Record> expected = RandomData.generateList(schema, 100, 0L);
@@ -194,8 +194,6 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
     writePartitionedDataAndCheckRead(table, schema, partitionSpec, location, expected);
 
     table.currentSnapshot().addedFiles().forEach(f -> {
-      assert partitionSpec.fields().size() == 1;
-
       Boolean oddOrEven = f.partition().get(0, Boolean.class);
       File expectedDataLocationPath = oddOrEven ? pathTrue : pathFalse;
       assertDirectoryHasFile(expectedDataLocationPath, f);
