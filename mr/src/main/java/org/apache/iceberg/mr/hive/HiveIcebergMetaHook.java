@@ -25,12 +25,16 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.HiveMetaHook;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -49,6 +53,8 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
   private Table icebergTable = null;
   private Properties catalogProperties;
   private boolean deleteIcebergTable;
+  private FileIO deleteIo;
+  private TableMetadata deleteMetadata;
 
   public HiveIcebergMetaHook(Configuration conf) {
     this.conf = conf;
@@ -109,6 +115,13 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
     this.catalogProperties = getCatalogProperties(hmsTable);
     this.deleteIcebergTable = hmsTable.getParameters() != null &&
         "TRUE".equalsIgnoreCase(hmsTable.getParameters().get(InputFormatConfig.EXTERNAL_TABLE_PURGE));
+
+    if (deleteIcebergTable && Catalogs.hiveCatalog(conf)) {
+      // Store the metadata and the id for deleting the actual table data
+      String metadataLocation = hmsTable.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
+      this.deleteIo = Catalogs.loadTable(conf, catalogProperties).io();
+      this.deleteMetadata = TableMetadataParser.read(deleteIo, metadataLocation);
+    }
   }
 
   @Override
@@ -119,11 +132,12 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
   @Override
   public void commitDropTable(org.apache.hadoop.hive.metastore.api.Table hmsTable, boolean deleteData) {
     if (deleteData && deleteIcebergTable) {
-      if (Catalogs.canWorkWithoutHive(conf)) {
+      if (!Catalogs.hiveCatalog(conf)) {
         LOG.info("Dropping with purge all the data for table {}.{}", hmsTable.getDbName(), hmsTable.getTableName());
         Catalogs.dropTable(conf, catalogProperties);
+      } else {
+        CatalogUtil.dropTableData(deleteIo, deleteMetadata);
       }
-      // TODO: remove data/metadata if HiveCatalog is used
     }
   }
 

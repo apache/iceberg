@@ -178,12 +178,12 @@ public final class Catalogs {
   }
 
   /**
-   * Returns true if the table is still accessible without Hive table present
+   * Returns true if HiveCatalog is used
    * @param conf a Hadoop conf
-   * @return true if the Catalog is not HiveCatalog
+   * @return true if the Catalog is HiveCatalog
    */
-  public static boolean canWorkWithoutHive(Configuration conf) {
-    return !HIVE.equalsIgnoreCase(conf.get(InputFormatConfig.CATALOG));
+  public static boolean hiveCatalog(Configuration conf) {
+    return HIVE.equalsIgnoreCase(conf.get(InputFormatConfig.CATALOG));
   }
 
   @VisibleForTesting

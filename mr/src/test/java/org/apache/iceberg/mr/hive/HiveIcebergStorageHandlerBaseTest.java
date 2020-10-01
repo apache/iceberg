@@ -47,6 +47,8 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.hive.ClientPool;
+import org.apache.iceberg.hive.HiveClientPool;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
@@ -270,8 +272,8 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
     // Check the Iceberg table data
     org.apache.iceberg.Table icebergTable = Catalogs.loadTable(shell.getHiveConf(), properties);
-    Assert.assertEquals(SchemaParser.toJson(CUSTOMER_SCHEMA), SchemaParser.toJson(icebergTable.schema()));
-    Assert.assertEquals(PartitionSpecParser.toJson(IDENTITY_SPEC), PartitionSpecParser.toJson(icebergTable.spec()));
+    Assert.assertEquals(CUSTOMER_SCHEMA.asStruct(), icebergTable.schema().asStruct());
+    Assert.assertEquals(IDENTITY_SPEC, icebergTable.spec());
     Assert.assertEquals(Collections.singletonMap("dummy", "test"), icebergTable.properties());
 
     // Check the HMS table parameters
@@ -306,7 +308,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Assert.assertEquals(BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(),
         hmsTable.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP));
 
-    if (Catalogs.canWorkWithoutHive(shell.getHiveConf())) {
+    if (!Catalogs.hiveCatalog(shell.getHiveConf())) {
       shell.executeStatement("DROP TABLE customers");
 
       // Check if the table was really dropped even from the Catalog
@@ -330,17 +332,17 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       // Drop the table
       shell.executeStatement("DROP TABLE customers");
 
-      // Check if we drop an exception when trying to drop the table
+      // Check if we drop an exception when trying to load the table
       AssertHelpers.assertThrows("should throw exception", NoSuchTableException.class,
           "Table does not exist", () -> {
             Catalogs.loadTable(shell.getHiveConf(), properties);
           }
       );
 
-      // Check if the files are kept
+      // Check if the files are removed
       FileSystem fs = Util.getFs(hmsTableLocation, shell.getHiveConf());
-      // TODO: files should be deleted
-      // Assert.assertEquals(0, fs.listStatus(hmsTableLocation).length);
+      Assert.assertEquals(1, fs.listStatus(hmsTableLocation).length);
+      Assert.assertEquals(0, fs.listStatus(new Path(hmsTableLocation, "metadata")).length);
     }
   }
 
@@ -361,7 +363,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
     // Check the Iceberg table partition data
     org.apache.iceberg.Table icebergTable = Catalogs.loadTable(shell.getHiveConf(), properties);
-    Assert.assertEquals(PartitionSpecParser.toJson(SPEC), PartitionSpecParser.toJson(icebergTable.spec()));
+    Assert.assertEquals(SPEC, icebergTable.spec());
 
     // Check the HMS table parameters
     IMetaStoreClient client = null;
@@ -407,7 +409,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
     // Check the Iceberg table partition data
     org.apache.iceberg.Table icebergTable = Catalogs.loadTable(shell.getHiveConf(), properties);
-    Assert.assertEquals(PartitionSpecParser.toJson(SPEC), PartitionSpecParser.toJson(icebergTable.spec()));
+    Assert.assertEquals(SPEC, icebergTable.spec());
 
     // Check the HMS table parameters
     IMetaStoreClient client = null;
@@ -450,7 +452,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       properties.put(Catalogs.LOCATION, location);
     }
 
-    if (Catalogs.canWorkWithoutHive(shell.getHiveConf())) {
+    if (!Catalogs.hiveCatalog(shell.getHiveConf())) {
       shell.executeStatement("DROP TABLE customers");
 
       // Check if the table remains
