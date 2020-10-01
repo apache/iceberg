@@ -39,6 +39,8 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
+import org.apache.iceberg.parquet.ReusableArrayData;
+import org.apache.iceberg.parquet.ReusableMapData;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -433,7 +435,7 @@ public class FlinkParquetReaders {
     }
   }
 
-  private static class ArrayReader<E> extends ParquetValueReaders.RepeatedReader<ArrayData, ReusableArrayData, E> {
+  private static class ArrayReader<E> extends ParquetValueReaders.RepeatedReader<ArrayData, FlinkReusableArrayData, E> {
     private int readPos = 0;
     private int writePos = 0;
 
@@ -442,23 +444,23 @@ public class FlinkParquetReaders {
     }
 
     @Override
-    protected ReusableArrayData newListData(ArrayData reuse) {
+    protected FlinkReusableArrayData newListData(ArrayData reuse) {
       this.readPos = 0;
       this.writePos = 0;
 
-      if (reuse instanceof ReusableArrayData) {
-        return (ReusableArrayData) reuse;
+      if (reuse instanceof FlinkReusableArrayData) {
+        return (FlinkReusableArrayData) reuse;
       } else {
-        return new ReusableArrayData();
+        return new FlinkReusableArrayData();
       }
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    protected E getElement(ReusableArrayData list) {
+    protected E getElement(FlinkReusableArrayData list) {
       E value = null;
       if (readPos < list.capacity()) {
-        value = (E) list.values[readPos];
+        value = list.getRaw(readPos);
       }
 
       readPos += 1;
@@ -467,27 +469,26 @@ public class FlinkParquetReaders {
     }
 
     @Override
-    protected void addElement(ReusableArrayData reused, E element) {
+    protected void addElement(FlinkReusableArrayData reused, E element) {
       if (writePos >= reused.capacity()) {
         reused.grow();
       }
 
-      reused.values[writePos] = element;
+      reused.setValue(writePos, element);
 
       writePos += 1;
     }
 
     @Override
-    protected ArrayData buildList(ReusableArrayData list) {
+    protected ArrayData buildList(FlinkReusableArrayData list) {
       list.setNumElements(writePos);
       return list;
     }
   }
 
   private static class MapReader<K, V> extends
-      ParquetValueReaders.RepeatedKeyValueReader<MapData, ReusableMapData, K, V> {
+      ParquetValueReaders.RepeatedKeyValueReader<MapData, FlinkReusableMapData, K, V> {
     private int readPos = 0;
-    private int writePos = 0;
 
     private final ParquetValueReaders.ReusableEntry<K, V> entry = new ParquetValueReaders.ReusableEntry<>();
     private final ParquetValueReaders.ReusableEntry<K, V> nullEntry = new ParquetValueReaders.ReusableEntry<>();
@@ -498,225 +499,54 @@ public class FlinkParquetReaders {
     }
 
     @Override
-    protected ReusableMapData newMapData(MapData reuse) {
+    protected FlinkReusableMapData newMapData(MapData reuse) {
       this.readPos = 0;
-      this.writePos = 0;
 
-      if (reuse instanceof ReusableMapData) {
-        return (ReusableMapData) reuse;
+      if (reuse instanceof FlinkReusableMapData) {
+        return (FlinkReusableMapData) reuse;
       } else {
-        return new ReusableMapData();
+        return new FlinkReusableMapData();
       }
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    protected Map.Entry<K, V> getPair(ReusableMapData map) {
-      Map.Entry<K, V> kv = nullEntry;
-      if (readPos < map.capacity()) {
-        entry.set((K) map.keys.values[readPos], (V) map.values.values[readPos]);
-        kv = entry;
-      }
-
+    protected Map.Entry<K, V> getPair(FlinkReusableMapData map) {
+      Map.Entry<K, V> kv = map.getRaw(readPos, entry, nullEntry);
       readPos += 1;
 
       return kv;
     }
 
     @Override
-    protected void addPair(ReusableMapData map, K key, V value) {
-      if (writePos >= map.capacity()) {
-        map.grow();
-      }
-
-      map.keys.values[writePos] = key;
-      map.values.values[writePos] = value;
-
-      writePos += 1;
+    protected void addPair(FlinkReusableMapData map, K key, V value) {
+      map.addPair(key, value);
     }
 
     @Override
-    protected MapData buildMap(ReusableMapData map) {
-      map.setNumElements(writePos);
+    protected MapData buildMap(FlinkReusableMapData map) {
       return map;
     }
   }
 
-  private static class RowDataReader extends ParquetValueReaders.StructReader<RowData, GenericRowData> {
-    private final int numFields;
+  private static class FlinkReusableMapData extends ReusableMapData implements MapData {
 
-    RowDataReader(List<Type> types, List<ParquetValueReader<?>> readers) {
-      super(types, readers);
-      this.numFields = readers.size();
+    private FlinkReusableMapData() {
+      this.keys = new FlinkReusableArrayData();
+      this.values = new FlinkReusableArrayData();
     }
 
     @Override
-    protected GenericRowData newStructData(RowData reuse) {
-      if (reuse instanceof GenericRowData) {
-        return (GenericRowData) reuse;
-      } else {
-        return new GenericRowData(numFields);
-      }
+    public FlinkReusableArrayData valueArray() {
+      return (FlinkReusableArrayData) values;
     }
-
     @Override
-    protected Object getField(GenericRowData intermediate, int pos) {
-      return intermediate.getField(pos);
-    }
-
-    @Override
-    protected RowData buildStruct(GenericRowData struct) {
-      return struct;
-    }
-
-    @Override
-    protected void set(GenericRowData row, int pos, Object value) {
-      row.setField(pos, value);
-    }
-
-    @Override
-    protected void setNull(GenericRowData row, int pos) {
-      row.setField(pos, null);
-    }
-
-    @Override
-    protected void setBoolean(GenericRowData row, int pos, boolean value) {
-      row.setField(pos, value);
-    }
-
-    @Override
-    protected void setInteger(GenericRowData row, int pos, int value) {
-      row.setField(pos, value);
-    }
-
-    @Override
-    protected void setLong(GenericRowData row, int pos, long value) {
-      row.setField(pos, value);
-    }
-
-    @Override
-    protected void setFloat(GenericRowData row, int pos, float value) {
-      row.setField(pos, value);
-    }
-
-    @Override
-    protected void setDouble(GenericRowData row, int pos, double value) {
-      row.setField(pos, value);
+    public FlinkReusableArrayData keyArray() {
+      return (FlinkReusableArrayData) keys;
     }
   }
 
-  private static class ReusableMapData implements MapData {
-    private final ReusableArrayData keys;
-    private final ReusableArrayData values;
-
-    private int numElements;
-
-    private ReusableMapData() {
-      this.keys = new ReusableArrayData();
-      this.values = new ReusableArrayData();
-    }
-
-    private void grow() {
-      keys.grow();
-      values.grow();
-    }
-
-    private int capacity() {
-      return keys.capacity();
-    }
-
-    public void setNumElements(int numElements) {
-      this.numElements = numElements;
-      keys.setNumElements(numElements);
-      values.setNumElements(numElements);
-    }
-
-    @Override
-    public int size() {
-      return numElements;
-    }
-
-    @Override
-    public ReusableArrayData keyArray() {
-      return keys;
-    }
-
-    @Override
-    public ReusableArrayData valueArray() {
-      return values;
-    }
-  }
-
-  private static class ReusableArrayData implements ArrayData {
-    private static final Object[] EMPTY = new Object[0];
-
-    private Object[] values = EMPTY;
-    private int numElements = 0;
-
-    private void grow() {
-      if (values.length == 0) {
-        this.values = new Object[20];
-      } else {
-        Object[] old = values;
-        this.values = new Object[old.length << 1];
-        // copy the old array in case it has values that can be reused
-        System.arraycopy(old, 0, values, 0, old.length);
-      }
-    }
-
-    private int capacity() {
-      return values.length;
-    }
-
-    public void setNumElements(int numElements) {
-      this.numElements = numElements;
-    }
-
-    @Override
-    public int size() {
-      return numElements;
-    }
-
-    @Override
-    public boolean isNullAt(int ordinal) {
-      return null == values[ordinal];
-    }
-
-    @Override
-    public boolean getBoolean(int ordinal) {
-      return (boolean) values[ordinal];
-    }
-
-    @Override
-    public byte getByte(int ordinal) {
-      return (byte) values[ordinal];
-    }
-
-    @Override
-    public short getShort(int ordinal) {
-      return (short) values[ordinal];
-    }
-
-    @Override
-    public int getInt(int ordinal) {
-      return (int) values[ordinal];
-    }
-
-    @Override
-    public long getLong(int ordinal) {
-      return (long) values[ordinal];
-    }
-
-    @Override
-    public float getFloat(int ordinal) {
-      return (float) values[ordinal];
-    }
-
-    @Override
-    public double getDouble(int ordinal) {
-      return (double) values[ordinal];
-    }
-
+  private static class FlinkReusableArrayData extends ReusableArrayData implements ArrayData {
     @Override
     public StringData getString(int pos) {
       return (StringData) values[pos];
@@ -791,6 +621,69 @@ public class FlinkParquetReaders {
     @Override
     public double[] toDoubleArray() {
       return ArrayUtils.toPrimitive((Double[]) values);
+    }
+  }
+
+  private static class RowDataReader extends ParquetValueReaders.StructReader<RowData, GenericRowData> {
+    private final int numFields;
+
+    RowDataReader(List<Type> types, List<ParquetValueReader<?>> readers) {
+      super(types, readers);
+      this.numFields = readers.size();
+    }
+
+    @Override
+    protected GenericRowData newStructData(RowData reuse) {
+      if (reuse instanceof GenericRowData) {
+        return (GenericRowData) reuse;
+      } else {
+        return new GenericRowData(numFields);
+      }
+    }
+
+    @Override
+    protected Object getField(GenericRowData intermediate, int pos) {
+      return intermediate.getField(pos);
+    }
+
+    @Override
+    protected RowData buildStruct(GenericRowData struct) {
+      return struct;
+    }
+
+    @Override
+    protected void set(GenericRowData row, int pos, Object value) {
+      row.setField(pos, value);
+    }
+
+    @Override
+    protected void setNull(GenericRowData row, int pos) {
+      row.setField(pos, null);
+    }
+
+    @Override
+    protected void setBoolean(GenericRowData row, int pos, boolean value) {
+      row.setField(pos, value);
+    }
+
+    @Override
+    protected void setInteger(GenericRowData row, int pos, int value) {
+      row.setField(pos, value);
+    }
+
+    @Override
+    protected void setLong(GenericRowData row, int pos, long value) {
+      row.setField(pos, value);
+    }
+
+    @Override
+    protected void setFloat(GenericRowData row, int pos, float value) {
+      row.setField(pos, value);
+    }
+
+    @Override
+    protected void setDouble(GenericRowData row, int pos, double value) {
+      row.setField(pos, value);
     }
   }
 }
