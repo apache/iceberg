@@ -53,9 +53,6 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
       for (Boolean isStreaming : new Boolean[] {true, false}) {
         for (Object[] catalogParams : FlinkCatalogTestBase.parameters()) {
           String catalogName = (String) catalogParams[0];
-          // TODO - baseNamespace = {1} comes out as baseNamespace{String hash code} because it's a String[]
-          //        and String[] doesn't have a meaningful toString function. Consider making a BaseNamespace
-          //        class or using `Namespace` directly for even the baseNamespace.
           String[] baseNamespace = (String[]) catalogParams[1];
           parameters.add(new Object[] {catalogName, baseNamespace, format, isStreaming});
         }
