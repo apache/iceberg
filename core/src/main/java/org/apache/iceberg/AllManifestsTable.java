@@ -59,11 +59,11 @@ public class AllManifestsTable extends BaseMetadataTable {
   private final Table table;
   private final String name;
 
-  public AllManifestsTable(TableOperations ops, Table table) {
+  AllManifestsTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".all_manifests");
   }
 
-  public AllManifestsTable(TableOperations ops, Table table, String name) {
+  AllManifestsTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
     this.name = name;

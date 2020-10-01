@@ -34,11 +34,11 @@ public class PartitionsTable extends BaseMetadataTable {
   private final Schema schema;
   private final String name;
 
-  public PartitionsTable(TableOperations ops, Table table) {
+  PartitionsTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".partitions");
   }
 
-  public PartitionsTable(TableOperations ops, Table table, String name) {
+  PartitionsTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
     this.schema = new Schema(

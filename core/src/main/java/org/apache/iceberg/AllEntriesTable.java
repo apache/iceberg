@@ -44,11 +44,11 @@ public class AllEntriesTable extends BaseMetadataTable {
   private final Table table;
   private final String name;
 
-  public AllEntriesTable(TableOperations ops, Table table) {
+  AllEntriesTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".all_entries");
   }
 
-  public AllEntriesTable(TableOperations ops, Table table, String name) {
+  AllEntriesTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
     this.name = name;

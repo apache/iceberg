@@ -42,11 +42,11 @@ public class SnapshotsTable extends BaseMetadataTable {
   private final Table table;
   private final String name;
 
-  public SnapshotsTable(TableOperations ops, Table table) {
+  SnapshotsTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".snapshots");
   }
 
-  public SnapshotsTable(TableOperations ops, Table table, String name) {
+  SnapshotsTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
     this.name = name;

@@ -40,11 +40,11 @@ public class ManifestEntriesTable extends BaseMetadataTable {
   private final Table table;
   private final String name;
 
-  public ManifestEntriesTable(TableOperations ops, Table table) {
+  ManifestEntriesTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".entries");
   }
 
-  public ManifestEntriesTable(TableOperations ops, Table table, String name) {
+  ManifestEntriesTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
     this.name = name;

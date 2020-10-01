@@ -84,7 +84,7 @@ public class CachingCatalog implements Catalog {
         MetadataTableType type = MetadataTableType.from(canonicalized.name());
 
         Table metadataTable = MetadataTableUtils.createMetadataTableInstance(
-            ops, name(), originTableIdentifier,
+            ops, catalog.name(), originTableIdentifier,
             canonicalized, type);
         tableCache.put(canonicalized, metadataTable);
         return metadataTable;

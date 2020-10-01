@@ -45,11 +45,11 @@ public class HistoryTable extends BaseMetadataTable {
   private final Table table;
   private final String name;
 
-  public HistoryTable(TableOperations ops, Table table) {
+  HistoryTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".history");
   }
 
-  public HistoryTable(TableOperations ops, Table table, String name) {
+  HistoryTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
     this.name = name;
