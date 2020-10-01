@@ -97,6 +97,8 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
     config.put("type", "iceberg");
     config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, isHadoopCatalog ? "hadoop" : "hive");
     config.put(FlinkCatalogFactory.HADOOP_WAREHOUSE_LOCATION, "file:" + warehouse);
+    String path = this.getClass().getClassLoader().getResource("hive-site.xml").getPath();
+    config.put(FlinkCatalogFactory.HIVE_SITE_PATH, path);
     if (baseNamespace.length > 0) {
       config.put(FlinkCatalogFactory.BASE_NAMESPACE, Joiner.on(".").join(baseNamespace));
     }
