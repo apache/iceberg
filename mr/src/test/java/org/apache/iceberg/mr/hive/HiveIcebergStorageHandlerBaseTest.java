@@ -384,8 +384,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     } else {
       Assert.assertEquals(5, hmsParams.size());
     }
-
-    shell.executeStatement("DROP TABLE customers");
   }
 
   @Test
@@ -429,8 +427,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     } else {
       Assert.assertEquals(5, hmsParams.size());
     }
-
-    shell.executeStatement("DROP TABLE customers");
   }
 
   @Test
