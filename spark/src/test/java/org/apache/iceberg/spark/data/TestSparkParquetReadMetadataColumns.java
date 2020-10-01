@@ -106,8 +106,8 @@ public class TestSparkParquetReadMetadataColumns {
   }
 
   @Parameterized.Parameters(name =  "vectorized = {0}")
-  // TODO - Add in test paramater of `true` when vectorized spark
-  //        parquet metadata column reads and writes are supported.
+  // Vectorized parquet reads not currently supported for metadata columns in Spark.
+  // https://github.com/apache/iceberg/issues/1540
   public static Object[] parameters() {
     return new Object[] { false };
   }
