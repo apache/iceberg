@@ -87,10 +87,7 @@ public class TableProperties {
   public static final String OBJECT_STORE_ENABLED = "write.object-storage.enabled";
   public static final boolean OBJECT_STORE_ENABLED_DEFAULT = false;
 
-  public static final String LOCALIZED_STORE_ENABLED = "write.localized-storage.enabled";
-  public static final boolean LOCALIZED_STORE_ENABLED_DEFAULT = false;
-  public static final String LOCALIZED_STORE_DATA_LOCATION_PREFIX = "write.localized-storage.path.";
-  public static final String LOCALIZED_STORE_PARTITION_FIELD_NAME = "write.localized-storage.partition-field-name";
+  public static final String LOCATION_PROVIDER_IMPL = "write.location-provider.impl";
 
   public static final String OBJECT_STORE_PATH = "write.object-storage.path";
 

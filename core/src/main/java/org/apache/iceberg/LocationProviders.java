@@ -20,10 +20,9 @@
 package org.apache.iceberg;
 
 import java.util.Map;
-import java.util.OptionalInt;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
+
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.transforms.Transform;
@@ -31,7 +30,6 @@ import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 
-import static org.apache.iceberg.TableProperties.LOCALIZED_STORE_DATA_LOCATION_PREFIX;
 import static org.apache.iceberg.TableProperties.OBJECT_STORE_PATH;
 
 public class LocationProviders {
@@ -40,23 +38,17 @@ public class LocationProviders {
   }
 
   public static LocationProvider locationsFor(String location, Map<String, String> properties) {
-    if (PropertyUtil.propertyAsBoolean(properties,
+    if (properties.containsKey(TableProperties.LOCATION_PROVIDER_IMPL)) {
+      String impl = properties.get(TableProperties.LOCATION_PROVIDER_IMPL);
+      // Expect custom implementation to take 2 args: table location and table properties
+      DynConstructors.Ctor<LocationProvider> ctor = DynConstructors.builder(LocationProvider.class)
+              .impl(impl, String.class, Map.class)
+              .build();
+      return ctor.newInstance(location, properties);
+    } else if (PropertyUtil.propertyAsBoolean(properties,
         TableProperties.OBJECT_STORE_ENABLED,
         TableProperties.OBJECT_STORE_ENABLED_DEFAULT)) {
       return new ObjectStoreLocationProvider(location, properties);
-    } else if (PropertyUtil.propertyAsBoolean(properties,
-            TableProperties.LOCALIZED_STORE_ENABLED,
-            TableProperties.LOCALIZED_STORE_ENABLED_DEFAULT)) {
-      Map<String, String> localityToPath = properties.entrySet()
-          .stream()
-          .filter(entry -> entry.getKey().startsWith(LOCALIZED_STORE_DATA_LOCATION_PREFIX))
-          .collect(Collectors.toMap(
-            entry -> entry.getKey()
-                    .substring(LOCALIZED_STORE_DATA_LOCATION_PREFIX.length()),
-            entry -> entry.getValue()));
-      String partitionFieldName = properties.get(
-              TableProperties.LOCALIZED_STORE_PARTITION_FIELD_NAME);
-      return new LocalizedLocationProvider(location, partitionFieldName, localityToPath);
     } else {
       return new DefaultLocationProvider(location, properties);
     }
@@ -79,54 +71,6 @@ public class LocationProviders {
     @Override
     public String newDataLocation(String filename) {
       return String.format("%s/%s", dataLocation, filename);
-    }
-  }
-
-  static class LocalizedLocationProvider implements LocationProvider {
-    private final Map<String, String> localizedDataLocationLookUp;
-    private final String localityPartitionFieldName;
-    private final String defaultDataLocation;
-
-    LocalizedLocationProvider(String tableLocation,
-                              String localityPartitionFieldName,
-                              Map<String, String> localizedDataLocationLookUp) {
-      Preconditions.checkNotNull(localityPartitionFieldName,
-          "Partition field name must be present find partition value for localized store.");
-      this.localizedDataLocationLookUp = localizedDataLocationLookUp;
-      this.localityPartitionFieldName = localityPartitionFieldName;
-      this.defaultDataLocation = String.format("%s/data", tableLocation);
-    }
-
-    @Override
-    public String newDataLocation(PartitionSpec spec, StructLike partitionData, String filename) {
-      OptionalInt localityFieldIndex = IntStream.range(0, spec.fields().size())
-          .filter(i -> spec.fields().get(i).name().equals(localityPartitionFieldName))
-          .findFirst();
-
-      String localizedLocation;
-      if (localityFieldIndex.isPresent()) {
-        int fieldIndex = localityFieldIndex.getAsInt();
-        PartitionField pField = spec.fields().get(fieldIndex);
-        Class<?> clz = spec.javaClass(pField);
-        Object locality = partitionData.get(fieldIndex, clz);
-        if (!(locality instanceof String)) {
-          throw new IllegalArgumentException(
-                  String.format("Locality partition field %s should be String, but found class %s for value %s",
-                          localityPartitionFieldName, locality.getClass(), locality));
-        }
-        localizedLocation = localizedDataLocationLookUp.getOrDefault(locality, defaultDataLocation);
-      } else {
-        throw new IllegalArgumentException(
-            String.format("Partition spec does not contain locality partition field %s", localityPartitionFieldName));
-      }
-      return String.format("%s/%s/%s", localizedLocation, spec.partitionToPath(partitionData), filename);
-    }
-
-    @Override
-    public String newDataLocation(String filename) {
-      throw new IllegalStateException(
-          String.format("Unpartitioned data is not supported for localized store. " +
-                  "Found unpartitioned data file %s", filename));
     }
   }
 

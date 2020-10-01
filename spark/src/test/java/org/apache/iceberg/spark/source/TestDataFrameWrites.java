@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -40,10 +39,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
-import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -77,9 +74,6 @@ import org.junit.runners.Parameterized;
 import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsSafe;
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.junit.Assert.fail;
 
 @RunWith(Parameterized.class)
 public abstract class TestDataFrameWrites extends AvroDataTest {
@@ -132,48 +126,6 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
       "{\"optionalField\": \"d3\", \"requiredField\": \"bid_103\"}",
       "{\"optionalField\": \"d4\", \"requiredField\": \"bid_104\"}");
 
-  private static class LocalizedTestData {
-
-    static String partitionColumn = "locality";
-    static String integerColumn = "i";
-
-    static String apLocality = "IND";
-    static String usLocality = "USA";
-    static String unknownLocality = "UNKNOWN";
-
-    static Schema schema = new Schema(Types.StructType.of(
-        required(100, "id", Types.LongType.get()),
-        required(101, partitionColumn, Types.StringType.get()),
-        optional(103, integerColumn, Types.IntegerType.get())
-    ).fields());
-
-    private org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct(), "test");
-
-    public List<Record> records() {
-      Record r1 = new Record(avroSchema);
-      r1.put("id", 123L);
-      r1.put(partitionColumn, apLocality);
-      r1.put(integerColumn, 1);
-
-      Record r2 = new Record(avroSchema);
-      r2.put("id", 234L);
-      r2.put(partitionColumn, usLocality);
-      r2.put(integerColumn, 2);
-
-      Record r3 = new Record(avroSchema);
-      r3.put("id", 345L);
-      r3.put(partitionColumn, apLocality);
-      r3.put(integerColumn, 3);
-
-      Record r4 = new Record(avroSchema);
-      r4.put("id", 456L);
-      r4.put(partitionColumn, unknownLocality);
-      r4.put(integerColumn, 4);
-
-      return Arrays.asList(r1, r2, r3, r4);
-    }
-  }
-
   @BeforeClass
   public static void startSpark() {
     TestDataFrameWrites.spark = SparkSession.builder().master("local[2]").getOrCreate();
@@ -218,67 +170,34 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
   }
 
   @Test
-  public void testWriteUnpartitionedDataFailsInLocalizedStore() throws IOException {
-    File location = createTableFolder();
-    Table table = createTable(new Schema(SUPPORTED_PRIMITIVES.fields()), location);
-    table.updateProperties().set(
-        TableProperties.LOCALIZED_STORE_ENABLED, "true")
-        .set(TableProperties.LOCALIZED_STORE_PARTITION_FIELD_NAME, "id")
-        .commit();
-
-    try {
-      writeAndValidateWithLocations(table, location, new File(location, "data"));
-      fail();
-    } catch (Exception e) {
-      Throwable cause = e.getCause();
-      Assert.assertTrue(
-          "Writing unpartitioned data to localized store should fail",
-          cause.getMessage().contains("Unpartitioned data is not supported for localized store")
-      );
-    }
-  }
-
-  @Test
   public void testWriteLocalityPartitionedDataInLocalizedStore() throws IOException {
-    LocalizedTestData data = new LocalizedTestData();
-    Schema schema = data.schema;
-    List<Record> expected = data.records();
+    Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
+    PartitionSpec partitionSpec = PartitionSpec.builderFor(schema).identity("b").build();
+    List<Record> expected = RandomData.generateList(schema, 100, 0L);
+    // Make id unique so we can sort them for asserting equal
+    for (int i = 0; i < 100; i++) {
+      expected.get(i).put("id", Long.valueOf(i));
+    }
 
-    Map<String, File> localityToFileLocation = new HashMap<>();
-    localityToFileLocation.put(data.usLocality, temp.newFolder("new-us-west-data-location"));
-    localityToFileLocation.put(data.apLocality, temp.newFolder("new-ap-south-data-location"));
+    File pathTrue = temp.newFolder("true-data-location");
+    File pathFalse = temp.newFolder("false-data-location");
 
-    PartitionSpec partitionSpec = PartitionSpec.builderFor(schema)
-        .identity(data.partitionColumn)
-        .build();
     File location = createTableFolder();
     Table table = createTable(schema, partitionSpec, location);
-
-    UpdateProperties updateProperties = table.updateProperties()
-            .set(TableProperties.DEFAULT_FILE_FORMAT, format)
-            .set(TableProperties.LOCALIZED_STORE_ENABLED, "true")
-            .set(TableProperties.LOCALIZED_STORE_PARTITION_FIELD_NAME, data.partitionColumn);
-    localityToFileLocation.forEach((locality, dataLoc) -> {
-      updateProperties.set(
-              TableProperties.LOCALIZED_STORE_DATA_LOCATION_PREFIX + locality,
-              dataLoc.getAbsolutePath());
-    });
-    updateProperties.commit();
+    table.updateProperties()
+        .set(TableProperties.DEFAULT_FILE_FORMAT, format)
+        .set(TableProperties.LOCATION_PROVIDER_IMPL, TestLocationProvider.class.getCanonicalName())
+        .set(TestLocationProvider.TRUE_PATH, pathTrue.getAbsolutePath())
+        .set(TestLocationProvider.FALSE_PATH, pathFalse.getAbsolutePath())
+        .commit();
 
     writePartitionedDataAndCheckRead(table, schema, partitionSpec, location, expected);
 
     table.currentSnapshot().addedFiles().forEach(f -> {
       assert partitionSpec.fields().size() == 1;
-      String localityValue = f.partition().get(0, String.class);
 
-      File expectedDataLocationPath;
-      if (localityValue.equals(data.unknownLocality)) {
-        // Default to data dir in table location
-        expectedDataLocationPath = new File(location, "data");
-      } else {
-        // Otherwise, locations provided in the table properties
-        expectedDataLocationPath = localityToFileLocation.get(localityValue);
-      }
+      Boolean oddOrEven = f.partition().get(0, Boolean.class);
+      File expectedDataLocationPath = oddOrEven ? pathTrue : pathFalse;
       assertDirectoryHasFile(expectedDataLocationPath, f);
     });
     assertDataPathHasPartitionEncoding(table, partitionSpec
@@ -288,44 +207,11 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
             .collect(Collectors.toList()));
   }
 
-  @Test
-  public void testWriteInvalidPartitionColumnInDataLocalizedStore() throws IOException {
-    LocalizedTestData data = new LocalizedTestData();
-    Schema schema = data.schema;
-    List<Record> expected = data.records();
-
-    PartitionSpec partitionSpec = PartitionSpec.builderFor(schema)
-            .identity(data.integerColumn)
-            .build();
-    File location = createTableFolder();
-    Table table = createTable(schema, partitionSpec, location);
-    UpdateProperties updateProperties = table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format);
-
-    // Set localized store to table properties
-    updateProperties
-            .set(TableProperties.LOCALIZED_STORE_ENABLED, "true")
-            .set(TableProperties.LOCALIZED_STORE_PARTITION_FIELD_NAME, data.integerColumn);
-    updateProperties.commit();
-
-    try {
-      writePartitionedDataAndCheckRead(table, schema, partitionSpec, location, expected);
-      fail();
-    } catch (Exception e) {
-      Throwable cause = e.getCause();
-      Assert.assertTrue(
-              "Writing locality partition should fail on integer type",
-              cause.getMessage().contains(
-                      String.format(
-                              "Locality partition field %s should be String, but found class class java.lang.Integer",
-                              data.integerColumn))
-      );
-    }
-  }
-
   private void writePartitionedDataAndCheckRead(Table table,
                                                 Schema originalSchema,
                                                 PartitionSpec partitionSpec,
-                                                File location, List<Record> expected) throws IOException {
+                                                File location,
+                                                List<Record> expected) throws IOException {
     Schema tableSchema = table.schema(); // use the table schema because ids are reassigned
 
     Dataset<Row> df = createDataset(expected, tableSchema);
@@ -350,7 +236,7 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
         .format("iceberg")
         .load(location.toString());
 
-    // Assume first field is unique long id.
+    // Sort first field of test SUPPORTED_PRIMITIVES unique long id.
     Iterator<Row> actualSorted = result.collectAsList().stream()
         .sorted(Comparator.comparing(r -> (Long) r.get(0)))
         .iterator();
