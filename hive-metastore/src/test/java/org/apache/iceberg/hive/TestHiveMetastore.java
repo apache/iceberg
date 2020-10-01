@@ -49,11 +49,6 @@ import static java.nio.file.attribute.PosixFilePermissions.fromString;
 
 public class TestHiveMetastore {
 
-  private static final DynMethods.StaticMethod CLEAN_RAW_STORE = DynMethods.builder("cleanupRawStore")
-          .hiddenImpl(HiveMetaStore.class)
-          .orNoop()
-          .buildStatic();
-
   // create the metastore handlers based on whether we're working with Hive2 or Hive3 dependencies
   // we need to do this because there is a breaking API change between Hive2 and Hive3
   private static final DynConstructors.Ctor<HiveMetaStore.HMSHandler> HMS_HANDLER_CTOR = DynConstructors.builder()
@@ -70,6 +65,7 @@ public class TestHiveMetastore {
   private HiveConf hiveConf;
   private ExecutorService executorService;
   private TServer server;
+  private HiveMetaStore.HMSHandler baseHandler;
 
   public void start() {
     try {
@@ -99,7 +95,9 @@ public class TestHiveMetastore {
     if (hiveLocalDir != null) {
       hiveLocalDir.delete();
     }
-    CLEAN_RAW_STORE.invoke();
+    if (baseHandler != null) {
+      baseHandler.shutdown();
+    }
   }
 
   public HiveConf hiveConf() {
@@ -114,7 +112,7 @@ public class TestHiveMetastore {
   private TServer newThriftServer(TServerSocket socket, HiveConf conf) throws Exception {
     HiveConf serverConf = new HiveConf(conf);
     serverConf.set(HiveConf.ConfVars.METASTORECONNECTURLKEY.varname, "jdbc:derby:" + getDerbyPath() + ";create=true");
-    HiveMetaStore.HMSHandler baseHandler = HMS_HANDLER_CTOR.newInstance("new db based metaserver", serverConf);
+    baseHandler = HMS_HANDLER_CTOR.newInstance("new db based metaserver", serverConf);
     IHMSHandler handler = GET_BASE_HMS_HANDLER.invoke(serverConf, baseHandler, false);
 
     TThreadPoolServer.Args args = new TThreadPoolServer.Args(socket)
