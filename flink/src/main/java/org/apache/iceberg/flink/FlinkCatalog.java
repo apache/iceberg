@@ -130,6 +130,24 @@ public class FlinkCatalog extends AbstractCatalog {
     }
   }
 
+  // Going to save this change for another PR as this PR is already really big.
+  /**
+  private static class BaseNamespace {
+    private final String[] baseNamespace;
+
+    public BaseNamespace(String[] baseNamespace) {
+      this.baseNamespace = baseNamespace;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+      if (!(obj instanceof BaseNamespace) || obj == null) {
+        return false;
+      }
+      BaseNamespace that = (BaseNamespace) obj;
+    }
+  }*/
+
   private Namespace toNamespace(String database) {
     String[] namespace = new String[baseNamespace.length + 1];
     System.arraycopy(baseNamespace, 0, namespace, 0, baseNamespace.length);
