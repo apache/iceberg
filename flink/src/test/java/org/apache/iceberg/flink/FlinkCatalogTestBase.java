@@ -64,7 +64,9 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
     }
   }
 
-  @Parameterized.Parameters
+  @Parameterized.Parameters(name = "catalogName = {0} baseNamespace = {1}.toString")
+  // TODO - The third baseNamespace test comes out as a memory reference as it hasn't
+  //        been properly casted via `toString` in the format name.
   public static Iterable<Object[]> parameters() {
     return Lists.newArrayList(
         new Object[] {"testhive", new String[0]},

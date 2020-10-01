@@ -222,7 +222,7 @@ public class TestMetricsRowGroupFilterTypes {
   private final Object readValue;
   private final Object skipValue;
 
-  @Parameterized.Parameters
+  @Parameterized.Parameters(name = "format = {0} column = {1} readValue = {2} skipValue = {3}")
   public static Object[][] parameters() {
     return new Object[][] {
         new Object[] { "parquet", "boolean", false, true },
