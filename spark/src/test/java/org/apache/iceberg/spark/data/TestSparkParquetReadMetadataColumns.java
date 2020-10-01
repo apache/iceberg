@@ -108,7 +108,7 @@ public class TestSparkParquetReadMetadataColumns {
   @Parameterized.Parameters(name =  "vectorized = {0}")
   // Note - Does not currently run with the `true` parameter. Why is that?
   public static Object[] parameters() {
-    return new Object[] { false }; // new Object[] { true }
+    return new Object[] { false, true };
   }
 
   @Rule
