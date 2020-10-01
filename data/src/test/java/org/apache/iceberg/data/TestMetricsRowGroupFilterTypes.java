@@ -250,6 +250,10 @@ public class TestMetricsRowGroupFilterTypes {
         { "orc", "date", "2018-06-29", "2018-05-03" },
         { "orc", "time", "10:02:34.000000", "10:02:34.000001" },
         // Temporarily disable filters on Timestamp columns due to ORC-611
+        //
+        // ORC-611 is closed with fix versions of ORC 1.6.4 and 1.7.0.
+        // We should upgrade so that we can properly handle ORC row group
+        // filtering on timestamp/tz types.
         // { "orc", "timestamp",
         //     "2018-06-29T10:02:34.000000",
         //     "2018-06-29T15:02:34.000000" },
