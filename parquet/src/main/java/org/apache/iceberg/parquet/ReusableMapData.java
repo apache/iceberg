@@ -21,58 +21,52 @@ package org.apache.iceberg.parquet;
 
 import java.util.Map;
 
-@SuppressWarnings("checkstyle:VisibilityModifier")
-public abstract class ReusableMapData {
-  protected ReusableArrayData keys;
-  protected ReusableArrayData values;
+public interface ReusableMapData {
+  ReusableArrayData keys();
+  ReusableArrayData values();
 
-  private int numElements;
-
-  public void grow() {
-    keys.grow();
-    values.grow();
+  default void grow() {
+    keys().grow();
+    values().grow();
   }
 
-  public int capacity() {
-    return keys.capacity();
+  default int capacity() {
+    return keys().capacity();
   }
 
-  public void setNumElements(int numElements) {
-    this.numElements = numElements;
-    keys.setNumElements(numElements);
-    values.setNumElements(numElements);
+  default void setNumElements(int numElements) {
+    keys().setNumElements(numElements);
+    values().setNumElements(numElements);
   }
 
-  public int size() {
-    return numElements;
-  }
+  int size();
 
   @SuppressWarnings("unchecked")
-  public <K, V> Map.Entry<K, V> getRaw(
+  default <K, V> Map.Entry<K, V> getRaw(
       int pos,
       ParquetValueReaders.ReusableEntry<K, V> reuse,
       ParquetValueReaders.ReusableEntry<K, V> def) {
     if (pos < capacity()) {
-      reuse.set(keys.getRaw(pos), values.getRaw(pos));
+      reuse.set((K) keys().getObj(pos), (V) values().getObj(pos));
       return reuse;
     }
     return def;
   }
 
-  public void addPair(Object key, Object value) {
-    if (numElements >= capacity()) {
+  default void addPair(Object key, Object value) {
+    if (size() >= capacity()) {
       grow();
     }
-    keys.setValue(numElements, key);
-    values.setValue(numElements, value);
-    numElements++;
+    keys().update(size(), key);
+    values().update(size(), value);
+    setNumElements(size() + 1);
   }
 
-  public ReusableArrayData keyArray() {
-    return keys;
+  default ReusableArrayData keyArray() {
+    return keys();
   }
 
-  public ReusableArrayData valueArray() {
-    return values;
+  default ReusableArrayData valueArray() {
+    return values();
   }
 }

@@ -460,7 +460,7 @@ public class FlinkParquetReaders {
     protected E getElement(FlinkReusableArrayData list) {
       E value = null;
       if (readPos < list.capacity()) {
-        value = list.getRaw(readPos);
+        value = (E) list.getObj(readPos);
       }
 
       readPos += 1;
@@ -474,7 +474,7 @@ public class FlinkParquetReaders {
         reused.grow();
       }
 
-      reused.setValue(writePos, element);
+      reused.update(writePos, element);
 
       writePos += 1;
     }
@@ -529,7 +529,10 @@ public class FlinkParquetReaders {
     }
   }
 
-  private static class FlinkReusableMapData extends ReusableMapData implements MapData {
+  private static class FlinkReusableMapData implements ReusableMapData, MapData {
+
+    private ReusableArrayData keys = null;
+    private ReusableArrayData values = null;
 
     private FlinkReusableMapData() {
       this.keys = new FlinkReusableArrayData();
@@ -537,16 +540,111 @@ public class FlinkParquetReaders {
     }
 
     @Override
+    public FlinkReusableArrayData values() {
+      return (FlinkReusableArrayData) values;
+    }
+
+    @Override
+    public FlinkReusableArrayData keys() {
+      return (FlinkReusableArrayData) keys;
+    }
+
+    @Override
     public FlinkReusableArrayData valueArray() {
       return (FlinkReusableArrayData) values;
     }
+
     @Override
     public FlinkReusableArrayData keyArray() {
       return (FlinkReusableArrayData) keys;
     }
+
+    @Override
+    public int size() {
+      return keys.getNumElements();
+    }
   }
 
-  private static class FlinkReusableArrayData extends ReusableArrayData implements ArrayData {
+  private static class FlinkReusableArrayData implements ReusableArrayData, ArrayData {
+
+    private Object[] values = EMPTY;
+    private int numElements = 0;
+
+    @Override
+    public Object[] values() {
+      return values;
+    }
+
+    @Override
+    public void setValues(Object[] array) {
+      values = array;
+    }
+
+    @Override
+    public void setNumElements(int num) {
+      numElements = num;
+    }
+
+    @Override
+    public int getNumElements() {
+      return numElements;
+    }
+
+    @Override
+    public int size() {
+      return numElements;
+    }
+
+    @Override
+    public boolean isNullAt(int ordinal) {
+      return null == values[ordinal];
+    }
+
+    @Override
+    public boolean getBoolean(int ordinal) {
+      return (boolean) values[ordinal];
+    }
+
+    @Override
+    public byte getByte(int ordinal) {
+      return (byte) values[ordinal];
+    }
+
+    @Override
+    public short getShort(int ordinal) {
+      return (short) values[ordinal];
+    }
+
+    @Override
+    public int getInt(int ordinal) {
+      return (int) values[ordinal];
+    }
+
+    @Override
+    public long getLong(int ordinal) {
+      return (long) values[ordinal];
+    }
+
+    @Override
+    public float getFloat(int ordinal) {
+      return (float) values[ordinal];
+    }
+
+    @Override
+    public double getDouble(int ordinal) {
+      return (double) values[ordinal];
+    }
+
+    @Override
+    public Object getObj(int ordinal) {
+      return values[ordinal];
+    }
+
+    @Override
+    public byte[] getBinary(int ordinal) {
+      return (byte[]) values[ordinal];
+    }
+
     @Override
     public StringData getString(int pos) {
       return (StringData) values[pos];
@@ -566,11 +664,6 @@ public class FlinkParquetReaders {
     @Override
     public <T> RawValueData<T> getRawValue(int pos) {
       return (RawValueData<T>) values[pos];
-    }
-
-    @Override
-    public byte[] getBinary(int ordinal) {
-      return (byte[]) values[ordinal];
     }
 
     @Override

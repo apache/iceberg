@@ -19,78 +19,36 @@
 
 package org.apache.iceberg.parquet;
 
-@SuppressWarnings("checkstyle:VisibilityModifier")
-public class ReusableArrayData {
-  private static final Object[] EMPTY = new Object[0];
+public interface ReusableArrayData {
+  Object[] EMPTY = new Object[0];
 
-  protected Object[] values = EMPTY;
-  protected int numElements = 0;
+  Object[] values();
+  void setValues(Object[] array);
 
-  public void grow() {
-    if (values.length == 0) {
-      this.values = new Object[20];
+  default void grow() {
+    if (values().length == 0) {
+      this.setValues(new Object[20]);
     } else {
-      Object[] old = values;
-      this.values = new Object[old.length << 1];
+      Object[] old = values();
+      this.setValues(new Object[old.length << 1]);
       // copy the old array in case it has values that can be reused
-      System.arraycopy(old, 0, values, 0, old.length);
+      System.arraycopy(old, 0, values(), 0, old.length);
     }
   }
 
-  public void setValue(int idx, Object value) {
-    this.values[idx] = value;
+  default void update(int ordinal, Object value) {
+    this.values()[ordinal] = value;
   }
 
-  public int capacity() {
-    return values.length;
+  default int capacity() {
+    return values().length;
   }
 
-  public void setNumElements(int numElements) {
-    this.numElements = numElements;
-  }
+  void setNumElements(int numElements);
 
-  public int size() {
-    return numElements;
-  }
+  int getNumElements();
 
-  public boolean isNullAt(int ordinal) {
-    return null == values[ordinal];
-  }
-
-  public boolean getBoolean(int ordinal) {
-    return (boolean) values[ordinal];
-  }
-
-  public byte getByte(int ordinal) {
-    return (byte) values[ordinal];
-  }
-
-  public short getShort(int ordinal) {
-    return (short) values[ordinal];
-  }
-
-  public int getInt(int ordinal) {
-    return (int) values[ordinal];
-  }
-
-  public long getLong(int ordinal) {
-    return (long) values[ordinal];
-  }
-
-  public float getFloat(int ordinal) {
-    return (float) values[ordinal];
-  }
-
-  public double getDouble(int ordinal) {
-    return (double) values[ordinal];
-  }
-
-  @SuppressWarnings("unchecked")
-  public <T> T getRaw(int pos) {
-    return (T) values[pos];
-  }
-
-  public byte[] getBinary(int ordinal) {
-    return (byte[]) values[ordinal];
+  default Object getObj(int ordinal) {
+    return values()[ordinal];
   }
 }
