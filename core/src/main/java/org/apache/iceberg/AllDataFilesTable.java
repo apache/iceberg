@@ -42,10 +42,16 @@ import org.apache.iceberg.util.ThreadPools;
 public class AllDataFilesTable extends BaseMetadataTable {
   private final TableOperations ops;
   private final Table table;
+  private final String name;
 
   public AllDataFilesTable(TableOperations ops, Table table) {
+    this(ops, table, table.name() + ".all_data_files");
+  }
+
+  public AllDataFilesTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
+    this.name = name;
   }
 
   @Override
@@ -54,8 +60,8 @@ public class AllDataFilesTable extends BaseMetadataTable {
   }
 
   @Override
-  String metadataTableName() {
-    return "all_data_files";
+  public String name() {
+    return name;
   }
 
   @Override

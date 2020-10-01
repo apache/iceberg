@@ -138,7 +138,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         throw new NoSuchTableException("Table does not exist: %s", baseTableIdentifier);
       }
 
-      return MetadataTableUtils.createMetadataTableInstance(ops, name(), baseTableIdentifier, type);
+      return MetadataTableUtils.createMetadataTableInstance(ops, name(), baseTableIdentifier, identifier, type);
     } else {
       throw new NoSuchTableException("Table does not exist: %s", identifier);
     }

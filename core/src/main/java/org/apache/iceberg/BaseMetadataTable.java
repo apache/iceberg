@@ -31,12 +31,6 @@ abstract class BaseMetadataTable implements Table {
   private final SortOrder sortOrder = SortOrder.unsorted();
 
   abstract Table table();
-  abstract String metadataTableName();
-
-  @Override
-  public String name() {
-    return table().name() + "." + metadataTableName();
-  }
 
   @Override
   public FileIO io() {

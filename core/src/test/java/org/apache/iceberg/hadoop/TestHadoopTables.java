@@ -148,7 +148,10 @@ public class TestHadoopTables {
     TABLES.create(SCHEMA, spec, location);
 
     Table table = TABLES.load(location);
-    Assert.assertEquals("Table name must match", location, table.name());
+    Assert.assertEquals("Name must match", location, table.name());
+
+    Table snapshotsTable = TABLES.load(location + "#snapshots");
+    Assert.assertEquals("Name must match", location + "#snapshots", snapshotsTable.name());
   }
 
   private static void createDummyTable(File tableDir, File dataDir) throws IOException {
