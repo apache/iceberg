@@ -370,6 +370,7 @@ public class TestIcebergInputFormats {
     testInputFormat.create(builder.conf()).validate(expectedRecords);
   }
 
+  // TODO - Capture template type T in toString method: https://github.com/apache/iceberg/issues/1542
   private abstract static class TestInputFormat<T> {
 
     private final List<IcebergSplit> splits;
