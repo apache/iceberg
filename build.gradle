@@ -483,6 +483,9 @@ if (jdkVersion == '8') {
       }
     }
 
+    // but first wait for the iceberg-mr (Hive2) tests to complete to avoid concurrency issues around HiveMetastoreTest
+    test.dependsOn(':iceberg-mr:test')
+
     // exclude these Hive2-specific tests from iceberg-mr
     test {
       exclude '**/TestIcebergDateObjectInspector.class'
