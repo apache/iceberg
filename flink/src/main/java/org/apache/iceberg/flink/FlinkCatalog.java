@@ -130,7 +130,6 @@ public class FlinkCatalog extends AbstractCatalog {
     }
   }
 
-
   private Namespace toNamespace(String database) {
     String[] namespace = new String[baseNamespace.length + 1];
     System.arraycopy(baseNamespace, 0, namespace, 0, baseNamespace.length);
