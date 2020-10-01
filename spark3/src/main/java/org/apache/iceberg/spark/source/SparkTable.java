@@ -167,4 +167,23 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   public String toString() {
     return icebergTable.toString();
   }
+
+  @Override
+  public boolean equals(Object other) {
+    if (this == other) {
+      return true;
+    } else if (other == null || getClass() != other.getClass()) {
+      return false;
+    }
+
+    // use only name in order to correctly invalidate Spark cache
+    SparkTable that = (SparkTable) other;
+    return icebergTable.name().equals(that.icebergTable.name());
+  }
+
+  @Override
+  public int hashCode() {
+    // use only name in order to correctly invalidate Spark cache
+    return icebergTable.name().hashCode();
+  }
 }
