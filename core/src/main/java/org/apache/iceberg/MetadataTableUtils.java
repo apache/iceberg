@@ -59,10 +59,10 @@ public class MetadataTableUtils {
   }
 
   public static Table createMetadataTableInstance(TableOperations originTableOps,
+                                                  String catalogName,
                                                   TableIdentifier originTableIdentifier,
                                                   MetadataTableType type) {
-    return createMetadataTableInstance(originTableOps,
-        BaseMetastoreCatalog.fullTableName(type.name(), originTableIdentifier),
-        type);
+    String fullTableName = BaseMetastoreCatalog.fullTableName(catalogName, originTableIdentifier);
+    return createMetadataTableInstance(originTableOps, fullTableName, type);
   }
 }

@@ -34,6 +34,11 @@ abstract class BaseMetadataTable implements Table {
   abstract String metadataTableName();
 
   @Override
+  public String name() {
+    return table().name() + "." + metadataTableName();
+  }
+
+  @Override
   public FileIO io() {
     return table().io();
   }
@@ -175,6 +180,6 @@ abstract class BaseMetadataTable implements Table {
 
   @Override
   public String toString() {
-    return table().toString() + "." + metadataTableName();
+    return name();
   }
 }
