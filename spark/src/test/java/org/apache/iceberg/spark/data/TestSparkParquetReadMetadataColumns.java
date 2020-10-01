@@ -106,9 +106,10 @@ public class TestSparkParquetReadMetadataColumns {
   }
 
   @Parameterized.Parameters(name =  "vectorized = {0}")
-  // Note - Does not currently run with the `true` parameter. Why is that?
+  // TODO - Add in test paramater of `true` when vectorized spark
+  //        parquet metadata column reads and writes are supported.
   public static Object[] parameters() {
-    return new Object[] { false, true };
+    return new Object[] { false };
   }
 
   @Rule
