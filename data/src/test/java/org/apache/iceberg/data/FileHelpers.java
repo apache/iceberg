@@ -50,7 +50,7 @@ public class FileHelpers {
   }
 
   public static Pair<DeleteFile, Set<CharSequence>> writeDeleteFile(Table table, OutputFile out, StructLike partition,
-                                                                   List<Pair<CharSequence, Long>> deletes)
+                                                                    List<Pair<CharSequence, Long>> deletes)
       throws IOException {
     PositionDeleteWriter<?> writer = Parquet.writeDeletes(out)
         .forTable(table)
