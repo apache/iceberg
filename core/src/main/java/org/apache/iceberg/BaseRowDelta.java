@@ -23,14 +23,19 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.SnapshotUtil;
 
 class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta {
   private final Set<CharSequence> referencedDataFiles = CharSequenceSet.empty();
+  private Expression conflictDetectionFilter = null;
   private Long validationSnapshotId = null; // check all versions by default
+  private boolean validateDeletes = false;
 
   BaseRowDelta(String tableName, TableOperations ops) {
     super(tableName, ops);
@@ -65,17 +70,42 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   }
 
   @Override
+  public RowDelta validateDeletedFiles() {
+    this.validateDeletes = true;
+    return this;
+  }
+
+  public RowDelta validateDeletedFiles(boolean shouldValidate) {
+    this.validateDeletes = shouldValidate;
+    return this;
+  }
+
+  @Override
   public RowDelta validateDataFilesExist(Iterable<? extends CharSequence> referencedFiles) {
     referencedFiles.forEach(referencedDataFiles::add);
     return this;
   }
 
+  public RowDelta validateNoConflictingAppends(Expression newConflictDetectionFilter) {
+    Preconditions.checkArgument(newConflictDetectionFilter != null, "Conflict detection filter cannot be null");
+    this.conflictDetectionFilter = newConflictDetectionFilter;
+    return this;
+  }
+
   @Override
   protected void validate(TableMetadata base) {
-    if (referencedDataFiles.isEmpty()) {
-      return;
-    }
+    if (base.currentSnapshot() != null) {
+      if (!referencedDataFiles.isEmpty()) {
+        validateRemovedDataFiles(base);
+      }
 
+      if (conflictDetectionFilter != null) {
+        validateAddedDataFiles(base);
+      }
+    }
+  }
+
+  private void validateRemovedDataFiles(TableMetadata base) {
     Set<CharSequence> removedDataFiles = CharSequenceSet.empty();
     removedDataFiles(validationSnapshotId, base.currentSnapshot().snapshotId(), base::snapshot).stream()
         .map(DataFile::path)
@@ -86,8 +116,12 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
         "Cannot commit deletes for missing data files: %s", removedDataFiles);
   }
 
-  private static List<DataFile> removedDataFiles(Long baseSnapshotId, long latestSnapshotId,
-                                                Function<Long, Snapshot> lookup) {
+  private void validateAddedDataFiles(TableMetadata base) {
+    SnapshotUtil.snapshotIdsBetween()
+  }
+
+  private List<DataFile> removedDataFiles(Long baseSnapshotId, long latestSnapshotId,
+                                          Function<Long, Snapshot> lookup) {
     List<DataFile> deletedFiles = Lists.newArrayList();
 
     Long currentSnapshotId = latestSnapshotId;
@@ -100,7 +134,7 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
             baseSnapshotId, currentSnapshotId);
       }
 
-      if (!currentSnapshot.operation().equals(DataOperations.DELETE)) {
+      if (validateDeletes || !currentSnapshot.operation().equals(DataOperations.DELETE)) {
         Iterables.addAll(deletedFiles, currentSnapshot.deletedFiles());
       }
 

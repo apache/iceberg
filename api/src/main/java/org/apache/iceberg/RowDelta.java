@@ -65,4 +65,12 @@ public interface RowDelta extends SnapshotUpdate<RowDelta> {
    * @return this for method chaining
    */
   RowDelta validateDataFilesExist(Iterable<? extends CharSequence> referencedFiles);
+
+  /**
+   * Enable validation that referenced data files passed to {@link #validateDataFilesExist(Iterable)} have not been
+   * removed by a delete operation.
+   *
+   * @return this for method chaining
+   */
+  RowDelta validateDeletedFiles();
 }
