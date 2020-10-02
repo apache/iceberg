@@ -68,6 +68,7 @@ public class SnapshotSummary {
     private final Map<String, String> properties = Maps.newHashMap();
     private final Map<String, UpdateMetrics> partitionMetrics = Maps.newHashMap();
     private final UpdateMetrics metrics = new UpdateMetrics();
+    private int maxChangedPartitionsForSummaries = 0;
     private long deletedDuplicateFiles = 0L;
     private boolean trustPartitionMetrics = true;
 
@@ -76,6 +77,19 @@ public class SnapshotSummary {
       metrics.clear();
       this.deletedDuplicateFiles = 0L;
       this.trustPartitionMetrics = true;
+    }
+
+    /**
+     * Sets the maximum number of changed partitions before partition summaries will be excluded.
+     * <p>
+     * If the number of changed partitions is over this max, summaries will not be included. If the number of changed
+     * partitions is <= this limit, then partition-level summaries will be included in the summary if they are
+     * available, and "partition-summaries-included" will be set to "true".
+     *
+     * @param max maximum number of changed partitions
+     */
+    public void setPartitionSummaryLimit(int max) {
+      this.maxChangedPartitionsForSummaries = max;
     }
 
     public void incrementDuplicateDeletes() {
@@ -167,8 +181,8 @@ public class SnapshotSummary {
       Set<String> changedPartitions = partitionMetrics.keySet();
       setIf(trustPartitionMetrics, builder, CHANGED_PARTITION_COUNT_PROP, changedPartitions.size());
 
-      if (trustPartitionMetrics && changedPartitions.size() < 100) {
-        setIf(true, builder, PARTITION_SUMMARY_PROP, "true");
+      if (trustPartitionMetrics && changedPartitions.size() <= maxChangedPartitionsForSummaries) {
+        setIf(changedPartitions.size() > 0, builder, PARTITION_SUMMARY_PROP, "true");
         for (String key : changedPartitions) {
           setIf(key != null, builder, CHANGED_PARTITION_PREFIX + key, partitionSummary(partitionMetrics.get(key)));
         }
