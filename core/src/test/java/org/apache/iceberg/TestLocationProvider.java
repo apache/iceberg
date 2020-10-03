@@ -139,7 +139,7 @@ public class TestLocationProvider extends TableTestBase {
 
     exceptionRule.expect(IllegalArgumentException.class);
     exceptionRule.expectMessage(
-        String.format("Unable to instantiate provided implementation %s for %s.",
+        String.format("Unable to instantiate the provided implementation %s for %s.",
             nonExistentImpl,
             LocationProvider.class));
     this.table.locationProvider();
@@ -156,7 +156,7 @@ public class TestLocationProvider extends TableTestBase {
 
     exceptionRule.expect(IllegalArgumentException.class);
     exceptionRule.expectMessage(
-        String.format("Unable to instantiate provided implementation %s for %s.",
+        String.format("Unable to instantiate the provided implementation %s for %s.",
             invalidImpl,
             LocationProvider.class));
     this.table.locationProvider();

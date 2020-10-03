@@ -48,10 +48,10 @@ public class LocationProviders {
       } catch (RuntimeException e) {
         throw new IllegalArgumentException(
             String.format(
-                "Unable to instantiate provided implementation %s for %s. " +
+                "Unable to instantiate the provided implementation %s for %s. " +
                     "Make sure the implementation is in classpath, and that it has a public constructor " +
                     "taking in base table location and table properties.",
-                impl, LocationProvider.class))
+                impl, LocationProvider.class), e)
             ;
       }
     } else if (PropertyUtil.propertyAsBoolean(properties,
