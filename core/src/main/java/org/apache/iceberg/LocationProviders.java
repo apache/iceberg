@@ -40,10 +40,20 @@ public class LocationProviders {
     if (properties.containsKey(TableProperties.LOCATION_PROVIDER_IMPL)) {
       String impl = properties.get(TableProperties.LOCATION_PROVIDER_IMPL);
       // Expect custom implementation to take 2 args: table location and table properties
-      DynConstructors.Ctor<LocationProvider> ctor = DynConstructors.builder(LocationProvider.class)
-              .impl(impl, String.class, Map.class)
-              .build();
-      return ctor.newInstance(location, properties);
+      try {
+        DynConstructors.Ctor<LocationProvider> ctor = DynConstructors.builder(LocationProvider.class)
+            .impl(impl, String.class, Map.class)
+            .build();
+        return ctor.newInstance(location, properties);
+      } catch (RuntimeException e) {
+        throw new IllegalArgumentException(
+            String.format(
+                "Unable to instantiate provided implementation %s for %s. " +
+                    "Make sure the implementation is in classpath, and that it has a public constructor " +
+                    "taking in base table location and table properties.",
+                impl, LocationProvider.class))
+            ;
+      }
     } else if (PropertyUtil.propertyAsBoolean(properties,
         TableProperties.OBJECT_STORE_ENABLED,
         TableProperties.OBJECT_STORE_ENABLED_DEFAULT)) {
