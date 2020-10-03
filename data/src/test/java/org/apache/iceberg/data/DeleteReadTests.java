@@ -43,13 +43,11 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
-public abstract class DeletesReadTest {
+public abstract class DeleteReadTests {
   // Schema passed to create tables
   public static final Schema SCHEMA = new Schema(
-      required(1, "id", Types.IntegerType.get()),
-      required(2, "data", Types.StringType.get())
+      Types.NestedField.required(1, "id", Types.IntegerType.get()),
+      Types.NestedField.required(2, "data", Types.StringType.get())
   );
 
   // Partition spec used to create tables
@@ -57,17 +55,18 @@ public abstract class DeletesReadTest {
       .bucket("data", 16)
       .build();
 
-  protected Table table;
-
-  private List<Record> records;
-  private DataFile dataFile;
-
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
+  private String tableName = null;
+  private Table table = null;
+  private List<Record> records = null;
+  private DataFile dataFile = null;
+
   @Before
   public void writeTestDataFile() throws IOException {
-    this.table = createTable("test", SCHEMA, SPEC);
+    this.tableName = "test";
+    this.table = createTable(tableName, SCHEMA, SPEC);
     this.records = Lists.newArrayList();
 
     // records all use IDs that are in bucket id_bucket=0
@@ -96,6 +95,12 @@ public abstract class DeletesReadTest {
 
   protected abstract void dropTable(String name) throws IOException;
 
+  protected abstract StructLikeSet rowSet(String name, Table testTable, String... columns) throws IOException;
+
+  protected boolean expectPruned() {
+    return true;
+  }
+
   @Test
   public void testEqualityDeletes() throws IOException {
     Schema deleteRowSchema = table.schema().select("data");
@@ -114,7 +119,7 @@ public abstract class DeletesReadTest {
         .commit();
 
     StructLikeSet expected = rowSetWithoutIds(29, 89, 122);
-    StructLikeSet actual = rowSet(table);
+    StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
   }
@@ -137,10 +142,14 @@ public abstract class DeletesReadTest {
         .commit();
 
     StructLikeSet expected = selectColumns(rowSetWithoutIds(29, 89, 122), "id");
-    // data is added by the reader to apply the eq deletes, use StructProjection to remove it from comparison
-    StructLikeSet actual = selectColumns(rowSet(table, "id"), "id");
+    StructLikeSet actual = rowSet(tableName, table, "id");
 
-    Assert.assertEquals("Table should contain expected rows", expected, actual);
+    if (expectPruned()) {
+      Assert.assertEquals("Table should contain expected rows", expected, actual);
+    } else {
+      // data is added by the reader to apply the eq deletes, use StructProjection to remove it from comparison
+      Assert.assertEquals("Table should contain expected rows", expected, selectColumns(actual, "id"));
+    }
   }
 
   @Test
@@ -159,7 +168,7 @@ public abstract class DeletesReadTest {
         .commit();
 
     StructLikeSet expected = rowSetWithoutIds(29, 89, 122);
-    StructLikeSet actual = rowSet(table);
+    StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
   }
@@ -191,7 +200,7 @@ public abstract class DeletesReadTest {
         .commit();
 
     StructLikeSet expected = rowSetWithoutIds(29, 89, 121, 122);
-    StructLikeSet actual = rowSet(table);
+    StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
   }
@@ -225,7 +234,7 @@ public abstract class DeletesReadTest {
         .commit();
 
     StructLikeSet expected = rowSetWithoutIds(29, 89, 121, 122);
-    StructLikeSet actual = rowSet(table);
+    StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
   }
@@ -262,16 +271,10 @@ public abstract class DeletesReadTest {
         .commit();
 
     StructLikeSet expected = rowSetWithoutIds(131);
-    StructLikeSet actual = rowSet(table);
+    StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
   }
-
-  private StructLikeSet rowSet(Table tbl) throws IOException {
-    return rowSet(tbl, "*");
-  }
-
-  public abstract StructLikeSet rowSet(Table tbl, String... columns) throws IOException;
 
   private StructLikeSet selectColumns(StructLikeSet rows, String... columns) {
     Schema projection = table.schema().select(columns);

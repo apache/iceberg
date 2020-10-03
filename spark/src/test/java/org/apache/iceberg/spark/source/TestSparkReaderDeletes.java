@@ -28,7 +28,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.data.DeletesReadTest;
+import org.apache.iceberg.data.DeleteReadTests;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
@@ -44,13 +44,11 @@ import org.junit.BeforeClass;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 
-public abstract class TestSparkReaderDeletes extends DeletesReadTest {
+public abstract class TestSparkReaderDeletes extends DeleteReadTests {
 
   private static TestHiveMetastore metastore = null;
   protected static SparkSession spark = null;
   protected static HiveCatalog catalog = null;
-
-  private String tableName;
 
   @BeforeClass
   public static void startMetastoreAndSpark() {
@@ -86,8 +84,7 @@ public abstract class TestSparkReaderDeletes extends DeletesReadTest {
 
   @Override
   protected Table createTable(String name, Schema schema, PartitionSpec spec) {
-    this.tableName = name;
-    Table table = catalog.createTable(TableIdentifier.of("default", tableName), schema);
+    Table table = catalog.createTable(TableIdentifier.of("default", name), schema);
     TableOperations ops = ((BaseTable) table).operations();
     TableMetadata meta = ops.current();
     ops.commit(meta, meta.upgradeToFormatVersion(2));
@@ -101,10 +98,10 @@ public abstract class TestSparkReaderDeletes extends DeletesReadTest {
   }
 
   @Override
-  public StructLikeSet rowSet(Table table, String... columns) {
+  public StructLikeSet rowSet(String name, Table table, String... columns) {
     Dataset<Row> df = spark.read()
         .format("iceberg")
-        .load(TableIdentifier.of("default", tableName).toString())
+        .load(TableIdentifier.of("default", name).toString())
         .selectExpr(columns);
 
     Types.StructType projection = table.schema().select(columns).asStruct();

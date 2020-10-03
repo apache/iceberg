@@ -31,7 +31,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.data.DeletesReadTest;
+import org.apache.iceberg.data.DeleteReadTests;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
@@ -39,7 +39,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
-public class TestMrReadDeletes extends DeletesReadTest {
+public class TestInputFormatReaderDeletes extends DeleteReadTests {
   private final Configuration conf = new Configuration();
   private final HadoopTables tables = new HadoopTables(conf);
   private TestHelper helper;
@@ -48,19 +48,19 @@ public class TestMrReadDeletes extends DeletesReadTest {
   private final String inputFormat;
   private final FileFormat fileFormat;
 
-  @Parameterized.Parameters
+  @Parameterized.Parameters(name = "inputFormat = {0}, fileFormat={1}")
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] { "IcebergInputFormat", FileFormat.PARQUET },
-        new Object[] { "IcebergInputFormat", FileFormat.AVRO },
-        new Object[] { "IcebergInputFormat", FileFormat.ORC },
-        new Object[] { "MapredIcebergInputFormat", FileFormat.PARQUET },
-        new Object[] { "MapredIcebergInputFormat", FileFormat.AVRO },
-        new Object[] { "MapredIcebergInputFormat", FileFormat.ORC },
+        { "IcebergInputFormat", FileFormat.PARQUET },
+        { "IcebergInputFormat", FileFormat.AVRO },
+        { "IcebergInputFormat", FileFormat.ORC },
+        { "MapredIcebergInputFormat", FileFormat.PARQUET },
+        { "MapredIcebergInputFormat", FileFormat.AVRO },
+        { "MapredIcebergInputFormat", FileFormat.ORC },
     };
   }
 
-  public TestMrReadDeletes(String inputFormat, FileFormat fileFormat) {
+  public TestInputFormatReaderDeletes(String inputFormat, FileFormat fileFormat) {
     this.inputFormat = inputFormat;
     this.fileFormat = fileFormat;
   }
@@ -87,7 +87,7 @@ public class TestMrReadDeletes extends DeletesReadTest {
   }
 
   @Override
-  public StructLikeSet rowSet(Table table, String... columns) {
+  public StructLikeSet rowSet(String name, Table table, String... columns) {
     InputFormatConfig.ConfigBuilder builder = new InputFormatConfig.ConfigBuilder(conf).readFrom(table.location());
     Schema projected = table.schema().select(columns);
     StructLikeSet set = StructLikeSet.create(projected.asStruct());
@@ -100,5 +100,10 @@ public class TestMrReadDeletes extends DeletesReadTest {
     );
 
     return set;
+  }
+
+  @Override
+  protected boolean expectPruned() {
+    return false;
   }
 }

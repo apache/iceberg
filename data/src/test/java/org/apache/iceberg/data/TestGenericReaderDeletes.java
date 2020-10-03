@@ -27,25 +27,25 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TestTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.util.StructLikeSet;
-import org.junit.After;
+import org.junit.Assert;
 
-public class GenericReaderDeletesTest extends DeletesReadTest {
+public class TestGenericReaderDeletes extends DeleteReadTests {
 
   @Override
   protected Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException {
     File tableDir = temp.newFolder();
-    tableDir.delete();
+    Assert.assertTrue(tableDir.delete());
 
     return TestTables.create(tableDir, name, schema, spec, 2);
   }
 
   @Override
-  protected void dropTable(String name) throws IOException {
+  protected void dropTable(String name) {
     TestTables.clearTables();
   }
 
   @Override
-  public StructLikeSet rowSet(Table table, String... columns) throws IOException {
+  public StructLikeSet rowSet(String name, Table table, String... columns) throws IOException {
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
     try (CloseableIterable<Record> reader = IcebergGenerics.read(table).select(columns).build()) {
       reader.forEach(set::add);
@@ -53,8 +53,8 @@ public class GenericReaderDeletesTest extends DeletesReadTest {
     return set;
   }
 
-  @After
-  public void cleanup() {
-    TestTables.clearTables();
+  @Override
+  protected boolean expectPruned() {
+    return false;
   }
 }
