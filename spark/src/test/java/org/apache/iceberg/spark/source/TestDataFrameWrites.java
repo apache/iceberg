@@ -23,17 +23,13 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.stream.Collectors;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Files;
-import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -55,7 +51,6 @@ import org.apache.spark.TaskContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
-import org.apache.spark.sql.Column;
 import org.apache.spark.sql.DataFrameWriter;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -157,115 +152,6 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
     writeAndValidateWithLocations(table, location, tablePropertyDataLocation);
   }
 
-  @Test
-  public void testWritePartitionedData() throws IOException {
-    Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
-    PartitionSpec partitionSpec = PartitionSpec.builderFor(schema).identity("l").build();
-    List<Record> expected = RandomData.generateList(schema, 100, 0L);
-    // Make id unique so we can sort them for asserting equal
-    for (int i = 0; i < 100; i++) {
-      expected.get(i).put("id", Long.valueOf(i));
-    }
-    writeAndValidatePartitionedWrite(schema, partitionSpec, expected);
-  }
-
-  @Test
-  public void testWriteWithDynamicallyLoadedLocationProvider() throws IOException {
-    Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
-    PartitionSpec partitionSpec = PartitionSpec.builderFor(schema).identity("b").build();
-    List<Record> expected = RandomData.generateList(schema, 100, 0L);
-    // Make id unique so we can sort them for asserting equal
-    for (int i = 0; i < 100; i++) {
-      expected.get(i).put("id", Long.valueOf(i));
-    }
-
-    File pathTrue = temp.newFolder("true-data-location");
-    File pathFalse = temp.newFolder("false-data-location");
-
-    File location = createTableFolder();
-    Table table = createTable(schema, partitionSpec, location);
-    table.updateProperties()
-        .set(TableProperties.DEFAULT_FILE_FORMAT, format)
-        .set(TableProperties.LOCATION_PROVIDER_IMPL, TestLocationProvider.class.getCanonicalName())
-        .set(TestLocationProvider.TRUE_PATH, pathTrue.getAbsolutePath())
-        .set(TestLocationProvider.FALSE_PATH, pathFalse.getAbsolutePath())
-        .commit();
-
-    writePartitionedDataAndCheckRead(table, schema, partitionSpec, location, expected);
-
-    table.currentSnapshot().addedFiles().forEach(f -> {
-      Boolean oddOrEven = f.partition().get(0, Boolean.class);
-      File expectedDataLocationPath = oddOrEven ? pathTrue : pathFalse;
-      assertDirectoryHasFile(expectedDataLocationPath, f);
-    });
-    assertDataPathHasPartitionEncoding(table, partitionSpec
-            .fields()
-            .stream()
-            .map(PartitionField::name)
-            .collect(Collectors.toList()));
-  }
-
-  private void writePartitionedDataAndCheckRead(Table table,
-                                                Schema originalSchema,
-                                                PartitionSpec partitionSpec,
-                                                File location,
-                                                List<Record> expected) throws IOException {
-    Schema tableSchema = table.schema(); // use the table schema because ids are reassigned
-
-    Dataset<Row> df = createDataset(expected, tableSchema);
-
-    // Need to sort within the source partition columns (not the transformed ones)
-    Column[] sourcePartitionColumns = partitionSpec.fields().stream()
-        .map(PartitionField::sourceId)
-        .map(originalSchema::findColumnName)
-        .map(Column::new).toArray(Column[]::new);
-
-    DataFrameWriter<?> writer = df
-        .sortWithinPartitions(sourcePartitionColumns)
-        .write()
-        .format("iceberg")
-        .mode("overwrite");
-
-    writer.save(location.toString());
-
-    table.refresh();
-
-    Dataset<Row> result = spark.read()
-        .format("iceberg")
-        .load(location.toString());
-
-    // Sort first field of test SUPPORTED_PRIMITIVES unique long id.
-    Iterator<Row> actualSorted = result.collectAsList().stream()
-        .sorted(Comparator.comparing(r -> (Long) r.get(0)))
-        .iterator();
-
-    Iterator<Record> expectedSorted = expected.stream()
-        .sorted(Comparator.comparing(r -> (Long) r.get(0)))
-        .iterator();
-
-    assertRecordsEqualRows(tableSchema, expectedSorted, actualSorted);
-  }
-
-  private void writeAndValidatePartitionedWrite(
-                                                Schema schema,
-                                                PartitionSpec partitionSpec,
-                                                List<Record> expected) throws IOException {
-
-    File location = createTableFolder();
-    Table table = createTable(schema, partitionSpec, location);
-    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
-
-    writePartitionedDataAndCheckRead(table, schema, partitionSpec, location, expected);
-    assertAddedDataLocation(table, new File(location, "data"));
-    assertDataPathHasPartitionEncoding(
-            table,
-            partitionSpec
-                    .fields()
-                    .stream()
-                    .map(PartitionField::name)
-                    .collect(Collectors.toList()));
-  }
-
   private File createTableFolder() throws IOException {
     File parent = temp.newFolder("parquet");
     File location = new File(parent, "test");
@@ -274,12 +160,8 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
   }
 
   private Table createTable(Schema schema, File location) {
-    return createTable(schema, PartitionSpec.unpartitioned(), location);
-  }
-
-  private Table createTable(Schema schema, PartitionSpec partitionSpec, File location) {
     HadoopTables tables = new HadoopTables(CONF);
-    return tables.create(schema, partitionSpec, location.toString());
+    return tables.create(schema, PartitionSpec.unpartitioned(), location.toString());
   }
 
   private void writeAndValidateWithLocations(Table table, File location, File expectedDataDir) throws IOException {
@@ -296,43 +178,18 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
 
     Iterator<Record> expectedIter = expected.iterator();
     Iterator<Row> actualIter = actual.iterator();
-    assertRecordsEqualRows(tableSchema, expectedIter, actualIter);
-    assertAddedDataLocation(table, expectedDataDir);
-  }
-
-  private void assertRecordsEqualRows(Schema tableSchema, Iterator<Record> expectedIter, Iterator<Row> actualIter) {
     while (expectedIter.hasNext() && actualIter.hasNext()) {
       assertEqualsSafe(tableSchema.asStruct(), expectedIter.next(), actualIter.next());
     }
     Assert.assertEquals("Both iterators should be exhausted", expectedIter.hasNext(), actualIter.hasNext());
-  }
-
-  private void assertDataPathHasPartitionEncoding(Table table, List<String> derivedPartitionColumns) {
-    List<String> partitionPath = derivedPartitionColumns.stream().map(s -> s + "=").collect(Collectors.toList());
 
     table.currentSnapshot().addedFiles().forEach(dataFile ->
-            partitionPath.forEach(p ->
-            Assert.assertTrue(
-                String.format(
-                    "File path should have partition encoding %s, but has: %s.",
-                    derivedPartitionColumns.stream().collect(Collectors.joining(",")),
-                    dataFile.path()), dataFile.path().toString().contains(p))
-      )
-    );
-  }
-
-  private void assertAddedDataLocation(Table table, File expectedDataDir) {
-    table.currentSnapshot().addedFiles().forEach(dataFile ->
-        assertDirectoryHasFile(expectedDataDir, dataFile));
-  }
-
-  private void assertDirectoryHasFile(File expectedDataDir, DataFile dataFile) {
-    Assert.assertTrue(
-        String.format(
-            "File should have the parent directory %s, but has: %s.",
-            expectedDataDir.getAbsolutePath(),
-            dataFile.path()),
-        URI.create(dataFile.path().toString()).getPath().startsWith(expectedDataDir.getAbsolutePath()));
+        Assert.assertTrue(
+            String.format(
+                "File should have the parent directory %s, but has: %s.",
+                expectedDataDir.getAbsolutePath(),
+                dataFile.path()),
+            URI.create(dataFile.path().toString()).getPath().startsWith(expectedDataDir.getAbsolutePath())));
   }
 
   private List<Row> readTable(String location) {
