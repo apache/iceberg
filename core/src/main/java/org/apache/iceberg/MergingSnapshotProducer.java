@@ -20,20 +20,25 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Predicate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT_DEFAULT;
@@ -200,6 +205,58 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     OutputFile newManifestPath = newManifestOutput();
     return ManifestFiles.copyAppendManifest(
         current.formatVersion(), toCopy, current.specsById(), newManifestPath, snapshotId(), appendedManifestsSummary);
+  }
+
+  /**
+   * Validates that no files matching a filter have been added to the table since a starting snapshot.
+   *
+   * @param base table metadata to validate
+   * @param startingSnapshotId id of the snapshot current at the start of the operation
+   * @param conflictDetectionFilter an expression used to find new conflicting data files
+   * @param caseSensitive whether expression evaluation should be case sensitive
+   */
+  protected void validateAddedDataFiles(TableMetadata base, Long startingSnapshotId,
+                                        Expression conflictDetectionFilter, boolean caseSensitive) {
+    List<ManifestFile> manifests = Lists.newArrayList();
+    Set<Long> newSnapshots = Sets.newHashSet();
+
+    Long currentSnapshotId = base.currentSnapshot().snapshotId();
+    while (currentSnapshotId != null && !currentSnapshotId.equals(startingSnapshotId)) {
+      Snapshot currentSnapshot = ops.current().snapshot(currentSnapshotId);
+
+      ValidationException.check(currentSnapshot != null,
+          "Cannot determine history between starting snapshot %s and current %s",
+          startingSnapshotId, currentSnapshotId);
+
+      newSnapshots.add(currentSnapshotId);
+      for (ManifestFile manifest : currentSnapshot.dataManifests()) {
+        if (manifest.snapshotId() == (long) currentSnapshotId) {
+          manifests.add(manifest);
+        }
+      }
+
+      currentSnapshotId = currentSnapshot.parentId();
+    }
+
+    ManifestGroup conflictGroup = new ManifestGroup(ops.io(), manifests, ImmutableList.of())
+        .caseSensitive(caseSensitive)
+        .filterManifestEntries(entry -> newSnapshots.contains(entry.snapshotId()))
+        .filterData(conflictDetectionFilter)
+        .specsById(base.specsById())
+        .ignoreDeleted()
+        .ignoreExisting();
+
+    try (CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictGroup.entries().iterator()) {
+      if (conflicts.hasNext()) {
+        throw new ValidationException("Found conflicting files that can contain records matching %s: %s",
+            conflictDetectionFilter,
+            Iterators.toString(Iterators.transform(conflicts, entry -> entry.file().path().toString())));
+      }
+
+    } catch (IOException e) {
+      throw new UncheckedIOException(
+          String.format("Failed to validate no appends matching %s", conflictDetectionFilter), e);
+    }
   }
 
   @Override

@@ -273,7 +273,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
     long committedSnapshotId = table.currentSnapshot().snapshotId();
 
     AssertHelpers.assertThrows("Should reject commit",
-        ValidationException.class, "A file was appended",
+        ValidationException.class, "Found conflicting files",
         overwrite::commit);
 
     Assert.assertEquals("Should not create a new snapshot",
@@ -346,7 +346,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
     long committedSnapshotId = table.currentSnapshot().snapshotId();
 
     AssertHelpers.assertThrows("Should reject commit",
-        ValidationException.class, "A file was appended",
+        ValidationException.class, "Found conflicting files",
         overwrite::commit);
 
     Assert.assertEquals("Should not create a new snapshot",
@@ -402,7 +402,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
     long committedSnapshotId = table.currentSnapshot().snapshotId();
 
     AssertHelpers.assertThrows("Should reject commit",
-        ValidationException.class, "A file was appended",
+        ValidationException.class, "Found conflicting files",
         overwrite::commit);
 
     Assert.assertEquals("Should not create a new snapshot",
@@ -608,7 +608,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
     overwrite.commit();
 
     AssertHelpers.assertThrows("Should reject commit",
-        ValidationException.class, "A file was appended",
+        ValidationException.class, "Found conflicting files",
         txn::commitTransaction);
 
     Assert.assertEquals("Should not create a new snapshot",

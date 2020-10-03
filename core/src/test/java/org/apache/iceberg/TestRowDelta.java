@@ -297,6 +297,95 @@ public class TestRowDelta extends V2TableTestBase {
   }
 
   @Test
+  public void testValidateNoConflicts() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    // test changes to the table back to the snapshot where FILE_A and FILE_B existed
+    long validateFromSnapshotId = table.currentSnapshot().snapshotId();
+
+    // delete FILE_A
+    table.newAppend()
+        .appendFile(FILE_A2)
+        .commit();
+
+    long appendSnapshotId = table.currentSnapshot().snapshotId();
+
+    AssertHelpers.assertThrows("Should fail to add FILE_A_DELETES because FILE_A2 was added",
+        ValidationException.class, "Found conflicting files",
+        () -> table.newRowDelta()
+            .addDeletes(FILE_A_DELETES)
+            .validateFromSnapshot(validateFromSnapshotId)
+            .validateNoConflictingAppends(
+                Expressions.equal("data", "u"), // bucket16("u") -> 0
+                true)
+            .commit());
+
+    Assert.assertEquals("Table state should not be modified by failed RowDelta operation",
+        appendSnapshotId, table.currentSnapshot().snapshotId());
+
+    Assert.assertEquals("Table should not have any delete manifests",
+        0, table.currentSnapshot().deleteManifests().size());
+  }
+
+  @Test
+  public void testValidateNoConflictsFromSnapshot() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    long appendSnapshotId = table.currentSnapshot().snapshotId();
+
+    // delete FILE_A
+    table.newAppend()
+        .appendFile(FILE_A2)
+        .commit();
+
+    // even though FILE_A2 was added, it happened before the "from" snapshot, so the validation allows it
+    long validateFromSnapshotId = table.currentSnapshot().snapshotId();
+
+    table.newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .validateDeletedFiles()
+        .validateFromSnapshot(validateFromSnapshotId)
+        .validateDataFilesExist(ImmutableList.of(FILE_A.path()))
+        .validateNoConflictingAppends(
+            Expressions.equal("data", "u"), // bucket16("u") -> 0
+            true)
+        .commit();
+
+    Snapshot snap = table.currentSnapshot();
+    Assert.assertEquals("Commit should produce sequence number 2", 3, snap.sequenceNumber());
+    Assert.assertEquals("Last sequence number should be 3", 3, table.ops().current().lastSequenceNumber());
+
+    Assert.assertEquals("Should have 2 data manifests", 2, snap.dataManifests().size());
+    // manifest with FILE_A2 added
+    validateManifest(
+        snap.dataManifests().get(0),
+        seqs(2),
+        ids(validateFromSnapshotId),
+        files(FILE_A2),
+        statuses(Status.ADDED));
+
+    // manifest with FILE_A added
+    validateManifest(
+        snap.dataManifests().get(1),
+        seqs(1),
+        ids(appendSnapshotId),
+        files(FILE_A),
+        statuses(Status.ADDED));
+
+    Assert.assertEquals("Should have 1 delete manifest", 1, snap.deleteManifests().size());
+    validateDeleteManifest(
+        snap.deleteManifests().get(0),
+        seqs(3),
+        ids(snap.snapshotId()),
+        files(FILE_A_DELETES),
+        statuses(Status.ADDED));
+  }
+
+  @Test
   public void testOverwriteWithDeleteFile() {
     table.newRowDelta()
         .addRows(FILE_A)

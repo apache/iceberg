@@ -24,21 +24,24 @@ import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.CharSequenceSet;
-import org.apache.iceberg.util.SnapshotUtil;
 
 class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta {
+  private final FileIO io;
+  private Long startingSnapshotId = null; // check all versions by default
   private final Set<CharSequence> referencedDataFiles = CharSequenceSet.empty();
-  private Expression conflictDetectionFilter = null;
-  private Long validationSnapshotId = null; // check all versions by default
   private boolean validateDeletes = false;
+  private Expression conflictDetectionFilter = null;
+  private boolean caseSensitive = true;
 
   BaseRowDelta(String tableName, TableOperations ops) {
     super(tableName, ops);
+    this.io = ops.io();
   }
 
   @Override
@@ -65,14 +68,13 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
 
   @Override
   public RowDelta validateFromSnapshot(long snapshotId) {
-    this.validationSnapshotId = snapshotId;
+    this.startingSnapshotId = snapshotId;
     return this;
   }
 
   @Override
   public RowDelta validateDeletedFiles() {
-    this.validateDeletes = true;
-    return this;
+    return validateDeletedFiles(true);
   }
 
   public RowDelta validateDeletedFiles(boolean shouldValidate) {
@@ -86,9 +88,11 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
     return this;
   }
 
-  public RowDelta validateNoConflictingAppends(Expression newConflictDetectionFilter) {
+  @Override
+  public RowDelta validateNoConflictingAppends(Expression newConflictDetectionFilter, boolean isCaseSensitive) {
     Preconditions.checkArgument(newConflictDetectionFilter != null, "Conflict detection filter cannot be null");
     this.conflictDetectionFilter = newConflictDetectionFilter;
+    this.caseSensitive = isCaseSensitive;
     return this;
   }
 
@@ -100,24 +104,20 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
       }
 
       if (conflictDetectionFilter != null) {
-        validateAddedDataFiles(base);
+        validateAddedDataFiles(base, startingSnapshotId, conflictDetectionFilter, caseSensitive);
       }
     }
   }
 
   private void validateRemovedDataFiles(TableMetadata base) {
     Set<CharSequence> removedDataFiles = CharSequenceSet.empty();
-    removedDataFiles(validationSnapshotId, base.currentSnapshot().snapshotId(), base::snapshot).stream()
+    removedDataFiles(startingSnapshotId, base.currentSnapshot().snapshotId(), base::snapshot).stream()
         .map(DataFile::path)
         .forEach(removedDataFiles::add);
     Set<CharSequence> missingDataFiles = Sets.intersection(referencedDataFiles, removedDataFiles);
 
     ValidationException.check(missingDataFiles.isEmpty(),
         "Cannot commit deletes for missing data files: %s", removedDataFiles);
-  }
-
-  private void validateAddedDataFiles(TableMetadata base) {
-    SnapshotUtil.snapshotIdsBetween()
   }
 
   private List<DataFile> removedDataFiles(Long baseSnapshotId, long latestSnapshotId,
@@ -128,11 +128,9 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
     while (currentSnapshotId != null && !currentSnapshotId.equals(baseSnapshotId)) {
       Snapshot currentSnapshot = lookup.apply(currentSnapshotId);
 
-      if (currentSnapshot == null) {
-        throw new ValidationException(
-            "Cannot determine history between read snapshot %s and current %s",
-            baseSnapshotId, currentSnapshotId);
-      }
+      ValidationException.check(currentSnapshot != null,
+          "Cannot determine history between starting snapshot %s and current %s",
+          startingSnapshotId, currentSnapshotId);
 
       if (validateDeletes || !currentSnapshot.operation().equals(DataOperations.DELETE)) {
         Iterables.addAll(deletedFiles, currentSnapshot.deletedFiles());
