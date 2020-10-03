@@ -64,8 +64,8 @@ public class FlinkCatalogFactory implements CatalogFactory {
   public static final String HADOOP_WAREHOUSE_LOCATION = "warehouse";
 
   public static final String HIVE_SITE_PATH = "hive-site-path";
-  public static final String HIVE_SITE_SCHEMA_FILE = "file";
-  public static final String HIVE_SITE_SCHEMA_HDFS = "hdfs";
+  public static final String HIVE_SITE_SCHEME_FILE = "file";
+  public static final String HIVE_SITE_SCHEME_HDFS = "hdfs";
 
   public static final String DEFAULT_DATABASE = "default-database";
   public static final String BASE_NAMESPACE = "base-namespace";
@@ -143,28 +143,28 @@ public class FlinkCatalogFactory implements CatalogFactory {
   private void loadHiveConf(Configuration configuration, Map<String, String> properties) {
     String hiveConfPath = properties.get(HIVE_SITE_PATH);
     Path path = new Path(hiveConfPath);
-    String schema = getSchema(path);
+    String scheme = getScheme(path);
     // We can add more storage support later，like s3
-    switch (schema) {
-      case HIVE_SITE_SCHEMA_HDFS:
+    switch (scheme) {
+      case HIVE_SITE_SCHEME_HDFS:
         downloadFromHdfs(configuration, path);
         break;
-      case HIVE_SITE_SCHEMA_FILE:
+      case HIVE_SITE_SCHEME_FILE:
         loadLocalHiveConf(configuration, hiveConfPath);
         break;
       default:
         throw new UnsupportedOperationException(
-            "Unsupported FileSystem for schema :" + schema);
+            "Unsupported FileSystem for scheme :" + scheme);
     }
   }
 
-  private String getSchema(Path path) {
-    String schema = path.toUri().getScheme();
-    if (schema == null) {
+  private String getScheme(Path path) {
+    String scheme = path.toUri().getScheme();
+    if (scheme == null) {
       // for case :  /tmp/hive-site.xml
-      return HIVE_SITE_SCHEMA_FILE;
+      return HIVE_SITE_SCHEME_FILE;
     } else {
-      return schema;
+      return scheme;
     }
   }
 
