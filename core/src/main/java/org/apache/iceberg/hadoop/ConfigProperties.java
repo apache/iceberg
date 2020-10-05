@@ -17,21 +17,12 @@
  * under the License.
  */
 
-package org.apache.iceberg.mr.hive;
+package org.apache.iceberg.hadoop;
 
-import org.apache.hadoop.conf.Configuration;
-import org.junit.rules.TemporaryFolder;
+public class ConfigProperties {
 
-public class TestHiveIcebergStorageHandlerWithHiveCatalog extends HiveIcebergStorageHandlerBaseTest {
-
-  @Override
-  public TestTables testTables(Configuration conf, TemporaryFolder temp) {
-    return new TestTables.HiveTestTables(conf, temp);
+  private ConfigProperties() {
   }
 
-  @Override
-  protected void createHiveTable(String tableName, String location) {
-    // The Hive catalog has already created the Hive table so there's no need to issue another
-    // 'CREATE TABLE ...' statement.
-  }
+  public static final String ENGINE_HIVE_ENABLED = "iceberg.engine.hive.enabled";
 }
