@@ -46,6 +46,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.DeleteFilter;
+import org.apache.iceberg.data.GenericDeleteFilter;
 import org.apache.iceberg.data.IdentityPartitionConverters;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
@@ -231,7 +233,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       currentIterator.close();
     }
 
-    private CloseableIterable<T> open(FileScanTask currentTask, Schema readSchema) {
+    private CloseableIterable<T> openTask(FileScanTask currentTask, Schema readSchema) {
       DataFile file = currentTask.file();
       InputFile inputFile = encryptionManager.decrypt(EncryptedFiles.encryptedInput(
           io.newInputFile(file.path().toString()),
@@ -254,6 +256,22 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       }
 
       return iterable;
+    }
+
+    @SuppressWarnings("unchecked")
+    private CloseableIterable<T> open(FileScanTask currentTask, Schema readSchema) {
+      switch (inMemoryDataModel) {
+        case PIG:
+        case HIVE:
+          // TODO: Support Pig and Hive object models for IcebergInputFormat
+          throw new UnsupportedOperationException("Pig and Hive object models are not supported.");
+        case GENERIC:
+          DeleteFilter deletes = new GenericDeleteFilter(io, currentTask, tableSchema, readSchema);
+          Schema requiredSchema = deletes.requiredSchema();
+          return deletes.filter(openTask(currentTask, requiredSchema));
+        default:
+          throw new UnsupportedOperationException("Unsupported memory model");
+      }
     }
 
     private CloseableIterable<T> applyResidualFiltering(CloseableIterable<T> iter, Expression residual,

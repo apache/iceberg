@@ -72,7 +72,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 @RunWith(Parameterized.class)
 public class TestIcebergInputFormats {
 
-  private static final List<TestInputFormat.Factory<Record>> TESTED_INPUT_FORMATS = ImmutableList.of(
+  public static final List<TestInputFormat.Factory<Record>> TESTED_INPUT_FORMATS = ImmutableList.of(
           TestInputFormat.newFactory("IcebergInputFormat", TestIcebergInputFormat::create),
           TestInputFormat.newFactory("MapredIcebergInputFormat", TestMapredIcebergInputFormat::create));
 
@@ -371,7 +371,7 @@ public class TestIcebergInputFormats {
   }
 
   // TODO - Capture template type T in toString method: https://github.com/apache/iceberg/issues/1542
-  private abstract static class TestInputFormat<T> {
+  public abstract static class TestInputFormat<T> {
 
     private final List<IcebergSplit> splits;
     private final List<T> records;
