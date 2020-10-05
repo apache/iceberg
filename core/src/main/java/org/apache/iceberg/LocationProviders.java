@@ -43,21 +43,21 @@ public class LocationProviders {
       try {
         ctor = DynConstructors.builder(LocationProvider.class)
             .impl(impl, String.class, Map.class)
-            .impl(impl).build(); // fall back to no-arg constructor
-      } catch (RuntimeException e) {
+            .impl(impl).buildChecked(); // fall back to no-arg constructor
+      } catch (NoSuchMethodException e) {
         throw new IllegalArgumentException(String.format(
             "Unable to find a constructor for implementation %s of %s. " +
                 "Make sure the implementation is in classpath, and that it either " +
                 "has a public no-arg constructor or a two-arg constructor " +
                 "taking in the string base table location and its property string map.",
-            impl, LocationProvider.class));
+            impl, LocationProvider.class), e);
       }
       try {
         return ctor.newInstance(location, properties);
       } catch (ClassCastException e) {
         throw new IllegalArgumentException(
-            String.format("Provided implementation for dynamic instantiation should implement %s, " +
-                "but found dynamic constructor %s.", LocationProvider.class, ctor));
+            String.format("Provided implementation for dynamic instantiation should implement %s.",
+                LocationProvider.class), e);
       }
     } else if (PropertyUtil.propertyAsBoolean(properties,
         TableProperties.OBJECT_STORE_ENABLED,
