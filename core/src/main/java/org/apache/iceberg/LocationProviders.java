@@ -22,7 +22,6 @@ package org.apache.iceberg;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
-
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.LocationProvider;
@@ -79,7 +78,8 @@ public class LocationProviders {
     }
   }
 
-  private static Optional<DynConstructors.Ctor<LocationProvider>> findConstructor(Supplier<DynConstructors.Ctor<LocationProvider>> supplier) {
+  private static Optional<DynConstructors.Ctor<LocationProvider>> findConstructor(
+      Supplier<DynConstructors.Ctor<LocationProvider>> supplier) {
     try {
       return Optional.of(supplier.get());
     } catch (RuntimeException e) {
