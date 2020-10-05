@@ -131,7 +131,7 @@ public class TestLocationProvider extends TableTestBase {
         this.getClass().getCanonicalName(),
         NoArgDynamicallyLoadedLocationProvider.class.getSimpleName());
     this.table.updateProperties()
-        .set(TableProperties.LOCATION_PROVIDER_IMPL, invalidImpl)
+        .set(TableProperties.WRITE_LOCATION_PROVIDER_IMPL, invalidImpl)
         .commit();
 
     Assert.assertEquals(
@@ -144,7 +144,7 @@ public class TestLocationProvider extends TableTestBase {
   @Test
   public void testTwoArgDynamicallyLoadedLocationProvider() {
     this.table.updateProperties()
-        .set(TableProperties.LOCATION_PROVIDER_IMPL,
+        .set(TableProperties.WRITE_LOCATION_PROVIDER_IMPL,
             String.format("%s$%s",
                 this.getClass().getCanonicalName(),
                 TwoArgDynamicallyLoadedLocationProvider.class.getSimpleName()))
@@ -167,7 +167,7 @@ public class TestLocationProvider extends TableTestBase {
         this.getClass().getCanonicalName(),
         TwoArgDynamicallyLoadedLocationProvider.class.getSimpleName());
     this.table.updateProperties()
-        .set(TableProperties.LOCATION_PROVIDER_IMPL, nonExistentImpl)
+        .set(TableProperties.WRITE_LOCATION_PROVIDER_IMPL, nonExistentImpl)
         .commit();
 
     AssertHelpers.assertThrows("Non-existent implementation should fail on finding constructor",
@@ -184,7 +184,7 @@ public class TestLocationProvider extends TableTestBase {
         this.getClass().getCanonicalName(),
         InvalidNoInterfaceDynamicallyLoadedLocationProvider.class.getSimpleName());
     this.table.updateProperties()
-        .set(TableProperties.LOCATION_PROVIDER_IMPL, invalidImpl)
+        .set(TableProperties.WRITE_LOCATION_PROVIDER_IMPL, invalidImpl)
         .commit();
 
     AssertHelpers.assertThrows(
@@ -202,7 +202,7 @@ public class TestLocationProvider extends TableTestBase {
         this.getClass().getCanonicalName(),
         InvalidArgTypesDynamicallyLoadedLocationProvider.class.getSimpleName());
     this.table.updateProperties()
-        .set(TableProperties.LOCATION_PROVIDER_IMPL, invalidImpl)
+        .set(TableProperties.WRITE_LOCATION_PROVIDER_IMPL, invalidImpl)
         .commit();
 
     AssertHelpers.assertThrows("Implementation with invalid arg types should fail on finding constructor",

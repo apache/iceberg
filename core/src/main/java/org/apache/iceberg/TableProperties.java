@@ -89,7 +89,7 @@ public class TableProperties {
 
   public static final String OBJECT_STORE_PATH = "write.object-storage.path";
 
-  public static final String LOCATION_PROVIDER_IMPL = "write.location-provider.impl";
+  public static final String WRITE_LOCATION_PROVIDER_IMPL = "write.location-provider.impl";
 
   // This only applies to files written after this property is set. Files previously written aren't
   // relocated to reflect this parameter.

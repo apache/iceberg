@@ -40,7 +40,7 @@ public class LocationProviders {
   }
 
   public static LocationProvider locationsFor(String location, Map<String, String> properties) {
-    if (properties.containsKey(TableProperties.LOCATION_PROVIDER_IMPL)) {
+    if (properties.containsKey(TableProperties.WRITE_LOCATION_PROVIDER_IMPL)) {
       return dynamicallyLoadLocationProvider(location, properties);
     } else if (PropertyUtil.propertyAsBoolean(properties,
         TableProperties.OBJECT_STORE_ENABLED,
@@ -52,7 +52,7 @@ public class LocationProviders {
   }
 
   private static LocationProvider dynamicallyLoadLocationProvider(String location, Map<String, String> properties) {
-    String impl = properties.get(TableProperties.LOCATION_PROVIDER_IMPL);
+    String impl = properties.get(TableProperties.WRITE_LOCATION_PROVIDER_IMPL);
     Optional<DynConstructors.Ctor<LocationProvider>> noArgConstructor = findConstructor(() ->
         DynConstructors.builder(LocationProvider.class)
             .impl(impl).build()
