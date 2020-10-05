@@ -20,8 +20,6 @@
 package org.apache.iceberg;
 
 import java.util.Map;
-import java.util.Optional;
-import java.util.function.Supplier;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.LocationProvider;
@@ -40,60 +38,33 @@ public class LocationProviders {
 
   public static LocationProvider locationsFor(String location, Map<String, String> properties) {
     if (properties.containsKey(TableProperties.WRITE_LOCATION_PROVIDER_IMPL)) {
-      return dynamicallyLoadLocationProvider(location, properties);
+      String impl = properties.get(TableProperties.WRITE_LOCATION_PROVIDER_IMPL);
+      DynConstructors.Ctor<LocationProvider> ctor;
+      try {
+        ctor = DynConstructors.builder(LocationProvider.class)
+            .impl(impl, String.class, Map.class)
+            .impl(impl).build(); // fall back to no-arg constructor
+      } catch (RuntimeException e) {
+        throw new IllegalArgumentException(String.format(
+            "Unable to find a constructor for implementation %s of %s. " +
+                "Make sure the implementation is in classpath, and that it either " +
+                "has a public no-arg constructor or a two-arg constructor " +
+                "taking in the string base table location and its property string map.",
+            impl, LocationProvider.class));
+      }
+      try {
+        return ctor.newInstance(location, properties);
+      } catch (ClassCastException e) {
+        throw new IllegalArgumentException(
+            String.format("Provided implementation for dynamic instantiation should implement %s, " +
+                "but found dynamic constructor %s.", LocationProvider.class, ctor));
+      }
     } else if (PropertyUtil.propertyAsBoolean(properties,
         TableProperties.OBJECT_STORE_ENABLED,
         TableProperties.OBJECT_STORE_ENABLED_DEFAULT)) {
       return new ObjectStoreLocationProvider(location, properties);
     } else {
       return new DefaultLocationProvider(location, properties);
-    }
-  }
-
-  private static LocationProvider dynamicallyLoadLocationProvider(String location, Map<String, String> properties) {
-    String impl = properties.get(TableProperties.WRITE_LOCATION_PROVIDER_IMPL);
-    Optional<DynConstructors.Ctor<LocationProvider>> noArgConstructor = findConstructor(() ->
-        DynConstructors.builder(LocationProvider.class)
-            .impl(impl).build()
-    );
-    Optional<DynConstructors.Ctor<LocationProvider>> twoArgConstructor = Optional.empty();
-    if (!noArgConstructor.isPresent()) {
-      twoArgConstructor = findConstructor(() ->
-          DynConstructors.builder(LocationProvider.class)
-              .impl(impl, String.class, Map.class)
-              .build()
-      );
-    }
-    if (noArgConstructor.isPresent()) {
-      return newInstance(noArgConstructor.get());
-    } else if (twoArgConstructor.isPresent()) {
-      return newInstance(twoArgConstructor.get(), location, properties);
-    } else {
-      throw new IllegalArgumentException(String.format(
-          "Unable to find a constructor for implementation %s of %s. " +
-              "Make sure the implementation is in classpath, and that it either " +
-              "has a public no-arg constructor or a two-arg constructor " +
-              "taking in the string base table location and its property string map.",
-          impl, LocationProvider.class));
-    }
-  }
-
-  private static Optional<DynConstructors.Ctor<LocationProvider>> findConstructor(
-      Supplier<DynConstructors.Ctor<LocationProvider>> supplier) {
-    try {
-      return Optional.of(supplier.get());
-    } catch (RuntimeException e) {
-      return Optional.empty();
-    }
-  }
-
-  private static LocationProvider newInstance(DynConstructors.Ctor<LocationProvider> ctor, Object... args) {
-    try {
-      return ctor.newInstance(args);
-    } catch (ClassCastException e) {
-      throw new IllegalArgumentException(
-          String.format("Provided implementation for dynamic instantiation should implement %s, " +
-                  "but found dynamic constructor %s.", LocationProvider.class, ctor));
     }
   }
 

@@ -175,7 +175,7 @@ public class TestLocationProvider extends TableTestBase {
         String.format("Unable to find a constructor for implementation %s of %s. ",
             nonExistentImpl, LocationProvider.class),
         () -> table.locationProvider()
-        );
+    );
   }
 
   @Test
@@ -193,7 +193,7 @@ public class TestLocationProvider extends TableTestBase {
         String.format("Provided implementation for dynamic instantiation should implement %s",
             LocationProvider.class),
         () -> table.locationProvider()
-        );
+    );
   }
 
   @Test
