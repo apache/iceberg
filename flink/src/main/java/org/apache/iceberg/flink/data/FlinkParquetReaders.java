@@ -531,8 +531,8 @@ public class FlinkParquetReaders {
 
   private static class FlinkReusableMapData implements ReusableMapData, MapData {
 
-    private ReusableArrayData keys = null;
-    private ReusableArrayData values = null;
+    private FlinkReusableArrayData keys = null;
+    private FlinkReusableArrayData values = null;
 
     private FlinkReusableMapData() {
       this.keys = new FlinkReusableArrayData();
@@ -541,12 +541,12 @@ public class FlinkParquetReaders {
 
     @Override
     public FlinkReusableArrayData values() {
-      return (FlinkReusableArrayData) values;
+      return values;
     }
 
     @Override
     public FlinkReusableArrayData keys() {
-      return (FlinkReusableArrayData) keys;
+      return keys;
     }
 
     @Override

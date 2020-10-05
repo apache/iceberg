@@ -40,6 +40,8 @@ import org.apache.iceberg.parquet.ParquetValueReaders.RepeatedReader;
 import org.apache.iceberg.parquet.ParquetValueReaders.ReusableEntry;
 import org.apache.iceberg.parquet.ParquetValueReaders.StructReader;
 import org.apache.iceberg.parquet.ParquetValueReaders.UnboxedReader;
+import org.apache.iceberg.parquet.ReusableArrayData;
+import org.apache.iceberg.parquet.ReusableMapData;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -401,7 +403,7 @@ public class SparkParquetReaders {
     }
   }
 
-  private static class ArrayReader<E> extends RepeatedReader<ArrayData, ReusableArrayData, E> {
+  private static class ArrayReader<E> extends RepeatedReader<ArrayData, SparkReusableArrayData, E> {
     private int readPos = 0;
     private int writePos = 0;
 
@@ -411,20 +413,20 @@ public class SparkParquetReaders {
 
     @Override
     @SuppressWarnings("unchecked")
-    protected ReusableArrayData newListData(ArrayData reuse) {
+    protected SparkReusableArrayData newListData(ArrayData reuse) {
       this.readPos = 0;
       this.writePos = 0;
 
-      if (reuse instanceof ReusableArrayData) {
-        return (ReusableArrayData) reuse;
+      if (reuse instanceof SparkReusableArrayData) {
+        return (SparkReusableArrayData) reuse;
       } else {
-        return new ReusableArrayData();
+        return new SparkReusableArrayData();
       }
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    protected E getElement(ReusableArrayData list) {
+    protected E getElement(SparkReusableArrayData list) {
       E value = null;
       if (readPos < list.capacity()) {
         value = (E) list.values[readPos];
@@ -436,7 +438,7 @@ public class SparkParquetReaders {
     }
 
     @Override
-    protected void addElement(ReusableArrayData reused, E element) {
+    protected void addElement(SparkReusableArrayData reused, E element) {
       if (writePos >= reused.capacity()) {
         reused.grow();
       }
@@ -447,13 +449,13 @@ public class SparkParquetReaders {
     }
 
     @Override
-    protected ArrayData buildList(ReusableArrayData list) {
+    protected ArrayData buildList(SparkReusableArrayData list) {
       list.setNumElements(writePos);
       return list;
     }
   }
 
-  private static class MapReader<K, V> extends RepeatedKeyValueReader<MapData, ReusableMapData, K, V> {
+  private static class MapReader<K, V> extends RepeatedKeyValueReader<MapData, SparkReusableMapData, K, V> {
     private int readPos = 0;
     private int writePos = 0;
 
@@ -467,20 +469,20 @@ public class SparkParquetReaders {
 
     @Override
     @SuppressWarnings("unchecked")
-    protected ReusableMapData newMapData(MapData reuse) {
+    protected SparkReusableMapData newMapData(MapData reuse) {
       this.readPos = 0;
       this.writePos = 0;
 
-      if (reuse instanceof ReusableMapData) {
-        return (ReusableMapData) reuse;
+      if (reuse instanceof SparkReusableMapData) {
+        return (SparkReusableMapData) reuse;
       } else {
-        return new ReusableMapData();
+        return new SparkReusableMapData();
       }
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    protected Map.Entry<K, V> getPair(ReusableMapData map) {
+    protected Map.Entry<K, V> getPair(SparkReusableMapData map) {
       Map.Entry<K, V> kv = nullEntry;
       if (readPos < map.capacity()) {
         entry.set((K) map.keys.values[readPos], (V) map.values.values[readPos]);
@@ -493,7 +495,7 @@ public class SparkParquetReaders {
     }
 
     @Override
-    protected void addPair(ReusableMapData map, K key, V value) {
+    protected void addPair(SparkReusableMapData map, K key, V value) {
       if (writePos >= map.capacity()) {
         map.grow();
       }
@@ -505,7 +507,7 @@ public class SparkParquetReaders {
     }
 
     @Override
-    protected MapData buildMap(ReusableMapData map) {
+    protected MapData buildMap(SparkReusableMapData map) {
       map.setNumElements(writePos);
       return map;
     }
@@ -574,34 +576,14 @@ public class SparkParquetReaders {
     }
   }
 
-  private static class ReusableMapData extends MapData {
-    private final ReusableArrayData keys;
-    private final ReusableArrayData values;
-    private int numElements;
+  private static class SparkReusableMapData extends MapData implements ReusableMapData {
 
-    private ReusableMapData() {
-      this.keys = new ReusableArrayData();
-      this.values = new ReusableArrayData();
-    }
+    private SparkReusableArrayData keys = null;
+    private SparkReusableArrayData values = null;
 
-    private void grow() {
-      keys.grow();
-      values.grow();
-    }
-
-    private int capacity() {
-      return keys.capacity();
-    }
-
-    public void setNumElements(int numElements) {
-      this.numElements = numElements;
-      keys.setNumElements(numElements);
-      values.setNumElements(numElements);
-    }
-
-    @Override
-    public int numElements() {
-      return numElements;
+    private SparkReusableMapData() {
+      this.keys = new SparkReusableArrayData();
+      this.values = new SparkReusableArrayData();
     }
 
     @Override
@@ -610,37 +592,53 @@ public class SparkParquetReaders {
     }
 
     @Override
-    public ReusableArrayData keyArray() {
+    public SparkReusableArrayData keyArray() {
       return keys;
     }
 
     @Override
-    public ReusableArrayData valueArray() {
+    public SparkReusableArrayData valueArray() {
       return values;
+    }
+
+    @Override
+    public SparkReusableArrayData keys() {
+      return keys;
+    }
+
+    @Override
+    public SparkReusableArrayData values() {
+      return values;
+    }
+
+    @Override
+    public int size() {
+      return keys.getNumElements();
+    }
+
+    @Override
+    public int numElements() {
+      return keys.getNumElements();
     }
   }
 
-  private static class ReusableArrayData extends ArrayData {
+  private static class SparkReusableArrayData extends ArrayData implements ReusableArrayData {
     private static final Object[] EMPTY = new Object[0];
 
     private Object[] values = EMPTY;
     private int numElements = 0;
 
-    private void grow() {
-      if (values.length == 0) {
-        this.values = new Object[20];
-      } else {
-        Object[] old = values;
-        this.values = new Object[old.length << 2];
-        // copy the old array in case it has values that can be reused
-        System.arraycopy(old, 0, values, 0, old.length);
-      }
+    @Override
+    public Object[] values() {
+      return values;
     }
 
-    private int capacity() {
-      return values.length;
+    @Override
+    public void setValues(Object[] array) {
+      values = array;
     }
 
+    @Override
     public void setNumElements(int numElements) {
       this.numElements = numElements;
     }
@@ -652,6 +650,11 @@ public class SparkParquetReaders {
 
     @Override
     public int numElements() {
+      return numElements;
+    }
+
+    @Override
+    public int getNumElements() {
       return numElements;
     }
 
