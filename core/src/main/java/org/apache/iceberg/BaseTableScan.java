@@ -44,7 +44,6 @@ import org.slf4j.LoggerFactory;
 /**
  * Base class for {@link TableScan} implementations.
  */
-@SuppressWarnings("checkstyle:OverloadMethodsDeclarationOrder")
 abstract class BaseTableScan implements TableScan {
   private static final Logger LOG = LoggerFactory.getLogger(TableScan.class);
 
