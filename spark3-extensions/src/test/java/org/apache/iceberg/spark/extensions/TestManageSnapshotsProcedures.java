@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.spark.extensions;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
@@ -38,6 +40,8 @@ import org.junit.Test;
 import static org.apache.iceberg.TableProperties.WRITE_AUDIT_PUBLISH_ENABLED;
 
 public class TestManageSnapshotsProcedures extends SparkExtensionsTestBase {
+
+  private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
   public TestManageSnapshotsProcedures(String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
@@ -322,4 +326,74 @@ public class TestManageSnapshotsProcedures extends SparkExtensionsTestBase {
   }
 
   // TODO: should we allow quoted namespaces?
+
+  @Test
+  public void testRollbackToTimestampUsingPositionalArgs() throws InterruptedException {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    String firstSnapshotTimestamp = LocalDateTime.now().format(DATE_TIME_FORMATTER);
+
+    Thread.sleep(1000);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1L, "a"), row(1L, "a")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    table.refresh();
+
+    Snapshot secondSnapshot = table.currentSnapshot();
+
+    List<Object[]> output = sql(
+        "CALL %s.system.rollback_to_timestamp('%s', '%s', TIMESTAMP '%s')",
+        catalogName, tableIdent.namespace(), tableIdent.name(), firstSnapshotTimestamp);
+
+    assertEquals("Procedure output must match",
+        ImmutableList.of(row(secondSnapshot.snapshotId(), firstSnapshot.snapshotId())),
+        output);
+
+    assertEquals("Rollback must be successful",
+        ImmutableList.of(row(1L, "a")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testRollbackToTimestampUsingNamedArgs() throws InterruptedException {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    String firstSnapshotTimestamp = LocalDateTime.now().format(DATE_TIME_FORMATTER);
+
+    Thread.sleep(1000);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1L, "a"), row(1L, "a")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    table.refresh();
+
+    Snapshot secondSnapshot = table.currentSnapshot();
+
+    List<Object[]> output = sql(
+        "CALL %s.system.rollback_to_timestamp(timestamp => TIMESTAMP '%s', namespace => '%s', table => '%s')",
+        catalogName, firstSnapshotTimestamp, tableIdent.namespace(), tableIdent.name());
+
+    assertEquals("Procedure output must match",
+        ImmutableList.of(row(secondSnapshot.snapshotId(), firstSnapshot.snapshotId())),
+        output);
+
+    assertEquals("Rollback must be successful",
+        ImmutableList.of(row(1L, "a")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
 }

@@ -19,6 +19,8 @@
 
 package org.apache.spark.sql.catalyst.parser.extensions
 
+import java.util.Locale
+import javax.xml.bind.DatatypeConverter
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.{Interval, ParseCancellationException}
@@ -31,7 +33,11 @@ import org.apache.spark.sql.catalyst.parser.ParserUtils._
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser._
 import org.apache.spark.sql.catalyst.plans.logical.{CallArgument, CallStatement, LogicalPlan, NamedArgument, PositionalArgument}
 import org.apache.spark.sql.catalyst.trees.Origin
-import org.apache.spark.sql.types.{ByteType, DataType, DoubleType, FloatType, LongType, ShortType, StructType}
+import org.apache.spark.sql.catalyst.util.DateTimeUtils.{getZoneId, stringToDate, stringToTimestamp}
+import org.apache.spark.sql.catalyst.util.IntervalUtils
+import org.apache.spark.sql.internal.SQLConf
+import org.apache.spark.sql.types.{ByteType, CalendarIntervalType, DataType, DateType, DoubleType, FloatType, LongType, ShortType, StructType, TimestampType}
+import org.apache.spark.unsafe.types.UTF8String
 import scala.collection.JavaConverters._
 
 class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserInterface {
@@ -162,6 +168,53 @@ class IcebergSqlExtensionsAstBuilder extends IcebergSqlExtensionsBaseVisitor[Any
 
   override def visitSingleStatement(ctx: SingleStatementContext): LogicalPlan = withOrigin(ctx) {
     visit(ctx.statement).asInstanceOf[LogicalPlan]
+  }
+
+  /**
+   * Create a typed Literal expression. A typed literal has the following SQL syntax:
+   * {{{
+   *   [TYPE] '[VALUE]'
+   * }}}
+   * Currently Date, Timestamp, Interval and Binary typed literals are supported.
+   */
+  override def visitTypeConstructor(ctx: TypeConstructorContext): Literal = withOrigin(ctx) {
+    val value = string(ctx.STRING)
+    val valueType = ctx.identifier.getText.toUpperCase(Locale.ROOT)
+
+    def toLiteral[T](f: UTF8String => Option[T], t: DataType): Literal = {
+      f(UTF8String.fromString(value)).map(Literal(_, t)).getOrElse {
+        throw new ParseException(s"Cannot parse the $valueType value: $value", ctx)
+      }
+    }
+    try {
+      valueType match {
+        case "DATE" =>
+          toLiteral(stringToDate(_, getZoneId(SQLConf.get.sessionLocalTimeZone)), DateType)
+        case "TIMESTAMP" =>
+          val zoneId = getZoneId(SQLConf.get.sessionLocalTimeZone)
+          toLiteral(stringToTimestamp(_, zoneId), TimestampType)
+        case "INTERVAL" =>
+          val interval = try {
+            IntervalUtils.stringToInterval(UTF8String.fromString(value))
+          } catch {
+            case e: IllegalArgumentException =>
+              val ex = new ParseException("Cannot parse the INTERVAL value: " + value, ctx)
+              ex.setStackTrace(e.getStackTrace)
+              throw ex
+          }
+          Literal(interval, CalendarIntervalType)
+        case "X" =>
+          val padding = if (value.length % 2 != 0) "0" else ""
+          Literal(DatatypeConverter.parseHexBinary(padding + value))
+        case other =>
+          throw new ParseException(s"Literals of type '$other' are currently not" +
+            " supported.", ctx)
+      }
+    } catch {
+      case e: IllegalArgumentException =>
+        val message = Option(e.getMessage).getOrElse(s"Exception parsing $valueType")
+        throw new ParseException(message, ctx)
+    }
   }
 
   /**

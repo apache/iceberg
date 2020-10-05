@@ -83,6 +83,7 @@ constant
     : number                          #numericLiteral
     | booleanValue                    #booleanLiteral
     | STRING+                         #stringLiteral
+    | identifier STRING               #typeConstructor
     ;
 
 booleanValue
