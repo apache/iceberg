@@ -551,12 +551,12 @@ public class FlinkParquetReaders {
 
     @Override
     public FlinkReusableArrayData valueArray() {
-      return (FlinkReusableArrayData) values;
+      return values;
     }
 
     @Override
     public FlinkReusableArrayData keyArray() {
-      return (FlinkReusableArrayData) keys;
+      return keys;
     }
 
     @Override
