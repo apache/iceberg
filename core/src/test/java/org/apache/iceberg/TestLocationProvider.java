@@ -46,11 +46,11 @@ public class TestLocationProvider extends TableTestBase {
   public ExpectedException exceptionRule = ExpectedException.none();
 
   // publicly visible for testing to be dynamically loaded
-  public static class DynamicallyLoadedLocationProvider implements LocationProvider {
+  public static class TwoArgDynamicallyLoadedLocationProvider implements LocationProvider {
     String tableLocation;
     Map<String, String> properties;
 
-    public DynamicallyLoadedLocationProvider(String tableLocation, Map<String, String> properties) {
+    public TwoArgDynamicallyLoadedLocationProvider(String tableLocation, Map<String, String> properties) {
       this.tableLocation = tableLocation;
       this.properties = properties;
     }
@@ -67,18 +67,39 @@ public class TestLocationProvider extends TableTestBase {
   }
 
   // publicly visible for testing to be dynamically loaded
-  public static class InvalidDynamicallyLoadedLocationProvider implements LocationProvider {
-    // No public constructor
+  public static class NoArgDynamicallyLoadedLocationProvider implements LocationProvider {
+    // No-arg public constructor
 
     @Override
     public String newDataLocation(String filename) {
-      throw new IllegalStateException("Should have never been instantiated");
+      return String.format("test_no_arg_provider/%s", filename);
     }
 
     @Override
     public String newDataLocation(PartitionSpec spec, StructLike partitionData, String filename) {
-      throw new IllegalStateException("Should have never been instantiated");
+      throw new RuntimeException("Test custom provider does not expect any invocation");
     }
+  }
+
+  // publicly visible for testing to be dynamically loaded
+  public static class InvalidArgTypesDynamicallyLoadedLocationProvider implements LocationProvider {
+
+    public InvalidArgTypesDynamicallyLoadedLocationProvider(Integer bogusArg1, String bogusArg2) {
+    }
+
+    @Override
+    public String newDataLocation(String filename) {
+      throw new RuntimeException("Invalid provider should have not been instantiated!");
+    }
+
+    @Override
+    public String newDataLocation(PartitionSpec spec, StructLike partitionData, String filename) {
+      throw new RuntimeException("Invalid provider should have not been instantiated!");
+    }
+  }
+
+  // publicly visible for testing to be dynamically loaded
+  public static class InvalidNoInterfaceDynamicallyLoadedLocationProvider {
   }
 
   @Test
@@ -109,16 +130,32 @@ public class TestLocationProvider extends TableTestBase {
   }
 
   @Test
-  public void testDynamicallyLoadedLocationProvider() {
+  public void testNoArgDynamicallyLoadedLocationProvider() {
+    String invalidImpl = String.format("%s$%s",
+        this.getClass().getCanonicalName(),
+        NoArgDynamicallyLoadedLocationProvider.class.getSimpleName());
+    this.table.updateProperties()
+        .set(TableProperties.LOCATION_PROVIDER_IMPL, invalidImpl)
+        .commit();
+
+    Assert.assertEquals(
+        "Custom provider should take base table location",
+        "test_no_arg_provider/my_file",
+        this.table.locationProvider().newDataLocation("my_file")
+    );
+  }
+
+  @Test
+  public void testTwoArgDynamicallyLoadedLocationProvider() {
     this.table.updateProperties()
         .set(TableProperties.LOCATION_PROVIDER_IMPL,
             String.format("%s$%s",
                 this.getClass().getCanonicalName(),
-                DynamicallyLoadedLocationProvider.class.getSimpleName()))
+                TwoArgDynamicallyLoadedLocationProvider.class.getSimpleName()))
         .commit();
 
     Assert.assertTrue(String.format("Table should load impl defined in its properties"),
-        this.table.locationProvider() instanceof DynamicallyLoadedLocationProvider
+        this.table.locationProvider() instanceof TwoArgDynamicallyLoadedLocationProvider
     );
 
     Assert.assertEquals(
@@ -132,33 +169,47 @@ public class TestLocationProvider extends TableTestBase {
   public void testDynamicallyLoadedLocationProviderNotFound() {
     String nonExistentImpl = String.format("%s$NonExistent%s",
         this.getClass().getCanonicalName(),
-        DynamicallyLoadedLocationProvider.class.getSimpleName());
+        TwoArgDynamicallyLoadedLocationProvider.class.getSimpleName());
     this.table.updateProperties()
         .set(TableProperties.LOCATION_PROVIDER_IMPL, nonExistentImpl)
         .commit();
 
     exceptionRule.expect(IllegalArgumentException.class);
     exceptionRule.expectMessage(
-        String.format("Unable to instantiate the provided implementation %s for %s.",
-            nonExistentImpl,
-            LocationProvider.class));
+        String.format("Unable to find a constructor for implementation %s of %s. ",
+            nonExistentImpl, LocationProvider.class));
     this.table.locationProvider();
   }
 
   @Test
-  public void testInvalidDynamicallyLoadedLocationProvider() {
+  public void testInvalidNoInterfaceDynamicallyLoadedLocationProvider() {
     String invalidImpl = String.format("%s$%s",
         this.getClass().getCanonicalName(),
-        InvalidDynamicallyLoadedLocationProvider.class.getSimpleName());
+        InvalidNoInterfaceDynamicallyLoadedLocationProvider.class.getSimpleName());
     this.table.updateProperties()
         .set(TableProperties.LOCATION_PROVIDER_IMPL, invalidImpl)
         .commit();
 
     exceptionRule.expect(IllegalArgumentException.class);
     exceptionRule.expectMessage(
-        String.format("Unable to instantiate the provided implementation %s for %s.",
-            invalidImpl,
+        String.format("Provided implementation for dynamic instantiation should implement %s",
             LocationProvider.class));
+    this.table.locationProvider();
+  }
+
+  @Test
+  public void testInvalidArgTypesDynamicallyLoadedLocationProvider() {
+    String invalidImpl = String.format("%s$%s",
+        this.getClass().getCanonicalName(),
+        InvalidArgTypesDynamicallyLoadedLocationProvider.class.getSimpleName());
+    this.table.updateProperties()
+        .set(TableProperties.LOCATION_PROVIDER_IMPL, invalidImpl)
+        .commit();
+
+    exceptionRule.expect(IllegalArgumentException.class);
+    exceptionRule.expectMessage(
+        String.format("Unable to find a constructor for implementation %s of %s. ",
+            invalidImpl, LocationProvider.class));
     this.table.locationProvider();
   }
 }

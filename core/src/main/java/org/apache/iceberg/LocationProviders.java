@@ -20,6 +20,9 @@
 package org.apache.iceberg;
 
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Supplier;
+
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.LocationProvider;
@@ -38,28 +41,59 @@ public class LocationProviders {
 
   public static LocationProvider locationsFor(String location, Map<String, String> properties) {
     if (properties.containsKey(TableProperties.LOCATION_PROVIDER_IMPL)) {
-      String impl = properties.get(TableProperties.LOCATION_PROVIDER_IMPL);
-      // Expect custom implementation to take 2 args: table location and table properties
-      try {
-        DynConstructors.Ctor<LocationProvider> ctor = DynConstructors.builder(LocationProvider.class)
-            .impl(impl, String.class, Map.class)
-            .build();
-        return ctor.newInstance(location, properties);
-      } catch (RuntimeException e) {
-        throw new IllegalArgumentException(
-            String.format(
-                "Unable to instantiate the provided implementation %s for %s. " +
-                    "Make sure the implementation is in classpath, and that it has a public constructor " +
-                    "taking in base table location and table properties.",
-                impl, LocationProvider.class), e)
-            ;
-      }
+      return dynamicallyLoadLocationProvider(location, properties);
     } else if (PropertyUtil.propertyAsBoolean(properties,
         TableProperties.OBJECT_STORE_ENABLED,
         TableProperties.OBJECT_STORE_ENABLED_DEFAULT)) {
       return new ObjectStoreLocationProvider(location, properties);
     } else {
       return new DefaultLocationProvider(location, properties);
+    }
+  }
+
+  private static LocationProvider dynamicallyLoadLocationProvider(String location, Map<String, String> properties) {
+    String impl = properties.get(TableProperties.LOCATION_PROVIDER_IMPL);
+    Optional<DynConstructors.Ctor<LocationProvider>> noArgConstructor = findConstructor(() ->
+        DynConstructors.builder(LocationProvider.class)
+            .impl(impl).build()
+    );
+    Optional<DynConstructors.Ctor<LocationProvider>> twoArgConstructor = Optional.empty();
+    if (!noArgConstructor.isPresent()) {
+      twoArgConstructor = findConstructor(() ->
+          DynConstructors.builder(LocationProvider.class)
+              .impl(impl, String.class, Map.class)
+              .build()
+      );
+    }
+    if (noArgConstructor.isPresent()) {
+      return newInstance(noArgConstructor.get());
+    } else if (twoArgConstructor.isPresent()) {
+      return newInstance(twoArgConstructor.get(), location, properties);
+    } else {
+      throw new IllegalArgumentException(String.format(
+          "Unable to find a constructor for implementation %s of %s. " +
+              "Make sure the implementation is in classpath, and that it either " +
+              "has a public no-arg constructor or a two-arg constructor " +
+              "taking in the string base table location and its property string map.",
+          impl, LocationProvider.class));
+    }
+  }
+
+  private static Optional<DynConstructors.Ctor<LocationProvider>> findConstructor(Supplier<DynConstructors.Ctor<LocationProvider>> supplier) {
+    try {
+      return Optional.of(supplier.get());
+    } catch (RuntimeException e) {
+      return Optional.empty();
+    }
+  }
+
+  private static LocationProvider newInstance(DynConstructors.Ctor<LocationProvider> ctor, Object... args) {
+    try {
+      return ctor.newInstance(args);
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+          String.format("Provided implementation for dynamic instantiation should implement %s, " +
+                  "but found dynamic constructor %s.", LocationProvider.class, ctor));
     }
   }
 
