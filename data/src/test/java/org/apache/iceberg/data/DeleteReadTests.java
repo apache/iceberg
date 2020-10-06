@@ -153,6 +153,39 @@ public abstract class DeleteReadTests {
   }
 
   @Test
+  public void testEqualityDeletesSpanningMultipleDataFiles() throws IOException {
+    // Add another DataFile with common values
+    GenericRecord record = GenericRecord.create(table.schema());
+    records.add(record.copy("id", 144, "data", "a"));
+
+    this.dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), Row.of(0), records);
+
+    table.newAppend()
+        .appendFile(dataFile)
+        .commit();
+
+    Schema deleteRowSchema = table.schema().select("data");
+    Record dataDelete = GenericRecord.create(deleteRowSchema);
+    List<Record> dataDeletes = Lists.newArrayList(
+        dataDelete.copy("data", "a"), // id = 29, 144
+        dataDelete.copy("data", "d"), // id = 89
+        dataDelete.copy("data", "g") // id = 122
+    );
+
+    DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, deleteRowSchema);
+
+    table.newRowDelta()
+        .addDeletes(eqDeletes)
+        .commit();
+
+    StructLikeSet expected = rowSetWithoutIds(29, 89, 122, 144);
+    StructLikeSet actual = rowSet(tableName, table, "*");
+
+    Assert.assertEquals("Table should contain expected rows", expected, actual);
+  }
+
+  @Test
   public void testPositionDeletes() throws IOException {
     List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
         Pair.of(dataFile.path(), 0L), // id = 29
