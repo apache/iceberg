@@ -317,9 +317,7 @@ public class TestRowDelta extends V2TableTestBase {
         () -> table.newRowDelta()
             .addDeletes(FILE_A_DELETES)
             .validateFromSnapshot(validateFromSnapshotId)
-            .validateNoConflictingAppends(
-                Expressions.equal("data", "u"), // bucket16("u") -> 0
-                true)
+            .validateNoConflictingAppends(Expressions.equal("data", "u")) // bucket16("u") -> 0
             .commit());
 
     Assert.assertEquals("Table state should not be modified by failed RowDelta operation",
@@ -350,9 +348,7 @@ public class TestRowDelta extends V2TableTestBase {
         .validateDeletedFiles()
         .validateFromSnapshot(validateFromSnapshotId)
         .validateDataFilesExist(ImmutableList.of(FILE_A.path()))
-        .validateNoConflictingAppends(
-            Expressions.equal("data", "u"), // bucket16("u") -> 0
-            true)
+        .validateNoConflictingAppends(Expressions.equal("data", "u")) // bucket16("u") -> 0
         .commit();
 
     Snapshot snap = table.currentSnapshot();

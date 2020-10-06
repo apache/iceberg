@@ -35,6 +35,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Predicate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -48,6 +49,10 @@ import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED
 import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT;
 
 abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
+  // data is only added in "append" and "overwrite" operations
+  private static final Set<String> VALIDATE_ADDED_FILES_OPERATIONS =
+      ImmutableSet.of(DataOperations.APPEND, DataOperations.OVERWRITE);
+
   private final String tableName;
   private final TableOperations ops;
   private final PartitionSpec spec;
@@ -217,6 +222,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void validateAddedDataFiles(TableMetadata base, Long startingSnapshotId,
                                         Expression conflictDetectionFilter, boolean caseSensitive) {
+    // if there is no current table state, no files have been added
+    if (base.currentSnapshot() == null) {
+      return;
+    }
+
     List<ManifestFile> manifests = Lists.newArrayList();
     Set<Long> newSnapshots = Sets.newHashSet();
 
@@ -228,10 +238,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
           "Cannot determine history between starting snapshot %s and current %s",
           startingSnapshotId, currentSnapshotId);
 
-      newSnapshots.add(currentSnapshotId);
-      for (ManifestFile manifest : currentSnapshot.dataManifests()) {
-        if (manifest.snapshotId() == (long) currentSnapshotId) {
-          manifests.add(manifest);
+      if (VALIDATE_ADDED_FILES_OPERATIONS.contains(currentSnapshot.operation())) {
+        newSnapshots.add(currentSnapshotId);
+        for (ManifestFile manifest : currentSnapshot.dataManifests()) {
+          if (manifest.snapshotId() == (long) currentSnapshotId) {
+            manifests.add(manifest);
+          }
         }
       }
 

@@ -50,12 +50,21 @@ public interface RowDelta extends SnapshotUpdate<RowDelta> {
   /**
    * Set the snapshot ID used in any reads for this operation.
    * <p>
-   * Validations will check changes after this snapshot ID.
+   * Validations will check changes after this snapshot ID. If the from snapshot is not set, all ancestor snapshots
+   * through the table's initial snapshot are validated.
    *
    * @param snapshotId a snapshot ID
    * @return this for method chaining
    */
   RowDelta validateFromSnapshot(long snapshotId);
+
+  /**
+   * Enables or disables case sensitive expression binding for validations that accept expressions.
+   *
+   * @param caseSensitive whether expression binding should be case sensitive
+   * @return this for method chaining
+   */
+  RowDelta caseSensitive(boolean caseSensitive);
 
   /**
    * Add data file paths that must not be removed by conflicting commits for this RowDelta to succeed.
@@ -93,14 +102,13 @@ public interface RowDelta extends SnapshotUpdate<RowDelta> {
    * will detect this during retries and fail.
    * <p>
    * Calling this method with a correct conflict detection filter is required to maintain
-   * serializable isolation for eager update/delete operations. Otherwise, the isolation level
+   * serializable isolation for update/delete operations. Otherwise, the isolation level
    * will be snapshot isolation.
    * <p>
    * Validation applies to files added to the table since the snapshot passed to {@link #validateFromSnapshot(long)}.
    *
    * @param conflictDetectionFilter an expression on rows in the table
-   * @param isCaseSensitive whether conflict detection filter evaluation should be case sensitive
    * @return this for method chaining
    */
-  RowDelta validateNoConflictingAppends(Expression conflictDetectionFilter, boolean isCaseSensitive);
+  RowDelta validateNoConflictingAppends(Expression conflictDetectionFilter);
 }

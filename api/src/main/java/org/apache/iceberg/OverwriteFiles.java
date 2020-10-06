@@ -90,12 +90,21 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
   /**
    * Set the snapshot ID used in any reads for this operation.
    * <p>
-   * Validations will check changes after this snapshot ID.
+   * Validations will check changes after this snapshot ID. If the from snapshot is not set, all ancestor snapshots
+   * through the table's initial snapshot are validated.
    *
    * @param snapshotId a snapshot ID
    * @return this for method chaining
    */
   OverwriteFiles validateFromSnapshot(long snapshotId);
+
+  /**
+   * Enables or disables case sensitive expression binding for validations that accept expressions.
+   *
+   * @param caseSensitive whether expression binding should be case sensitive
+   * @return this for method chaining
+   */
+  OverwriteFiles caseSensitive(boolean caseSensitive);
 
   /**
    * Enables validation that files added concurrently do not conflict with this commit's operation.
@@ -112,10 +121,9 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
    * Validation applies to files added to the table since the snapshot passed to {@link #validateFromSnapshot(long)}.
    *
    * @param conflictDetectionFilter an expression on rows in the table
-   * @param isCaseSensitive whether conflict detection filter evaluation should be case sensitive
    * @return this for method chaining
    */
-  OverwriteFiles validateNoConflictingAppends(Expression conflictDetectionFilter, boolean isCaseSensitive);
+  OverwriteFiles validateNoConflictingAppends(Expression conflictDetectionFilter);
 
   /**
    * Enables validation that files added concurrently do not conflict with this commit's operation.
@@ -133,8 +141,7 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
    * @param conflictDetectionFilter an expression on rows in the table
    * @return this for method chaining
    * @deprecated this will be removed in 0.11.0;
-   *             use {@link #validateNoConflictingAppends(Expression, boolean)} and {@link #validateFromSnapshot(long)}
-   *             instead
+   *             use {@link #validateNoConflictingAppends(Expression)} and {@link #validateFromSnapshot(long)} instead
    */
   @Deprecated
   OverwriteFiles validateNoConflictingAppends(Long readSnapshotId, Expression conflictDetectionFilter);

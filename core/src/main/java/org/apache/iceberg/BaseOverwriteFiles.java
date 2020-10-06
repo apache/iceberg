@@ -76,7 +76,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
     if (newReadSnapshotId != null) {
       validateFromSnapshot(newReadSnapshotId);
     }
-    validateNoConflictingAppends(newConflictDetectionFilter, true);
+    validateNoConflictingAppends(newConflictDetectionFilter);
     return this;
   }
 
@@ -86,10 +86,15 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
     return this;
   }
 
-  public OverwriteFiles validateNoConflictingAppends(Expression newConflictDetectionFilter, boolean isCaseSensitive) {
+  @Override
+  public OverwriteFiles caseSensitive(boolean isCaseSensitive) {
+    this.caseSensitive = isCaseSensitive;
+    return this;
+  }
+
+  public OverwriteFiles validateNoConflictingAppends(Expression newConflictDetectionFilter) {
     Preconditions.checkArgument(newConflictDetectionFilter != null, "Conflict detection filter cannot be null");
     this.conflictDetectionFilter = newConflictDetectionFilter;
-    this.caseSensitive = isCaseSensitive;
     failMissingDeletePaths();
     return this;
   }

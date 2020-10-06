@@ -382,7 +382,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
   }
 
   @Test
-  public void testOverwriteIncompatibleRewriteValidated() {
+  public void testOverwriteCompatibleRewriteAllowed() {
     table.newAppend()
         .appendFile(FILE_DAY_1)
         .appendFile(FILE_DAY_2)
@@ -401,12 +401,9 @@ public class TestOverwriteWithValidation extends TableTestBase {
         .commit();
     long committedSnapshotId = table.currentSnapshot().snapshotId();
 
-    AssertHelpers.assertThrows("Should reject commit",
-        ValidationException.class, "Found conflicting files",
-        overwrite::commit);
+    overwrite.commit();
 
-    Assert.assertEquals("Should not create a new snapshot",
-        committedSnapshotId, table.currentSnapshot().snapshotId());
+    Assert.assertNotEquals("Should successfully commit", committedSnapshotId, table.currentSnapshot().snapshotId());
   }
 
   @Test

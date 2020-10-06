@@ -70,12 +70,14 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   }
 
   @Override
-  public RowDelta validateDeletedFiles() {
-    return validateDeletedFiles(true);
+  public RowDelta caseSensitive(boolean isCaseSensitive) {
+    this.caseSensitive = isCaseSensitive;
+    return this;
   }
 
-  public RowDelta validateDeletedFiles(boolean shouldValidate) {
-    this.validateDeletes = shouldValidate;
+  @Override
+  public RowDelta validateDeletedFiles() {
+    this.validateDeletes = true;
     return this;
   }
 
@@ -86,10 +88,9 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   }
 
   @Override
-  public RowDelta validateNoConflictingAppends(Expression newConflictDetectionFilter, boolean isCaseSensitive) {
+  public RowDelta validateNoConflictingAppends(Expression newConflictDetectionFilter) {
     Preconditions.checkArgument(newConflictDetectionFilter != null, "Conflict detection filter cannot be null");
     this.conflictDetectionFilter = newConflictDetectionFilter;
-    this.caseSensitive = isCaseSensitive;
     return this;
   }
 
