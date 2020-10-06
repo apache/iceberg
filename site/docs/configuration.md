@@ -41,6 +41,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.parquet.compression-codec    | gzip               | Parquet compression codec                          |
 | write.parquet.compression-level    | null               | Parquet compression level                          |
 | write.avro.compression-codec       | gzip               | Avro compression codec                             |
+| write.location-provider.impl       | null               | Optional custom implemention for LocationProvider  |
 | write.metadata.compression-codec   | none               | Metadata compression codec; none or gzip           |
 | write.metadata.metrics.default     | truncate(16)       | Default metrics mode for all columns in the table; none, counts, truncate(length), or full |
 | write.metadata.metrics.column.col1 | (not set)          | Metrics mode for column 'col1' to allow per-column tuning; none, counts, truncate(length), or full |
