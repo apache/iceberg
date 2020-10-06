@@ -204,6 +204,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   @Override
   protected Map<String, String> summary() {
+    summaryBuilder.setPartitionSummaryLimit(ops.current().propertyAsInt(
+        TableProperties.WRITE_PARTITION_SUMMARY_LIMIT, TableProperties.WRITE_PARTITION_SUMMARY_LIMIT_DEFAULT));
     return summaryBuilder.build();
   }
 
