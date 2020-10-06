@@ -136,7 +136,8 @@ public class AllDataFilesTable extends BaseMetadataTable {
 
   private static CloseableIterable<ManifestFile> allDataManifestFiles(List<Snapshot> snapshots) {
     try (CloseableIterable<ManifestFile> iterable = new ParallelIterable<>(
-        Iterables.transform(snapshots, Snapshot::dataManifests), ThreadPools.getWorkerPool())) {
+        Iterables.transform(snapshots, snapshot -> (Iterable<ManifestFile>) () -> snapshot.dataManifests().iterator()),
+        ThreadPools.getWorkerPool())) {
       return CloseableIterable.withNoopClose(Sets.newHashSet(iterable));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close parallel iterable");
