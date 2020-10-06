@@ -20,12 +20,14 @@
 package org.apache.iceberg.mr.hive;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.hadoop.ConfigProperties;
 import org.junit.rules.TemporaryFolder;
 
 public class TestHiveIcebergStorageHandlerWithHiveCatalog extends HiveIcebergStorageHandlerBaseTest {
 
   @Override
   public TestTables testTables(Configuration conf, TemporaryFolder temp) {
+    conf.setBoolean(ConfigProperties.ENGINE_HIVE_ENABLED, true);
     return new TestTables.HiveTestTables(conf, temp);
   }
 
