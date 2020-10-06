@@ -27,18 +27,22 @@ import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.ql.metadata.Hive;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.hive.MetastoreUtil;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -48,6 +52,8 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(StandaloneHiveRunner.class)
 public abstract class HiveIcebergStorageHandlerBaseTest {
+
+  private static final String DEFAULT_DATABASE_NAME = "default";
 
   @HiveSQL(files = {}, autoStart = false)
   private HiveShell shell;
@@ -79,17 +85,32 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   private static final PartitionSpec SPEC = PartitionSpec.unpartitioned();
 
-  // before variables
-  protected TestHiveMetastore metastore;
+  protected static TestHiveMetastore metastore;
+
   private TestTables testTables;
 
   public abstract TestTables testTables(Configuration conf, TemporaryFolder tmp) throws IOException;
 
-  @Before
-  public void before() throws IOException {
+
+  @BeforeClass
+  public static void beforeClass() {
+    // We're setting this because during HiveRunner operation, some internal threads (e.g. notification event poller)
+    // are setup which use a different JDBC connection URL than the TestHiveMetastore. In Hive3, this config difference
+    // could lead to the closure of the global PersistenceManagerFactory instance and result in potential intermittent
+    // communication failures for those clients which would continue to use their now-closed PMFs.
+    MetastoreUtil.usingMultipleMetastoresInTest(true);
     metastore = new TestHiveMetastore();
     metastore.start();
+  }
 
+  @AfterClass
+  public static void afterClass() {
+    metastore.stop();
+    metastore = null;
+  }
+
+  @Before
+  public void before() throws IOException {
     testTables = testTables(metastore.hiveConf(), temp);
 
     for (Map.Entry<String, String> property : testTables.properties().entrySet()) {
@@ -106,9 +127,17 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   }
 
   @After
-  public void after() {
-    metastore.stop();
-    metastore = null;
+  public void after() throws Exception {
+    Hive db = Hive.get(metastore.hiveConf());
+    for (String dbName : db.getAllDatabases()) {
+      for (String tblName : db.getAllTables(dbName)) {
+        db.dropTable(dbName, tblName);
+      }
+      if (!DEFAULT_DATABASE_NAME.equals(dbName)) {
+        // Drop cascade, functions dropped by cascade
+        db.dropDatabase(dbName, true, true, true);
+      }
+    }
   }
 
   @Test
