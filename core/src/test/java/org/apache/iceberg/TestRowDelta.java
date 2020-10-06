@@ -82,7 +82,7 @@ public class TestRowDelta extends V2TableTestBase {
     long deleteSnapshotId = table.currentSnapshot().snapshotId();
 
     AssertHelpers.assertThrows("Should fail to add FILE_A_DELETES because FILE_A is missing",
-        ValidationException.class, "Cannot commit deletes for missing data files",
+        ValidationException.class, "Cannot commit, missing data files",
         () -> table.newRowDelta()
             .addDeletes(FILE_A_DELETES)
             .validateFromSnapshot(validateFromSnapshotId)
@@ -130,7 +130,7 @@ public class TestRowDelta extends V2TableTestBase {
     long deleteSnapshotId = table.currentSnapshot().snapshotId();
 
     AssertHelpers.assertThrows("Should fail to add FILE_A_DELETES because FILE_A is missing",
-        ValidationException.class, "Cannot commit deletes for missing data files",
+        ValidationException.class, "Cannot commit, missing data files",
         () -> table.newRowDelta()
             .addDeletes(FILE_A_DELETES)
             .validateFromSnapshot(validateFromSnapshotId)
@@ -162,7 +162,7 @@ public class TestRowDelta extends V2TableTestBase {
     long deleteSnapshotId = table.currentSnapshot().snapshotId();
 
     AssertHelpers.assertThrows("Should fail to add FILE_A_DELETES because FILE_A is missing",
-        ValidationException.class, "Cannot commit deletes for missing data files",
+        ValidationException.class, "Cannot commit, missing data files",
         () -> table.newRowDelta()
             .addDeletes(FILE_A_DELETES)
             .validateFromSnapshot(validateFromSnapshotId)
@@ -249,7 +249,7 @@ public class TestRowDelta extends V2TableTestBase {
     long deleteSnapshotId = table.currentSnapshot().snapshotId();
 
     AssertHelpers.assertThrows("Should fail to add FILE_A_DELETES because FILE_A is missing",
-        ValidationException.class, "Cannot commit deletes for missing data files",
+        ValidationException.class, "Cannot commit, missing data files",
         () -> table.newRowDelta()
             .addDeletes(FILE_A_DELETES)
             .validateFromSnapshot(validateFromSnapshotId)
@@ -281,7 +281,7 @@ public class TestRowDelta extends V2TableTestBase {
     long deleteSnapshotId = table.currentSnapshot().snapshotId();
 
     AssertHelpers.assertThrows("Should fail to add FILE_A_DELETES because FILE_A is missing",
-        ValidationException.class, "Cannot commit deletes for missing data files",
+        ValidationException.class, "Cannot commit, missing data files",
         () -> table.newRowDelta()
             .addDeletes(FILE_A_DELETES)
             .validateDeletedFiles()

@@ -98,45 +98,12 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   protected void validate(TableMetadata base) {
     if (base.currentSnapshot() != null) {
       if (!referencedDataFiles.isEmpty()) {
-        validateRemovedDataFiles(base);
+        validateDataFilesExist(base, startingSnapshotId, referencedDataFiles, !validateDeletes);
       }
 
       if (conflictDetectionFilter != null) {
         validateAddedDataFiles(base, startingSnapshotId, conflictDetectionFilter, caseSensitive);
       }
     }
-  }
-
-  private void validateRemovedDataFiles(TableMetadata base) {
-    Set<CharSequence> removedDataFiles = CharSequenceSet.empty();
-    removedDataFiles(startingSnapshotId, base.currentSnapshot().snapshotId(), base::snapshot).stream()
-        .map(DataFile::path)
-        .forEach(removedDataFiles::add);
-    Set<CharSequence> missingDataFiles = Sets.intersection(referencedDataFiles, removedDataFiles);
-
-    ValidationException.check(missingDataFiles.isEmpty(),
-        "Cannot commit deletes for missing data files: %s", removedDataFiles);
-  }
-
-  private List<DataFile> removedDataFiles(Long baseSnapshotId, long latestSnapshotId,
-                                          Function<Long, Snapshot> lookup) {
-    List<DataFile> deletedFiles = Lists.newArrayList();
-
-    Long currentSnapshotId = latestSnapshotId;
-    while (currentSnapshotId != null && !currentSnapshotId.equals(baseSnapshotId)) {
-      Snapshot currentSnapshot = lookup.apply(currentSnapshotId);
-
-      ValidationException.check(currentSnapshot != null,
-          "Cannot determine history between starting snapshot %s and current %s",
-          startingSnapshotId, currentSnapshotId);
-
-      if (validateDeletes || !currentSnapshot.operation().equals(DataOperations.DELETE)) {
-        Iterables.addAll(deletedFiles, currentSnapshot.deletedFiles());
-      }
-
-      currentSnapshotId = currentSnapshot.parentId();
-    }
-
-    return deletedFiles;
   }
 }
