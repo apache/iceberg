@@ -19,15 +19,9 @@
 
 package org.apache.iceberg;
 
-import java.util.List;
 import java.util.Set;
-import java.util.function.Function;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.CharSequenceSet;
 
 class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta {
