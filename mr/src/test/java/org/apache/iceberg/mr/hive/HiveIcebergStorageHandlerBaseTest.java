@@ -24,6 +24,7 @@ import com.klarna.hiverunner.StandaloneHiveRunner;
 import com.klarna.hiverunner.annotations.HiveSQL;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -43,6 +44,7 @@ import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -271,7 +273,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     org.apache.iceberg.Table icebergTable = Catalogs.loadTable(shell.getHiveConf(), properties);
     Assert.assertEquals(CUSTOMER_SCHEMA.asStruct(), icebergTable.schema().asStruct());
     Assert.assertEquals(IDENTITY_SPEC, icebergTable.spec());
-    Assert.assertEquals(Collections.singletonMap("dummy", "test"), icebergTable.properties());
 
     // Check the HMS table parameters
     IMetaStoreClient client = null;
@@ -306,6 +307,8 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         hmsTable.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP));
 
     if (!Catalogs.hiveCatalog(shell.getHiveConf())) {
+      Assert.assertEquals(Collections.singletonMap("dummy", "test"), icebergTable.properties());
+
       shell.executeStatement("DROP TABLE customers");
 
       // Check if the table was really dropped even from the Catalog
@@ -315,6 +318,11 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
           }
       );
     } else {
+      Map<String, String> expectedIcebergProperties = new HashMap<>(2);
+      expectedIcebergProperties.put("dummy", "test");
+      expectedIcebergProperties.put(TableProperties.ENGINE_HIVE_ENABLED, "true");
+      Assert.assertEquals(expectedIcebergProperties, icebergTable.properties());
+
       // Check the HMS table parameters
       Path hmsTableLocation;
       try {
