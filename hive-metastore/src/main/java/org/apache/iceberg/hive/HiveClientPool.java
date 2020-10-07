@@ -21,25 +21,21 @@ package org.apache.iceberg.hive;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
+import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TTransportException;
 
-public class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> {
-
-  // use appropriate ctor depending on whether we're working with Hive2 or Hive3 dependencies
-  // we need to do this because there is a breaking API change between Hive2 and Hive3
-  private static final DynConstructors.Ctor<HiveMetaStoreClient> CLIENT_CTOR = DynConstructors.builder()
-          .impl(HiveMetaStoreClient.class, HiveConf.class)
-          .impl(HiveMetaStoreClient.class, Configuration.class)
-          .build();
+public class HiveClientPool extends ClientPool<IMetaStoreClient, TException> {
 
   private final HiveConf hiveConf;
 
   HiveClientPool(Configuration conf) {
-    this(conf.getInt("iceberg.hive.client-pool-size", 5), conf);
+    this(conf.getInt(
+        IcebergHiveConfigs.HIVE_CLIENT_POOL_SIZE,
+        IcebergHiveConfigs.HIVE_CLIENT_POOL_SIZE_DEFAULT),
+        conf);
   }
 
   public HiveClientPool(int poolSize, Configuration conf) {
@@ -48,10 +44,19 @@ public class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> 
   }
 
   @Override
-  protected HiveMetaStoreClient newClient()  {
+  protected IMetaStoreClient newClient()  {
     try {
       try {
-        return CLIENT_CTOR.newInstance(hiveConf);
+        String impl = hiveConf.get(
+            IcebergHiveConfigs.HIVE_CLIENT_IMPL,
+            IcebergHiveConfigs.HIVE_CLIENT_IMPL_DEFAULT);
+        // use appropriate ctor depending on whether we're working with Hive2 or Hive3 dependencies
+        // we need to do this because there is a breaking API change between Hive2 and Hive3
+        DynConstructors.Ctor<IMetaStoreClient> ctor = DynConstructors.builder(IMetaStoreClient.class)
+            .impl(impl, HiveConf.class)
+            .impl(impl, Configuration.class)
+            .build();
+        return ctor.newInstance(hiveConf);
       } catch (RuntimeException e) {
         // any MetaException would be wrapped into RuntimeException during reflection, so let's double-check type here
         if (e.getCause() instanceof MetaException) {
@@ -67,13 +72,12 @@ public class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> 
             "Derby supports only one client at a time. To fix this, use a metastore that supports " +
             "multiple clients.");
       }
-
       throw new RuntimeMetaException(t, "Failed to connect to Hive Metastore");
     }
   }
 
   @Override
-  protected HiveMetaStoreClient reconnect(HiveMetaStoreClient client) {
+  protected IMetaStoreClient reconnect(IMetaStoreClient client) {
     try {
       client.close();
       client.reconnect();
@@ -84,7 +88,7 @@ public class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> 
   }
 
   @Override
-  protected void close(HiveMetaStoreClient client) {
+  protected void close(IMetaStoreClient client) {
     client.close();
   }
 }

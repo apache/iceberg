@@ -31,7 +31,6 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
-import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.EnvironmentContext;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -71,21 +70,14 @@ import org.slf4j.LoggerFactory;
 public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HiveTableOperations.class);
 
-  private static final String HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
-  private static final long HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
-  private static final DynMethods.UnboundMethod ALTER_TABLE = DynMethods.builder("alter_table")
-      .impl(HiveMetaStoreClient.class, "alter_table_with_environmentContext",
-          String.class, String.class, Table.class, EnvironmentContext.class)
-      .impl(HiveMetaStoreClient.class, "alter_table",
-          String.class, String.class, Table.class, EnvironmentContext.class)
-      .build();
-
   private final HiveClientPool metaClients;
   private final String fullName;
   private final String database;
   private final String tableName;
   private final Configuration conf;
   private final long lockAcquireTimeout;
+  private final String hiveClientClass;
+  private final DynMethods.UnboundMethod hiveAlterTableMethod;
 
   private FileIO fileIO;
 
@@ -96,8 +88,18 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     this.fullName = catalogName + "." + database + "." + table;
     this.database = database;
     this.tableName = table;
-    this.lockAcquireTimeout =
-        conf.getLong(HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS, HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT);
+    this.lockAcquireTimeout = conf.getLong(
+        IcebergHiveConfigs.HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS,
+        IcebergHiveConfigs.HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT);
+    this.hiveClientClass = conf.get(
+        IcebergHiveConfigs.HIVE_CLIENT_IMPL,
+        IcebergHiveConfigs.HIVE_CLIENT_IMPL_DEFAULT);
+    this.hiveAlterTableMethod = DynMethods.builder("alter_table")
+        .impl(hiveClientClass, "alter_table_with_environmentContext",
+            String.class, String.class, Table.class, EnvironmentContext.class)
+        .impl(hiveClientClass, "alter_table",
+            String.class, String.class, Table.class, EnvironmentContext.class)
+        .build();
   }
 
   @Override
@@ -212,7 +214,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         EnvironmentContext envContext = new EnvironmentContext(
             ImmutableMap.of(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE)
         );
-        ALTER_TABLE.invoke(client, database, tableName, hmsTable, envContext);
+        hiveAlterTableMethod.invoke(client, database, tableName, hmsTable, envContext);
         return null;
       });
     } else {

@@ -715,6 +715,62 @@ project(':iceberg-spark') {
   }
 }
 
+project(':iceberg-aws') {
+  dependencies {
+    compile project(':iceberg-api')
+    compile group: 'software.amazon.awssdk', name: 'dynamodb', version: '2.14.26'
+    compile group: 'com.amazonaws', name: 'aws-java-sdk-glue', version: '1.11.880'
+    compileOnly("org.apache.hive:hive-metastore") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hbase'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'co.cask.tephra'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'org.eclipse.jetty.aggregate', module: 'jetty-all'
+      exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
+      exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
+      exclude group: 'com.tdunning', module: 'json'
+      exclude group: 'javax.transaction', module: 'transaction-api'
+      exclude group: 'com.zaxxer', module: 'HikariCP'
+    }
+    compileOnly("org.apache.hadoop:hadoop-common") {
+      exclude group: 'commons-beanutils'
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+    }
+    testCompile "org.apache.hadoop:hadoop-common::tests"
+    testCompile "org.apache.hadoop:hadoop-mapreduce-client-core"
+    testCompile("org.apache.hive:hive-exec::core") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hive', module: 'hive-llap-tez'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'com.google.protobuf', module: 'protobuf-java'
+      exclude group: 'org.apache.calcite'
+      exclude group: 'org.apache.calcite.avatica'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
+    testCompile("org.apache.hive:hive-metastore") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hbase'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'co.cask.tephra'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'org.eclipse.jetty.aggregate', module: 'jetty-all'
+      exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
+      exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
+      exclude group: 'com.tdunning', module: 'json'
+      exclude group: 'javax.transaction', module: 'transaction-api'
+      exclude group: 'com.zaxxer', module: 'HikariCP'
+    }
+  }
+}
+
 if (jdkVersion == '8') {
   apply from: 'jmh.gradle'
 
