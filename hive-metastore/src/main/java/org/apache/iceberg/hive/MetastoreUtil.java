@@ -19,21 +19,13 @@
 
 package org.apache.iceberg.hive;
 
-import org.apache.hadoop.hive.metastore.ObjectStore;
-import org.apache.iceberg.common.DynMethods;
-
 public class MetastoreUtil {
 
   // this class is unique to Hive3 and cannot be found in Hive2, therefore a good proxy to see if
   // we are working against Hive3 dependencies
   private static final String HIVE3_UNIQUE_CLASS = "org.apache.hadoop.hive.serde2.io.DateWritableV2";
-  private static final boolean HIVE3_PRESENT_ON_CLASSPATH = detectHive3();
 
-  private static final DynMethods.StaticMethod MULTIPLE_METASTORES_IN_TEST =
-      DynMethods.builder("setTwoMetastoreTesting")
-        .impl(ObjectStore.class, boolean.class)
-        .orNoop()
-        .buildStatic();
+  private static final boolean HIVE3_PRESENT_ON_CLASSPATH = detectHive3();
 
   private MetastoreUtil() {
   }
@@ -43,16 +35,6 @@ public class MetastoreUtil {
    */
   public static boolean hive3PresentOnClasspath() {
     return HIVE3_PRESENT_ON_CLASSPATH;
-  }
-
-  /**
-   * In Hive3, ObjectStore closes and recreates its global PersistenceManagerFactory whenever #setConf is called on it
-   * with a different config than the one it has cached already. Setting this flag to true prevents the closure of the
-   * previous PersistenceManagerFactory. In Hive2, this flag does not exist, therefore calling this method is a no-op.
-   * @param multiple whether multiple metastore instances are used.
-   */
-  public static void usingMultipleMetastoresInTest(boolean multiple) {
-    MULTIPLE_METASTORES_IN_TEST.invoke(multiple);
   }
 
   private static boolean detectHive3() {

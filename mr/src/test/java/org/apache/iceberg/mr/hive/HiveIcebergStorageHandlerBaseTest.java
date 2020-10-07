@@ -33,7 +33,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.hive.MetastoreUtil;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -94,11 +93,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   @BeforeClass
   public static void beforeClass() {
-    // We're setting this because during HiveRunner operation, some internal threads (e.g. notification event poller)
-    // are setup which use a different JDBC connection URL than the TestHiveMetastore. In Hive3, this config difference
-    // could lead to the closure of the global PersistenceManagerFactory instance and result in potential intermittent
-    // communication failures for those clients which would continue to use their now-closed PMFs.
-    MetastoreUtil.usingMultipleMetastoresInTest(true);
     metastore = new TestHiveMetastore();
     metastore.start();
   }
@@ -111,15 +105,17 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   @Before
   public void before() throws IOException {
+    String metastoreUris = metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREURIS);
+    // in Hive3, setting this as a system prop ensures that it will be picked up whenever a new HiveConf is created
+    System.setProperty(HiveConf.ConfVars.METASTOREURIS.varname, metastoreUris);
+
     testTables = testTables(metastore.hiveConf(), temp);
 
     for (Map.Entry<String, String> property : testTables.properties().entrySet()) {
       shell.setHiveConfValue(property.getKey(), property.getValue());
     }
 
-    String metastoreUris = metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREURIS);
     shell.setHiveConfValue(HiveConf.ConfVars.METASTOREURIS.varname, metastoreUris);
-
     String metastoreWarehouse = metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREWAREHOUSE);
     shell.setHiveConfValue(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, metastoreWarehouse);
 
