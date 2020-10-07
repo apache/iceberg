@@ -64,39 +64,48 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
   @Override
   public void preCreateTable(org.apache.hadoop.hive.metastore.api.Table hmsTable) {
     this.catalogProperties = getCatalogProperties(hmsTable);
-    try {
-      this.icebergTable = Catalogs.loadTable(conf, catalogProperties);
 
-      Preconditions.checkArgument(catalogProperties.getProperty(InputFormatConfig.TABLE_SCHEMA) == null,
-          "Iceberg table already created - can not use provided schema");
-      Preconditions.checkArgument(catalogProperties.getProperty(InputFormatConfig.PARTITION_SPEC) == null,
-          "Iceberg table already created - can not use provided partition specification");
+    // Set the table type even for non HiveCatalog based tables
+    hmsTable.getParameters().put(BaseMetastoreTableOperations.TABLE_TYPE_PROP,
+        BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase());
 
-      LOG.info("Iceberg table already exists {}", icebergTable);
-    } catch (NoSuchTableException nte) {
-      String schemaString = catalogProperties.getProperty(InputFormatConfig.TABLE_SCHEMA);
-      Preconditions.checkNotNull(schemaString, "Please provide a table schema");
-      // Just check if it is parsable, and later use for partition specification parsing
-      Schema schema = SchemaParser.fromJson(schemaString);
+    if (!Catalogs.hiveCatalog(conf)) {
+      // If not using HiveCatalog check for existing table
+      try {
+        this.icebergTable = Catalogs.loadTable(conf, catalogProperties);
 
-      String specString = catalogProperties.getProperty(InputFormatConfig.PARTITION_SPEC);
-      if (specString != null) {
-        // Just check if it is parsable
-        PartitionSpecParser.fromJson(schema, specString);
+        Preconditions.checkArgument(catalogProperties.getProperty(InputFormatConfig.TABLE_SCHEMA) == null,
+            "Iceberg table already created - can not use provided schema");
+        Preconditions.checkArgument(catalogProperties.getProperty(InputFormatConfig.PARTITION_SPEC) == null,
+            "Iceberg table already created - can not use provided partition specification");
+
+        LOG.info("Iceberg table already exists {}", icebergTable);
+
+        return;
+      } catch (NoSuchTableException nte) {
+        // If the table does not exist we will create it below
       }
-
-      // Allow purging table data if the table is created now and not set otherwise
-      if (hmsTable.getParameters().get(InputFormatConfig.EXTERNAL_TABLE_PURGE) == null) {
-        hmsTable.getParameters().put(InputFormatConfig.EXTERNAL_TABLE_PURGE, "TRUE");
-      }
-
-      // Set the table type even for non HiveCatalog based tables
-      hmsTable.getParameters().put(BaseMetastoreTableOperations.TABLE_TYPE_PROP,
-          BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase());
-
-      // Remove creation related properties
-      PARAMETERS_TO_REMOVE.forEach(hmsTable.getParameters()::remove);
     }
+
+    // If the table does not exist collect data for table creation
+    String schemaString = catalogProperties.getProperty(InputFormatConfig.TABLE_SCHEMA);
+    Preconditions.checkNotNull(schemaString, "Please provide a table schema");
+    // Just check if it is parsable, and later use for partition specification parsing
+    Schema schema = SchemaParser.fromJson(schemaString);
+
+    String specString = catalogProperties.getProperty(InputFormatConfig.PARTITION_SPEC);
+    if (specString != null) {
+      // Just check if it is parsable
+      PartitionSpecParser.fromJson(schema, specString);
+    }
+
+    // Allow purging table data if the table is created now and not set otherwise
+    if (hmsTable.getParameters().get(InputFormatConfig.EXTERNAL_TABLE_PURGE) == null) {
+      hmsTable.getParameters().put(InputFormatConfig.EXTERNAL_TABLE_PURGE, "TRUE");
+    }
+
+    // Remove creation related properties
+    PARAMETERS_TO_REMOVE.forEach(hmsTable.getParameters()::remove);
   }
 
   @Override
@@ -110,6 +119,7 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
       if (Catalogs.hiveCatalog(conf)) {
         catalogProperties.put(TableProperties.ENGINE_HIVE_ENABLED, true);
       }
+
       Catalogs.createTable(conf, catalogProperties);
     }
   }

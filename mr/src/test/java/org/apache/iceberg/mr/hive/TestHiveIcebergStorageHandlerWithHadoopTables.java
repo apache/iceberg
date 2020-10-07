@@ -31,6 +31,6 @@ public class TestHiveIcebergStorageHandlerWithHadoopTables extends HiveIcebergSt
 
   @Override
   protected String locationForCreateTable(String tempDirName, String tableName) {
-    return tempDirName + "/" + tableName;
+    return tempDirName + "/default/" + tableName;
   }
 }

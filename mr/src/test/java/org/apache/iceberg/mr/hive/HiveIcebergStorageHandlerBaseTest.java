@@ -31,6 +31,7 @@ import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.metadata.Hive;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
@@ -287,9 +288,10 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     }
 
     Map<String, String> hmsParams = hmsTable.getParameters();
+    removeStatParams(hmsParams);
 
     // This is only set for HiveCatalog based tables. Check the value, then remove it so the other checks can be general
-    if (needToCheckSnapshotLocation()) {
+    if (Catalogs.hiveCatalog(shell.getHiveConf())) {
       Assert.assertTrue(hmsParams.get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP)
           .startsWith(icebergTable.location()));
       hmsParams.remove(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
@@ -383,11 +385,12 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     }
 
     Map<String, String> hmsParams = hmsTable.getParameters();
+    removeStatParams(hmsParams);
 
     // Just check that the PartitionSpec is not set in the metadata
     Assert.assertNull(hmsParams.get(InputFormatConfig.PARTITION_SPEC));
 
-    if (needToCheckSnapshotLocation()) {
+    if (Catalogs.hiveCatalog(shell.getHiveConf())) {
       Assert.assertEquals(6, hmsParams.size());
     } else {
       Assert.assertEquals(5, hmsParams.size());
@@ -427,10 +430,11 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     }
 
     Map<String, String> hmsParams = hmsTable.getParameters();
+    removeStatParams(hmsParams);
 
     // Just check that the PartitionSpec is not set in the metadata
     Assert.assertNull(hmsParams.get(InputFormatConfig.PARTITION_SPEC));
-    if (needToCheckSnapshotLocation()) {
+    if (Catalogs.hiveCatalog(shell.getHiveConf())) {
       Assert.assertEquals(6, hmsParams.size());
     } else {
       Assert.assertEquals(5, hmsParams.size());
@@ -530,6 +534,61 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     }
   }
 
+  @Test
+  public void testCreateTableAboveExistingTable() throws TException, IOException {
+    // Create the Iceberg table
+    createIcebergTable("customers", CUSTOMER_SCHEMA, Collections.emptyList());
+
+    if (Catalogs.hiveCatalog(shell.getHiveConf())) {
+
+      // In HiveCatalog we just expect an exception since the table is already exists
+      AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
+          "Table customers already exists", () -> {
+            shell.executeQuery("CREATE EXTERNAL TABLE customers " +
+                "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+                "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" +
+                SchemaParser.toJson(CUSTOMER_SCHEMA) + "')");
+          }
+      );
+    } else {
+      // We need the location for HadoopTable based tests only
+      String location = locationForCreateTable(temp.getRoot().getPath(), "customers");
+
+      shell.executeStatement("CREATE EXTERNAL TABLE customers " +
+          "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+          (location != null ? "LOCATION '" + location + "'" : ""));
+
+      Properties properties = new Properties();
+      properties.put(Catalogs.NAME, TableIdentifier.of("default", "customers").toString());
+      if (location != null) {
+        properties.put(Catalogs.LOCATION, location);
+      }
+
+      // Check the HMS table parameters
+      IMetaStoreClient client = null;
+      org.apache.hadoop.hive.metastore.api.Table hmsTable;
+      try {
+        client = new HiveMetaStoreClient(metastore.hiveConf());
+        hmsTable = client.getTable("default", "customers");
+      } finally {
+        if (client != null) {
+          client.close();
+        }
+      }
+
+      Map<String, String> hmsParams = hmsTable.getParameters();
+      removeStatParams(hmsParams);
+
+      Assert.assertEquals(4, hmsParams.size());
+      Assert.assertEquals("TRUE", hmsParams.get("EXTERNAL"));
+      Assert.assertNotNull(hmsParams.get(hive_metastoreConstants.DDL_TIME));
+      Assert.assertEquals(HiveIcebergStorageHandler.class.getName(),
+          hmsTable.getParameters().get(hive_metastoreConstants.META_TABLE_STORAGE));
+      Assert.assertEquals(BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(),
+          hmsTable.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP));
+    }
+  }
+
   protected void createTable(String tableName, Schema schema, FileFormat format, List<Record> records)
           throws IOException {
     Table table = createIcebergTable(tableName, schema, format, records);
@@ -562,7 +621,10 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     return null;
   }
 
-  protected boolean needToCheckSnapshotLocation() {
-    return false;
+  private void removeStatParams(Map<String, String> hmsParams) {
+    hmsParams.remove(StatsSetupConst.ROW_COUNT);
+    hmsParams.remove(StatsSetupConst.RAW_DATA_SIZE);
+    hmsParams.remove(StatsSetupConst.TOTAL_SIZE);
+    hmsParams.remove(StatsSetupConst.NUM_FILES);
   }
 }
