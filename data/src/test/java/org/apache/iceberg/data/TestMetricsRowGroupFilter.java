@@ -246,12 +246,8 @@ public class TestMetricsRowGroupFilter {
   public void testAllNulls() {
     boolean shouldRead;
 
-    // ORC-623: ORC does not skip a row group for a notNull predicate on a column with all nulls
-    // boolean shouldRead = shouldRead(notNull("all_nulls"));
-    if (format != FileFormat.ORC) {
-      shouldRead = shouldRead(notNull("all_nulls"));
-      Assert.assertFalse("Should skip: no non-null value in all null column", shouldRead);
-    }
+    shouldRead = shouldRead(notNull("all_nulls"));
+    Assert.assertFalse("Should skip: no non-null value in all null column", shouldRead);
 
     shouldRead = shouldRead(notNull("some_nulls"));
     Assert.assertTrue("Should read: column with some nulls contains a non-null value", shouldRead);
