@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -31,6 +32,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
@@ -43,7 +45,7 @@ import org.junit.Test;
 
 public abstract class TestSparkBaseDataReader {
 
-  private static final Configuration CONF = new Configuration();
+  private static final Configuration CONFD = new Configuration();
 
   // Simulates the closeable iterator of data to be read
   private static class CloseableIntegerRange implements CloseableIterator<Integer> {
@@ -105,7 +107,7 @@ public abstract class TestSparkBaseDataReader {
 
     ClosureTrackingReader(List<FileScanTask> tasks) {
       super(new BaseCombinedScanTask(tasks),
-          new HadoopFileIO(CONF),
+          new HadoopFileIO(CONFD),
           new PlaintextEncryptionManager());
     }
 
@@ -136,6 +138,11 @@ public abstract class TestSparkBaseDataReader {
     @Override
     public DataFile file() {
       return file;
+    }
+
+    @Override
+    public List<DeleteFile> deletes() {
+      return new ArrayList<>();
     }
 
     @Override
