@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.ql.metadata.Hive;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -37,8 +38,10 @@ import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -48,6 +51,8 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(StandaloneHiveRunner.class)
 public abstract class HiveIcebergStorageHandlerBaseTest {
+
+  private static final String DEFAULT_DATABASE_NAME = "default";
 
   @HiveSQL(files = {}, autoStart = false)
   private HiveShell shell;
@@ -79,16 +84,30 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   private static final PartitionSpec SPEC = PartitionSpec.unpartitioned();
 
-  // before variables
-  protected TestHiveMetastore metastore;
+  protected static TestHiveMetastore metastore;
+
   private TestTables testTables;
 
   public abstract TestTables testTables(Configuration conf, TemporaryFolder tmp) throws IOException;
 
-  @Before
-  public void before() throws IOException {
+
+  @BeforeClass
+  public static void beforeClass() {
     metastore = new TestHiveMetastore();
     metastore.start();
+  }
+
+  @AfterClass
+  public static void afterClass() {
+    metastore.stop();
+    metastore = null;
+  }
+
+  @Before
+  public void before() throws IOException {
+    String metastoreUris = metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREURIS);
+    // in Hive3, setting this as a system prop ensures that it will be picked up whenever a new HiveConf is created
+    System.setProperty(HiveConf.ConfVars.METASTOREURIS.varname, metastoreUris);
 
     testTables = testTables(metastore.hiveConf(), temp);
 
@@ -96,9 +115,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       shell.setHiveConfValue(property.getKey(), property.getValue());
     }
 
-    String metastoreUris = metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREURIS);
     shell.setHiveConfValue(HiveConf.ConfVars.METASTOREURIS.varname, metastoreUris);
-
     String metastoreWarehouse = metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREWAREHOUSE);
     shell.setHiveConfValue(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, metastoreWarehouse);
 
@@ -106,9 +123,17 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   }
 
   @After
-  public void after() {
-    metastore.stop();
-    metastore = null;
+  public void after() throws Exception {
+    Hive db = Hive.get(metastore.hiveConf());
+    for (String dbName : db.getAllDatabases()) {
+      for (String tblName : db.getAllTables(dbName)) {
+        db.dropTable(dbName, tblName);
+      }
+      if (!DEFAULT_DATABASE_NAME.equals(dbName)) {
+        // Drop cascade, functions dropped by cascade
+        db.dropDatabase(dbName, true, true, true);
+      }
+    }
   }
 
   @Test
