@@ -101,7 +101,6 @@ public abstract class TestSparkReadProjection extends TestReadProjection {
     File testFile = new File(dataFolder, format.addExtension(UUID.randomUUID().toString()));
 
     Table table = TestTables.create(location, desc, writeSchema, PartitionSpec.unpartitioned());
-
     try {
       // Important: use the table's schema for the rest of the test
       // When tables are created, the column ids are reassigned.
