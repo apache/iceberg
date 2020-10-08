@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.spark.source;
 
+import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -28,22 +28,36 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.StreamSupport;
+import org.apache.avro.generic.GenericData;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
-import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
-import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.spark.data.RandomData;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+
+import static org.apache.iceberg.FileFormat.PARQUET;
+import static org.apache.iceberg.Files.localOutput;
 
 public abstract class TestSparkBaseDataReader {
+
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
 
   private static final Configuration CONFD = new Configuration();
 
@@ -73,37 +87,10 @@ public abstract class TestSparkBaseDataReader {
     }
   }
 
-  // Provides and keeps track of task and data iterator
-  // Tracking allows query whether the iterator has been closed in the end
-  private static class CloseableIteratorProvider {
-    private Map<String, CloseableIntegerRange> closureTrack;
-
-    CloseableIteratorProvider() {
-      this.closureTrack = new HashMap<>();
-    }
-
-    public CloseableIntegerRange get(FileScanTask task) {
-      CloseableIntegerRange intRange = new CloseableIntegerRange(task.file().recordCount());
-      closureTrack.put(getKey(task), intRange);
-      return intRange;
-    }
-
-    private String getKey(FileScanTask task) {
-      return task.file().path().toString();
-    }
-
-    public Boolean isIteratorClosed(FileScanTask task) {
-      return closureTrack.get(getKey(task)).closed;
-    }
-
-    public Boolean hasIterator(FileScanTask task) {
-      return closureTrack.containsKey(getKey(task));
-    }
-  }
-
-  // Main test class to test its iteration logic
+  // Main reader class to test base class iteration logic.
+  // Keeps track of iterator closure.
   private static class ClosureTrackingReader extends BaseDataReader<Integer> {
-    private CloseableIteratorProvider iterProvider = new CloseableIteratorProvider();
+    private Map<String, CloseableIntegerRange> tracker = new HashMap<>();
 
     ClosureTrackingReader(List<FileScanTask> tasks) {
       super(new BaseCombinedScanTask(tasks),
@@ -113,69 +100,29 @@ public abstract class TestSparkBaseDataReader {
 
     @Override
     CloseableIterator<Integer> open(FileScanTask task) {
-      return iterProvider.get(task);
+      CloseableIntegerRange intRange = new CloseableIntegerRange(task.file().recordCount());
+      tracker.put(getKey(task), intRange);
+      return intRange;
     }
 
     public Boolean isIteratorClosed(FileScanTask task) {
-      return iterProvider.isIteratorClosed(task);
+      return tracker.get(getKey(task)).closed;
     }
 
     public Boolean hasIterator(FileScanTask task) {
-      return iterProvider.hasIterator(task);
-    }
-  }
-
-  // Subclass of `BaseDataReader` mostly care about the FileScanTask as it opens and returns
-  // iterable data. Here, we also have dummy test reader, so we only need a data file as
-  // a unique identifier.
-  private static class MockScanTask implements FileScanTask {
-    DataFile file;
-
-    MockScanTask(DataFile file) {
-      this.file = file;
+      return tracker.containsKey(getKey(task));
     }
 
-    @Override
-    public DataFile file() {
-      return file;
-    }
-
-    @Override
-    public List<DeleteFile> deletes() {
-      return new ArrayList<>();
-    }
-
-    @Override
-    public PartitionSpec spec() {
-      throw new IllegalStateException("Don't expect invocation on mock task");
-    }
-
-    @Override
-    public long start() {
-      throw new IllegalStateException("Don't expect invocation on mock task");
-    }
-
-    @Override
-    public long length() {
-      throw new IllegalStateException("Don't expect invocation on mock task");
-    }
-
-    @Override
-    public Expression residual() {
-      throw new IllegalStateException("Don't expect invocation on mock task");
-    }
-
-    @Override
-    public Iterable<FileScanTask> split(long splitSize) {
-      throw new IllegalStateException("Don't expect invocation on mock task");
+    private String getKey(FileScanTask task) {
+      return task.file().path().toString();
     }
   }
 
   @Test
   public void testClosureOnDataExhaustion() throws IOException {
-    Integer totalTasks = 100;
-    Integer recordPerTask = 9;
-    List<FileScanTask> tasks = mockFileScanTasks(totalTasks, recordPerTask);
+    Integer totalTasks = 10;
+    Integer recordPerTask = 10;
+    List<FileScanTask> tasks = createFileScanTasks(totalTasks, recordPerTask);
 
     ClosureTrackingReader reader = new ClosureTrackingReader(tasks);
 
@@ -199,7 +146,7 @@ public abstract class TestSparkBaseDataReader {
   public void testClosureDuringIteration() throws IOException {
     Integer totalTasks = 2;
     Integer recordPerTask = 1;
-    List<FileScanTask> tasks = mockFileScanTasks(totalTasks, recordPerTask);
+    List<FileScanTask> tasks = createFileScanTasks(totalTasks, recordPerTask);
     Assert.assertEquals(2, tasks.size());
     FileScanTask firstTask = tasks.get(0);
     FileScanTask secondTask = tasks.get(1);
@@ -224,9 +171,9 @@ public abstract class TestSparkBaseDataReader {
 
   @Test
   public void testClosureWithoutAnyRead() throws IOException {
-    Integer totalTasks = 100;
-    Integer recordPerTask = 100;
-    List<FileScanTask> tasks = mockFileScanTasks(totalTasks, recordPerTask);
+    Integer totalTasks = 10;
+    Integer recordPerTask = 10;
+    List<FileScanTask> tasks = createFileScanTasks(totalTasks, recordPerTask);
 
     ClosureTrackingReader reader = new ClosureTrackingReader(tasks);
 
@@ -240,9 +187,9 @@ public abstract class TestSparkBaseDataReader {
 
   @Test
   public void testExplicitClosure() throws IOException {
-    Integer totalTasks = 100;
-    Integer recordPerTask = 9;
-    List<FileScanTask> tasks = mockFileScanTasks(totalTasks, recordPerTask);
+    Integer totalTasks = 10;
+    Integer recordPerTask = 10;
+    List<FileScanTask> tasks = createFileScanTasks(totalTasks, recordPerTask);
 
     ClosureTrackingReader reader = new ClosureTrackingReader(tasks);
 
@@ -268,7 +215,7 @@ public abstract class TestSparkBaseDataReader {
   public void testIdempotentExplicitClosure() throws IOException {
     Integer totalTasks = 10;
     Integer recordPerTask = 10;
-    List<FileScanTask> tasks = mockFileScanTasks(totalTasks, recordPerTask);
+    List<FileScanTask> tasks = createFileScanTasks(totalTasks, recordPerTask);
 
     ClosureTrackingReader reader = new ClosureTrackingReader(tasks);
 
@@ -291,14 +238,46 @@ public abstract class TestSparkBaseDataReader {
     }
   }
 
-  private List<FileScanTask> mockFileScanTasks(Integer totalTasks, Integer recordPerTask) {
-    return IntStream.range(0, totalTasks).mapToObj(i ->
-        DataFiles.builder(PartitionSpec.unpartitioned())
-            .withPath(FileFormat.PARQUET.addExtension(UUID.randomUUID().toString()))
-            .withFileSizeInBytes(123)
+  private List<FileScanTask> createFileScanTasks(Integer totalTasks, Integer recordPerTask) throws IOException {
+    String desc = "make_scan_tasks";
+    File parent = temp.newFolder(desc);
+    File location = new File(parent, "test");
+    File dataFolder = new File(location, "data");
+    Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
+
+    Schema schema = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get())
+    );
+
+    try {
+      Table table = TestTables.create(location, desc, schema, PartitionSpec.unpartitioned());
+      // Important: use the table's schema for the rest of the test
+      // When tables are created, the column ids are reassigned.
+      Schema tableSchema = table.schema();
+      List<GenericData.Record> expected = RandomData.generateList(tableSchema, recordPerTask, 1L);
+
+      AppendFiles appendFiles = table.newAppend();
+      for (int i = 0; i < totalTasks; i++) {
+        File parquetFile = new File(dataFolder, PARQUET.addExtension(UUID.randomUUID().toString()));
+        try (FileAppender<GenericData.Record> writer = Parquet.write(localOutput(parquetFile))
+            .schema(tableSchema)
+            .build()) {
+          writer.addAll(expected);
+        }
+        DataFile file = DataFiles.builder(PartitionSpec.unpartitioned())
+            .withFileSizeInBytes(parquetFile.length())
+            .withPath(parquetFile.toString())
             .withRecordCount(recordPerTask)
-            .build())
-        .map(MockScanTask::new)
-        .collect(Collectors.toList());
+            .build();
+        appendFiles.appendFile(file);
+      }
+      appendFiles.commit();
+
+      return StreamSupport
+          .stream(table.newScan().planFiles().spliterator(), false)
+          .collect(Collectors.toList());
+    } finally {
+      TestTables.clearTables();
+    }
   }
 }
