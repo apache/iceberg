@@ -79,17 +79,18 @@ public class TestHiveMetastore {
 
   public void start() {
     try {
-      hiveLocalDir = createTempDirectory("hive", asFileAttribute(fromString("rwxrwxrwx"))).toFile();
+      this.hiveLocalDir = createTempDirectory("hive", asFileAttribute(fromString("rwxrwxrwx"))).toFile();
       File derbyLogFile = new File(hiveLocalDir, "derby.log");
       System.setProperty("derby.stream.error.file", derbyLogFile.getAbsolutePath());
       setupMetastoreDB("jdbc:derby:" + getDerbyPath() + ";create=true");
 
       TServerSocket socket = new TServerSocket(0);
       int port = socket.getServerSocket().getLocalPort();
-      hiveConf = newHiveConf(port);
-      server = newThriftServer(socket, hiveConf);
-      executorService = Executors.newSingleThreadExecutor();
-      executorService.submit(() -> server.serve());
+      this.hiveConf = newHiveConf(port);
+      this.server = newThriftServer(socket, hiveConf);
+      this.executorService = Executors.newSingleThreadExecutor();
+      this.executorService.submit(() -> server.serve());
+      this.client = new HiveMetaStoreClient(hiveConf);
     } catch (Exception e) {
       throw new RuntimeException("Cannot start TestHiveMetastore", e);
     }
@@ -118,9 +119,6 @@ public class TestHiveMetastore {
   }
 
   public IMetaStoreClient client() throws MetaException {
-    if (client == null) {
-      this.client = new HiveMetaStoreClient(hiveConf);
-    }
     return client;
   }
 
@@ -130,9 +128,9 @@ public class TestHiveMetastore {
   }
 
   public void reset() throws Exception {
-    for (String dbName : client().getAllDatabases()) {
-      for (String tblName : client().getAllTables(dbName)) {
-        client().dropTable(dbName, tblName, true, true, true);
+    for (String dbName : client.getAllDatabases()) {
+      for (String tblName : client.getAllTables(dbName)) {
+        client.dropTable(dbName, tblName, true, true, true);
       }
 
       if (!DEFAULT_DATABASE_NAME.equals(dbName)) {
