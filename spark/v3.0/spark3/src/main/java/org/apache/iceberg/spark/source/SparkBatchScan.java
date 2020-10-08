@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
@@ -130,11 +131,11 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     return readSchema;
   }
 
-  private Schema getTableSchema() {
-    if (snapshotId != null) {
-      return table.schemaForSnapshot(snapshotId);
-    } else if (asOfTimestamp != null) {
-      return table.schemaForSnapshotAsOfTime(asOfTimestamp);
+  private Schema snapshotSchema() {
+    if (snapshotId != null && table instanceof BaseTable) {
+      return ((BaseTable) table).schemaForSnapshot(snapshotId);
+    } else if (asOfTimestamp != null && table instanceof BaseTable) {
+      return ((BaseTable) table).schemaForSnapshotAsOfTime(asOfTimestamp);
     } else {
       return table.schema();
     }
