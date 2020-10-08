@@ -31,7 +31,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -105,8 +104,8 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
 
     AssertHelpers.assertThrows(
         "Create table txn should fail",
-        CommitFailedException.class,
-        "is not same as the current table metadata",
+        AlreadyExistsException.class,
+        "Table already exists: hivedb.tbl",
         txn::commitTransaction);
   }
 
