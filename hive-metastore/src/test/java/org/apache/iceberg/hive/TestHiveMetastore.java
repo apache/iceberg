@@ -30,13 +30,20 @@ import java.sql.SQLException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStore;
+import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.IHMSHandler;
+import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.RetryingHMSHandler;
 import org.apache.hadoop.hive.metastore.TSetIpAddressProcessor;
+import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.hadoop.Util;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.server.TThreadPoolServer;
@@ -48,6 +55,8 @@ import static java.nio.file.attribute.PosixFilePermissions.asFileAttribute;
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 
 public class TestHiveMetastore {
+
+  private static final String DEFAULT_DATABASE_NAME = "default";
 
   // create the metastore handlers based on whether we're working with Hive2 or Hive3 dependencies
   // we need to do this because there is a breaking API change between Hive2 and Hive3
@@ -66,6 +75,7 @@ public class TestHiveMetastore {
   private ExecutorService executorService;
   private TServer server;
   private HiveMetaStore.HMSHandler baseHandler;
+  private IMetaStoreClient client = null;
 
   public void start() {
     try {
@@ -86,6 +96,9 @@ public class TestHiveMetastore {
   }
 
   public void stop() {
+    if (client != null) {
+      client.close();
+    }
     if (server != null) {
       server.stop();
     }
@@ -104,9 +117,37 @@ public class TestHiveMetastore {
     return hiveConf;
   }
 
+  public IMetaStoreClient client() throws MetaException {
+    if (client == null) {
+      this.client = new HiveMetaStoreClient(hiveConf);
+    }
+    return client;
+  }
+
   public String getDatabasePath(String dbName) {
     File dbDir = new File(hiveLocalDir, dbName + ".db");
     return dbDir.getPath();
+  }
+
+  public void reset() throws Exception {
+    for (String dbName : client().getAllDatabases()) {
+      for (String tblName : client().getAllTables(dbName)) {
+        client().dropTable(dbName, tblName, true, true, true);
+      }
+
+      if (!DEFAULT_DATABASE_NAME.equals(dbName)) {
+        // Drop cascade, functions dropped by cascade
+        client.dropDatabase(dbName, true, true, true);
+      }
+    }
+    Path warehouseRoot = new Path(hiveLocalDir.getAbsolutePath());
+    FileSystem fs = Util.getFs(warehouseRoot, hiveConf);
+    for (FileStatus fileStatus : fs.listStatus(warehouseRoot)) {
+      if (!fileStatus.getPath().getName().equals("derby.log") &&
+          !fileStatus.getPath().getName().equals("metastore_db")) {
+        fs.delete(fileStatus.getPath(), true);
+      }
+    }
   }
 
   private TServer newThriftServer(TServerSocket socket, HiveConf conf) throws Exception {

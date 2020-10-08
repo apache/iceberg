@@ -33,9 +33,6 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.ql.metadata.Hive;
-import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
-import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseMetastoreTableOperations;
@@ -61,6 +58,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -70,8 +68,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(StandaloneHiveRunner.class)
 public abstract class HiveIcebergStorageHandlerBaseTest {
-
-  private static final String DEFAULT_DATABASE_NAME = "default";
 
   @HiveSQL(files = {}, autoStart = false)
   private HiveShell shell;
@@ -107,7 +103,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       PartitionSpec.builderFor(CUSTOMER_SCHEMA).identity("customer_id").build();
 
   // before variables
-  protected TestHiveMetastore metastore;
+  protected static TestHiveMetastore metastore;
 
   private TestTables testTables;
 
@@ -147,16 +143,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   @After
   public void after() throws Exception {
-    Hive db = Hive.get(metastore.hiveConf());
-    for (String dbName : db.getAllDatabases()) {
-      for (String tblName : db.getAllTables(dbName)) {
-        db.dropTable(dbName, tblName);
-      }
-      if (!DEFAULT_DATABASE_NAME.equals(dbName)) {
-        // Drop cascade, functions dropped by cascade
-        db.dropDatabase(dbName, true, true, true);
-      }
-    }
+    metastore.reset();
   }
 
   // PARQUET
@@ -276,16 +263,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Assert.assertEquals(IDENTITY_SPEC, icebergTable.spec());
 
     // Check the HMS table parameters
-    IMetaStoreClient client = null;
-    org.apache.hadoop.hive.metastore.api.Table hmsTable;
-    try {
-      client = new HiveMetaStoreClient(metastore.hiveConf());
-      hmsTable = client.getTable("default", "customers");
-    } finally {
-      if (client != null) {
-        client.close();
-      }
-    }
+    org.apache.hadoop.hive.metastore.api.Table hmsTable = metastore.client().getTable("default", "customers");
 
     Map<String, String> hmsParams = hmsTable.getParameters();
     removeStatParams(hmsParams);
@@ -326,15 +304,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       Assert.assertEquals(expectedIcebergProperties, icebergTable.properties());
 
       // Check the HMS table parameters
-      Path hmsTableLocation;
-      try {
-        client = new HiveMetaStoreClient(metastore.hiveConf());
-        hmsTableLocation = new Path(client.getTable("default", "customers").getSd().getLocation());
-      } finally {
-        if (client != null) {
-          client.close();
-        }
-      }
+      Path hmsTableLocation = new Path(metastore.client().getTable("default", "customers").getSd().getLocation());
 
       // Drop the table
       shell.executeStatement("DROP TABLE customers");
@@ -373,16 +343,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Assert.assertEquals(SPEC, icebergTable.spec());
 
     // Check the HMS table parameters
-    IMetaStoreClient client = null;
-    org.apache.hadoop.hive.metastore.api.Table hmsTable;
-    try {
-      client = new HiveMetaStoreClient(metastore.hiveConf());
-      hmsTable = client.getTable("default", "customers");
-    } finally {
-      if (client != null) {
-        client.close();
-      }
-    }
+    org.apache.hadoop.hive.metastore.api.Table hmsTable = metastore.client().getTable("default", "customers");
 
     Map<String, String> hmsParams = hmsTable.getParameters();
     removeStatParams(hmsParams);
@@ -418,16 +379,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Assert.assertEquals(SPEC, icebergTable.spec());
 
     // Check the HMS table parameters
-    IMetaStoreClient client = null;
-    org.apache.hadoop.hive.metastore.api.Table hmsTable;
-    try {
-      client = new HiveMetaStoreClient(metastore.hiveConf());
-      hmsTable = client.getTable("default", "customers");
-    } finally {
-      if (client != null) {
-        client.close();
-      }
-    }
+    org.apache.hadoop.hive.metastore.api.Table hmsTable = metastore.client().getTable("default", "customers");
 
     Map<String, String> hmsParams = hmsTable.getParameters();
     removeStatParams(hmsParams);
@@ -462,21 +414,9 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
       // Check if the table remains
       Catalogs.loadTable(shell.getHiveConf(), properties);
-
-      // Cleanup the test table
-      Catalogs.dropTable(shell.getHiveConf(), properties);
     } else {
       // Check the HMS table parameters
-      IMetaStoreClient client = null;
-      Path hmsTableLocation;
-      try {
-        client = new HiveMetaStoreClient(metastore.hiveConf());
-        hmsTableLocation = new Path(client.getTable("default", "customers").getSd().getLocation());
-      } finally {
-        if (client != null) {
-          client.close();
-        }
-      }
+      Path hmsTableLocation = new Path(metastore.client().getTable("default", "customers").getSd().getLocation());
 
       // Drop the table
       shell.executeStatement("DROP TABLE customers");
@@ -492,9 +432,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       FileSystem fs = Util.getFs(hmsTableLocation, shell.getHiveConf());
       Assert.assertEquals(1, fs.listStatus(hmsTableLocation).length);
       Assert.assertEquals(1, fs.listStatus(new Path(hmsTableLocation, "metadata")).length);
-
-      // Cleanup
-      fs.delete(hmsTableLocation, true);
     }
   }
 
@@ -565,16 +502,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       }
 
       // Check the HMS table parameters
-      IMetaStoreClient client = null;
-      org.apache.hadoop.hive.metastore.api.Table hmsTable;
-      try {
-        client = new HiveMetaStoreClient(metastore.hiveConf());
-        hmsTable = client.getTable("default", "customers");
-      } finally {
-        if (client != null) {
-          client.close();
-        }
-      }
+      org.apache.hadoop.hive.metastore.api.Table hmsTable = metastore.client().getTable("default", "customers");
 
       Map<String, String> hmsParams = hmsTable.getParameters();
       removeStatParams(hmsParams);
