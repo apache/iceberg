@@ -104,7 +104,7 @@ public class SortOrder implements Serializable {
 
     // this ordering has either more or the same number of sort fields
     return IntStream.range(0, anotherSortOrder.fields.length)
-        .allMatch(index -> fields[index].equals(anotherSortOrder.fields[index]));
+        .allMatch(index -> fields[index].satisfies(anotherSortOrder.fields[index]));
   }
 
   /**

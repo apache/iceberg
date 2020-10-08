@@ -55,6 +55,17 @@ class Identity<T> implements Transform<T, T> {
   }
 
   @Override
+  public boolean preservesOrder() {
+    return true;
+  }
+
+  @Override
+  public boolean satisfiesOrderOf(Transform<?, ?> other) {
+    // ordering by value is the same as long as the other preserves order
+    return other.preservesOrder();
+  }
+
+  @Override
   public UnboundPredicate<T> project(String name, BoundPredicate<T> predicate) {
     return projectStrict(name, predicate);
   }
