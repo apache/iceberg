@@ -351,13 +351,17 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   }
 
   private class HadoopCatalogTableBuilder extends BaseMetastoreCatalogTableBuilder {
+    private final String defaultLocation;
+
     private HadoopCatalogTableBuilder(TableIdentifier identifier, Schema schema) {
       super(identifier, schema);
+      defaultLocation = defaultWarehouseLocation(identifier);
     }
 
     @Override
     public TableBuilder withLocation(String location) {
-      Preconditions.checkArgument(location == null, "Cannot set a custom location for a path-based table");
+      Preconditions.checkArgument(location == null || location.equals(defaultLocation),
+          "Cannot set a custom location for a path-based table. Expected " + defaultLocation + " but got " + location);
       return this;
     }
   }

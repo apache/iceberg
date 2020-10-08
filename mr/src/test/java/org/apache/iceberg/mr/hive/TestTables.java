@@ -35,6 +35,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveCatalogs;
+import org.apache.iceberg.hive.MetastoreUtil;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestCatalogs;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -123,7 +124,8 @@ abstract class TestTables {
     private final String warehouseLocation;
 
     HadoopCatalogTestTables(Configuration conf, TemporaryFolder temp) throws IOException {
-      this(conf, temp, temp.newFolder("hadoop", "warehouse").toString());
+      this(conf, temp, (MetastoreUtil.hive3PresentOnClasspath() ? "file:" : "") +
+          temp.newFolder("hadoop", "warehouse").toString());
     }
 
     HadoopCatalogTestTables(Configuration conf, TemporaryFolder temp, String warehouseLocation) {

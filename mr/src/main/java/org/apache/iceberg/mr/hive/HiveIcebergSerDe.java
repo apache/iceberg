@@ -22,9 +22,11 @@ package org.apache.iceberg.mr.hive;
 import java.util.Properties;
 import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.AbstractSerDe;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.SerDeStats;
+import org.apache.hadoop.hive.serde2.SerDeUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.io.Writable;
 import org.apache.iceberg.Schema;
@@ -34,8 +36,12 @@ import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.mr.mapred.Container;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class HiveIcebergSerDe extends AbstractSerDe {
+  private static final Logger LOG = LoggerFactory.getLogger(HiveIcebergSerDe.class);
+
   private ObjectInspector inspector;
 
   @Override
@@ -51,15 +57,26 @@ public class HiveIcebergSerDe extends AbstractSerDe {
     // the resulting properties are serialized and distributed to the executors
 
     Schema tableSchema;
-    if (configuration.get(InputFormatConfig.TABLE_SCHEMA) != null) {
-      tableSchema = SchemaParser.fromJson(configuration.get(InputFormatConfig.TABLE_SCHEMA));
-    } else if (serDeProperties.get(InputFormatConfig.TABLE_SCHEMA) != null) {
+    if (serDeProperties.get(InputFormatConfig.TABLE_SCHEMA) != null) {
       tableSchema = SchemaParser.fromJson((String) serDeProperties.get(InputFormatConfig.TABLE_SCHEMA));
     } else {
-      try {
-        tableSchema = Catalogs.loadTable(configuration, serDeProperties).schema();
-      } catch (NoSuchTableException nte) {
-        throw new SerDeException("Please provide an existing table or a valid schema", nte);
+      // Read the configuration parameters
+      String columnNames = serDeProperties.getProperty(serdeConstants.LIST_COLUMNS);
+      String columnTypes = serDeProperties.getProperty(serdeConstants.LIST_COLUMN_TYPES);
+      String columnNameDelimiter = serDeProperties.containsKey(serdeConstants.COLUMN_NAME_DELIMITER) ?
+          serDeProperties.getProperty(serdeConstants.COLUMN_NAME_DELIMITER) : String.valueOf(SerDeUtils.COMMA);
+      if (columnNames != null && columnTypes != null && columnNameDelimiter != null &&
+          !columnNames.isEmpty() && !columnTypes.isEmpty() && !columnNameDelimiter.isEmpty()) {
+        // This table schema will be used only for table creation so it should not contain partition columns
+        tableSchema = HiveSchemaUtil.schema(columnNames, columnTypes, columnNameDelimiter);
+        LOG.info("Using schema from column specification {}", SchemaParser.toJson(tableSchema));
+      } else {
+        try {
+          tableSchema = Catalogs.loadTable(configuration, serDeProperties).schema();
+          LOG.info("Using schema from existing table {}", SchemaParser.toJson(tableSchema));
+        } catch (NoSuchTableException nte) {
+          throw new SerDeException("Please provide an existing table or a valid schema", nte);
+        }
       }
     }
 

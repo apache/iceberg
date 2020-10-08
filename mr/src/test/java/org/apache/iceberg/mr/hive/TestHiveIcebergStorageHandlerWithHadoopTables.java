@@ -29,8 +29,12 @@ public class TestHiveIcebergStorageHandlerWithHadoopTables extends HiveIcebergSt
     return new TestTables.HadoopTestTables(conf, temp);
   }
 
+  protected String locationForCreateTableSQL(TemporaryFolder root, String tableName) {
+    return "LOCATION '" + root.getRoot().getPath() + "/default/" + tableName + "' ";
+  }
+
   @Override
-  protected String locationForCreateTable(String tempDirName, String tableName) {
-    return tempDirName + "/default/" + tableName;
+  protected String loadLocation(TemporaryFolder root, String tableName) {
+    return root.getRoot().getPath() + "/default/" + tableName;
   }
 }

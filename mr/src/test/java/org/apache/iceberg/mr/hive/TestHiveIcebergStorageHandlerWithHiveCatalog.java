@@ -34,4 +34,9 @@ public class TestHiveIcebergStorageHandlerWithHiveCatalog extends HiveIcebergSto
     // The Hive catalog has already created the Hive table so there's no need to issue another
     // 'CREATE TABLE ...' statement.
   }
+
+  @Override
+  protected String locationForCreateTableSQL(TemporaryFolder root, String tableName) {
+    return "";
+  }
 }
