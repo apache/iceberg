@@ -45,6 +45,7 @@ This creates an Iceberg catalog named `hive_prod` that loads tables from a Hive 
 spark.sql.catalog.hive_prod = org.apache.iceberg.spark.SparkCatalog
 spark.sql.catalog.hive_prod.type = hive
 spark.sql.catalog.hive_prod.uri = thrift://metastore-host:port
+# omit uri to use the same URI as Spark: hive.metastore.uris in hive-site.xml
 ```
 
 Iceberg also supports a directory-based catalog in HDFS that can be configured using `type=hadoop`:
@@ -82,7 +83,6 @@ To add Iceberg table support to Spark's built-in catalog, configure `spark_catal
 ```plain
 spark.sql.catalog.spark_catalog = org.apache.iceberg.spark.SparkSessionCatalog
 spark.sql.catalog.spark_catalog.type = hive
-# omit uri to use the same URI as Spark: hive.metastore.uris in hive-site.xml
 ```
 
 Spark's built-in catalog supports existing v1 and v2 tables tracked in a Hive Metastore. This configures Spark to use Iceberg's `SparkSessionCatalog` as a wrapper around that session catalog. When a table is not an Iceberg table, the built-in catalog will be used to load it instead.
