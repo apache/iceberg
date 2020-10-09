@@ -27,6 +27,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
@@ -57,18 +58,18 @@ public interface TableLoader extends Closeable, Serializable {
     private static final long serialVersionUID = 1L;
 
     private final String location;
-    private final Configuration hadoopConf;
+    private final SerializableConfiguration hadoopConf;
 
     private transient HadoopTables tables;
 
-    private HadoopTableLoader(String location, Configuration hadoopConf) {
+    private HadoopTableLoader(String location, Configuration conf) {
       this.location = location;
-      this.hadoopConf = hadoopConf;
+      this.hadoopConf = new SerializableConfiguration(conf);
     }
 
     @Override
     public void open() {
-      tables = new HadoopTables(hadoopConf);
+      tables = new HadoopTables(hadoopConf.get());
     }
 
     @Override
