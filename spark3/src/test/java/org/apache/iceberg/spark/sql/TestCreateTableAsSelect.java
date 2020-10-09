@@ -50,6 +50,7 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
   @After
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
+    sql("DROP TABLE IF EXISTS %s", sourceName);
   }
 
   @Test

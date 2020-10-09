@@ -735,6 +735,7 @@ project(':iceberg-spark') {
     compile project(':iceberg-arrow')
     compile project(':iceberg-hive-metastore')
     compile project(':iceberg-arrow')
+    compile project(':iceberg-nessie')
 
     compileOnly "org.apache.avro:avro"
     compileOnly("org.apache.spark:spark-hive_2.11") {
@@ -789,7 +790,15 @@ if (jdkVersion == '8') {
       compile project(':iceberg-arrow')
       compile project(':iceberg-hive-metastore')
       compile project(':iceberg-spark')
-
+      compile("org.glassfish.jersey.media:jersey-media-json-jackson:2.22.2") {
+        exclude group: "org.glassfish.jersey.core", module: "jersey-common"
+        exclude group: "com.fasterxml.jackson.core", module: "jackson-databind"
+        exclude group: "com.fasterxml.jackson.core", module: "jackson-annotations"
+        exclude group: "com.fasterxml.jackson.module", module: "jackson-module-jaxb-annotations"
+      }
+      compile("org.glassfish.jersey.core:jersey-client:2.22.2") {
+        exclude group: "org.glassfish.jersey.core", module: "jersey-common"
+      }
       compileOnly "org.apache.avro:avro"
       compileOnly("org.apache.spark:spark-hive_2.11") {
         exclude group: 'org.apache.avro', module: 'avro'
@@ -896,7 +905,15 @@ project(':iceberg-spark3') {
     compile project(':iceberg-arrow')
     compile project(':iceberg-hive-metastore')
     compile project(':iceberg-spark')
-
+    compile("org.glassfish.jersey.media:jersey-media-json-jackson:2.30") {
+      exclude group: "org.glassfish.jersey.core", module: "jersey-common"
+      exclude group: "com.fasterxml.jackson.core", module: "jackson-databind"
+      exclude group: "com.fasterxml.jackson.core", module: "jackson-annotations"
+      exclude group: "com.fasterxml.jackson.module", module: "jackson-module-jaxb-annotations"
+    }
+    compile("org.glassfish.jersey.core:jersey-client:2.30") {
+      exclude group: "org.glassfish.jersey.core", module: "jersey-common"
+    }
     compileOnly "org.apache.avro:avro"
     compileOnly("org.apache.spark:spark-hive_2.12") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -1057,6 +1074,44 @@ project(':iceberg-pig') {
       exclude group: 'org.apache.avro', module: 'avro'
     }
   }
+}
+
+project(':iceberg-nessie') {
+  java {
+    registerFeature('clientSupport') {
+      usingSourceSet(sourceSets.main)
+    }
+  }
+
+  dependencies {
+    compile project(':iceberg-core')
+    compile project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    compile "org.projectnessie:nessie-client"
+    clientSupportImplementation("io.quarkus:quarkus-rest-client") {
+      exclude group: "org.jboss.logging", module: "commons-logging-jboss-logging"
+    }
+    clientSupportImplementation("io.quarkus:quarkus-resteasy-jackson") {
+      exclude group: "org.codehaus.mojo", module: "animal-sniffer-annotations"
+    }
+
+
+    compileOnly("org.apache.hadoop:hadoop-common") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.apache.httpcomponents', module: 'httpclient'
+      exclude group: 'org.apache.httpcomponents', module: 'httpcore'
+      exclude group: 'commons-httpclient', module: 'commons-httpclient'
+      exclude group: "com.sun.jersey", module: 'jersey-core'
+      exclude group: "com.sun.jersey", module: 'jersey-json'
+      exclude group: "com.sun.jersey", module: 'jersey-server'
+    }
+
+    testCompile(project(":iceberg-nessie")) {
+      capabilities {
+        requireCapability("org.apache.iceberg:iceberg-nessie-client-support")
+      }
+    }
+  }
+
 }
 
 @Memoized

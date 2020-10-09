@@ -37,6 +37,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hive.HiveCatalog;
+import org.apache.iceberg.nessie.NessieCatalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -68,13 +69,15 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * <p>
  * This supports the following catalog configuration options:
  * <ul>
- *   <li><tt>type</tt> - catalog type, "hive" or "hadoop"</li>
+ *   <li><tt>type</tt> - catalog type, "hive", "nessie" or "hadoop"</li>
  *   <li><tt>uri</tt> - the Hive Metastore URI (Hive catalog only)</li>
+ *   <li><tt>nessie_url</tt> - the Nessie url (Nessie catalog only)</li>
+ *   <li><tt>nessie_ref</tt> - the Nessie default ref (Nessie catalog only)</li>
  *   <li><tt>warehouse</tt> - the warehouse path (Hadoop catalog only)</li>
  *   <li><tt>default-namespace</tt> - a namespace to use as the default</li>
  * </ul>
  * <p>
- * To use a custom catalog that is not a Hive or Hadoop catalog, extend this class and override
+ * To use a custom catalog that is not a Hive, Nessie or Hadoop catalog, extend this class and override
  * {@link #buildIcebergCatalog(String, CaseInsensitiveStringMap)}.
  */
 public class SparkCatalog extends BaseCatalog {
@@ -117,6 +120,10 @@ public class SparkCatalog extends BaseCatalog {
         String warehouseLocation = options.get(CatalogProperties.WAREHOUSE_LOCATION);
         return new HadoopCatalog(name, conf, warehouseLocation, options.asCaseSensitiveMap());
 
+      case "nessie":
+        String defaultBranch = options.getOrDefault("nessie_ref", "main");
+        String nessieUrl = options.get("nessie_url");
+        return new NessieCatalog(name, conf, defaultBranch, nessieUrl);
       default:
         throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
     }

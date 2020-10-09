@@ -27,6 +27,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
+import org.apache.iceberg.nessie.NessieCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.spark.sql.Row;
@@ -46,6 +47,7 @@ public class SparkTestBase {
   protected static HiveConf hiveConf = null;
   protected static SparkSession spark = null;
   protected static HiveCatalog catalog = null;
+  protected static NessieCatalog nessie = null;
 
   @BeforeClass
   public static void startMetastoreAndSpark() {
@@ -75,6 +77,10 @@ public class SparkTestBase {
       catalog.close();
     }
     SparkTestBase.catalog = null;
+    if (nessie != null) {
+      nessie.close();
+    }
+    SparkTestBase.nessie = null;
     metastore.stop();
     SparkTestBase.metastore = null;
     spark.stop();
