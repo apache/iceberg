@@ -83,7 +83,6 @@ public class GenericAvroReader<T> implements DatumReader<T> {
         return ValueReaders.record(fields, record);
 
       } catch (ClassNotFoundException e) {
-        e.printStackTrace();
         return ValueReaders.record(fields, record);
       }
     }

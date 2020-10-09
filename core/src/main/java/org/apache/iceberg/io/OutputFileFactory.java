@@ -58,18 +58,11 @@ public class OutputFileFactory {
   }
 
   /**
-   * Generates EncryptedOutputFile with relative path under iceberg table location.
-   */
-  public EncryptedOutputFile newOutputFile(String relativePath) {
-    OutputFile file = io.newOutputFile(relativePath);
-    return encryptionManager.encrypt(file);
-  }
-
-  /**
    * Generates EncryptedOutputFile for UnpartitionedWriter.
    */
   public EncryptedOutputFile newOutputFile() {
-    return newOutputFile(locations.newDataLocation(generateFilename()));
+    OutputFile file = io.newOutputFile(locations.newDataLocation(generateFilename()));
+    return encryptionManager.encrypt(file);
   }
 
   /**
@@ -77,6 +70,7 @@ public class OutputFileFactory {
    */
   public EncryptedOutputFile newOutputFile(PartitionKey key) {
     String newDataLocation = locations.newDataLocation(spec, key, generateFilename());
-    return newOutputFile(newDataLocation);
+    OutputFile rawOutputFile = io.newOutputFile(newDataLocation);
+    return encryptionManager.encrypt(rawOutputFile);
   }
 }
