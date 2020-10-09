@@ -36,7 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
  */
 public interface TableLoader extends Closeable, Serializable {
 
-  void open(Configuration configuration);
+  void open();
 
   Table loadTable();
 
@@ -45,7 +45,11 @@ public interface TableLoader extends Closeable, Serializable {
   }
 
   static TableLoader fromHadoopTable(String location) {
-    return new HadoopTableLoader(location);
+    return fromHadoopTable(location, FlinkCatalogFactory.clusterHadoopConf());
+  }
+
+  static TableLoader fromHadoopTable(String location, Configuration hadoopConf) {
+    return new HadoopTableLoader(location, hadoopConf);
   }
 
   class HadoopTableLoader implements TableLoader {
@@ -53,15 +57,18 @@ public interface TableLoader extends Closeable, Serializable {
     private static final long serialVersionUID = 1L;
 
     private final String location;
+    private final Configuration hadoopConf;
+
     private transient HadoopTables tables;
 
-    private HadoopTableLoader(String location) {
+    private HadoopTableLoader(String location, Configuration hadoopConf) {
       this.location = location;
+      this.hadoopConf = hadoopConf;
     }
 
     @Override
-    public void open(Configuration configuration) {
-      tables = new HadoopTables(configuration);
+    public void open() {
+      tables = new HadoopTables(hadoopConf);
     }
 
     @Override
@@ -96,8 +103,8 @@ public interface TableLoader extends Closeable, Serializable {
     }
 
     @Override
-    public void open(Configuration configuration) {
-      catalog = catalogLoader.loadCatalog(configuration);
+    public void open() {
+      catalog = catalogLoader.loadCatalog();
     }
 
     @Override

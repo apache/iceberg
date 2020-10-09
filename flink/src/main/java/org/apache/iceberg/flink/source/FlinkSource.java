@@ -29,16 +29,13 @@ import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo;
 import org.apache.flink.table.types.logical.RowType;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.flink.FlinkCatalogFactory;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -72,7 +69,6 @@ public class FlinkSource {
     private StreamExecutionEnvironment env;
     private Table table;
     private TableLoader tableLoader;
-    private Configuration hadoopConf;
     private TableSchema projectedSchema;
     private ScanContext context = new ScanContext();
 
@@ -85,11 +81,6 @@ public class FlinkSource {
 
     public Builder table(Table newTable) {
       this.table = newTable;
-      return this;
-    }
-
-    public Builder hadoopConf(Configuration newConf) {
-      this.hadoopConf = newConf;
       return this;
     }
 
@@ -161,14 +152,12 @@ public class FlinkSource {
     public FlinkInputFormat buildFormat() {
       Preconditions.checkNotNull(tableLoader, "TableLoader should not be null");
 
-      hadoopConf = hadoopConf == null ? FlinkCatalogFactory.clusterHadoopConf() : hadoopConf;
-
       Schema icebergSchema;
       FileIO io;
       EncryptionManager encryption;
       if (table == null) {
         // load required fields by table loader.
-        tableLoader.open(hadoopConf);
+        tableLoader.open();
         try (TableLoader loader = tableLoader) {
           table = loader.loadTable();
           icebergSchema = table.schema();
@@ -191,7 +180,7 @@ public class FlinkSource {
       context = context.project(projectedSchema == null ? icebergSchema :
           FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
 
-      return new FlinkInputFormat(tableLoader, new SerializableConfiguration(hadoopConf), io, encryption, context);
+      return new FlinkInputFormat(tableLoader, io, encryption, context);
     }
 
     public DataStream<RowData> build() {

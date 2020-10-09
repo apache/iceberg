@@ -31,22 +31,18 @@ import org.apache.flink.table.sinks.PartitionableTableSink;
 import org.apache.flink.table.sinks.TableSink;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.util.Preconditions;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.flink.sink.FlinkSink;
 
 public class IcebergTableSink implements AppendStreamTableSink<RowData>, OverwritableTableSink, PartitionableTableSink {
   private final boolean isBounded;
   private final TableLoader tableLoader;
-  private final Configuration hadoopConf;
   private final TableSchema tableSchema;
 
   private boolean overwrite = false;
 
-  public IcebergTableSink(boolean isBounded, TableLoader tableLoader, Configuration hadoopConf,
-                          TableSchema tableSchema) {
+  public IcebergTableSink(boolean isBounded, TableLoader tableLoader, TableSchema tableSchema) {
     this.isBounded = isBounded;
     this.tableLoader = tableLoader;
-    this.hadoopConf = hadoopConf;
     this.tableSchema = tableSchema;
   }
 
@@ -56,7 +52,6 @@ public class IcebergTableSink implements AppendStreamTableSink<RowData>, Overwri
 
     return FlinkSink.forRowData(dataStream)
         .tableLoader(tableLoader)
-        .hadoopConf(hadoopConf)
         .tableSchema(tableSchema)
         .overwrite(overwrite)
         .build();

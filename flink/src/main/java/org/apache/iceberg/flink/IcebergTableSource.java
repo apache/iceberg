@@ -32,7 +32,6 @@ import org.apache.flink.table.sources.StreamTableSource;
 import org.apache.flink.table.sources.TableSource;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.utils.TableConnectorUtils;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.flink.source.FlinkSource;
 
 /**
@@ -42,20 +41,17 @@ import org.apache.iceberg.flink.source.FlinkSource;
 public class IcebergTableSource implements StreamTableSource<RowData>, ProjectableTableSource<RowData> {
 
   private final TableLoader loader;
-  private final Configuration hadoopConf;
   private final TableSchema schema;
   private final Map<String, String> options;
   private final int[] projectedFields;
 
-  public IcebergTableSource(TableLoader loader, Configuration hadoopConf, TableSchema schema,
-                            Map<String, String> options) {
-    this(loader, hadoopConf, schema, options, null);
+  public IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> options) {
+    this(loader, schema, options, null);
   }
 
-  private IcebergTableSource(TableLoader loader, Configuration hadoopConf, TableSchema schema,
-                             Map<String, String> options, int[] projectedFields) {
+  private IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> options,
+                             int[] projectedFields) {
     this.loader = loader;
-    this.hadoopConf = hadoopConf;
     this.schema = schema;
     this.options = options;
     this.projectedFields = projectedFields;
@@ -68,13 +64,13 @@ public class IcebergTableSource implements StreamTableSource<RowData>, Projectab
 
   @Override
   public TableSource<RowData> projectFields(int[] fields) {
-    return new IcebergTableSource(loader, hadoopConf, schema, options, fields);
+    return new IcebergTableSource(loader, schema, options, fields);
   }
 
   @Override
   public DataStream<RowData> getDataStream(StreamExecutionEnvironment execEnv) {
-    return FlinkSource.forRowData().env(execEnv).tableLoader(loader).hadoopConf(hadoopConf)
-        .project(getProjectedSchema()).properties(options).build();
+    return FlinkSource.forRowData().env(execEnv).tableLoader(loader).project(getProjectedSchema())
+        .properties(options).build();
   }
 
   @Override

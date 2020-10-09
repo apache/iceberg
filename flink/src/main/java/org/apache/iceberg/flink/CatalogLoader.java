@@ -31,27 +31,29 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
  */
 public interface CatalogLoader extends Serializable {
 
-  Catalog loadCatalog(Configuration hadoopConf);
+  Catalog loadCatalog();
 
-  static CatalogLoader hadoop(String name, String warehouseLocation) {
-    return new HadoopCatalogLoader(name, warehouseLocation);
+  static CatalogLoader hadoop(String name, Configuration hadoopConf, String warehouseLocation) {
+    return new HadoopCatalogLoader(name, hadoopConf, warehouseLocation);
   }
 
-  static CatalogLoader hive(String name, String uri, int clientPoolSize) {
-    return new HiveCatalogLoader(name, uri, clientPoolSize);
+  static CatalogLoader hive(String name, Configuration hadoopConf, String uri, int clientPoolSize) {
+    return new HiveCatalogLoader(name, hadoopConf, uri, clientPoolSize);
   }
 
   class HadoopCatalogLoader implements CatalogLoader {
     private final String catalogName;
+    private final Configuration hadoopConf;
     private final String warehouseLocation;
 
-    private HadoopCatalogLoader(String catalogName, String warehouseLocation) {
+    private HadoopCatalogLoader(String catalogName, Configuration hadoopConf, String warehouseLocation) {
       this.catalogName = catalogName;
+      this.hadoopConf = hadoopConf;
       this.warehouseLocation = warehouseLocation;
     }
 
     @Override
-    public Catalog loadCatalog(Configuration hadoopConf) {
+    public Catalog loadCatalog() {
       return new HadoopCatalog(catalogName, hadoopConf, warehouseLocation);
     }
 
@@ -66,17 +68,19 @@ public interface CatalogLoader extends Serializable {
 
   class HiveCatalogLoader implements CatalogLoader {
     private final String catalogName;
+    private final Configuration hadoopConf;
     private final String uri;
     private final int clientPoolSize;
 
-    private HiveCatalogLoader(String catalogName, String uri, int clientPoolSize) {
+    private HiveCatalogLoader(String catalogName, Configuration hadoopConf, String uri, int clientPoolSize) {
       this.catalogName = catalogName;
+      this.hadoopConf = hadoopConf;
       this.uri = uri;
       this.clientPoolSize = clientPoolSize;
     }
 
     @Override
-    public Catalog loadCatalog(Configuration hadoopConf) {
+    public Catalog loadCatalog() {
       return new HiveCatalog(catalogName, uri, clientPoolSize, hadoopConf);
     }
 

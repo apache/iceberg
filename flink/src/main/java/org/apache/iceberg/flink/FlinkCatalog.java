@@ -51,7 +51,6 @@ import org.apache.flink.table.catalog.stats.CatalogTableStatistics;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.factories.TableFactory;
 import org.apache.flink.util.StringUtils;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
@@ -85,7 +84,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 public class FlinkCatalog extends AbstractCatalog {
 
   private final CatalogLoader catalogLoader;
-  private final Configuration hadoopConf;
   private final Catalog icebergCatalog;
   private final String[] baseNamespace;
   private final SupportsNamespaces asNamespaceCatalog;
@@ -98,14 +96,12 @@ public class FlinkCatalog extends AbstractCatalog {
       String defaultDatabase,
       String[] baseNamespace,
       CatalogLoader catalogLoader,
-      Configuration hadoopConf,
       boolean cacheEnabled) {
     super(catalogName, defaultDatabase);
-    this.hadoopConf = hadoopConf;
     this.catalogLoader = catalogLoader;
     this.baseNamespace = baseNamespace;
 
-    Catalog originalCatalog = catalogLoader.loadCatalog(hadoopConf);
+    Catalog originalCatalog = catalogLoader.loadCatalog();
     icebergCatalog = cacheEnabled ? CachingCatalog.wrap(originalCatalog) : originalCatalog;
     asNamespaceCatalog = originalCatalog instanceof SupportsNamespaces ? (SupportsNamespaces) originalCatalog : null;
     closeable = originalCatalog instanceof Closeable ? (Closeable) originalCatalog : null;
@@ -525,10 +521,6 @@ public class FlinkCatalog extends AbstractCatalog {
 
   CatalogLoader getCatalogLoader() {
     return catalogLoader;
-  }
-
-  Configuration getHadoopConf() {
-    return this.hadoopConf;
   }
 
   // ------------------------------ Unsupported methods ---------------------------------------------

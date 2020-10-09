@@ -36,7 +36,6 @@ import org.apache.flink.table.data.util.DataFormatConverters;
 import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo;
 import org.apache.flink.test.util.AbstractTestBase;
 import org.apache.flink.types.Row;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -55,7 +54,6 @@ import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
 public class TestFlinkIcebergSink extends AbstractTestBase {
-  private static final Configuration CONF = new Configuration();
   private static final TypeInformation<Row> ROW_TYPE_INFO = new RowTypeInfo(
       SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
   private static final DataFormatConverters.RowConverter CONVERTER = new DataFormatConverters.RowConverter(
@@ -133,7 +131,6 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
     FlinkSink.forRowData(dataStream)
         .table(table)
         .tableLoader(tableLoader)
-        .hadoopConf(CONF)
         .build();
 
     // Execute the program.
@@ -156,7 +153,6 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
         .table(table)
         .tableLoader(tableLoader)
         .tableSchema(tableSchema)
-        .hadoopConf(CONF)
         .build();
 
     // Execute the program.

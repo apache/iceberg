@@ -36,7 +36,6 @@ import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ReplacePartitions;
@@ -44,7 +43,6 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -72,7 +70,6 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
   // TableLoader to load iceberg table lazily.
   private final TableLoader tableLoader;
-  private final SerializableConfiguration hadoopConf;
   private final boolean replacePartitions;
 
   // A sorted map to maintain the completed data files for each pending checkpointId (which have not been committed
@@ -103,9 +100,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private static final ListStateDescriptor<SortedMap<Long, List<DataFile>>> STATE_DESCRIPTOR = buildStateDescriptor();
   private transient ListState<SortedMap<Long, List<DataFile>>> checkpointsState;
 
-  IcebergFilesCommitter(TableLoader tableLoader, Configuration hadoopConf, boolean replacePartitions) {
+  IcebergFilesCommitter(TableLoader tableLoader, boolean replacePartitions) {
     this.tableLoader = tableLoader;
-    this.hadoopConf = new SerializableConfiguration(hadoopConf);
     this.replacePartitions = replacePartitions;
   }
 
@@ -115,7 +111,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     this.flinkJobId = getContainingTask().getEnvironment().getJobID().toString();
 
     // Open the table loader and load the table.
-    this.tableLoader.open(hadoopConf.get());
+    this.tableLoader.open();
     this.table = tableLoader.loadTable();
     this.maxCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
