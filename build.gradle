@@ -166,8 +166,6 @@ project(':iceberg-bundled-guava') {
     }
 
     relocate 'com.google.common', 'org.apache.iceberg.relocated.com.google.common'
-
-    minimize()
   }
 
   jar {
