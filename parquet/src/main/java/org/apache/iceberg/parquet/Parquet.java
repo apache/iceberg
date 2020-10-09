@@ -582,6 +582,13 @@ public class Parquet {
           optionsBuilder = ParquetReadOptions.builder();
         }
 
+        if (filter != null &&
+                schema.getAliases() != null &&
+                ParquetFilters.isSupportedFilter(filter, schema, caseSensitive)) {
+          optionsBuilder.useRecordFilter(filterRecords);
+          optionsBuilder.withRecordFilter(ParquetFilters.convert(schema, filter, caseSensitive));
+        }
+
         for (Map.Entry<String, String> entry : properties.entrySet()) {
           optionsBuilder.set(entry.getKey(), entry.getValue());
         }

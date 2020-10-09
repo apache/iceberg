@@ -208,6 +208,10 @@ class ReadConf<T> {
     return new ReadConf<>(this);
   }
 
+  boolean hasRecordFilter() {
+    return options.getRecordFilter() != null;
+  }
+
   private static ParquetFileReader newReader(InputFile file, ParquetReadOptions options) {
     try {
       return ParquetFileReader.open(ParquetIO.file(file), options);

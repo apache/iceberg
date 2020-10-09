@@ -20,7 +20,9 @@
 package org.apache.iceberg.parquet;
 
 import java.nio.ByteBuffer;
+import java.util.Set;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.And;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
@@ -29,7 +31,10 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.expressions.Not;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.types.Type;
 import org.apache.parquet.filter2.compat.FilterCompat;
 import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
@@ -38,7 +43,69 @@ import org.apache.parquet.io.api.Binary;
 
 class ParquetFilters {
 
+  private static final Set<Operation> SUPPORTED_OPS = ImmutableSet.of(
+          Operation.IS_NULL,
+          Operation.NOT_NULL,
+          Operation.EQ,
+          Operation.NOT_EQ,
+          Operation.GT,
+          Operation.GT_EQ,
+          Operation.LT,
+          Operation.LT_EQ);
+
+  private static final Set<Type.TypeID> SUPPORTED_TYPES = ImmutableSet.of(
+          Type.TypeID.BOOLEAN,
+          Type.TypeID.INTEGER,
+          Type.TypeID.LONG,
+          Type.TypeID.FLOAT,
+          Type.TypeID.DOUBLE,
+          Type.TypeID.DATE,
+          Type.TypeID.TIME
+  );
+
   private ParquetFilters() {
+  }
+
+  public static boolean isSupportedFilter(Expression expr, Schema schema, boolean caseSensitive) {
+    if (expr.op().equals(Operation.AND)) {
+      return isSupportedFilter(((And) expr).left(), schema, caseSensitive) &&
+              isSupportedFilter(((And) expr).right(), schema, caseSensitive);
+    } else if (expr.op().equals(Operation.OR)) {
+      return isSupportedFilter(((And) expr).left(), schema, caseSensitive) &&
+              isSupportedFilter(((And) expr).right(), schema, caseSensitive);
+    } else if (expr.op().equals(Operation.NOT)) {
+      return isSupportedFilter(((Not) expr).child(), schema, caseSensitive);
+    } else {
+      return isSupportedOp(expr) && isSupportedType(expr, schema, caseSensitive);
+    }
+  }
+
+  private static boolean isSupportedOp(Expression expr) {
+    return SUPPORTED_OPS.contains(expr.op());
+  }
+
+  private static boolean isSupportedType(Expression expr, Schema schema, boolean caseSensitive) {
+    if (expr instanceof BoundPredicate) {
+      return checkBounded((BoundPredicate) expr);
+    } else if (expr instanceof UnboundPredicate) {
+      Expression bound = ((UnboundPredicate) expr).bind(schema.asStruct(), caseSensitive);
+      if (bound instanceof BoundPredicate) {
+        return checkBounded((BoundPredicate) bound);
+      } else if (bound == Expressions.alwaysTrue() || (bound == Expressions.alwaysFalse())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean checkBounded(BoundPredicate pred) {
+    if (pred.term() instanceof BoundReference) {
+      BoundReference ref = (BoundReference) pred.term();
+      if (SUPPORTED_TYPES.contains(ref.type().typeId())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   static FilterCompat.Filter convert(Schema schema, Expression expr, boolean caseSensitive) {
@@ -231,7 +298,7 @@ class ParquetFilters {
 
     @Override
     public <R> R accept(Visitor<R> visitor) {
-      throw new UnsupportedOperationException("AlwaysTrue is a placeholder only");
+      throw new UnsupportedOperationException("AlwaysFalse is a placeholder only");
     }
   }
 }
