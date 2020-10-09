@@ -237,6 +237,21 @@ project(':iceberg-data') {
   }
 }
 
+project(':iceberg-aws') {
+  dependencies {
+    compile project(':iceberg-api')
+    compile project(':iceberg-core')
+
+    compileOnly "com.amazonaws:aws-java-sdk-core"
+    compileOnly "com.amazonaws:aws-java-sdk-s3"
+
+    testCompile("com.adobe.testing:s3mock-junit4") {
+      exclude module: "spring-boot-starter-logging"
+      exclude module: "logback-classic"
+    }
+  }
+}
+
 project(':iceberg-flink') {
   dependencies {
     compile project(':iceberg-api')
