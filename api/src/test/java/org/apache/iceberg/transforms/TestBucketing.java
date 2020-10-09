@@ -28,6 +28,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Random;
 import java.util.UUID;
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
 import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
@@ -273,6 +274,14 @@ public class TestBucketing {
 
     Assert.assertEquals("UUID hash should match hash of backing bytes",
         hashBytes(uuidBytes), bucketFunc.hash(uuid));
+  }
+
+  @Test
+  public void testVerifiedIllegalNumBucket() {
+    AssertHelpers.assertThrows("Should fail if numBucket is less than or equal to zero",
+        IllegalArgumentException.class,
+        "The number of bucket must larger than zero",
+        () -> Bucket.get(Types.IntegerType.get(), 0));
   }
 
   private byte[] randomBytes(int length) {
