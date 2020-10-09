@@ -140,7 +140,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   @Test
   public void testScanEmptyTableParquet() throws IOException {
-     testScanEmptyTable(FileFormat.PARQUET);
+    testScanEmptyTable(FileFormat.PARQUET);
   }
 
   @Test
