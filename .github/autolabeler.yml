@@ -64,6 +64,7 @@ ORC:
   - "/orc"
 HIVE:
   - "/hive3"
+  - "/hive-metastore"
   - "/hive-runtime"
 DATA:
   - "/data"
