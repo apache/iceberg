@@ -63,7 +63,8 @@ ARROW:
 ORC:
   - "/orc"
 HIVE:
-  - "/hive"
+  - "/hive3"
+  - "/hive-runtime"
 DATA:
   - "/data"
 SPARK:
