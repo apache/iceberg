@@ -277,10 +277,10 @@ public class TestBucketing {
   }
 
   @Test
-  public void testVerifiedIllegalNumBucket() {
+  public void testVerifiedIllegalNumBuckets() {
     AssertHelpers.assertThrows("Should fail if numBucket is less than or equal to zero",
         IllegalArgumentException.class,
-        "The number of bucket must larger than zero",
+        "The number of bucket(s) must be larger than zero",
         () -> Bucket.get(Types.IntegerType.get(), 0));
   }
 

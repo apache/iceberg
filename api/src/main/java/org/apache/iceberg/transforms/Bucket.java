@@ -46,7 +46,7 @@ abstract class Bucket<T> implements Transform<T, Integer> {
   @SuppressWarnings("unchecked")
   static <T> Bucket<T> get(Type type, int numBuckets) {
     Preconditions.checkArgument(numBuckets > 0,
-        "The number of bucket must larger than zero,but is %s", numBuckets);
+        "The number of bucket(s) must be larger than zero, but is %s", numBuckets);
 
     switch (type.typeId()) {
       case DATE:
