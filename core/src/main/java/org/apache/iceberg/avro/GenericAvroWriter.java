@@ -28,10 +28,10 @@ import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Encoder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-public class GenericAvroWriter<T> implements DatumWriter<T> {
+class GenericAvroWriter<T> implements DatumWriter<T> {
   private ValueWriter<T> writer = null;
 
-  public GenericAvroWriter(Schema schema) {
+  GenericAvroWriter(Schema schema) {
     setSchema(schema);
   }
 

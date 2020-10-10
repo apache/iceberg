@@ -58,7 +58,7 @@ class FlinkManifest {
   }
 
   static List<DataFile> read(ManifestFile manifestFile, FileIO io) throws IOException {
-    try (CloseableIterable<DataFile> dataFiles = ManifestFiles.read(manifestFile, io).project(ManifestFile.schema())) {
+    try (CloseableIterable<DataFile> dataFiles = ManifestFiles.read(manifestFile, io)) {
       return Lists.newArrayList(dataFiles);
     }
   }

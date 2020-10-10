@@ -30,14 +30,14 @@ import org.apache.avro.io.Decoder;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.data.avro.DecoderResolver;
 
-public class GenericAvroReader<T> implements DatumReader<T> {
+class GenericAvroReader<T> implements DatumReader<T> {
 
   private final Schema readSchema;
   private ClassLoader loader = Thread.currentThread().getContextClassLoader();
   private Schema fileSchema = null;
   private ValueReader<T> reader = null;
 
-  public GenericAvroReader(Schema readSchema) {
+  GenericAvroReader(Schema readSchema) {
     this.readSchema = readSchema;
   }
 
