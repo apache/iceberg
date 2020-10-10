@@ -79,4 +79,6 @@ MR:
   - "/mr"
 PIG:
   - "/pig"
+METASTORE:
+  - "/hive-metastore"
 
