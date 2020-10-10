@@ -136,18 +136,50 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     }
   }
 
+  // PARQUET
+
   @Test
-  public void testScanEmptyTable() throws IOException {
+  public void testScanEmptyTableParquet() throws IOException {
+    testScanEmptyTable(FileFormat.PARQUET);
+  }
+
+  @Test
+  public void testScanTableParquet() throws IOException {
+    testScanTable(FileFormat.PARQUET);
+  }
+
+  @Test
+  public void testJoinTablesParquet() throws IOException {
+    testJoinTables(FileFormat.PARQUET);
+  }
+
+  // ORC
+
+  @Test
+  public void testScanEmptyTableORC() throws IOException {
+    testScanEmptyTable(FileFormat.ORC);
+  }
+
+  @Test
+  public void testScanTableORC() throws IOException {
+    testScanTable(FileFormat.ORC);
+  }
+
+  @Test
+  public void testJoinTablesORC() throws IOException {
+    testJoinTables(FileFormat.ORC);
+  }
+
+  public void testScanEmptyTable(FileFormat format) throws IOException {
     Schema emptySchema = new Schema(required(1, "empty", Types.StringType.get()));
-    createTable("empty", emptySchema, ImmutableList.of());
+    createTable("empty", emptySchema, format, ImmutableList.of());
 
     List<Object[]> rows = shell.executeStatement("SELECT * FROM default.empty");
     Assert.assertEquals(0, rows.size());
   }
 
-  @Test
-  public void testScanTable() throws IOException {
-    createTable("customers", CUSTOMER_SCHEMA, CUSTOMER_RECORDS);
+  public void testScanTable(FileFormat format) throws IOException {
+    createTable("customers", CUSTOMER_SCHEMA, format, CUSTOMER_RECORDS);
 
     // Single fetch task: no MR job.
     List<Object[]> rows = shell.executeStatement("SELECT * FROM default.customers");
@@ -166,10 +198,9 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Assert.assertArrayEquals(new Object[] {0L, "Alice"}, descRows.get(2));
   }
 
-  @Test
-  public void testJoinTables() throws IOException {
-    createTable("customers", CUSTOMER_SCHEMA, CUSTOMER_RECORDS);
-    createTable("orders", ORDER_SCHEMA, ORDER_RECORDS);
+  public void testJoinTables(FileFormat format) throws IOException {
+    createTable("customers", CUSTOMER_SCHEMA, format, CUSTOMER_RECORDS);
+    createTable("orders", ORDER_SCHEMA, format, ORDER_RECORDS);
 
     List<Object[]> rows = shell.executeStatement(
             "SELECT c.customer_id, c.first_name, o.order_id, o.total " +
@@ -182,17 +213,17 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Assert.assertArrayEquals(new Object[] {1L, "Bob", 102L, 33.33d}, rows.get(2));
   }
 
-  protected void createTable(String tableName, Schema schema, List<Record> records)
+  protected void createTable(String tableName, Schema schema, FileFormat format, List<Record> records)
           throws IOException {
-    Table table = createIcebergTable(tableName, schema, records);
+    Table table = createIcebergTable(tableName, schema, format, records);
     createHiveTable(tableName, table.location());
   }
 
-  protected Table createIcebergTable(String tableName, Schema schema, List<Record> records)
+  protected Table createIcebergTable(String tableName, Schema schema, FileFormat format, List<Record> records)
           throws IOException {
     String identifier = testTables.identifier("default." + tableName);
     TestHelper helper = new TestHelper(
-            metastore.hiveConf(), testTables.tables(), identifier, schema, SPEC, FileFormat.PARQUET, temp);
+            metastore.hiveConf(), testTables.tables(), identifier, schema, SPEC, format, temp);
     Table table = helper.createTable();
 
     if (!records.isEmpty()) {
