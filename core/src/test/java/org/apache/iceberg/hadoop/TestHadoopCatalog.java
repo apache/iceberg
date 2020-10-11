@@ -205,7 +205,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Table table = catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
 
     Assert.assertEquals(table.schema().toString(), TABLE_SCHEMA.toString());
-    Assert.assertEquals("hadoop.tbl", table.toString());
+    Assert.assertEquals("hadoop.tbl", table.name());
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
     FileSystem fs = Util.getFs(new Path(metaLocation), conf);

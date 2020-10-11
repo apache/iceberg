@@ -190,7 +190,7 @@ public class FlinkSink {
           .setMaxParallelism(1);
 
       return returnStream.addSink(new DiscardingSink())
-          .name(String.format("IcebergSink %s", table.toString()))
+          .name(String.format("IcebergSink %s", table.name()))
           .setParallelism(1);
     }
   }
@@ -220,7 +220,7 @@ public class FlinkSink {
     TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(table.schema(), flinkSchema,
         table.spec(), table.locationProvider(), table.io(), table.encryption(), targetFileSize, fileFormat, props);
 
-    return new IcebergStreamWriter<>(table.toString(), taskWriterFactory);
+    return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
   }
 
   private static FileFormat getFileFormat(Map<String, String> properties) {

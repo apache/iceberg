@@ -224,7 +224,7 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     }
 
     SparkBatchScan that = (SparkBatchScan) o;
-    return table.toString().equals(that.table.toString()) &&
+    return table.name().equals(that.table.name()) &&
         readSchema().equals(that.readSchema()) && // compare Spark schemas to ignore field ids
         filterExpressions.toString().equals(that.filterExpressions.toString()) &&
         Objects.equals(snapshotId, that.snapshotId) &&
@@ -236,7 +236,7 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   @Override
   public int hashCode() {
     return Objects.hash(
-        table.toString(), readSchema(), filterExpressions.toString(), snapshotId, startSnapshotId, endSnapshotId,
+        table.name(), readSchema(), filterExpressions.toString(), snapshotId, startSnapshotId, endSnapshotId,
         asOfTimestamp);
   }
 

@@ -206,7 +206,7 @@ abstract class BaseTableScan implements TableScan {
           context.rowFilter());
 
       Listeners.notifyAll(
-          new ScanEvent(table.toString(), snapshot.snapshotId(), context.rowFilter(), schema()));
+          new ScanEvent(table.name(), snapshot.snapshotId(), context.rowFilter(), schema()));
 
       return planFiles(ops, snapshot,
           context.rowFilter(), context.ignoreResiduals(), context.caseSensitive(), context.returnColumnStats());
