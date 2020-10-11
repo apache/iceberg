@@ -22,14 +22,9 @@ package org.apache.iceberg.flink.source;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
-import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.data.conversion.DataStructureConverter;
-import org.apache.flink.table.data.conversion.DataStructureConverters;
 import org.apache.flink.table.types.logical.RowType;
-import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -39,6 +34,7 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.Test;
@@ -105,38 +101,7 @@ public class TestFlinkInputFormat extends TestFlinkScan {
   }
 
   private List<Row> runFormat(FlinkInputFormat inputFormat) throws IOException {
-    return getRows(inputFormat);
-  }
-
-  public static List<RowData> getRowData(FlinkInputFormat inputFormat) throws IOException {
     RowType rowType = FlinkSchemaUtil.convert(inputFormat.projectedSchema());
-
-    DataStructureConverter<Object, Object> converter = DataStructureConverters.getConverter(
-        TypeConversions.fromLogicalToDataType(rowType));
-
-    return getRows(inputFormat).stream()
-        .map(converter::toInternal)
-        .map(RowData.class::cast)
-        .collect(Collectors.toList());
-  }
-
-  public static List<Row> getRows(FlinkInputFormat inputFormat) throws IOException {
-    FlinkInputSplit[] splits = inputFormat.createInputSplits(0);
-    List<Row> results = Lists.newArrayList();
-
-    RowType rowType = FlinkSchemaUtil.convert(inputFormat.projectedSchema());
-
-    DataStructureConverter<Object, Object> converter = DataStructureConverters.getConverter(
-        TypeConversions.fromLogicalToDataType(rowType));
-
-    for (FlinkInputSplit s : splits) {
-      inputFormat.open(s);
-      while (!inputFormat.reachedEnd()) {
-        RowData row = inputFormat.nextRecord(null);
-        results.add((Row) converter.toExternal(row));
-      }
-    }
-    inputFormat.close();
-    return results;
+    return TestHelpers.getRows(inputFormat, rowType);
   }
 }

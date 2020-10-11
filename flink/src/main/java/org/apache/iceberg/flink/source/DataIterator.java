@@ -41,6 +41,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
@@ -61,10 +62,12 @@ abstract class DataIterator<T> implements CloseableIterator<T> {
   DataIterator(CombinedScanTask task, FileIO io, EncryptionManager encryption) {
     this.tasks = task.files().iterator();
 
-    Stream<EncryptedInputFile> encrypted = task.files().stream()
+    Map<String, ByteBuffer> keyMetadata = Maps.newHashMap();
+    task.files().stream()
         .flatMap(fileScanTask -> Stream.concat(Stream.of(fileScanTask.file()), fileScanTask.deletes().stream()))
-        .distinct()
-        .map(file -> EncryptedFiles.encryptedInput(io.newInputFile(file.path().toString()), file.keyMetadata()));
+        .forEach(file -> keyMetadata.put(file.path().toString(), file.keyMetadata()));
+    Stream<EncryptedInputFile> encrypted = keyMetadata.entrySet().stream()
+        .map(entry -> EncryptedFiles.encryptedInput(io.newInputFile(entry.getKey()), entry.getValue()));
 
     // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
     Iterable<InputFile> decryptedFiles = encryption.decrypt(encrypted::iterator);
