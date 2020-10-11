@@ -74,9 +74,11 @@ public class IcebergSplit extends InputSplit implements org.apache.hadoop.mapred
 
   @Override
   public String[] getLocations() {
-    if (locations == null) {
+    if (locations == null && conf != null) {
       boolean localityPreferred = conf.getBoolean(InputFormatConfig.LOCALITY, false);
       locations = localityPreferred ? Util.blockLocations(task, conf) : ANYWHERE;
+    } else {
+      locations = ANYWHERE;
     }
 
     return locations;
