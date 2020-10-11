@@ -38,7 +38,7 @@ abstract class Truncate<T> implements Transform<T, T> {
   @SuppressWarnings("unchecked")
   static <T> Truncate<T> get(Type type, int width) {
     Preconditions.checkArgument(width > 0,
-        "The width of truncate must be larger than zero, but is %s", width);
+        "Invalid truncate width: %s (must be > 0)", width);
 
     switch (type.typeId()) {
       case INTEGER:

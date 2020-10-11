@@ -92,7 +92,7 @@ public class TestTruncate {
   public void testVerifiedIllegalWidth() {
     AssertHelpers.assertThrows("Should fail if width is less than or equal to zero",
         IllegalArgumentException.class,
-        "The width of truncate must be larger than zero",
+        "Invalid truncate width: 0 (must be > 0)",
         () -> Truncate.get(Types.IntegerType.get(), 0));
   }
 }
