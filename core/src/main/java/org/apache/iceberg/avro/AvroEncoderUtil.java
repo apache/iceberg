@@ -25,9 +25,11 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.io.BinaryDecoder;
 import org.apache.avro.io.BinaryEncoder;
+import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.EncoderFactory;
@@ -36,6 +38,10 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 public class AvroEncoderUtil {
 
   private AvroEncoderUtil() {
+  }
+
+  static {
+    LogicalTypes.register(LogicalMap.NAME, schema -> LogicalMap.get());
   }
 
   private static final byte[] MAGIC_NUM = new byte[] {'a', 'V', 'R', 'O'};
@@ -76,10 +82,11 @@ public class AvroEncoderUtil {
       byte[] avroSchemaBytes = new byte[avroSchemeLength];
       Preconditions.checkState(in.read(avroSchemaBytes) == avroSchemeLength,
           "The length of read bytes is not the expected %s", avroSchemeLength);
-      Schema avroSchema = new Schema.Parser().parse(new String(avroSchemaBytes, StandardCharsets.UTF_8));
+      String avroSchemaString = new String(avroSchemaBytes, StandardCharsets.UTF_8);
+      Schema avroSchema = new Schema.Parser().parse(avroSchemaString);
 
       BinaryDecoder binaryDecoder = DecoderFactory.get().binaryDecoder(in, null);
-      GenericAvroReader<T> reader = new GenericAvroReader<>(avroSchema);
+      DatumReader<T> reader = new GenericAvroReader<>(avroSchema);
       reader.setSchema(avroSchema);
       return reader.read(null, binaryDecoder);
     }
