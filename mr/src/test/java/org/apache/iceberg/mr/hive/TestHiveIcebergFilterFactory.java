@@ -207,10 +207,11 @@ public class TestHiveIcebergFilterFactory {
   @Test
   public void testDateType() {
     SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
-    Date gmtDate = Date.valueOf("2015-11-12");
+    String dateString = "2015-11-12";
+    Date gmtDate = Date.valueOf(dateString);
     SearchArgument arg = builder.startAnd().equals("date", PredicateLeaf.Type.DATE, gmtDate).end().build();
 
-    UnboundPredicate expected = Expressions.equal("date", Literal.of("2015-11-12").to(Types.DateType.get()).value());
+    UnboundPredicate expected = Expressions.equal("date", Literal.of(dateString).to(Types.DateType.get()).value());
     UnboundPredicate actual = (UnboundPredicate) HiveIcebergFilterFactory.generateFilterExpression(arg);
 
     assertPredicatesMatch(expected, actual);
