@@ -46,7 +46,7 @@ abstract class BaseAction<R> implements Action<R> {
   protected abstract Table table();
 
   protected String metadataTableName(MetadataTableType type) {
-    return metadataTableName(table().toString(), type);
+    return metadataTableName(table().name(), type);
   }
 
   protected String metadataTableName(String tableName, MetadataTableType type) {
@@ -99,7 +99,7 @@ abstract class BaseAction<R> implements Action<R> {
   }
 
   protected Dataset<Row> buildValidDataFileDF(SparkSession spark) {
-    return buildValidDataFileDF(spark, table().toString());
+    return buildValidDataFileDF(spark, table().name());
   }
 
   protected Dataset<Row> buildValidDataFileDF(SparkSession spark, String tableName) {
