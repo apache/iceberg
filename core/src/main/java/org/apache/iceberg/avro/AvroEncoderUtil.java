@@ -44,7 +44,7 @@ public class AvroEncoderUtil {
     LogicalTypes.register(LogicalMap.NAME, schema -> LogicalMap.get());
   }
 
-  private static final byte[] MAGIC_NUM = new byte[] {'a', 'V', 'R', 'O'};
+  private static final byte[] MAGIC_BYTES = new byte[] {'a', 'V', 'R', 'O'};
 
   private static byte[] encodeInt(int value) {
     return ByteBuffer.allocate(4).putInt(value).array();
@@ -56,12 +56,17 @@ public class AvroEncoderUtil {
 
   public static <T> byte[] encode(T datum, Schema avroSchema) throws IOException {
     try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-      out.write(MAGIC_NUM);
+      // Write the magic bytes
+      out.write(MAGIC_BYTES);
 
+      // Write the length of avro schema string.
       byte[] avroSchemaBytes = avroSchema.toString().getBytes(StandardCharsets.UTF_8);
       out.write(encodeInt(avroSchemaBytes.length));
+
+      // Write the avro schema string.
       out.write(avroSchemaBytes);
 
+      // Encode the datum with avro schema.
       BinaryEncoder encoder = EncoderFactory.get().binaryEncoder(out, null);
       DatumWriter<T> writer = new GenericAvroWriter<>(avroSchema);
       writer.write(datum, encoder);
@@ -73,18 +78,23 @@ public class AvroEncoderUtil {
   public static <T> T decode(byte[] data) throws IOException {
     byte[] buffer4 = new byte[4];
     try (ByteArrayInputStream in = new ByteArrayInputStream(data, 0, data.length)) {
+      // Read the magic bytes
       Preconditions.checkState(in.read(buffer4) == 4, "Size of magic bytes isn't 4.");
-      Preconditions.checkState(Arrays.equals(MAGIC_NUM, buffer4), "Magic bytes mismatched.");
+      Preconditions.checkState(Arrays.equals(MAGIC_BYTES, buffer4), "Magic bytes mismatched.");
 
+      // Read the length of avro schema string.
       Preconditions.checkState(in.read(buffer4) == 4, "Could not read an integer from input stream.");
-      int avroSchemeLength = decodeInt(buffer4);
+      int avroSchemaLength = decodeInt(buffer4);
+      Preconditions.checkState(avroSchemaLength > 0, "Length of avro schema string should be positive");
 
-      byte[] avroSchemaBytes = new byte[avroSchemeLength];
-      Preconditions.checkState(in.read(avroSchemaBytes) == avroSchemeLength,
-          "The length of read bytes is not the expected %s", avroSchemeLength);
+      // Read the avro schema string.
+      byte[] avroSchemaBytes = new byte[avroSchemaLength];
+      Preconditions.checkState(in.read(avroSchemaBytes) == avroSchemaLength,
+          "The length of read bytes is not the expected %s", avroSchemaLength);
       String avroSchemaString = new String(avroSchemaBytes, StandardCharsets.UTF_8);
       Schema avroSchema = new Schema.Parser().parse(avroSchemaString);
 
+      // Decode the datum with the parsed avro schema.
       BinaryDecoder binaryDecoder = DecoderFactory.get().binaryDecoder(in, null);
       DatumReader<T> reader = new GenericAvroReader<>(avroSchema);
       reader.setSchema(avroSchema);
