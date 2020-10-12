@@ -48,7 +48,8 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
   private static final Set<String> PARAMETERS_TO_REMOVE = ImmutableSet
       .of(InputFormatConfig.TABLE_SCHEMA, InputFormatConfig.PARTITION_SPEC, Catalogs.LOCATION, Catalogs.NAME);
   private static final Set<String> PROPERTIES_TO_REMOVE = ImmutableSet
-      .of(InputFormatConfig.EXTERNAL_TABLE_PURGE, hive_metastoreConstants.META_TABLE_STORAGE, "EXTERNAL");
+      .of(InputFormatConfig.EXTERNAL_TABLE_PURGE, hive_metastoreConstants.META_TABLE_STORAGE, "EXTERNAL",
+          "bucketing_version");
 
   private final Configuration conf;
   private Table icebergTable = null;

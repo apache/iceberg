@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -52,6 +53,7 @@ import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.After;
@@ -101,6 +103,10 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   private static final PartitionSpec IDENTITY_SPEC =
       PartitionSpec.builderFor(CUSTOMER_SCHEMA).identity("customer_id").build();
+
+  private static final Set<String> IGNORED_PARAMS =
+      ImmutableSet.of("bucketing_version", StatsSetupConst.ROW_COUNT,
+          StatsSetupConst.RAW_DATA_SIZE, StatsSetupConst.TOTAL_SIZE, StatsSetupConst.NUM_FILES);
 
   // before variables
   protected static TestHiveMetastore metastore;
@@ -265,7 +271,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         metastore.clientPool().run(client -> client.getTable("default", "customers"));
 
     Map<String, String> hmsParams = hmsTable.getParameters();
-    removeStatParams(hmsParams);
+    IGNORED_PARAMS.forEach(hmsParams::remove);
 
     // This is only set for HiveCatalog based tables. Check the value, then remove it so the other checks can be general
     if (Catalogs.hiveCatalog(shell.getHiveConf())) {
@@ -347,7 +353,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         metastore.clientPool().run(client -> client.getTable("default", "customers"));
 
     Map<String, String> hmsParams = hmsTable.getParameters();
-    removeStatParams(hmsParams);
+    IGNORED_PARAMS.forEach(hmsParams::remove);
 
     // Just check that the PartitionSpec is not set in the metadata
     Assert.assertNull(hmsParams.get(InputFormatConfig.PARTITION_SPEC));
@@ -384,7 +390,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         metastore.clientPool().run(client -> client.getTable("default", "customers"));
 
     Map<String, String> hmsParams = hmsTable.getParameters();
-    removeStatParams(hmsParams);
+    IGNORED_PARAMS.forEach(hmsParams::remove);
 
     // Just check that the PartitionSpec is not set in the metadata
     Assert.assertNull(hmsParams.get(InputFormatConfig.PARTITION_SPEC));
@@ -484,7 +490,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
       // In HiveCatalog we just expect an exception since the table is already exists
       AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
-          "Table customers already exists", () -> {
+          "customers already exists", () -> {
             shell.executeQuery("CREATE EXTERNAL TABLE customers " +
                 "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
                 "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" +
@@ -510,7 +516,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
           metastore.clientPool().run(client -> client.getTable("default", "customers"));
 
       Map<String, String> hmsParams = hmsTable.getParameters();
-      removeStatParams(hmsParams);
+      IGNORED_PARAMS.forEach(hmsParams::remove);
 
       Assert.assertEquals(4, hmsParams.size());
       Assert.assertEquals("TRUE", hmsParams.get("EXTERNAL"));
@@ -552,12 +558,5 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   protected String locationForCreateTable(String tempDirName, String tableName) {
     return null;
-  }
-
-  private void removeStatParams(Map<String, String> hmsParams) {
-    hmsParams.remove(StatsSetupConst.ROW_COUNT);
-    hmsParams.remove(StatsSetupConst.RAW_DATA_SIZE);
-    hmsParams.remove(StatsSetupConst.TOTAL_SIZE);
-    hmsParams.remove(StatsSetupConst.NUM_FILES);
   }
 }
