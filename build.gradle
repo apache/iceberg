@@ -470,6 +470,11 @@ project(':iceberg-mr') {
       exclude group: 'org.apache.calcite.avatica'
     }
   }
+
+  test {
+    // testJoinTables / testScanTable
+    maxHeapSize '1500m'
+  }
 }
 
 if (jdkVersion == '8') {
@@ -531,6 +536,11 @@ if (jdkVersion == '8') {
         exclude group: 'org.codehaus.jettison', module: 'jettison'
         exclude group: 'org.apache.calcite.avatica'
       }
+    }
+
+    test {
+      // testJoinTables / testScanTable
+      maxHeapSize '1500m'
     }
   }
 }
