@@ -42,35 +42,35 @@ public class IcebergTableSource implements StreamTableSource<RowData>, Projectab
 
   private final TableLoader loader;
   private final TableSchema schema;
-  private final Map<String, String> options;
+  private final Map<String, String> properties;
   private final int[] projectedFields;
 
-  public IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> options) {
-    this(loader, schema, options, null);
+  public IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> properties) {
+    this(loader, schema, properties, null);
   }
 
-  private IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> options,
+  private IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> properties,
                              int[] projectedFields) {
     this.loader = loader;
     this.schema = schema;
-    this.options = options;
+    this.properties = properties;
     this.projectedFields = projectedFields;
   }
 
   @Override
   public boolean isBounded() {
-    return FlinkSource.isBounded(options);
+    return FlinkSource.isBounded(properties);
   }
 
   @Override
   public TableSource<RowData> projectFields(int[] fields) {
-    return new IcebergTableSource(loader, schema, options, fields);
+    return new IcebergTableSource(loader, schema, properties, fields);
   }
 
   @Override
   public DataStream<RowData> getDataStream(StreamExecutionEnvironment execEnv) {
     return FlinkSource.forRowData().env(execEnv).tableLoader(loader).project(getProjectedSchema())
-        .properties(options).build();
+        .properties(properties).build();
   }
 
   @Override

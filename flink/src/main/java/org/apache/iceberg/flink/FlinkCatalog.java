@@ -245,17 +245,17 @@ public class FlinkCatalog extends AbstractCatalog {
       Set<String> removals = Sets.newHashSet();
 
       try {
-        Map<String, String> oldOptions = asNamespaceCatalog.loadNamespaceMetadata(namespace);
-        Map<String, String> newOptions = mergeComment(newDatabase.getProperties(), newDatabase.getComment());
+        Map<String, String> oldProperties = asNamespaceCatalog.loadNamespaceMetadata(namespace);
+        Map<String, String> newProperties = mergeComment(newDatabase.getProperties(), newDatabase.getComment());
 
-        for (String key : oldOptions.keySet()) {
-          if (!newOptions.containsKey(key)) {
+        for (String key : oldProperties.keySet()) {
+          if (!newProperties.containsKey(key)) {
             removals.add(key);
           }
         }
 
-        for (Map.Entry<String, String> entry : newOptions.entrySet()) {
-          if (!entry.getValue().equals(oldOptions.get(entry.getKey()))) {
+        for (Map.Entry<String, String> entry : newProperties.entrySet()) {
+          if (!entry.getValue().equals(oldProperties.get(entry.getKey()))) {
             updates.put(entry.getKey(), entry.getValue());
           }
         }
@@ -387,7 +387,7 @@ public class FlinkCatalog extends AbstractCatalog {
       throw new UnsupportedOperationException("Altering partition keys is not supported yet.");
     }
 
-    Map<String, String> oldOptions = table.getOptions();
+    Map<String, String> oldProperties = table.getOptions();
     Map<String, String> setProperties = Maps.newHashMap();
 
     String setLocation = null;
@@ -398,7 +398,7 @@ public class FlinkCatalog extends AbstractCatalog {
       String key = entry.getKey();
       String value = entry.getValue();
 
-      if (Objects.equals(value, oldOptions.get(key))) {
+      if (Objects.equals(value, oldProperties.get(key))) {
         continue;
       }
 
@@ -413,7 +413,7 @@ public class FlinkCatalog extends AbstractCatalog {
       }
     }
 
-    oldOptions.keySet().forEach(k -> {
+    oldProperties.keySet().forEach(k -> {
       if (!newTable.getOptions().containsKey(k)) {
         setProperties.put(k, null);
       }
