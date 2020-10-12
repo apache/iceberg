@@ -67,7 +67,7 @@ import org.slf4j.LoggerFactory;
  * <em>Note:</em> It is dangerous to call this action with a short retention interval as it might corrupt
  * the state of the table if another operation is writing at the same time.
  */
-public class RemoveOrphanFilesAction extends BaseAction<List<String>> {
+public class RemoveOrphanFilesAction extends SparkBaseAction<List<String>> {
 
   private static final Logger LOG = LoggerFactory.getLogger(RemoveOrphanFilesAction.class);
   private static final UserDefinedFunction filename = functions.udf((String path) -> {
