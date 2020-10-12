@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +46,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -59,6 +61,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
   private static final long serialVersionUID = 1L;
   private static final long INITIAL_CHECKPOINT_ID = -1L;
+  private static final byte[] EMPTY_MANIFEST_DATA = new byte[0];
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergFilesCommitter.class);
   private static final String FLINK_JOB_ID = "flink.job-id";
@@ -186,13 +189,15 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     NavigableMap<Long, byte[]> pendingManifestMap = manifestsMap.headMap(checkpointId, true);
 
     List<ManifestFile> manifestFiles = Lists.newArrayList();
+    List<DataFile> pendingDataFiles = Lists.newArrayList();
     for (byte[] manifestData : pendingManifestMap.values()) {
+      if (Arrays.equals(EMPTY_MANIFEST_DATA, manifestData)) {
+        // Skip the empty flink manifest.
+        continue;
+      }
+
       ManifestFile manifestFile = ManifestFiles.decode(manifestData);
       manifestFiles.add(manifestFile);
-    }
-
-    List<DataFile> pendingDataFiles = Lists.newArrayList();
-    for (ManifestFile manifestFile : manifestFiles) {
       pendingDataFiles.addAll(FlinkManifest.read(manifestFile, table.io()));
     }
 
@@ -202,11 +207,23 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       append(pendingDataFiles, newFlinkJobId, checkpointId);
     }
 
+    pendingManifestMap.clear();
+
     // Delete the committed manifests and clear the committed data files from dataFilesPerCheckpoint.
     for (ManifestFile manifestFile : manifestFiles) {
-      table.io().deleteFile(manifestFile.path());
+      try {
+        table.io().deleteFile(manifestFile.path());
+      } catch (Exception e) {
+        // The flink manifests cleaning failure shouldn't abort the completed checkpoint.
+        String details = MoreObjects.toStringHelper(this)
+            .add("flinkJobId", newFlinkJobId)
+            .add("checkpointId", checkpointId)
+            .add("manifestPath", manifestFile.path())
+            .toString();
+        LOG.warn("The iceberg transaction has been committed, but we failed to clean the temporary flink manifests: {}",
+            details, e);
+      }
     }
-    pendingManifestMap.clear();
   }
 
   private void replacePartitions(List<DataFile> dataFiles, String newFlinkJobId, long checkpointId) {
@@ -264,6 +281,10 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
    * Write all the complete data files to a newly created manifest file and return the manifest's avro serialized bytes.
    */
   private byte[] writeToManifest(long checkpointId) throws IOException {
+    if (dataFilesOfCurrentCheckpoint.isEmpty()) {
+      return EMPTY_MANIFEST_DATA;
+    }
+
     FlinkManifest flinkManifest = flinkManifestFactory.create(checkpointId);
     ManifestFile manifestFile = flinkManifest.write(dataFilesOfCurrentCheckpoint);
     return ManifestFiles.encode(manifestFile);

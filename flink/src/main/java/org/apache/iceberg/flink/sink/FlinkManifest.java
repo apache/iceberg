@@ -71,7 +71,7 @@ class FlinkManifest {
 
   static class FlinkManifestFactory {
     // Users could define their own flink manifests directory by setting this value in table properties.
-    private static final String FLINK_MANIFEST_LOCATION = "flink.manifests.location";
+    static final String FLINK_MANIFEST_LOCATION = "flink.manifests.location";
 
     private final TableOperations ops;
     private final PartitionSpec spec;

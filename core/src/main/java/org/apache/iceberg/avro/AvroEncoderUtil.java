@@ -44,7 +44,8 @@ public class AvroEncoderUtil {
     LogicalTypes.register(LogicalMap.NAME, schema -> LogicalMap.get());
   }
 
-  private static final byte[] MAGIC_BYTES = new byte[] {'a', 'V', 'R', 'O'};
+  private static final int VERSION = 1;
+  private static final byte[] MAGIC_BYTES = new byte[] {'a', 'V', 'R', VERSION};
 
   private static byte[] encodeInt(int value) {
     return ByteBuffer.allocate(4).putInt(value).array();
