@@ -36,11 +36,7 @@ import com.dremio.nessie.model.Reference;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
@@ -48,21 +44,16 @@ import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
-import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 /**
  * Nessie implementation of Iceberg Catalog.
  */
-public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable, SupportsNamespaces {
+public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable {
 
   public static final String CONF_NESSIE_URL = "nessie.url";
   public static final String CONF_NESSIE_USERNAME = "nessie.username";
@@ -346,79 +337,4 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     return reference.getHash();
   }
 
-  @Override
-  public void createNamespace(Namespace namespace, Map<String, String> metadata) {
-    // no-op
-  }
-
-  @Override
-  public List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException {
-    try {
-      List<Namespace> namespaces = allNamespaces(namespace).stream().distinct().collect(Collectors.toList());
-      if (namespaces.isEmpty()) {
-        throw new NoSuchNamespaceException("No namespace %s", namespace);
-      }
-      return namespaces;
-    } catch (NessieNotFoundException e) {
-      throw new NoSuchNamespaceException(e, "namespace %s not found", namespace);
-    }
-  }
-
-  private List<Namespace> allNamespaces(Namespace namespace) throws NessieNotFoundException {
-    EntriesResponse entries = client.getTreeApi().getEntries(reference.getName());
-    return entries.getEntries()
-        .stream()
-        .map(NessieCatalog::toIdentifier)
-        .map(TableIdentifier::namespace)
-        .filter(Objects::nonNull)
-        .filter(n -> isEqualsOrGreaterThan(namespace, n))
-        .collect(Collectors.toList());
-  }
-
-  private static boolean isEqualsOrGreaterThan(Namespace target, Namespace current) {
-    if (target.levels().length > current.levels().length) {
-      return false;
-    }
-    if (target.levels().length == current.levels().length) {
-      return Objects.deepEquals(target, current);
-    }
-    Namespace subCurrent = Namespace.of(Arrays.copyOf(current.levels(), target.levels().length));
-    return Objects.deepEquals(target, subCurrent);
-  }
-
-  @Override
-  public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
-    listNamespaces(namespace);
-    return ImmutableMap.of();
-  }
-
-  @Override
-  public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
-    try {
-      List<Namespace> namespaces = allNamespaces(namespace);
-      if (namespaces.isEmpty()) {
-        return false;
-      }
-      if (namespaces.size() > 1) {
-        throw new NamespaceNotEmptyException("Namespace %s still has %d entries", namespace, namespaces.size());
-      }
-      return true;
-    } catch (NessieNotFoundException e) {
-      return false;
-    }
-  }
-
-  @Override
-  public boolean setProperties(Namespace namespace, Map<String, String> properties) throws NoSuchNamespaceException {
-    throw new UnsupportedOperationException(
-        "Cannot set properties " + namespace + " : setProperties is not supported");
-
-  }
-
-  @Override
-  public boolean removeProperties(Namespace namespace, Set<String> properties) throws NoSuchNamespaceException {
-    throw new UnsupportedOperationException(
-        "Cannot remove properties " + namespace + " : removeProperties is not supported");
-
-  }
 }

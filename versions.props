@@ -21,7 +21,7 @@ software.amazon.awssdk:* = 2.15.7
 org.scala-lang:scala-library = 2.12.10
 org.projectnessie:nessie-client = 0.1.0
 javax.ws.rs:javax.ws.rs-api = 2.1.1
-io.quarkus:* = 1.8.1.Final
+io.quarkus:* = 1.8.3.Final
 
 # test deps
 junit:junit = 4.12

@@ -135,8 +135,8 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Optional<String> path = options.get("path");
     Preconditions.checkArgument(path.isPresent(), "Cannot open table: path is not set");
 
-    if (nessie(options, conf)) {
-      ParsedTableIdentifier identifier = ParsedTableIdentifier.getParsedTableIdentifier(path, options);
+    if (nessie(options.asMap(), conf)) {
+      ParsedTableIdentifier identifier = ParsedTableIdentifier.getParsedTableIdentifier(path.get(), options.asMap());
       NessieCatalog catalog = new NessieCatalog(conf, identifier.getReference());
       return catalog.loadTable(identifier.getTableIdentifier());
     } else {
@@ -152,7 +152,10 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
   }
 
   private boolean nessie(Map<String, String> options, Configuration conf) {
-    return options.containsKey("nessie.ref") || options.containsKey("nessie.url") || conf.get("nessie.url") != null || conf.get("nessie.ref") != null;
+    return options.containsKey("nessie.ref") ||
+        options.containsKey("nessie.url") ||
+        conf.get("nessie.url") != null ||
+        conf.get("nessie.ref") != null;
   }
 
   private SparkSession lazySparkSession() {

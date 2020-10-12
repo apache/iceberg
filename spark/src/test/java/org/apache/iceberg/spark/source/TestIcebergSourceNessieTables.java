@@ -85,9 +85,9 @@ public abstract class TestIcebergSourceNessieTables extends TestIcebergSourceTab
   }
 
   @SuppressWarnings("RegexpSingleLine")
-  private void setHadoopConfig(String path, String branch) {
+  private void setHadoopConfig(String path, String newBranch) {
     spark.sparkContext().hadoopConfiguration().set("nessie.url", path);
-    spark.sparkContext().hadoopConfiguration().set("nessie.ref", branch);
+    spark.sparkContext().hadoopConfiguration().set("nessie.ref", newBranch);
   }
 
   @SuppressWarnings("RegexpSingleLine")
