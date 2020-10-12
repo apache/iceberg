@@ -484,7 +484,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   @Test
   public void testCreateTableAboveExistingTable() throws TException, IOException, InterruptedException {
     // Create the Iceberg table
-    createIcebergTable("customers", CUSTOMER_SCHEMA, Collections.emptyList());
+    createIcebergTable("customers", CUSTOMER_SCHEMA, FileFormat.PARQUET, Collections.emptyList());
 
     if (Catalogs.hiveCatalog(shell.getHiveConf())) {
 
