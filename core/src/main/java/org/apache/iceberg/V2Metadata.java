@@ -58,8 +58,9 @@ class V2Metadata {
    * This is used to maintain compatibility with v2 by writing manifest list files with the old schema, instead of
    * writing a sequence number into metadata files in v2 tables.
    */
-  static class IndexedManifestFile implements ManifestFile, Record {
-
+  static class IndexedManifestFile implements ManifestFile, Record, IndexedRecord {
+    private static final org.apache.avro.Schema AVRO_SCHEMA =
+        AvroSchemaUtil.convert(MANIFEST_LIST_SCHEMA, "manifest_file");
     private final long commitSnapshotId;
     private final long sequenceNumber;
     private ManifestFile wrapped = null;
@@ -79,6 +80,16 @@ class V2Metadata {
     public ManifestFile wrap(ManifestFile file) {
       this.wrapped = file;
       return this;
+    }
+
+    @Override
+    public org.apache.avro.Schema getSchema() {
+      return AVRO_SCHEMA;
+    }
+
+    @Override
+    public void put(int i, Object v) {
+      throw new UnsupportedOperationException("Cannot read using IndexedManifestFile");
     }
 
     @Override

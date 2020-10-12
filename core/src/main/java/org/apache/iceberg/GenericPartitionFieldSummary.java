@@ -22,7 +22,6 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.Schema;
@@ -31,6 +30,7 @@ import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 
@@ -58,7 +58,7 @@ public class GenericPartitionFieldSummary
         .asStructType()
         .fields();
     List<Types.NestedField> allFields = PartitionFieldSummary.getType().fields();
-    this.nameToProjectedPos = new HashMap<>();
+    this.nameToProjectedPos = Maps.newHashMap();
     this.fromProjectionPos = new int[fields.size()];
     for (int i = 0; i < fromProjectionPos.length; i += 1) {
       boolean found = false;

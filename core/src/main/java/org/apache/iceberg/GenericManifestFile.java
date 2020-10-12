@@ -21,7 +21,6 @@ package org.apache.iceberg;
 
 import java.io.Serializable;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -33,6 +32,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 
 public class GenericManifestFile
@@ -74,7 +74,7 @@ public class GenericManifestFile
     List<Types.NestedField> allFields = ManifestFile.schema().asStruct().fields();
 
     this.fromProjectionPos = new int[fields.size()];
-    this.nameToProjectedPos = new HashMap<>();
+    this.nameToProjectedPos = Maps.newHashMap();
     for (int i = 0; i < fromProjectionPos.length; i += 1) {
       boolean found = false;
       for (int j = 0; j < allFields.size(); j += 1) {
@@ -387,7 +387,6 @@ public class GenericManifestFile
     int pos = nameToProjectedPos.get(name);
     set(pos, value);
   }
-
 
   @Override
   public boolean equals(Object other) {
