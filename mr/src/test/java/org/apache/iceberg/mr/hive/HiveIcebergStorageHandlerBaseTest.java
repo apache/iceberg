@@ -170,6 +170,23 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     testJoinTables(FileFormat.ORC);
   }
 
+  // AVRO
+
+  @Test
+  public void testScanEmptyTableAvro() throws IOException {
+    testScanEmptyTable(FileFormat.AVRO);
+  }
+
+  @Test
+  public void testScanTableAvro() throws IOException {
+    testScanTable(FileFormat.AVRO);
+  }
+
+  @Test
+  public void testJoinTablesAvro() throws IOException {
+    testJoinTables(FileFormat.AVRO);
+  }
+
   public void testScanEmptyTable(FileFormat format) throws IOException {
     Schema emptySchema = new Schema(required(1, "empty", Types.StringType.get()));
     createTable("empty", emptySchema, format, ImmutableList.of());
