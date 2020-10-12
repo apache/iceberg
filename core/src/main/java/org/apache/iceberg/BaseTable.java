@@ -125,6 +125,11 @@ public class BaseTable implements Table, HasTableOperations {
   }
 
   @Override
+  public ReplaceSortOrder replaceSortOrder() {
+    return new ReplaceOrder(ops);
+  }
+
+  @Override
   public UpdateLocation updateLocation() {
     return new SetLocation(ops);
   }

@@ -146,6 +146,13 @@ public interface Table {
   UpdateProperties updateProperties();
 
   /**
+   * Create a new {@link ReplaceSortOrder} to set the table sort order and commit the change.
+   *
+   * @return a new {@link ReplaceSortOrder}
+   */
+  ReplaceSortOrder replaceSortOrder();
+
+  /**
    * Create a new {@link UpdateLocation} to update table location and commit the changes.
    *
    * @return a new {@link UpdateLocation}

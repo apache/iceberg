@@ -113,6 +113,11 @@ abstract class BaseMetadataTable implements Table {
   }
 
   @Override
+  public ReplaceSortOrder replaceSortOrder() {
+    throw new UnsupportedOperationException("Cannot update the sort order of a metadata table");
+  }
+
+  @Override
   public UpdateLocation updateLocation() {
     throw new UnsupportedOperationException("Cannot update the location of a metadata table");
   }

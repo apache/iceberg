@@ -184,7 +184,7 @@ public class SortOrder implements Serializable {
    * <p>
    * Call {@link #builderFor(Schema)} to create a new builder.
    */
-  public static class Builder {
+  public static class Builder implements SortOrderBuilder<Builder> {
     private final Schema schema;
     private final List<SortField> fields = Lists.newArrayList();
     // default ID to 1 as 0 is reserved for unsorted order
@@ -195,34 +195,24 @@ public class SortOrder implements Serializable {
       this.schema = schema;
     }
 
-    public Builder asc(String name) {
-      return asc(name, NullOrder.NULLS_FIRST);
-    }
-
-    public Builder asc(String name, NullOrder nullOrder) {
-      return addSortField(Expressions.ref(name), SortDirection.ASC, nullOrder);
-    }
-
-    public Builder asc(Term term) {
-      return asc(term, NullOrder.NULLS_FIRST);
-    }
-
+    /**
+     * Add an expression term to the sort, ascending with the given null order.
+     *
+     * @param term an expression term
+     * @param nullOrder a null order (first or last)
+     * @return this for method chaining
+     */
     public Builder asc(Term term, NullOrder nullOrder) {
       return addSortField(term, SortDirection.ASC, nullOrder);
     }
 
-    public Builder desc(String name) {
-      return desc(name, NullOrder.NULLS_LAST);
-    }
-
-    public Builder desc(String name, NullOrder nullOrder) {
-      return addSortField(Expressions.ref(name), SortDirection.DESC, nullOrder);
-    }
-
-    public Builder desc(Term term) {
-      return desc(term, NullOrder.NULLS_LAST);
-    }
-
+    /**
+     * Add an expression term to the sort, ascending with the given null order.
+     *
+     * @param term an expression term
+     * @param nullOrder a null order (first or last)
+     * @return this for method chaining
+     */
     public Builder desc(Term term, NullOrder nullOrder) {
       return addSortField(term, SortDirection.DESC, nullOrder);
     }

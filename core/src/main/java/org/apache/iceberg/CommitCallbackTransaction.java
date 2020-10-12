@@ -48,6 +48,11 @@ class CommitCallbackTransaction implements Transaction {
   }
 
   @Override
+  public ReplaceSortOrder replaceSortOrder() {
+    return wrapped.replaceSortOrder();
+  }
+
+  @Override
   public UpdateLocation updateLocation() {
     return wrapped.updateLocation();
   }
