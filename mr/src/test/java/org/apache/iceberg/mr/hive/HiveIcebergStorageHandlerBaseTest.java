@@ -125,8 +125,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   @Before
   public void before() throws IOException {
     String metastoreUris = metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREURIS);
-    // in Hive3, setting this as a system prop ensures that it will be picked up whenever a new HiveConf is created
-    System.setProperty(HiveConf.ConfVars.METASTOREURIS.varname, metastoreUris);
 
     testTables = testTables(metastore.hiveConf(), temp);
 
@@ -241,7 +239,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   }
 
   @Test
-  public void testCreateDropTable() throws TException, IOException {
+  public void testCreateDropTable() throws TException, IOException, InterruptedException {
     // We need the location for HadoopTable based tests only
     String location = locationForCreateTable(temp.getRoot().getPath(), "customers");
     shell.executeStatement("CREATE EXTERNAL TABLE customers " +
@@ -263,7 +261,8 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Assert.assertEquals(IDENTITY_SPEC, icebergTable.spec());
 
     // Check the HMS table parameters
-    org.apache.hadoop.hive.metastore.api.Table hmsTable = metastore.client().getTable("default", "customers");
+    org.apache.hadoop.hive.metastore.api.Table hmsTable =
+        metastore.clientPool().run(client -> client.getTable("default", "customers"));
 
     Map<String, String> hmsParams = hmsTable.getParameters();
     removeStatParams(hmsParams);
@@ -304,7 +303,8 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       Assert.assertEquals(expectedIcebergProperties, icebergTable.properties());
 
       // Check the HMS table parameters
-      Path hmsTableLocation = new Path(metastore.client().getTable("default", "customers").getSd().getLocation());
+      hmsTable = metastore.clientPool().run(client -> client.getTable("default", "customers"));
+      Path hmsTableLocation = new Path(hmsTable.getSd().getLocation());
 
       // Drop the table
       shell.executeStatement("DROP TABLE customers");
@@ -324,7 +324,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   }
 
   @Test
-  public void testCreateTableWithoutSpec() throws TException {
+  public void testCreateTableWithoutSpec() throws TException, InterruptedException {
     // We need the location for HadoopTable based tests only
     String location = locationForCreateTable(temp.getRoot().getPath(), "customers");
     shell.executeStatement("CREATE EXTERNAL TABLE customers " +
@@ -343,7 +343,8 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Assert.assertEquals(SPEC, icebergTable.spec());
 
     // Check the HMS table parameters
-    org.apache.hadoop.hive.metastore.api.Table hmsTable = metastore.client().getTable("default", "customers");
+    org.apache.hadoop.hive.metastore.api.Table hmsTable =
+        metastore.clientPool().run(client -> client.getTable("default", "customers"));
 
     Map<String, String> hmsParams = hmsTable.getParameters();
     removeStatParams(hmsParams);
@@ -359,7 +360,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   }
 
   @Test
-  public void testCreateTableWithUnpartitionedSpec() throws TException {
+  public void testCreateTableWithUnpartitionedSpec() throws TException, InterruptedException {
     // We need the location for HadoopTable based tests only
     String location = locationForCreateTable(temp.getRoot().getPath(), "customers");
     shell.executeStatement("CREATE EXTERNAL TABLE customers " +
@@ -379,7 +380,8 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Assert.assertEquals(SPEC, icebergTable.spec());
 
     // Check the HMS table parameters
-    org.apache.hadoop.hive.metastore.api.Table hmsTable = metastore.client().getTable("default", "customers");
+    org.apache.hadoop.hive.metastore.api.Table hmsTable =
+        metastore.clientPool().run(client -> client.getTable("default", "customers"));
 
     Map<String, String> hmsParams = hmsTable.getParameters();
     removeStatParams(hmsParams);
@@ -394,7 +396,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   }
 
   @Test
-  public void testDeleteBackingTable() throws TException, IOException {
+  public void testDeleteBackingTable() throws TException, IOException, InterruptedException {
     // We need the location for HadoopTable based tests only
     String location = locationForCreateTable(temp.getRoot().getPath(), "customers");
     shell.executeStatement("CREATE EXTERNAL TABLE customers " +
@@ -416,7 +418,9 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       Catalogs.loadTable(shell.getHiveConf(), properties);
     } else {
       // Check the HMS table parameters
-      Path hmsTableLocation = new Path(metastore.client().getTable("default", "customers").getSd().getLocation());
+      org.apache.hadoop.hive.metastore.api.Table hmsTable =
+          metastore.clientPool().run(client -> client.getTable("default", "customers"));
+      Path hmsTableLocation = new Path(hmsTable.getSd().getLocation());
 
       // Drop the table
       shell.executeStatement("DROP TABLE customers");
@@ -472,7 +476,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   }
 
   @Test
-  public void testCreateTableAboveExistingTable() throws TException, IOException {
+  public void testCreateTableAboveExistingTable() throws TException, IOException, InterruptedException {
     // Create the Iceberg table
     createIcebergTable("customers", CUSTOMER_SCHEMA, Collections.emptyList());
 
@@ -502,7 +506,8 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       }
 
       // Check the HMS table parameters
-      org.apache.hadoop.hive.metastore.api.Table hmsTable = metastore.client().getTable("default", "customers");
+      org.apache.hadoop.hive.metastore.api.Table hmsTable =
+          metastore.clientPool().run(client -> client.getTable("default", "customers"));
 
       Map<String, String> hmsParams = hmsTable.getParameters();
       removeStatParams(hmsParams);

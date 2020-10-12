@@ -35,12 +35,9 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStore;
-import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.IHMSHandler;
-import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.RetryingHMSHandler;
 import org.apache.hadoop.hive.metastore.TSetIpAddressProcessor;
-import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.hadoop.Util;
@@ -75,7 +72,7 @@ public class TestHiveMetastore {
   private ExecutorService executorService;
   private TServer server;
   private HiveMetaStore.HMSHandler baseHandler;
-  private IMetaStoreClient client = null;
+  private HiveClientPool clientPool;
 
   public void start() {
     try {
@@ -90,15 +87,19 @@ public class TestHiveMetastore {
       this.server = newThriftServer(socket, hiveConf);
       this.executorService = Executors.newSingleThreadExecutor();
       this.executorService.submit(() -> server.serve());
-      this.client = new HiveMetaStoreClient(hiveConf);
+
+      // in Hive3, setting this as a system prop ensures that it will be picked up whenever a new HiveConf is created
+      System.setProperty(HiveConf.ConfVars.METASTOREURIS.varname, hiveConf.getVar(HiveConf.ConfVars.METASTOREURIS));
+
+      this.clientPool = new HiveClientPool(1, hiveConf);
     } catch (Exception e) {
       throw new RuntimeException("Cannot start TestHiveMetastore", e);
     }
   }
 
   public void stop() {
-    if (client != null) {
-      client.close();
+    if (clientPool != null) {
+      clientPool.close();
     }
     if (server != null) {
       server.stop();
@@ -118,8 +119,8 @@ public class TestHiveMetastore {
     return hiveConf;
   }
 
-  public IMetaStoreClient client() throws MetaException {
-    return client;
+  public HiveClientPool clientPool() {
+    return clientPool;
   }
 
   public String getDatabasePath(String dbName) {
@@ -128,16 +129,23 @@ public class TestHiveMetastore {
   }
 
   public void reset() throws Exception {
-    for (String dbName : client.getAllDatabases()) {
-      for (String tblName : client.getAllTables(dbName)) {
-        client.dropTable(dbName, tblName, true, true, true);
+    for (String dbName : clientPool.run(client -> client.getAllDatabases())) {
+      for (String tblName : clientPool.run(client -> client.getAllTables(dbName))) {
+        clientPool.run(client -> {
+          client.dropTable(dbName, tblName, true, true, true);
+          return null;
+        });
       }
 
       if (!DEFAULT_DATABASE_NAME.equals(dbName)) {
         // Drop cascade, functions dropped by cascade
-        client.dropDatabase(dbName, true, true, true);
+        clientPool.run(client -> {
+          client.dropDatabase(dbName, true, true, true);
+          return null;
+        });
       }
     }
+
     Path warehouseRoot = new Path(hiveLocalDir.getAbsolutePath());
     FileSystem fs = Util.getFs(warehouseRoot, hiveConf);
     for (FileStatus fileStatus : fs.listStatus(warehouseRoot)) {
