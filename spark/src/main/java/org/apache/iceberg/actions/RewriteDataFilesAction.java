@@ -48,7 +48,7 @@ public class RewriteDataFilesAction
   }
 
   @Override
-  protected FileIO fileIO() {
+  protected FileIO setFileIO() {
     return SparkUtil.serializableFileIO(table());
   }
 

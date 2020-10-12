@@ -92,7 +92,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
         TableProperties.SPLIT_OPEN_FILE_COST,
         TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
 
-    this.fileIO = fileIO();
+    this.fileIO = setFileIO();
     this.encryptionManager = table.encryption();
   }
 
@@ -107,6 +107,10 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
 
   protected boolean caseSensitive() {
     return caseSensitive;
+  }
+
+  protected FileIO fileIO() {
+    return fileIO;
   }
 
   /**
@@ -268,7 +272,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     }
   }
 
-  protected abstract FileIO fileIO();
+  protected abstract FileIO setFileIO();
 
   protected abstract List<DataFile> rewriteDataForTasks(List<CombinedScanTask> combinedScanTask);
 }
