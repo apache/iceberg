@@ -102,11 +102,11 @@ public abstract class BaseTestIceberg {
     }
 
     hadoopConfig = new Configuration();
-    hadoopConfig.set(NessieCatalog.CONF_NESSIE_URL, path);
-    hadoopConfig.set(NessieCatalog.CONF_NESSIE_USERNAME, username);
-    hadoopConfig.set(NessieCatalog.CONF_NESSIE_PASSWORD, password);
-    hadoopConfig.set(NessieCatalog.CONF_NESSIE_REF, branch);
-    hadoopConfig.set(NessieCatalog.CONF_NESSIE_AUTH_TYPE, "NONE");
+    hadoopConfig.set(NessieClient.CONF_NESSIE_URL, path);
+    hadoopConfig.set(NessieClient.CONF_NESSIE_USERNAME, username);
+    hadoopConfig.set(NessieClient.CONF_NESSIE_PASSWORD, password);
+    hadoopConfig.set(NessieClient.CONF_NESSIE_REF, branch);
+    hadoopConfig.set(NessieClient.CONF_NESSIE_AUTH_TYPE, "NONE");
     hadoopConfig.set("fs.defaultFS", tempDir.toURI().toString());
     hadoopConfig.set("fs.file.impl",
                      org.apache.hadoop.fs.LocalFileSystem.class.getName()

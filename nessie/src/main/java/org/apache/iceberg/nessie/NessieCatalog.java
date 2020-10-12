@@ -21,7 +21,6 @@ package org.apache.iceberg.nessie;
 
 import com.dremio.nessie.api.TreeApi;
 import com.dremio.nessie.client.NessieClient;
-import com.dremio.nessie.client.NessieClient.AuthType;
 import com.dremio.nessie.error.NessieConflictException;
 import com.dremio.nessie.error.NessieNotFoundException;
 import com.dremio.nessie.model.Contents;
@@ -54,13 +53,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
  * Nessie implementation of Iceberg Catalog.
  */
 public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable {
-
-  public static final String CONF_NESSIE_URL = "nessie.url";
-  public static final String CONF_NESSIE_USERNAME = "nessie.username";
-  public static final String CONF_NESSIE_PASSWORD = "nessie.password";
-  public static final String CONF_NESSIE_AUTH_TYPE = "nessie.auth_type";
-  public static final String NESSIE_AUTH_TYPE_DEFAULT = "BASIC";
-  public static final String CONF_NESSIE_REF = "nessie.ref";
 
   private static final Joiner SLASH = Joiner.on("/");
   private static final String ICEBERG_HADOOP_WAREHOUSE_BASE = "iceberg/warehouse";
@@ -104,16 +96,17 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   public NessieCatalog(String name, Configuration config, String ref, String url) {
     this.config = config;
     this.name = name;
-    String path = url == null ? config.get(CONF_NESSIE_URL) : url;
-    String username = config.get(CONF_NESSIE_USERNAME);
-    String password = config.get(CONF_NESSIE_PASSWORD);
-    String authTypeStr = config.get(CONF_NESSIE_AUTH_TYPE, NESSIE_AUTH_TYPE_DEFAULT);
-    AuthType authType = AuthType.valueOf(authTypeStr);
-    this.client = new NessieClient(authType, path, username, password);
+
+    this.client = NessieClient.withConfig(s -> {
+      if (s.equals(NessieClient.CONF_NESSIE_URL)) {
+        return url == null ? config.get(s) : url;
+      }
+      return config.get(s);
+    });
 
     warehouseLocation = getWarehouseLocation();
 
-    final String requestedRef = ref != null ? ref : config.get(CONF_NESSIE_REF);
+    final String requestedRef = ref != null ? ref : config.get(NessieClient.CONF_NESSIE_REF);
     this.reference = get(requestedRef);
   }
 
@@ -145,12 +138,12 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     } catch (NessieNotFoundException ex) {
       if (requestedRef != null) {
         throw new IllegalArgumentException(String.format("Nessie ref '%s' provided via %s does not exist. " +
-          "This ref must exist before creating a NessieCatalog.", requestedRef, CONF_NESSIE_REF), ex);
+          "This ref must exist before creating a NessieCatalog.", requestedRef, NessieClient.CONF_NESSIE_REF), ex);
       }
 
       throw new IllegalArgumentException(String.format("Nessie does not have an existing default branch." +
         "Either configure an alternative ref via %s or create the default branch on the server.",
-          CONF_NESSIE_REF), ex);
+          NessieClient.CONF_NESSIE_REF), ex);
     }
   }
 

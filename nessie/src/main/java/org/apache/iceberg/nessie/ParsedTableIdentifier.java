@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.nessie;
 
+import com.dremio.nessie.client.NessieClient;
 import java.time.Instant;
 import java.util.Map;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -80,7 +81,7 @@ public class ParsedTableIdentifier {
     }
 
     TableIdentifier identifier = TableIdentifier.parse(path);
-    String reference = properties.get(NessieCatalog.CONF_NESSIE_REF);
+    String reference = properties.get(NessieClient.CONF_NESSIE_REF);
     return new ParsedTableIdentifier(identifier, null, reference);
   }
 

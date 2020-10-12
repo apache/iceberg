@@ -19,12 +19,11 @@
 
 package org.apache.iceberg.nessie;
 
+import com.dremio.nessie.client.NessieClient;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.Assert;
 import org.junit.Test;
-
-import static org.apache.iceberg.nessie.NessieCatalog.CONF_NESSIE_REF;
 
 public class TestParsedTableIdentifier {
 
@@ -75,7 +74,7 @@ public class TestParsedTableIdentifier {
   public void branchOnlyInProps() {
     String path = "foo";
     Map<String, String> map = new HashMap<>();
-    map.put(CONF_NESSIE_REF, "bar");
+    map.put(NessieClient.CONF_NESSIE_REF, "bar");
     ParsedTableIdentifier pti = ParsedTableIdentifier.getParsedTableIdentifier(path, map);
     Assert.assertEquals("foo", pti.getTableIdentifier().name());
     Assert.assertEquals("bar", pti.getReference());

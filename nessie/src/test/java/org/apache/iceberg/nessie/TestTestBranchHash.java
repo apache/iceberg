@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.nessie;
 
+import com.dremio.nessie.client.NessieClient;
 import com.dremio.nessie.error.NessieConflictException;
 import com.dremio.nessie.error.NessieNotFoundException;
 import org.apache.iceberg.Table;
@@ -43,7 +44,7 @@ public class TestTestBranchHash extends BaseTestIceberg {
     catalog.refresh();
     createBranch("test", catalog.getHash());
 
-    hadoopConfig.set(NessieCatalog.CONF_NESSIE_REF, "test");
+    hadoopConfig.set(NessieClient.CONF_NESSIE_REF, "test");
 
     NessieCatalog newCatalog = new NessieCatalog(hadoopConfig);
     String initialMetadataLocation = getContent(newCatalog, foobar);
