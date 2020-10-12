@@ -21,16 +21,8 @@ package org.apache.iceberg.flink;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
-import java.util.stream.IntStream;
-import org.apache.flink.table.api.EnvironmentSettings;
-import org.apache.flink.table.api.TableEnvironment;
-import org.apache.flink.table.api.TableResult;
-import org.apache.flink.types.Row;
 import org.apache.flink.util.ArrayUtils;
-import org.apache.flink.util.CloseableIterator;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -76,8 +68,6 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
     );
   }
 
-  private volatile TableEnvironment tEnv = null;
-
   protected final String catalogName;
   protected final String[] baseNamespace;
   protected final Catalog validationCatalog;
@@ -99,7 +89,7 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
     Map<String, String> config = Maps.newHashMap();
     config.put("type", "iceberg");
     config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, isHadoopCatalog ? "hadoop" : "hive");
-    config.put(FlinkCatalogFactory.HADOOP_WAREHOUSE_LOCATION, "file:" + warehouse);
+    config.put(FlinkCatalogFactory.WAREHOUSE_LOCATION, "file:" + warehouse);
     if (baseNamespace.length > 0) {
       config.put(FlinkCatalogFactory.BASE_NAMESPACE, Joiner.on(".").join(baseNamespace));
     }
@@ -116,38 +106,6 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
         flinkCatalogs.computeIfAbsent(catalogName, k -> factory.createCatalog(k, config)));
 
     this.flinkDatabase = catalogName + "." + DATABASE;
-    this.icebergNamespace = Namespace.of(ArrayUtils.concat(baseNamespace, new String[] { DATABASE }));
-  }
-
-  protected TableEnvironment getTableEnv() {
-    if (tEnv == null) {
-      synchronized (this) {
-        if (tEnv == null) {
-          this.tEnv = TableEnvironment.create(EnvironmentSettings
-              .newInstance()
-              .useBlinkPlanner()
-              .inBatchMode().build());
-        }
-      }
-    }
-    return tEnv;
-  }
-
-  public List<Object[]> sql(String query, Object... args) {
-    TableResult tableResult = getTableEnv().executeSql(String.format(query, args));
-    tableResult.getJobClient().ifPresent(c -> {
-      try {
-        c.getJobExecutionResult(Thread.currentThread().getContextClassLoader()).get();
-      } catch (InterruptedException | ExecutionException e) {
-        throw new RuntimeException(e);
-      }
-    });
-    CloseableIterator<Row> iter = tableResult.collect();
-    List<Object[]> results = Lists.newArrayList();
-    while (iter.hasNext()) {
-      Row row = iter.next();
-      results.add(IntStream.range(0, row.getArity()).mapToObj(row::getField).toArray(Object[]::new));
-    }
-    return results;
+    this.icebergNamespace = Namespace.of(ArrayUtils.concat(baseNamespace, new String[] {DATABASE}));
   }
 }

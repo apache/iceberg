@@ -19,12 +19,21 @@
 
 package org.apache.iceberg.flink;
 
+import java.util.List;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.IntStream;
+import org.apache.flink.table.api.EnvironmentSettings;
+import org.apache.flink.table.api.TableEnvironment;
+import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.test.util.AbstractTestBase;
+import org.apache.flink.types.Row;
+import org.apache.flink.util.CloseableIterator;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -35,6 +44,8 @@ public abstract class FlinkTestBase extends AbstractTestBase {
   protected static HiveConf hiveConf = null;
   protected static HiveCatalog catalog = null;
   protected static ConcurrentMap<String, Catalog> flinkCatalogs;
+
+  private volatile TableEnvironment tEnv = null;
 
   @BeforeClass
   public static void startMetastore() {
@@ -52,5 +63,37 @@ public abstract class FlinkTestBase extends AbstractTestBase {
     FlinkTestBase.catalog = null;
     flinkCatalogs.values().forEach(Catalog::close);
     flinkCatalogs.clear();
+  }
+
+  protected TableEnvironment getTableEnv() {
+    if (tEnv == null) {
+      synchronized (this) {
+        if (tEnv == null) {
+          this.tEnv = TableEnvironment.create(EnvironmentSettings
+              .newInstance()
+              .useBlinkPlanner()
+              .inBatchMode().build());
+        }
+      }
+    }
+    return tEnv;
+  }
+
+  List<Object[]> sql(String query, Object... args) {
+    TableResult tableResult = getTableEnv().executeSql(String.format(query, args));
+    tableResult.getJobClient().ifPresent(c -> {
+      try {
+        c.getJobExecutionResult(Thread.currentThread().getContextClassLoader()).get();
+      } catch (InterruptedException | ExecutionException e) {
+        throw new RuntimeException(e);
+      }
+    });
+    CloseableIterator<Row> iter = tableResult.collect();
+    List<Object[]> results = Lists.newArrayList();
+    while (iter.hasNext()) {
+      Row row = iter.next();
+      results.add(IntStream.range(0, row.getArity()).mapToObj(row::getField).toArray(Object[]::new));
+    }
+    return results;
   }
 }
