@@ -46,7 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
  * </ul>
  * <p>
  * To use a custom catalog that is not a Hive or Hadoop catalog, extend this class and override
- * {@link #createCatalogLoader(String, Configuration, Map)}.
+ * {@link #createCatalogLoader(String, Map, Configuration)}.
  */
 public class FlinkCatalogFactory implements CatalogFactory {
 
@@ -63,20 +63,20 @@ public class FlinkCatalogFactory implements CatalogFactory {
    * Create an Iceberg {@link org.apache.iceberg.catalog.Catalog} loader to be used by this Flink catalog adapter.
    *
    * @param name       Flink's catalog name
+   * @param properties Flink's catalog properties
    * @param hadoopConf Hadoop configuration for catalog
-   * @param options    Flink's catalog options
    * @return an Iceberg catalog loader
    */
-  protected CatalogLoader createCatalogLoader(String name, Configuration hadoopConf, Map<String, String> options) {
-    String catalogType = options.getOrDefault(ICEBERG_CATALOG_TYPE, "hive");
+  protected CatalogLoader createCatalogLoader(String name, Map<String, String> properties, Configuration hadoopConf) {
+    String catalogType = properties.getOrDefault(ICEBERG_CATALOG_TYPE, "hive");
     switch (catalogType) {
       case "hive":
-        int clientPoolSize = Integer.parseInt(options.getOrDefault(HIVE_CLIENT_POOL_SIZE, "2"));
-        String uri = options.get(HIVE_URI);
+        int clientPoolSize = Integer.parseInt(properties.getOrDefault(HIVE_CLIENT_POOL_SIZE, "2"));
+        String uri = properties.get(HIVE_URI);
         return CatalogLoader.hive(name, hadoopConf, uri, clientPoolSize);
 
       case "hadoop":
-        String warehouseLocation = options.get(HADOOP_WAREHOUSE_LOCATION);
+        String warehouseLocation = properties.get(HADOOP_WAREHOUSE_LOCATION);
         return CatalogLoader.hadoop(name, hadoopConf, warehouseLocation);
 
       default:
@@ -110,7 +110,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
   }
 
   protected Catalog createCatalog(String name, Map<String, String> properties, Configuration hadoopConf) {
-    CatalogLoader catalogLoader = createCatalogLoader(name, hadoopConf, properties);
+    CatalogLoader catalogLoader = createCatalogLoader(name, properties, hadoopConf);
     String defaultDatabase = properties.getOrDefault(DEFAULT_DATABASE, "default");
     String[] baseNamespace = properties.containsKey(BASE_NAMESPACE) ?
         Splitter.on('.').splitToList(properties.get(BASE_NAMESPACE)).toArray(new String[0]) :
