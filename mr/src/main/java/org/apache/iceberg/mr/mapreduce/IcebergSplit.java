@@ -74,6 +74,8 @@ public class IcebergSplit extends InputSplit implements org.apache.hadoop.mapred
 
   @Override
   public String[] getLocations() {
+    // The implementation of getLocations() is only meant to be used during split computation
+    // getLocations() won't be accurate when called on worker nodes and will always return "*"
     if (locations == null && conf != null) {
       boolean localityPreferred = conf.getBoolean(InputFormatConfig.LOCALITY, false);
       locations = localityPreferred ? Util.blockLocations(task, conf) : ANYWHERE;
