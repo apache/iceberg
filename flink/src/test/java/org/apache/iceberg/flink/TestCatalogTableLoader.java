@@ -63,20 +63,34 @@ public class TestCatalogTableLoader extends FlinkTestBase {
   @Test
   public void testHadoopCatalogLoader() throws IOException, ClassNotFoundException {
     CatalogLoader loader = CatalogLoader.hadoop("my_catalog", hiveConf, "file:" + warehouse);
-    validateHadoopConf(javaSerAndDeSer(loader).loadCatalog().createTable(IDENTIFIER, SCHEMA));
+    validateCatalogLoader(loader);
   }
 
   @Test
   public void testHiveCatalogLoader() throws IOException, ClassNotFoundException {
     CatalogLoader loader = CatalogLoader.hive("my_catalog", hiveConf, null, 2);
-    validateHadoopConf(javaSerAndDeSer(loader).loadCatalog().createTable(IDENTIFIER, SCHEMA));
+    validateCatalogLoader(loader);
   }
 
   @Test
   public void testHadoopTableLoader() throws IOException, ClassNotFoundException {
     String location = "file:" + warehouse + "/my_table";
     new HadoopTables(hiveConf).create(SCHEMA, location);
-    TableLoader loader = TableLoader.fromHadoopTable(location, hiveConf);
+    validateTableLoader(TableLoader.fromHadoopTable(location, hiveConf));
+  }
+
+  @Test
+  public void testHiveCatalogTableLoader() throws IOException, ClassNotFoundException {
+    CatalogLoader catalogLoader = CatalogLoader.hive("my_catalog", hiveConf, null, 2);
+    validateTableLoader(TableLoader.fromCatalog(catalogLoader, IDENTIFIER));
+  }
+
+  private static void validateCatalogLoader(CatalogLoader loader) throws IOException, ClassNotFoundException {
+    Table table = javaSerAndDeSer(loader).loadCatalog().createTable(IDENTIFIER, SCHEMA);
+    validateHadoopConf(table);
+  }
+
+  private static void validateTableLoader(TableLoader loader) throws IOException, ClassNotFoundException {
     TableLoader copied = javaSerAndDeSer(loader);
     copied.open();
     try {
@@ -86,7 +100,7 @@ public class TestCatalogTableLoader extends FlinkTestBase {
     }
   }
 
-  static void validateHadoopConf(Table table) {
+  private static void validateHadoopConf(Table table) {
     FileIO io = table.io();
     Assert.assertTrue("FileIO should be a HadoopFileIO", io instanceof HadoopFileIO);
     HadoopFileIO hadoopIO = (HadoopFileIO) io;
@@ -94,7 +108,7 @@ public class TestCatalogTableLoader extends FlinkTestBase {
   }
 
   @SuppressWarnings("unchecked")
-  static <T> T javaSerAndDeSer(T object) throws IOException, ClassNotFoundException {
+  private static <T> T javaSerAndDeSer(T object) throws IOException, ClassNotFoundException {
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
     try (ObjectOutputStream out = new ObjectOutputStream(bytes)) {
       out.writeObject(object);
