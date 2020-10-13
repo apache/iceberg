@@ -38,8 +38,8 @@ public interface CatalogLoader extends Serializable {
     return new HadoopCatalogLoader(name, hadoopConf, warehouseLocation);
   }
 
-  static CatalogLoader hive(String name, Configuration hadoopConf, String uri, int clientPoolSize) {
-    return new HiveCatalogLoader(name, hadoopConf, uri, clientPoolSize);
+  static CatalogLoader hive(String name, Configuration hadoopConf, String uri, String warehouse, int clientPoolSize) {
+    return new HiveCatalogLoader(name, hadoopConf, uri, warehouse, clientPoolSize);
   }
 
   class HadoopCatalogLoader implements CatalogLoader {
@@ -71,18 +71,21 @@ public interface CatalogLoader extends Serializable {
     private final String catalogName;
     private final SerializableConfiguration hadoopConf;
     private final String uri;
+    private final String warehouse;
     private final int clientPoolSize;
 
-    private HiveCatalogLoader(String catalogName, Configuration conf, String uri, int clientPoolSize) {
+    private HiveCatalogLoader(String catalogName, Configuration conf, String uri, String warehouse,
+                              int clientPoolSize) {
       this.catalogName = catalogName;
       this.hadoopConf = new SerializableConfiguration(conf);
       this.uri = uri;
+      this.warehouse = warehouse;
       this.clientPoolSize = clientPoolSize;
     }
 
     @Override
     public Catalog loadCatalog() {
-      return new HiveCatalog(catalogName, uri, clientPoolSize, hadoopConf.get());
+      return new HiveCatalog(catalogName, uri, warehouse, clientPoolSize, hadoopConf.get());
     }
 
     @Override
@@ -90,6 +93,7 @@ public interface CatalogLoader extends Serializable {
       return MoreObjects.toStringHelper(this)
           .add("catalogName", catalogName)
           .add("uri", uri)
+          .add("warehouse", warehouse)
           .add("clientPoolSize", clientPoolSize)
           .toString();
     }

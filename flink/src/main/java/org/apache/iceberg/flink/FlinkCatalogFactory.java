@@ -84,7 +84,8 @@ public class FlinkCatalogFactory implements CatalogFactory {
       case "hive":
         int clientPoolSize = Integer.parseInt(properties.getOrDefault(HIVE_CLIENT_POOL_SIZE, "2"));
         String uri = properties.get(HIVE_URI);
-        return CatalogLoader.hive(name, hadoopConf, uri, clientPoolSize);
+        String warehouse = properties.get(HADOOP_WAREHOUSE_LOCATION);
+        return CatalogLoader.hive(name, hadoopConf, uri, warehouse, clientPoolSize);
 
       case "hadoop":
         String warehouseLocation = properties.get(HADOOP_WAREHOUSE_LOCATION);
@@ -167,7 +168,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
     String scheme = path.toUri().getScheme();
     if (scheme == null) {
       throw new UnsupportedOperationException(
-          "the scheme can not be null");
+          "the scheme of HIVE_SITE_PATH can not be null");
     } else {
       return scheme;
     }

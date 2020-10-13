@@ -87,7 +87,7 @@ public class SparkCatalog implements StagingTableCatalog, org.apache.spark.sql.c
   /**
    * Build an Iceberg {@link Catalog} to be used by this Spark catalog adapter.
    *
-   * @param name Spark's catalog name
+   * @param name    Spark's catalog name
    * @param options Spark's catalog options
    * @return an Iceberg catalog
    */
@@ -98,7 +98,8 @@ public class SparkCatalog implements StagingTableCatalog, org.apache.spark.sql.c
       case "hive":
         int clientPoolSize = options.getInt("clients", 2);
         String uri = options.get("uri");
-        return new HiveCatalog(name, uri, clientPoolSize, conf);
+        String warehouse = options.get("warehouse");
+        return new HiveCatalog(name, uri, warehouse, clientPoolSize, conf);
 
       case "hadoop":
         String warehouseLocation = options.get("warehouse");

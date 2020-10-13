@@ -71,8 +71,8 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
   // use Namespace instead: https://github.com/apache/iceberg/issues/1541
   public static Iterable<Object[]> parameters() {
     return Lists.newArrayList(
-        new Object[] {"testhive", new String[0]},
         new Object[] {"testhadoop", new String[0]},
+        new Object[] {"testhive", new String[0]},
         new Object[] {"testhadoop_basenamespace", new String[] {"l0", "l1"}}
     );
   }
@@ -101,8 +101,11 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
     config.put("type", "iceberg");
     config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, isHadoopCatalog ? "hadoop" : "hive");
     config.put(FlinkCatalogFactory.HADOOP_WAREHOUSE_LOCATION, "file:" + warehouse);
-    URL url = this.getClass().getClassLoader().getResource("hive-site.xml");
-    config.put(FlinkCatalogFactory.HIVE_SITE_PATH, url.toString());
+    if (!isHadoopCatalog) {
+      URL url = this.getClass().getClassLoader().getResource("hive-site.xml");
+      config.put(FlinkCatalogFactory.HIVE_SITE_PATH, url.toString());
+    }
+
     if (baseNamespace.length > 0) {
       config.put(FlinkCatalogFactory.BASE_NAMESPACE, Joiner.on(".").join(baseNamespace));
     }
@@ -119,7 +122,7 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
         flinkCatalogs.computeIfAbsent(catalogName, k -> factory.createCatalog(k, config)));
 
     this.flinkDatabase = catalogName + "." + DATABASE;
-    this.icebergNamespace = Namespace.of(ArrayUtils.concat(baseNamespace, new String[] { DATABASE }));
+    this.icebergNamespace = Namespace.of(ArrayUtils.concat(baseNamespace, new String[] {DATABASE}));
   }
 
   protected TableEnvironment getTableEnv() {
