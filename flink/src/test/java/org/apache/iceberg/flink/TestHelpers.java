@@ -31,13 +31,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.apache.flink.api.common.ExecutionConfig;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
+import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.MapData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.data.conversion.DataStructureConverter;
 import org.apache.flink.table.data.conversion.DataStructureConverters;
+import org.apache.flink.table.runtime.types.InternalSerializers;
 import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.MapType;
@@ -57,31 +61,46 @@ public class TestHelpers {
   private TestHelpers() {
   }
 
-  public static List<Row> readRows(FlinkInputFormat inputFormat, RowType rowType) throws IOException {
-    FlinkInputSplit[] splits = inputFormat.createInputSplits(0);
-    List<Row> results = Lists.newArrayList();
+  public static RowData copyRowData(RowData from, RowType rowType) {
+    ExecutionConfig config = new ExecutionConfig();
+    TypeSerializer[] fieldSerializers = rowType.getChildren().stream()
+        .map((LogicalType type) -> InternalSerializers.create(type, config))
+        .toArray(TypeSerializer[]::new);
 
-    DataStructureConverter<Object, Object> converter = DataStructureConverters.getConverter(
-        TypeConversions.fromLogicalToDataType(rowType));
+    // Use rowType field count to avoid copy metadata column in case of merging position deletes
+    GenericRowData ret = new GenericRowData(rowType.getFieldCount());
+    ret.setRowKind(from.getRowKind());
+    for (int i = 0; i < rowType.getFieldCount(); i++) {
+      RowData.FieldGetter getter = RowData.createFieldGetter(rowType.getTypeAt(i), i);
+      ret.setField(i, fieldSerializers[i].copy(getter.getFieldOrNull(from)));
+    }
+
+    return ret;
+  }
+
+  public static List<RowData> readRowData(FlinkInputFormat inputFormat, RowType rowType) throws IOException {
+    FlinkInputSplit[] splits = inputFormat.createInputSplits(0);
+    List<RowData> results = Lists.newArrayList();
 
     for (FlinkInputSplit s : splits) {
       inputFormat.open(s);
       while (!inputFormat.reachedEnd()) {
         RowData row = inputFormat.nextRecord(null);
-        results.add((Row) converter.toExternal(row));
+        results.add(copyRowData(row, rowType));
       }
     }
     inputFormat.close();
+
     return results;
   }
 
-  public static List<RowData> readRowData(FlinkInputFormat inputFormat, RowType rowType) throws IOException {
+  public static List<Row> readRows(FlinkInputFormat inputFormat, RowType rowType) throws IOException {
     DataStructureConverter<Object, Object> converter = DataStructureConverters.getConverter(
         TypeConversions.fromLogicalToDataType(rowType));
 
-    return readRows(inputFormat, rowType).stream()
-        .map(converter::toInternal)
-        .map(RowData.class::cast)
+    return readRowData(inputFormat, rowType).stream()
+        .map(converter::toExternal)
+        .map(Row.class::cast)
         .collect(Collectors.toList());
   }
 
