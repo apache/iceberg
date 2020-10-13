@@ -53,15 +53,13 @@ public class HiveIcebergSerDe extends AbstractSerDe {
     Schema tableSchema;
     if (configuration.get(InputFormatConfig.TABLE_SCHEMA) != null) {
       tableSchema = SchemaParser.fromJson(configuration.get(InputFormatConfig.TABLE_SCHEMA));
+    } else if (serDeProperties.get(InputFormatConfig.TABLE_SCHEMA) != null) {
+      tableSchema = SchemaParser.fromJson((String) serDeProperties.get(InputFormatConfig.TABLE_SCHEMA));
     } else {
-      if (serDeProperties.get(InputFormatConfig.TABLE_SCHEMA) != null) {
-        tableSchema = SchemaParser.fromJson((String) serDeProperties.get(InputFormatConfig.TABLE_SCHEMA));
-      } else {
-        try {
-          tableSchema = Catalogs.loadTable(configuration, serDeProperties).schema();
-        } catch (NoSuchTableException nte) {
-          throw new SerDeException("Please provide an existing table or a valid schema", nte);
-        }
+      try {
+        tableSchema = Catalogs.loadTable(configuration, serDeProperties).schema();
+      } catch (NoSuchTableException nte) {
+        throw new SerDeException("Please provide an existing table or a valid schema", nte);
       }
     }
 
