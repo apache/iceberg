@@ -106,6 +106,7 @@ public class TestFlinkInputFormatReaderDeletes extends DeleteReadTests {
     Schema projected = testTable.schema().select(columns);
     RowType rowType = FlinkSchemaUtil.convert(projected);
     CatalogLoader hiveCatalogLoader = CatalogLoader.hive(catalog.name(),
+        hiveConf,
         hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname),
         hiveConf.getInt("iceberg.hive.client-pool-size", 5)
     );
@@ -114,7 +115,7 @@ public class TestFlinkInputFormatReaderDeletes extends DeleteReadTests {
         .project(FlinkSchemaUtil.toSchema(rowType)).buildFormat();
 
     StructLikeSet set = StructLikeSet.create(projected.asStruct());
-    TestHelpers.getRowData(inputFormat, rowType).forEach(rowData -> {
+    TestHelpers.readRowData(inputFormat, rowType).forEach(rowData -> {
       RowDataWrapper wrapper = new RowDataWrapper(rowType, projected.asStruct());
       set.add(wrapper.wrap(rowData));
     });

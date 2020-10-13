@@ -102,6 +102,6 @@ public class TestFlinkInputFormat extends TestFlinkScan {
 
   private List<Row> runFormat(FlinkInputFormat inputFormat) throws IOException {
     RowType rowType = FlinkSchemaUtil.convert(inputFormat.projectedSchema());
-    return TestHelpers.getRows(inputFormat, rowType);
+    return TestHelpers.readRows(inputFormat, rowType);
   }
 }
