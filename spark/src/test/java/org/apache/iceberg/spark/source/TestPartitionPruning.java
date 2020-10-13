@@ -75,14 +75,14 @@ public abstract class TestPartitionPruning {
   private static final Configuration CONF = new Configuration();
   private static final HadoopTables TABLES = new HadoopTables(CONF);
 
-  @Parameterized.Parameters
+  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] { "parquet", false },
-        new Object[] { "parquet", true },
-        new Object[] { "avro", false },
-        new Object[] { "orc", false },
-        new Object[] { "orc", true },
+        { "parquet", false },
+        { "parquet", true },
+        { "avro", false },
+        { "orc", false },
+        { "orc", true }
     };
   }
 
