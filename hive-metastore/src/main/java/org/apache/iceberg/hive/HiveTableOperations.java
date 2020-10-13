@@ -146,40 +146,28 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     boolean hiveEngineEnabled = hiveEngineEnabled(metadata, conf);
 
     boolean threw = true;
+    boolean updateHiveTable = false;
     Optional<Long> lockId = Optional.empty();
     try {
       lockId = Optional.of(acquireLock());
       // TODO add lock heart beating for cases where default lock timeout is too low.
-      Table tbl;
-      if (base != null) {
+
+      Table tbl = loadHmsTable();
+
+      if (tbl != null) {
+        // If we try to create the table but the metadata location is already set, then we had a concurrent commit
+        if (base == null && tbl.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP) != null) {
+          throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);
+        }
+
+        updateHiveTable = true;
         LOG.debug("Committing existing table: {}", fullName);
-        tbl = metaClients.run(client -> client.getTable(database, tableName));
-        tbl.setSd(storageDescriptor(metadata, hiveEngineEnabled)); // set to pickup any schema changes
       } else {
+        tbl = newHmsTable();
         LOG.debug("Committing new table: {}", fullName);
-        final long currentTimeMillis = System.currentTimeMillis();
-        tbl = new Table(tableName,
-            database,
-            System.getProperty("user.name"),
-            (int) currentTimeMillis / 1000,
-            (int) currentTimeMillis / 1000,
-            Integer.MAX_VALUE,
-            storageDescriptor(metadata, hiveEngineEnabled),
-            Collections.emptyList(),
-            new HashMap<>(),
-            null,
-            null,
-            TableType.EXTERNAL_TABLE.toString());
-        tbl.getParameters().put("EXTERNAL", "TRUE"); // using the external table type also requires this
       }
 
-      // If needed set the 'storate_handler' property to enable query from Hive
-      if (hiveEngineEnabled) {
-        tbl.getParameters().put(hive_metastoreConstants.META_TABLE_STORAGE,
-            "org.apache.iceberg.mr.hive.HiveIcebergStorageHandler");
-      } else {
-        tbl.getParameters().remove(hive_metastoreConstants.META_TABLE_STORAGE);
-      }
+      tbl.setSd(storageDescriptor(metadata, hiveEngineEnabled)); // set to pickup any schema changes
 
       String metadataLocation = tbl.getParameters().get(METADATA_LOCATION_PROP);
       String baseMetadataLocation = base != null ? base.metadataFileLocation() : null;
@@ -189,22 +177,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
             baseMetadataLocation, metadataLocation, database, tableName);
       }
 
-      setParameters(newMetadataLocation, tbl);
+      setParameters(newMetadataLocation, tbl, hiveEngineEnabled);
 
-      if (base != null) {
-        metaClients.run(client -> {
-          EnvironmentContext envContext = new EnvironmentContext(
-              ImmutableMap.of(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE)
-          );
-          ALTER_TABLE.invoke(client, database, tableName, tbl, envContext);
-          return null;
-        });
-      } else {
-        metaClients.run(client -> {
-          client.createTable(tbl);
-          return null;
-        });
-      }
+      persistTable(tbl, updateHiveTable);
       threw = false;
     } catch (org.apache.hadoop.hive.metastore.api.AlreadyExistsException e) {
       throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);
@@ -231,7 +206,53 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     }
   }
 
-  private void setParameters(String newMetadataLocation, Table tbl) {
+  private void persistTable(Table hmsTable, boolean updateHiveTable) throws TException, InterruptedException {
+    if (updateHiveTable) {
+      metaClients.run(client -> {
+        EnvironmentContext envContext = new EnvironmentContext(
+            ImmutableMap.of(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE)
+        );
+        ALTER_TABLE.invoke(client, database, tableName, hmsTable, envContext);
+        return null;
+      });
+    } else {
+      metaClients.run(client -> {
+        client.createTable(hmsTable);
+        return null;
+      });
+    }
+  }
+
+  private Table loadHmsTable() throws TException, InterruptedException {
+    try {
+      return metaClients.run(client -> client.getTable(database, tableName));
+    } catch (NoSuchObjectException nte) {
+      LOG.trace("Table not found {}", fullName, nte);
+      return null;
+    }
+  }
+
+  private Table newHmsTable() {
+    final long currentTimeMillis = System.currentTimeMillis();
+
+    Table newTable = new Table(tableName,
+        database,
+        System.getProperty("user.name"),
+        (int) currentTimeMillis / 1000,
+        (int) currentTimeMillis / 1000,
+        Integer.MAX_VALUE,
+        null,
+        Collections.emptyList(),
+        new HashMap<>(),
+        null,
+        null,
+        TableType.EXTERNAL_TABLE.toString());
+
+    newTable.getParameters().put("EXTERNAL", "TRUE"); // using the external table type also requires this
+    return newTable;
+  }
+
+  private void setParameters(String newMetadataLocation, Table tbl, boolean hiveEngineEnabled) {
     Map<String, String> parameters = tbl.getParameters();
 
     if (parameters == null) {
@@ -243,6 +264,14 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
     if (currentMetadataLocation() != null && !currentMetadataLocation().isEmpty()) {
       parameters.put(PREVIOUS_METADATA_LOCATION_PROP, currentMetadataLocation());
+    }
+
+    // If needed set the 'storage_handler' property to enable query from Hive
+    if (hiveEngineEnabled) {
+      parameters.put(hive_metastoreConstants.META_TABLE_STORAGE,
+          "org.apache.iceberg.mr.hive.HiveIcebergStorageHandler");
+    } else {
+      parameters.remove(hive_metastoreConstants.META_TABLE_STORAGE);
     }
 
     tbl.setParameters(parameters);
@@ -334,8 +363,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     String tableType = table.getParameters().get(TABLE_TYPE_PROP);
     NoSuchIcebergTableException.check(tableType != null && tableType.equalsIgnoreCase(ICEBERG_TABLE_TYPE_VALUE),
         "Not an iceberg table: %s (type=%s)", fullName, tableType);
-    NoSuchIcebergTableException.check(table.getParameters().get(METADATA_LOCATION_PROP) != null,
-        "Not an iceberg table: %s missing %s", fullName, METADATA_LOCATION_PROP);
   }
 
   /**

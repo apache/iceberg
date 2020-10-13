@@ -42,8 +42,6 @@ import org.apache.iceberg.mr.InputFormatConfig;
 
 public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, HiveStorageHandler {
 
-  private static final String NAME = "name";
-
   private Configuration conf;
 
   @Override
@@ -63,7 +61,7 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
 
   @Override
   public HiveMetaHook getMetaHook() {
-    return null;
+    return new HiveIcebergMetaHook(conf);
   }
 
   @Override
@@ -76,7 +74,7 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
     Properties props = tableDesc.getProperties();
     Table table = Catalogs.loadTable(conf, props);
 
-    map.put(InputFormatConfig.TABLE_IDENTIFIER, props.getProperty(NAME));
+    map.put(InputFormatConfig.TABLE_IDENTIFIER, props.getProperty(Catalogs.NAME));
     map.put(InputFormatConfig.TABLE_LOCATION, table.location());
     map.put(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(table.schema()));
   }
@@ -102,7 +100,7 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
     Properties props = tableDesc.getProperties();
     Table table = Catalogs.loadTable(conf, props);
 
-    jobConf.set(InputFormatConfig.TABLE_IDENTIFIER, props.getProperty(NAME));
+    jobConf.set(InputFormatConfig.TABLE_IDENTIFIER, props.getProperty(Catalogs.NAME));
     jobConf.set(InputFormatConfig.TABLE_LOCATION, table.location());
     jobConf.set(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(table.schema()));
   }
