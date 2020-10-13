@@ -42,7 +42,7 @@ import static org.apache.spark.sql.functions.expr;
  *
  * To run this benchmark:
  * <code>
- *   ./gradlew :iceberg-spark:jmh
+ *   ./gradlew :iceberg-spark2:jmh
  *       -PjmhIncludeRegex=IcebergSourceFlatParquetDataReadBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-flat-parquet-data-read-benchmark-result.txt
  * </code>

@@ -53,7 +53,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
  *
  * To run this benchmark:
  * <code>
- *   ./gradlew :iceberg-spark:jmh
+ *   ./gradlew :iceberg-spark2:jmh
  *       -PjmhIncludeRegex=SparkParquetWritersFlatDataBenchmark
  *       -PjmhOutputPath=benchmark/spark-parquet-writers-flat-data-benchmark-result.txt
  * </code>
@@ -82,6 +82,7 @@ public class SparkParquetWritersFlatDataBenchmark {
   public void setupBenchmark() throws IOException {
     rows = RandomData.generateSpark(SCHEMA, NUM_RECORDS, 0L);
     dataFile = File.createTempFile("parquet-flat-data-benchmark", ".parquet");
+    dataFile.delete();
   }
 
   @TearDown
