@@ -149,6 +149,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       Schema readSchema,
       Map<Integer, ?> idToConstant) {
     Parquet.ReadBuilder builder = Parquet.read(location)
+        .reuseContainers()
         .split(task.start(), task.length())
         .project(readSchema)
         .createReaderFunc(fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema, idToConstant))
