@@ -17,9 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.actions;
+package org.apache.iceberg.actions;
 
-import org.apache.iceberg.actions.TestRemoveOrphanFilesAction;
-
-public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
+public class TestRewriteDataFilesAction3 extends TestRewriteDataFilesAction {
 }
