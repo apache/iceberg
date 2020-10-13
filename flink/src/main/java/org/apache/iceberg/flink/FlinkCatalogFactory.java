@@ -62,7 +62,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
   public static final String HIVE_CLIENT_POOL_SIZE = "clients";
   public static final String HADOOP_WAREHOUSE_LOCATION = "warehouse";
 
-  public static final String HIVE_SITE_PATH = "hive-site-path";
+  public static final String HIVE_CONF_DIR = "hive-conf-dir";
   public static final String HIVE_SITE_SCHEME_FILE = "file";
   public static final String HIVE_SITE_SCHEME_HDFS = "hdfs";
 
@@ -113,7 +113,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
     properties.add(HADOOP_WAREHOUSE_LOCATION);
     properties.add(DEFAULT_DATABASE);
     properties.add(BASE_NAMESPACE);
-    properties.add(HIVE_SITE_PATH);
+    properties.add(HIVE_CONF_DIR);
     return properties;
   }
 
@@ -142,9 +142,9 @@ public class FlinkCatalogFactory implements CatalogFactory {
   }
 
   private void loadHiveConf(Configuration configuration, Map<String, String> properties) {
-    String hiveConfPath = properties.get(HIVE_SITE_PATH);
-    if (hiveConfPath != null) {
-      Path path = new Path(hiveConfPath);
+    String hiveConfDir = properties.get(HIVE_CONF_DIR);
+    if (hiveConfDir != null) {
+      Path path = new Path(hiveConfDir + File.separator + "hive-site.xml");
       String scheme = getScheme(path);
       // We can add more storage support later，like s3
       switch (scheme) {
@@ -168,7 +168,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
     String scheme = path.toUri().getScheme();
     if (scheme == null) {
       throw new UnsupportedOperationException(
-          "the scheme of HIVE_SITE_PATH can not be null");
+          "the scheme of HIVE_CONF_DIR can not be null");
     } else {
       return scheme;
     }
