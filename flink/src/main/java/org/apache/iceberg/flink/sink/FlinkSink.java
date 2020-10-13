@@ -57,8 +57,8 @@ public class FlinkSink {
   private static final String ICEBERG_STREAM_WRITER_NAME = IcebergStreamWriter.class.getSimpleName();
   private static final String ICEBERG_FILES_COMMITTER_NAME = IcebergFilesCommitter.class.getSimpleName();
 
-  public static final String FLINK_ICEBERG_SINK_FLUSHINTERVAL = "flink.iceberg.sink.flushinterval";
-  public static final long DEFAULT_FLINK_ICEBERG_SINK_FLUSHINTERVAL = 60000L;
+  public static final String FLINK_ICEBERG_SINK_COMMIT_INTERVAL = "flink.iceberg.sink.commit-interval";
+  public static final long DEFAULT_FLINK_ICEBERG_SINK_COMMIT_INTERVAL = 60000L;
 
   private FlinkSink() {
   }
@@ -188,7 +188,7 @@ public class FlinkSink {
           throw new UncheckedIOException("Failed to load iceberg table from table loader: " + tableLoader, e);
         }
       }
-
+      table.properties().forEach((key, value) -> flinkConf.setString(key, value));
       IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, tableSchema, flinkConf);
       IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, hadoopConf, overwrite, flinkConf);
 

@@ -40,7 +40,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
   private final String fullTableName;
   private final TaskWriterFactory<T> taskWriterFactory;
   private final Configuration flinkConf;
-  private final long flushCommitInterval;
+  private final long dataFileEmitInterval;
 
   private transient TaskWriter<T> writer;
   private transient int subTaskId;
@@ -51,8 +51,8 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
     this.fullTableName = fullTableName;
     this.taskWriterFactory = taskWriterFactory;
     this.flinkConf = flinkConf;
-    this.flushCommitInterval = flinkConf.getLong(FlinkSink.FLINK_ICEBERG_SINK_FLUSHINTERVAL,
-        FlinkSink.DEFAULT_FLINK_ICEBERG_SINK_FLUSHINTERVAL);
+    this.dataFileEmitInterval = flinkConf.getLong(FlinkSink.FLINK_ICEBERG_SINK_COMMIT_INTERVAL,
+        FlinkSink.DEFAULT_FLINK_ICEBERG_SINK_COMMIT_INTERVAL);
     setChainingStrategy(ChainingStrategy.ALWAYS);
   }
 
@@ -67,12 +67,12 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
     // Initialize the task writer.
     this.writer = taskWriterFactory.create();
 
-    // If we don't enable checkpoint, we will use processingTimeSerice to emit datafiles to downstream,
+    // If we don't enable checkpoint, we will use processingTimeSerice to emit datafiles to downstream
     boolean isCheckpointEnabled = getRuntimeContext().isCheckpointingEnabled();
     if (!isCheckpointEnabled) {
       ProcessingTimeService processingTimeService = getRuntimeContext().getProcessingTimeService();
       final long currentTimestamp = processingTimeService.getCurrentProcessingTime();
-      processingTimeService.registerTimer(currentTimestamp + flushCommitInterval, this);
+      processingTimeService.registerTimer(currentTimestamp + dataFileEmitInterval, this);
     }
   }
 
@@ -129,6 +129,6 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
     }
     ProcessingTimeService processingTimeService = getRuntimeContext().getProcessingTimeService();
     final long currentTimestamp = processingTimeService.getCurrentProcessingTime();
-    processingTimeService.registerTimer(currentTimestamp + flushCommitInterval, this);
+    processingTimeService.registerTimer(currentTimestamp + dataFileEmitInterval, this);
   }
 }

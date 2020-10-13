@@ -45,6 +45,7 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
 
   private final FileFormat format;
   private final boolean isStreamingJob;
+  private final boolean isCheckpointEnabled;
 
   @Parameterized.Parameters(name = "{index}: catalogName={0}, baseNamespace={1}, format={2}, isStreaming={3}")
   public static Iterable<Object[]> parameters() {
@@ -54,17 +55,22 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
         for (Object[] catalogParams : FlinkCatalogTestBase.parameters()) {
           String catalogName = (String) catalogParams[0];
           String[] baseNamespace = (String[]) catalogParams[1];
-          parameters.add(new Object[] {catalogName, baseNamespace, format, isStreaming});
+          // checkpoint enabled
+          parameters.add(new Object[]{catalogName, baseNamespace, format, isStreaming, true});
+          // checkpoint disabled
+          parameters.add(new Object[]{catalogName, baseNamespace, format, isStreaming, false});
         }
       }
     }
     return parameters;
   }
 
-  public TestFlinkTableSink(String catalogName, String[] baseNamespace, FileFormat format, Boolean isStreamingJob) {
+  public TestFlinkTableSink(String catalogName, String[] baseNamespace, FileFormat format,
+                            Boolean isStreamingJob, Boolean isCheckpointEnabled) {
     super(catalogName, baseNamespace);
     this.format = format;
     this.isStreamingJob = isStreamingJob;
+    this.isCheckpointEnabled = isCheckpointEnabled;
   }
 
   @Override
@@ -78,7 +84,9 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
           settingsBuilder.inStreamingMode();
           StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
           env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
-          env.enableCheckpointing(400);
+          if (isCheckpointEnabled) {
+            env.enableCheckpointing(400);
+          }
           tEnv = StreamTableEnvironment.create(env, settingsBuilder.build());
         } else {
           settingsBuilder.inBatchMode();
@@ -94,7 +102,8 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
     sql("CREATE DATABASE %s", flinkDatabase);
     sql("USE CATALOG %s", catalogName);
     sql("USE %s", DATABASE);
-    sql("CREATE TABLE %s (id int, data varchar) with ('write.format.default'='%s')", TABLE_NAME, format.name());
+    sql("CREATE TABLE %s (id int, data varchar) with ('write.format.default'='%s', " +
+        "'flink.iceberg.sink.commit-interval'='%s')", TABLE_NAME, format.name(), 100L);
     icebergTable = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME));
   }
 

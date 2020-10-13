@@ -77,7 +77,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private final SerializableConfiguration hadoopConf;
   private final org.apache.flink.configuration.Configuration flinkConf;
   private final boolean replacePartitions;
-  private final long flushCommitInterval;
+  private final long commitInterval;
 
   // A sorted map to maintain the completed data files for each pending checkpointId (which have not been committed
   // to iceberg table). We need a sorted map here because there's possible that few checkpoints snapshot failed, for
@@ -113,19 +113,19 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     this.hadoopConf = new SerializableConfiguration(hadoopConf);
     this.replacePartitions = replacePartitions;
     this.flinkConf = flinkConf;
-    this.flushCommitInterval = flinkConf.getLong(FlinkSink.FLINK_ICEBERG_SINK_FLUSHINTERVAL,
-        FlinkSink.DEFAULT_FLINK_ICEBERG_SINK_FLUSHINTERVAL);
+    this.commitInterval = flinkConf.getLong(FlinkSink.FLINK_ICEBERG_SINK_COMMIT_INTERVAL,
+        FlinkSink.DEFAULT_FLINK_ICEBERG_SINK_COMMIT_INTERVAL);
   }
 
   @Override
   public void open() throws Exception {
     super.open();
     boolean isCheckpointEnabled = getRuntimeContext().isCheckpointingEnabled();
-    // If we don't enable checkpoint, we will use processingTimeSerice to do commit,
+    // If we disable checkpoint, we will use processingTimeSerice to do commit
     if (!isCheckpointEnabled) {
       ProcessingTimeService processingTimeService = getRuntimeContext().getProcessingTimeService();
       final long currentTimestamp = processingTimeService.getCurrentProcessingTime();
-      processingTimeService.registerTimer(currentTimestamp + flushCommitInterval, this);
+      processingTimeService.registerTimer(currentTimestamp + commitInterval, this);
     }
   }
 
@@ -262,10 +262,11 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   @Override
   public void endInput() {
     // Flush the buffered data files into 'dataFilesPerCheckpoint' firstly.
-    dataFilesPerCheckpoint.put(Long.MAX_VALUE, ImmutableList.copyOf(dataFilesOfCurrentCheckpoint));
-    dataFilesOfCurrentCheckpoint.clear();
-
-    commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, Long.MAX_VALUE);
+    if (dataFilesOfCurrentCheckpoint.size() > 0) {
+      dataFilesPerCheckpoint.put(Long.MAX_VALUE, ImmutableList.copyOf(dataFilesOfCurrentCheckpoint));
+      dataFilesOfCurrentCheckpoint.clear();
+      commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, Long.MAX_VALUE);
+    }
   }
 
   @Override
@@ -310,13 +311,13 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   @Override
   public void onProcessingTime(long timestamp) throws Exception {
     // Flush the buffered data files into 'dataFilesPerCheckpoint' firstly.
-    dataFilesPerCheckpoint.put(Long.MAX_VALUE, ImmutableList.copyOf(dataFilesOfCurrentCheckpoint));
-    dataFilesOfCurrentCheckpoint.clear();
-
-    commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, Long.MAX_VALUE);
-
+    if (dataFilesOfCurrentCheckpoint.size() > 0) {
+      dataFilesPerCheckpoint.put(Long.MAX_VALUE, ImmutableList.copyOf(dataFilesOfCurrentCheckpoint));
+      dataFilesOfCurrentCheckpoint.clear();
+      commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, Long.MAX_VALUE);
+    }
     ProcessingTimeService processingTimeService = getRuntimeContext().getProcessingTimeService();
     final long currentTimestamp = processingTimeService.getCurrentProcessingTime();
-    processingTimeService.registerTimer(currentTimestamp + flushCommitInterval, this);
+    processingTimeService.registerTimer(currentTimestamp + commitInterval, this);
   }
 }

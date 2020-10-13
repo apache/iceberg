@@ -23,8 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 import org.apache.flink.streaming.api.functions.source.ParallelSourceFunction;
 
-public class NonCheckpointFiniteTestSource<T> implements
-    ParallelSourceFunction<T> {
+public class NonCheckpointFiniteTestSource<T> implements ParallelSourceFunction<T> {
 
   private final List<T> elements;
 

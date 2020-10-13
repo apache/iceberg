@@ -35,6 +35,7 @@ import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperatorFactory;
 import org.apache.flink.streaming.api.operators.StreamOperator;
 import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
+import org.apache.flink.streaming.runtime.tasks.ProcessingTimeCallback;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.data.RowData;
 import org.apache.hadoop.conf.Configuration;
@@ -58,6 +59,8 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public class TestIcebergFilesCommitter {
   private static final Configuration CONF = new Configuration();
+  private static final org.apache.flink.configuration.Configuration FLINKCONF =
+      new org.apache.flink.configuration.Configuration();
 
   @Rule
   public TemporaryFolder tempFolder = new TemporaryFolder();
@@ -479,6 +482,57 @@ public class TestIcebergFilesCommitter {
     }
   }
 
+  @Test
+  public void testWriteTableWithoutCheckpoint() throws Exception {
+    JobID jobId = new JobID();
+    try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(jobId)) {
+      harness.getStreamConfig().setCheckpointingEnabled(false);
+      harness.setup();
+      harness.open();
+
+      assertSnapshotSize(0);
+
+      List<RowData> tableRows = Lists.newArrayList(SimpleDataUtil.createRowData(1, "word-1"));
+      DataFile dataFile = writeDataFile("data-1", tableRows);
+      harness.processElement(dataFile, 1);
+
+      ((ProcessingTimeCallback) harness.getOneInputOperator()).onProcessingTime(System.currentTimeMillis());
+
+      SimpleDataUtil.assertTableRows(tablePath, tableRows);
+      assertSnapshotSize(1);
+      assertMaxCommittedCheckpointId(jobId, Long.MAX_VALUE);
+    }
+  }
+
+  @Test
+  public void testMultipleJobsWriteSameTableWithoutCheckpoint() throws Exception {
+    long timestamp = 0;
+    List<RowData> tableRows = Lists.newArrayList();
+
+    JobID[] jobs = new JobID[] {new JobID(), new JobID(), new JobID()};
+    for (int i = 0; i < 20; i++) {
+      int jobIndex = i % 3;
+      JobID jobId = jobs[jobIndex];
+      try (OneInputStreamOperatorTestHarness<DataFile, Void> harness = createStreamSink(jobId)) {
+        harness.setup();
+        harness.open();
+
+        assertSnapshotSize(i);
+
+        List<RowData> rows = Lists.newArrayList(SimpleDataUtil.createRowData(i, "word-" + i));
+        tableRows.addAll(rows);
+
+        DataFile dataFile = writeDataFile(String.format("data-%d", i), rows);
+        harness.processElement(dataFile, ++timestamp);
+        ((ProcessingTimeCallback) harness.getOneInputOperator()).onProcessingTime(System.currentTimeMillis());
+
+        SimpleDataUtil.assertTableRows(tablePath, tableRows);
+        assertSnapshotSize(i + 1);
+      }
+    }
+  }
+
+
   private DataFile writeDataFile(String filename, List<RowData> rows) throws IOException {
     return SimpleDataUtil.writeFile(table.schema(), table.spec(), CONF, tablePath, format.addExtension(filename), rows);
   }
@@ -528,8 +582,9 @@ public class TestIcebergFilesCommitter {
     @Override
     @SuppressWarnings("unchecked")
     public <T extends StreamOperator<Void>> T createStreamOperator(StreamOperatorParameters<Void> param) {
-      IcebergFilesCommitter committer = new IcebergFilesCommitter(TableLoader.fromHadoopTable(tablePath), CONF, false,
-          new org.apache.flink.configuration.Configuration());
+      IcebergFilesCommitter committer = new IcebergFilesCommitter(TableLoader.fromHadoopTable(tablePath),
+          CONF, false, FLINKCONF);
+      committer.setProcessingTimeService(this.processingTimeService);
       committer.setup(param.getContainingTask(), param.getStreamConfig(), param.getOutput());
       return (T) committer;
     }

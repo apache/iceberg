@@ -133,7 +133,6 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
         .map(CONVERTER::toInternal, RowDataTypeInfo.of(SimpleDataUtil.ROW_TYPE));
 
     FlinkSink.forRowData(dataStream)
-        .table(table)
         .tableLoader(tableLoader)
         .hadoopConf(CONF)
         .build();
@@ -163,10 +162,9 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
         .map(CONVERTER::toInternal, RowDataTypeInfo.of(SimpleDataUtil.ROW_TYPE));
 
     org.apache.flink.configuration.Configuration flinkConf = new org.apache.flink.configuration.Configuration();
-    flinkConf.setLong(FlinkSink.FLINK_ICEBERG_SINK_FLUSHINTERVAL, 100L);
+    flinkConf.setLong(FlinkSink.FLINK_ICEBERG_SINK_COMMIT_INTERVAL, 100L);
 
     FlinkSink.forRowData(dataStream)
-        .table(table)
         .tableLoader(tableLoader)
         .flinkConf(flinkConf)
         .hadoopConf(CONF)
@@ -187,7 +185,6 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
     DataStream<Row> dataStream = env.addSource(new FiniteTestSource<>(rows), ROW_TYPE_INFO);
 
     FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .table(table)
         .tableLoader(tableLoader)
         .tableSchema(tableSchema)
         .hadoopConf(CONF)
