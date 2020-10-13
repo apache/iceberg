@@ -31,7 +31,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 
@@ -43,17 +42,14 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   private static final long serialVersionUID = 1L;
 
   private final TableLoader tableLoader;
-  private final SerializableConfiguration serializableConf;
   private final FileIO io;
   private final EncryptionManager encryption;
   private final ScanContext context;
 
   private transient RowDataIterator iterator;
 
-  FlinkInputFormat(TableLoader tableLoader, SerializableConfiguration serializableConf, FileIO io,
-                   EncryptionManager encryption, ScanContext context) {
+  FlinkInputFormat(TableLoader tableLoader, FileIO io, EncryptionManager encryption, ScanContext context) {
     this.tableLoader = tableLoader;
-    this.serializableConf = serializableConf;
     this.io = io;
     this.encryption = encryption;
     this.context = context;
@@ -73,7 +69,7 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   @Override
   public FlinkInputSplit[] createInputSplits(int minNumSplits) throws IOException {
     // Called in Job manager, so it is OK to load table from catalog.
-    tableLoader.open(serializableConf.get());
+    tableLoader.open();
     try (TableLoader loader = tableLoader) {
       Table table = loader.loadTable();
       return FlinkSplitGenerator.createInputSplits(table, context);

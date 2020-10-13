@@ -23,6 +23,7 @@ import java.io.Serializable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
@@ -31,28 +32,30 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
  */
 public interface CatalogLoader extends Serializable {
 
-  Catalog loadCatalog(Configuration hadoopConf);
+  Catalog loadCatalog();
 
-  static CatalogLoader hadoop(String name, String warehouseLocation) {
-    return new HadoopCatalogLoader(name, warehouseLocation);
+  static CatalogLoader hadoop(String name, Configuration hadoopConf, String warehouseLocation) {
+    return new HadoopCatalogLoader(name, hadoopConf, warehouseLocation);
   }
 
-  static CatalogLoader hive(String name, String uri, int clientPoolSize) {
-    return new HiveCatalogLoader(name, uri, clientPoolSize);
+  static CatalogLoader hive(String name, Configuration hadoopConf, String uri, int clientPoolSize) {
+    return new HiveCatalogLoader(name, hadoopConf, uri, clientPoolSize);
   }
 
   class HadoopCatalogLoader implements CatalogLoader {
     private final String catalogName;
+    private final SerializableConfiguration hadoopConf;
     private final String warehouseLocation;
 
-    private HadoopCatalogLoader(String catalogName, String warehouseLocation) {
+    private HadoopCatalogLoader(String catalogName, Configuration conf, String warehouseLocation) {
       this.catalogName = catalogName;
+      this.hadoopConf = new SerializableConfiguration(conf);
       this.warehouseLocation = warehouseLocation;
     }
 
     @Override
-    public Catalog loadCatalog(Configuration hadoopConf) {
-      return new HadoopCatalog(catalogName, hadoopConf, warehouseLocation);
+    public Catalog loadCatalog() {
+      return new HadoopCatalog(catalogName, hadoopConf.get(), warehouseLocation);
     }
 
     @Override
@@ -66,18 +69,20 @@ public interface CatalogLoader extends Serializable {
 
   class HiveCatalogLoader implements CatalogLoader {
     private final String catalogName;
+    private final SerializableConfiguration hadoopConf;
     private final String uri;
     private final int clientPoolSize;
 
-    private HiveCatalogLoader(String catalogName, String uri, int clientPoolSize) {
+    private HiveCatalogLoader(String catalogName, Configuration conf, String uri, int clientPoolSize) {
       this.catalogName = catalogName;
+      this.hadoopConf = new SerializableConfiguration(conf);
       this.uri = uri;
       this.clientPoolSize = clientPoolSize;
     }
 
     @Override
-    public Catalog loadCatalog(Configuration hadoopConf) {
-      return new HiveCatalog(catalogName, uri, clientPoolSize, hadoopConf);
+    public Catalog loadCatalog() {
+      return new HiveCatalog(catalogName, uri, clientPoolSize, hadoopConf.get());
     }
 
     @Override
