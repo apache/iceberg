@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink;
 
 import java.io.Serializable;
+import java.net.URL;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.catalog.Catalog;
@@ -97,6 +98,13 @@ public interface CatalogLoader extends Serializable {
       Configuration newConf = new Configuration(hadoopConf.get());
       if (!Strings.isNullOrEmpty(hiveConfDir)) {
         newConf.addResource(new Path(hiveConfDir, "hive-site.xml"));
+      } else {
+        // If don't provide the hive-site.xml path explicitly, it will try to load resource from classpath. If still
+        // couldn't load the configuration file, then it will throw exception in HiveCatalog.
+        URL configFile = CatalogLoader.class.getClassLoader().getResource("hive-site.xml");
+        if (configFile != null) {
+          newConf.addResource(configFile);
+        }
       }
       return new HiveCatalog(catalogName, uri, warehouse, clientPoolSize, newConf);
     }
