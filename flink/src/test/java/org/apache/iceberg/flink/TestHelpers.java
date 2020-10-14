@@ -71,8 +71,12 @@ public class TestHelpers {
     GenericRowData ret = new GenericRowData(rowType.getFieldCount());
     ret.setRowKind(from.getRowKind());
     for (int i = 0; i < rowType.getFieldCount(); i++) {
-      RowData.FieldGetter getter = RowData.createFieldGetter(rowType.getTypeAt(i), i);
-      ret.setField(i, fieldSerializers[i].copy(getter.getFieldOrNull(from)));
+      if (!from.isNullAt(i)) {
+        RowData.FieldGetter getter = RowData.createFieldGetter(rowType.getTypeAt(i), i);
+        ret.setField(i, fieldSerializers[i].copy(getter.getFieldOrNull(from)));
+      } else {
+        ret.setField(i, null);
+      }
     }
 
     return ret;
