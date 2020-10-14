@@ -73,10 +73,9 @@ public class FlinkCatalogFactory implements CatalogFactory {
     String catalogType = properties.getOrDefault(ICEBERG_CATALOG_TYPE, "hive");
     switch (catalogType) {
       case "hive":
+        // The values of properties 'uri', 'warehouse', 'hive-conf-dir' are allowed to be null, in that case it will
+        // fallback to parse those values from hadoop configuration which is loaded from classpath.
         String uri = properties.get(HIVE_URI);
-        Preconditions.checkNotNull(uri,
-            "Thrift URI for the remote metastore shouldn't be null, please set 'uri' property");
-
         String warehouse = properties.get(WAREHOUSE_LOCATION);
         int clientPoolSize = Integer.parseInt(properties.getOrDefault(HIVE_CLIENT_POOL_SIZE, "2"));
         String hiveConfDir = properties.get(HIVE_CONF_DIR);
