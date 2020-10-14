@@ -97,7 +97,21 @@ CREATE CATALOG hive_catalog WITH (
   'catalog-type'='hive',
   'uri'='thrift://localhost:9083',
   'clients'='5',
-  'property-version'='1'
+  'property-version'='1',
+  'hive-conf-dir'='/opt/hive/conf'
+);
+```
+
+We could also just specify the `warehouse` property (without specifying any hive configuration path) to initialize the hive catalog: 
+
+```sql
+CREATE CATALOG hive_catalog WITH (
+  'type'='iceberg',
+  'catalog-type'='hive',
+  'uri'='thrift://localhost:9083',
+  'clients'='5',
+  'property-version'='1',
+  'warehouse'='hdfs://nn:8020/warehouse/path'
 );
 ```
 
@@ -106,6 +120,8 @@ CREATE CATALOG hive_catalog WITH (
 * `uri`: The Hive metastore's thrift URI. (Required)
 * `clients`: The Hive metastore client pool size, default value is 2. (Optional)
 * `property-version`: Version number to describe the property version. This property can be used for backwards compatibility in case the property format changes. The currently property version is `1`. (Optional)
+* `warehouse`: The hive warehouse location, users would need to specify this path if them don't set the `hive-conf-dir` (The path where we load `hive-site.xml`).
+* `hive-conf-dir`: Directory path to load the `hive-site.xml`.
 
 Iceberg also supports a directory-based catalog in HDFS that can be configured using `'catalog-type'='hadoop'`:
 
