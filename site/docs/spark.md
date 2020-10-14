@@ -773,9 +773,9 @@ The following sections describe the feasibility on read/write for Iceberg type f
 | float                      | float                   |       |
 | double                     | double                  |       |
 | date                       | date                    |       |
-| time                       | <N/A>                   |       |
+| time                       | N/A                     |       |
 | timestamp with timezone    | timestamp               |       |
-| timestamp without timezone | <N/A>                   |       |
+| timestamp without timezone | N/A                     |       |
 | string                     | string                  |       |
 | uuid                       | string                  |       |
 | fixed                      | binary                  |       |
