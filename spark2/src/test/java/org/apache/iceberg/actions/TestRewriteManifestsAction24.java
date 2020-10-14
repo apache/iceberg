@@ -27,7 +27,7 @@ public class TestRewriteManifestsAction24 extends TestRewriteManifestsAction {
   }
 
   @Override
-  protected CommonActions actionsForTable(Table table) {
+  protected BaseActions actionsForTable(Table table) {
     return Actions.forTable(table);
   }
 }

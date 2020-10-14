@@ -23,7 +23,7 @@ import org.apache.iceberg.Table;
 
 public class TestRewriteDataFilesAction3 extends TestRewriteDataFilesAction {
   @Override
-  protected CommonActions actionsForTable(Table table) {
+  protected BaseActions actionsForTable(Table table) {
     return Actions.forTable(table);
   }
 }

@@ -125,7 +125,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     // sleep for 1 second to unsure files will be old enough
     Thread.sleep(1000);
 
-    CommonActions actions = actionsForTable(table);
+    BaseActions actions = actionsForTable(table);
 
     List<String> result1 = actions.removeOrphanFiles()
         .deleteWith(s -> { })
@@ -210,7 +210,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     // sleep for 1 second to unsure files will be old enough
     Thread.sleep(1000);
 
-    CommonActions actions = actionsForTable(table);
+    BaseActions actions = actionsForTable(table);
 
     List<String> result = actions.removeOrphanFiles()
         .olderThan(System.currentTimeMillis())
@@ -270,7 +270,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     // sleep for 1 second to unsure files will be old enough
     Thread.sleep(1000);
 
-    CommonActions actions = actionsForTable(table);
+    BaseActions actions = actionsForTable(table);
 
     List<String> result = actions.removeOrphanFiles()
         .olderThan(System.currentTimeMillis())
@@ -302,7 +302,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     // sleep for 1 second to unsure files will be old enough
     Thread.sleep(1000);
 
-    CommonActions actions = actionsForTable(table);
+    BaseActions actions = actionsForTable(table);
 
     List<String> result = actions.removeOrphanFiles()
         .olderThan(System.currentTimeMillis())
@@ -343,7 +343,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     df.write().mode("append").parquet(tableLocation + "/data/c2_trunc=AA/c3=AAAA");
 
-    CommonActions actions = actionsForTable(table);
+    BaseActions actions = actionsForTable(table);
 
     List<String> result = actions.removeOrphanFiles()
         .olderThan(timestamp)
@@ -379,7 +379,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     // sleep for 1 second to unsure files will be old enough
     Thread.sleep(1000);
 
-    CommonActions actions = actionsForTable(table);
+    BaseActions actions = actionsForTable(table);
 
     List<String> result = actions.removeOrphanFiles()
         .olderThan(System.currentTimeMillis())
@@ -419,7 +419,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     // sleep for 1 second to unsure files will be old enough
     Thread.sleep(1000);
 
-    CommonActions actions = actionsForTable(table);
+    BaseActions actions = actionsForTable(table);
 
     List<String> result = actions.removeOrphanFiles()
         .olderThan(System.currentTimeMillis())
@@ -454,7 +454,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     // sleep for 1 second to unsure files will be old enough
     Thread.sleep(1000);
 
-    CommonActions actions = actionsForTable(table);
+    BaseActions actions = actionsForTable(table);
 
     List<String> result = actions.removeOrphanFiles()
         .olderThan(System.currentTimeMillis())
@@ -519,7 +519,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     // sleep for 1 second to unsure files will be old enough
     Thread.sleep(1000);
 
-    CommonActions actions = actionsForTable(table);
+    BaseActions actions = actionsForTable(table);
     List<String> result = actions.removeOrphanFiles()
         .olderThan(System.currentTimeMillis())
         .deleteWith(s -> { })

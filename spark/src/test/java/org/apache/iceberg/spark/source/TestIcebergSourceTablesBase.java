@@ -31,7 +31,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.actions.CommonActions;
+import org.apache.iceberg.actions.BaseActions;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -900,7 +900,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     // sleep for 1 second to ensure files will be old enough
     Thread.sleep(1000);
 
-    CommonActions actions = actionsForTable(table);
+    BaseActions actions = actionsForTable(table);
 
     List<String> result1 = actions.removeOrphanFiles()
         .location(table.location() + "/metadata")

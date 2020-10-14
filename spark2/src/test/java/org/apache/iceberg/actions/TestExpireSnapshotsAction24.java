@@ -23,7 +23,7 @@ import org.apache.iceberg.Table;
 
 public class TestExpireSnapshotsAction24 extends TestExpireSnapshotsAction {
   @Override
-  protected CommonActions actionsForTable(Table table) {
+  protected BaseActions actionsForTable(Table table) {
     return Actions.forTable(table);
   }
 }

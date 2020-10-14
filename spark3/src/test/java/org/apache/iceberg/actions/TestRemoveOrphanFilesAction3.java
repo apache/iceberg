@@ -23,7 +23,7 @@ import org.apache.iceberg.Table;
 
 public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
   @Override
-  protected CommonActions actionsForTable(Table table) {
+  protected BaseActions actionsForTable(Table table) {
     return Actions.forTable(table);
   }
 }

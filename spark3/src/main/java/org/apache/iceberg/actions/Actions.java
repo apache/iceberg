@@ -22,7 +22,7 @@ package org.apache.iceberg.actions;
 import org.apache.iceberg.Table;
 import org.apache.spark.sql.SparkSession;
 
-public class Actions extends CommonActions {
+public class Actions extends BaseActions {
 
   protected Actions(SparkSession spark, Table table) {
     super(spark, table);

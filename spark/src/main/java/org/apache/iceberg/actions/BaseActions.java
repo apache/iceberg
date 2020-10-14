@@ -22,12 +22,12 @@ package org.apache.iceberg.actions;
 import org.apache.iceberg.Table;
 import org.apache.spark.sql.SparkSession;
 
-public abstract class CommonActions {
+public abstract class BaseActions {
 
   private SparkSession spark;
   private Table table;
 
-  protected CommonActions(SparkSession spark, Table table) {
+  protected BaseActions(SparkSession spark, Table table) {
     this.spark = spark;
     this.table = table;
   }
