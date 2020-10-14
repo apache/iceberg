@@ -23,7 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.flink.util.ArrayUtils;
-import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -86,48 +86,26 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
         catalog;
     this.validationNamespaceCatalog = (SupportsNamespaces) validationCatalog;
 
-    Map<String, String> props = Maps.newHashMap();
-    props.put("type", "iceberg");
-    if (isHadoopCatalog) {
-      props.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hadoop");
-    } else {
-      props.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hive");
-      props.put(FlinkCatalogFactory.HIVE_URI, getHiveURI(hiveConf));
-      props.put(FlinkCatalogFactory.WAREHOUSE_LOCATION, getHiveWarehouseLocation(hiveConf));
-    }
-
-    props.put(FlinkCatalogFactory.WAREHOUSE_LOCATION, "file:" + warehouse);
+    Map<String, String> config = Maps.newHashMap();
+    config.put("type", "iceberg");
+    config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, isHadoopCatalog ? "hadoop" : "hive");
+    config.put(FlinkCatalogFactory.WAREHOUSE_LOCATION, "file:" + warehouse);
     if (baseNamespace.length > 0) {
-      props.put(FlinkCatalogFactory.BASE_NAMESPACE, Joiner.on(".").join(baseNamespace));
+      config.put(FlinkCatalogFactory.BASE_NAMESPACE, Joiner.on(".").join(baseNamespace));
     }
 
-    sql("CREATE CATALOG %s WITH %s", catalogName, toWithClause(props));
+    FlinkCatalogFactory factory = new FlinkCatalogFactory() {
+      @Override
+      protected org.apache.flink.table.catalog.Catalog createCatalog(
+          String name, Map<String, String> properties, Configuration hadoopConf) {
+        return super.createCatalog(name, properties, hiveConf);
+      }
+    };
+    getTableEnv().registerCatalog(
+        catalogName,
+        flinkCatalogs.computeIfAbsent(catalogName, k -> factory.createCatalog(k, config)));
 
     this.flinkDatabase = catalogName + "." + DATABASE;
     this.icebergNamespace = Namespace.of(ArrayUtils.concat(baseNamespace, new String[] {DATABASE}));
-  }
-
-  static String toWithClause(Map<String, String> props) {
-    StringBuilder builder = new StringBuilder();
-    builder.append("(");
-    int propCount = 0;
-    for (Map.Entry<String, String> entry : props.entrySet()) {
-      if (propCount > 0) {
-        builder.append(",");
-      }
-      builder.append("'").append(entry.getKey()).append("'").append("=")
-          .append("'").append(entry.getValue()).append("'");
-      propCount++;
-    }
-    builder.append(")");
-    return builder.toString();
-  }
-
-  static String getHiveURI(HiveConf conf) {
-    return conf.get(HiveConf.ConfVars.METASTOREURIS.varname);
-  }
-
-  static String getHiveWarehouseLocation(HiveConf conf) {
-    return conf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname);
   }
 }
