@@ -17,15 +17,23 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.source;
+package org.apache.iceberg.actions;
 
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.Actions;
-import org.apache.iceberg.actions.CommonActions;
+import org.apache.spark.sql.SparkSession;
 
-public class TestIcebergSourceHiveTables24 extends TestIcebergSourceHiveTables {
-  @Override
-  protected CommonActions actionsForTable(Table table) {
-    return Actions.forTable(table);
+public class Actions extends CommonActions {
+
+  protected Actions(SparkSession spark, Table table) {
+    super(spark, table);
   }
+
+  public static Actions forTable(SparkSession spark, Table table) {
+    return new Actions(spark, table);
+  }
+
+  public static Actions forTable(Table table) {
+    return new Actions(SparkSession.active(), table);
+  }
+
 }

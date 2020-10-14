@@ -19,5 +19,11 @@
 
 package org.apache.iceberg.actions;
 
-public class TestExpireSnapshotsAction24 extends TestExpireSnapshotsAction{
+import org.apache.iceberg.Table;
+
+public class TestExpireSnapshotsAction24 extends TestExpireSnapshotsAction {
+  @Override
+  protected CommonActions actionsForTable(Table table) {
+    return Actions.forTable(table);
+  }
 }

@@ -19,5 +19,13 @@
 
 package org.apache.iceberg.spark.source;
 
+import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.Actions;
+import org.apache.iceberg.actions.CommonActions;
+
 public class TestIcebergSourceHadoopTables3 extends TestIcebergSourceHadoopTables {
+  @Override
+  protected CommonActions actionsForTable(Table table) {
+    return Actions.forTable(table);
+  }
 }

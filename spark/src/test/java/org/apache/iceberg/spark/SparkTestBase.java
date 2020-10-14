@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.CommonActions;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hive.HiveCatalog;
@@ -38,7 +40,7 @@ import org.junit.BeforeClass;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 
-public class SparkTestBase {
+public abstract class SparkTestBase {
 
   protected static final Object ANY = new Object();
 
@@ -123,5 +125,9 @@ public class SparkTestBase {
 
   protected static String dbPath(String dbName) {
     return metastore.getDatabasePath(dbName);
+  }
+
+  protected CommonActions actionsForTable(Table table) {
+    throw new UnsupportedOperationException("Reimplement actionsForTable with Actions.forTable() if needed");
   }
 }

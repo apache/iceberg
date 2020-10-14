@@ -76,7 +76,7 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
 
     Assert.assertNull("Table must be empty", table.currentSnapshot());
 
-    Actions actions = Actions.forTable(table);
+    CommonActions actions = actionsForTable(table);
 
     actions.rewriteDataFiles().execute();
 
@@ -107,7 +107,7 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
     List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
     Assert.assertEquals("Should have 4 data files before rewrite", 4, dataFiles.size());
 
-    Actions actions = Actions.forTable(table);
+    CommonActions actions = actionsForTable(table);
 
     RewriteDataFilesActionResult result = actions.rewriteDataFiles().execute();
     Assert.assertEquals("Action should rewrite 4 data files", 4, result.deletedDataFiles().size());
@@ -170,7 +170,7 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
     List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
     Assert.assertEquals("Should have 8 data files before rewrite", 8, dataFiles.size());
 
-    Actions actions = Actions.forTable(table);
+    CommonActions actions = actionsForTable(table);
 
     RewriteDataFilesActionResult result = actions.rewriteDataFiles().execute();
     Assert.assertEquals("Action should rewrite 8 data files", 8, result.deletedDataFiles().size());
@@ -235,7 +235,7 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
     List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
     Assert.assertEquals("Should have 8 data files before rewrite", 8, dataFiles.size());
 
-    Actions actions = Actions.forTable(table);
+    CommonActions actions = actionsForTable(table);
 
     RewriteDataFilesActionResult result = actions
         .rewriteDataFiles()
@@ -292,7 +292,7 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
     List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
     Assert.assertEquals("Should have 2 data files before rewrite", 2, dataFiles.size());
 
-    Actions actions = Actions.forTable(table);
+    CommonActions actions = actionsForTable(table);
 
     RewriteDataFilesActionResult result = actions
         .rewriteDataFiles()

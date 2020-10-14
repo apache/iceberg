@@ -22,22 +22,14 @@ package org.apache.iceberg.actions;
 import org.apache.iceberg.Table;
 import org.apache.spark.sql.SparkSession;
 
-public class Actions {
+public abstract class CommonActions {
 
   private SparkSession spark;
   private Table table;
 
-  private Actions(SparkSession spark, Table table) {
+  protected CommonActions(SparkSession spark, Table table) {
     this.spark = spark;
     this.table = table;
-  }
-
-  public static Actions forTable(SparkSession spark, Table table) {
-    return new Actions(spark, table);
-  }
-
-  public static Actions forTable(Table table) {
-    return new Actions(SparkSession.active(), table);
   }
 
   public RemoveOrphanFilesAction removeOrphanFiles() {

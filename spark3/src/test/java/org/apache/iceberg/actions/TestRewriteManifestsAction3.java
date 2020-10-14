@@ -19,8 +19,15 @@
 
 package org.apache.iceberg.actions;
 
+import org.apache.iceberg.Table;
+
 public class TestRewriteManifestsAction3 extends TestRewriteManifestsAction {
   public TestRewriteManifestsAction3(String snapshotIdInheritanceEnabled) {
     super(snapshotIdInheritanceEnabled);
+  }
+
+  @Override
+  protected CommonActions actionsForTable(Table table) {
+    return Actions.forTable(table);
   }
 }

@@ -91,7 +91,7 @@ public abstract class TestRewriteManifestsAction extends SparkTestBase {
 
     Assert.assertNull("Table must be empty", table.currentSnapshot());
 
-    Actions actions = Actions.forTable(table);
+    CommonActions actions = actionsForTable(table);
 
     actions.rewriteManifests()
         .rewriteIf(manifest -> true)
@@ -125,7 +125,7 @@ public abstract class TestRewriteManifestsAction extends SparkTestBase {
     List<ManifestFile> manifests = table.currentSnapshot().allManifests();
     Assert.assertEquals("Should have 2 manifests before rewrite", 2, manifests.size());
 
-    Actions actions = Actions.forTable(table);
+    CommonActions actions = actionsForTable(table);
 
     RewriteManifestsActionResult result = actions.rewriteManifests()
         .rewriteIf(manifest -> true)
@@ -194,7 +194,7 @@ public abstract class TestRewriteManifestsAction extends SparkTestBase {
     List<ManifestFile> manifests = table.currentSnapshot().allManifests();
     Assert.assertEquals("Should have 4 manifests before rewrite", 4, manifests.size());
 
-    Actions actions = Actions.forTable(table);
+    CommonActions actions = actionsForTable(table);
 
     // we will expect to have 2 manifests with 4 entries in each after rewrite
     long manifestEntrySizeBytes = computeManifestEntrySizeBytes(manifests);
@@ -269,7 +269,7 @@ public abstract class TestRewriteManifestsAction extends SparkTestBase {
 
       Snapshot snapshot = table.currentSnapshot();
 
-      Actions actions = Actions.forTable(table);
+      CommonActions actions = actionsForTable(table);
 
       RewriteManifestsActionResult result = actions.rewriteManifests()
           .rewriteIf(manifest -> true)
@@ -312,7 +312,7 @@ public abstract class TestRewriteManifestsAction extends SparkTestBase {
         .set(TableProperties.MANIFEST_TARGET_SIZE_BYTES, String.valueOf(manifests.get(0).length() / 2))
         .commit();
 
-    Actions actions = Actions.forTable(table);
+    CommonActions actions = actionsForTable(table);
 
     RewriteManifestsActionResult result = actions.rewriteManifests()
         .rewriteIf(manifest -> true)
@@ -362,7 +362,7 @@ public abstract class TestRewriteManifestsAction extends SparkTestBase {
     List<ManifestFile> manifests = table.currentSnapshot().allManifests();
     Assert.assertEquals("Should have 2 manifests before rewrite", 2, manifests.size());
 
-    Actions actions = Actions.forTable(table);
+    CommonActions actions = actionsForTable(table);
 
     // rewrite only the first manifest without caching
     RewriteManifestsActionResult result = actions.rewriteManifests()

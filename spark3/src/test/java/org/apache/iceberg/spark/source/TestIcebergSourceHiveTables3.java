@@ -19,5 +19,13 @@
 
 package org.apache.iceberg.spark.source;
 
+import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.Actions;
+import org.apache.iceberg.actions.CommonActions;
+
 public class TestIcebergSourceHiveTables3 extends TestIcebergSourceHiveTables {
+  @Override
+  protected CommonActions actionsForTable(Table table) {
+    return Actions.forTable(table);
+  }
 }
