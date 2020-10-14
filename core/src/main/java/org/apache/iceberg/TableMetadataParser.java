@@ -278,6 +278,8 @@ public class TableMetadataParser {
       specs = builder.build();
 
     } else {
+      Preconditions.checkArgument(formatVersion == 1,
+          "%s must exist in format v%s", PARTITION_SPECS, formatVersion);
       // partition spec is required for older readers, but is always set to the default if the spec
       // array is set. it is only used to default the spec map is missing, indicating that the
       // table metadata was written by an older writer.
@@ -297,6 +299,8 @@ public class TableMetadataParser {
       }
       sortOrders = sortOrdersBuilder.build();
     } else {
+      Preconditions.checkArgument(formatVersion == 1,
+          "%s must exist in format v%s", SORT_ORDERS, formatVersion);
       SortOrder defaultSortOrder = SortOrder.unsorted();
       sortOrders = ImmutableList.of(defaultSortOrder);
       defaultSortOrderId = defaultSortOrder.orderId();
