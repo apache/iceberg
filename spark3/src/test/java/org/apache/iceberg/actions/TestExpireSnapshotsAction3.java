@@ -17,9 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.actions;
-
-import org.apache.iceberg.actions.TestExpireSnapshotsAction;
+package org.apache.iceberg.actions;
 
 public class TestExpireSnapshotsAction3 extends TestExpireSnapshotsAction {
 }

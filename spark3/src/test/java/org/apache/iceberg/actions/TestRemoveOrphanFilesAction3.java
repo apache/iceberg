@@ -17,12 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.actions;
+package org.apache.iceberg.actions;
 
-import org.apache.iceberg.actions.TestRewriteManifestsAction;
-
-public class TestRewriteManifestsAction3 extends TestRewriteManifestsAction {
-  public TestRewriteManifestsAction3(String snapshotIdInheritanceEnabled) {
-    super(snapshotIdInheritanceEnabled);
-  }
+public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
 }
