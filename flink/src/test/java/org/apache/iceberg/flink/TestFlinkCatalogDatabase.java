@@ -147,7 +147,14 @@ public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
     List<Object[]> databases = sql("SHOW DATABASES");
 
     if (isHadoopCatalog) {
-      Assert.assertEquals("Should have 2 database", 2, databases.size());
+      String str = "";
+      for (Object[] objects : databases) {
+        for (Object obj : objects) {
+          str += "[" + obj + "]";
+        }
+      }
+
+      Assert.assertEquals("Should have 2 database: " + str, 2, databases.size());
       Assert.assertEquals("Should have db and default database",
           Sets.newHashSet("default", "db"), Sets.newHashSet(databases.get(0)[0], databases.get(1)[0]));
 

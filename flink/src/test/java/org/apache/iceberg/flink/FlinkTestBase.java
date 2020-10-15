@@ -43,7 +43,6 @@ public abstract class FlinkTestBase extends AbstractTestBase {
   private static TestHiveMetastore metastore = null;
   protected static HiveConf hiveConf = null;
   protected static HiveCatalog catalog = null;
-  protected static ConcurrentMap<String, Catalog> flinkCatalogs;
 
   private volatile TableEnvironment tEnv = null;
 
@@ -53,7 +52,6 @@ public abstract class FlinkTestBase extends AbstractTestBase {
     metastore.start();
     FlinkTestBase.hiveConf = metastore.hiveConf();
     FlinkTestBase.catalog = new HiveCatalog(metastore.hiveConf());
-    flinkCatalogs = Maps.newConcurrentMap();
   }
 
   @AfterClass
@@ -61,8 +59,6 @@ public abstract class FlinkTestBase extends AbstractTestBase {
     metastore.stop();
     catalog.close();
     FlinkTestBase.catalog = null;
-    flinkCatalogs.values().forEach(Catalog::close);
-    flinkCatalogs.clear();
   }
 
   protected TableEnvironment getTableEnv() {

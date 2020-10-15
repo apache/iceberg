@@ -19,11 +19,10 @@
 
 package org.apache.iceberg.flink;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.flink.util.ArrayUtils;
-import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -32,8 +31,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.AfterClass;
-import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -41,19 +40,19 @@ import org.junit.runners.Parameterized;
 public abstract class FlinkCatalogTestBase extends FlinkTestBase {
 
   protected static final String DATABASE = "db";
-  private static File warehouse = null;
+  private static TemporaryFolder hiveWarehouse = new TemporaryFolder();
+  private static TemporaryFolder hadoopWarehouse = new TemporaryFolder();
 
   @BeforeClass
   public static void createWarehouse() throws IOException {
-    FlinkCatalogTestBase.warehouse = File.createTempFile("warehouse", null);
-    Assert.assertTrue(warehouse.delete());
+    hiveWarehouse.create();
+    hadoopWarehouse.create();
   }
 
   @AfterClass
   public static void dropWarehouse() {
-    if (warehouse != null && warehouse.exists()) {
-      warehouse.delete();
-    }
+    hiveWarehouse.delete();
+    hadoopWarehouse.delete();
   }
 
   @Parameterized.Parameters(name = "catalogName = {0} baseNamespace = {1}")
@@ -82,30 +81,48 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
     this.baseNamespace = baseNamespace;
     this.isHadoopCatalog = catalogName.startsWith("testhadoop");
     this.validationCatalog = isHadoopCatalog ?
-        new HadoopCatalog(hiveConf, "file:" + warehouse) :
+        new HadoopCatalog(hiveConf, "file:" + hadoopWarehouse.getRoot()) :
         catalog;
     this.validationNamespaceCatalog = (SupportsNamespaces) validationCatalog;
 
     Map<String, String> config = Maps.newHashMap();
     config.put("type", "iceberg");
-    config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, isHadoopCatalog ? "hadoop" : "hive");
-    config.put(FlinkCatalogFactory.WAREHOUSE_LOCATION, "file:" + warehouse);
     if (baseNamespace.length > 0) {
       config.put(FlinkCatalogFactory.BASE_NAMESPACE, Joiner.on(".").join(baseNamespace));
     }
+    if (isHadoopCatalog) {
+      config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hadoop");
+      config.put(FlinkCatalogFactory.WAREHOUSE_LOCATION, "file://" + hadoopWarehouse.getRoot());
+    } else {
+      config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hive");
+      config.put(FlinkCatalogFactory.WAREHOUSE_LOCATION, "file://" + hiveWarehouse.getRoot());
+      config.put(FlinkCatalogFactory.HIVE_URI, getURI(hiveConf));
+    }
 
-    FlinkCatalogFactory factory = new FlinkCatalogFactory() {
-      @Override
-      protected org.apache.flink.table.catalog.Catalog createCatalog(
-          String name, Map<String, String> properties, Configuration hadoopConf) {
-        return super.createCatalog(name, properties, hiveConf);
-      }
-    };
-    getTableEnv().registerCatalog(
-        catalogName,
-        flinkCatalogs.computeIfAbsent(catalogName, k -> factory.createCatalog(k, config)));
+    sql("DROP CATALOG IF EXISTS %s", catalogName);
+    sql("CREATE CATALOG %s WITH %s", catalogName, toWithClause(config));
 
     this.flinkDatabase = catalogName + "." + DATABASE;
     this.icebergNamespace = Namespace.of(ArrayUtils.concat(baseNamespace, new String[] {DATABASE}));
+  }
+
+  static String getURI(HiveConf conf) {
+    return conf.get(HiveConf.ConfVars.METASTOREURIS.varname);
+  }
+
+  static String toWithClause(Map<String, String> props) {
+    StringBuilder builder = new StringBuilder();
+    builder.append("(");
+    int propCount = 0;
+    for (Map.Entry<String, String> entry : props.entrySet()) {
+      if (propCount > 0) {
+        builder.append(",");
+      }
+      builder.append("'").append(entry.getKey()).append("'").append("=")
+          .append("'").append(entry.getValue()).append("'");
+      propCount++;
+    }
+    builder.append(")");
+    return builder.toString();
   }
 }

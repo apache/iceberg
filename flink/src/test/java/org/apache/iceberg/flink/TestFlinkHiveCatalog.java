@@ -43,7 +43,7 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
     Map<String, String> props = Maps.newHashMap();
     props.put("type", "iceberg");
     props.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hive");
-    props.put(FlinkCatalogFactory.HIVE_URI, getURI(hiveConf));
+    props.put(FlinkCatalogFactory.HIVE_URI, FlinkCatalogTestBase.getURI(hiveConf));
 
     File warehouseDir = tempFolder.newFolder();
     props.put(FlinkCatalogFactory.WAREHOUSE_LOCATION, "file://" + warehouseDir.getAbsolutePath());
@@ -69,7 +69,7 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
     Map<String, String> props = Maps.newHashMap();
     props.put("type", "iceberg");
     props.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hive");
-    props.put(FlinkCatalogFactory.HIVE_URI, getURI(hiveConf));
+    props.put(FlinkCatalogFactory.HIVE_URI, FlinkCatalogTestBase.getURI(hiveConf));
     // Set the 'hive-conf-dir' instead of 'warehouse'
     props.put(FlinkCatalogFactory.HIVE_CONF_DIR, hiveConfDir.getAbsolutePath());
 
@@ -77,7 +77,7 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
   }
 
   private void checkSQLQuery(Map<String, String> catalogProperties, File warehouseDir) throws IOException {
-    sql("CREATE CATALOG test_catalog WITH %s", toWithClause(catalogProperties));
+    sql("CREATE CATALOG test_catalog WITH %s", FlinkCatalogTestBase.toWithClause(catalogProperties));
     sql("USE CATALOG test_catalog");
     sql("CREATE DATABASE test_db");
     sql("USE test_db");
@@ -97,25 +97,5 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
     sql("DROP TABLE test_table");
     sql("DROP DATABASE test_db");
     sql("DROP CATALOG test_catalog");
-  }
-
-  private static String toWithClause(Map<String, String> props) {
-    StringBuilder builder = new StringBuilder();
-    builder.append("(");
-    int propCount = 0;
-    for (Map.Entry<String, String> entry : props.entrySet()) {
-      if (propCount > 0) {
-        builder.append(",");
-      }
-      builder.append("'").append(entry.getKey()).append("'").append("=")
-          .append("'").append(entry.getValue()).append("'");
-      propCount++;
-    }
-    builder.append(")");
-    return builder.toString();
-  }
-
-  private static String getURI(HiveConf conf) {
-    return conf.get(HiveConf.ConfVars.METASTOREURIS.varname);
   }
 }
