@@ -102,7 +102,8 @@ abstract class TestTables {
     private final String warehouseLocation;
 
     CustomCatalogTestTables(Configuration conf, TemporaryFolder temp) throws IOException {
-      this(conf, temp, temp.newFolder("custom", "warehouse").toString());
+      this(conf, temp, (MetastoreUtil.hive3PresentOnClasspath() ? "file:" : "") +
+          temp.newFolder("custom", "warehouse").toString());
     }
 
     CustomCatalogTestTables(Configuration conf, TemporaryFolder temp, String warehouseLocation) {

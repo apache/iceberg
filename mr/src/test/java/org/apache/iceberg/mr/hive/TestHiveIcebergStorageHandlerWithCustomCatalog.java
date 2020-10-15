@@ -29,4 +29,13 @@ public class TestHiveIcebergStorageHandlerWithCustomCatalog extends HiveIcebergS
   public TestTables testTables(Configuration conf, TemporaryFolder temp) throws IOException {
     return new TestTables.CustomCatalogTestTables(conf, temp);
   }
+
+  protected String locationForCreateTableSQL(TemporaryFolder root, String tableName) {
+    return "LOCATION '" + root.getRoot().getPath() + "/custom/warehouse/default/" + tableName + "' ";
+  }
+
+  @Override
+  protected String loadLocation(TemporaryFolder root, String tableName) {
+    return root.getRoot().getPath() + "/custom/warehouse/default/" + tableName;
+  }
 }
