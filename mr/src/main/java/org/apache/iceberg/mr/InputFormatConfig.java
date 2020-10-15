@@ -20,6 +20,7 @@
 package org.apache.iceberg.mr;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -49,6 +50,12 @@ public class InputFormatConfig {
   public static final String HADOOP_CATALOG_WAREHOUSE_LOCATION = "iceberg.mr.catalog.hadoop.warehouse.location";
   public static final String CATALOG_LOADER_CLASS = "iceberg.mr.catalog.loader.class";
   public static final String EXTERNAL_TABLE_PURGE = "external.table.purge";
+
+  // TODO: Find a better place for the OutputFormat configuration, or rename the class
+  public static final String WRITE_FILE_FORMAT = "iceberg.mr.write.file.format";
+  public static final FileFormat WRITE_FILE_FORMAT_DEFAULT = FileFormat.PARQUET;
+  public static final String COMMIT_THREAD_POOL_SIZE = "iceberg.mr.commit.thread.pool.size";
+  public static final int COMMIT_THREAD_POOL_SIZE_DEFAULT = 10;
 
   public static final String CATALOG_NAME = "iceberg.catalog";
   public static final String HADOOP_CATALOG = "hadoop.catalog";

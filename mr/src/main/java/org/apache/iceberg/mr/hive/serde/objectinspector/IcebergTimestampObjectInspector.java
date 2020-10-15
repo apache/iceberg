@@ -20,20 +20,27 @@
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import org.apache.hadoop.hive.serde2.io.TimestampWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 
 public abstract class IcebergTimestampObjectInspector extends AbstractPrimitiveJavaObjectInspector
-                                                      implements TimestampObjectInspector {
+    implements TimestampObjectInspector, IcebergReadObjectInspector {
 
   private static final IcebergTimestampObjectInspector INSTANCE_WITH_ZONE = new IcebergTimestampObjectInspector() {
     @Override
     LocalDateTime toLocalDateTime(Object o) {
       return ((OffsetDateTime) o).toLocalDateTime();
+    }
+
+    @Override
+    public Object getIcebergObject(Object o) {
+      return o == null ? null : OffsetDateTime.ofInstant(toInstant(o), ZoneId.of("UTC"));
     }
   };
 
@@ -41,6 +48,11 @@ public abstract class IcebergTimestampObjectInspector extends AbstractPrimitiveJ
     @Override
     LocalDateTime toLocalDateTime(Object o) {
       return (LocalDateTime) o;
+    }
+
+    @Override
+    public LocalDateTime getIcebergObject(Object o) {
+      return o == null ? null : ((TimestampWritable) o).getTimestamp().toLocalDateTime();
     }
   };
 
@@ -86,4 +98,7 @@ public abstract class IcebergTimestampObjectInspector extends AbstractPrimitiveJ
     }
   }
 
+  private static Instant toInstant(Object writable) {
+    return ((TimestampWritable) writable).getTimestamp().toInstant();
+  }
 }

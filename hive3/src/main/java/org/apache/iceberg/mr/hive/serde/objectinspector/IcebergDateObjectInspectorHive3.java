@@ -28,7 +28,7 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.iceberg.util.DateTimeUtil;
 
 public final class IcebergDateObjectInspectorHive3 extends AbstractPrimitiveJavaObjectInspector
-    implements DateObjectInspector {
+    implements DateObjectInspector, IcebergReadObjectInspector {
 
   private static final IcebergDateObjectInspectorHive3 INSTANCE = new IcebergDateObjectInspectorHive3();
 
@@ -69,4 +69,8 @@ public final class IcebergDateObjectInspectorHive3 extends AbstractPrimitiveJava
     }
   }
 
+  @Override
+  public Object getIcebergObject(Object o) {
+    return o == null ? null : LocalDate.ofEpochDay(((DateWritableV2) o).get().toEpochDay());
+  }
 }

@@ -63,4 +63,14 @@ public class TestIcebergDateObjectInspectorHive3 {
     Assert.assertFalse(oi.preferWritable());
   }
 
+  @Test
+  public void testGetIcebergObject() {
+    IcebergDateObjectInspectorHive3 oi = IcebergDateObjectInspectorHive3.get();
+
+    int epochDays = 5005;
+    LocalDate local = LocalDate.ofEpochDay(epochDays);
+    LocalDate copy = (LocalDate) oi.getIcebergObject(oi.getPrimitiveWritableObject(local));
+    Assert.assertEquals(local, copy);
+    Assert.assertEquals(local, copy);
+  }
 }

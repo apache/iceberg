@@ -133,6 +133,7 @@ subprojects {
     testLogging {
       if ("true".equalsIgnoreCase(System.getenv('CI'))) {
         events "failed", "passed"
+        testLogging.showStandardStreams = true
       } else {
         events "failed"
       }
@@ -533,6 +534,7 @@ if (jdkVersion == '8') {
     test {
       exclude '**/TestIcebergDateObjectInspector.class'
       exclude '**/TestIcebergTimestampObjectInspector.class'
+      exclude '**/TestHiveIcebergSerDe.class'
     }
 
     dependencies {

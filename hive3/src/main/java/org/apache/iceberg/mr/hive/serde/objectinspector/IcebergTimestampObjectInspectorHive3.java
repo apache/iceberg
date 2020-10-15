@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -29,21 +30,33 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectIn
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 
 public abstract class IcebergTimestampObjectInspectorHive3 extends AbstractPrimitiveJavaObjectInspector
-    implements TimestampObjectInspector {
+    implements TimestampObjectInspector, IcebergReadObjectInspector {
 
   private static final IcebergTimestampObjectInspectorHive3 INSTANCE_WITH_ZONE =
       new IcebergTimestampObjectInspectorHive3() {
         @Override
-        LocalDateTime toLocalDateTime(Object o) {
-          return ((OffsetDateTime) o).toLocalDateTime();
+        Instant toInstant(Object o) {
+          return ((OffsetDateTime) o).toInstant();
+        }
+
+        @Override
+        public Object getIcebergObject(Object o) {
+          return o == null ? null :
+              OffsetDateTime.ofInstant(writableToInstant((TimestampWritableV2) o), ZoneOffset.UTC);
         }
       };
 
   private static final IcebergTimestampObjectInspectorHive3 INSTANCE_WITHOUT_ZONE =
       new IcebergTimestampObjectInspectorHive3() {
         @Override
-        LocalDateTime toLocalDateTime(Object o) {
-          return (LocalDateTime) o;
+        Instant toInstant(Object o) {
+          return ((LocalDateTime) o).toInstant(ZoneOffset.UTC);
+        }
+
+        @Override
+        public Object getIcebergObject(Object o) {
+          return o == null ? null :
+              LocalDateTime.ofInstant(writableToInstant((TimestampWritableV2) o), ZoneOffset.UTC);
         }
       };
 
@@ -56,17 +69,16 @@ public abstract class IcebergTimestampObjectInspectorHive3 extends AbstractPrimi
   }
 
 
-  abstract LocalDateTime toLocalDateTime(Object object);
+  abstract Instant toInstant(Object object);
 
   @Override
   public Timestamp getPrimitiveJavaObject(Object o) {
     if (o == null) {
       return null;
     }
-    LocalDateTime time = toLocalDateTime(o);
-    Timestamp timestamp = Timestamp.ofEpochMilli(time.toInstant(ZoneOffset.UTC).toEpochMilli());
-    timestamp.setNanos(time.getNano());
-    return timestamp;
+
+    Instant instant = toInstant(o);
+    return Timestamp.ofEpochSecond(instant.getEpochSecond(), instant.getNano());
   }
 
   @Override
@@ -95,4 +107,8 @@ public abstract class IcebergTimestampObjectInspectorHive3 extends AbstractPrimi
     }
   }
 
+  private static Instant writableToInstant(TimestampWritableV2 writable) {
+    Timestamp timestamp = writable.getTimestamp();
+    return Instant.ofEpochSecond(timestamp.toEpochSecond(), timestamp.getNanos());
+  }
 }

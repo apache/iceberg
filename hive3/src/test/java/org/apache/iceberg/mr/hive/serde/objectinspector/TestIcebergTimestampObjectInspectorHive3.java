@@ -85,8 +85,7 @@ public class TestIcebergTimestampObjectInspectorHive3 {
     Assert.assertNull(oi.getPrimitiveWritableObject(null));
 
     long epochMilli = 1601471970000L;
-    LocalDateTime local = LocalDateTime.ofInstant(Instant.ofEpochMilli(epochMilli), ZoneId.of("UTC"));
-    OffsetDateTime offsetDateTime = OffsetDateTime.of(local, ZoneOffset.ofHours(4));
+    OffsetDateTime offsetDateTime = OffsetDateTime.ofInstant(Instant.ofEpochMilli(epochMilli), ZoneOffset.ofHours(4));
     Timestamp ts = Timestamp.ofEpochMilli(epochMilli);
 
     Assert.assertEquals(ts, oi.getPrimitiveJavaObject(offsetDateTime));
@@ -100,4 +99,34 @@ public class TestIcebergTimestampObjectInspectorHive3 {
     Assert.assertFalse(oi.preferWritable());
   }
 
+  @Test
+  public void testGetLocalDateTime() {
+    IcebergTimestampObjectInspectorHive3 oi = IcebergTimestampObjectInspectorHive3.get(false);
+
+    long instantSecond = 1601471970L;
+    int instantNano = 1235;
+    LocalDateTime localDateTime =
+        LocalDateTime.ofInstant(Instant.ofEpochSecond(instantSecond, instantNano), ZoneId.of("UTC"));
+
+    LocalDateTime copyLocalDateTime =
+        (LocalDateTime) oi.getIcebergObject(oi.getPrimitiveWritableObject(localDateTime));
+    Assert.assertEquals(localDateTime, copyLocalDateTime);
+    Assert.assertNotSame(localDateTime, copyLocalDateTime);
+  }
+
+  @Test
+  public void testGetOffsetDateTime() {
+    IcebergTimestampObjectInspectorHive3 oi = IcebergTimestampObjectInspectorHive3.get(true);
+
+    long instantSecond = 1601471970L;
+    int instantNano = 1235;
+    LocalDateTime localDateTime =
+        LocalDateTime.ofInstant(Instant.ofEpochSecond(instantSecond, instantNano), ZoneId.of("UTC"));
+    OffsetDateTime offsetDateTime = OffsetDateTime.of(localDateTime, ZoneOffset.ofHours(4));
+
+    OffsetDateTime copyOffsetDateTime =
+        (OffsetDateTime) oi.getIcebergObject(oi.getPrimitiveWritableObject(offsetDateTime));
+    Assert.assertEquals(offsetDateTime.toInstant(), copyOffsetDateTime.toInstant());
+    Assert.assertNotSame(offsetDateTime, copyOffsetDateTime);
+  }
 }

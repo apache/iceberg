@@ -59,6 +59,7 @@ import org.apache.thrift.TException;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -100,6 +101,9 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
           .build();
 
   private static final PartitionSpec SPEC = PartitionSpec.unpartitioned();
+
+  private static final PartitionSpec PARTITIONED_SPEC =
+      PartitionSpec.builderFor(CUSTOMER_SCHEMA).bucket("customer_id", 3).build();
 
   private static final PartitionSpec IDENTITY_SPEC =
       PartitionSpec.builderFor(CUSTOMER_SCHEMA).identity("customer_id").build();
@@ -580,10 +584,113 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     }
   }
 
-  protected void createTable(String tableName, Schema schema, List<Record> records)
+  @Test
+  public void testInsert() throws IOException {
+    Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
+
+    Table table = createTable("customers", CUSTOMER_SCHEMA, ImmutableList.of());
+    // The expected query is like
+    // INSERT INTO customers VALUES (0, 'Alice'), (1, 'Bob'), (2, 'Trudy')
+    StringBuilder query = new StringBuilder().append("INSERT INTO customers VALUES ");
+    CUSTOMER_RECORDS.forEach(record -> query.append("(")
+        .append(record.get(0)).append(",'")
+        .append(record.get(1)).append("'),"));
+    query.setLength(query.length() - 1);
+
+    shell.executeStatement(query.toString());
+
+    HiveIcebergSerDeTestUtils.validate(table, new ArrayList<>(CUSTOMER_RECORDS), 0);
+  }
+
+  @Test
+  public void testInsertFromSelect() throws IOException {
+    Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
+
+    Table table = createTable("customers", CUSTOMER_SCHEMA, CUSTOMER_RECORDS);
+
+    shell.executeStatement("INSERT INTO customers SELECT * FROM customers");
+
+    // Check that everything is duplicated as expected
+    List<Record> records = new ArrayList<>(CUSTOMER_RECORDS);
+    records.addAll(CUSTOMER_RECORDS);
+    HiveIcebergSerDeTestUtils.validate(table, records, 0);
+  }
+
+  @Test
+  public void testInsertFromSelectWithOrderBy() throws IOException {
+    Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
+
+    // We expect that there will be Mappers and Reducers here
+    Table table = createTable("customers", CUSTOMER_SCHEMA, CUSTOMER_RECORDS);
+
+    shell.executeStatement("INSERT INTO customers SELECT * FROM customers ORDER BY customer_id");
+
+    // Check that everything is duplicated as expected
+    List<Record> records = new ArrayList<>(CUSTOMER_RECORDS);
+    records.addAll(CUSTOMER_RECORDS);
+    HiveIcebergSerDeTestUtils.validate(table, records, 0);
+  }
+
+  @Test
+  public void testDefaultFileFormat() throws IOException {
+    Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
+
+    String tableName = "default_format";
+    String location = locationForCreateTable(temp.getRoot().getPath(), tableName);
+
+    shell.executeStatement("CREATE TABLE " + tableName +
+        " STORED BY '" + HiveIcebergStorageHandler.class.getName() + "' " +
+        (location != null ? "LOCATION '" + location + "'" : "") +
+        "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" + SchemaParser.toJson(CUSTOMER_SCHEMA) + "')");
+
+    // The expected query is like
+    // INSERT INTO default_format VALUES (0, 'Alice'), (1, 'Bob'), (2, 'Trudy')
+    StringBuilder query = new StringBuilder().append("INSERT INTO " + tableName + " VALUES ");
+    CUSTOMER_RECORDS.forEach(record -> query.append("(")
+        .append(record.get(0)).append(",'")
+        .append(record.get(1)).append("'),"));
+    query.setLength(query.length() - 1);
+
+    shell.executeStatement(query.toString());
+
+    Table table = testTables.load(shell.getHiveConf(), tableName, location);
+    HiveIcebergSerDeTestUtils.validate(table, new ArrayList<>(CUSTOMER_RECORDS), 0);
+  }
+
+  @Test
+  public void testPartitionedWrite() throws IOException {
+    Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
+
+    String tableName = "partitioned_customers";
+
+    String location = locationForCreateTable(temp.getRoot().getPath(), tableName);
+
+    shell.executeStatement("CREATE TABLE " + tableName +
+        " STORED BY '" + HiveIcebergStorageHandler.class.getName() + "' " +
+        (location != null ? "LOCATION '" + location + "'" : "") +
+        "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" + SchemaParser.toJson(CUSTOMER_SCHEMA) + "', " +
+        "'" + InputFormatConfig.PARTITION_SPEC + "'='" + PartitionSpecParser.toJson(PARTITIONED_SPEC) + "', " +
+        "'" + InputFormatConfig.WRITE_FILE_FORMAT + "'='" + fileFormat + "')");
+
+    List<Record> records = TestHelper.generateRandomRecords(CUSTOMER_SCHEMA, 4, 0L);
+
+    StringBuilder query = new StringBuilder().append("INSERT INTO " + tableName + " VALUES ");
+    records.forEach(record -> query.append("(")
+        .append(record.get(0)).append(",'")
+        .append(record.get(1)).append("'),"));
+    query.setLength(query.length() - 1);
+
+    shell.executeStatement(query.toString());
+
+    Table table = testTables.load(shell.getHiveConf(), tableName, location);
+    HiveIcebergSerDeTestUtils.validate(table, records, 0);
+  }
+
+  protected Table createTable(String tableName, Schema schema, List<Record> records)
           throws IOException {
     Table table = createIcebergTable(tableName, schema, records);
     createHiveTable(tableName, table.location());
+    return table;
   }
 
   protected Table createIcebergTable(String tableName, Schema schema, List<Record> records)

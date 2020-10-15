@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.mr.hive;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
@@ -35,12 +36,17 @@ import org.apache.hadoop.hive.serde2.Deserializer;
 import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.OutputFormat;
+import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, HiveStorageHandler {
+
+  private static final String NAME = "name";
+  private static final String WRITE_KEY = "HiveIcebergStorageHandler_write";
 
   private Configuration conf;
 
@@ -77,11 +83,13 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
     map.put(InputFormatConfig.TABLE_IDENTIFIER, props.getProperty(Catalogs.NAME));
     map.put(InputFormatConfig.TABLE_LOCATION, table.location());
     map.put(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(table.schema()));
+    overlayTableProperties(tableDesc, map);
   }
 
   @Override
   public void configureOutputJobProperties(TableDesc tableDesc, Map<String, String> map) {
-
+    overlayTableProperties(tableDesc, map);
+    map.put(WRITE_KEY, "true");
   }
 
   @Override
@@ -97,7 +105,10 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
 
   @Override
   public void configureJobConf(TableDesc tableDesc, JobConf jobConf) {
-
+    if (tableDesc != null && tableDesc.getJobProperties() != null &&
+        tableDesc.getJobProperties().get(WRITE_KEY) != null) {
+      jobConf.set("mapred.output.committer.class", HiveIcebergOutputCommitter.class.getName());
+    }
   }
 
   @Override
@@ -122,10 +133,29 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
    * @return Entire filter to take advantage of Hive's pruning as well as Iceberg's pruning.
    */
   @Override
-  public DecomposedPredicate decomposePredicate(JobConf jobConf, Deserializer deserializer, ExprNodeDesc exprNodeDesc) {
+  public DecomposedPredicate decomposePredicate(JobConf jobConf, Deserializer deserializer,
+      ExprNodeDesc exprNodeDesc) {
     DecomposedPredicate predicate = new DecomposedPredicate();
     predicate.residualPredicate = (ExprNodeGenericFuncDesc) exprNodeDesc;
     predicate.pushedPredicate = (ExprNodeGenericFuncDesc) exprNodeDesc;
     return predicate;
+  }
+
+  private void overlayTableProperties(TableDesc tableDesc, Map<String, String> map) {
+    Properties props = tableDesc.getProperties();
+    Table table = Catalogs.loadTable(conf, props);
+
+    Map<String, String> original = new HashMap<>(map);
+    map.clear();
+
+    map.putAll(Maps.fromProperties(props));
+    map.putAll(original);
+
+    map.put(InputFormatConfig.TABLE_IDENTIFIER, props.getProperty(NAME));
+    map.put(InputFormatConfig.TABLE_LOCATION, table.location());
+    map.put(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(table.schema()));
+    map.put(InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(table.spec()));
+    // We need to remove this otherwise the job.xml will be invalid
+    map.remove("columns.comments");
   }
 }

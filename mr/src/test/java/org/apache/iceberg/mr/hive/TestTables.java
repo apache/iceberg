@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -35,6 +36,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveCatalogs;
+import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestCatalogs;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -68,6 +70,16 @@ abstract class TestTables {
 
   public Tables tables() {
     return tables;
+  }
+
+  public Table load(Configuration configuration, String tableName, String location) {
+    Properties properties = new Properties();
+    properties.put(Catalogs.NAME, TableIdentifier.of("default", tableName).toString());
+    if (location != null) {
+      properties.put(Catalogs.LOCATION, location);
+    }
+
+    return Catalogs.loadTable(configuration, properties);
   }
 
 

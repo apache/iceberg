@@ -34,9 +34,11 @@ import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.mr.mapred.Container;
+import org.apache.iceberg.mr.mapreduce.IcebergWritable;
 
 public class HiveIcebergSerDe extends AbstractSerDe {
   private ObjectInspector inspector;
+  private Schema tableSchema;
 
   @Override
   public void initialize(@Nullable Configuration configuration, Properties serDeProperties) throws SerDeException {
@@ -50,23 +52,24 @@ public class HiveIcebergSerDe extends AbstractSerDe {
     // executor, but serDeProperties are populated by HiveIcebergStorageHandler.configureInputJobProperties() and
     // the resulting properties are serialized and distributed to the executors
 
-    Schema tableSchema;
-    if (configuration.get(InputFormatConfig.TABLE_SCHEMA) != null) {
-      tableSchema = SchemaParser.fromJson(configuration.get(InputFormatConfig.TABLE_SCHEMA));
-    } else if (serDeProperties.get(InputFormatConfig.TABLE_SCHEMA) != null) {
-      tableSchema = SchemaParser.fromJson((String) serDeProperties.get(InputFormatConfig.TABLE_SCHEMA));
-    } else {
-      try {
-        tableSchema = Catalogs.loadTable(configuration, serDeProperties).schema();
-      } catch (NoSuchTableException nte) {
-        throw new SerDeException("Please provide an existing table or a valid schema", nte);
+    if (inspector == null) {
+      if (configuration.get(InputFormatConfig.TABLE_SCHEMA) != null) {
+        this.tableSchema = SchemaParser.fromJson(configuration.get(InputFormatConfig.TABLE_SCHEMA));
+      } else if (serDeProperties.get(InputFormatConfig.TABLE_SCHEMA) != null) {
+        this.tableSchema = SchemaParser.fromJson((String) serDeProperties.get(InputFormatConfig.TABLE_SCHEMA));
+      } else {
+        try {
+          this.tableSchema = Catalogs.loadTable(configuration, serDeProperties).schema();
+        } catch (NoSuchTableException nte) {
+          throw new SerDeException("Please provide an existing table or a valid schema", nte);
+        }
       }
-    }
 
-    try {
-      this.inspector = IcebergObjectInspector.create(tableSchema);
-    } catch (Exception e) {
-      throw new SerDeException(e);
+      try {
+        this.inspector = IcebergObjectInspector.create(tableSchema);
+      } catch (Exception e) {
+        throw new SerDeException(e);
+      }
     }
   }
 
@@ -76,8 +79,8 @@ public class HiveIcebergSerDe extends AbstractSerDe {
   }
 
   @Override
-  public Writable serialize(Object o, ObjectInspector objectInspector) {
-    throw new UnsupportedOperationException("Serialization is not supported.");
+  public IcebergWritable serialize(Object obj, ObjectInspector outerObjectInspector) throws SerDeException {
+    return new IcebergWritable(DeserializerHelper.deserialize(obj, tableSchema, outerObjectInspector));
   }
 
   @Override
