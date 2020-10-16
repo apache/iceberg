@@ -36,7 +36,8 @@ public class Actions {
     if (implConstructor == null) {
       String className = Actions.class.getPackage().getName() + "." + IMPL_NAME;
       try {
-        implConstructor = DynConstructors.builder().impl(className, SparkSession.class, Table.class).buildChecked();
+        implConstructor =
+            DynConstructors.builder().hiddenImpl(className, SparkSession.class, Table.class).buildChecked();
       } catch (NoSuchMethodException e) {
         throw new IllegalArgumentException("Cannot find appropriate Actions implementation on the classpath.", e);
       }
