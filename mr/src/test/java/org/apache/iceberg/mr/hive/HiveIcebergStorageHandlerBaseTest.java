@@ -142,12 +142,17 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     String metastoreWarehouse = metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREWAREHOUSE);
     shell.setHiveConfValue(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, metastoreWarehouse);
 
+    // Notification uses another HMSClient which we do not use in the tests, so we turn this off.
+    shell.setHiveConfValue("hive.notification.event.poll.interval", "-1");
     shell.start();
   }
 
   @After
   public void after() throws Exception {
     metastore.reset();
+    // HiveServer2 thread pools are using thread local Hive -> HMSClient objects. These are not cleaned up when the
+    // HiveServer2 is stopped. Only Finalizer closes the HMS connections.
+    System.gc();
   }
 
   // PARQUET
