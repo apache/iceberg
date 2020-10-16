@@ -106,7 +106,7 @@ CREATE TABLE prod.db.sample (
 USING iceberg
 ```
 
-Iceberg will convert the column type in Spark to corresponding Iceberg type. Please check the section of [type compatibility on creating table](#spark-type-to-iceberg-type-on-creating-table) for details.
+Iceberg will convert the column type in Spark to corresponding Iceberg type. Please check the section of [type compatibility on creating table](#spark-type-to-iceberg-type) for details.
 
 Table create commands, including CTAS and RTAS, support the full range of Spark create clauses, including:
 
@@ -736,76 +736,56 @@ spark.read.format("iceberg").load("hdfs://nn:8020/path/to/table#files").show(tru
 Spark and Iceberg support different set of types. Iceberg does the type conversion automatically, but not for all combinations,
 so you may want to understand the type conversion in Iceberg in prior to design the types of columns in your tables.
 
-### Spark type to Iceberg type on creating table
+### Spark type to Iceberg type
 
-This type conversion table describes how Spark types are converted to the Iceberg types. The conversion applies on creating Iceberg table via Spark without using Iceberg core API.
+This type conversion table describes how Spark types are converted to the Iceberg types. The conversion applies on both creating Iceberg table and writing to Iceberg table via Spark.
 
 | Spark           | Iceberg                 | Notes |
 |-----------------|-------------------------|-------|
 | boolean         | boolean                 |       |
-| integer         | integer                 |       |
 | short           | integer                 |       |
 | byte            | integer                 |       |
+| integer         | integer                 |       |
 | long            | long                    |       |
 | float           | float                   |       |
 | double          | double                  |       |
 | date            | date                    |       |
 | timestamp       | timestamp with timezone |       |
-| string          | string                  |       |
 | char            | string                  |       |
 | varchar         | string                  |       |
+| string          | string                  |       |
 | binary          | binary                  |       |
 | decimal         | decimal                 |       |
 | struct          | struct                  |       |
 | array           | list                    |       |
 | map             | map                     |       |
 
-The type conversion is asymmetric: this table doesn't represent the types of Iceberg Spark can "read" from, or "write" to.
-The following sections describe the feasibility on read/write for Iceberg type from Spark.
+!!! Note
+    The table is based on representing conversion during creating table. In fact, broader supports are applied on write. Here're some points on write:
+    
+    * Iceberg numeric types (`integer`, `long`, `float`, `double`, `decimal`) support promotion during writes. e.g. You can write Spark types `short`, `byte`, `integer`, `long` to Iceberg type `long`.
+    * You can write to Iceberg `fixed` type using Spark `binary` type. Note that assertion on the length will be performed.
 
-### Iceberg to Spark on reading from Iceberg table
+### Iceberg type to Spark type
 
-| Iceberg                    | Spark                   | Note  |
-|----------------------------|-------------------------|-------|
-| boolean                    | boolean                 |       |
-| integer                    | integer                 |       |
-| long                       | long                    |       |
-| float                      | float                   |       |
-| double                     | double                  |       |
-| date                       | date                    |       |
-| time                       | N/A                     |       |
-| timestamp with timezone    | timestamp               |       |
-| timestamp without timezone | N/A                     |       |
-| string                     | string                  |       |
-| uuid                       | string                  |       |
-| fixed                      | binary                  |       |
-| binary                     | binary                  |       |
-| decimal                    | decimal                 |       |
-| struct                     | struct                  |       |
-| list                       | array                   |       |
-| map                        | map                     |       |
+This type conversion table describes how Iceberg types are converted to the Spark types. The conversion applies on reading from Iceberg table via Spark.
 
-### Spark type to Iceberg type on writing to Iceberg table
-
-Note that the type conversion is a bit different from the one for creating table, as the target Iceberg table may have Iceberg types which aren't available on creating table via Spark.
-
-| Spark                   | Iceberg                 | Note                                      |
-|-------------------------|-------------------------|-------------------------------------------|
-| boolean                 | boolean                 |                                           |
-| integer                 | integer                 | numeric*                                  |
-| long                    | long                    | numeric*                                  |
-| float                   | float                   | numeric*                                  |
-| double                  | double                  | numeric*                                  |
-| date                    | date                    |                                           |
-| timestamp               | timestamp with timezone |                                           |
-| string                  | string                  |                                           |
-| binary                  | fixed                   | assertion on the length will be performed |
-| binary                  | binary                  |                                           |
-| decimal                 | decimal                 | numeric*                                  |
-| struct                  | struct                  |                                           |
-| array                   | list                    |                                           |
-| map                     | map                     |                                           |
-
-*numeric: can store value from another numeric types (including byte, short as well)
-
-You can't write the column from Spark for missing Iceberg types on the right side of the table, like time and timestamp without timezone, and uuid.
+| Iceberg                    | Spark                   | Note          |
+|----------------------------|-------------------------|---------------|
+| boolean                    | boolean                 |               |
+| integer                    | integer                 |               |
+| long                       | long                    |               |
+| float                      | float                   |               |
+| double                     | double                  |               |
+| date                       | date                    |               |
+| time                       |                         | Not supported |
+| timestamp with timezone    | timestamp               |               |
+| timestamp without timezone |                         | Not supported |
+| string                     | string                  |               |
+| uuid                       | string                  |               |
+| fixed                      | binary                  |               |
+| binary                     | binary                  |               |
+| decimal                    | decimal                 |               |
+| struct                     | struct                  |               |
+| list                       | array                   |               |
+| map                        | map                     |               |
