@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.flink.sink;
 
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
@@ -112,6 +111,24 @@ public class TestFlinkManifest {
     }
   }
 
+  @Test
+  public void testVersionedSerializer() throws IOException {
+    long checkpointId = 1;
+    String flinkJobId = newFlinkJobId();
+    FlinkManifest.FlinkManifestFactory factory = FlinkManifest.createFactory(table, flinkJobId, 1, 1);
+    FlinkManifest flinkManifest = factory.create(checkpointId);
+
+    List<DataFile> expectedDataFiles = generateDataFiles(10);
+    ManifestFile expected = flinkManifest.write(expectedDataFiles);
+
+    byte[] versionedSerializeData = FlinkManifestSerializer.INSTANCE.serialize(expected);
+    ManifestFile actual = FlinkManifestSerializer.readVersionAndDeserialize(versionedSerializeData);
+    checkManifestFile(expected, actual);
+
+    byte[] versionedSerializeData2 = FlinkManifestSerializer.INSTANCE.serialize(actual);
+    Assert.assertArrayEquals(versionedSerializeData, versionedSerializeData2);
+  }
+
   private DataFile writeDataFile(String filename, List<RowData> rows) throws IOException {
     return SimpleDataUtil.writeFile(table.schema(), table.spec(), CONF,
         tablePath, FileFormat.PARQUET.addExtension(filename), rows);
@@ -129,6 +146,26 @@ public class TestFlinkManifest {
 
   private static String newFlinkJobId() {
     return UUID.randomUUID().toString();
+  }
+
+  private static void checkManifestFile(ManifestFile expected, ManifestFile actual) {
+    Assert.assertEquals("Path must match", expected.path(), actual.path());
+    Assert.assertEquals("Length must match", expected.length(), actual.length());
+    Assert.assertEquals("Spec id must match", expected.partitionSpecId(), actual.partitionSpecId());
+    Assert.assertEquals("ManifestContent must match", expected.content(), actual.content());
+    Assert.assertEquals("SequenceNumber must match", expected.sequenceNumber(), actual.sequenceNumber());
+    Assert.assertEquals("MinSequenceNumber must match", expected.minSequenceNumber(), actual.minSequenceNumber());
+    Assert.assertEquals("Snapshot id must match", expected.snapshotId(), actual.snapshotId());
+    Assert.assertEquals("Added files flag must match", expected.hasAddedFiles(), actual.hasAddedFiles());
+    Assert.assertEquals("Added files count must match", expected.addedFilesCount(), actual.addedFilesCount());
+    Assert.assertEquals("Added rows count must match", expected.addedRowsCount(), actual.addedRowsCount());
+    Assert.assertEquals("Existing files flag must match", expected.hasExistingFiles(), actual.hasExistingFiles());
+    Assert.assertEquals("Existing files count must match", expected.existingFilesCount(), actual.existingFilesCount());
+    Assert.assertEquals("Existing rows count must match", expected.existingRowsCount(), actual.existingRowsCount());
+    Assert.assertEquals("Deleted files flag must match", expected.hasDeletedFiles(), actual.hasDeletedFiles());
+    Assert.assertEquals("Deleted files count must match", expected.deletedFilesCount(), actual.deletedFilesCount());
+    Assert.assertEquals("Deleted rows count must match", expected.deletedRowsCount(), actual.deletedRowsCount());
+    Assert.assertEquals("PartitionFieldSummary must match", expected.partitions(), actual.partitions());
   }
 
   static void checkDataFile(DataFile expected, DataFile actual) {

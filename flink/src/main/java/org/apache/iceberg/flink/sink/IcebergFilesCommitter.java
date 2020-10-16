@@ -40,7 +40,6 @@ import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
@@ -196,7 +195,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
         continue;
       }
 
-      ManifestFile manifestFile = ManifestFiles.decode(manifestData);
+      ManifestFile manifestFile = FlinkManifestSerializer.readVersionAndDeserialize(manifestData);
       manifestFiles.add(manifestFile);
       pendingDataFiles.addAll(FlinkManifest.read(manifestFile, table.io()));
     }
@@ -287,7 +286,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     FlinkManifest flinkManifest = flinkManifestFactory.create(checkpointId);
     ManifestFile manifestFile = flinkManifest.write(dataFilesOfCurrentCheckpoint);
-    return ManifestFiles.encode(manifestFile);
+    return FlinkManifestSerializer.INSTANCE.serialize(manifestFile);
   }
 
   @Override
