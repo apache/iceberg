@@ -33,11 +33,9 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
-import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.schema.MessageType;
@@ -91,7 +89,6 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
 
   private static class FileIterator<T> implements CloseableIterator<T> {
     private final ParquetFileReader reader;
-    private final boolean[] shouldSkip;
     private final VectorizedReader<T> model;
     private final long totalValues;
     private final int batchSize;
@@ -102,26 +99,21 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     private long nextRowGroupStart = 0;
     private long valuesRead = 0;
     private T last = null;
-    private List<BlockMetaData> blocks;
-    private long skippedValues;
 
     FileIterator(ReadConf conf) {
       this.reader = conf.reader();
-      this.shouldSkip = conf.shouldSkip();
       this.totalValues = conf.totalValues();
       this.reuseContainers = conf.reuseContainers();
       this.model = conf.vectorizedModel();
       this.batchSize = conf.batchSize();
       this.model.setBatchSize(this.batchSize);
       this.columnChunkMetadata = conf.columnChunkMetadataForRowGroups();
-      this.blocks = reader.getRowGroups();
-      this.skippedValues = 0;
       this.hasRecordFilter = conf.hasRecordFilter();
     }
 
     @Override
     public boolean hasNext() {
-      return valuesRead + skippedValues < totalValues;
+      return valuesRead < totalValues;
     }
 
     @Override
@@ -146,10 +138,6 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     }
 
     private void advance() {
-      while (shouldSkip[nextRowGroup]) {
-        nextRowGroup += 1;
-        reader.skipNextRowGroup();
-      }
       PageReadStore pages;
       try {
         // Because of the issue of PARQUET-1901, we cannot blindly call readNextFilteredRowGroup()
@@ -162,13 +150,8 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
         throw new RuntimeIOException(e);
       }
 
-      long blockRowCount = blocks.get(nextRowGroup).getRowCount();
-      Preconditions.checkState(blockRowCount >= pages.getRowCount(),
-              "Number of values in the block, %s, does not great or equal number of values after filtering, %s",
-              blockRowCount, pages.getRowCount());
       model.setRowGroupInfo(pages, columnChunkMetadata.get(nextRowGroup));
-      nextRowGroupStart += blockRowCount;
-      skippedValues += blockRowCount - pages.getRowCount();
+      nextRowGroupStart += pages.getRowCount();
       nextRowGroup += 1;
     }
 

@@ -20,7 +20,6 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -31,11 +30,9 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
-import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.schema.MessageType;
 
 public class ParquetReader<T> extends CloseableGroup implements CloseableIterable<T> {
@@ -84,7 +81,6 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
   private static class FileIterator<T> implements CloseableIterator<T> {
     private final ParquetFileReader reader;
-    private final boolean[] shouldSkip;
     private final ParquetValueReader<T> model;
     private final long totalValues;
     private final boolean reuseContainers;
@@ -95,24 +91,19 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     private long nextRowGroupStart = 0;
     private long valuesRead = 0;
     private T last = null;
-    private List<BlockMetaData> blocks;
-    private long skippedValues;
 
     FileIterator(ReadConf<T> conf) {
       this.reader = conf.reader();
-      this.shouldSkip = conf.shouldSkip();
       this.model = conf.model();
       this.totalValues = conf.totalValues();
       this.reuseContainers = conf.reuseContainers();
       this.rowGroupsStartRowPos = conf.startRowPositions();
-      this.blocks = reader.getRowGroups();
-      this.skippedValues = 0;
       this.hasRecordFilter = conf.hasRecordFilter();
     }
 
     @Override
     public boolean hasNext() {
-      return valuesRead + skippedValues < totalValues;
+      return valuesRead < totalValues;
     }
 
     @Override
@@ -132,11 +123,6 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     }
 
     private void advance() {
-      while (shouldSkip[nextRowGroup]) {
-        nextRowGroup += 1;
-        reader.skipNextRowGroup();
-      }
-
       PageReadStore pages;
       try {
         // Because of the issue of PARQUET-1901, we cannot blindly call readNextFilteredRowGroup()
@@ -149,13 +135,8 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
         throw new RuntimeIOException(e);
       }
 
-      long blockRowCount = blocks.get(nextRowGroup).getRowCount();
-      Preconditions.checkState(blockRowCount >= pages.getRowCount(),
-              "Number of values in the block, %s, does not great or equal number of values after filtering, %s",
-              blockRowCount, pages.getRowCount());
       long rowPosition = rowGroupsStartRowPos[nextRowGroup];
-      nextRowGroupStart += blockRowCount;
-      skippedValues += blockRowCount - pages.getRowCount();
+      nextRowGroupStart += pages.getRowCount();
       nextRowGroup += 1;
 
       model.setPageSource(pages, rowPosition);
