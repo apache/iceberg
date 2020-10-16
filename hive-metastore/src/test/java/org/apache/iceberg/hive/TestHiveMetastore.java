@@ -166,8 +166,8 @@ public class TestHiveMetastore {
         .processor(new TSetIpAddressProcessor<>(handler))
         .transportFactory(new TTransportFactory())
         .protocolFactory(new TBinaryProtocol.Factory())
-        .minWorkerThreads(3)
-        .maxWorkerThreads(5);
+        .minWorkerThreads(5)
+        .maxWorkerThreads(15);
 
     return new TThreadPoolServer(args);
   }
