@@ -21,16 +21,10 @@ package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.stream.Stream;
-import org.apache.avro.generic.GenericData;
-import org.apache.avro.util.Utf8;
-import org.apache.flink.table.data.DecimalData;
-import org.apache.flink.table.data.StringData;
-import org.apache.flink.table.data.TimestampData;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.encryption.EncryptedFiles;
@@ -42,10 +36,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.ByteBuffers;
-import org.apache.iceberg.util.DateTimeUtil;
 
 /**
  * Base class of Flink iterators.
@@ -123,38 +113,5 @@ abstract class DataIterator<T> implements CloseableIterator<T> {
     // close the current iterator
     currentIterator.close();
     tasks = null;
-  }
-
-  static Object convertConstant(Type type, Object value) {
-    if (value == null) {
-      return null;
-    }
-
-    switch (type.typeId()) {
-      case DECIMAL: // DecimalData
-        Types.DecimalType decimal = (Types.DecimalType) type;
-        return DecimalData.fromBigDecimal((BigDecimal) value, decimal.precision(), decimal.scale());
-      case STRING: // StringData
-        if (value instanceof Utf8) {
-          Utf8 utf8 = (Utf8) value;
-          return StringData.fromBytes(utf8.getBytes(), 0, utf8.getByteLength());
-        }
-        return StringData.fromString(value.toString());
-      case FIXED: // byte[]
-        if (value instanceof byte[]) {
-          return value;
-        } else if (value instanceof GenericData.Fixed) {
-          return ((GenericData.Fixed) value).bytes();
-        }
-        return ByteBuffers.toByteArray((ByteBuffer) value);
-      case BINARY: // byte[]
-        return ByteBuffers.toByteArray((ByteBuffer) value);
-      case TIME: // int mills instead of long
-        return (int) ((Long) value / 1000);
-      case TIMESTAMP: // TimestampData
-        return TimestampData.fromLocalDateTime(DateTimeUtil.timestampFromMicros((Long) value));
-      default:
-    }
-    return value;
   }
 }
