@@ -236,7 +236,7 @@ public class TestMicroBatchBuilder extends TableTestBase {
 
   // Returns default parquet file with size of 10b and 1 record in bucket 0.
   private static DataFile file(String name) {
-    return fileWithSize(name, 10l);
+    return fileWithSize(name, 10L);
   }
 
   private static void add(AppendFiles appendFiles, List<DataFile> adds) {
