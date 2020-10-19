@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -79,10 +80,6 @@ public class MicroBatches {
 
     public boolean lastIndexOfSnapshot() {
       return lastIndexOfSnapshot;
-    }
-
-    public boolean isEmpty() {
-      return tasks == null || tasks().isEmpty();
     }
 
     @Override
@@ -169,7 +166,8 @@ public class MicroBatches {
      * @return a sub-list of manifest file index which only contains the manifest indexes larger than the
      * startFileIndex.
      */
-    private static List<Pair<ManifestFile, Integer>> skipManifests(List<Pair<ManifestFile, Integer>> indexedManifests,
+    @VisibleForTesting
+    protected static List<Pair<ManifestFile, Integer>> skipManifests(List<Pair<ManifestFile, Integer>> indexedManifests,
                                                                    int startFileIndex) {
       if (startFileIndex == 0) {
         return indexedManifests;
