@@ -181,8 +181,8 @@ public class TestMicroBatchBuilder extends TableTestBase {
 
   @Test
   public void testReadingSnapshotIsNotInterruptedByChildSnapshot() {
-    // Add files A-E, all of 10kb, and process in multiple microbatches,
-    // generating snapshot 1 containing all of these.
+    // Add files A-E, all of 10kb, and process the single snapshot
+    // in multiple microbatches.
     add(table.newAppend(), files("A", "B", "C", "D", "E"));
     Assert.assertEquals(1L, table.currentSnapshot().snapshotId());
 
