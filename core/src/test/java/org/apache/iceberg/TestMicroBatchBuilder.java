@@ -141,6 +141,8 @@ public class TestMicroBatchBuilder extends TableTestBase {
     Assert.assertTrue(batch5.lastIndexOfSnapshot());
   }
 
+  // TODO - Break this up into just the logic we're testing. At most 3 microbatches.
+  //        the intermediate ones aren't needed.
   @Test
   public void testGenerateMicroBatchOnlyReadsFromGivenSnapshot() {
     // Add files A-E and process in multiple microbatches.
