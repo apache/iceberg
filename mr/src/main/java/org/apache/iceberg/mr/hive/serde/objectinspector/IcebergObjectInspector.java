@@ -28,6 +28,7 @@ import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.hive.MetastoreUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -36,23 +37,28 @@ public final class IcebergObjectInspector extends TypeUtil.SchemaVisitor<ObjectI
 
   // get the correct inspectors depending on whether we're working with Hive2 or Hive3 dependencies
   // we need to do this because there is a breaking API change in Date/TimestampObjectInspector between Hive2 and Hive3
+  private static final String DATE_INSPECTOR_CLASS = MetastoreUtil.hive3PresentOnClasspath() ?
+          "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspectorHive3" :
+          "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspector";
+
   private static final ObjectInspector DATE_INSPECTOR = DynMethods.builder("get")
-      .impl("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspectorHive3")
-      .impl("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspector")
-      .buildStatic()
-      .invoke();
+          .impl(DATE_INSPECTOR_CLASS)
+          .buildStatic()
+          .invoke();
+
+  private static final String TIMESTAMP_INSPECTOR_CLASS = MetastoreUtil.hive3PresentOnClasspath() ?
+          "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampObjectInspectorHive3" :
+          "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampObjectInspector";
 
   private static final ObjectInspector TIMESTAMP_INSPECTOR = DynMethods.builder("get")
-      .impl("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampObjectInspectorHive3", boolean.class)
-      .impl("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampObjectInspector", boolean.class)
-      .buildStatic()
-      .invoke(false);
+          .impl(TIMESTAMP_INSPECTOR_CLASS, boolean.class)
+          .buildStatic()
+          .invoke(false);
 
   private static final ObjectInspector TIMESTAMP_INSPECTOR_WITH_TZ = DynMethods.builder("get")
-      .impl("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampObjectInspectorHive3", boolean.class)
-      .impl("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampObjectInspector", boolean.class)
-      .buildStatic()
-      .invoke(true);
+          .impl(TIMESTAMP_INSPECTOR_CLASS, boolean.class)
+          .buildStatic()
+          .invoke(true);
 
   public static ObjectInspector create(@Nullable Schema schema) {
     if (schema == null) {
