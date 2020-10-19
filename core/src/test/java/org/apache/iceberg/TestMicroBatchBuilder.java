@@ -225,11 +225,6 @@ public class TestMicroBatchBuilder extends TableTestBase {
 
   }
 
-  // TODO - Determine how and where to test with deletes (likely in this class - can test
-  //        filter pushdown and then when filtered data exists, as an initial implementation,
-  //        we can apply the deletes (most likely via IN) as will likely be small - need to check threshold
-  //        once that on going work is completed.
-
   private static DataFile fileWithSize(String name, long newFileSizeInBytes) {
     return DataFiles.builder(SPEC)
             .withPath(name + ".parquet")
