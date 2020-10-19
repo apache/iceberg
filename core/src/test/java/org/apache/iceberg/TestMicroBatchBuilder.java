@@ -227,11 +227,11 @@ public class TestMicroBatchBuilder extends TableTestBase {
 
   private static DataFile fileWithSize(String name, long newFileSizeInBytes) {
     return DataFiles.builder(SPEC)
-            .withPath(name + ".parquet")
-            .withFileSizeInBytes(newFileSizeInBytes)
-            .withPartitionPath("data_bucket=0") // easy way to set partition data for now
-            .withRecordCount(1)
-            .build();
+        .withPath(name + ".parquet")
+        .withFileSizeInBytes(newFileSizeInBytes)
+        .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+        .withRecordCount(1)
+        .build();
   }
 
   // Returns default parquet file with size of 10b and 1 record in bucket 0.
