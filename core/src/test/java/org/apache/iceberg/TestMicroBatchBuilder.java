@@ -141,14 +141,14 @@ public class TestMicroBatchBuilder extends TableTestBase {
     Assert.assertTrue(batch5.lastIndexOfSnapshot());
   }
 
-  // TODO - Break this up into just the logic we're testing. At most 3 microbatches.
-  //        the intermediate ones aren't needed.
   @Test
-  public void testGenerateMicroBatchOnlyReadsFromGivenSnapshot() {
-    // Add files A-E and process in multiple microbatches.
+  public void testMicroBatchRespectsRequestedMaximumSize() {
+    // Add files A-E, all of 10kb, and process in multiple microbatches of varying sizes,
+    // emulating perhaps a dynamically growing source (assuming the total batch is being
+    // built by one process, as in Flink or on the driver in Spark).
     add(table.newAppend(), files("A", "B", "C", "D", "E"));
 
-    // First batch should only read A.
+    // Request 10kb - Receive file A.
     MicroBatch batch0 = MicroBatches.from(table.snapshot(1L), table.io())
             .specsById(table.specs())
             .generate(0, 10L, true);
@@ -159,8 +159,7 @@ public class TestMicroBatchBuilder extends TableTestBase {
     Assert.assertFalse(batch0.lastIndexOfSnapshot());
     filesMatch(Lists.newArrayList("A"), filesToScan(batch0.tasks()));
 
-    // Second batch should read B, C, and D, but not E as that will push it over the
-    // target microbatch size of 30 bytes (would make a MicroBatch of 35 bytes).
+    // Request 30kb. Receive B, C, and D.
     MicroBatch batch1 = MicroBatches.from(table.snapshot(1L), table.io())
             .specsById(table.specs())
             .generate(batch0.endFileIndex(), 35L, false);
@@ -170,68 +169,66 @@ public class TestMicroBatchBuilder extends TableTestBase {
     filesMatch(Lists.newArrayList("B", "C", "D"), filesToScan(batch1.tasks()));
     Assert.assertFalse(batch1.lastIndexOfSnapshot());
 
-    // Call to refresh should likely occur between all MicroBatch generation, but as it
-    // a part of this MicroBatch interface.
-    // table.refresh();  // This will update the table to be returning the correct snapshot.
-
-    // Third batch should definitely start at E, but I'm not sure if the ancestor should change.
-    // target microbatch size of 30 bytes (would make a MicroBatch of 35 bytes).
-
-    // Now add in an append so that version file changes.
-//    add(table.newAppend(),
-//            Collections.singletonList(fileWithSize("F", 25l)));
-
-    // Third batch should only read "E", as we have not updated the microbatch builder
-    // to be aware of the new snapshot. If we had, it would read "E" and "F" which make 35 bytes.
+    // Request 35kb - Receive File E which is the end of the input, only 10kb.
     MicroBatch batch2 = MicroBatches.from(table.snapshot(1L), table.io())
             .specsById(table.specs())
             .generate(batch1.endFileIndex(), 35L, false);
-    Assert.assertEquals(batch2.startFileIndex(), 4);
-    Assert.assertEquals(batch2.endFileIndex(), 5);
-    Assert.assertEquals(batch2.sizeInBytes(), 10);
+    Assert.assertEquals(4, batch2.startFileIndex());
+    Assert.assertEquals(5, batch2.endFileIndex());
+    Assert.assertEquals(10, batch2.sizeInBytes());
     filesMatch(Lists.newArrayList("E"), filesToScan(batch2.tasks()));
-    // The snapshot of 1 has ended. If we add another file, we can then get the unprocessed snapshots.
+  }
+
+  @Test
+  public void testReadingSnapshotIsNotInterruptedByChildSnapshot() {
+    // Add files A-E, all of 10kb, and process in multiple microbatches,
+    // generating snapshot 1 containing all of these.
+    add(table.newAppend(), files("A", "B", "C", "D", "E"));
+    Assert.assertEquals(1L, table.currentSnapshot().snapshotId());
+
+    // Request a batch of 40kb - Reads in A, B, C, and D.
+    MicroBatch batch0 = MicroBatches.from(table.snapshot(1L), table.io())
+            .specsById(table.specs())
+            .generate(0, 40L, false);
+    Assert.assertEquals(0, batch0.startFileIndex());
+    Assert.assertEquals(4, batch0.endFileIndex());
+    Assert.assertEquals(40, batch0.sizeInBytes());
+    filesMatch(Lists.newArrayList("A", "B", "C", "D"), filesToScan(batch0.tasks()));
+    Assert.assertFalse(batch0.lastIndexOfSnapshot());
+
+    // Concurrent sometime after the start of the last batch and before the next batch.
+    // Simulates desired stream behavior on Trigger.Once().
+    long sizeOfFileF = 25L;
+    add(table.newAppend(),
+            Collections.singletonList(fileWithSize("F", sizeOfFileF)));
+    Assert.assertEquals(2L, table.currentSnapshot().snapshotId());
+
+    // Read the last 10kb
+    MicroBatch batch1 = MicroBatches.from(table.snapshot(1L), table.io())
+            .specsById(table.specs())
+            .generate(batch0.endFileIndex(), 40L, false);
+    Assert.assertEquals(4, batch1.startFileIndex());
+    Assert.assertEquals(5, batch1.endFileIndex());
+    Assert.assertEquals(10, batch1.sizeInBytes());
+    filesMatch(Lists.newArrayList("E"), filesToScan(batch1.tasks()));
+    Assert.assertTrue(batch1.lastIndexOfSnapshot());
+
+    // Show that the next batch / snapshot can be read.
+    MicroBatch batch2 = MicroBatches.from(table.currentSnapshot(), table.io())
+            .specsById(table.specs())
+            .generate(0, 40L, true);
+    Assert.assertEquals(0, batch2.startFileIndex());
+    Assert.assertEquals(1, batch2.endFileIndex());
+    Assert.assertEquals(sizeOfFileF, batch2.sizeInBytes());
+    filesMatch(Lists.newArrayList("F"), filesToScan(batch2.tasks()));
     Assert.assertTrue(batch2.lastIndexOfSnapshot());
 
-    System.out.println("The manifest files are:" + listManifestFiles());
-
-    // Now let's emulate a concurrent update during the previous batch or a new update
-    // post the last batch. To emulate concurrent append to the table, we add but start a MicroBatch
-    // from the originally known snapshot of 1 (which we've been consuming).
-    add(table.newAppend(),
-            Collections.singletonList(fileWithSize("F", 25l)));
-
-    System.out.println("The manifest files are:" + listManifestFiles());
-
-    // Fourth microbatch should be empty, as we're emulating concurrently reading from snapshot 1 only
-    // and we appended file "F" after the previous files, so F does not exist in Snapshot 1.s
-    MicroBatch batch3 = MicroBatches.from(table.snapshot(1L), table.io())
-            .specsById(table.specs())
-            .generate(batch2.endFileIndex(), 35L, false);
-    System.out.println("batch3 when remaining on the old snapshot is " + batch3);
-    Assert.assertEquals(5, batch3.startFileIndex());
-    // Snapshot 1 does not have F in it, so this MicroBatch is empty
-    Assert.assertEquals(5, batch3.endFileIndex());
-    Assert.assertEquals(0, batch3.sizeInBytes());
-    filesMatch(Lists.newArrayList(), filesToScan(batch3.tasks()));
-    Assert.assertTrue(batch3.isEmpty());
-    // The snapshot of 1 has ended. If we add another file, we can then get the unprocessed snapshots.
-    Assert.assertTrue(batch3.lastIndexOfSnapshot());
-
-    // Fifth microbatch should only include "F" as we're starting from snapshot 2.
-    MicroBatch batch4 = MicroBatches.from(table.snapshot(2l), table.io())
-            .specsById(table.specs())
-            .generate(0, 35L, true);
-    System.out.println("batch4 when staring on the current index is " + batch4);
-    Assert.assertEquals(0, batch4.startFileIndex());
-    // Snapshot 1 does not have F in it, so this MicroBatch is empty
-    Assert.assertEquals(1, batch4.endFileIndex());
-    Assert.assertEquals(25, batch4.sizeInBytes());
-    filesMatch(Lists.newArrayList("F"), filesToScan(batch4.tasks()));
-    // The snapshot of 2 has now ended.
-    Assert.assertTrue(batch4.lastIndexOfSnapshot());
-
   }
+
+  // TODO - Determine how and where to test with deletes (likely in this class - can test
+  //        filter pushdown and then when filtered data exists, as an initial implementation,
+  //        we can apply the deletes (most likely via IN) as will likely be small - need to check threshold
+  //        once that on going work is completed.
 
   private static DataFile fileWithSize(String name, long newFileSizeInBytes) {
     return DataFiles.builder(SPEC)
