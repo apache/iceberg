@@ -245,8 +245,19 @@ class FlinkOrcWriters {
       ListColumnVector cv = (ListColumnVector) output;
       cv.lengths[rowId] = data.size();
       cv.offsets[rowId] = cv.childCount;
-      cv.childCount += cv.lengths[rowId];
+      // cv.childCount is for some reason an int, which generates all of these
+      // NarrowingCompoundAssignment warnings. Although this does nothing to prevent
+      // overflow from adding too many values to cv.childCount because `ListColumnVector`
+      // comes from package `org.apache.orc.storage.ql.exec.vector`, it at least removes
+      // the warning message. Whether that's preferred or not, I don't know as the
+      // issue still very much remains.
+      // This new statement is equivalent to the old, but because it's adding an int vs adding
+      // the int after the it has been cast to long when assigned to `cv.lengths[rowId]`,
+      // the narrowing compound assignment warning is gone. This could be added to any other
+      // occurrences of this same warning.
+      cv.childCount += data.size();
       // make sure the child is big enough.
+      // TODO - Would ensuring the child is big enough before adding to it help to suss out when this overflow happens?
       cv.child.ensureSize(cv.childCount, true);
 
       for (int e = 0; e < cv.lengths[rowId]; ++e) {
@@ -285,8 +296,10 @@ class FlinkOrcWriters {
       // record the length and start of the list elements
       cv.lengths[rowId] = data.size();
       cv.offsets[rowId] = cv.childCount;
-      cv.childCount += cv.lengths[rowId];
+      cv.childCount += data.size();
       // make sure the child is big enough
+      // TODO - Should this be done before adding to childCount in case of overflow?
+      //      - Possibly we could sum up the values of `cv.length` if we're really worried about overflow?
       cv.keys.ensureSize(cv.childCount, true);
       cv.values.ensureSize(cv.childCount, true);
       // Add each element
