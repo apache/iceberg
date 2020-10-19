@@ -463,12 +463,10 @@ project(':iceberg-mr') {
     testCompile("org.apache.calcite:calcite-core")
     testCompile("com.esotericsoftware:kryo-shaded:4.0.2")
     testCompile("com.fasterxml.jackson.core:jackson-annotations:2.6.5")
-    testCompile("com.klarna:hiverunner:5.2.1") {
-      exclude group: 'javax.jms', module: 'jms'
+    testCompile("org.apache.hive:hive-service") {
       exclude group: 'org.apache.hive', module: 'hive-exec'
-      exclude group: 'org.codehaus.jettison', module: 'jettison'
-      exclude group: 'org.apache.calcite.avatica'
     }
+    testCompile("org.apache.tez:tez-dag:0.8.4")
   }
 
   test {
@@ -530,12 +528,10 @@ if (jdkVersion == '8') {
       testCompile("org.apache.calcite:calcite-core")
       testCompile("com.esotericsoftware:kryo-shaded:4.0.2")
       testCompile("com.fasterxml.jackson.core:jackson-annotations:2.6.5")
-      testCompile("com.klarna:hiverunner:6.0.1") {
-        exclude group: 'javax.jms', module: 'jms'
+      testCompile("org.apache.hive:hive-service:3.1.2") {
         exclude group: 'org.apache.hive', module: 'hive-exec'
-        exclude group: 'org.codehaus.jettison', module: 'jettison'
-        exclude group: 'org.apache.calcite.avatica'
       }
+      testCompile("org.apache.tez:tez-dag:0.9.1")
     }
 
     test {
