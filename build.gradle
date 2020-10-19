@@ -466,7 +466,6 @@ project(':iceberg-mr') {
     testCompile("org.apache.hive:hive-service") {
       exclude group: 'org.apache.hive', module: 'hive-exec'
     }
-    testCompile("org.apache.tez:tez-dag:0.8.4")
   }
 
   test {
