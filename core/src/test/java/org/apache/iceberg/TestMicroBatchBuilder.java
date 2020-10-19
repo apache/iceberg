@@ -196,7 +196,8 @@ public class TestMicroBatchBuilder extends TableTestBase {
     filesMatch(Lists.newArrayList("A", "B", "C", "D"), filesToScan(batch0.tasks()));
     Assert.assertFalse(batch0.lastIndexOfSnapshot());
 
-    // Concurrent write sometime after the start of the last batch and before the next batch.long sizeOfFileF = 25L;
+    // Concurrent write sometime after the start of the last batch and before the next batch.
+    final long sizeOfFileF = 25L;
     add(table.newAppend(),
             Collections.singletonList(fileWithSize("F", sizeOfFileF)));
     Assert.assertEquals(2L, table.currentSnapshot().snapshotId());
@@ -238,8 +239,7 @@ public class TestMicroBatchBuilder extends TableTestBase {
             .build();
   }
 
-  // Previously we always tested with a size of 10 bytes.
-  // TODO - Should we use TableProperties.WRITE_TARGET_FILE_SIZE_BYTES?
+  // Returns default parquet file with size of 10b and 1 record in bucket 0.
   private static DataFile file(String name) {
     return fileWithSize(name, 10l);
   }
