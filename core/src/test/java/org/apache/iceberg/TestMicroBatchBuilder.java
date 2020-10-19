@@ -196,14 +196,13 @@ public class TestMicroBatchBuilder extends TableTestBase {
     filesMatch(Lists.newArrayList("A", "B", "C", "D"), filesToScan(batch0.tasks()));
     Assert.assertFalse(batch0.lastIndexOfSnapshot());
 
-    // Concurrent sometime after the start of the last batch and before the next batch.
-    // Simulates desired stream behavior on Trigger.Once().
-    long sizeOfFileF = 25L;
+    // Concurrent write sometime after the start of the last batch and before the next batch.long sizeOfFileF = 25L;
     add(table.newAppend(),
             Collections.singletonList(fileWithSize("F", sizeOfFileF)));
     Assert.assertEquals(2L, table.currentSnapshot().snapshotId());
 
-    // Read the last 10kb
+    // Read the last 10kb of Snapshot 1.
+    // Simulates desired stream behavior for example on Trigger.Once().
     MicroBatch batch1 = MicroBatches.from(table.snapshot(1L), table.io())
             .specsById(table.specs())
             .generate(batch0.endFileIndex(), 40L, false);
