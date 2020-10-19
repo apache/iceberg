@@ -50,15 +50,15 @@ public class TestMicroBatchBuilder extends TableTestBase {
   public void testGenerateMicroBatch() {
     add(table.newAppend(), files("A", "B", "C", "D", "E"));
 
-    MicroBatch batch = MicroBatches.from(table.snapshot(1L), table.io())
+    MicroBatch batch0 = MicroBatches.from(table.snapshot(1L), table.io())
         .specsById(table.specs())
         .generate(0, Long.MAX_VALUE, true);
-    Assert.assertEquals(batch.snapshotId(), 1L);
-    Assert.assertEquals(batch.startFileIndex(), 0);
-    Assert.assertEquals(batch.endFileIndex(), 5);
-    Assert.assertEquals(batch.sizeInBytes(), 50);
-    Assert.assertTrue(batch.lastIndexOfSnapshot());
-    filesMatch(Lists.newArrayList("A", "B", "C", "D", "E"), filesToScan(batch.tasks()));
+    Assert.assertEquals(batch0.snapshotId(), 1L);
+    Assert.assertEquals(batch0.startFileIndex(), 0);
+    Assert.assertEquals(batch0.endFileIndex(), 5);
+    Assert.assertEquals(batch0.sizeInBytes(), 50);
+    Assert.assertTrue(batch0.lastIndexOfSnapshot());
+    filesMatch(Lists.newArrayList("A", "B", "C", "D", "E"), filesToScan(batch0.tasks()));
 
     MicroBatch batch1 = MicroBatches.from(table.snapshot(1L), table.io())
         .specsById(table.specs())
@@ -89,19 +89,20 @@ public class TestMicroBatchBuilder extends TableTestBase {
   public void testGenerateMicroBatchWithSmallTargetSize() {
     add(table.newAppend(), files("A", "B", "C", "D", "E"));
 
-    MicroBatch batch = MicroBatches.from(table.snapshot(1L), table.io())
+    MicroBatch batch0 = MicroBatches.from(table.snapshot(1L), table.io())
         .specsById(table.specs())
         .generate(0, 10L, true);
-    Assert.assertEquals(batch.snapshotId(), 1L);
-    Assert.assertEquals(batch.startFileIndex(), 0);
-    Assert.assertEquals(batch.endFileIndex(), 1);
-    Assert.assertEquals(batch.sizeInBytes(), 10);
-    Assert.assertFalse(batch.lastIndexOfSnapshot());
-    filesMatch(Lists.newArrayList("A"), filesToScan(batch.tasks()));
+    Assert.assertEquals(batch0.snapshotId(), 1L);
+    Assert.assertEquals(batch0.startFileIndex(), 0);
+    Assert.assertEquals(batch0.endFileIndex(), 1);
+    Assert.assertEquals(batch0.sizeInBytes(), 10);
+    Assert.assertFalse(batch0.lastIndexOfSnapshot());
+    filesMatch(Lists.newArrayList("A"), filesToScan(batch0.tasks()));
 
     MicroBatch batch1 = MicroBatches.from(table.snapshot(1L), table.io())
         .specsById(table.specs())
-        .generate(batch.endFileIndex(), 5L, true);
+        .generate(batch0.endFileIndex(), 5L, true);
+    Assert.assertEquals(batch1.startFileIndex(), 1);
     Assert.assertEquals(batch1.endFileIndex(), 2);
     Assert.assertEquals(batch1.sizeInBytes(), 10);
     filesMatch(Lists.newArrayList("B"), filesToScan(batch1.tasks()));
@@ -140,13 +141,109 @@ public class TestMicroBatchBuilder extends TableTestBase {
     Assert.assertTrue(batch5.lastIndexOfSnapshot());
   }
 
-  private static DataFile file(String name) {
+  @Test
+  public void testGenerateMicroBatchOnlyReadsFromGivenSnapshot() {
+    // Add files A-E and process in multiple microbatches.
+    add(table.newAppend(), files("A", "B", "C", "D", "E"));
+
+    // First batch should only read A.
+    MicroBatch batch0 = MicroBatches.from(table.snapshot(1L), table.io())
+            .specsById(table.specs())
+            .generate(0, 10L, true);
+    Assert.assertEquals(batch0.snapshotId(), 1L);
+    Assert.assertEquals(batch0.startFileIndex(), 0);
+    Assert.assertEquals(batch0.endFileIndex(), 1);
+    Assert.assertEquals(batch0.sizeInBytes(), 10);
+    Assert.assertFalse(batch0.lastIndexOfSnapshot());
+    filesMatch(Lists.newArrayList("A"), filesToScan(batch0.tasks()));
+
+    // Second batch should read B, C, and D, but not E as that will push it over the
+    // target microbatch size of 30 bytes (would make a MicroBatch of 35 bytes).
+    MicroBatch batch1 = MicroBatches.from(table.snapshot(1L), table.io())
+            .specsById(table.specs())
+            .generate(batch0.endFileIndex(), 35L, false);
+    Assert.assertEquals(batch1.startFileIndex(), 1);
+    Assert.assertEquals(batch1.endFileIndex(), 4);
+    Assert.assertEquals(batch1.sizeInBytes(), 30);
+    filesMatch(Lists.newArrayList("B", "C", "D"), filesToScan(batch1.tasks()));
+    Assert.assertFalse(batch1.lastIndexOfSnapshot());
+
+    // Call to refresh should likely occur between all MicroBatch generation, but as it
+    // a part of this MicroBatch interface.
+    // table.refresh();  // This will update the table to be returning the correct snapshot.
+
+    // Third batch should definitely start at E, but I'm not sure if the ancestor should change.
+    // target microbatch size of 30 bytes (would make a MicroBatch of 35 bytes).
+
+    // Now add in an append so that version file changes.
+//    add(table.newAppend(),
+//            Collections.singletonList(fileWithSize("F", 25l)));
+
+    // Third batch should only read "E", as we have not updated the microbatch builder
+    // to be aware of the new snapshot. If we had, it would read "E" and "F" which make 35 bytes.
+    MicroBatch batch2 = MicroBatches.from(table.snapshot(1L), table.io())
+            .specsById(table.specs())
+            .generate(batch1.endFileIndex(), 35L, false);
+    Assert.assertEquals(batch2.startFileIndex(), 4);
+    Assert.assertEquals(batch2.endFileIndex(), 5);
+    Assert.assertEquals(batch2.sizeInBytes(), 10);
+    filesMatch(Lists.newArrayList("E"), filesToScan(batch2.tasks()));
+    // The snapshot of 1 has ended. If we add another file, we can then get the unprocessed snapshots.
+    Assert.assertTrue(batch2.lastIndexOfSnapshot());
+
+    System.out.println("The manifest files are:" + listManifestFiles());
+
+    // Now let's emulate a concurrent update during the previous batch or a new update
+    // post the last batch. To emulate concurrent append to the table, we add but start a MicroBatch
+    // from the originally known snapshot of 1 (which we've been consuming).
+    add(table.newAppend(),
+            Collections.singletonList(fileWithSize("F", 25l)));
+
+    System.out.println("The manifest files are:" + listManifestFiles());
+
+    // Fourth microbatch should be empty, as we're emulating concurrently reading from snapshot 1 only
+    // and we appended file "F" after the previous files, so F does not exist in Snapshot 1.s
+    MicroBatch batch3 = MicroBatches.from(table.snapshot(1L), table.io())
+            .specsById(table.specs())
+            .generate(batch2.endFileIndex(), 35L, false);
+    System.out.println("batch3 when remaining on the old snapshot is " + batch3);
+    Assert.assertEquals(5, batch3.startFileIndex());
+    // Snapshot 1 does not have F in it, so this MicroBatch is empty
+    Assert.assertEquals(5, batch3.endFileIndex());
+    Assert.assertEquals(0, batch3.sizeInBytes());
+    filesMatch(Lists.newArrayList(), filesToScan(batch3.tasks()));
+    Assert.assertTrue(batch3.isEmpty());
+    // The snapshot of 1 has ended. If we add another file, we can then get the unprocessed snapshots.
+    Assert.assertTrue(batch3.lastIndexOfSnapshot());
+
+    // Fifth microbatch should only include "F" as we're starting from snapshot 2.
+    MicroBatch batch4 = MicroBatches.from(table.snapshot(2l), table.io())
+            .specsById(table.specs())
+            .generate(0, 35L, true);
+    System.out.println("batch4 when staring on the current index is " + batch4);
+    Assert.assertEquals(0, batch4.startFileIndex());
+    // Snapshot 1 does not have F in it, so this MicroBatch is empty
+    Assert.assertEquals(1, batch4.endFileIndex());
+    Assert.assertEquals(25, batch4.sizeInBytes());
+    filesMatch(Lists.newArrayList("F"), filesToScan(batch4.tasks()));
+    // The snapshot of 2 has now ended.
+    Assert.assertTrue(batch4.lastIndexOfSnapshot());
+
+  }
+
+  private static DataFile fileWithSize(String name, long newFileSizeInBytes) {
     return DataFiles.builder(SPEC)
-        .withPath(name + ".parquet")
-        .withFileSizeInBytes(10)
-        .withPartitionPath("data_bucket=0") // easy way to set partition data for now
-        .withRecordCount(1)
-        .build();
+            .withPath(name + ".parquet")
+            .withFileSizeInBytes(newFileSizeInBytes)
+            .withPartitionPath("data_bucket=0") // easy way to set partition data for now
+            .withRecordCount(1)
+            .build();
+  }
+
+  // Previously we always tested with a size of 10 bytes.
+  // TODO - Should we use TableProperties.WRITE_TARGET_FILE_SIZE_BYTES?
+  private static DataFile file(String name) {
+    return fileWithSize(name, 10l);
   }
 
   private static void add(AppendFiles appendFiles, List<DataFile> adds) {

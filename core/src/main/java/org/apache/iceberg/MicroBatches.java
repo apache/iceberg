@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -78,6 +79,22 @@ public class MicroBatches {
 
     public boolean lastIndexOfSnapshot() {
       return lastIndexOfSnapshot;
+    }
+
+    public boolean isEmpty() {
+      return tasks == null || tasks().isEmpty();
+    }
+
+    @Override
+    public String toString() {
+      return MoreObjects.toStringHelper(this)
+              .add("snapshotId", snapshotId())
+              .add("startFileIndex", startFileIndex())
+              .add("endFileIndex", endFileIndex())
+              .add("sizeInBytes", sizeInBytes())
+              .add("tasks", tasks())
+              .add("lastIndexOfSnapshot", lastIndexOfSnapshot())
+              .toString();
     }
   }
 
@@ -145,7 +162,7 @@ public class MicroBatches {
     /**
      * Method to skip the manifest file in which the index is smaller than startFileIndex. For example, if the
      * index list is : (m1, 0), (m2, 3), (m3, 5), and startFileIndex is 4, then the returned manifest index list is:
-     * (m2, 3), (m3, 5).
+     * (m3, 5).
      *
      * @param indexedManifests List of input manifests.
      * @param startFileIndex Index used to skip the processed manifests.
