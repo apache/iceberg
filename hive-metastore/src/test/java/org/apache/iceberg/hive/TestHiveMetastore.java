@@ -54,6 +54,7 @@ import static java.nio.file.attribute.PosixFilePermissions.fromString;
 public class TestHiveMetastore {
 
   private static final String DEFAULT_DATABASE_NAME = "default";
+  private static final int DEFAULT_POOL_SIZE = 5;
 
   // create the metastore handlers based on whether we're working with Hive2 or Hive3 dependencies
   // we need to do this because there is a breaking API change between Hive2 and Hive3
@@ -74,7 +75,18 @@ public class TestHiveMetastore {
   private HiveMetaStore.HMSHandler baseHandler;
   private HiveClientPool clientPool;
 
+  /**
+   * Starts a TestHiveMetastore with the default connection pool size (5).
+   */
   public void start() {
+    start(DEFAULT_POOL_SIZE);
+  }
+
+  /**
+   * Starts a TestHiveMetastore with a provided connection pool size.
+   * @param poolSize The number of threads in the executor pool
+   */
+  public void start(int poolSize) {
     try {
       this.hiveLocalDir = createTempDirectory("hive", asFileAttribute(fromString("rwxrwxrwx"))).toFile();
       File derbyLogFile = new File(hiveLocalDir, "derby.log");
@@ -84,7 +96,7 @@ public class TestHiveMetastore {
       TServerSocket socket = new TServerSocket(0);
       int port = socket.getServerSocket().getLocalPort();
       this.hiveConf = newHiveConf(port);
-      this.server = newThriftServer(socket, hiveConf);
+      this.server = newThriftServer(socket, poolSize, hiveConf);
       this.executorService = Executors.newSingleThreadExecutor();
       this.executorService.submit(() -> server.serve());
 
@@ -156,7 +168,7 @@ public class TestHiveMetastore {
     }
   }
 
-  private TServer newThriftServer(TServerSocket socket, HiveConf conf) throws Exception {
+  private TServer newThriftServer(TServerSocket socket, int poolSize, HiveConf conf) throws Exception {
     HiveConf serverConf = new HiveConf(conf);
     serverConf.set(HiveConf.ConfVars.METASTORECONNECTURLKEY.varname, "jdbc:derby:" + getDerbyPath() + ";create=true");
     baseHandler = HMS_HANDLER_CTOR.newInstance("new db based metaserver", serverConf);
@@ -166,8 +178,8 @@ public class TestHiveMetastore {
         .processor(new TSetIpAddressProcessor<>(handler))
         .transportFactory(new TTransportFactory())
         .protocolFactory(new TBinaryProtocol.Factory())
-        .minWorkerThreads(5)
-        .maxWorkerThreads(15);
+        .minWorkerThreads(poolSize)
+        .maxWorkerThreads(poolSize);
 
     return new TThreadPoolServer(args);
   }

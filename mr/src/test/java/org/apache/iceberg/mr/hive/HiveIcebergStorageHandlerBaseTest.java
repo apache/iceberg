@@ -108,6 +108,8 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       ImmutableSet.of("bucketing_version", StatsSetupConst.ROW_COUNT,
           StatsSetupConst.RAW_DATA_SIZE, StatsSetupConst.TOTAL_SIZE, StatsSetupConst.NUM_FILES);
 
+  private static final int METASTORE_POOL_SIZE = 15;
+
   // before variables
   protected static TestHiveMetastore metastore;
 
@@ -119,7 +121,8 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   @BeforeClass
   public static void beforeClass() {
     metastore = new TestHiveMetastore();
-    metastore.start();
+    // We need to use increased pool size in these tests. See: #1620
+    metastore.start(METASTORE_POOL_SIZE);
   }
 
   @AfterClass
