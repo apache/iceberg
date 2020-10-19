@@ -24,19 +24,15 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFileFactory;
@@ -72,16 +68,13 @@ import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
-class SparkBatchWrite implements BatchWrite {
-  private static final Logger LOG = LoggerFactory.getLogger(SparkBatchWrite.class);
+abstract class BaseBatchWrite implements BatchWrite {
+  private static final Logger LOG = LoggerFactory.getLogger(BaseBatchWrite.class);
 
   private final Table table;
   private final FileFormat format;
   private final Broadcast<FileIO> io;
   private final Broadcast<EncryptionManager> encryptionManager;
-  private final boolean overwriteDynamic;
-  private final boolean overwriteByFilter;
-  private final Expression overwriteExpr;
   private final String applicationId;
   private final String wapId;
   private final long targetFileSize;
@@ -89,17 +82,13 @@ class SparkBatchWrite implements BatchWrite {
   private final StructType dsSchema;
   private final Map<String, String> extraSnapshotMetadata;
 
-  SparkBatchWrite(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
-                  CaseInsensitiveStringMap options, boolean overwriteDynamic, boolean overwriteByFilter,
-                  Expression overwriteExpr, String applicationId, String wapId, Schema writeSchema,
-                  StructType dsSchema) {
+  BaseBatchWrite(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
+                 CaseInsensitiveStringMap options, String applicationId, String wapId,
+                 Schema writeSchema, StructType dsSchema) {
     this.table = table;
     this.format = getFileFormat(table.properties(), options);
     this.io = io;
     this.encryptionManager = encryptionManager;
-    this.overwriteDynamic = overwriteDynamic;
-    this.overwriteByFilter = overwriteByFilter;
-    this.overwriteExpr = overwriteExpr;
     this.applicationId = applicationId;
     this.wapId = wapId;
     this.writeSchema = writeSchema;
@@ -136,19 +125,9 @@ class SparkBatchWrite implements BatchWrite {
         writeSchema, dsSchema);
   }
 
-  @Override
-  public void commit(WriterCommitMessage[] messages) {
-    if (overwriteDynamic) {
-      replacePartitions(messages);
-    } else if (overwriteByFilter) {
-      overwrite(messages);
-    } else {
-      append(messages);
-    }
-  }
+  protected void commitOperation(SnapshotUpdate<?> operation, String description) {
+    LOG.info("Committing {} to table {}", description, table);
 
-  protected void commitOperation(SnapshotUpdate<?> operation, int numFiles, String description) {
-    LOG.info("Committing {} with {} files to table {}", description, numFiles, table);
     if (applicationId != null) {
       operation.set("spark.app.id", applicationId);
     }
@@ -168,43 +147,6 @@ class SparkBatchWrite implements BatchWrite {
     operation.commit(); // abort is automatically called if this fails
     long duration = System.currentTimeMillis() - start;
     LOG.info("Committed in {} ms", duration);
-  }
-
-  private void append(WriterCommitMessage[] messages) {
-    AppendFiles append = table.newAppend();
-
-    int numFiles = 0;
-    for (DataFile file : files(messages)) {
-      numFiles += 1;
-      append.appendFile(file);
-    }
-
-    commitOperation(append, numFiles, "append");
-  }
-
-  private void replacePartitions(WriterCommitMessage[] messages) {
-    ReplacePartitions dynamicOverwrite = table.newReplacePartitions();
-
-    int numFiles = 0;
-    for (DataFile file : files(messages)) {
-      numFiles += 1;
-      dynamicOverwrite.addFile(file);
-    }
-
-    commitOperation(dynamicOverwrite, numFiles, "dynamic partition overwrite");
-  }
-
-  private void overwrite(WriterCommitMessage[] messages) {
-    OverwriteFiles overwriteFiles = table.newOverwrite();
-    overwriteFiles.overwriteByRowFilter(overwriteExpr);
-
-    int numFiles = 0;
-    for (DataFile file : files(messages)) {
-      numFiles += 1;
-      overwriteFiles.addFile(file);
-    }
-
-    commitOperation(overwriteFiles, numFiles, "overwrite by filter");
   }
 
   @Override

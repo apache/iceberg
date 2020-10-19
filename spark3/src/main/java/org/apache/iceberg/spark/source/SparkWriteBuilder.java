@@ -113,9 +113,19 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     Broadcast<FileIO> io = lazySparkContext().broadcast(SparkUtil.serializableFileIO(table));
     Broadcast<EncryptionManager> encryptionManager = lazySparkContext().broadcast(table.encryption());
 
-    return new SparkBatchWrite(
-        table, io, encryptionManager, options, overwriteDynamic, overwriteByFilter, overwriteExpr, appId, wapId,
-        writeSchema, dsSchema);
+    if (overwriteByFilter) {
+      return new OverwriteByFilterBatchWrite(
+          table, io, encryptionManager, options, appId, wapId,
+          writeSchema, dsSchema, overwriteExpr);
+    } else if (overwriteDynamic) {
+      return new OverwriteDynamicBatchWrite(
+          table, io, encryptionManager, options, appId, wapId,
+          writeSchema, dsSchema);
+    } else {
+      return new AppendBatchWrite(
+          table, io, encryptionManager, options, appId, wapId,
+          writeSchema, dsSchema);
+    }
   }
 
   @Override

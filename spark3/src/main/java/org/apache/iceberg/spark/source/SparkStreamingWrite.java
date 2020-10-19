@@ -40,7 +40,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SparkStreamingWrite extends SparkBatchWrite implements StreamingWrite {
+class SparkStreamingWrite extends BaseBatchWrite implements StreamingWrite {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkStreamingWrite.class);
   private static final String QUERY_ID_PROPERTY = "spark.sql.streaming.queryId";
@@ -52,9 +52,7 @@ public class SparkStreamingWrite extends SparkBatchWrite implements StreamingWri
   SparkStreamingWrite(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
                       CaseInsensitiveStringMap options, boolean truncateBatches, String queryId,
                       String applicationId, String wapId, Schema writeSchema, StructType dsSchema) {
-    super(
-        table, io, encryptionManager, options, false, truncateBatches, Expressions.alwaysTrue(), applicationId, wapId,
-        writeSchema, dsSchema);
+    super(table, io, encryptionManager, options, applicationId, wapId, writeSchema, dsSchema);
     this.truncateBatches = truncateBatches;
     this.queryId = queryId;
   }
@@ -63,6 +61,11 @@ public class SparkStreamingWrite extends SparkBatchWrite implements StreamingWri
   public StreamingDataWriterFactory createStreamingWriterFactory(PhysicalWriteInfo info) {
     // the writer factory works for both batch and streaming
     return createBatchWriterFactory(info);
+  }
+
+  @Override
+  public void commit(WriterCommitMessage[] messages) {
+    throw new UnsupportedOperationException("Streaming writes don't support batch writes");
   }
 
   @Override
@@ -84,7 +87,7 @@ public class SparkStreamingWrite extends SparkBatchWrite implements StreamingWri
         overwriteFiles.addFile(file);
         numFiles++;
       }
-      commit(overwriteFiles, epochId, numFiles, "streaming complete overwrite");
+      commit(overwriteFiles, epochId, String.format("streaming complete overwrite with %d new data files", numFiles));
     } else {
       AppendFiles append = table().newFastAppend();
       int numFiles = 0;
@@ -92,14 +95,14 @@ public class SparkStreamingWrite extends SparkBatchWrite implements StreamingWri
         append.appendFile(file);
         numFiles++;
       }
-      commit(append, epochId, numFiles, "streaming append");
+      commit(append, epochId, String.format("streaming append with %d new data files", numFiles));
     }
   }
 
-  private <T> void commit(SnapshotUpdate<T> snapshotUpdate, long epochId, int numFiles, String description) {
+  private <T> void commit(SnapshotUpdate<T> snapshotUpdate, long epochId, String description) {
     snapshotUpdate.set(QUERY_ID_PROPERTY, queryId);
     snapshotUpdate.set(EPOCH_ID_PROPERTY, Long.toString(epochId));
-    commitOperation(snapshotUpdate, numFiles, description);
+    commitOperation(snapshotUpdate, description);
   }
 
   @Override
