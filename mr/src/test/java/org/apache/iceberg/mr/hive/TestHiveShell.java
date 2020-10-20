@@ -31,15 +31,13 @@ import org.apache.hive.service.cli.RowSet;
 import org.apache.hive.service.cli.SessionHandle;
 import org.apache.hive.service.cli.session.HiveSession;
 import org.apache.hive.service.server.HiveServer2;
-import org.apache.iceberg.common.DynMethods;
-
-import static org.apache.commons.lang3.StringUtils.isNotBlank;
-import static org.apache.iceberg.relocated.com.google.common.base.Preconditions.checkState;
+import org.apache.iceberg.hive.TestHiveMetastore;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Test class for running HiveQL queries, essentially acting like a Beeline shell in tests.
  *
- * It takes a metastore URL via conf, and spins up an HS2 instance which connects to it. The shell will only accept
+ * It spins up both an HS2 and a Metastore instance to work with. The shell will only accept
  * queries if it has been previously initialized via {@link #start()}, and a session has been opened via
  * {@link #openSession()}. Prior to calling {@link #start()}, the shell should first be configured with props that apply
  * across all test cases by calling {@link #setHiveConfValue(String, String)} ()}. On the other hand, session-level conf
@@ -47,29 +45,29 @@ import static org.apache.iceberg.relocated.com.google.common.base.Preconditions.
  */
 public class TestHiveShell {
 
-  private static final DynMethods.StaticMethod FIND_FREE_PORT = DynMethods.builder("findFreePort")
-          .impl("org.apache.hadoop.hive.metastore.utils.MetaStoreUtils")
-          .impl("org.apache.hadoop.hive.metastore.MetaStoreUtils")
-          .buildStatic();
+  // We need to use increased pool size in these tests. See: #1620
+  private static final int METASTORE_POOL_SIZE = 15;
 
+  private final TestHiveMetastore metastore;
   private final HiveServer2 hs2;
-  private final HiveConf conf;
+  private final HiveConf hs2Conf;
   private CLIService client;
   private HiveSession session;
   private boolean started;
 
   public TestHiveShell() {
-    conf = initializeConf();
+    metastore = new TestHiveMetastore();
+    hs2Conf = initializeConf();
     hs2 = new HiveServer2();
   }
 
   public void setHiveConfValue(String key, String value) {
-    checkState(!started, "TestHiveShell has already been started. Cannot set Hive conf anymore.");
-    conf.set(key, value);
+    Preconditions.checkState(!started, "TestHiveShell has already been started. Cannot set Hive conf anymore.");
+    hs2Conf.verifyAndSet(key, value);
   }
 
   public void setHiveSessionValue(String key, String value) {
-    checkState(session != null, "There is no open session for setting variables.");
+    Preconditions.checkState(session != null, "There is no open session for setting variables.");
     try {
       session.getSessionConf().set(key, value);
     } catch (Exception e) {
@@ -78,9 +76,12 @@ public class TestHiveShell {
   }
 
   public void start() {
-    checkState(isNotBlank(conf.get(HiveConf.ConfVars.METASTOREURIS.varname)),
-            "hive.metastore.uris must be supplied in config. TestHiveShell needs an external metastore to connect to.");
-    hs2.init(conf);
+    metastore.start(METASTORE_POOL_SIZE);
+    hs2Conf.setVar(HiveConf.ConfVars.METASTOREURIS, metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREURIS));
+    hs2Conf.setVar(HiveConf.ConfVars.METASTOREWAREHOUSE,
+        metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREWAREHOUSE));
+
+    hs2.init(hs2Conf);
     hs2.start();
     client = hs2.getServices().stream()
             .filter(CLIService.class::isInstance)
@@ -95,14 +96,19 @@ public class TestHiveShell {
       client.stop();
     }
     hs2.stop();
+    metastore.stop();
     started = false;
   }
 
+  public TestHiveMetastore getMetastore() {
+    return metastore;
+  }
+
   public void openSession() {
-    checkState(started, "You have to start TestHiveShell first, before opening a session.");
+    Preconditions.checkState(started, "You have to start TestHiveShell first, before opening a session.");
     try {
       SessionHandle sessionHandle = client.getSessionManager().openSession(
-              CLIService.SERVER_VERSION, "", "", "127.0.0.1", Collections.emptyMap());
+          CLIService.SERVER_VERSION, "", "", "127.0.0.1", Collections.emptyMap());
       session = client.getSessionManager().getSession(sessionHandle);
     } catch (Exception e) {
       throw new RuntimeException("Unable to open new Hive session: ", e);
@@ -110,7 +116,7 @@ public class TestHiveShell {
   }
 
   public void closeSession() {
-    checkState(session != null, "There is no open session to be closed.");
+    Preconditions.checkState(session != null, "There is no open session to be closed.");
     try {
       session.close();
       session = null;
@@ -120,7 +126,7 @@ public class TestHiveShell {
   }
 
   public List<Object[]> executeStatement(String statement) {
-    checkState(session != null,
+    Preconditions.checkState(session != null,
             "You have to start TestHiveShell and open a session first, before running a query.");
     try {
       OperationHandle handle = client.executeStatement(session.getSessionHandle(), statement, Collections.emptyMap());
@@ -144,17 +150,17 @@ public class TestHiveShell {
     if (session != null) {
       return session.getHiveConf();
     } else {
-      return conf;
+      return hs2Conf;
     }
   }
 
   private HiveConf initializeConf() {
     HiveConf hiveConf = new HiveConf();
 
-    // Use random port to enable running tests in parallel
-    hiveConf.setIntVar(HiveConf.ConfVars.HIVE_SERVER2_THRIFT_PORT, FIND_FREE_PORT.invoke());
+    // Use ephemeral port to enable running tests in parallel
+    hiveConf.setIntVar(HiveConf.ConfVars.HIVE_SERVER2_THRIFT_PORT, 0);
     // Disable the web UI
-    hiveConf.setIntVar(HiveConf.ConfVars.HIVE_SERVER2_WEBUI_PORT, 0);
+    hiveConf.setIntVar(HiveConf.ConfVars.HIVE_SERVER2_WEBUI_PORT, -1);
 
     // Switch off optimizers in order to contain the map reduction within this JVM
     hiveConf.setBoolVar(HiveConf.ConfVars.HIVE_CBO_ENABLED, false);
