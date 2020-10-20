@@ -34,6 +34,7 @@ import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.data.FlinkAvroReader;
 import org.apache.iceberg.flink.data.FlinkOrcReader;
 import org.apache.iceberg.flink.data.FlinkParquetReaders;
+import org.apache.iceberg.flink.data.RowDataUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
@@ -67,7 +68,7 @@ class RowDataIterator extends DataIterator<RowData> {
     Schema partitionSchema = TypeUtil.select(projectedSchema, task.spec().identitySourceIds());
 
     Map<Integer, ?> idToConstant = partitionSchema.columns().isEmpty() ? ImmutableMap.of() :
-        PartitionUtil.constantsMap(task, RowDataIterator::convertConstant);
+        PartitionUtil.constantsMap(task, RowDataUtil::convertConstant);
 
     FlinkDeleteFilter deletes = new FlinkDeleteFilter(task, tableSchema, projectedSchema);
     CloseableIterable<RowData> iterable = deletes.filter(newIterable(task, deletes.requiredSchema(), idToConstant));
