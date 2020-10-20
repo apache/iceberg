@@ -835,6 +835,10 @@ if (jdkVersion == '8') {
       maxHeapSize '2500m'
     }
     // start and stop quarkus for nessie tests
+    quarkusAppRunnerProperties {
+      props = ["quarkus.http.test-port": 0]
+    }
+    tasks.getByName("quarkus-start").dependsOn("compileTestJava")
     tasks.test.dependsOn("quarkus-start").finalizedBy("quarkus-stop")
   }
 
@@ -958,6 +962,10 @@ project(':iceberg-spark3') {
     maxHeapSize '2500m'
   }
   // start and stop quarkus for nessie tests
+  quarkusAppRunnerProperties {
+    props = ["quarkus.http.test-port": 0]
+  }
+  tasks.getByName("quarkus-start").dependsOn("compileTestJava")
   tasks.test.dependsOn("quarkus-start").finalizedBy("quarkus-stop")
 }
 
@@ -1130,7 +1138,10 @@ project(':iceberg-nessie') {
       }
     }
   }
-
+  quarkusAppRunnerProperties {
+    props = ["quarkus.http.test-port": 0]
+  }
+  tasks.getByName("quarkus-start").dependsOn("compileTestJava")
   tasks.test.dependsOn("quarkus-start").finalizedBy("quarkus-stop")
 
 }
