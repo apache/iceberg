@@ -126,38 +126,39 @@ public class SparkParquetWriters {
     @Override
     public ParquetValueWriter<?> primitive(DataType sType, PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
+      Type.ID id = primitive.getId();
 
       if (primitive.getOriginalType() != null) {
         switch (primitive.getOriginalType()) {
           case ENUM:
           case JSON:
           case UTF8:
-            return utf8Strings(desc);
+            return utf8Strings(desc, id);
           case DATE:
           case INT_8:
           case INT_16:
           case INT_32:
-            return ints(sType, desc);
+            return ints(sType, desc, id);
           case INT_64:
           case TIME_MICROS:
           case TIMESTAMP_MICROS:
-            return ParquetValueWriters.longs(desc);
+            return ParquetValueWriters.longs(desc, id);
           case DECIMAL:
             DecimalMetadata decimal = primitive.getDecimalMetadata();
             switch (primitive.getPrimitiveTypeName()) {
               case INT32:
-                return decimalAsInteger(desc, decimal.getPrecision(), decimal.getScale());
+                return decimalAsInteger(desc, id, decimal.getPrecision(), decimal.getScale());
               case INT64:
-                return decimalAsLong(desc, decimal.getPrecision(), decimal.getScale());
+                return decimalAsLong(desc, id, decimal.getPrecision(), decimal.getScale());
               case BINARY:
               case FIXED_LEN_BYTE_ARRAY:
-                return decimalAsFixed(desc, decimal.getPrecision(), decimal.getScale());
+                return decimalAsFixed(desc, id, decimal.getPrecision(), decimal.getScale());
               default:
                 throw new UnsupportedOperationException(
                     "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
             }
           case BSON:
-            return byteArrays(desc);
+            return byteArrays(desc, id);
           default:
             throw new UnsupportedOperationException(
                 "Unsupported logical type: " + primitive.getOriginalType());
@@ -167,58 +168,58 @@ public class SparkParquetWriters {
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
         case BINARY:
-          return byteArrays(desc);
+          return byteArrays(desc, id);
         case BOOLEAN:
-          return ParquetValueWriters.booleans(desc);
+          return ParquetValueWriters.booleans(desc, id);
         case INT32:
-          return ints(sType, desc);
+          return ints(sType, desc, id);
         case INT64:
-          return ParquetValueWriters.longs(desc);
+          return ParquetValueWriters.longs(desc, id);
         case FLOAT:
-          return ParquetValueWriters.floats(desc);
+          return ParquetValueWriters.floats(desc, id);
         case DOUBLE:
-          return ParquetValueWriters.doubles(desc);
+          return ParquetValueWriters.doubles(desc, id);
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
     }
   }
 
-  private static PrimitiveWriter<?> ints(DataType type, ColumnDescriptor desc) {
+  private static PrimitiveWriter<?> ints(DataType type, ColumnDescriptor desc, Type.ID id) {
     if (type instanceof ByteType) {
-      return ParquetValueWriters.tinyints(desc);
+      return ParquetValueWriters.tinyints(desc, id);
     } else if (type instanceof ShortType) {
-      return ParquetValueWriters.shorts(desc);
+      return ParquetValueWriters.shorts(desc, id);
     }
-    return ParquetValueWriters.ints(desc);
+    return ParquetValueWriters.ints(desc, id);
   }
 
-  private static PrimitiveWriter<UTF8String> utf8Strings(ColumnDescriptor desc) {
-    return new UTF8StringWriter(desc);
+  private static PrimitiveWriter<UTF8String> utf8Strings(ColumnDescriptor desc, Type.ID id) {
+    return new UTF8StringWriter(desc, id);
   }
 
-  private static PrimitiveWriter<Decimal> decimalAsInteger(ColumnDescriptor desc,
+  private static PrimitiveWriter<Decimal> decimalAsInteger(ColumnDescriptor desc, Type.ID id,
                                                            int precision, int scale) {
-    return new IntegerDecimalWriter(desc, precision, scale);
+    return new IntegerDecimalWriter(desc, id, precision, scale);
   }
 
-  private static PrimitiveWriter<Decimal> decimalAsLong(ColumnDescriptor desc,
+  private static PrimitiveWriter<Decimal> decimalAsLong(ColumnDescriptor desc, Type.ID id,
                                                         int precision, int scale) {
-    return new LongDecimalWriter(desc, precision, scale);
+    return new LongDecimalWriter(desc, id, precision, scale);
   }
 
-  private static PrimitiveWriter<Decimal> decimalAsFixed(ColumnDescriptor desc,
+  private static PrimitiveWriter<Decimal> decimalAsFixed(ColumnDescriptor desc, Type.ID id,
                                                          int precision, int scale) {
-    return new FixedDecimalWriter(desc, precision, scale);
+    return new FixedDecimalWriter(desc, id, precision, scale);
   }
 
-  private static PrimitiveWriter<byte[]> byteArrays(ColumnDescriptor desc) {
-    return new ByteArrayWriter(desc);
+  private static PrimitiveWriter<byte[]> byteArrays(ColumnDescriptor desc, Type.ID id) {
+    return new ByteArrayWriter(desc, id);
   }
 
   private static class UTF8StringWriter extends PrimitiveWriter<UTF8String> {
-    private UTF8StringWriter(ColumnDescriptor desc) {
-      super(desc);
+    private UTF8StringWriter(ColumnDescriptor desc, Type.ID id) {
+      super(desc, id);
     }
 
     @Override
@@ -231,8 +232,8 @@ public class SparkParquetWriters {
     private final int precision;
     private final int scale;
 
-    private IntegerDecimalWriter(ColumnDescriptor desc, int precision, int scale) {
-      super(desc);
+    private IntegerDecimalWriter(ColumnDescriptor desc, Type.ID id, int precision, int scale) {
+      super(desc, id);
       this.precision = precision;
       this.scale = scale;
     }
@@ -252,8 +253,8 @@ public class SparkParquetWriters {
     private final int precision;
     private final int scale;
 
-    private LongDecimalWriter(ColumnDescriptor desc, int precision, int scale) {
-      super(desc);
+    private LongDecimalWriter(ColumnDescriptor desc, Type.ID id, int precision, int scale) {
+      super(desc, id);
       this.precision = precision;
       this.scale = scale;
     }
@@ -274,8 +275,8 @@ public class SparkParquetWriters {
     private final int scale;
     private final ThreadLocal<byte[]> bytes;
 
-    private FixedDecimalWriter(ColumnDescriptor desc, int precision, int scale) {
-      super(desc);
+    private FixedDecimalWriter(ColumnDescriptor desc, Type.ID id, int precision, int scale) {
+      super(desc, id);
       this.precision = precision;
       this.scale = scale;
       this.bytes = ThreadLocal.withInitial(() -> new byte[TypeUtil.decimalRequiredBytes(precision)]);
@@ -289,8 +290,8 @@ public class SparkParquetWriters {
   }
 
   private static class ByteArrayWriter extends PrimitiveWriter<byte[]> {
-    private ByteArrayWriter(ColumnDescriptor desc) {
-      super(desc);
+    private ByteArrayWriter(ColumnDescriptor desc, Type.ID id) {
+      super(desc, id);
     }
 
     @Override

@@ -369,7 +369,7 @@ public class SparkTableUtil {
             Metrics metrics;
             try {
               ParquetMetadata metadata = ParquetFileReader.readFooter(conf, stat);
-              metrics = ParquetUtil.footerMetrics(metadata, metricsSpec, mapping);
+              metrics = ParquetUtil.footerMetrics(metadata, null, null, metricsSpec, mapping);
             } catch (IOException e) {
               throw SparkExceptionUtil.toUncheckedException(
                   e, "Unable to read the footer of the parquet file: %s", stat.getPath());

@@ -20,6 +20,8 @@
 package org.apache.iceberg.parquet;
 
 import java.util.List;
+import java.util.stream.Stream;
+import org.apache.iceberg.FieldMetrics;
 import org.apache.parquet.column.ColumnWriteStore;
 
 public interface ParquetValueWriter<T> {
@@ -28,4 +30,7 @@ public interface ParquetValueWriter<T> {
   List<TripleWriter<?>> columns();
 
   void setColumnStore(ColumnWriteStore columnStore);
+
+  Stream<FieldMetrics> metrics();
 }
+

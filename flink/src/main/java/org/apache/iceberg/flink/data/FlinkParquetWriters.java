@@ -124,40 +124,41 @@ public class FlinkParquetWriters {
     @Override
     public ParquetValueWriter<?> primitive(LogicalType fType, PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
+      Type.ID id = primitive.getId();
 
       if (primitive.getOriginalType() != null) {
         switch (primitive.getOriginalType()) {
           case ENUM:
           case JSON:
           case UTF8:
-            return strings(desc);
+            return strings(desc, id);
           case DATE:
           case INT_8:
           case INT_16:
           case INT_32:
-            return ints(fType, desc);
+            return ints(fType, desc, id);
           case INT_64:
-            return ParquetValueWriters.longs(desc);
+            return ParquetValueWriters.longs(desc, id);
           case TIME_MICROS:
-            return timeMicros(desc);
+            return timeMicros(desc, id);
           case TIMESTAMP_MICROS:
-            return timestamps(desc);
+            return timestamps(desc, id);
           case DECIMAL:
             DecimalLogicalTypeAnnotation decimal = (DecimalLogicalTypeAnnotation) primitive.getLogicalTypeAnnotation();
             switch (primitive.getPrimitiveTypeName()) {
               case INT32:
-                return decimalAsInteger(desc, decimal.getPrecision(), decimal.getScale());
+                return decimalAsInteger(desc, id, decimal.getPrecision(), decimal.getScale());
               case INT64:
-                return decimalAsLong(desc, decimal.getPrecision(), decimal.getScale());
+                return decimalAsLong(desc, id, decimal.getPrecision(), decimal.getScale());
               case BINARY:
               case FIXED_LEN_BYTE_ARRAY:
-                return decimalAsFixed(desc, decimal.getPrecision(), decimal.getScale());
+                return decimalAsFixed(desc, id, decimal.getPrecision(), decimal.getScale());
               default:
                 throw new UnsupportedOperationException(
                     "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
             }
           case BSON:
-            return byteArrays(desc);
+            return byteArrays(desc, id);
           default:
             throw new UnsupportedOperationException(
                 "Unsupported logical type: " + primitive.getOriginalType());
@@ -167,70 +168,70 @@ public class FlinkParquetWriters {
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
         case BINARY:
-          return byteArrays(desc);
+          return byteArrays(desc, id);
         case BOOLEAN:
-          return ParquetValueWriters.booleans(desc);
+          return ParquetValueWriters.booleans(desc, id);
         case INT32:
-          return ints(fType, desc);
+          return ints(fType, desc, id);
         case INT64:
-          return ParquetValueWriters.longs(desc);
+          return ParquetValueWriters.longs(desc, id);
         case FLOAT:
-          return ParquetValueWriters.floats(desc);
+          return ParquetValueWriters.floats(desc, id);
         case DOUBLE:
-          return ParquetValueWriters.doubles(desc);
+          return ParquetValueWriters.doubles(desc, id);
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
     }
   }
 
-  private static ParquetValueWriters.PrimitiveWriter<?> ints(LogicalType type, ColumnDescriptor desc) {
+  private static ParquetValueWriters.PrimitiveWriter<?> ints(LogicalType type, ColumnDescriptor desc, Type.ID id) {
     if (type instanceof TinyIntType) {
-      return ParquetValueWriters.tinyints(desc);
+      return ParquetValueWriters.tinyints(desc, id);
     } else if (type instanceof SmallIntType) {
-      return ParquetValueWriters.shorts(desc);
+      return ParquetValueWriters.shorts(desc, id);
     }
-    return ParquetValueWriters.ints(desc);
+    return ParquetValueWriters.ints(desc, id);
   }
 
-  private static ParquetValueWriters.PrimitiveWriter<StringData> strings(ColumnDescriptor desc) {
-    return new StringDataWriter(desc);
+  private static ParquetValueWriters.PrimitiveWriter<StringData> strings(ColumnDescriptor desc, Type.ID id) {
+    return new StringDataWriter(desc, id);
   }
 
-  private static ParquetValueWriters.PrimitiveWriter<Integer> timeMicros(ColumnDescriptor desc) {
-    return new TimeMicrosWriter(desc);
+  private static ParquetValueWriters.PrimitiveWriter<Integer> timeMicros(ColumnDescriptor desc, Type.ID id) {
+    return new TimeMicrosWriter(desc, id);
   }
 
-  private static ParquetValueWriters.PrimitiveWriter<DecimalData> decimalAsInteger(ColumnDescriptor desc,
+  private static ParquetValueWriters.PrimitiveWriter<DecimalData> decimalAsInteger(ColumnDescriptor desc, Type.ID id,
                                                                                    int precision, int scale) {
     Preconditions.checkArgument(precision <= 9, "Cannot write decimal value as integer with precision larger than 9," +
         " wrong precision %s", precision);
-    return new IntegerDecimalWriter(desc, precision, scale);
+    return new IntegerDecimalWriter(desc, id, precision, scale);
   }
 
-  private static ParquetValueWriters.PrimitiveWriter<DecimalData> decimalAsLong(ColumnDescriptor desc,
+  private static ParquetValueWriters.PrimitiveWriter<DecimalData> decimalAsLong(ColumnDescriptor desc, Type.ID id,
                                                                                 int precision, int scale) {
     Preconditions.checkArgument(precision <= 18, "Cannot write decimal value as long with precision larger than 18, " +
         " wrong precision %s", precision);
-    return new LongDecimalWriter(desc, precision, scale);
+    return new LongDecimalWriter(desc, id, precision, scale);
   }
 
-  private static ParquetValueWriters.PrimitiveWriter<DecimalData> decimalAsFixed(ColumnDescriptor desc,
+  private static ParquetValueWriters.PrimitiveWriter<DecimalData> decimalAsFixed(ColumnDescriptor desc, Type.ID id,
                                                                                  int precision, int scale) {
-    return new FixedDecimalWriter(desc, precision, scale);
+    return new FixedDecimalWriter(desc, id, precision, scale);
   }
 
-  private static ParquetValueWriters.PrimitiveWriter<TimestampData> timestamps(ColumnDescriptor desc) {
-    return new TimestampDataWriter(desc);
+  private static ParquetValueWriters.PrimitiveWriter<TimestampData> timestamps(ColumnDescriptor desc, Type.ID id) {
+    return new TimestampDataWriter(desc, id);
   }
 
-  private static ParquetValueWriters.PrimitiveWriter<byte[]> byteArrays(ColumnDescriptor desc) {
-    return new ByteArrayWriter(desc);
+  private static ParquetValueWriters.PrimitiveWriter<byte[]> byteArrays(ColumnDescriptor desc, Type.ID id) {
+    return new ByteArrayWriter(desc, id);
   }
 
   private static class StringDataWriter extends ParquetValueWriters.PrimitiveWriter<StringData> {
-    private StringDataWriter(ColumnDescriptor desc) {
-      super(desc);
+    private StringDataWriter(ColumnDescriptor desc, Type.ID id) {
+      super(desc, id);
     }
 
     @Override
@@ -240,8 +241,8 @@ public class FlinkParquetWriters {
   }
 
   private static class TimeMicrosWriter extends ParquetValueWriters.PrimitiveWriter<Integer> {
-    private TimeMicrosWriter(ColumnDescriptor desc) {
-      super(desc);
+    private TimeMicrosWriter(ColumnDescriptor desc, Type.ID id) {
+      super(desc, id);
     }
 
     @Override
@@ -255,8 +256,8 @@ public class FlinkParquetWriters {
     private final int precision;
     private final int scale;
 
-    private IntegerDecimalWriter(ColumnDescriptor desc, int precision, int scale) {
-      super(desc);
+    private IntegerDecimalWriter(ColumnDescriptor desc, Type.ID id, int precision, int scale) {
+      super(desc, id);
       this.precision = precision;
       this.scale = scale;
     }
@@ -276,8 +277,8 @@ public class FlinkParquetWriters {
     private final int precision;
     private final int scale;
 
-    private LongDecimalWriter(ColumnDescriptor desc, int precision, int scale) {
-      super(desc);
+    private LongDecimalWriter(ColumnDescriptor desc, Type.ID id, int precision, int scale) {
+      super(desc, id);
       this.precision = precision;
       this.scale = scale;
     }
@@ -298,8 +299,8 @@ public class FlinkParquetWriters {
     private final int scale;
     private final ThreadLocal<byte[]> bytes;
 
-    private FixedDecimalWriter(ColumnDescriptor desc, int precision, int scale) {
-      super(desc);
+    private FixedDecimalWriter(ColumnDescriptor desc, Type.ID id, int precision, int scale) {
+      super(desc, id);
       this.precision = precision;
       this.scale = scale;
       this.bytes = ThreadLocal.withInitial(() -> new byte[TypeUtil.decimalRequiredBytes(precision)]);
@@ -313,8 +314,8 @@ public class FlinkParquetWriters {
   }
 
   private static class TimestampDataWriter extends ParquetValueWriters.PrimitiveWriter<TimestampData> {
-    private TimestampDataWriter(ColumnDescriptor desc) {
-      super(desc);
+    private TimestampDataWriter(ColumnDescriptor desc, Type.ID id) {
+      super(desc, id);
     }
 
     @Override
@@ -324,8 +325,8 @@ public class FlinkParquetWriters {
   }
 
   private static class ByteArrayWriter extends ParquetValueWriters.PrimitiveWriter<byte[]> {
-    private ByteArrayWriter(ColumnDescriptor desc) {
-      super(desc);
+    private ByteArrayWriter(ColumnDescriptor desc, Type.ID id) {
+      super(desc, id);
     }
 
     @Override
