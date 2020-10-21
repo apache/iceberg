@@ -102,7 +102,7 @@ CREATE CATALOG hive_catalog WITH (
 );
 ```
 
-We could also just specify the `warehouse` property (without specifying any hive configuration path) to initialize the hive catalog: 
+Alternatively one can instead set just the `warehouse` property (without specifying a Hive configuration directory) to initialize the Hive catalog: 
 
 ```sql
 CREATE CATALOG hive_catalog WITH (
