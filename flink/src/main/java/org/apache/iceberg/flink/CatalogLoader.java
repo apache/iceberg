@@ -21,6 +21,8 @@ package org.apache.iceberg.flink;
 
 import java.io.Serializable;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.catalog.Catalog;
@@ -28,6 +30,7 @@ import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 
 /**
@@ -97,6 +100,8 @@ public interface CatalogLoader extends Serializable {
     public Catalog loadCatalog() {
       Configuration newConf = new Configuration(hadoopConf.get());
       if (!Strings.isNullOrEmpty(hiveConfDir)) {
+        Preconditions.checkState(Files.exists(Paths.get(hiveConfDir, "hive-site.xml")),
+            "There should be a hive-site.xml file under the directory %s", hiveConfDir);
         newConf.addResource(new Path(hiveConfDir, "hive-site.xml"));
       } else {
         // If don't provide the hive-site.xml path explicitly, it will try to load resource from classpath. If still
