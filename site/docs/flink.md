@@ -102,7 +102,7 @@ CREATE CATALOG hive_catalog WITH (
 );
 ```
 
-Alternatively one can instead set just the `warehouse` property (without specifying a Hive configuration directory) to initialize the Hive catalog: 
+Alternatively one can instead set just the `warehouse` property (without specifying a Hive configuration directory) to initialize the Hive catalog:
 
 ```sql
 CREATE CATALOG hive_catalog WITH (
@@ -120,8 +120,8 @@ CREATE CATALOG hive_catalog WITH (
 * `uri`: The Hive metastore's thrift URI. (Required)
 * `clients`: The Hive metastore client pool size, default value is 2. (Optional)
 * `property-version`: Version number to describe the property version. This property can be used for backwards compatibility in case the property format changes. The currently property version is `1`. (Optional)
-* `warehouse`: The hive warehouse location, users would need to specify this path if them don't set the `hive-conf-dir` (The path where we load `hive-site.xml`).
-* `hive-conf-dir`: Directory path to load the `hive-site.xml`.
+* `warehouse`: The Hive warehouse location, users should specify this path if they don't set the `hive-conf-dir` to a location containing a `hive-site.xml` configuration file.
+* `hive-conf-dir`: Path to a directory containing a `hive-site.xml` configuration file which will be used to provide custom Hive configuration values.
 
 Iceberg also supports a directory-based catalog in HDFS that can be configured using `'catalog-type'='hadoop'`:
 
@@ -309,4 +309,4 @@ There are some features that we do not yet support in the current flink iceberg 
 * Don't support creating iceberg table with computed column.
 * Don't support creating iceberg table with watermark.
 * Don't support adding columns, removing columns, renaming columns, changing columns. [FLINK-19062](https://issues.apache.org/jira/browse/FLINK-19062) is tracking this.
-* Don't support flink read iceberg table in batch or streaming mode. [#1346](https://github.com/apache/iceberg/pull/1346) and [#1293](https://github.com/apache/iceberg/pull/1293) are tracking this. 
+* Don't support flink read iceberg table in batch or streaming mode. [#1346](https://github.com/apache/iceberg/pull/1346) and [#1293](https://github.com/apache/iceberg/pull/1293) are tracking this.

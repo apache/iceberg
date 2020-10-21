@@ -437,10 +437,8 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   }
 
   private String getWarehouseLocation() {
-    String warehouseLocation = conf.get("hive.metastore.warehouse.dir");
-    Preconditions.checkNotNull(
-        warehouseLocation,
-        "Warehouse location is not set: hive.metastore.warehouse.dir=null");
+    String warehouseLocation = conf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname);
+    Preconditions.checkNotNull(warehouseLocation, "Warehouse location is not set: hive.metastore.warehouse.dir=null");
     return warehouseLocation;
   }
 
