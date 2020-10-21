@@ -42,6 +42,15 @@ public class TestCDHParquetStatistics {
   }
 
   @Test
+  public void testCDHParquetStatisticsNullNotSet() {
+    Statistics cdhBinaryColumnStats = mock(Statistics.class);
+    when(cdhBinaryColumnStats.getMaxBytes()).thenReturn(null);
+    when(cdhBinaryColumnStats.getMinBytes()).thenReturn(null);
+    when(cdhBinaryColumnStats.getNumNulls()).thenReturn(-1L);
+    Assert.assertTrue(ParquetMetricsRowGroupFilter.hasNonNullButNoMinMax(cdhBinaryColumnStats, 50L));
+  }
+
+  @Test
   public void testCDHParquetStatistcsAllNull() {
     Statistics cdhBinaryColumnStats = mock(Statistics.class);
     when(cdhBinaryColumnStats.getMaxBytes()).thenReturn(null);
@@ -56,6 +65,15 @@ public class TestCDHParquetStatistics {
     when(normalBinaryColumnStats.getMaxBytes()).thenReturn(new byte[2]);
     when(normalBinaryColumnStats.getMinBytes()).thenReturn(new byte[2]);
     when(normalBinaryColumnStats.getNumNulls()).thenReturn(0L);
+    Assert.assertFalse(ParquetMetricsRowGroupFilter.hasNonNullButNoMinMax(normalBinaryColumnStats, 50L));
+  }
+
+  @Test
+  public void testNonCDHParquetStatisticsNullNotSet() {
+    Statistics normalBinaryColumnStats = mock(Statistics.class);
+    when(normalBinaryColumnStats.getMaxBytes()).thenReturn(new byte[2]);
+    when(normalBinaryColumnStats.getMinBytes()).thenReturn(new byte[2]);
+    when(normalBinaryColumnStats.getNumNulls()).thenReturn(-1L);
     Assert.assertFalse(ParquetMetricsRowGroupFilter.hasNonNullButNoMinMax(normalBinaryColumnStats, 50L));
   }
 
