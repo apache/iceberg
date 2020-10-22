@@ -98,13 +98,14 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
 
   @Test
   public void testRTAS() {
-    sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", tableName, sourceName);
+    sql("CREATE TABLE %s USING iceberg TBLPROPERTIES ('prop1'='val1', 'prop2'='val2')" +
+        "AS SELECT * FROM %s", tableName, sourceName);
 
     assertEquals("Should have rows matching the source table",
         sql("SELECT * FROM %s ORDER BY id", sourceName),
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
-    sql("REPLACE TABLE %s USING iceberg PARTITIONED BY (part) AS " +
+    sql("REPLACE TABLE %s USING iceberg PARTITIONED BY (part) TBLPROPERTIES ('prop1'='newval1', 'prop3'='val3') AS " +
         "SELECT id, data, CASE WHEN (id %% 2) = 0 THEN 'even' ELSE 'odd' END AS part " +
         "FROM %s ORDER BY 3, 1", tableName, sourceName);
 
@@ -134,6 +135,13 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
 
     Assert.assertEquals("Table should have expected snapshots",
         2, Iterables.size(rtasTable.snapshots()));
+
+    Assert.assertEquals("Should have updated table property",
+        "newval1", rtasTable.properties().get("prop1"));
+    Assert.assertEquals("Should have preserved table property",
+        "val2", rtasTable.properties().get("prop2"));
+    Assert.assertEquals("Should have new table property",
+        "val3", rtasTable.properties().get("prop3"));
   }
 
   @Test
