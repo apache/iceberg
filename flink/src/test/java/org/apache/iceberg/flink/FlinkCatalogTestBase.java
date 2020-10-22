@@ -30,7 +30,9 @@ import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
@@ -55,6 +57,16 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
     hadoopWarehouse.delete();
   }
 
+  @Before
+  public void before() {
+    sql("CREATE CATALOG %s WITH %s", catalogName, toWithClause(config));
+  }
+
+  @After
+  public void clean() {
+    sql("DROP CATALOG IF EXISTS %s", catalogName);
+  }
+
   @Parameterized.Parameters(name = "catalogName = {0} baseNamespace = {1}")
   // baseNamespace comes out as a String[] memory reference due to lack
   // of a meaningful toString method. We should convert baseNamespace to
@@ -71,6 +83,7 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
   protected final String[] baseNamespace;
   protected final Catalog validationCatalog;
   protected final SupportsNamespaces validationNamespaceCatalog;
+  private final Map<String, String> config = Maps.newHashMap();
 
   protected final String flinkDatabase;
   protected final Namespace icebergNamespace;
@@ -85,7 +98,6 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
         catalog;
     this.validationNamespaceCatalog = (SupportsNamespaces) validationCatalog;
 
-    Map<String, String> config = Maps.newHashMap();
     config.put("type", "iceberg");
     if (baseNamespace.length > 0) {
       config.put(FlinkCatalogFactory.BASE_NAMESPACE, Joiner.on(".").join(baseNamespace));
@@ -98,9 +110,6 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
       config.put(FlinkCatalogFactory.WAREHOUSE_LOCATION, "file://" + hiveWarehouse.getRoot());
       config.put(FlinkCatalogFactory.HIVE_URI, getURI(hiveConf));
     }
-
-    sql("DROP CATALOG IF EXISTS %s", catalogName);
-    sql("CREATE CATALOG %s WITH %s", catalogName, toWithClause(config));
 
     this.flinkDatabase = catalogName + "." + DATABASE;
     this.icebergNamespace = Namespace.of(ArrayUtils.concat(baseNamespace, new String[] {DATABASE}));
