@@ -190,6 +190,7 @@ public class TestHiveMetastore {
     newHiveConf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file:" + hiveLocalDir.getAbsolutePath());
     newHiveConf.set(HiveConf.ConfVars.METASTORE_TRY_DIRECT_SQL.varname, "false");
     newHiveConf.set(HiveConf.ConfVars.METASTORE_DISALLOW_INCOMPATIBLE_COL_TYPE_CHANGES.varname, "false");
+    newHiveConf.set("metastore.scheduled.queries.enabled", "false");
     newHiveConf.set("iceberg.hive.client-pool-size", "2");
     return newHiveConf;
   }
