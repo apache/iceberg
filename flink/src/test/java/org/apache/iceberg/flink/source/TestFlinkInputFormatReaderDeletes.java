@@ -107,7 +107,8 @@ public class TestFlinkInputFormatReaderDeletes extends DeleteReadTests {
     RowType rowType = FlinkSchemaUtil.convert(projected);
     CatalogLoader hiveCatalogLoader = CatalogLoader.hive(catalog.name(),
         hiveConf,
-        hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname), null,
+        hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname),
+        hiveConf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname),
         hiveConf.getInt("iceberg.hive.client-pool-size", 5)
     );
     FlinkInputFormat inputFormat = FlinkSource.forRowData()
