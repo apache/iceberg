@@ -20,24 +20,25 @@
 package org.apache.iceberg.flink;
 
 import java.io.Serializable;
-import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.base.Strings;
 
 /**
  * Serializable loader to load an Iceberg {@link Catalog}.
  */
 public interface CatalogLoader extends Serializable {
 
+  /**
+   * Create a new catalog with the provided properties. NOTICE: for flink, we may initialize the {@link CatalogLoader}
+   * at flink sql client side or job manager side, and then serialize this catalog loader to task manager, finally
+   * deserialize it and create a new catalog at task manager side.
+   *
+   * @return a newly created {@link Catalog}
+   */
   Catalog loadCatalog();
 
   static CatalogLoader hadoop(String name, Configuration hadoopConf, String warehouseLocation) {
@@ -45,12 +46,7 @@ public interface CatalogLoader extends Serializable {
   }
 
   static CatalogLoader hive(String name, Configuration hadoopConf, String uri, String warehouse, int clientPoolSize) {
-    return hive(name, hadoopConf, uri, warehouse, clientPoolSize, null);
-  }
-
-  static CatalogLoader hive(String name, Configuration hadoopConf, String uri, String warehouse,
-                            int clientPoolSize, String hiveConfDir) {
-    return new HiveCatalogLoader(name, hadoopConf, uri, warehouse, clientPoolSize, hiveConfDir);
+    return new HiveCatalogLoader(name, hadoopConf, uri, warehouse, clientPoolSize);
   }
 
   class HadoopCatalogLoader implements CatalogLoader {
@@ -84,34 +80,19 @@ public interface CatalogLoader extends Serializable {
     private final String uri;
     private final String warehouse;
     private final int clientPoolSize;
-    private final String hiveConfDir;
 
-    private HiveCatalogLoader(String catalogName, Configuration conf, String uri, String warehouse, int clientPoolSize,
-                              String hiveConfDir) {
+    private HiveCatalogLoader(String catalogName, Configuration conf, String uri, String warehouse,
+                              int clientPoolSize) {
       this.catalogName = catalogName;
       this.hadoopConf = new SerializableConfiguration(conf);
       this.uri = uri;
       this.warehouse = warehouse;
       this.clientPoolSize = clientPoolSize;
-      this.hiveConfDir = hiveConfDir;
     }
 
     @Override
     public Catalog loadCatalog() {
-      Configuration newConf = new Configuration(hadoopConf.get());
-      if (!Strings.isNullOrEmpty(hiveConfDir)) {
-        Preconditions.checkState(Files.exists(Paths.get(hiveConfDir, "hive-site.xml")),
-            "There should be a hive-site.xml file under the directory %s", hiveConfDir);
-        newConf.addResource(new Path(hiveConfDir, "hive-site.xml"));
-      } else {
-        // If don't provide the hive-site.xml path explicitly, it will try to load resource from classpath. If still
-        // couldn't load the configuration file, then it will throw exception in HiveCatalog.
-        URL configFile = CatalogLoader.class.getClassLoader().getResource("hive-site.xml");
-        if (configFile != null) {
-          newConf.addResource(configFile);
-        }
-      }
-      return new HiveCatalog(catalogName, uri, warehouse, clientPoolSize, newConf);
+      return new HiveCatalog(catalogName, uri, warehouse, clientPoolSize, hadoopConf.get());
     }
 
     @Override
@@ -121,7 +102,6 @@ public interface CatalogLoader extends Serializable {
           .add("uri", uri)
           .add("warehouse", warehouse)
           .add("clientPoolSize", clientPoolSize)
-          .add("hiveConfDir", hiveConfDir)
           .toString();
     }
   }

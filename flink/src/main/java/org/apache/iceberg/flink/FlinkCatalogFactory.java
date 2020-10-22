@@ -19,6 +19,9 @@
 
 package org.apache.iceberg.flink;
 
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.configuration.GlobalConfiguration;
@@ -27,7 +30,10 @@ import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.table.descriptors.CatalogDescriptorValidator;
 import org.apache.flink.table.factories.CatalogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
@@ -78,7 +84,8 @@ public class FlinkCatalogFactory implements CatalogFactory {
         String warehouse = properties.get(WAREHOUSE_LOCATION);
         int clientPoolSize = Integer.parseInt(properties.getOrDefault(HIVE_CLIENT_POOL_SIZE, "2"));
         String hiveConfDir = properties.get(HIVE_CONF_DIR);
-        return CatalogLoader.hive(name, hadoopConf, uri, warehouse, clientPoolSize, hiveConfDir);
+        Configuration newHadoopConf = mergeHiveConf(hadoopConf, hiveConfDir);
+        return CatalogLoader.hive(name, newHadoopConf, uri, warehouse, clientPoolSize);
 
       case "hadoop":
         String warehouseLocation = properties.get(WAREHOUSE_LOCATION);
@@ -123,6 +130,23 @@ public class FlinkCatalogFactory implements CatalogFactory {
         new String[0];
     boolean cacheEnabled = Boolean.parseBoolean(properties.getOrDefault("cache-enabled", "true"));
     return new FlinkCatalog(name, defaultDatabase, baseNamespace, catalogLoader, cacheEnabled);
+  }
+
+  private static Configuration mergeHiveConf(Configuration hadoopConf, String hiveConfDir) {
+    Configuration newConf = new Configuration(hadoopConf);
+    if (!Strings.isNullOrEmpty(hiveConfDir)) {
+      Preconditions.checkState(Files.exists(Paths.get(hiveConfDir, "hive-site.xml")),
+          "There should be a hive-site.xml file under the directory %s", hiveConfDir);
+      newConf.addResource(new Path(hiveConfDir, "hive-site.xml"));
+    } else {
+      // If don't provide the hive-site.xml path explicitly, it will try to load resource from classpath. If still
+      // couldn't load the configuration file, then it will throw exception in HiveCatalog.
+      URL configFile = CatalogLoader.class.getClassLoader().getResource("hive-site.xml");
+      if (configFile != null) {
+        newConf.addResource(configFile);
+      }
+    }
+    return newConf;
   }
 
   public static Configuration clusterHadoopConf() {
