@@ -27,7 +27,7 @@ we only integrate iceberg with apache flink 1.11.x .
 | [SQL create table](#create-table)                                      | ✔️                 |                                                        |
 | [SQL alter table](#alter-table)                                        | ✔️                 | Only support altering table properties, Columns/PartitionKey changes are not supported now|
 | [SQL drop_table](#drop-table)                                          | ✔️                 |                                                        |
-| [SQL select](#querying-with-sql)                                       |  ️                 |                                                        |
+| [SQL select](#querying-with-sql)                                       | ✔️                 | Only support batch mode now.                           |
 | [SQL insert into](#insert-into)                                        | ✔️ ️               | Support both streaming and batch mode                  |
 | [SQL insert overwrite](#insert-overwrite)                              | ✔️ ️               |                                                        |
 | [DataStream read](#reading-with-datastream)                            | ✔️ ️               |                                                        |
@@ -98,22 +98,11 @@ CREATE CATALOG hive_catalog WITH (
   'uri'='thrift://localhost:9083',
   'clients'='5',
   'property-version'='1',
-  'hive-conf-dir'='/opt/hive/conf'
-);
-```
-
-Alternatively one can instead set just the `warehouse` property (without specifying a Hive configuration directory) to initialize the Hive catalog:
-
-```sql
-CREATE CATALOG hive_catalog WITH (
-  'type'='iceberg',
-  'catalog-type'='hive',
-  'uri'='thrift://localhost:9083',
-  'clients'='5',
-  'property-version'='1',
   'warehouse'='hdfs://nn:8020/warehouse/path'
 );
 ```
+
+We must set `hive-conf-dir` property to get the custom warehouse location by specifying the hive configuration directory where to load the `hive-site.xml`, if we don't provide the `warehouse` property explicitly.
 
 * `type`: Please just use `iceberg` for iceberg table format. (Required)
 * `catalog-type`: Iceberg currently support `hive` or `hadoop` catalog type. (Required)
@@ -203,11 +192,13 @@ DROP TABLE hive_catalog.default.sample;
 
 ## Querying with SQL
 
-Iceberg does not support streaming read or batch read in flink now, it's still working in-progress.
+Iceberg does not support streaming read in flink now, it's still working in-progress. But it support batch read to scan the existing records in iceberg table.
 
-## Writing with SQL
-
-Iceberg support both `INSERT INTO` and `INSERT OVERWRITE` in flink 1.11 now.
+```sql
+-- Execute the flink job in streaming mode for current session context
+SET execution.type = batch ;
+SELECT * FROM sample       ;
+```
 
 Notice: we could execute the following sql command to switch the execute type from 'streaming' mode to 'batch' mode, and vice versa:
 
@@ -218,6 +209,10 @@ SET execution.type = streaming
 -- Execute the flink job in batch mode for current session context
 SET execution.type = batch
 ```
+
+## Writing with SQL
+
+Iceberg support both `INSERT INTO` and `INSERT OVERWRITE` in flink 1.11 now.
 
 ### `INSERT INTO`
 
@@ -309,4 +304,4 @@ There are some features that we do not yet support in the current flink iceberg 
 * Don't support creating iceberg table with computed column.
 * Don't support creating iceberg table with watermark.
 * Don't support adding columns, removing columns, renaming columns, changing columns. [FLINK-19062](https://issues.apache.org/jira/browse/FLINK-19062) is tracking this.
-* Don't support flink read iceberg table in batch or streaming mode. [#1346](https://github.com/apache/iceberg/pull/1346) and [#1293](https://github.com/apache/iceberg/pull/1293) are tracking this.
+* Don't support flink read iceberg table in streaming mode. [#1383](https://github.com/apache/iceberg/issues/1383) is tracking this.

@@ -82,9 +82,11 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     if (uri != null) {
       this.conf.set(HiveConf.ConfVars.METASTOREURIS.varname, uri);
     }
+
     if (warehouse != null) {
       this.conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, warehouse);
     }
+
     this.clients = new HiveClientPool(clientPoolSize, this.conf);
     this.createStack = Thread.currentThread().getStackTrace();
     this.closed = false;
