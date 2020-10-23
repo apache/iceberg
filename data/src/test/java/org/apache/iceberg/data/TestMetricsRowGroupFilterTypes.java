@@ -67,6 +67,7 @@ import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.types.Types.UUIDType;
 import org.apache.orc.OrcFile;
 import org.apache.orc.Reader;
+import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.io.DelegatingSeekableInputStream;
@@ -307,7 +308,8 @@ public class TestMetricsRowGroupFilterTypes {
   }
 
   private boolean shouldReadParquet(Object value) {
-    return new ParquetMetricsRowGroupFilter(SCHEMA, equal(column, value))
+    ParquetReadOptions options = ParquetReadOptions.builder().build();
+    return new ParquetMetricsRowGroupFilter(SCHEMA, equal(column, value), options)
         .shouldRead(parquetSchema, rowGroupMetadata);
   }
 

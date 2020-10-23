@@ -214,7 +214,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     for (CombinedScanTask task : tasks()) {
       readTasks.add(new ReadTask<>(
           task, tableSchemaString, expectedSchemaString, nameMappingString, io, encryptionManager, caseSensitive,
-          localityPreferred, new BatchReaderFactory(batchSize)));
+          localityPreferred, new BatchReaderFactory(batchSize), table.properties()));
     }
     LOG.info("Batching input partitions with {} tasks.", readTasks.size());
 
@@ -234,7 +234,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     for (CombinedScanTask task : tasks()) {
       readTasks.add(new ReadTask<>(
           task, tableSchemaString, expectedSchemaString, nameMappingString, io, encryptionManager, caseSensitive,
-          localityPreferred, InternalRowReaderFactory.INSTANCE));
+          localityPreferred, InternalRowReaderFactory.INSTANCE, table.properties()));
     }
 
     return readTasks;
@@ -412,6 +412,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     private final boolean caseSensitive;
     private final boolean localityPreferred;
     private final ReaderFactory<T> readerFactory;
+    private final Map<String, String> properties;
 
     private transient Schema tableSchema = null;
     private transient Schema expectedSchema = null;
@@ -419,7 +420,8 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
     private ReadTask(CombinedScanTask task, String tableSchemaString, String expectedSchemaString,
                      String nameMappingString, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
-                     boolean caseSensitive, boolean localityPreferred, ReaderFactory<T> readerFactory) {
+                     boolean caseSensitive, boolean localityPreferred, ReaderFactory<T> readerFactory,
+                     Map<String, String> properties) {
       this.task = task;
       this.tableSchemaString = tableSchemaString;
       this.expectedSchemaString = expectedSchemaString;
@@ -430,12 +432,13 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
       this.preferredLocations = getPreferredLocations();
       this.readerFactory = readerFactory;
       this.nameMappingString = nameMappingString;
+      this.properties = properties;
     }
 
     @Override
     public InputPartitionReader<T> createPartitionReader() {
       return readerFactory.create(task, lazyTableSchema(), lazyExpectedSchema(), nameMappingString, io.value(),
-          encryptionManager.value(), caseSensitive);
+          encryptionManager.value(), caseSensitive, properties);
     }
 
     @Override
@@ -471,7 +474,8 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   private interface ReaderFactory<T> extends Serializable {
     InputPartitionReader<T> create(CombinedScanTask task, Schema tableSchema, Schema expectedSchema,
                                    String nameMapping, FileIO io,
-                                   EncryptionManager encryptionManager, boolean caseSensitive);
+                                   EncryptionManager encryptionManager, boolean caseSensitive,
+                                   Map<String, String> properties);
   }
 
   private static class InternalRowReaderFactory implements ReaderFactory<InternalRow> {
@@ -483,8 +487,9 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     @Override
     public InputPartitionReader<InternalRow> create(CombinedScanTask task, Schema tableSchema, Schema expectedSchema,
                                                     String nameMapping, FileIO io,
-                                                    EncryptionManager encryptionManager, boolean caseSensitive) {
-      return new RowReader(task, tableSchema, expectedSchema, nameMapping, io, encryptionManager, caseSensitive);
+                                                    EncryptionManager encryptionManager, boolean caseSensitive,
+                                                    Map<String, String> properties) {
+      return new RowReader(task, tableSchema, expectedSchema, nameMapping, io, encryptionManager, caseSensitive, properties);
     }
   }
 
@@ -498,22 +503,26 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     @Override
     public InputPartitionReader<ColumnarBatch> create(CombinedScanTask task, Schema tableSchema, Schema expectedSchema,
                                                       String nameMapping, FileIO io,
-                                                      EncryptionManager encryptionManager, boolean caseSensitive) {
-      return new BatchReader(task, expectedSchema, nameMapping, io, encryptionManager, caseSensitive, batchSize);
+                                                      EncryptionManager encryptionManager, boolean caseSensitive,
+                                                      Map<String, String> properties) {
+      return new BatchReader(
+          task, expectedSchema, nameMapping, io, encryptionManager,
+          caseSensitive, batchSize, properties);
     }
   }
 
   private static class RowReader extends RowDataReader implements InputPartitionReader<InternalRow> {
     RowReader(CombinedScanTask task, Schema tableSchema, Schema expectedSchema, String nameMapping, FileIO io,
-              EncryptionManager encryptionManager, boolean caseSensitive) {
-      super(task, tableSchema, expectedSchema, nameMapping, io, encryptionManager, caseSensitive);
+              EncryptionManager encryptionManager, boolean caseSensitive, Map<String, String> properties) {
+      super(task, tableSchema, expectedSchema, nameMapping, io, encryptionManager, caseSensitive, properties);
     }
   }
 
   private static class BatchReader extends BatchDataReader implements InputPartitionReader<ColumnarBatch> {
     BatchReader(CombinedScanTask task, Schema expectedSchema, String nameMapping, FileIO io,
-                       EncryptionManager encryptionManager, boolean caseSensitive, int size) {
-      super(task, expectedSchema, nameMapping, io, encryptionManager, caseSensitive, size);
+                EncryptionManager encryptionManager, boolean caseSensitive, int size,
+                Map<String, String> properties) {
+      super(task, expectedSchema, nameMapping, io, encryptionManager, caseSensitive, size, properties);
     }
   }
 }

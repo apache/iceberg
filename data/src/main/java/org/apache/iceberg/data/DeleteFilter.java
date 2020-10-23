@@ -165,6 +165,7 @@ public abstract class DeleteFilter<T> {
     return openDeletes(file, POS_DELETE_SCHEMA);
   }
 
+  // TODO: propagate read props
   private CloseableIterable<Record> openDeletes(DeleteFile deleteFile, Schema deleteSchema) {
     InputFile input = getInputFile(deleteFile.path().toString());
     switch (deleteFile.format()) {

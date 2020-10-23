@@ -155,6 +155,7 @@ public class FlinkSource {
       Schema icebergSchema;
       FileIO io;
       EncryptionManager encryption;
+      Map<String, String> properties;
       if (table == null) {
         // load required fields by table loader.
         tableLoader.open();
@@ -163,6 +164,7 @@ public class FlinkSource {
           icebergSchema = table.schema();
           io = table.io();
           encryption = table.encryption();
+          properties = table.properties();
         } catch (IOException e) {
           throw new UncheckedIOException(e);
         }
@@ -170,6 +172,7 @@ public class FlinkSource {
         icebergSchema = table.schema();
         io = table.io();
         encryption = table.encryption();
+        properties = table.properties();
       }
 
       rowTypeInfo = RowDataTypeInfo.of((RowType) (
@@ -180,7 +183,7 @@ public class FlinkSource {
       context = context.project(projectedSchema == null ? icebergSchema :
           FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
 
-      return new FlinkInputFormat(tableLoader, icebergSchema, io, encryption, context);
+      return new FlinkInputFormat(tableLoader, icebergSchema, io, encryption, context, properties);
     }
 
     public DataStream<RowData> build() {

@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
+import java.util.Map;
 import org.apache.flink.api.common.io.DefaultInputSplitAssigner;
 import org.apache.flink.api.common.io.InputFormat;
 import org.apache.flink.api.common.io.RichInputFormat;
@@ -46,16 +47,18 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   private final FileIO io;
   private final EncryptionManager encryption;
   private final ScanContext context;
+  private final Map<String, String> properties;
 
   private transient RowDataIterator iterator;
 
   FlinkInputFormat(TableLoader tableLoader, Schema tableSchema, FileIO io, EncryptionManager encryption,
-                   ScanContext context) {
+                   ScanContext context, Map<String, String> properties) {
     this.tableLoader = tableLoader;
     this.tableSchema = tableSchema;
     this.io = io;
     this.encryption = encryption;
     this.context = context;
+    this.properties = properties;
   }
 
   @VisibleForTesting
@@ -92,7 +95,7 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   public void open(FlinkInputSplit split) {
     this.iterator = new RowDataIterator(
         split.getTask(), io, encryption, tableSchema, context.projectedSchema(), context.nameMapping(),
-        context.caseSensitive());
+        context.caseSensitive(), properties);
   }
 
   @Override

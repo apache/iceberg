@@ -65,11 +65,13 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
   static final String ICEBERG_FILTER_EXPRESSION = "iceberg.filter.expression";
 
   private Table table;
+  private Map<String, String> properties;
   private String signature;
   private List<InputSplit> splits;
 
   IcebergPigInputFormat(Table table, String signature) {
     this.table = table;
+    this.properties = table.properties();
     this.signature = signature;
   }
 
@@ -217,21 +219,25 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
               partitionValueMap.put(field.fieldId(), convertPartitionValue(field.type(), partitionValue));
             }
 
-            reader = Parquet.read(inputFile)
+            Parquet.ReadBuilder builder = Parquet.read(inputFile)
+                .setAll(properties)
                 .project(readSchema)
                 .split(currentTask.start(), currentTask.length())
                 .filter(currentTask.residual())
                 .createReaderFunc(
-                    fileSchema -> PigParquetReader.buildReader(fileSchema, projectedSchema, partitionValueMap))
-                .build();
+                    fileSchema -> PigParquetReader.buildReader(fileSchema, projectedSchema, partitionValueMap));
+
+            reader = builder.build();
           } else {
-            reader = Parquet.read(inputFile)
+            Parquet.ReadBuilder builder = Parquet.read(inputFile)
+                .setAll(properties)
                 .project(projectedSchema)
                 .split(currentTask.start(), currentTask.length())
                 .filter(currentTask.residual())
                 .createReaderFunc(
-                    fileSchema -> PigParquetReader.buildReader(fileSchema, projectedSchema, partitionValueMap))
-                .build();
+                    fileSchema -> PigParquetReader.buildReader(fileSchema, projectedSchema, partitionValueMap));
+
+            reader = builder.build();
           }
 
           recordIterator = reader.iterator();

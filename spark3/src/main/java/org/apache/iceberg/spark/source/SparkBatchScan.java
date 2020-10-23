@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
@@ -141,14 +142,15 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   public InputPartition[] planInputPartitions() {
     String tableSchemaString = SchemaParser.toJson(table.schema());
     String expectedSchemaString = SchemaParser.toJson(expectedSchema);
-    String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
+    Map<String, String> properties = table.properties();
+    String nameMappingString = properties.get(TableProperties.DEFAULT_NAME_MAPPING);
 
     List<CombinedScanTask> scanTasks = tasks();
     InputPartition[] readTasks = new InputPartition[scanTasks.size()];
     for (int i = 0; i < scanTasks.size(); i++) {
       readTasks[i] = new ReadTask(
           scanTasks.get(i), tableSchemaString, expectedSchemaString, nameMappingString, io, encryptionManager,
-          caseSensitive, localityPreferred);
+          caseSensitive, localityPreferred, properties);
     }
 
     return readTasks;
@@ -338,14 +340,14 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   private static class RowReader extends RowDataReader implements PartitionReader<InternalRow> {
     RowReader(ReadTask task) {
       super(task.task, task.tableSchema(), task.expectedSchema(), task.nameMappingString, task.io(), task.encryption(),
-          task.isCaseSensitive());
+            task.isCaseSensitive(), task.properties);
     }
   }
 
   private static class BatchReader extends BatchDataReader implements PartitionReader<ColumnarBatch> {
     BatchReader(ReadTask task, int batchSize) {
       super(task.task, task.expectedSchema(), task.nameMappingString, task.io(), task.encryption(),
-          task.isCaseSensitive(), batchSize);
+            task.isCaseSensitive(), batchSize, task.properties);
     }
   }
 
@@ -357,6 +359,7 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     private final Broadcast<FileIO> io;
     private final Broadcast<EncryptionManager> encryptionManager;
     private final boolean caseSensitive;
+    private final Map<String, String> properties;
 
     private transient Schema tableSchema = null;
     private transient Schema expectedSchema = null;
@@ -365,7 +368,7 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
     ReadTask(CombinedScanTask task, String tableSchemaString, String expectedSchemaString, String nameMappingString,
              Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager, boolean caseSensitive,
-             boolean localityPreferred) {
+             boolean localityPreferred, Map<String, String> properties) {
       this.task = task;
       this.tableSchemaString = tableSchemaString;
       this.expectedSchemaString = expectedSchemaString;
@@ -373,6 +376,7 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
       this.io = io;
       this.encryptionManager = encryptionManager;
       this.caseSensitive = caseSensitive;
+      this.properties = properties;
       if (localityPreferred) {
         this.preferredLocations = Util.blockLocations(io.value(), task);
       } else {

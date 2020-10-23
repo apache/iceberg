@@ -133,7 +133,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           // TODO: We do not support residual evaluation for HIVE and PIG in memory data model yet
           checkResiduals(task);
         }
-        splits.add(new IcebergSplit(conf, task, table.io(), table.encryption()));
+        splits.add(new IcebergSplit(conf, task, table.io(), table.encryption(), table.properties()));
       });
     } catch (IOException e) {
       throw new UncheckedIOException(String.format("Failed to close table scan: %s", scan), e);
@@ -171,6 +171,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private CloseableIterator<T> currentIterator;
     private FileIO io;
     private EncryptionManager encryptionManager;
+    private Map<String, String> properties;
 
     @Override
     public void initialize(InputSplit split, TaskAttemptContext newContext) {
@@ -180,6 +181,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       this.context = newContext;
       this.io = ((IcebergSplit) split).io();
       this.encryptionManager = ((IcebergSplit) split).encryptionManager();
+      this.properties = ((IcebergSplit) split).properties();
       this.tasks = task.files().iterator();
       this.tableSchema = SchemaParser.fromJson(conf.get(InputFormatConfig.TABLE_SCHEMA));
       String readSchemaStr = conf.get(InputFormatConfig.READ_SCHEMA);
@@ -288,6 +290,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     private CloseableIterable<T> newAvroIterable(
         InputFile inputFile, FileScanTask task, Schema readSchema) {
+
+      // TODO: propagate properties for Avro
       Avro.ReadBuilder avroReadBuilder = Avro.read(inputFile)
           .project(readSchema)
           .split(task.start(), task.length());
@@ -311,6 +315,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     private CloseableIterable<T> newParquetIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
       Parquet.ReadBuilder parquetReadBuilder = Parquet.read(inputFile)
+          .setAll(properties)
           .project(readSchema)
           .filter(task.residual())
           .caseSensitive(caseSensitive)
@@ -333,6 +338,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     private CloseableIterable<T> newOrcIterable(InputFile inputFile, FileScanTask task, Schema readSchema) {
+      // TODO: propagate properties for ORC
       Map<Integer, ?> idToConstant = constantsMap(task, IdentityPartitionConverters::convertConstant);
       Schema readSchemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(readSchema,
           Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));

@@ -50,15 +50,17 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
   private final String nameMapping;
   private final boolean caseSensitive;
   private final int batchSize;
+  private final Map<String, String> properties;
 
   BatchDataReader(
       CombinedScanTask task, Schema expectedSchema, String nameMapping, FileIO fileIo,
-      EncryptionManager encryptionManager, boolean caseSensitive, int size) {
+      EncryptionManager encryptionManager, boolean caseSensitive, int size, Map<String, String> properties) {
     super(task, fileIo, encryptionManager);
     this.expectedSchema = expectedSchema;
     this.nameMapping = nameMapping;
     this.caseSensitive = caseSensitive;
     this.batchSize = size;
+    this.properties = properties;
   }
 
   @Override
@@ -86,6 +88,7 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
     Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
     if (task.file().format() == FileFormat.PARQUET) {
       Parquet.ReadBuilder builder = Parquet.read(location)
+          .setAll(properties)
           .project(expectedSchema)
           .split(task.start(), task.length())
           .createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(expectedSchema,
@@ -104,6 +107,7 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
 
       iter = builder.build();
     } else if (task.file().format() == FileFormat.ORC) {
+      // TODO: propagate properties for ORC
       Schema schemaWithoutConstants = TypeUtil.selectNot(expectedSchema, idToConstant.keySet());
       ORC.ReadBuilder builder = ORC.read(location)
           .project(schemaWithoutConstants)

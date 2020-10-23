@@ -31,6 +31,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
@@ -52,6 +53,7 @@ import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.orc.OrcFile;
 import org.apache.orc.Reader;
+import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.io.DelegatingSeekableInputStream;
@@ -750,6 +752,21 @@ public class TestMetricsRowGroupFilter {
     Assert.assertTrue("Should read: notEqual on some nulls column", shouldRead);
   }
 
+  @Test
+  public void testInLimitParquet() {
+    Assume.assumeTrue(format == FileFormat.PARQUET);
+
+    boolean shouldRead = shouldRead(in("id", 1, 2));
+    Assert.assertFalse("Should not read if IN is evaluated", shouldRead);
+
+    ParquetReadOptions options = ParquetReadOptions.builder()
+        .set(TableProperties.PARQUET_IN_LIMIT, "0")
+        .build();
+
+    shouldRead = shouldReadParquet(in("id", 1, 2), true, parquetSchema, rowGroupMetadata, options);
+    Assert.assertTrue("Should read if IN is not evaluated", shouldRead);
+  }
+
   private boolean shouldRead(Expression expression) {
     return shouldRead(expression, true);
   }
@@ -779,9 +796,15 @@ public class TestMetricsRowGroupFilter {
   }
 
   private boolean shouldReadParquet(Expression expression, boolean caseSensitive, MessageType messageType,
-      BlockMetaData blockMetaData) {
-    return new ParquetMetricsRowGroupFilter(SCHEMA, expression, caseSensitive)
-        .shouldRead(messageType, blockMetaData);
+                                    BlockMetaData blockMetaData) {
+    ParquetReadOptions options = ParquetReadOptions.builder().build();
+    return shouldReadParquet(expression, caseSensitive, messageType, blockMetaData, options);
+  }
+
+  private boolean shouldReadParquet(Expression expression, boolean caseSensitive, MessageType messageType,
+                                    BlockMetaData blockMetaData, ParquetReadOptions options) {
+    ParquetMetricsRowGroupFilter filter = new ParquetMetricsRowGroupFilter(SCHEMA, expression, caseSensitive, options);
+    return filter.shouldRead(messageType, blockMetaData);
   }
 
   private org.apache.parquet.io.InputFile parquetInputFile(InputFile inFile) {

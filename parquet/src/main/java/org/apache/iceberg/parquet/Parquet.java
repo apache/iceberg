@@ -547,6 +547,11 @@ public class Parquet {
       return this;
     }
 
+    public ReadBuilder setAll(Map<String, String> newProperties) {
+      properties.putAll(newProperties);
+      return this;
+    }
+
     public ReadBuilder callInit() {
       this.callInit = true;
       return this;

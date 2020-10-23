@@ -39,6 +39,7 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.BinaryUtil;
+import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
@@ -46,18 +47,29 @@ import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 
+import static org.apache.iceberg.TableProperties.PARQUET_IN_LIMIT;
+import static org.apache.iceberg.TableProperties.PARQUET_IN_LIMIT_DEFAULT;
+
 public class ParquetMetricsRowGroupFilter {
   private final Schema schema;
   private final Expression expr;
+  private final int inPredicateLimit;
 
-  public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound) {
-    this(schema, unbound, true);
+  public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound, ParquetReadOptions options) {
+    this(schema, unbound, true, options);
   }
 
-  public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound, boolean caseSensitive) {
+  public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound, boolean caseSensitive,
+                                      ParquetReadOptions options) {
     this.schema = schema;
     StructType struct = schema.asStruct();
     this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
+
+    if (options.getPropertyNames().contains(PARQUET_IN_LIMIT)) {
+      this.inPredicateLimit = Integer.parseInt(options.getProperty(PARQUET_IN_LIMIT));
+    } else {
+      this.inPredicateLimit = PARQUET_IN_LIMIT_DEFAULT;
+    }
   }
 
   /**
@@ -372,6 +384,11 @@ public class ParquetMetricsRowGroupFilter {
         }
 
         Collection<T> literals = literalSet;
+
+        if (literals.size() > inPredicateLimit) {
+          // skip evaluating the predicate if the number of values is too big
+          return ROWS_MIGHT_MATCH;
+        }
 
         T lower = min(colStats, id);
         literals = literals.stream().filter(v -> ref.comparator().compare(lower, v) <= 0).collect(Collectors.toList());

@@ -22,6 +22,7 @@ package org.apache.iceberg.mr.mapreduce;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.iceberg.CombinedScanTask;
@@ -43,6 +44,7 @@ public class IcebergSplit extends InputSplit implements org.apache.hadoop.mapred
   private CombinedScanTask task;
   private FileIO io;
   private EncryptionManager encryptionManager;
+  private Map<String, String> properties;
 
   private transient String[] locations;
   private transient Configuration conf;
@@ -51,11 +53,13 @@ public class IcebergSplit extends InputSplit implements org.apache.hadoop.mapred
   public IcebergSplit() {
   }
 
-  IcebergSplit(Configuration conf, CombinedScanTask task, FileIO io, EncryptionManager encryptionManager) {
+  IcebergSplit(Configuration conf, CombinedScanTask task, FileIO io,
+               EncryptionManager encryptionManager, Map<String, String> properties) {
     this.task = task;
     this.conf = conf;
     this.io = io;
     this.encryptionManager = encryptionManager;
+    this.properties = properties;
   }
 
   public CombinedScanTask task() {
@@ -105,6 +109,10 @@ public class IcebergSplit extends InputSplit implements org.apache.hadoop.mapred
     byte[] encryptionManagerData = SerializationUtil.serializeToBytes(encryptionManager);
     out.writeInt(encryptionManagerData.length);
     out.write(encryptionManagerData);
+
+    byte[] optionsData = SerializationUtil.serializeToBytes(properties);
+    out.writeInt(optionsData.length);
+    out.write(optionsData);
   }
 
   @Override
@@ -120,6 +128,10 @@ public class IcebergSplit extends InputSplit implements org.apache.hadoop.mapred
     byte[] encryptionManagerData = new byte[in.readInt()];
     in.readFully(encryptionManagerData);
     this.encryptionManager = SerializationUtil.deserializeFromBytes(encryptionManagerData);
+
+    byte[] optionsData = new byte[in.readInt()];
+    in.readFully(optionsData);
+    this.properties = SerializationUtil.deserializeFromBytes(optionsData);
   }
 
   public FileIO io() {
@@ -128,5 +140,9 @@ public class IcebergSplit extends InputSplit implements org.apache.hadoop.mapred
 
   public EncryptionManager encryptionManager() {
     return encryptionManager;
+  }
+
+  public Map<String, String> properties() {
+    return properties;
   }
 }

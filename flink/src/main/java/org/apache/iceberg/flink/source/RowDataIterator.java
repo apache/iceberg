@@ -53,14 +53,16 @@ class RowDataIterator extends DataIterator<RowData> {
   private final Schema projectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
+  private final Map<String, String> properties;
 
   RowDataIterator(CombinedScanTask task, FileIO io, EncryptionManager encryption, Schema tableSchema,
-                  Schema projectedSchema, String nameMapping, boolean caseSensitive) {
+                  Schema projectedSchema, String nameMapping, boolean caseSensitive, Map<String, String> properties) {
     super(task, io, encryption);
     this.tableSchema = tableSchema;
     this.projectedSchema = projectedSchema;
     this.nameMapping = nameMapping;
     this.caseSensitive = caseSensitive;
+    this.properties = properties;
   }
 
   @Override
@@ -104,6 +106,8 @@ class RowDataIterator extends DataIterator<RowData> {
   }
 
   private CloseableIterable<RowData> newAvroIterable(FileScanTask task, Schema schema, Map<Integer, ?> idToConstant) {
+    // TODO: propagate properties for Avro
+
     Avro.ReadBuilder builder = Avro.read(getInputFile(task))
         .reuseContainers()
         .project(schema)
@@ -121,6 +125,7 @@ class RowDataIterator extends DataIterator<RowData> {
                                                         Map<Integer, ?> idToConstant) {
     Parquet.ReadBuilder builder = Parquet.read(getInputFile(task))
         .reuseContainers()
+        .setAll(properties)
         .split(task.start(), task.length())
         .project(schema)
         .createReaderFunc(fileSchema -> FlinkParquetReaders.buildReader(schema, fileSchema, idToConstant))
@@ -136,6 +141,8 @@ class RowDataIterator extends DataIterator<RowData> {
   }
 
   private CloseableIterable<RowData> newOrcIterable(FileScanTask task, Schema schema, Map<Integer, ?> idToConstant) {
+    // TODO: propagate properties for ORC
+
     Schema readSchemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(schema,
         Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
 

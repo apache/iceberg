@@ -84,6 +84,9 @@ public class TableProperties {
   public static final String PARQUET_BATCH_SIZE = "read.parquet.vectorization.batch-size";
   public static final int PARQUET_BATCH_SIZE_DEFAULT = 5000;
 
+  public static final String PARQUET_IN_LIMIT = "read.parquet.in-predicate-limit";
+  public static final int PARQUET_IN_LIMIT_DEFAULT = 200;
+
   public static final String OBJECT_STORE_ENABLED = "write.object-storage.enabled";
   public static final boolean OBJECT_STORE_ENABLED_DEFAULT = false;
 

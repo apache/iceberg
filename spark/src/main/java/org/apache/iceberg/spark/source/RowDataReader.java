@@ -68,16 +68,18 @@ class RowDataReader extends BaseDataReader<InternalRow> {
   private final Schema expectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
+  private final Map<String, String> properties;
 
   RowDataReader(
       CombinedScanTask task, Schema tableSchema, Schema expectedSchema, String nameMapping, FileIO io,
-      EncryptionManager encryptionManager, boolean caseSensitive) {
+      EncryptionManager encryptionManager, boolean caseSensitive, Map<String, String> properties) {
     super(task, io, encryptionManager);
     this.io = io;
     this.tableSchema = tableSchema;
     this.expectedSchema = expectedSchema;
     this.nameMapping = nameMapping;
     this.caseSensitive = caseSensitive;
+    this.properties = properties;
   }
 
   @Override
@@ -140,6 +142,9 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
     }
 
+    // TODO: propagate properties for Avro
+    // properties.forEach(builder::set);
+
     return builder.build();
   }
 
@@ -149,6 +154,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       Schema readSchema,
       Map<Integer, ?> idToConstant) {
     Parquet.ReadBuilder builder = Parquet.read(location)
+        .setAll(properties)
         .reuseContainers()
         .split(task.start(), task.length())
         .project(readSchema)
@@ -181,6 +187,9 @@ class RowDataReader extends BaseDataReader<InternalRow> {
     if (nameMapping != null) {
       builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
     }
+
+    // TODO: propagate properties for ORC
+    // properties.forEach(builder::set);
 
     return builder.build();
   }

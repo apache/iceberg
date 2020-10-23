@@ -51,6 +51,7 @@ class GenericReader implements Serializable {
   private final Schema projection;
   private final boolean caseSensitive;
   private final boolean reuseContainers;
+  private final Map<String, String> properties;
 
   GenericReader(TableScan scan, boolean reuseContainers) {
     this.io = scan.table().io();
@@ -58,6 +59,7 @@ class GenericReader implements Serializable {
     this.projection = scan.schema();
     this.caseSensitive = scan.isCaseSensitive();
     this.reuseContainers = reuseContainers;
+    this.properties = scan.table().properties();
   }
 
   CloseableIterator<Record> open(CloseableIterable<CombinedScanTask> tasks) {
@@ -98,6 +100,8 @@ class GenericReader implements Serializable {
 
     switch (task.file().format()) {
       case AVRO:
+        // TODO: propagate properties for Avro
+
         Avro.ReadBuilder avro = Avro.read(input)
             .project(fileProjection)
             .createReaderFunc(
@@ -113,6 +117,7 @@ class GenericReader implements Serializable {
       case PARQUET:
         Parquet.ReadBuilder parquet = Parquet.read(input)
             .project(fileProjection)
+            .setAll(properties)
             .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(fileProjection, fileSchema, partition))
             .split(task.start(), task.length())
             .filter(task.residual());
@@ -124,6 +129,8 @@ class GenericReader implements Serializable {
         return parquet.build();
 
       case ORC:
+        // TODO: propagate properties for ORC
+
         Schema projectionWithoutConstantAndMetadataFields = TypeUtil.selectNot(fileProjection,
             Sets.union(partition.keySet(), MetadataColumns.metadataFieldIds()));
         ORC.ReadBuilder orc = ORC.read(input)

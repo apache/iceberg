@@ -95,7 +95,7 @@ class ReadConf<T> {
     ParquetMetricsRowGroupFilter statsFilter = null;
     ParquetDictionaryRowGroupFilter dictFilter = null;
     if (filter != null) {
-      statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive);
+      statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive, options);
       dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive);
     }
 
