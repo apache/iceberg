@@ -21,19 +21,19 @@ package org.apache.iceberg.io;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.List;
+import org.apache.iceberg.ContentFile;
+import org.apache.iceberg.ContentFileWriter;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DataFileWriter;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Tasks;
 
 public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
-  private final List<DataFile> completedFiles = Lists.newArrayList();
+  private final TaskWriterResult.Builder builder;
   private final PartitionSpec spec;
   private final FileFormat format;
   private final FileAppenderFactory<T> appenderFactory;
@@ -43,6 +43,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
   protected BaseTaskWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
                            OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
+    this.builder = TaskWriterResult.builder();
     this.spec = spec;
     this.format = format;
     this.appenderFactory = appenderFactory;
@@ -56,34 +57,59 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     close();
 
     // clean up files created by this writer
-    Tasks.foreach(completedFiles)
+    TaskWriterResult result = builder.build();
+
+    Tasks.foreach(result.dataFiles())
+        .throwFailureWhenFinished()
+        .noRetry()
+        .run(file -> io.deleteFile(file.path().toString()));
+
+    Tasks.foreach(result.deleteFiles())
         .throwFailureWhenFinished()
         .noRetry()
         .run(file -> io.deleteFile(file.path().toString()));
   }
 
   @Override
-  public DataFile[] complete() throws IOException {
+  public TaskWriterResult complete() throws IOException {
     close();
 
-    return completedFiles.toArray(new DataFile[0]);
+    return builder.build();
   }
 
-  protected class RollingFileWriter implements Closeable {
+  protected class RollingDataFileWriter extends BaseRollingFileWriter<DataFile, T> {
+
+    public RollingDataFileWriter(PartitionKey partitionKey) {
+      super(partitionKey);
+    }
+
+    @Override
+    ContentFileWriter<DataFile, T> newContentFileWriter(EncryptedOutputFile outputFile, FileFormat fileFormat) {
+      FileAppender<T> appender = appenderFactory.newAppender(outputFile.encryptingOutputFile(), fileFormat);
+      return new DataFileWriter<>(appender, fileFormat, outputFile.encryptingOutputFile().location(), partitionKey(),
+          spec, outputFile.keyMetadata());
+    }
+  }
+
+  protected abstract class BaseRollingFileWriter<F, R> implements Closeable {
     private static final int ROWS_DIVISOR = 1000;
     private final PartitionKey partitionKey;
 
     private EncryptedOutputFile currentFile = null;
-    private FileAppender<T> currentAppender = null;
+    private ContentFileWriter<F, R> currentFileWriter = null;
     private long currentRows = 0;
 
-    public RollingFileWriter(PartitionKey partitionKey) {
+    public BaseRollingFileWriter(PartitionKey partitionKey) {
       this.partitionKey = partitionKey;
       openCurrent();
     }
 
-    public void add(T record) throws IOException {
-      this.currentAppender.add(record);
+    protected PartitionKey partitionKey() {
+      return partitionKey;
+    }
+
+    public void add(R record) throws IOException {
+      this.currentFileWriter.write(record);
       this.currentRows++;
 
       if (shouldRollToNewFile()) {
@@ -91,6 +117,8 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         openCurrent();
       }
     }
+
+    abstract ContentFileWriter<F, R> newContentFileWriter(EncryptedOutputFile outputFile, FileFormat fileFormat);
 
     private void openCurrent() {
       if (partitionKey == null) {
@@ -100,37 +128,31 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         // partitioned
         currentFile = fileFactory.newOutputFile(partitionKey);
       }
-      currentAppender = appenderFactory.newAppender(currentFile.encryptingOutputFile(), format);
+      currentFileWriter = newContentFileWriter(currentFile, format);
       currentRows = 0;
     }
 
     private boolean shouldRollToNewFile() {
       // TODO: ORC file now not support target file size before closed
       return !format.equals(FileFormat.ORC) &&
-          currentRows % ROWS_DIVISOR == 0 && currentAppender.length() >= targetFileSize;
+          currentRows % ROWS_DIVISOR == 0 && currentFileWriter.length() >= targetFileSize;
     }
 
+    @SuppressWarnings("unchecked")
     private void closeCurrent() throws IOException {
-      if (currentAppender != null) {
-        currentAppender.close();
-        // metrics are only valid after the appender is closed
-        Metrics metrics = currentAppender.metrics();
-        long fileSizeInBytes = currentAppender.length();
-        List<Long> splitOffsets = currentAppender.splitOffsets();
-        this.currentAppender = null;
+      if (currentFileWriter != null) {
+        currentFileWriter.close();
+        F contentFile = currentFileWriter.toContentFile();
+        Metrics metrics = currentFileWriter.metrics();
+        this.currentFileWriter = null;
 
         if (metrics.recordCount() == 0L) {
           io.deleteFile(currentFile.encryptingOutputFile());
+        } else if (contentFile instanceof ContentFile) {
+          builder.add((ContentFile) contentFile);
         } else {
-          DataFile dataFile = DataFiles.builder(spec)
-              .withEncryptionKeyMetadata(currentFile.keyMetadata())
-              .withPath(currentFile.encryptingOutputFile().location())
-              .withFileSizeInBytes(fileSizeInBytes)
-              .withPartition(spec.fields().size() == 0 ? null : partitionKey) // set null if unpartitioned
-              .withMetrics(metrics)
-              .withSplitOffsets(splitOffsets)
-              .build();
-          completedFiles.add(dataFile);
+          throw new RuntimeException(String.format(
+              "The newly generated content file must be DataFile or DeleteFile: %s", contentFile));
         }
 
         this.currentFile = null;

@@ -17,46 +17,32 @@
  * under the License.
  */
 
-package org.apache.iceberg.deletes;
+package org.apache.iceberg;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import org.apache.iceberg.ContentFileWriter;
-import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.FileMetadata;
-import org.apache.iceberg.Metrics;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-public class EqualityDeleteWriter<T> implements ContentFileWriter<DeleteFile, T> {
+public class DataFileWriter<T> implements ContentFileWriter<DataFile, T> {
   private final FileAppender<T> appender;
   private final FileFormat format;
   private final String location;
+  private final PartitionKey partitionKey;
   private final PartitionSpec spec;
-  private final StructLike partition;
   private final ByteBuffer keyMetadata;
-  private final int[] equalityFieldIds;
-  private DeleteFile deleteFile = null;
+  private DataFile dataFile = null;
 
-  public EqualityDeleteWriter(FileAppender<T> appender, FileFormat format, String location,
-                              PartitionSpec spec, StructLike partition, EncryptionKeyMetadata keyMetadata,
-                              int... equalityFieldIds) {
+  public DataFileWriter(FileAppender<T> appender, FileFormat format,
+                        String location, PartitionKey partitionKey, PartitionSpec spec,
+                        EncryptionKeyMetadata keyMetadata) {
     this.appender = appender;
     this.format = format;
     this.location = location;
+    this.partitionKey = partitionKey; // set null if unpartitioned.
     this.spec = spec;
-    this.partition = partition;
     this.keyMetadata = keyMetadata != null ? keyMetadata.buffer() : null;
-    this.equalityFieldIds = equalityFieldIds;
-  }
-
-  @Override
-  public long length() {
-    return appender.length();
   }
 
   @Override
@@ -70,24 +56,29 @@ public class EqualityDeleteWriter<T> implements ContentFileWriter<DeleteFile, T>
   }
 
   @Override
-  public void close() throws IOException {
-    if (deleteFile == null) {
-      appender.close();
-      this.deleteFile = FileMetadata.deleteFileBuilder(spec)
-          .ofEqualityDeletes(equalityFieldIds)
-          .withFormat(format)
-          .withPath(location)
-          .withPartition(partition)
-          .withEncryptionKeyMetadata(keyMetadata)
-          .withFileSizeInBytes(appender.length())
-          .withMetrics(appender.metrics())
-          .build();
-    }
+  public long length() {
+    return appender.length();
   }
 
   @Override
-  public DeleteFile toContentFile() {
-    Preconditions.checkState(deleteFile != null, "Cannot create delete file from unclosed writer");
-    return deleteFile;
+  public DataFile toContentFile() {
+    Preconditions.checkState(dataFile != null, "Cannot create data file from unclosed writer");
+    return dataFile;
+  }
+
+  @Override
+  public void close() throws IOException {
+    if (dataFile == null) {
+      appender.close();
+      this.dataFile = DataFiles.builder(spec)
+          .withEncryptionKeyMetadata(keyMetadata)
+          .withFormat(format)
+          .withPath(location)
+          .withFileSizeInBytes(appender.length())
+          .withPartition(partitionKey) // set null if unpartitioned
+          .withMetrics(appender.metrics())
+          .withSplitOffsets(appender.splitOffsets())
+          .build();
+    }
   }
 }

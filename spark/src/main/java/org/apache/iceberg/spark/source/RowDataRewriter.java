@@ -120,7 +120,7 @@ public class RowDataRewriter implements Serializable {
       dataReader = null;
 
       writer.close();
-      return Lists.newArrayList(writer.complete());
+      return Lists.newArrayList(writer.complete().dataFiles());
 
     } catch (Throwable originalThrowable) {
       try {

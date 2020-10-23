@@ -19,28 +19,15 @@
 
 package org.apache.iceberg.io;
 
-import java.io.IOException;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.deletes.EqualityDeleteWriter;
 
-public class UnpartitionedWriter<T> extends BaseTaskWriter<T> {
+/**
+ * Factory to create a new {@link EqualityDeleteWriter} to write equality deletions in row-level.
+ *
+ * @param <T> data type of the rows to delete.
+ */
+public interface EqualityDeleteWriterFactory<T> {
 
-  private final BaseRollingFileWriter<DataFile, T> currentWriter;
-
-  public UnpartitionedWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
-                             OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
-    super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
-    currentWriter = new RollingDataFileWriter(null);
-  }
-
-  @Override
-  public void write(T record) throws IOException {
-    currentWriter.add(record);
-  }
-
-  @Override
-  public void close() throws IOException {
-    currentWriter.close();
-  }
+  EqualityDeleteWriter<T> newEqualityDeleteWriter(OutputFile outputFile, FileFormat format);
 }

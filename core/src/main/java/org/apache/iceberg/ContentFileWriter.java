@@ -17,30 +17,34 @@
  * under the License.
  */
 
-package org.apache.iceberg.io;
+package org.apache.iceberg;
 
-import java.io.IOException;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.PartitionSpec;
+import java.io.Closeable;
+import java.util.Iterator;
 
-public class UnpartitionedWriter<T> extends BaseTaskWriter<T> {
+public interface ContentFileWriter<T, R> extends Closeable {
 
-  private final BaseRollingFileWriter<DataFile, T> currentWriter;
+  void write(R record);
 
-  public UnpartitionedWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
-                             OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
-    super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
-    currentWriter = new RollingDataFileWriter(null);
+  default void writeAll(Iterator<R> values) {
+    while (values.hasNext()) {
+      write(values.next());
+    }
   }
 
-  @Override
-  public void write(T record) throws IOException {
-    currentWriter.add(record);
+  default void writeAll(Iterable<R> values) {
+    writeAll(values.iterator());
   }
 
-  @Override
-  public void close() throws IOException {
-    currentWriter.close();
-  }
+  /**
+   * Returns {@link Metrics} for this file. Only valid after the file is closed.
+   */
+  Metrics metrics();
+
+  /**
+   * Returns the length of this file.
+   */
+  long length();
+
+  T toContentFile();
 }

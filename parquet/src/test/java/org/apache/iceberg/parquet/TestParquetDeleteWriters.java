@@ -86,10 +86,10 @@ public class TestParquetDeleteWriters {
         .buildEqualityWriter();
 
     try (EqualityDeleteWriter<Record> writer = deleteWriter) {
-      writer.deleteAll(records);
+      writer.writeAll(records);
     }
 
-    DeleteFile metadata = deleteWriter.toDeleteFile();
+    DeleteFile metadata = deleteWriter.toContentFile();
     Assert.assertEquals("Format should be Parquet", FileFormat.PARQUET, metadata.format());
     Assert.assertEquals("Should be equality deletes", FileContent.EQUALITY_DELETES, metadata.content());
     Assert.assertEquals("Record count should be correct", records.size(), metadata.recordCount());

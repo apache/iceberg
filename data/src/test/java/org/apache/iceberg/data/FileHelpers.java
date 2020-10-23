@@ -84,10 +84,10 @@ public class FileHelpers {
         .buildEqualityWriter();
 
     try (Closeable toClose = writer) {
-      writer.deleteAll(deletes);
+      writer.writeAll(deletes);
     }
 
-    return writer.toDeleteFile();
+    return writer.toContentFile();
   }
 
   public static DataFile writeDataFile(Table table, OutputFile out, List<Record> rows) throws IOException {

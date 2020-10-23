@@ -21,6 +21,7 @@ package org.apache.iceberg.io;
 
 import java.io.IOException;
 import java.util.Set;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
@@ -35,7 +36,7 @@ public abstract class PartitionedWriter<T> extends BaseTaskWriter<T> {
   private final Set<PartitionKey> completedPartitions = Sets.newHashSet();
 
   private PartitionKey currentKey = null;
-  private RollingFileWriter currentWriter = null;
+  private BaseRollingFileWriter<DataFile, T> currentWriter = null;
 
   public PartitionedWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
                            OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
@@ -70,7 +71,7 @@ public abstract class PartitionedWriter<T> extends BaseTaskWriter<T> {
       }
 
       currentKey = key.copy();
-      currentWriter = new RollingFileWriter(currentKey);
+      currentWriter = new RollingDataFileWriter(currentKey);
     }
 
     currentWriter.add(row);

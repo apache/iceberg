@@ -21,7 +21,6 @@ package org.apache.iceberg.io;
 
 import java.io.Closeable;
 import java.io.IOException;
-import org.apache.iceberg.DataFile;
 
 /**
  * The writer interface could accept records and provide the generated data files.
@@ -47,5 +46,5 @@ public interface TaskWriter<T> extends Closeable {
    *
    * @return the completed data files of this task writer.
    */
-  DataFile[] complete() throws IOException;
+  TaskWriterResult complete() throws IOException;
 }
