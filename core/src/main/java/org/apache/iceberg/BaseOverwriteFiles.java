@@ -92,6 +92,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
     return this;
   }
 
+  @Override
   public OverwriteFiles validateNoConflictingAppends(Expression newConflictDetectionFilter) {
     Preconditions.checkArgument(newConflictDetectionFilter != null, "Conflict detection filter cannot be null");
     this.conflictDetectionFilter = newConflictDetectionFilter;
