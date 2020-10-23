@@ -22,6 +22,9 @@ package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
 
+/**
+ * Iceberg internally tracked field level metrics.
+ */
 public class FieldMetrics {
   private final int id;
   private final long valueCount;
