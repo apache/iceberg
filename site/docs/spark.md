@@ -177,7 +177,7 @@ AS SELECT ...
 ```
 
 The schema and partition spec will be replaced if changed. To avoid modifying the table's schema and partitioning, use `INSERT OVERWRITE` instead of `REPLACE TABLE`.
-
+The new table properties in the `REPLACE TABLE` command will be merged with any existing table properties. The existing table properties will be updated if changed else they are preserved.
 ### `ALTER TABLE`
 
 Iceberg has full `ALTER TABLE` support in Spark 3, including:
