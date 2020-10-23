@@ -68,7 +68,7 @@ public class TestCatalogTableLoader extends FlinkTestBase {
 
   @Test
   public void testHiveCatalogLoader() throws IOException, ClassNotFoundException {
-    CatalogLoader loader = CatalogLoader.hive("my_catalog", hiveConf, null, 2);
+    CatalogLoader loader = CatalogLoader.hive("my_catalog", hiveConf, null, null, 2);
     validateCatalogLoader(loader);
   }
 
@@ -81,7 +81,7 @@ public class TestCatalogTableLoader extends FlinkTestBase {
 
   @Test
   public void testHiveCatalogTableLoader() throws IOException, ClassNotFoundException {
-    CatalogLoader catalogLoader = CatalogLoader.hive("my_catalog", hiveConf, null, 2);
+    CatalogLoader catalogLoader = CatalogLoader.hive("my_catalog", hiveConf, null, null, 2);
     validateTableLoader(TableLoader.fromCatalog(catalogLoader, IDENTIFIER));
   }
 

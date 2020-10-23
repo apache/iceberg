@@ -72,11 +72,19 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   }
 
   public HiveCatalog(String name, String uri, int clientPoolSize, Configuration conf) {
+    this(name, uri, null, clientPoolSize, conf);
+  }
+
+  public HiveCatalog(String name, String uri, String warehouse, int clientPoolSize, Configuration conf) {
     this.name = name;
     this.conf = new Configuration(conf);
     // before building the client pool, overwrite the configuration's URIs if the argument is non-null
     if (uri != null) {
       this.conf.set(HiveConf.ConfVars.METASTOREURIS.varname, uri);
+    }
+
+    if (warehouse != null) {
+      this.conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, warehouse);
     }
 
     this.clients = new HiveClientPool(clientPoolSize, this.conf);
@@ -422,15 +430,18 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     }
 
     // Otherwise stick to the {WAREHOUSE_DIR}/{DB_NAME}.db/{TABLE_NAME} path
-    String warehouseLocation = conf.get("hive.metastore.warehouse.dir");
-    Preconditions.checkNotNull(
-        warehouseLocation,
-        "Warehouse location is not set: hive.metastore.warehouse.dir=null");
+    String warehouseLocation = getWarehouseLocation();
     return String.format(
         "%s/%s.db/%s",
         warehouseLocation,
         tableIdentifier.namespace().levels()[0],
         tableIdentifier.name());
+  }
+
+  private String getWarehouseLocation() {
+    String warehouseLocation = conf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname);
+    Preconditions.checkNotNull(warehouseLocation, "Warehouse location is not set: hive.metastore.warehouse.dir=null");
+    return warehouseLocation;
   }
 
   private Map<String, String> convertToMetadata(Database database) {
@@ -447,17 +458,15 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   }
 
   Database convertToDatabase(Namespace namespace, Map<String, String> meta) {
-    String warehouseLocation = conf.get("hive.metastore.warehouse.dir");
-
     if (!isValidateNamespace(namespace)) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
-    Database database  = new Database();
+    Database database = new Database();
     Map<String, String> parameter = Maps.newHashMap();
 
     database.setName(namespace.level(0));
-    database.setLocationUri(new Path(warehouseLocation, namespace.level(0)).toString() + ".db");
+    database.setLocationUri(new Path(getWarehouseLocation(), namespace.level(0)).toString() + ".db");
 
     meta.forEach((key, value) -> {
       if (key.equals("comment")) {
