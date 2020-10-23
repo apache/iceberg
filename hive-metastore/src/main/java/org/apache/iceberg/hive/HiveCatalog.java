@@ -449,6 +449,10 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   Database convertToDatabase(Namespace namespace, Map<String, String> meta) {
     String warehouseLocation = conf.get("hive.metastore.warehouse.dir");
 
+    Preconditions.checkNotNull(
+            warehouseLocation,
+            "Warehouse location is not set: hive.metastore.warehouse.dir=null");
+
     if (!isValidateNamespace(namespace)) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
