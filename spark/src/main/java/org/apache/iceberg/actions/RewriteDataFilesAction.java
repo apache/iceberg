@@ -36,22 +36,16 @@ public class RewriteDataFilesAction
     extends BaseRewriteDataFilesAction<RewriteDataFilesAction> {
 
   private final JavaSparkContext sparkContext;
-  private final SparkSession spark;
 
   RewriteDataFilesAction(SparkSession spark, Table table) {
     super(table);
     this.sparkContext = new JavaSparkContext(spark.sparkContext());
-    this.spark = spark;
+    caseSensitive(Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive", "false")));
   }
 
   @Override
   protected RewriteDataFilesAction self() {
     return this;
-  }
-
-  @Override
-  protected boolean caseSensitive() {
-    return Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive", "false"));
   }
 
   @Override

@@ -60,7 +60,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
   private final Table table;
   private final FileIO fileIO;
   private final EncryptionManager encryptionManager;
-  private final boolean caseSensitive;
+  private boolean caseSensitive;
   private PartitionSpec spec;
   private Expression filter;
   private long targetSizeInBytes;
@@ -71,7 +71,6 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     this.table = table;
     this.spec = table.spec();
     this.filter = Expressions.alwaysTrue();
-    this.caseSensitive = caseSensitive();
     long splitSize = PropertyUtil.propertyAsLong(
         table.properties(),
         TableProperties.SPLIT_SIZE,
@@ -106,6 +105,10 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
 
   protected FileIO fileIO() {
     return fileIO;
+  }
+
+  protected void caseSensitive(boolean newCaseSensitive) {
+    this.caseSensitive = newCaseSensitive;
   }
 
   protected boolean isCaseSensitive() {
@@ -261,8 +264,6 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
       throw e;
     }
   }
-
-  protected abstract boolean caseSensitive();
 
   protected abstract FileIO fileIO(Table icebergTable);
 
