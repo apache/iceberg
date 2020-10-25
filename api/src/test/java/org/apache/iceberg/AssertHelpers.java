@@ -20,10 +20,8 @@
 package org.apache.iceberg;
 
 import java.util.concurrent.Callable;
-
 import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.generic.GenericRecord;
-
 import org.junit.Assert;
 
 public class AssertHelpers {
@@ -32,7 +30,8 @@ public class AssertHelpers {
   }
 
   /**
-   * A convenience method to avoid a large number of @Test(expected=...) tests
+   * A convenience method to avoid a large numb/test/java/org/apache/iceberg/TestHelpers.java
+   * of @Test(expected=...) tests
    * @param message A String message to describe this assertion
    * @param expected An Exception class that the Runnable should throw
    * @param containedInMessage A String that should be contained by the thrown
