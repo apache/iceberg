@@ -76,6 +76,7 @@ public abstract class TestSparkReaderDeletes extends DeleteReadTests {
 
     spark = SparkSession.builder()
         .master("local[2]")
+        .config(PlanScanAction.ICEBERG_TEST_PLAN_MODE, "true")
         .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
         .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
         .enableHiveSupport()

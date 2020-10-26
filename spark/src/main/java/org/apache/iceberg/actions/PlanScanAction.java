@@ -73,15 +73,15 @@ import org.slf4j.LoggerFactory;
 public class PlanScanAction extends BaseAction<CloseableIterable<CombinedScanTask>> {
   private static final Logger LOG = LoggerFactory.getLogger(PlanScanAction.class);
 
-
   public enum PlanMode {
     LOCAL,
     DISTRIBUTED
   }
 
-  public static final String ICEBERG_PLAN_MODE = "iceberg.plan_mode";
+  public static final String ICEBERG_PLAN_MODE = "plan_mode";
+  public static final String ICEBERG_TEST_PLAN_MODE = "test_plan_mode";
 
-  public static final PlanMode parsePlanMode(String mode) {
+  public static PlanMode parsePlanMode(String mode) {
     try {
       return PlanMode.valueOf(mode.toUpperCase(Locale.ROOT));
     } catch (IllegalArgumentException ex) {
@@ -97,6 +97,7 @@ public class PlanScanAction extends BaseAction<CloseableIterable<CombinedScanTas
   private final Schema schema;
 
   private TableScanContext context;
+  private Snapshot lazySnapshot;
 
   public PlanScanAction(SparkSession spark, Table table) {
     this.table = table;
@@ -158,9 +159,12 @@ public class PlanScanAction extends BaseAction<CloseableIterable<CombinedScanTas
   }
 
   private Snapshot snapshot() {
-    return context.snapshotId() != null ?
-        ops.current().snapshot(context.snapshotId()) :
-        ops.current().currentSnapshot();
+    if (lazySnapshot == null) {
+      lazySnapshot = context.snapshotId() != null ?
+          ops.current().snapshot(context.snapshotId()) :
+          ops.current().currentSnapshot();
+    }
+    return lazySnapshot;
   }
 
   public CloseableIterable<FileScanTask> planFiles() {
@@ -197,13 +201,13 @@ public class PlanScanAction extends BaseAction<CloseableIterable<CombinedScanTas
 
     // Evaluate all files based on their partition info and collect the rows back locally
     Dataset<Row> scanTaskDataset = dataFileEntries
-        .select(dataFileEntries.col("data_file.*"))
         .mapPartitions(
             (MapPartitionsFunction<Row, Row>) it -> {
               SparkDataFile container = new SparkDataFile(partitionStruct, dataFileSchema);
               return Streams.stream(it)
                   .filter(row -> {
-                    SparkDataFile file = container.wrap(row);
+                    Row dataFile = row.getAs("data_file");
+                    SparkDataFile file = container.wrap(dataFile);
                     return broadcastPartitionEvaluators.getValue().get(file.specId()).eval(file.partition()) &&
                         broadcastMetricsEvaluator.getValue().eval(file);
                   }).iterator();

@@ -63,7 +63,7 @@ import org.apache.iceberg.util.Tasks;
  * {@link #forEntry(ManifestEntry)} to get the the delete files to apply to a given data file.
  */
 public class DeleteFileIndex {
-  private final static DeleteFile[] EMPTY_DELETES = new DeleteFile[0];
+  private static final DeleteFile[] EMPTY_DELETES = new DeleteFile[0];
   private final Map<Integer, PartitionSpec> specsById;
   private final Map<Integer, Types.StructType> partitionTypeById;
   private final Map<Integer, ThreadLocal<StructLikeWrapper>> wrapperById;

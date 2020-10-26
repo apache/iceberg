@@ -114,6 +114,7 @@ public abstract class TestPartitionPruning {
     String optionKey = String.format("fs.%s.impl", CountOpenLocalFileSystem.scheme);
     CONF.set(optionKey, CountOpenLocalFileSystem.class.getName());
     spark.conf().set(optionKey, CountOpenLocalFileSystem.class.getName());
+    spark.conf().set(PlanScanAction.ICEBERG_TEST_PLAN_MODE, "true");
     spark.conf().set("spark.sql.session.timeZone", "UTC");
     spark.udf().register("bucket3", (Integer num) -> bucketTransform.apply(num), DataTypes.IntegerType);
     spark.udf().register("truncate5", (String str) -> truncateTransform.apply(str), DataTypes.StringType);

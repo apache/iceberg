@@ -53,6 +53,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.InputPartition;
@@ -307,6 +308,9 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     try {
       result = Lists.newArrayList(Actions.forTable(table).planScan().withContext(scan.tableScanContext()).execute());
     } catch (Exception e) {
+      if (SparkSession.active().conf().get(PlanScanAction.ICEBERG_TEST_PLAN_MODE).equals("true")) {
+        throw e;
+      }
       LOG.error("Cannot run distributed job planning, falling back to local planning.", e);
       result = planLocalScan(scan);
     }

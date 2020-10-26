@@ -79,7 +79,10 @@ public abstract class TestDataSourceOptions {
 
   @BeforeClass
   public static void startSpark() {
-    TestDataSourceOptions.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestDataSourceOptions.spark = SparkSession
+        .builder()
+        .config(PlanScanAction.ICEBERG_TEST_PLAN_MODE, "true")
+        .master("local[2]").getOrCreate();
   }
 
   @AfterClass

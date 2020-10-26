@@ -76,7 +76,10 @@ public abstract class TestSnapshotSelection {
 
   @BeforeClass
   public static void startSpark() {
-    TestSnapshotSelection.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestSnapshotSelection.spark = SparkSession
+        .builder()
+        .config(PlanScanAction.ICEBERG_TEST_PLAN_MODE, "true")
+        .master("local[2]").getOrCreate();
   }
 
   @AfterClass
