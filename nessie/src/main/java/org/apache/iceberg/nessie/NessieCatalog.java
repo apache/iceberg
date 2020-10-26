@@ -46,6 +46,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 
@@ -213,7 +214,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
           .map(NessieCatalog::toIdentifier)
           .collect(Collectors.toList());
     } catch (NessieNotFoundException ex) {
-      throw new RuntimeException("Unable to list tables due to missing ref.", ex);
+      throw new NoSuchNamespaceException("Unable to list tables due to missing ref.", ex);
     }
   }
 

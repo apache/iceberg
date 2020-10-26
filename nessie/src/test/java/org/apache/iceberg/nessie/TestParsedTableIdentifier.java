@@ -22,6 +22,7 @@ package org.apache.iceberg.nessie;
 import com.dremio.nessie.client.NessieClient;
 import java.util.HashMap;
 import java.util.Map;
+import org.apache.iceberg.AssertHelpers;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -46,28 +47,40 @@ public class TestParsedTableIdentifier {
     Assert.assertNull(pti.getTimestamp());
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void timestampOnly() {
     String path = "foo#baz";
-    ParsedTableIdentifier.getParsedTableIdentifier(path, new HashMap<>());
+    AssertHelpers.assertThrows("TableIdentifier is not parsable",
+        IllegalArgumentException.class,
+        "Currently we don't support referencing by timestamp", () ->
+      ParsedTableIdentifier.getParsedTableIdentifier(path, new HashMap<>()));
   }
 
   @Test(expected = IllegalArgumentException.class)
   public void branchAndTimestamp() {
     String path = "foo@bar#baz";
-    ParsedTableIdentifier.getParsedTableIdentifier(path, new HashMap<>());
+    AssertHelpers.assertThrows("TableIdentifier is not parsable",
+        IllegalArgumentException.class,
+        "Currently we don't support referencing by timestamp", () ->
+            ParsedTableIdentifier.getParsedTableIdentifier(path, new HashMap<>()));
   }
 
   @Test(expected = IllegalArgumentException.class)
   public void twoBranches() {
     String path = "foo@bar@boo";
-    ParsedTableIdentifier.getParsedTableIdentifier(path, new HashMap<>());
+    AssertHelpers.assertThrows("TableIdentifier is not parsable",
+        IllegalArgumentException.class,
+        "Can only reference one branch in", () ->
+            ParsedTableIdentifier.getParsedTableIdentifier(path, new HashMap<>()));
   }
 
   @Test(expected = IllegalArgumentException.class)
   public void twoTimestamps() {
     String path = "foo#baz#baa";
-    ParsedTableIdentifier.getParsedTableIdentifier(path, new HashMap<>());
+    AssertHelpers.assertThrows("TableIdentifier is not parsable",
+        IllegalArgumentException.class,
+        "Can only reference one timestamp in", () ->
+            ParsedTableIdentifier.getParsedTableIdentifier(path, new HashMap<>()));
   }
 
   @Test

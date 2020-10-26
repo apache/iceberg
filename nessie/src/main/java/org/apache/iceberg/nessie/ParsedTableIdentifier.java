@@ -61,7 +61,7 @@ public class ParsedTableIdentifier {
       throw new IllegalArgumentException(String.format("Can only reference one branch in %s", path));
     }
     if (path.split("#").length > 2) {
-      throw new IllegalArgumentException(String.format("Can only reference one hash in %s", path));
+      throw new IllegalArgumentException(String.format("Can only reference one timestamp in %s", path));
     }
 
     if (path.contains("@") && path.contains("#")) {

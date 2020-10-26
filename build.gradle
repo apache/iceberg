@@ -1132,6 +1132,7 @@ project(':iceberg-nessie') {
       exclude group: "com.sun.jersey", module: 'jersey-server'
     }
 
+    testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     testCompile(project(":iceberg-nessie")) {
       capabilities {
         requireCapability("org.apache.iceberg:iceberg-nessie-client-support")

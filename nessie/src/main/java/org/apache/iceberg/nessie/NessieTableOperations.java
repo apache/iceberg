@@ -30,7 +30,9 @@ import java.lang.reflect.Method;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 
@@ -39,10 +41,9 @@ import org.apache.iceberg.io.FileIO;
  */
 public class NessieTableOperations extends BaseMetastoreTableOperations {
 
-  private static Method sparkConfMethod;
-  private static Method appIdMethod;
-  private static Method sparkEnvMethod;
-
+  private static DynFields.StaticField<Object> sparkEnvMethod;
+  private static DynFields.UnboundField<Object> sparkConfMethod;
+  private static DynFields.UnboundField<Object> appIdMethod;
   private final Configuration conf;
   private final NessieClient client;
   private final ContentsKey key;
@@ -75,10 +76,12 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
     try {
       Contents contents = client.getContentsApi().getContents(key, reference.getHash());
       this.table = contents.unwrap(IcebergTable.class)
-          .orElseThrow(() -> new IllegalStateException("Nessie points to a non-Iceberg object for that path."));
+          .orElseThrow(() ->
+              new IllegalStateException("Cannot refresh iceberg table: " +
+                  String.format("Nessie points to a non-Iceberg object for path: %s.", key)));
       metadataLocation = table.getMetadataLocation();
     } catch (NessieNotFoundException ex) {
-      this.table = null;
+      throw new NoSuchTableException(ex, "No such table %s", key);
     }
     refreshFromMetadataLocation(metadataLocation, 2);
   }
@@ -96,9 +99,14 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
                                           reference.getHash(),
                                           String.format("iceberg commit%s", applicationId()),
                                           newTable);
-    } catch (NessieNotFoundException | NessieConflictException ex) {
+    } catch (NessieConflictException ex) {
       io().deleteFile(newMetadataLocation);
-      throw new CommitFailedException(ex, "failed");
+      throw new CommitFailedException(ex, "Commit failed: Reference hash is out of date. " +
+          (reference.isBranch() ? "Update the reference %s and try again" : "Can't commit to the tag %s"),
+          reference.getName());
+    } catch (NessieNotFoundException ex) {
+      io().deleteFile(newMetadataLocation);
+      throw new RuntimeException(String.format("Commit failed: Reference %s does not exist", reference.getName()), ex);
     } catch (Throwable e) {
       io().deleteFile(newMetadataLocation);
       throw new RuntimeException("Unexpected commit exception", e);
@@ -123,17 +131,16 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
    * </p>
    */
   private static String applicationId() {
+
     try {
       if (sparkConfMethod == null) {
-        Class sparkEnvClazz = Class.forName("org.apache.spark.SparkEnv");
-        sparkEnvMethod = sparkEnvClazz.getMethod("get");
-        Class sparkConfClazz = Class.forName("org.apache.spark.SparkConf");
-        sparkConfMethod = sparkEnvClazz.getMethod("conf");
-        appIdMethod = sparkConfClazz.getMethod("getAppId");
+        sparkEnvMethod = DynFields.builder().impl("org.apache.spark.SparkEnv", "get").buildStatic();
+        sparkConfMethod = DynFields.builder().impl("org.apache.spark.SparkEnv", "conf").build();
+        appIdMethod = DynFields.builder().impl("org.apache.spark.SparkConf", "getAppId").build();
       }
-      Object sparkEnv = sparkEnvMethod.invoke(null);
-      Object sparkConf = sparkConfMethod.invoke(sparkEnv);
-      return "\nspark.app.id= " + appIdMethod.invoke(sparkConf);
+      Object sparkEnv = sparkEnvMethod.get();
+      Object sparkConf = sparkConfMethod.bind(sparkEnv).get();
+      return "\nspark.app.id= " + appIdMethod.bind(sparkConf).get();
     } catch (Exception e) {
       return "";
     }
