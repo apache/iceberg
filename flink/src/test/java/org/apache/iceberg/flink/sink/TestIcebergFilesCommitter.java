@@ -61,7 +61,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
-import static org.apache.iceberg.flink.sink.FlinkManifest.FlinkManifestFactory.FLINK_MANIFEST_LOCATION;
+import static org.apache.iceberg.flink.sink.ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION;
 
 @RunWith(Parameterized.class)
 public class TestIcebergFilesCommitter {
@@ -568,7 +568,7 @@ public class TestIcebergFilesCommitter {
           String.format("%s-%05d-%d-%d-%05d.avro", jobId, 0, 0, checkpoint, 1), manifestPath.getFileName().toString());
 
       // 2. Read the data files from manifests and assert.
-      List<DataFile> dataFiles = FlinkManifest.read(createTestingManifestFile(manifestPath), table.io());
+      List<DataFile> dataFiles = FlinkManifestUtil.readDataFiles(createTestingManifestFile(manifestPath), table.io());
       Assert.assertEquals(1, dataFiles.size());
       TestFlinkManifest.checkDataFile(dataFile1, dataFiles.get(0));
 

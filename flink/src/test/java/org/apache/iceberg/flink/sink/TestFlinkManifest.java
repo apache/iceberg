@@ -35,6 +35,7 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.SimpleDataUtil;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
@@ -43,7 +44,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import static org.apache.iceberg.flink.sink.FlinkManifest.FlinkManifestFactory.FLINK_MANIFEST_LOCATION;
+import static org.apache.iceberg.flink.sink.ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION;
 
 public class TestFlinkManifest {
   private static final Configuration CONF = new Configuration();
@@ -72,13 +73,14 @@ public class TestFlinkManifest {
   public void testIO() throws IOException {
     String flinkJobId = newFlinkJobId();
     for (long checkpointId = 1; checkpointId <= 3; checkpointId++) {
-      FlinkManifest.FlinkManifestFactory factory = FlinkManifest.createFactory(table, flinkJobId, 1, 1);
-      FlinkManifest flinkManifest = factory.create(checkpointId);
+      ManifestOutputFileFactory factory =
+          FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, 1, 1);
+      OutputFile manifestOutputFile = factory.create(checkpointId);
 
       List<DataFile> expectedDataFiles = generateDataFiles(10);
-      ManifestFile manifestFile = flinkManifest.write(expectedDataFiles);
+      ManifestFile manifestFile = FlinkManifestUtil.writeDataFiles(manifestOutputFile, table.spec(), expectedDataFiles);
 
-      List<DataFile> actualDataFiles = FlinkManifest.read(manifestFile, table.io());
+      List<DataFile> actualDataFiles = FlinkManifestUtil.readDataFiles(manifestFile, table.io());
 
       Assert.assertEquals("Size of data file list are not equal.", expectedDataFiles.size(), actualDataFiles.size());
       for (int i = 0; i < expectedDataFiles.size(); i++) {
@@ -93,18 +95,18 @@ public class TestFlinkManifest {
     String flinkJobId = newFlinkJobId();
     File userProvidedFolder = tempFolder.newFolder();
     Map<String, String> props = ImmutableMap.of(FLINK_MANIFEST_LOCATION, userProvidedFolder.getAbsolutePath() + "///");
-    FlinkManifest.FlinkManifestFactory factory = new FlinkManifest.FlinkManifestFactory(
-        ((HasTableOperations) table).operations(), table.spec(), table.io(), props,
+    ManifestOutputFileFactory factory = new ManifestOutputFileFactory(
+        ((HasTableOperations) table).operations(), table.io(), props,
         flinkJobId, 1, 1);
 
-    FlinkManifest flinkManifest = factory.create(checkpointId);
+    OutputFile outputFile = factory.create(checkpointId);
     List<DataFile> expectedDataFiles = generateDataFiles(5);
-    ManifestFile manifestFile = flinkManifest.write(expectedDataFiles);
+    ManifestFile manifestFile = FlinkManifestUtil.writeDataFiles(outputFile, table.spec(), expectedDataFiles);
 
     Assert.assertEquals("The newly created manifest file should be located under the user provided directory",
         userProvidedFolder.toPath(), Paths.get(manifestFile.path()).getParent());
 
-    List<DataFile> actualDataFiles = FlinkManifest.read(manifestFile, table.io());
+    List<DataFile> actualDataFiles = FlinkManifestUtil.readDataFiles(manifestFile, table.io());
 
     Assert.assertEquals("Size of data file list are not equal.", expectedDataFiles.size(), actualDataFiles.size());
     for (int i = 0; i < expectedDataFiles.size(); i++) {
@@ -116,11 +118,11 @@ public class TestFlinkManifest {
   public void testVersionedSerializer() throws IOException {
     long checkpointId = 1;
     String flinkJobId = newFlinkJobId();
-    FlinkManifest.FlinkManifestFactory factory = FlinkManifest.createFactory(table, flinkJobId, 1, 1);
-    FlinkManifest flinkManifest = factory.create(checkpointId);
+    ManifestOutputFileFactory factory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, 1, 1);
+    OutputFile outputFile = factory.create(checkpointId);
 
     List<DataFile> expectedDataFiles = generateDataFiles(10);
-    ManifestFile expected = flinkManifest.write(expectedDataFiles);
+    ManifestFile expected = FlinkManifestUtil.writeDataFiles(outputFile, table.spec(), expectedDataFiles);
 
     byte[] versionedSerializeData =
         SimpleVersionedSerialization.writeVersionAndSerialize(FlinkManifestSerializer.INSTANCE, expected);

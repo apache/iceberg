@@ -46,6 +46,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -91,7 +92,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // It will have an unique identifier for one job.
   private transient String flinkJobId;
   private transient Table table;
-  private transient FlinkManifest.FlinkManifestFactory flinkManifestFactory;
+  private transient ManifestOutputFileFactory manifestOutputFileFactory;
   private transient long maxCommittedCheckpointId;
 
   // There're two cases that we restore from flink checkpoints: the first case is restoring from snapshot created by the
@@ -121,7 +122,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     int subTaskId = getRuntimeContext().getIndexOfThisSubtask();
     int attemptId = getRuntimeContext().getAttemptNumber();
-    this.flinkManifestFactory = FlinkManifest.createFactory(table, flinkJobId, subTaskId, attemptId);
+    this.manifestOutputFileFactory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, subTaskId, attemptId);
     this.maxCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
     this.checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
@@ -200,7 +201,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
           SimpleVersionedSerialization.readVersionAndDeSerialize(FlinkManifestSerializer.INSTANCE, manifestData);
 
       manifestFiles.add(manifestFile);
-      pendingDataFiles.addAll(FlinkManifest.read(manifestFile, table.io()));
+      pendingDataFiles.addAll(FlinkManifestUtil.readDataFiles(manifestFile, table.io()));
     }
 
     if (replacePartitions) {
@@ -287,9 +288,10 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       return EMPTY_MANIFEST_DATA;
     }
 
-    FlinkManifest flinkManifest = flinkManifestFactory.create(checkpointId);
-    ManifestFile manifestFile = flinkManifest.write(dataFilesOfCurrentCheckpoint);
-    return FlinkManifestSerializer.INSTANCE.serialize(manifestFile);
+    OutputFile manifestOutputFile = manifestOutputFileFactory.create(checkpointId);
+    ManifestFile manifestFile =
+        FlinkManifestUtil.writeDataFiles(manifestOutputFile, table.spec(), dataFilesOfCurrentCheckpoint);
+    return SimpleVersionedSerialization.writeVersionAndSerialize(FlinkManifestSerializer.INSTANCE, manifestFile);
   }
 
   @Override
