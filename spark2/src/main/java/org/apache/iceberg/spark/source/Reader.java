@@ -489,7 +489,9 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
                                                     String nameMapping, FileIO io,
                                                     EncryptionManager encryptionManager, boolean caseSensitive,
                                                     Map<String, String> properties) {
-      return new RowReader(task, tableSchema, expectedSchema, nameMapping, io, encryptionManager, caseSensitive, properties);
+      return new RowReader(
+          task, tableSchema, expectedSchema, nameMapping, io,
+          encryptionManager, caseSensitive, properties);
     }
   }
 
