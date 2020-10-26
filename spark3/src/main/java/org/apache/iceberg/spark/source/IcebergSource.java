@@ -26,8 +26,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.HiveCatalogs;
-import org.apache.iceberg.nessie.NessieCatalog;
-import org.apache.iceberg.nessie.ParsedTableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.TableProvider;
@@ -72,27 +70,14 @@ public class IcebergSource implements DataSourceRegister, TableProvider {
     Preconditions.checkArgument(options.containsKey("path"), "Cannot open table: path is not set");
     String path = options.get("path");
 
-    if (nessie(options, conf)) {
-      ParsedTableIdentifier identifier = ParsedTableIdentifier.getParsedTableIdentifier(path, options);
-      NessieCatalog catalog = new NessieCatalog(conf, identifier.getReference());
-      return catalog.loadTable(identifier.getTableIdentifier());
+    if (path.contains("/")) {
+      HadoopTables tables = new HadoopTables(conf);
+      return tables.load(path);
     } else {
-      if (path.contains("/")) {
-        HadoopTables tables = new HadoopTables(conf);
-        return tables.load(path);
-      } else {
-        HiveCatalog hiveCatalog = HiveCatalogs.loadCatalog(conf);
-        TableIdentifier tableIdentifier = TableIdentifier.parse(path);
-        return hiveCatalog.loadTable(tableIdentifier);
-      }
+      HiveCatalog hiveCatalog = HiveCatalogs.loadCatalog(conf);
+      TableIdentifier tableIdentifier = TableIdentifier.parse(path);
+      return hiveCatalog.loadTable(tableIdentifier);
     }
-  }
-
-  private boolean nessie(Map<String, String> options, Configuration conf) {
-    return options.containsKey("nessie.ref") ||
-        options.containsKey("nessie.url") ||
-        conf.get("nessie.url") != null ||
-        conf.get("nessie.ref") != null;
   }
 
   private Table getTableAndResolveHadoopConfiguration(Map<String, String> options, Configuration conf) {

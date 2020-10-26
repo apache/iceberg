@@ -56,8 +56,6 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
   @Test
   public void testCreateNamespace() {
-    // Nessie namespaces are implicit and do not need to be explicitly managed
-    Assume.assumeFalse(catalogName.endsWith("testnessie"));
     Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
 
     sql("CREATE NAMESPACE %s", fullNamespace);
@@ -67,8 +65,6 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
   @Test
   public void testDefaultNamespace() {
-    // Nessie namespaces are implicit and do not need to be explicitly managed
-    Assume.assumeFalse(catalogName.endsWith("testnessie"));
     Assume.assumeFalse("Hadoop has no default namespace configured", isHadoopCatalog);
 
     sql("USE %s", catalogName);
@@ -80,8 +76,6 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
   @Test
   public void testDropEmptyNamespace() {
-    // Nessie namespaces are implicit and do not need to be explicitly managed
-    Assume.assumeFalse(catalogName.endsWith("testnessie"));
     Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
 
     sql("CREATE NAMESPACE %s", fullNamespace);
@@ -95,8 +89,6 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
   @Test
   public void testDropNonEmptyNamespace() {
-    // Nessie namespaces are implicit and do not need to be explicitly managed
-    Assume.assumeFalse(catalogName.endsWith("testnessie"));
     Assume.assumeFalse("Session catalog has flaky behavior", "spark_catalog".equals(catalogName));
 
     Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
@@ -116,8 +108,6 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
   @Test
   public void testListTables() {
-    // Nessie namespaces are implicit and do not need to be explicitly managed
-    Assume.assumeFalse(catalogName.endsWith("testnessie"));
     Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
 
     sql("CREATE NAMESPACE %s", fullNamespace);
@@ -136,8 +126,6 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
   @Test
   public void testListNamespace() {
-    // Nessie namespaces are implicit and do not need to be explicitly managed
-    Assume.assumeFalse(catalogName.endsWith("testnessie"));
     Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
 
     sql("CREATE NAMESPACE %s", fullNamespace);
@@ -164,8 +152,6 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
   @Test
   public void testCreateNamespaceWithMetadata() {
-    // Nessie namespaces are implicit and do not need to be explicitly managed
-    Assume.assumeFalse(catalogName.endsWith("testnessie"));
     Assume.assumeFalse("HadoopCatalog does not support namespace metadata", isHadoopCatalog);
 
     Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
@@ -181,8 +167,6 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
   @Test
   public void testCreateNamespaceWithComment() {
-    // Nessie namespaces are implicit and do not need to be explicitly managed
-    Assume.assumeFalse(catalogName.endsWith("testnessie"));
     Assume.assumeFalse("HadoopCatalog does not support namespace metadata", isHadoopCatalog);
 
     Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
@@ -198,8 +182,6 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
   @Test
   public void testCreateNamespaceWithLocation() throws Exception {
-    // Nessie namespaces are implicit and do not need to be explicitly managed
-    Assume.assumeFalse(catalogName.endsWith("testnessie"));
     Assume.assumeFalse("HadoopCatalog does not support namespace locations", isHadoopCatalog);
 
     Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));
@@ -219,8 +201,6 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
   @Test
   public void testSetProperties() {
-    // Nessie namespaces are implicit and do not need to be explicitly managed
-    Assume.assumeFalse(catalogName.endsWith("testnessie"));
     Assume.assumeFalse("HadoopCatalog does not support namespace metadata", isHadoopCatalog);
 
     Assert.assertFalse("Namespace should not already exist", validationNamespaceCatalog.namespaceExists(NS));

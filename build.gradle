@@ -736,7 +736,6 @@ project(':iceberg-spark') {
     compile project(':iceberg-arrow')
     compile project(':iceberg-hive-metastore')
     compile project(':iceberg-arrow')
-    compile project(':iceberg-nessie')
 
     compileOnly "org.apache.avro:avro"
     compileOnly("org.apache.spark:spark-hive_2.11") {
@@ -770,8 +769,6 @@ if (jdkVersion == '8') {
   apply from: 'jmh.gradle'
 
   project(':iceberg-spark2') {
-    apply plugin: 'org.projectnessie'
-
     configurations.all {
       resolutionStrategy {
         // Spark 2.4.4 can only use the below datanucleus version, the versions introduced
@@ -793,19 +790,7 @@ if (jdkVersion == '8') {
       compile project(':iceberg-arrow')
       compile project(':iceberg-hive-metastore')
       compile project(':iceberg-spark')
-      // artifact to use for nessie tests
-      quarkusAppRunnerConfig "org.projectnessie:nessie-quarkus"
-      // specific version of jackson/jersey required by nessie that are compatible with spark2
-      compile("org.glassfish.jersey.media:jersey-media-json-jackson:2.22.2") {
-        exclude group: "org.glassfish.jersey.core", module: "jersey-common"
-        exclude group: "com.fasterxml.jackson.core", module: "jackson-databind"
-        exclude group: "com.fasterxml.jackson.core", module: "jackson-annotations"
-        exclude group: "com.fasterxml.jackson.module", module: "jackson-module-jaxb-annotations"
-      }
-      compile("org.glassfish.jersey.core:jersey-client:2.22.2") {
-        exclude group: "org.glassfish.jersey.core", module: "jersey-common"
-        exclude group: "org.glassfish.hk2.external", module: "javax.inject"
-      }
+
       compileOnly "org.apache.avro:avro"
       compileOnly("org.apache.spark:spark-hive_2.11") {
         exclude group: 'org.apache.avro', module: 'avro'
@@ -834,12 +819,6 @@ if (jdkVersion == '8') {
       // Vectorized reads need more memory
       maxHeapSize '2500m'
     }
-    // start and stop quarkus for nessie tests
-    quarkusAppRunnerProperties {
-      props = ["quarkus.http.test-port": 0]
-    }
-    tasks.getByName("quarkus-start").dependsOn("compileTestJava")
-    tasks.test.dependsOn("quarkus-start").finalizedBy("quarkus-stop")
   }
 
   // the runtime jar is a self-contained artifact for testing in a notebook
@@ -908,8 +887,6 @@ if (jdkVersion == '8') {
 }
 
 project(':iceberg-spark3') {
-  apply plugin: 'org.projectnessie'
-
   dependencies {
     compile project(':iceberg-api')
     compile project(':iceberg-common')
@@ -920,18 +897,7 @@ project(':iceberg-spark3') {
     compile project(':iceberg-arrow')
     compile project(':iceberg-hive-metastore')
     compile project(':iceberg-spark')
-    // artifact to use for nessie tests
-    quarkusAppRunnerConfig "org.projectnessie:nessie-quarkus"
-    // specific version of jackson/jersey required by nessie that are compatible with spark3
-    compile("org.glassfish.jersey.media:jersey-media-json-jackson:2.30") {
-      exclude group: "org.glassfish.jersey.core", module: "jersey-common"
-      exclude group: "com.fasterxml.jackson.core", module: "jackson-databind"
-      exclude group: "com.fasterxml.jackson.core", module: "jackson-annotations"
-      exclude group: "com.fasterxml.jackson.module", module: "jackson-module-jaxb-annotations"
-    }
-    compile("org.glassfish.jersey.core:jersey-client:2.30") {
-      exclude group: "org.glassfish.jersey.core", module: "jersey-common"
-    }
+
     compileOnly "org.apache.avro:avro"
     compileOnly("org.apache.spark:spark-hive_2.12") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -961,12 +927,6 @@ project(':iceberg-spark3') {
     // Vectorized reads need more memory
     maxHeapSize '2500m'
   }
-  // start and stop quarkus for nessie tests
-  quarkusAppRunnerProperties {
-    props = ["quarkus.http.test-port": 0]
-  }
-  tasks.getByName("quarkus-start").dependsOn("compileTestJava")
-  tasks.test.dependsOn("quarkus-start").finalizedBy("quarkus-stop")
 }
 
 project(":iceberg-spark3-extensions") {

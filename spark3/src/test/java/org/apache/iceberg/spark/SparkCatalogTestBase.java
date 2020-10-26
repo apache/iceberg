@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.spark;
 
-import com.dremio.nessie.client.NessieClient;
-import com.dremio.nessie.error.NessieConflictException;
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
@@ -29,9 +27,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
-import org.apache.iceberg.nessie.NessieCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -39,12 +35,9 @@ import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @RunWith(Parameterized.class)
 public abstract class SparkCatalogTestBase extends SparkTestBase {
-  private static final Logger logger = LoggerFactory.getLogger(SparkCatalogTestBase.class);
   private static File warehouse = null;
 
   @BeforeClass
@@ -90,40 +83,12 @@ public abstract class SparkCatalogTestBase extends SparkTestBase {
   protected final SupportsNamespaces validationNamespaceCatalog;
   protected final TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("default"), "table");
   protected final String tableName;
-  protected NessieClient client;
-  protected String branch;
 
   public SparkCatalogTestBase(String catalogName, String implementation, Map<String, String> config) {
     this.catalogName = catalogName;
-    switch (catalogName) {
-      case "testhadoop":
-        this.validationCatalog = new HadoopCatalog(spark.sessionState().newHadoopConf(), "file:" + warehouse);
-        break;
-      case "testnessie":
-        String path = "http://localhost:19121/api/v1";
-        branch = config.get("nessie_ref");
-        setHadoopConfig(path, branch);
-
-        this.client = new NessieClient(NessieClient.AuthType.NONE, path, null, null);
-        try {
-          try {
-            this.client.getTreeApi().createEmptyBranch(branch);
-          } catch (NessieConflictException e) {
-            this.client.getTreeApi().deleteBranch(branch,
-                this.client.getTreeApi().getReferenceByName(branch).getHash());
-            this.client.getTreeApi().createEmptyBranch(branch);
-          }
-        } catch (Exception e) {
-          throw new RuntimeException(e);
-        }
-        nessie = new NessieCatalog("nessie", spark.sessionState().newHadoopConf(), branch, path);
-        this.validationCatalog = nessie;
-        break;
-      case "testhive":
-      default:
-        this.validationCatalog = catalog;
-    }
-
+    this.validationCatalog = catalogName.equals("testhadoop") ?
+        new HadoopCatalog(spark.sessionState().newHadoopConf(), "file:" + warehouse) :
+        catalog;
     this.validationNamespaceCatalog = (SupportsNamespaces) validationCatalog;
 
     spark.conf().set("spark.sql.catalog." + catalogName, implementation);
@@ -136,28 +101,6 @@ public abstract class SparkCatalogTestBase extends SparkTestBase {
     this.tableName = (catalogName.equals("spark_catalog") ? "" : catalogName + ".") + "default.table";
 
     sql("CREATE NAMESPACE IF NOT EXISTS default");
-  }
-
-  @SuppressWarnings("RegexpSingleLine")
-  private void setHadoopConfig(String path, String setBranch) {
-    spark.sparkContext().hadoopConfiguration().set("nessie.url", path);
-    spark.sparkContext().hadoopConfiguration().set("nessie.ref", setBranch);
-  }
-
-  @SuppressWarnings("RegexpSingleLine")
-  private void unsetHadoopConfig() {
-    spark.sparkContext().hadoopConfiguration().unset("nessie.url");
-    spark.sparkContext().hadoopConfiguration().unset("nessie.ref");
-  }
-
-
-  @After
-  public void dropTable() throws IOException {
-    unsetHadoopConfig();
-    if (this.client != null) {
-      this.client.getTreeApi().deleteBranch(branch, this.client.getTreeApi().getReferenceByName(branch).getHash());
-      this.client.close();
-    }
   }
 
   protected String tableName(String name) {
