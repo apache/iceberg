@@ -38,7 +38,7 @@ buildscript {
 
 plugins {
   id 'nebula.dependency-recommender' version '9.0.2'
-  id 'org.projectnessie' version '0.1.0'
+  id 'org.projectnessie' version '0.2.0-SNAPSHOT'
 }
 
 try {

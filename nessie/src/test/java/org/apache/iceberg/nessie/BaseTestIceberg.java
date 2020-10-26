@@ -22,7 +22,6 @@ package org.apache.iceberg.nessie;
 import com.dremio.nessie.api.ContentsApi;
 import com.dremio.nessie.api.TreeApi;
 import com.dremio.nessie.client.NessieClient;
-import com.dremio.nessie.client.NessieClient.AuthType;
 import com.dremio.nessie.error.NessieConflictException;
 import com.dremio.nessie.error.NessieNotFoundException;
 import com.dremio.nessie.model.Branch;
@@ -87,9 +86,7 @@ public abstract class BaseTestIceberg {
   @Before
   public void beforeEach() throws NessieConflictException, NessieNotFoundException {
     String path = "http://localhost:19121/api/v1";
-    String username = "test";
-    String password = "test123";
-    this.client = new NessieClient(AuthType.NONE, path, username, password);
+    this.client = NessieClient.none(path);
     tree = client.getTreeApi();
     contents = client.getContentsApi();
 
@@ -103,15 +100,10 @@ public abstract class BaseTestIceberg {
 
     hadoopConfig = new Configuration();
     hadoopConfig.set(NessieClient.CONF_NESSIE_URL, path);
-    hadoopConfig.set(NessieClient.CONF_NESSIE_USERNAME, username);
-    hadoopConfig.set(NessieClient.CONF_NESSIE_PASSWORD, password);
     hadoopConfig.set(NessieClient.CONF_NESSIE_REF, branch);
     hadoopConfig.set(NessieClient.CONF_NESSIE_AUTH_TYPE, "NONE");
-    hadoopConfig.set("fs.defaultFS", tempDir.toURI().toString());
-    hadoopConfig.set("fs.file.impl",
-                     org.apache.hadoop.fs.LocalFileSystem.class.getName()
-    );
-    catalog = new NessieCatalog(hadoopConfig);
+    hadoopConfig.set("nessie.warehouse.dir", tempDir.toURI().toString());
+    catalog = NessieCatalog.builder(hadoopConfig).build();
   }
 
   protected Table createTable(TableIdentifier tableIdentifier, int count) {

@@ -46,7 +46,7 @@ public class TestTestBranchHash extends BaseTestIceberg {
 
     hadoopConfig.set(NessieClient.CONF_NESSIE_REF, "test");
 
-    NessieCatalog newCatalog = new NessieCatalog(hadoopConfig);
+    NessieCatalog newCatalog = NessieCatalog.builder(hadoopConfig).build();
     String initialMetadataLocation = getContent(newCatalog, foobar);
     Assert.assertEquals(initialMetadataLocation, getContent(catalog, foobar));
 

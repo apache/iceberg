@@ -26,7 +26,6 @@ import com.dremio.nessie.model.Contents;
 import com.dremio.nessie.model.ContentsKey;
 import com.dremio.nessie.model.IcebergTable;
 import com.dremio.nessie.model.ImmutableIcebergTable;
-import java.lang.reflect.Method;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.TableMetadata;

@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
@@ -43,6 +44,7 @@ import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -53,10 +55,10 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 /**
  * Nessie implementation of Iceberg Catalog.
  */
-public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable {
+public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable, SupportsNamespaces {
 
   private static final Joiner SLASH = Joiner.on("/");
-  private static final String ICEBERG_HADOOP_WAREHOUSE_BASE = "iceberg/warehouse";
+  public static final String NESSIE_WAREHOUSE_DIR = "nessie.warehouse.dir";
   private final NessieClient client;
   private final String warehouseLocation;
   private final Configuration config;
@@ -64,37 +66,19 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   private final String name;
 
   /**
-   * create a catalog from a hadoop configuration.
+   * Try to avoid passing parameters via hadoop config. Dynamic catalog expects Map instead
    */
-  public NessieCatalog(Configuration config) {
-    this("nessie", config);
+  public NessieCatalog(String name, Map<String, String> props, Configuration config) {
+    this(name,
+        config,
+        props.get(NessieClient.CONF_NESSIE_REF),
+        props.get(NessieClient.CONF_NESSIE_URL),
+        props.get(NESSIE_WAREHOUSE_DIR));
   }
-
-  /**
-   * create a catalog from a hadoop configuration.
-   */
-  public NessieCatalog(Configuration config, String ref) {
-    this("nessie", config, ref);
-  }
-
   /**
    * Create a catalog with a known name from a hadoop configuration.
    */
-  public NessieCatalog(String name, Configuration config) {
-    this(name, config, null);
-  }
-
-  /**
-   * Create a catalog with a known name from a hadoop configuration.
-   */
-  public NessieCatalog(String name, Configuration config, String ref) {
-    this(name, config, ref, null);
-  }
-
-  /**
-   * Create a catalog with a known name from a hadoop configuration.
-   */
-  public NessieCatalog(String name, Configuration config, String ref, String url) {
+  public NessieCatalog(String name, Configuration config, String ref, String url, String warehouseLocation) {
     this.config = config;
     this.name = name;
 
@@ -105,30 +89,18 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
       return config.get(s);
     });
 
-    warehouseLocation = getWarehouseLocation();
+    this.warehouseLocation = warehouseLocation == null ? getWarehouseLocation(config) : warehouseLocation;
 
     final String requestedRef = ref != null ? ref : config.get(NessieClient.CONF_NESSIE_REF);
     this.reference = get(requestedRef);
   }
 
-  private String getWarehouseLocation() {
-    String nessieWarehouseDir = config.get("nessie.warehouse.dir");
+  private static String getWarehouseLocation(Configuration config) {
+    String nessieWarehouseDir = config.get(NESSIE_WAREHOUSE_DIR);
     if (nessieWarehouseDir != null) {
       return nessieWarehouseDir;
     }
-    String hiveWarehouseDir = config.get("hive.metastore.warehouse.dir");
-    if (hiveWarehouseDir != null) {
-      return hiveWarehouseDir;
-    }
-    String defaultFS = config.get("fs.defaultFS");
-    if (defaultFS != null) {
-      return defaultFS + "/" + ICEBERG_HADOOP_WAREHOUSE_BASE;
-    }
-    throw new IllegalStateException("Don't know where to put the nessie iceberg data. " +
-        "Please set one of the following:\n" +
-        "nessie.warehouse.dir\n" +
-        "hive.metastore.warehouse.dir\n" +
-        "fs.defaultFS.");
+    throw new IllegalStateException("Don't know where to put the nessie iceberg data. Please set nessie.warehouse.dir");
   }
 
   private UpdateableReference get(String requestedRef) {
@@ -331,4 +303,43 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     return reference.getHash();
   }
 
+  public static Builder builder(Configuration conf) {
+    return new Builder(conf);
+  }
+
+  public static class Builder {
+    private final Configuration conf;
+    private String url;
+    private String ref;
+    private String warehouseLocation;
+    private String name;
+
+    public Builder(Configuration conf) {
+      this.conf = conf;
+    }
+
+    public Builder setUrl(String url) {
+      this.url = url;
+      return this;
+    }
+
+    public Builder setRef(String ref) {
+      this.ref = ref;
+      return this;
+    }
+
+    public Builder setWarehouseLocation(String warehouseLocation) {
+      this.warehouseLocation = warehouseLocation;
+      return this;
+    }
+
+    public Builder setName(String name) {
+      this.name = name;
+      return this;
+    }
+
+    public NessieCatalog build() {
+      return new NessieCatalog(name, conf, ref, url, warehouseLocation);
+    }
+  }
 }
