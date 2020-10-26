@@ -19,35 +19,10 @@
 
 package org.apache.iceberg;
 
-import java.io.Closeable;
-import java.util.Iterator;
+import java.io.IOException;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 
-public interface ContentFileWriter<T, R> extends Closeable {
+public interface ContentFileWriterFactory<T, R> {
 
-  void write(R record);
-
-  default void writeAll(Iterator<R> values) {
-    while (values.hasNext()) {
-      write(values.next());
-    }
-  }
-
-  default void writeAll(Iterable<R> values) {
-    writeAll(values.iterator());
-  }
-
-  /**
-   * Returns {@link Metrics} for this file. Only valid after the file is closed.
-   */
-  Metrics metrics();
-
-  /**
-   * Returns the length of this file.
-   */
-  long length();
-
-  /**
-   * Return a {@link DeleteFile} or {@link DataFile}
-   */
-  T toContentFile();
+  ContentFileWriter<T, R> createWriter(EncryptedOutputFile outputFile, FileFormat fileFormat) throws IOException;
 }

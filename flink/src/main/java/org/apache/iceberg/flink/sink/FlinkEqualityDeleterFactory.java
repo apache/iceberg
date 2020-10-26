@@ -26,19 +26,20 @@ import java.util.List;
 import java.util.Map;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.iceberg.ContentFileWriter;
+import org.apache.iceberg.ContentFileWriterFactory;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.flink.data.FlinkAvroWriter;
 import org.apache.iceberg.flink.data.FlinkParquetWriters;
-import org.apache.iceberg.io.EqualityDeleteWriterFactory;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
 
-public class FlinkEqualityDeleterFactory implements EqualityDeleteWriterFactory<RowData>, Serializable {
+public class FlinkEqualityDeleterFactory implements ContentFileWriterFactory<DeleteFile, RowData>, Serializable {
   private final Schema schema;
   private final RowType flinkSchema;
   private final PartitionSpec spec;
@@ -58,12 +59,12 @@ public class FlinkEqualityDeleterFactory implements EqualityDeleteWriterFactory<
   }
 
   @Override
-  public EqualityDeleteWriter<RowData> newEqualityDeleteWriter(OutputFile outputFile, FileFormat format) {
+  public ContentFileWriter<DeleteFile, RowData> createWriter(EncryptedOutputFile outputFile, FileFormat fileFormat) {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
     try {
-      switch (format) {
+      switch (fileFormat) {
         case AVRO:
-          return Avro.writeDeletes(outputFile)
+          return Avro.writeDeletes(outputFile.encryptingOutputFile())
               .createWriterFunc(ignore -> new FlinkAvroWriter(flinkSchema))
               .overwrite()
               .setAll(props)
@@ -73,7 +74,7 @@ public class FlinkEqualityDeleterFactory implements EqualityDeleteWriterFactory<
               .buildEqualityWriter();
 
         case PARQUET:
-          return Parquet.writeDeletes(outputFile)
+          return Parquet.writeDeletes(outputFile.encryptingOutputFile())
               .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(flinkSchema, msgType))
               .overwrite()
               .setAll(props)
@@ -85,7 +86,7 @@ public class FlinkEqualityDeleterFactory implements EqualityDeleteWriterFactory<
 
         case ORC:
         default:
-          throw new UnsupportedOperationException("Cannot write unknown file format: " + format);
+          throw new UnsupportedOperationException("Cannot write unknown file format: " + fileFormat);
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
