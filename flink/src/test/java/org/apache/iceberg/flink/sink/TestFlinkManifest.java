@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.table.data.RowData;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
@@ -121,11 +122,14 @@ public class TestFlinkManifest {
     List<DataFile> expectedDataFiles = generateDataFiles(10);
     ManifestFile expected = flinkManifest.write(expectedDataFiles);
 
-    byte[] versionedSerializeData = FlinkManifestSerializer.INSTANCE.serialize(expected);
-    ManifestFile actual = FlinkManifestSerializer.readVersionAndDeserialize(versionedSerializeData);
+    byte[] versionedSerializeData =
+        SimpleVersionedSerialization.writeVersionAndSerialize(FlinkManifestSerializer.INSTANCE, expected);
+    ManifestFile actual = SimpleVersionedSerialization
+        .readVersionAndDeSerialize(FlinkManifestSerializer.INSTANCE, versionedSerializeData);
     checkManifestFile(expected, actual);
 
-    byte[] versionedSerializeData2 = FlinkManifestSerializer.INSTANCE.serialize(actual);
+    byte[] versionedSerializeData2 =
+        SimpleVersionedSerialization.writeVersionAndSerialize(FlinkManifestSerializer.INSTANCE, actual);
     Assert.assertArrayEquals(versionedSerializeData, versionedSerializeData2);
   }
 

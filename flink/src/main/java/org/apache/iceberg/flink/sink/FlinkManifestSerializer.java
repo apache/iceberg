@@ -21,8 +21,6 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
-import org.apache.flink.core.memory.DataInputDeserializer;
-import org.apache.flink.core.memory.DataOutputSerializer;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -40,32 +38,11 @@ class FlinkManifestSerializer implements SimpleVersionedSerializer<ManifestFile>
   public byte[] serialize(ManifestFile manifestFile) throws IOException {
     Preconditions.checkNotNull(manifestFile, "ManifestFile to be serialized should not be null");
 
-    DataOutputSerializer out = new DataOutputSerializer(256);
-    out.writeInt(VERSION_NUM);
-
-    byte[] serialized = ManifestFiles.encode(manifestFile);
-    out.writeInt(serialized.length);
-    out.write(serialized);
-
-    return out.getCopyOfBuffer();
+    return ManifestFiles.encode(manifestFile);
   }
 
   @Override
   public ManifestFile deserialize(int version, byte[] serialized) throws IOException {
-    if (version == VERSION_NUM) {
-      return ManifestFiles.decode(serialized);
-    } else {
-      throw new IOException("Unrecognized version or corrupt state: " + version);
-    }
-  }
-
-  static ManifestFile readVersionAndDeserialize(byte[] versionedSerialized) throws IOException {
-    DataInputDeserializer in = new DataInputDeserializer(versionedSerialized);
-    int version = in.readInt();
-    int length = in.readInt();
-    byte[] data = new byte[length];
-    in.readFully(data);
-
-    return INSTANCE.deserialize(version, data);
+    return ManifestFiles.decode(serialized);
   }
 }

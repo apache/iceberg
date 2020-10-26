@@ -30,6 +30,7 @@ import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.PrimitiveArrayTypeInfo;
+import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.runtime.state.StateSnapshotContext;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
@@ -195,7 +196,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
         continue;
       }
 
-      ManifestFile manifestFile = FlinkManifestSerializer.readVersionAndDeserialize(manifestData);
+      ManifestFile manifestFile =
+          SimpleVersionedSerialization.readVersionAndDeSerialize(FlinkManifestSerializer.INSTANCE, manifestData);
+
       manifestFiles.add(manifestFile);
       pendingDataFiles.addAll(FlinkManifest.read(manifestFile, table.io()));
     }
