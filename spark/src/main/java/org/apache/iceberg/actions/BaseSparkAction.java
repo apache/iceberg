@@ -38,7 +38,7 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 
-abstract class SparkBaseAction<R> extends BaseAction<R> implements Action<R> {
+abstract class BaseSparkAction<R> extends BaseAction<R> implements Action<R> {
 
   protected Dataset<Row> buildValidDataFileDF(SparkSession spark) {
     return buildValidDataFileDF(spark, table().name());
