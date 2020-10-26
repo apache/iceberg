@@ -20,18 +20,17 @@
 package org.apache.iceberg.io;
 
 import java.io.IOException;
-import org.apache.iceberg.DataFile;
+import org.apache.iceberg.ContentFileWriterFactory;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.PartitionSpec;
 
-public class UnpartitionedWriter<T> extends BaseTaskWriter<T> {
+public class UnpartitionedWriter<ContentFileT, T> extends BaseTaskWriter<ContentFileT, T> {
 
-  private final BaseRollingFileWriter<DataFile, T> currentWriter;
+  private final RollingFileWriter currentWriter;
 
-  public UnpartitionedWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
-                             OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
-    super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
-    currentWriter = new RollingDataFileWriter(null);
+  public UnpartitionedWriter(FileFormat format, OutputFileFactory fileFactory, FileIO io, long targetFileSize,
+                             ContentFileWriterFactory<ContentFileT, T> writerFactory) {
+    super(format, fileFactory, io, targetFileSize, writerFactory);
+    currentWriter = new RollingFileWriter(null);
   }
 
   @Override

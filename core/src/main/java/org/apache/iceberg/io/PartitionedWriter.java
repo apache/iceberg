@@ -21,26 +21,25 @@ package org.apache.iceberg.io;
 
 import java.io.IOException;
 import java.util.Set;
-import org.apache.iceberg.DataFile;
+import org.apache.iceberg.ContentFileWriterFactory;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public abstract class PartitionedWriter<T> extends BaseTaskWriter<T> {
+public abstract class PartitionedWriter<ContentFileT, T> extends BaseTaskWriter<ContentFileT, T> {
   private static final Logger LOG = LoggerFactory.getLogger(PartitionedWriter.class);
 
   private final Set<PartitionKey> completedPartitions = Sets.newHashSet();
 
   private PartitionKey currentKey = null;
-  private BaseRollingFileWriter<DataFile, T> currentWriter = null;
+  private RollingFileWriter currentWriter = null;
 
-  public PartitionedWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
-                           OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
-    super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+  public PartitionedWriter(FileFormat format, OutputFileFactory fileFactory, FileIO io, long targetFileSize,
+                           ContentFileWriterFactory<ContentFileT, T> writerFactory) {
+    super(format, fileFactory, io, targetFileSize, writerFactory);
   }
 
   /**
@@ -71,7 +70,7 @@ public abstract class PartitionedWriter<T> extends BaseTaskWriter<T> {
       }
 
       currentKey = key.copy();
-      currentWriter = new RollingDataFileWriter(currentKey);
+      currentWriter = new RollingFileWriter(currentKey);
     }
 
     currentWriter.add(row);

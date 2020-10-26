@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFileWriterFactory;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.PartitionSpec;
@@ -426,11 +427,11 @@ class SparkWrite {
     }
   }
 
-  private static class Unpartitioned3Writer extends UnpartitionedWriter<InternalRow>
+  private static class Unpartitioned3Writer extends UnpartitionedWriter<DataFile, InternalRow>
       implements DataWriter<InternalRow> {
     Unpartitioned3Writer(PartitionSpec spec, FileFormat format, SparkAppenderFactory appenderFactory,
                          OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
-      super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+      super(format, fileFactory, io, targetFileSize, new DataFileWriterFactory<>(appenderFactory, spec));
     }
 
     @Override

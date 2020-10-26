@@ -31,6 +31,7 @@ import org.apache.iceberg.ContentFileWriterFactory;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
@@ -59,13 +60,16 @@ public class FlinkEqualityDeleterFactory implements ContentFileWriterFactory<Del
   }
 
   @Override
-  public ContentFileWriter<DeleteFile, RowData> createWriter(EncryptedOutputFile outputFile, FileFormat fileFormat) {
+  public ContentFileWriter<DeleteFile, RowData> createWriter(PartitionKey partitionKey,
+                                                             EncryptedOutputFile outputFile,
+                                                             FileFormat fileFormat) {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
     try {
       switch (fileFormat) {
         case AVRO:
           return Avro.writeDeletes(outputFile.encryptingOutputFile())
               .createWriterFunc(ignore -> new FlinkAvroWriter(flinkSchema))
+              .withPartition(partitionKey)
               .overwrite()
               .setAll(props)
               .rowSchema(schema)
@@ -76,6 +80,7 @@ public class FlinkEqualityDeleterFactory implements ContentFileWriterFactory<Del
         case PARQUET:
           return Parquet.writeDeletes(outputFile.encryptingOutputFile())
               .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(flinkSchema, msgType))
+              .withPartition(partitionKey)
               .overwrite()
               .setAll(props)
               .metricsConfig(metricsConfig)

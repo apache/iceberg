@@ -21,22 +21,20 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.util.Map;
-import org.apache.iceberg.DataFile;
+import org.apache.iceberg.ContentFileWriterFactory;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.io.BaseTaskWriter;
-import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-abstract class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
-  private final Map<PartitionKey, BaseRollingFileWriter> writers = Maps.newHashMap();
+abstract class PartitionedFanoutWriter<ContentFileT, T> extends BaseTaskWriter<ContentFileT, T> {
+  private final Map<PartitionKey, RollingFileWriter> writers = Maps.newHashMap();
 
-  PartitionedFanoutWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
-                          OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
-    super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+  PartitionedFanoutWriter(FileFormat format, OutputFileFactory fileFactory, FileIO io, long targetFileSize,
+                          ContentFileWriterFactory<ContentFileT, T> writerFactory) {
+    super(format, fileFactory, io, targetFileSize, writerFactory);
   }
 
   /**
@@ -52,11 +50,11 @@ abstract class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
   public void write(T row) throws IOException {
     PartitionKey partitionKey = partition(row);
 
-    BaseRollingFileWriter<DataFile, T> writer = writers.get(partitionKey);
+    RollingFileWriter writer = writers.get(partitionKey);
     if (writer == null) {
       // NOTICE: we need to copy a new partition key here, in case of messing up the keys in writers.
       PartitionKey copiedKey = partitionKey.copy();
-      writer = new RollingDataFileWriter(partitionKey);
+      writer = new RollingFileWriter(partitionKey);
       writers.put(copiedKey, writer);
     }
 

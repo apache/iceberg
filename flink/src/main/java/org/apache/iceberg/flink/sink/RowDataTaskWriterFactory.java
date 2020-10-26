@@ -25,6 +25,8 @@ import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFileWriterFactory;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionKey;
@@ -92,14 +94,15 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
         "The outputFileFactory shouldn't be null if we have invoked the initialize().");
 
     if (spec.fields().isEmpty()) {
-      return new UnpartitionedWriter<>(spec, format, appenderFactory, outputFileFactory, io, targetFileSizeBytes);
+      return new UnpartitionedWriter<>(format, outputFileFactory, io,
+          targetFileSizeBytes, new DataFileWriterFactory<>(appenderFactory, spec));
     } else {
       return new RowDataPartitionedFanoutWriter(spec, format, appenderFactory, outputFileFactory,
           io, targetFileSizeBytes, schema, flinkSchema);
     }
   }
 
-  private static class RowDataPartitionedFanoutWriter extends PartitionedFanoutWriter<RowData> {
+  private static class RowDataPartitionedFanoutWriter extends PartitionedFanoutWriter<DataFile, RowData> {
 
     private final PartitionKey partitionKey;
     private final RowDataWrapper rowDataWrapper;
@@ -107,7 +110,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     RowDataPartitionedFanoutWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<RowData> appenderFactory,
                                    OutputFileFactory fileFactory, FileIO io, long targetFileSize, Schema schema,
                                    RowType flinkSchema) {
-      super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+      super(format, fileFactory, io, targetFileSize, new DataFileWriterFactory<>(appenderFactory, spec));
       this.partitionKey = new PartitionKey(spec, schema);
       this.rowDataWrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
     }

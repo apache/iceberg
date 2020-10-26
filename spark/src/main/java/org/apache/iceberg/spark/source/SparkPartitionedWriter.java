@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.spark.source;
 
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFileWriterFactory;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
@@ -30,7 +32,7 @@ import org.apache.iceberg.io.PartitionedWriter;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.StructType;
 
-public class SparkPartitionedWriter extends PartitionedWriter<InternalRow> {
+public class SparkPartitionedWriter extends PartitionedWriter<DataFile, InternalRow> {
   private final PartitionKey partitionKey;
   private final InternalRowWrapper internalRowWrapper;
 
@@ -38,7 +40,7 @@ public class SparkPartitionedWriter extends PartitionedWriter<InternalRow> {
                                 FileAppenderFactory<InternalRow> appenderFactory,
                                 OutputFileFactory fileFactory, FileIO io, long targetFileSize,
                                 Schema schema, StructType sparkSchema) {
-    super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+    super(format, fileFactory, io, targetFileSize, new DataFileWriterFactory<>(appenderFactory, spec));
     this.partitionKey = new PartitionKey(spec, schema);
     this.internalRowWrapper = new InternalRowWrapper(sparkSchema);
   }

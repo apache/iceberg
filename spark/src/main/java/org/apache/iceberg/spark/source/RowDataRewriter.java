@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFileWriterFactory;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -104,7 +105,8 @@ public class RowDataRewriter implements Serializable {
 
     TaskWriter<InternalRow> writer;
     if (spec.fields().isEmpty()) {
-      writer = new UnpartitionedWriter<>(spec, format, appenderFactory, fileFactory, io.value(), Long.MAX_VALUE);
+      writer = new UnpartitionedWriter<>(format, fileFactory, io.value(), Long.MAX_VALUE,
+          new DataFileWriterFactory<>(appenderFactory, spec));
     } else {
       writer = new SparkPartitionedWriter(spec, format, appenderFactory, fileFactory, io.value(), Long.MAX_VALUE,
           schema, structType);

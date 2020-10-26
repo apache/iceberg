@@ -25,17 +25,17 @@ import org.apache.iceberg.io.FileAppenderFactory;
 
 public class DataFileWriterFactory<D> implements ContentFileWriterFactory<DataFile, D> {
   private final FileAppenderFactory<D> appenderFactory;
-  private final PartitionKey partitionKey;
   private final PartitionSpec spec;
 
-  public DataFileWriterFactory(FileAppenderFactory<D> appenderFactory, PartitionKey partitionKey, PartitionSpec spec) {
+  public DataFileWriterFactory(FileAppenderFactory<D> appenderFactory, PartitionSpec spec) {
     this.appenderFactory = appenderFactory;
-    this.partitionKey = partitionKey;
     this.spec = spec;
   }
 
   @Override
-  public ContentFileWriter<DataFile, D> createWriter(EncryptedOutputFile outputFile, FileFormat fileFormat) {
+  public ContentFileWriter<DataFile, D> createWriter(PartitionKey partitionKey,
+                                                     EncryptedOutputFile outputFile,
+                                                     FileFormat fileFormat) {
     FileAppender<D> appender = appenderFactory.newAppender(outputFile.encryptingOutputFile(), fileFormat);
     return new DataFileWriter<>(appender, fileFormat, outputFile.encryptingOutputFile().location(), partitionKey,
         spec, outputFile.keyMetadata());

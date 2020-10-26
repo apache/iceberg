@@ -19,10 +19,11 @@
 
 package org.apache.iceberg;
 
-import java.io.IOException;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 
 public interface ContentFileWriterFactory<T, R> {
 
-  ContentFileWriter<T, R> createWriter(EncryptedOutputFile outputFile, FileFormat fileFormat) throws IOException;
+  ContentFileWriter<T, R> createWriter(PartitionKey partitionKey,
+                                       EncryptedOutputFile outputFile,
+                                       FileFormat fileFormat);
 }

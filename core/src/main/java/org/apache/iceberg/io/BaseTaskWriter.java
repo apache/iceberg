@@ -23,33 +23,29 @@ import java.io.Closeable;
 import java.io.IOException;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentFileWriter;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFileWriter;
+import org.apache.iceberg.ContentFileWriterFactory;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionKey;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.util.Tasks;
 
-public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
+public abstract class BaseTaskWriter<ContentFileT, T> implements TaskWriter<T> {
   private final TaskWriterResult.Builder builder;
-  private final PartitionSpec spec;
   private final FileFormat format;
-  private final FileAppenderFactory<T> appenderFactory;
   private final OutputFileFactory fileFactory;
   private final FileIO io;
   private final long targetFileSize;
+  private final ContentFileWriterFactory<ContentFileT, T> writerFactory;
 
-  protected BaseTaskWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
-                           OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
+  protected BaseTaskWriter(FileFormat format, OutputFileFactory fileFactory, FileIO io, long targetFileSize,
+                           ContentFileWriterFactory<ContentFileT, T> writerFactory) {
     this.builder = TaskWriterResult.builder();
-    this.spec = spec;
     this.format = format;
-    this.appenderFactory = appenderFactory;
     this.fileFactory = fileFactory;
     this.io = io;
     this.targetFileSize = targetFileSize;
+    this.writerFactory = writerFactory;
   }
 
   @Override
@@ -77,29 +73,15 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     return builder.build();
   }
 
-  protected class RollingDataFileWriter extends BaseRollingFileWriter<DataFile, T> {
-
-    public RollingDataFileWriter(PartitionKey partitionKey) {
-      super(partitionKey);
-    }
-
-    @Override
-    ContentFileWriter<DataFile, T> newContentFileWriter(EncryptedOutputFile outputFile, FileFormat fileFormat) {
-      FileAppender<T> appender = appenderFactory.newAppender(outputFile.encryptingOutputFile(), fileFormat);
-      return new DataFileWriter<>(appender, fileFormat, outputFile.encryptingOutputFile().location(), partitionKey(),
-          spec, outputFile.keyMetadata());
-    }
-  }
-
-  protected abstract class BaseRollingFileWriter<F, R> implements Closeable {
+  protected class RollingFileWriter implements Closeable {
     private static final int ROWS_DIVISOR = 1000;
     private final PartitionKey partitionKey;
 
     private EncryptedOutputFile currentFile = null;
-    private ContentFileWriter<F, R> currentFileWriter = null;
+    private ContentFileWriter<ContentFileT, T> currentFileWriter = null;
     private long currentRows = 0;
 
-    public BaseRollingFileWriter(PartitionKey partitionKey) {
+    public RollingFileWriter(PartitionKey partitionKey) {
       this.partitionKey = partitionKey;
       openCurrent();
     }
@@ -108,7 +90,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       return partitionKey;
     }
 
-    public void add(R record) throws IOException {
+    public void add(T record) throws IOException {
       this.currentFileWriter.write(record);
       this.currentRows++;
 
@@ -118,8 +100,6 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       }
     }
 
-    abstract ContentFileWriter<F, R> newContentFileWriter(EncryptedOutputFile outputFile, FileFormat fileFormat);
-
     private void openCurrent() {
       if (partitionKey == null) {
         // unpartitioned
@@ -128,7 +108,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         // partitioned
         currentFile = fileFactory.newOutputFile(partitionKey);
       }
-      currentFileWriter = newContentFileWriter(currentFile, format);
+      currentFileWriter = writerFactory.createWriter(partitionKey, currentFile, format);
       currentRows = 0;
     }
 
@@ -142,7 +122,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     private void closeCurrent() throws IOException {
       if (currentFileWriter != null) {
         currentFileWriter.close();
-        F contentFile = currentFileWriter.toContentFile();
+        ContentFileT contentFile = currentFileWriter.toContentFile();
         Metrics metrics = currentFileWriter.metrics();
         this.currentFileWriter = null;
 
