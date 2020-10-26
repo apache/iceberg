@@ -132,7 +132,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   @Before
   public void before() throws IOException {
     shell.openSession();
-    testTables = testTables(shell.getMetastore().hiveConf(), temp);
+    testTables = testTables(shell.metastore().hiveConf(), temp);
     for (Map.Entry<String, String> property : testTables.properties().entrySet()) {
       shell.setHiveSessionValue(property.getKey(), property.getValue());
     }
@@ -141,7 +141,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   @After
   public void after() throws Exception {
     shell.closeSession();
-    shell.getMetastore().reset();
+    shell.metastore().reset();
     // HiveServer2 thread pools are using thread local Hive -> HMSClient objects. These are not cleaned up when the
     // HiveServer2 is stopped. Only Finalizer closes the HMS connections.
     System.gc();
@@ -217,7 +217,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
     // Check the HMS table parameters
     org.apache.hadoop.hive.metastore.api.Table hmsTable =
-        shell.getMetastore().clientPool().run(client -> client.getTable("default", "customers"));
+        shell.metastore().clientPool().run(client -> client.getTable("default", "customers"));
 
     Map<String, String> hmsParams = hmsTable.getParameters();
     IGNORED_PARAMS.forEach(hmsParams::remove);
@@ -258,7 +258,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       Assert.assertEquals(expectedIcebergProperties, icebergTable.properties());
 
       // Check the HMS table parameters
-      hmsTable = shell.getMetastore().clientPool().run(client -> client.getTable("default", "customers"));
+      hmsTable = shell.metastore().clientPool().run(client -> client.getTable("default", "customers"));
       Path hmsTableLocation = new Path(hmsTable.getSd().getLocation());
 
       // Drop the table
@@ -299,7 +299,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
     // Check the HMS table parameters
     org.apache.hadoop.hive.metastore.api.Table hmsTable =
-        shell.getMetastore().clientPool().run(client -> client.getTable("default", "customers"));
+        shell.metastore().clientPool().run(client -> client.getTable("default", "customers"));
 
     Map<String, String> hmsParams = hmsTable.getParameters();
     IGNORED_PARAMS.forEach(hmsParams::remove);
@@ -336,7 +336,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
     // Check the HMS table parameters
     org.apache.hadoop.hive.metastore.api.Table hmsTable =
-        shell.getMetastore().clientPool().run(client -> client.getTable("default", "customers"));
+        shell.metastore().clientPool().run(client -> client.getTable("default", "customers"));
 
     Map<String, String> hmsParams = hmsTable.getParameters();
     IGNORED_PARAMS.forEach(hmsParams::remove);
@@ -374,7 +374,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     } else {
       // Check the HMS table parameters
       org.apache.hadoop.hive.metastore.api.Table hmsTable =
-          shell.getMetastore().clientPool().run(client -> client.getTable("default", "customers"));
+          shell.metastore().clientPool().run(client -> client.getTable("default", "customers"));
       Path hmsTableLocation = new Path(hmsTable.getSd().getLocation());
 
       // Drop the table
@@ -462,7 +462,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
       // Check the HMS table parameters
       org.apache.hadoop.hive.metastore.api.Table hmsTable =
-          shell.getMetastore().clientPool().run(client -> client.getTable("default", "customers"));
+          shell.metastore().clientPool().run(client -> client.getTable("default", "customers"));
 
       Map<String, String> hmsParams = hmsTable.getParameters();
       IGNORED_PARAMS.forEach(hmsParams::remove);
@@ -487,7 +487,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
           throws IOException {
     String identifier = testTables.identifier("default." + tableName);
     TestHelper helper = new TestHelper(
-            shell.getMetastore().hiveConf(), testTables.tables(), identifier, schema, SPEC, fileFormat, temp);
+            shell.metastore().hiveConf(), testTables.tables(), identifier, schema, SPEC, fileFormat, temp);
     Table table = helper.createTable();
 
     if (!records.isEmpty()) {

@@ -45,9 +45,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  */
 public class TestHiveShell {
 
-  // We need to use increased pool size in these tests. See: #1620
-  private static final int METASTORE_POOL_SIZE = 15;
-
   private final TestHiveMetastore metastore;
   private final HiveServer2 hs2;
   private final HiveConf hs2Conf;
@@ -76,7 +73,7 @@ public class TestHiveShell {
   }
 
   public void start() {
-    metastore.start(METASTORE_POOL_SIZE);
+    metastore.start();
     hs2Conf.setVar(HiveConf.ConfVars.METASTOREURIS, metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREURIS));
     hs2Conf.setVar(HiveConf.ConfVars.METASTOREWAREHOUSE,
         metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREWAREHOUSE));
@@ -100,7 +97,7 @@ public class TestHiveShell {
     started = false;
   }
 
-  public TestHiveMetastore getMetastore() {
+  public TestHiveMetastore metastore() {
     return metastore;
   }
 
