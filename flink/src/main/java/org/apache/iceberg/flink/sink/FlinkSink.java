@@ -118,6 +118,7 @@ public class FlinkSink {
     private Table table;
     private TableSchema tableSchema;
     private boolean overwrite = false;
+    private Integer writeParallelism = null;
 
     private Builder() {
     }
@@ -160,6 +161,17 @@ public class FlinkSink {
 
     public Builder overwrite(boolean newOverwrite) {
       this.overwrite = newOverwrite;
+      return this;
+    }
+
+    /**
+     * Configuring the write parallel number for iceberg stream writer.
+     *
+     * @param newWriteParallelism the number of parallel iceberg stream writer.
+     * @return {@link Builder} to connect the iceberg table.
+     */
+    public Builder writeParallelism(int newWriteParallelism) {
+      this.writeParallelism = newWriteParallelism;
       return this;
     }
 

@@ -33,7 +33,7 @@ public abstract class FixupTypes extends TypeUtil.CustomOrderSchemaVisitor<Type>
   private final Schema referenceSchema;
   private Type sourceType;
 
-  public FixupTypes(Schema referenceSchema) {
+  protected FixupTypes(Schema referenceSchema) {
     this.referenceSchema = referenceSchema;
     this.sourceType = referenceSchema.asStruct();
   }

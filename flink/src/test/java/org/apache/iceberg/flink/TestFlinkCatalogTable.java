@@ -60,6 +60,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
   @Before
   public void before() {
+    super.before();
     sql("CREATE DATABASE %s", flinkDatabase);
     sql("USE CATALOG %s", catalogName);
     sql("USE %s", DATABASE);

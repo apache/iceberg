@@ -171,6 +171,7 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
     FlinkSink.forRowData(dataStream)
         .table(table)
         .tableLoader(tableLoader)
+        .writeParallelism(parallelism)
         .build();
 
     // Execute the program.
@@ -193,6 +194,7 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
         .table(table)
         .tableLoader(tableLoader)
         .tableSchema(tableSchema)
+        .writeParallelism(parallelism)
         .build();
 
     // Execute the program.

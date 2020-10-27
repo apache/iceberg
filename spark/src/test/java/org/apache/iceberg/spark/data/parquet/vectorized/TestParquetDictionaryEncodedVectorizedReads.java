@@ -25,9 +25,11 @@ import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.base.Function;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.data.RandomData;
 import org.junit.Assert;
 import org.junit.Ignore;
@@ -38,8 +40,10 @@ import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DE
 public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVectorizedReads {
 
   @Override
-  Iterable<GenericData.Record> generateData(Schema schema, int numRecords, long seed, float nullPercentage) {
-    return RandomData.generateDictionaryEncodableData(schema, numRecords, seed, nullPercentage);
+  Iterable<GenericData.Record> generateData(Schema schema, int numRecords, long seed, float nullPercentage,
+                                            Function<GenericData.Record, GenericData.Record> transform) {
+    Iterable data = RandomData.generateDictionaryEncodableData(schema, numRecords, seed, nullPercentage);
+    return transform == IDENTITY ? data : Iterables.transform(data, transform);
   }
 
   @Test
@@ -82,6 +86,7 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
             FluentIterable.concat(dictionaryEncodableData, nonDictionaryData, dictionaryEncodableData),
             mixedFile,
             false,
-            true);
+            true,
+            BATCH_SIZE);
   }
 }
