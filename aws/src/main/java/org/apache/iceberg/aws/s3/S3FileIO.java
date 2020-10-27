@@ -19,13 +19,9 @@
 
 package org.apache.iceberg.aws.s3;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3URI;
-import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.ObjectMetadata;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.Objects;
 import org.apache.http.HttpStatus;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -33,15 +29,22 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.util.SerializableSupplier;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.Delete;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 /**
- * FileIO implementation backed by S3.  Locations used must follow the conventions
- * for AmazonS3URIs (e.g. s3://bucket/path/..).
+ * FileIO implementation backed by S3.  Locations used must follow the conventions for URIs (e.g. s3://bucket/path/..).
  */
 public class S3FileIO implements FileIO, Serializable {
-  private final SerializableSupplier<AmazonS3> s3;
+  private final SerializableSupplier<S3Client> s3;
+  private transient S3Client client;
 
-  public S3FileIO(SerializableSupplier<AmazonS3> s3) {
+  public S3FileIO(SerializableSupplier<S3Client> s3) {
     this.s3 = s3;
   }
 
@@ -58,31 +61,42 @@ public class S3FileIO implements FileIO, Serializable {
   @Override
   public void deleteFile(String path) {
     AmazonS3URI location = new AmazonS3URI(path);
-    s3.get().deleteObject(location.getBucket(), location.getKey());
+    ObjectIdentifier objectIdentifier = ObjectIdentifier.builder().key(location.getKey()).build();
+    Delete delete = Delete.builder().objects(objectIdentifier).build();
+    DeleteObjectsRequest deleteRequest =
+        DeleteObjectsRequest.builder().bucket(location.getBucket()).delete(delete).build();
+
+    client().deleteObjects(deleteRequest);
+  }
+
+  private S3Client client() {
+    if (client == null) {
+      client = s3.get();
+    }
+    return client;
   }
 
   public class S3InputFile implements InputFile {
     private final AmazonS3URI location;
-    private ObjectMetadata metadata;
+    private HeadObjectResponse metadata;
 
     public S3InputFile(AmazonS3URI location) {
       this.location = location;
     }
 
     /**
-     * Note: this may be stale if file was deleted since metadata is cached
-     * for size/existence checks.
+     * Note: this may be stale if file was deleted since metadata is cached for size/existence checks.
      *
      * @return content length
      */
     @Override
     public long getLength() {
-      return Objects.requireNonNull(getObjectMetadata()).getContentLength();
+      return getObjectMetadata().contentLength();
     }
 
     @Override
     public SeekableInputStream newStream() {
-      return new S3InputStream(s3.get(), location);
+      return new S3InputStream(client(), location);
     }
 
     @Override
@@ -91,14 +105,21 @@ public class S3FileIO implements FileIO, Serializable {
     }
 
     /**
-     * Note: this may be stale if file was deleted since metadata is cached
-     * for size/existence checks.
+     * Note: this may be stale if file was deleted since metadata is cached for size/existence checks.
      *
      * @return flag
      */
     @Override
     public boolean exists() {
-      return getObjectMetadata() != null;
+      try {
+        return getObjectMetadata() != null;
+      } catch (S3Exception e) {
+        if (e.statusCode() == HttpStatus.SC_NOT_FOUND) {
+          return false;
+        } else {
+          throw e; // return null if 404 Not Found, otherwise rethrow
+        }
+      }
     }
 
     @Override
@@ -106,15 +127,12 @@ public class S3FileIO implements FileIO, Serializable {
       return location.toString();
     }
 
-    private ObjectMetadata getObjectMetadata() {
+    private HeadObjectResponse getObjectMetadata() throws S3Exception {
       if (metadata == null) {
-        try {
-          metadata = s3.get().getObjectMetadata(location.getBucket(), location.getKey());
-        } catch (AmazonS3Exception e) {
-          if (e.getStatusCode() != HttpStatus.SC_NOT_FOUND) {
-            throw e; // return null if 404 Not Found, otherwise rethrow
-          }
-        }
+        metadata = client().headObject(HeadObjectRequest.builder()
+            .bucket(location.getBucket())
+            .key(location.getKey())
+            .build());
       }
 
       return metadata;
@@ -136,7 +154,7 @@ public class S3FileIO implements FileIO, Serializable {
     @Override
     public PositionOutputStream createOrOverwrite() {
       try {
-        return new S3OutputStream(s3.get(), location);
+        return new S3OutputStream(client(), location);
       } catch (IOException e) {
         throw new RuntimeException("Failed to create temporary file for staging.", e);
       }
@@ -152,5 +170,4 @@ public class S3FileIO implements FileIO, Serializable {
       return new S3InputFile(location);
     }
   }
-
 }

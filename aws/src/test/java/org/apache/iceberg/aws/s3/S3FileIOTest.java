@@ -20,8 +20,6 @@
 package org.apache.iceberg.aws.s3;
 
 import com.adobe.testing.s3mock.junit4.S3MockRule;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -34,6 +32,10 @@ import org.apache.iceberg.util.SerializableSupplier;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
+import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -43,7 +45,7 @@ import static org.junit.Assert.assertTrue;
 public class S3FileIOTest {
   @ClassRule
   public static final S3MockRule S3_MOCK_RULE = S3MockRule.builder().silent().build();
-  public SerializableSupplier<AmazonS3> s3 = S3_MOCK_RULE::createS3Client;
+  public SerializableSupplier<S3Client> s3 = S3_MOCK_RULE::createS3ClientV2;
   private final Random random = new Random(1);
 
   private S3FileIO s3FileIO;
@@ -51,7 +53,7 @@ public class S3FileIOTest {
   @Before
   public void before() {
     s3FileIO = new S3FileIO(s3);
-    s3.get().createBucket("bucket");
+    s3.get().createBucket(CreateBucketRequest.builder().bucket("bucket").build());
   }
 
   @Test
@@ -84,11 +86,12 @@ public class S3FileIOTest {
 
   @Test
   public void serializeClient() {
-    SerializableSupplier<AmazonS3> pre = () -> AmazonS3ClientBuilder.standard().withRegion("us-east-1").build();
+    SerializableSupplier<S3Client> pre =
+        () -> S3Client.builder().httpClient(UrlConnectionHttpClient.builder().build()).region(Region.US_EAST_1).build();
 
     byte [] data = SerializationUtils.serialize(pre);
-    SerializableSupplier<AmazonS3> post = SerializationUtils.deserialize(data);
+    SerializableSupplier<S3Client> post = SerializationUtils.deserialize(data);
 
-    assertEquals("us-east-1", post.get().getRegionName());
+    assertEquals("s3", post.get().serviceName());
   }
 }

@@ -20,12 +20,8 @@
 package org.apache.iceberg.aws.s3;
 
 import com.adobe.testing.s3mock.junit4.S3MockRule;
-import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3URI;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Random;
 import org.apache.commons.io.IOUtils;
@@ -33,33 +29,81 @@ import org.apache.iceberg.io.SeekableInputStream;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
 
 public class S3InputStreamTest {
   @ClassRule
   public static final S3MockRule S3_MOCK_RULE = S3MockRule.builder().silent().build();
 
-  private final AmazonS3 s3 = S3_MOCK_RULE.createS3Client();
+  private final S3Client s3 = S3_MOCK_RULE.createS3ClientV2();
   private final Random random = new Random(1);
 
   @Before
   public void before() {
-    s3.createBucket("bucket");
+    s3.createBucket(CreateBucketRequest.builder().bucket("bucket").build());
   }
 
   @Test
   public void testRead() throws Exception {
     AmazonS3URI uri = new AmazonS3URI("s3://bucket/path/to/read.dat");
-    byte [] expected = randomData(1024 * 1024);
+    int dataSize = 1024 * 1024 * 10;
+    byte[] data = randomData(dataSize);
 
-    writeS3Data(uri, expected);
+    writeS3Data(uri, data);
 
-    try (InputStream in = new S3InputStream(s3, uri)) {
-      byte [] actual = IOUtils.readFully(in, expected.length);
-      assertArrayEquals(expected, actual);
+    try (SeekableInputStream in = new S3InputStream(s3, uri)) {
+      int readSize = 1024;
+      byte [] actual = new byte[readSize];
+
+      readAndCheck(in, in.getPos(), readSize, data, false);
+      readAndCheck(in, in.getPos(), readSize, data, true);
+
+      // Seek forward in current stream
+      int seekSize = 1024;
+      readAndCheck(in, in.getPos() + seekSize, readSize, data, false);
+      readAndCheck(in, in.getPos() + seekSize, readSize, data, true);
+
+      // Buffered read
+      readAndCheck(in, in.getPos(), readSize, data, true);
+      readAndCheck(in, in.getPos(), readSize, data, false);
+
+      // Seek with new stream
+      long seekNewStreamPosition = 2 * 1024 * 1024;
+      readAndCheck(in, in.getPos() + seekNewStreamPosition, readSize, data, true);
+      readAndCheck(in, in.getPos() + seekNewStreamPosition, readSize, data, false);
+
+      // Backseek and read
+      readAndCheck(in, 0, readSize, data, true);
+      readAndCheck(in, 0, readSize, data, false);
     }
+  }
+
+  private void readAndCheck(SeekableInputStream in, long rangeStart, int size, byte [] original, boolean buffered)
+      throws IOException {
+    in.seek(rangeStart);
+    assertEquals(rangeStart, in.getPos());
+
+    long rangeEnd = rangeStart + size;
+    byte [] actual = new byte[size];
+
+    if (buffered) {
+      IOUtils.readFully(in, actual);
+    } else {
+      int read = 0;
+      while (read < size) {
+        actual[read++] = (byte) in.read();
+      }
+    }
+
+    assertEquals(rangeEnd, in.getPos());
+    assertArrayEquals(Arrays.copyOfRange(original, (int) rangeStart, (int) rangeEnd), actual);
   }
 
   @Test
@@ -73,29 +117,30 @@ public class S3InputStreamTest {
   @Test
   public void testSeek() throws Exception {
     AmazonS3URI uri = new AmazonS3URI("s3://bucket/path/to/seek.dat");
-    byte [] expected = randomData(1024 * 1024);
+    byte[] expected = randomData(1024 * 1024);
 
     writeS3Data(uri, expected);
 
     try (SeekableInputStream in = new S3InputStream(s3, uri)) {
       in.seek(expected.length / 2);
-      byte [] actual = IOUtils.readFully(in, expected.length / 2);
+      byte[] actual = IOUtils.readFully(in, expected.length / 2);
       assertArrayEquals(Arrays.copyOfRange(expected, expected.length / 2, expected.length), actual);
     }
   }
 
-  private byte [] randomData(int size) {
-    byte [] data = new byte[size];
+  private byte[] randomData(int size) {
+    byte[] data = new byte[size];
     random.nextBytes(data);
     return data;
   }
 
   private void writeS3Data(AmazonS3URI uri, byte[] data) throws IOException {
-    ObjectMetadata metadata = new ObjectMetadata();
-    metadata.setContentLength(data.length);
-
-    try (ByteArrayInputStream stream = new ByteArrayInputStream(data)) {
-      s3.putObject(uri.getBucket(), uri.getKey(), stream, metadata);
-    }
+    s3.putObject(
+        PutObjectRequest.builder()
+            .bucket(uri.getBucket())
+            .key(uri.getKey())
+            .contentLength((long) data.length)
+            .build(),
+        RequestBody.fromBytes(data));
   }
 }

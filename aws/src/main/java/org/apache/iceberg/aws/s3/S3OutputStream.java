@@ -19,9 +19,7 @@
 
 package org.apache.iceberg.aws.s3;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3URI;
-import com.amazonaws.services.s3.model.PutObjectRequest;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -32,13 +30,15 @@ import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 public class S3OutputStream extends PositionOutputStream {
   private static final Logger LOG = LoggerFactory.getLogger(S3OutputStream.class);
 
   private final StackTraceElement[] createStack;
-  private final AmazonS3 s3;
+  private final S3Client s3;
   private final AmazonS3URI location;
 
   private final OutputStream stream;
@@ -47,7 +47,7 @@ public class S3OutputStream extends PositionOutputStream {
 
   private boolean closed = false;
 
-  public S3OutputStream(AmazonS3 s3, AmazonS3URI location) throws IOException {
+  public S3OutputStream(S3Client s3, AmazonS3URI location) throws IOException {
     this.s3 = s3;
     this.location = location;
 
@@ -86,12 +86,11 @@ public class S3OutputStream extends PositionOutputStream {
     closed = true;
 
     try {
-      if (stream != null) {
-        stream.close();
+      stream.close();
 
-        PutObjectRequest request = new PutObjectRequest(location.getBucket(), location.getKey(), stagingFile);
-        s3.putObject(request);
-      }
+      s3.putObject(
+          PutObjectRequest.builder().bucket(location.getBucket()).key(location.getKey()).build(),
+          RequestBody.fromFile(stagingFile));
     } finally {
       if (!stagingFile.delete()) {
         LOG.warn("Could not delete temporary file: {}", stagingFile);

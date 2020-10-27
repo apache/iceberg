@@ -20,15 +20,18 @@
 package org.apache.iceberg.aws.s3;
 
 import com.adobe.testing.s3mock.junit4.S3MockRule;
-import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3URI;
-import com.amazonaws.services.s3.model.S3Object;
 import java.io.IOException;
 import java.util.Random;
-import org.apache.commons.io.IOUtils;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
+import software.amazon.awssdk.core.ResponseBytes;
+import software.amazon.awssdk.core.sync.ResponseTransformer;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -37,12 +40,12 @@ public class S3OutputStreamTest {
   @ClassRule
   public static final S3MockRule S3_MOCK_RULE = S3MockRule.builder().silent().build();
 
-  private final AmazonS3 s3 = S3_MOCK_RULE.createS3Client();
+  private final S3Client s3 = S3_MOCK_RULE.createS3ClientV2();
   private final Random random = new Random(1);
 
   @Before
   public void before() {
-    s3.createBucket("bucket");
+    s3.createBucket(CreateBucketRequest.builder().bucket("bucket").build());
   }
 
   @Test
@@ -72,8 +75,10 @@ public class S3OutputStreamTest {
   }
 
   private byte[] readS3Data(AmazonS3URI uri) throws IOException {
-    S3Object object = s3.getObject(uri.getBucket(), uri.getKey());
-    long length = object.getObjectMetadata().getContentLength();
-    return IOUtils.readFully(object.getObjectContent(), (int) length);
+    ResponseBytes<GetObjectResponse> data =
+        s3.getObject(GetObjectRequest.builder().bucket(uri.getBucket()).key(uri.getKey()).build(),
+        ResponseTransformer.toBytes());
+
+    return data.asByteArray();
   }
 }

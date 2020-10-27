@@ -19,34 +19,35 @@
 
 package org.apache.iceberg.aws.s3;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3URI;
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
-import org.apache.commons.compress.utils.IOUtils;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.core.sync.ResponseTransformer;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 
 public class S3InputStream extends SeekableInputStream {
   private static final Logger LOG = LoggerFactory.getLogger(S3InputStream.class);
 
   private final StackTraceElement[] createStack;
-  private final AmazonS3 s3;
+  private final S3Client s3;
   private final AmazonS3URI location;
 
-  private S3ObjectInputStream stream;
+  private InputStream stream;
   private long pos = 0;
   private long next = 0;
   private boolean closed = false;
 
   private int skipSize = 1024 * 1024;
 
-  public S3InputStream(AmazonS3 s3, AmazonS3URI location) {
+  public S3InputStream(S3Client s3, AmazonS3URI location) {
     this.s3 = s3;
     this.location = location;
 
@@ -55,7 +56,7 @@ public class S3InputStream extends SeekableInputStream {
 
   @Override
   public long getPos() {
-    return pos;
+    return next;
   }
 
   @Override
@@ -68,14 +69,19 @@ public class S3InputStream extends SeekableInputStream {
   }
 
   @Override
-  public int read() {
-    // This stream is wrapped with BufferedInputStream, so this method should never be called
-    throw new UnsupportedOperationException();
+  public int read() throws IOException {
+    Preconditions.checkState(!closed, "Cannot read: already closed");
+    positionStream();
+
+    pos += 1;
+    next += 1;
+
+    return stream.read();
   }
 
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
-    Preconditions.checkState(!closed, "already closed");
+    Preconditions.checkState(!closed, "Cannot read: already closed");
     positionStream();
 
     int bytesRead = stream.read(b, off, len);
@@ -89,6 +95,7 @@ public class S3InputStream extends SeekableInputStream {
   public void close() throws IOException {
     super.close();
     closed = true;
+    closeStream();
   }
 
   private void positionStream() throws IOException {
@@ -103,28 +110,35 @@ public class S3InputStream extends SeekableInputStream {
       if (skip <= Math.max(stream.available(), skipSize)) {
         // already buffered or seek is small enough
         LOG.debug("Read-through seek for {} to offset {}", location, next);
-        IOUtils.skip(stream, skip);
-        pos = next;
-        return;
+        try {
+          ByteStreams.skipFully(stream, skip);
+          pos = next;
+          return;
+        } catch (IOException ignored) {
+          // will retry by re-opening the stream
+        }
       }
     }
 
     // close the stream and open at desired position
     LOG.debug("Seek with new stream for {} to offset {}", location, next);
     pos = next;
-    closeStream();
     openStream();
   }
 
-  private void openStream() {
-    GetObjectRequest request = new GetObjectRequest(location.getBucket(), location.getKey())
-        .withRange(pos, Long.MAX_VALUE);
-    stream = s3.getObject(request).getObjectContent();
+  private void openStream() throws IOException {
+    GetObjectRequest request = GetObjectRequest.builder()
+        .bucket(location.getBucket())
+        .key(location.getKey())
+        .range(String.format("bytes=%s-", pos))
+        .build();
+    closeStream();
+    stream = s3.getObject(request, ResponseTransformer.toInputStream());
   }
 
-  private void closeStream() {
+  private void closeStream() throws IOException {
     if (stream != null) {
-      stream.abort();
+      stream.close();
     }
   }
 
