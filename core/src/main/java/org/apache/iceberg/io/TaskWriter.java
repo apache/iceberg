@@ -42,7 +42,7 @@ public interface TaskWriter<T> extends Closeable {
   void abort() throws IOException;
 
   /**
-   * Close the writer and get the completed data files.
+   * Close the writer and get the completed data/delete files.
    *
    * @return the completed data files of this task writer.
    */

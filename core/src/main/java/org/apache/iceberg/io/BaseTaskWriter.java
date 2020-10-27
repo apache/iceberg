@@ -86,10 +86,6 @@ public abstract class BaseTaskWriter<ContentFileT, T> implements TaskWriter<T> {
       openCurrent();
     }
 
-    protected PartitionKey partitionKey() {
-      return partitionKey;
-    }
-
     public void add(T record) throws IOException {
       this.currentFileWriter.write(record);
       this.currentRows++;
@@ -118,7 +114,6 @@ public abstract class BaseTaskWriter<ContentFileT, T> implements TaskWriter<T> {
           currentRows % ROWS_DIVISOR == 0 && currentFileWriter.length() >= targetFileSize;
     }
 
-    @SuppressWarnings("unchecked")
     private void closeCurrent() throws IOException {
       if (currentFileWriter != null) {
         currentFileWriter.close();
@@ -129,7 +124,7 @@ public abstract class BaseTaskWriter<ContentFileT, T> implements TaskWriter<T> {
         if (metrics.recordCount() == 0L) {
           io.deleteFile(currentFile.encryptingOutputFile());
         } else if (contentFile instanceof ContentFile) {
-          builder.add((ContentFile) contentFile);
+          builder.add((ContentFile<?>) contentFile);
         } else {
           throw new RuntimeException(String.format(
               "The newly generated content file must be DataFile or DeleteFile: %s", contentFile));
