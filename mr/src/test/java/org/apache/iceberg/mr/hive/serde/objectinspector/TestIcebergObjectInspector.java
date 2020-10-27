@@ -157,7 +157,8 @@ public class TestIcebergObjectInspector {
       Assert.assertTrue(timestampField.getFieldObjectInspector().getClass().getName()
               .startsWith("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampObjectInspectorHive3"));
     } else {
-      Assert.assertEquals(IcebergTimestampObjectInspector.get(false), timestampField.getFieldObjectInspector());
+      Assert.assertTrue(timestampField.getFieldObjectInspector().getClass().getName()
+              .startsWith("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampObjectInspector$"));
     }
 
     // timestamp with tz
@@ -169,7 +170,8 @@ public class TestIcebergObjectInspector {
       Assert.assertTrue(timestampTzField.getFieldObjectInspector().getClass().getName()
               .startsWith("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampObjectInspectorHive3"));
     } else {
-      Assert.assertEquals(IcebergTimestampObjectInspector.get(true), timestampTzField.getFieldObjectInspector());
+      Assert.assertTrue(timestampTzField.getFieldObjectInspector().getClass().getName()
+              .startsWith("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampObjectInspector$"));
     }
 
     // UUID

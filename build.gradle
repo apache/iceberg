@@ -480,18 +480,23 @@ project(':iceberg-mr') {
 if (jdkVersion == '8') {
   project(':iceberg-hive3') {
 
-    // run the tests in iceberg-mr with Hive3 dependencies
     sourceSets {
+      main {
+        java {
+            srcDirs = ['../mr/src/main/java', 'src/main/java']
+            exclude '**/IcebergDateObjectInspector.java'
+            exclude '**/IcebergTimestampObjectInspector.java'
+          }
+        resources.srcDirs = ['../mr/src/main/resources', 'src/main/resources']
+      }
       test {
-        java.srcDirs = ['../mr/src/test/java', 'src/test/java']
+        java {
+            srcDirs = ['../mr/src/test/java', 'src/test/java']
+            exclude '**/TestIcebergDateObjectInspector.java'
+            exclude '**/TestIcebergTimestampObjectInspector.java'
+          }
         resources.srcDirs = ['../mr/src/test/resources', 'src/test/resources']
       }
-    }
-
-    // exclude these Hive2-specific tests from iceberg-mr
-    test {
-      exclude '**/TestIcebergDateObjectInspector.class'
-      exclude '**/TestIcebergTimestampObjectInspector.class'
     }
 
     dependencies {
