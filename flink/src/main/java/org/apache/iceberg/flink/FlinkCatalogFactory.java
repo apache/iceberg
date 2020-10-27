@@ -134,17 +134,26 @@ public class FlinkCatalogFactory implements CatalogFactory {
 
   private static Configuration mergeHiveConf(Configuration hadoopConf, String hiveConfDir) {
     Configuration newConf = new Configuration(hadoopConf);
+
+    // Approach 1: Parse the hive-site.xml from hive-conf-dir if possible.
     if (!Strings.isNullOrEmpty(hiveConfDir)) {
       Preconditions.checkState(Files.exists(Paths.get(hiveConfDir, "hive-site.xml")),
-          "There should be a hive-site.xml file under the directory %s", hiveConfDir);
+              "There should be a hive-site.xml file under the directory %s", hiveConfDir);
       newConf.addResource(new Path(hiveConfDir, "hive-site.xml"));
-    } else {
-      // If don't provide the hive-site.xml path explicitly, it will try to load resource from classpath. If still
-      // couldn't load the configuration file, then it will throw exception in HiveCatalog.
-      URL configFile = CatalogLoader.class.getClassLoader().getResource("hive-site.xml");
-      if (configFile != null) {
-        newConf.addResource(configFile);
-      }
+      return newConf;
+    }
+
+    // Approach 2: Parse the hive-site.xml from HIVE_HOME system environment variable.
+    String hiveHome = System.getenv("HIVE_HOME");
+    if (Files.exists(Paths.get(hiveHome, "conf/hive-site.xml"))) {
+      newConf.addResource(new Path(hiveHome, "conf/hive-site.xml"));
+      return newConf;
+    }
+
+    // Approach 3: Parse the hive-site.xml from classpath
+    URL configFile = CatalogLoader.class.getClassLoader().getResource("hive-site.xml");
+    if (configFile != null) {
+      newConf.addResource(configFile);
     }
     return newConf;
   }

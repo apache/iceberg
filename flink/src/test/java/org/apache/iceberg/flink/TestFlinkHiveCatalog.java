@@ -24,7 +24,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Map;
+import org.apache.flink.core.testutils.CommonTestUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -74,6 +76,40 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
     props.put(FlinkCatalogFactory.HIVE_CONF_DIR, hiveConfDir.getAbsolutePath());
 
     checkSQLQuery(props, warehouseDir);
+  }
+
+  @Test
+  public void testCreateCatalogWithHiveHome() throws IOException {
+    File hiveHome = tempFolder.newFolder();
+    File hiveConfDir = new File(hiveHome, "conf");
+    hiveConfDir.mkdir();
+    File hiveSiteXML = new File(hiveConfDir, "hive-site.xml");
+    File warehouseDir = tempFolder.newFolder();
+
+    try (FileOutputStream fos = new FileOutputStream(hiveSiteXML)) {
+      Configuration newConf = new Configuration(hiveConf);
+      newConf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file://" + warehouseDir.getAbsolutePath());
+      newConf.writeXml(fos);
+    }
+    Assert.assertTrue("hive-site.xml should be created now.", Files.exists(hiveSiteXML.toPath()));
+
+    final Map<String, String> originalEnv = System.getenv();
+    final Map<String, String> newEnv = new HashMap<>(originalEnv);
+
+    newEnv.put("HIVE_HOME", hiveHome.getAbsolutePath());
+    try {
+      CommonTestUtils.setEnv(newEnv);
+
+      // Construct the catalog attributions.
+      Map<String, String> props = Maps.newHashMap();
+      props.put("type", "iceberg");
+      props.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hive");
+      props.put(FlinkCatalogFactory.HIVE_URI, FlinkCatalogTestBase.getURI(hiveConf));
+
+      checkSQLQuery(props, warehouseDir);
+    } finally {
+      CommonTestUtils.setEnv(originalEnv);
+    }
   }
 
   private void checkSQLQuery(Map<String, String> catalogProperties, File warehouseDir) throws IOException {
