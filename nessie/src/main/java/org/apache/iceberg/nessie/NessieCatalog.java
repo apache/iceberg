@@ -37,8 +37,10 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.TableMetadata;
@@ -48,12 +50,20 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 /**
  * Nessie implementation of Iceberg Catalog.
+ *
+ * <p>
+ *   A note on namespaces: Nessie namespaces are implicit and do not need to be explicitly created or deleted.
+ *   The create and delete namespace methods are no-ops for the NessieCatalog. One can still list namespaces that have
+ *   objects stored in them to assist with namespace-centric catalog exploration.
+ * </p>
  */
 public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable, SupportsNamespaces {
 
@@ -177,16 +187,19 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
+    return tableStream(namespace).collect(Collectors.toList());
+  }
+
+  private Stream<TableIdentifier> tableStream(Namespace namespace) {
     try {
       return client.getTreeApi()
           .getEntries(reference.getHash())
           .getEntries()
           .stream()
           .filter(namespacePredicate(namespace))
-          .map(NessieCatalog::toIdentifier)
-          .collect(Collectors.toList());
+          .map(NessieCatalog::toIdentifier);
     } catch (NessieNotFoundException ex) {
-      throw new NoSuchNamespaceException("Unable to list tables due to missing ref.", ex);
+      throw new NoSuchNamespaceException(ex, "Unable to list tables due to missing ref. %s", reference.getName());
     }
   }
 
@@ -305,6 +318,61 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
   public static Builder builder(Configuration conf) {
     return new Builder(conf);
+  }
+
+  /**
+   * creating namespaces in nessie is implicit, therefore this is a no-op. Metadata is ignored.
+   *
+   * @param namespace a multi-part namespace
+   * @param metadata a string Map of properties for the given namespace
+   */
+  @Override
+  public void createNamespace(Namespace namespace, Map<String, String> metadata) {
+  }
+
+  @Override
+  public List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException {
+    return tableStream(namespace)
+        .map(TableIdentifier::namespace)
+        .filter(n -> !n.isEmpty())
+        .distinct()
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * namespace metadata is not supported in Nessie and we return an empty map.
+   *
+   * @param namespace a namespace. {@link Namespace}
+   * @return an empty map
+   * @throws NoSuchNamespaceException
+   */
+  @Override
+  public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
+    return ImmutableMap.of();
+  }
+
+  /**
+   * Namespaces in Nessie are implicit and deleting them results in a no-op.
+   *
+   * @param namespace a namespace. {@link Namespace}
+   * @return always false.
+   * @throws NamespaceNotEmptyException
+   */
+  @Override
+  public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
+    return false;
+  }
+
+  @Override
+  public boolean setProperties(Namespace namespace, Map<String, String> properties) throws NoSuchNamespaceException {
+    throw new UnsupportedOperationException(
+        "Cannot set namespace properties " + namespace + " : setProperties is not supported");
+  }
+
+  @Override
+  public boolean removeProperties(Namespace namespace, Set<String> properties) throws NoSuchNamespaceException {
+    throw new UnsupportedOperationException(
+        "Cannot remove properties " + namespace + " : removeProperties is not supported");
   }
 
   public static class Builder {

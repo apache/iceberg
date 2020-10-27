@@ -28,11 +28,11 @@ import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class TestTestBranchHash extends BaseTestIceberg {
+public class TestBranchHash extends BaseTestIceberg {
 
   private static final String BRANCH = "test-branch-hash";
 
-  public TestTestBranchHash() {
+  public TestBranchHash() {
     super(BRANCH);
   }
 
@@ -61,10 +61,10 @@ public class TestTestBranchHash extends BaseTestIceberg {
 
     String mainHash = tree.getReferenceByName(BRANCH).getHash();
     // catalog created with ref and no hash points to same catalog as above
-    NessieCatalog refCatalog = new NessieCatalog(hadoopConfig, "test");
+    NessieCatalog refCatalog = NessieCatalog.builder(hadoopConfig).setRef("test").build();
     Assert.assertEquals(getContent(newCatalog, foobar), getContent(refCatalog, foobar));
     // catalog created with ref and hash points to
-    NessieCatalog refHashCatalog = new NessieCatalog(hadoopConfig, mainHash);
+    NessieCatalog refHashCatalog = NessieCatalog.builder(hadoopConfig).setRef(mainHash).build();
     Assert.assertEquals(getContent(catalog, foobar), getContent(refHashCatalog, foobar));
 
     // asking for table@branch gives expected regardless of catalog
