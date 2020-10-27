@@ -483,18 +483,18 @@ if (jdkVersion == '8') {
     sourceSets {
       main {
         java {
-            srcDirs = ['../mr/src/main/java', 'src/main/java']
-            exclude '**/IcebergDateObjectInspector.java'
-            exclude '**/IcebergTimestampObjectInspector.java'
-          }
+          srcDirs = ['../mr/src/main/java', 'src/main/java']
+          exclude '**/IcebergDateObjectInspector.java'
+          exclude '**/IcebergTimestampObjectInspector.java'
+        }
         resources.srcDirs = ['../mr/src/main/resources', 'src/main/resources']
       }
       test {
         java {
-            srcDirs = ['../mr/src/test/java', 'src/test/java']
-            exclude '**/TestIcebergDateObjectInspector.java'
-            exclude '**/TestIcebergTimestampObjectInspector.java'
-          }
+          srcDirs = ['../mr/src/test/java', 'src/test/java']
+          exclude '**/TestIcebergDateObjectInspector.java'
+          exclude '**/TestIcebergTimestampObjectInspector.java'
+        }
         resources.srcDirs = ['../mr/src/test/resources', 'src/test/resources']
       }
     }
