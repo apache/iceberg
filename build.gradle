@@ -506,7 +506,6 @@ if (jdkVersion == '8') {
       compile project(':iceberg-hive-metastore')
       compile project(':iceberg-orc')
       compile project(':iceberg-parquet')
-      compile project(':iceberg-mr')
 
       compileOnly("org.apache.hadoop:hadoop-client:3.1.0") {
         exclude group: 'org.apache.avro', module: 'avro'
