@@ -406,9 +406,9 @@ public class TestStructuredStreamingRead {
     DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
         "path", tableLocation.toString(),
         "checkpointLocation", checkpoint.toString(),
-        "starting-snapshot-id", "-1"));
+        "start-snapshot-id", "-1"));
     AssertHelpers.assertThrows("Test invalid snapshot id",
-        IllegalStateException.class, "The option starting-snapshot-id -1 is not an ancestor",
+        IllegalArgumentException.class, "The option start-snapshot-id -1 is not an ancestor",
         () -> source.createMicroBatchReader(Optional.empty(), checkpoint.toString(), options));
   }
 
@@ -425,7 +425,7 @@ public class TestStructuredStreamingRead {
     DataSourceOptions options = new DataSourceOptions(ImmutableMap.of(
         "path", tableLocation.toString(),
         "checkpointLocation", checkpoint.toString(),
-        "starting-snapshot-id", snapshotIds.get(1).toString(),
+        "start-snapshot-id", snapshotIds.get(1).toString(),
         "max-size-per-batch", "1000"));
     StreamingReader streamingReader = (StreamingReader) source.createMicroBatchReader(
         Optional.empty(), checkpoint.toString(), options);
@@ -483,7 +483,7 @@ public class TestStructuredStreamingRead {
 
     Dataset<Row> read = spark.readStream()
         .format("iceberg")
-        .option("starting-snapshot-id", snapshotIds.get(1).toString())
+        .option("start-snapshot-id", snapshotIds.get(1).toString())
         .load(tableLocation.toString());
 
     try {

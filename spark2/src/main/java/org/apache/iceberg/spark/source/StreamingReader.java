@@ -36,6 +36,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
@@ -63,6 +64,8 @@ import static org.apache.iceberg.TableProperties.SPLIT_SIZE_DEFAULT;
  */
 class StreamingReader extends Reader implements MicroBatchReader {
   private static final Logger LOG = LoggerFactory.getLogger(StreamingReader.class);
+  private static final String MAX_SIZE_PER_BATCH = "max-size-per-batch";
+  private static final String START_SNAPSHOT_ID = "start-snapshot-id";
 
   private StreamingOffset startOffset;
   private StreamingOffset endOffset;
@@ -83,14 +86,14 @@ class StreamingReader extends Reader implements MicroBatchReader {
     super(table, io, encryptionManager, caseSensitive, options);
 
     this.table = table;
-    this.maxSizePerBatch = options.get("max-size-per-batch").map(Long::parseLong).orElse(Long.MAX_VALUE);
+    this.maxSizePerBatch = options.get(MAX_SIZE_PER_BATCH).map(Long::parseLong).orElse(Long.MAX_VALUE);
     Preconditions.checkArgument(maxSizePerBatch > 0L,
         "Option max-size-per-batch '%s' should > 0", maxSizePerBatch);
 
-    this.startSnapshotId = options.get("starting-snapshot-id").map(Long::parseLong).orElse(null);
+    this.startSnapshotId = options.get(START_SNAPSHOT_ID).map(Long::parseLong).orElse(null);
     if (startSnapshotId != null) {
       if (!SnapshotUtil.ancestorOf(table, table.currentSnapshot().snapshotId(), startSnapshotId)) {
-        throw new IllegalStateException("The option starting-snapshot-id " + startSnapshotId +
+        throw new IllegalArgumentException("The option start-snapshot-id " + startSnapshotId +
             " is not an ancestor of the current snapshot");
       }
     }
@@ -213,7 +216,7 @@ class StreamingReader extends Reader implements MicroBatchReader {
         // there's no snapshot currently.
         startingOffset = StreamingOffset.START_OFFSET;
       } else {
-        startingOffset = new StreamingOffset(snapshotIds.get(snapshotIds.size() - 1), 0, true, false);
+        startingOffset = new StreamingOffset(Iterables.getLast(snapshotIds), 0, true, false);
       }
     }
 
@@ -225,14 +228,14 @@ class StreamingReader extends Reader implements MicroBatchReader {
       return StreamingOffset.START_OFFSET;
     }
 
-    // Spark will invoke setOffsetRange more than once. If this is already calulated, use the cached one to avoid
+    // Spark will invoke setOffsetRange more than once. If this is already calculated, use the cached one to avoid
     // calculating again.
     if (cachedPendingBatches == null || !cachedPendingBatches.first().equals(start)) {
       this.cachedPendingBatches = Pair.of(start, getChangesWithRateLimit(start, maxSizePerBatch));
     }
 
     List<MicroBatch> batches = cachedPendingBatches.second();
-    MicroBatch lastBatch = batches.isEmpty() ? null : batches.get(batches.size() - 1);
+    MicroBatch lastBatch = Iterables.getLast(batches, null);
 
     if (lastBatch == null) {
       return start;
@@ -250,11 +253,13 @@ class StreamingReader extends Reader implements MicroBatchReader {
     long currentLeftSize = maxSize;
     MicroBatch lastBatch = null;
 
-    checkOverwrite(table.snapshot(startOffset.snapshotId()));
+    assertNoOverwrite(table.snapshot(startOffset.snapshotId()));
     if (shouldGenerateFromStartOffset(startOffset)) {
-      currentLeftSize -= generateMicroBatch(startOffset.snapshotId(), startOffset.index(),
-          startOffset.shouldScanAllFiles(), currentLeftSize, batches);
-      lastBatch = batches.get(batches.size() - 1);
+      MicroBatch batch = generateMicroBatch(startOffset.snapshotId(), startOffset.index(),
+          startOffset.shouldScanAllFiles(), currentLeftSize);
+      batches.add(batch);
+      currentLeftSize -= batch.sizeInBytes();
+      lastBatch = Iterables.getLast(batches);
     }
 
     // Current snapshot can already satisfy the size needs.
@@ -275,14 +280,15 @@ class StreamingReader extends Reader implements MicroBatchReader {
 
     for (Long id : snapshotIds) {
       Snapshot snapshot = table.snapshot(id);
-      checkOverwrite(snapshot);
+      assertNoOverwrite(snapshot);
       if (!isAppend(snapshot)) {
         continue;
       }
 
-      int startIndex = lastBatch == null || lastBatch.lastIndexOfSnapshot() ? 0 : lastBatch.endFileIndex();
-      currentLeftSize -= generateMicroBatch(id, startIndex, false, currentLeftSize, batches);
-      lastBatch = batches.get(batches.size() - 1);
+      MicroBatch batch = generateMicroBatch(id, 0, false, currentLeftSize);
+      batches.add(batch);
+      currentLeftSize -= batch.sizeInBytes();
+      lastBatch = Iterables.getLast(batches);
 
       // If the current request size is already satisfied, or none of the DataFile size can satisfy the current left
       // size, break the current loop.
@@ -294,14 +300,11 @@ class StreamingReader extends Reader implements MicroBatchReader {
     return batches;
   }
 
-  private long generateMicroBatch(long snapshotId, int startIndex, boolean isStart, long currentLeftSize,
-      List<MicroBatch> batches) {
-    MicroBatch batch = MicroBatches.from(table.snapshot(snapshotId), table.io())
+  private MicroBatch generateMicroBatch(long snapshotId, int startIndex, boolean isStart, long currentLeftSize) {
+    return MicroBatches.from(table.snapshot(snapshotId), table.io())
         .caseSensitive(caseSensitive())
         .specsById(table.specs())
         .generate(startIndex, currentLeftSize, isStart);
-    batches.add(batch);
-    return batch.sizeInBytes();
   }
 
   @SuppressWarnings("checkstyle:HiddenField")
@@ -310,7 +313,7 @@ class StreamingReader extends Reader implements MicroBatchReader {
         (startOffset.shouldScanAllFiles() || isAppend(table.snapshot(startOffset.snapshotId())));
   }
 
-  private static void checkOverwrite(Snapshot snapshot) {
+  private static void assertNoOverwrite(Snapshot snapshot) {
     if (snapshot.operation().equals(DataOperations.OVERWRITE)) {
       throw new UnsupportedOperationException(String.format("Found %s operation, cannot support incremental data for " +
           "snapshot %d", DataOperations.OVERWRITE, snapshot.snapshotId()));

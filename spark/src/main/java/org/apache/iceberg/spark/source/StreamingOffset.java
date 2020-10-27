@@ -35,13 +35,12 @@ import org.apache.spark.sql.sources.v2.reader.streaming.Offset;
  *
  * version: The version of StreamingOffset. The offset was created with a version number used to validate
  * when deserializing from json string.
- * snapshot_id: The snapshot id of StreamingOffset, this is used to record the current processed snapshot of Iceberg
- * table.
- * index: The index of snapshot, this is used to record the processed data file index in this snapshot.
- * scan_all_files: This is used to identify if we should scan all the files, not just incrementally add files in this
+ * snapshot_id: The current processed snapshot id.
+ * index: The index of last scanned file in snapshot.
+ * scan_all_files: Denote whether to scan all files in a snapshot, currently we only scan all files in the starting
  * snapshot.
- * snapshot_fully_processed: This is used to denote whether the current snapshot is fully processed, to avoid revisiting
- * the processed snapshot.
+ * snapshot_fully_processed: Denote whether the current snapshot is fully processed, to avoid revisiting the processed
+ * snapshot.
  */
 class StreamingOffset extends Offset {
   static final StreamingOffset START_OFFSET = new StreamingOffset(-1L, -1, false, true);
@@ -71,9 +70,9 @@ class StreamingOffset extends Offset {
     try {
       JsonNode node = JsonUtil.mapper().readValue(json, JsonNode.class);
       int version = JsonUtil.getInt(VERSION, node);
-      if (version != CURR_VERSION) {
-        throw new IOException(String.format("Cannot deserialize a JSON offset from version %d. %d does not match " +
-            "this version of Iceberg %d and cannot be used. Please use a compatible version of Iceberg " +
+      if (version > CURR_VERSION) {
+        throw new IOException(String.format("Cannot deserialize a JSON offset from version %d. %d is not compatible " +
+            "with the version of Iceberg %d and cannot be used. Please use a compatible version of Iceberg " +
             "to read this offset", version, version, CURR_VERSION));
       }
 
@@ -84,7 +83,7 @@ class StreamingOffset extends Offset {
 
       return new StreamingOffset(snapshotId, index, shouldScanAllFiles, snapshotFullyProcessed);
     } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Failed to parse StreamingOffset from JSON string %s", json), e);
+      throw new IllegalStateException(String.format("Failed to parse StreamingOffset from JSON string %s", json), e);
     }
   }
 
@@ -145,7 +144,7 @@ class StreamingOffset extends Offset {
 
   @Override
   public String toString() {
-    return String.format("Streaming Offset[%d index (%d) scan_all_files (%b) snapshot_fully_processed (%b)]",
+    return String.format("Streaming Offset[%d: index (%d) scan_all_files (%b) snapshot_fully_processed (%b)]",
       snapshotId, index, scanAllFiles, snapshotFullyProcessed);
   }
 }

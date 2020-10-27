@@ -146,9 +146,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     Broadcast<FileIO> io = lazySparkContext().broadcast(SparkUtil.serializableFileIO(table));
     Broadcast<EncryptionManager> encryptionManager = lazySparkContext().broadcast(table.encryption());
 
-    StreamingReader streamingReader = new StreamingReader(table, io, encryptionManager,
-        Boolean.parseBoolean(caseSensitive), options);
-    return streamingReader;
+    return new StreamingReader(table, io, encryptionManager, Boolean.parseBoolean(caseSensitive), options);
   }
 
   protected Table findTable(DataSourceOptions options, Configuration conf) {
