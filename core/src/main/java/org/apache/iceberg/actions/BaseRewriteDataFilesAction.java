@@ -90,7 +90,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
         TableProperties.SPLIT_OPEN_FILE_COST,
         TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
 
-    this.fileIO = fileIO(table);
+    this.fileIO = fileIO();
     this.encryptionManager = table.encryption();
   }
 
@@ -101,10 +101,6 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
 
   protected EncryptionManager encryptionManager() {
     return encryptionManager;
-  }
-
-  protected FileIO fileIO() {
-    return fileIO;
   }
 
   protected void caseSensitive(boolean newCaseSensitive) {
@@ -173,7 +169,6 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     return this;
   }
 
-
   /**
    * Pass a row Expression to filter DataFiles to be rewritten. Note that all files that may contain data matching the
    * filter may be rewritten.
@@ -181,7 +176,6 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
    * @param expr Expression to filter out DataFiles
    * @return this for method chaining
    */
-
   public BaseRewriteDataFilesAction<ThisT> filter(Expression expr) {
     this.filter = Expressions.and(filter, expr);
     return this;
@@ -265,7 +259,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     }
   }
 
-  protected abstract FileIO fileIO(Table icebergTable);
+  protected abstract FileIO fileIO();
 
   protected abstract List<DataFile> rewriteDataForTasks(List<CombinedScanTask> combinedScanTask);
 }
