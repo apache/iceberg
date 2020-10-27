@@ -41,7 +41,7 @@ public interface VectorizedReader<T> {
   void setBatchSize(int batchSize);
 
   /**
-   * Sets the row group information toe be used with this reader
+   * Sets the row group information to be used with this reader
    *
    * @param pages    row group information for all the columns
    * @param metadata map of {@link ColumnPath} -&gt; {@link ColumnChunkMetaData} for the row group
