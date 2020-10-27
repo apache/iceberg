@@ -106,7 +106,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   private static final Set<String> IGNORED_PARAMS =
       ImmutableSet.of("bucketing_version", StatsSetupConst.ROW_COUNT,
-          StatsSetupConst.RAW_DATA_SIZE, StatsSetupConst.TOTAL_SIZE, StatsSetupConst.NUM_FILES);
+          StatsSetupConst.RAW_DATA_SIZE, StatsSetupConst.TOTAL_SIZE, StatsSetupConst.NUM_FILES, "numFilesErasureCoded");
 
   private static final int METASTORE_POOL_SIZE = 15;
 
@@ -332,8 +332,12 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
       // Check if the files are removed
       FileSystem fs = Util.getFs(hmsTableLocation, shell.getHiveConf());
-      Assert.assertEquals(1, fs.listStatus(hmsTableLocation).length);
-      Assert.assertEquals(0, fs.listStatus(new Path(hmsTableLocation, "metadata")).length);
+      if (fs.exists(hmsTableLocation)) {
+        // if table directory has been deleted, we're good. This is the expected behavior in Hive4.
+        // if table directory exists, its contents should have been cleaned up, save for an empty metadata dir (Hive3).
+        Assert.assertEquals(1, fs.listStatus(hmsTableLocation).length);
+        Assert.assertEquals(0, fs.listStatus(new Path(hmsTableLocation, "metadata")).length);
+      }
     }
   }
 
