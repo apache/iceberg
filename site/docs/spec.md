@@ -171,7 +171,7 @@ Grouping a subset of a struct’s fields into a nested struct is **not** allowed
 
 #### Column Projection
 
-Columns in Iceberg data files are selected by field id. Column names and order may change between after a data file is written, and projection must be done using field ids. If a field id is missing from a data file, its value for each row should be `null`.
+Columns in Iceberg data files are selected by field id. The table schema's column names and order may change after a data file is written, and projection must be done using field ids. If a field id is missing from a data file, its value for each row should be `null`.
 
 For example, a file may be written with schema `1: a int, 2: b string, 3: c double` and read using projection schema `3: measurement, 2: name, 4: a`. This must select file columns `c` (renamed to `measurement`), `b` (now called `name`), and a column of `null` values called `a`; in that order.
 
@@ -391,7 +391,7 @@ Manifest list files store `manifest_file`, a struct with the following fields:
 | ---------- | ---------- |--------------------------------|---------------------------------------------|-------------|
 | _required_ | _required_ | **`500 manifest_path`**        | `string`                                    | Location of the manifest file |
 | _required_ | _required_ | **`501 manifest_length`**      | `long`                                      | Length of the manifest file |
-| _required_ | _required_ | **`502 partition_spec_id`**    | `int`                                       | ID of a partition spec for the table; must be listed in table metadata `partition-specs` |
+| _required_ | _required_ | **`502 partition_spec_id`**    | `int`                                       | ID of a partition spec used to write the manifest; must be listed in table metadata `partition-specs` |
 |            | _required_ | **`517 content`**              | `int` with meaning: `0: data`, `1: deletes` | The type of files tracked by the manifest, either data or delete files; 0 for all v1 manifests |
 |            | _required_ | **`515 sequence_number`**      | `long`                                      | The sequence number when the manifest was added to the table; use 0 when reading v1 manifest lists |
 |            | _required_ | **`516 min_sequence_number`**  | `long`                                      | The minimum sequence number of all data or delete files in the manifest; use 0 when reading v1 manifest lists |
@@ -429,7 +429,7 @@ Scan predicates are converted to partition predicates using an _inclusive projec
 
 For example, an `events` table with a timestamp column named `ts` that is partitioned by `ts_day=day(ts)` is queried by users with ranges over the timestamp column: `ts > X`. The inclusive projection is `ts_day >= day(X)`, which is used to select files that may have matching rows. Note that, in most cases, timestamps just before `X` will be included in the scan because the file contains rows that match the predicate and rows that do not match the predicate.
 
-Scan predicates are also used to filter data and delete files using column bounds and counts that are stored by field id in manifests. The same filter logic can be used for both data and delete files because both stored metrics of the rows either inserted or deleted. If metrics show that a delete file has no rows that match a scan predicate, it may be ignored just as a data file would be ignored [2].
+Scan predicates are also used to filter data and delete files using column bounds and counts that are stored by field id in manifests. The same filter logic can be used for both data and delete files because both store metrics of the rows either inserted or deleted. If metrics show that a delete file has no rows that match a scan predicate, it may be ignored just as a data file would be ignored [2].
 
 Data files that match the query filter must be read by the scan.
 
@@ -547,13 +547,17 @@ A data row is deleted if there is an entry in a position delete file for the row
 
 Position-based delete files store `file_position_delete`, a struct with the following fields:
 
-| Field id, name              | Type                   | Description |
-|-----------------------------|------------------------|-------------|
-| **`2147483546  file_path`** | `string`               | Full URI or a data file with FS scheme. This must match the `file_path` of the target data file in a manifest entry |
-| **`2147483545  pos`**       | `long`                 | Ordinal position of a deleted row in the target data file identified by `file_path`, starting at `0` |
-| **`2147483544  row`**       | `required struct<...>` | Deleted row values. Omit the column when not storing deleted rows. |
+| Field id, name              | Type                       | Description |
+|-----------------------------|----------------------------|-------------|
+| **`2147483546  file_path`** | `string`                   | Full URI of a data file with FS scheme. This must match the `file_path` of the target data file in a manifest entry |
+| **`2147483545  pos`**       | `long`                     | Ordinal position of a deleted row in the target data file identified by `file_path`, starting at `0` |
+| **`2147483544  row`**       | `required struct<...>` [1] | Deleted row values. Omit the column when not storing deleted rows. |
 
-When the deleted row is present, its schema may be any subset of the table schema. When the column is present, the deleted row values for every delete must be stored.
+1. When present in the delete file, `row` is required because all delete entries must include the row values.
+
+When the deleted row column is present, its schema may be any subset of the table schema and must use field ids matching the table.
+
+To ensure the accuracy of statistics, all delete entries must include row values, or the column must be omitted (this is why the column type is `required`).
 
 The rows in the delete file must be sorted by `file_path` then `position` to optimize filtering rows while scanning. 
 
@@ -566,7 +570,7 @@ Equality delete files identify deleted rows in a collection of data files by one
 
 Equality delete files store any subset of a table's columns and use the table's field ids. The _delete columns_ are the columns of the delete file used to match data rows. Delete columns are identified by id in the delete file [metadata column `equality_ids`](#manifests).
 
-A data row is deleted if its values are equal to all delete columns for any row in an equality delete file that applies to the row's data file (see [`Job Planning`](#job-planning)).
+A data row is deleted if its values are equal to all delete columns for any row in an equality delete file that applies to the row's data file (see [`Scan Planning`](#scan-planning)).
 
 Each row of the delete file produces one equality predicate that matches any row where the delete columns are equal. Multiple columns can be thought of as an `AND` of equality predicates. A `null` value in a delete column matches a row if the row's value is `null`, equivalent to `col IS NULL`.
 
