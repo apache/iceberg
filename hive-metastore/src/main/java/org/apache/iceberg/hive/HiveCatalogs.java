@@ -28,10 +28,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 
 public final class HiveCatalogs {
 
-  private static final Cache<String, HiveCatalog> CATALOG_CACHE = Caffeine.newBuilder()
-      .expireAfterAccess(10, TimeUnit.MINUTES)
-      .removalListener((RemovalListener<String, HiveCatalog>) (uri, catalog, cause) -> catalog.close())
-      .build();
+  private static final Cache<String, HiveCatalog> CATALOG_CACHE = Caffeine.newBuilder().build();
 
   private HiveCatalogs() {
   }
