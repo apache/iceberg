@@ -47,6 +47,8 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 
 public class ParquetMetricsRowGroupFilter {
+  private static final int IN_PREDICATE_LIMIT = 200;
+
   private final Schema schema;
   private final Expression expr;
 
@@ -372,6 +374,11 @@ public class ParquetMetricsRowGroupFilter {
         }
 
         Collection<T> literals = literalSet;
+
+        if (literals.size() > IN_PREDICATE_LIMIT) {
+          // skip evaluating the predicate if the number of values is too big
+          return ROWS_MIGHT_MATCH;
+        }
 
         T lower = min(colStats, id);
         literals = literals.stream().filter(v -> ref.comparator().compare(lower, v) <= 0).collect(Collectors.toList());

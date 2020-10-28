@@ -22,6 +22,7 @@ package org.apache.iceberg.data;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData.Record;
@@ -748,6 +749,22 @@ public class TestMetricsRowGroupFilter {
   public void testSomeNullsNotEq() {
     boolean shouldRead = shouldRead(notEqual("some_nulls", "some"));
     Assert.assertTrue("Should read: notEqual on some nulls column", shouldRead);
+  }
+
+  @Test
+  public void testInLimitParquet() {
+    Assume.assumeTrue(format == FileFormat.PARQUET);
+
+    boolean shouldRead = shouldRead(in("id", 1, 2));
+    Assert.assertFalse("Should not read if IN is evaluated", shouldRead);
+
+    List<Integer> ids = Lists.newArrayListWithExpectedSize(400);
+    for (int id = -400; id <= 0; id++) {
+      ids.add(id);
+    }
+
+    shouldRead = shouldRead(in("id", ids));
+    Assert.assertTrue("Should read if IN is not evaluated", shouldRead);
   }
 
   private boolean shouldRead(Expression expression) {
