@@ -94,6 +94,10 @@ public class Partitioning {
    * @return a sort order that will cluster data for the spec
    */
   public static SortOrder sortOrderFor(PartitionSpec spec) {
+    if (spec.isUnpartitioned()) {
+      return SortOrder.unsorted();
+    }
+
     SortOrder.Builder builder = SortOrder.builderFor(spec.schema());
     SpecToOrderVisitor converter = new SpecToOrderVisitor(builder);
     PartitionSpecVisitor.visit(spec, converter);

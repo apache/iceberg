@@ -61,7 +61,7 @@ public interface Transform<S, T> extends Serializable {
   /**
    * Whether the transform preserves the order of values (is monotonic).
    * <p>
-   * A transform preserves order for values when for any given a and b, if a < b then apply(a) <= apply(b).
+   * A transform preserves order for values when for any given a and b, if a &lt; b then apply(a) &lt;= apply(b).
    *
    * @return true if the transform preserves the order of values
    */
