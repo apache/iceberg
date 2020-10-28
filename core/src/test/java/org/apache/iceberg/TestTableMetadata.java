@@ -21,7 +21,6 @@ package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
-import java.io.File;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
@@ -487,8 +486,8 @@ public class TestTableMetadata {
     );
   }
 
-  private String readTableMetadataInputFile(String fileName) throws IOException {
-    Path path = Paths.get(new File("").getAbsolutePath(), "src/test/testfiles", fileName);
+  private String readTableMetadataInputFile(String fileName) throws Exception {
+    Path path = Paths.get(getClass().getClassLoader().getResource(fileName).toURI());
     return String.join("", java.nio.file.Files.readAllLines(path));
   }
 
