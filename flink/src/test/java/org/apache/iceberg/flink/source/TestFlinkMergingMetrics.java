@@ -17,24 +17,32 @@
  * under the License.
  */
 
-package org.apache.iceberg.parquet;
+package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.TestMergingMetrics;
-import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.RowDataConverter;
+import org.apache.iceberg.flink.sink.RowDataTaskWriterFactory;
 import org.apache.iceberg.io.FileAppender;
 
-public class TestParquetMergingMetrics extends TestMergingMetrics<Record> {
+public class TestFlinkMergingMetrics extends TestMergingMetrics<RowData> {
 
   @Override
-  protected FileAppender<Record> writeAndGetAppender(List<Record> records) throws IOException {
-    FileAppender<Record> appender = new GenericAppenderFactory(SCHEMA).newAppender(
-        org.apache.iceberg.Files.localOutput(temp.newFile()), FileFormat.PARQUET);
-    try (FileAppender<Record> fileAppender = appender) {
-      records.forEach(fileAppender::add);
+  protected FileAppender<RowData> writeAndGetAppender(List<Record> records) throws IOException {
+    RowType flinkSchema = FlinkSchemaUtil.convert(SCHEMA);
+
+    FileAppender<RowData> appender =
+        new RowDataTaskWriterFactory.FlinkFileAppenderFactory(SCHEMA, flinkSchema, new HashMap<>()).newAppender(
+            org.apache.iceberg.Files.localOutput(temp.newFile()), FileFormat.PARQUET);
+    try (FileAppender<RowData> fileAppender = appender) {
+      records.stream().map(r -> RowDataConverter.convert(SCHEMA, r)).forEach(fileAppender::add);
     }
     return appender;
   }

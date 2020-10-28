@@ -146,8 +146,13 @@ class StructInternalRow extends InternalRow {
 
   @Override
   public byte[] getBinary(int ordinal) {
-    ByteBuffer bytes = struct.get(ordinal, ByteBuffer.class);
-    return ByteBuffers.toByteArray(bytes);
+    try {
+      ByteBuffer bytes = struct.get(ordinal, ByteBuffer.class);
+      return ByteBuffers.toByteArray(bytes);
+    } catch (IllegalStateException e) {
+      // fall back to use byte array for parsing
+      return struct.get(ordinal, byte[].class);
+    }
   }
 
   @Override
@@ -177,6 +182,10 @@ class StructInternalRow extends InternalRow {
   @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Object get(int ordinal, DataType dataType) {
+    if (isNullAt(ordinal)) {
+      return null;
+    }
+
     if (dataType instanceof IntegerType) {
       return getInt(ordinal);
     } else if (dataType instanceof LongType) {
