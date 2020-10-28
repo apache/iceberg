@@ -55,12 +55,7 @@ public abstract class BaseTaskWriter<ContentFileT, T> implements TaskWriter<T> {
     // clean up files created by this writer
     TaskWriterResult result = builder.build();
 
-    Tasks.foreach(result.dataFiles())
-        .throwFailureWhenFinished()
-        .noRetry()
-        .run(file -> io.deleteFile(file.path().toString()));
-
-    Tasks.foreach(result.deleteFiles())
+    Tasks.foreach(result.contentFiles())
         .throwFailureWhenFinished()
         .noRetry()
         .run(file -> io.deleteFile(file.path().toString()));
