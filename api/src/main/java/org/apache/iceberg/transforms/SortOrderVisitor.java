@@ -55,8 +55,9 @@ public interface SortOrderVisitor<T> {
    * @param <R> return type of the visitor
    * @return a list of the result produced by visiting each sort field
    */
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   static <R> List<R> visit(SortOrder sortOrder, SortOrderVisitor<R> visitor) {
-    Schema schema = sortOrder.schema();;
+    Schema schema = sortOrder.schema();
     List<R> results = Lists.newArrayListWithExpectedSize(sortOrder.fields().size());
 
     for (SortField field : sortOrder.fields()) {

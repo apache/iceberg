@@ -113,6 +113,7 @@ public interface PartitionSpecVisitor<T> {
    * @deprecated this will be removed in 0.11.0; use {@link #visit(PartitionSpec, PartitionSpecVisitor)} instead.
    */
   @Deprecated
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   static <R> List<R> visit(Schema schema, PartitionSpec spec, PartitionSpecVisitor<R> visitor) {
     List<R> results = Lists.newArrayListWithExpectedSize(spec.fields().size());
 
