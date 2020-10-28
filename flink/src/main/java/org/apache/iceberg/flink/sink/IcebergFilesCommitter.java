@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.flink.sink;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -27,8 +29,8 @@ import java.util.SortedMap;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.java.typeutils.ListTypeInfo;
+import org.apache.flink.api.common.typeinfo.PrimitiveArrayTypeInfo;
+import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.runtime.state.StateSnapshotContext;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
@@ -38,14 +40,16 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
@@ -58,6 +62,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
   private static final long serialVersionUID = 1L;
   private static final long INITIAL_CHECKPOINT_ID = -1L;
+  private static final byte[] EMPTY_MANIFEST_DATA = new byte[0];
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergFilesCommitter.class);
   private static final String FLINK_JOB_ID = "flink.job-id";
@@ -78,7 +83,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // <2, <file3>>. Snapshot for checkpoint#1 interrupted because of network/disk failure etc, while we don't expect
   // any data loss in iceberg table. So we keep the finished files <1, <file0, file1>> in memory and retry to commit
   // iceberg table when the next checkpoint happen.
-  private final NavigableMap<Long, List<DataFile>> dataFilesPerCheckpoint = Maps.newTreeMap();
+  private final NavigableMap<Long, byte[]> dataFilesPerCheckpoint = Maps.newTreeMap();
 
   // The data files cache for current checkpoint. Once the snapshot barrier received, it will be flushed to the
   // 'dataFilesPerCheckpoint'.
@@ -87,6 +92,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // It will have an unique identifier for one job.
   private transient String flinkJobId;
   private transient Table table;
+  private transient ManifestOutputFileFactory manifestOutputFileFactory;
   private transient long maxCommittedCheckpointId;
 
   // There're two cases that we restore from flink checkpoints: the first case is restoring from snapshot created by the
@@ -97,8 +103,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       "iceberg-flink-job-id", BasicTypeInfo.STRING_TYPE_INFO);
   private transient ListState<String> jobIdState;
   // All pending checkpoints states for this function.
-  private static final ListStateDescriptor<SortedMap<Long, List<DataFile>>> STATE_DESCRIPTOR = buildStateDescriptor();
-  private transient ListState<SortedMap<Long, List<DataFile>>> checkpointsState;
+  private static final ListStateDescriptor<SortedMap<Long, byte[]>> STATE_DESCRIPTOR = buildStateDescriptor();
+  private transient ListState<SortedMap<Long, byte[]>> checkpointsState;
 
   IcebergFilesCommitter(TableLoader tableLoader, boolean replacePartitions) {
     this.tableLoader = tableLoader;
@@ -113,6 +119,10 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     // Open the table loader and load the table.
     this.tableLoader.open();
     this.table = tableLoader.loadTable();
+
+    int subTaskId = getRuntimeContext().getIndexOfThisSubtask();
+    int attemptId = getRuntimeContext().getAttemptNumber();
+    this.manifestOutputFileFactory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, subTaskId, attemptId);
     this.maxCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
     this.checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
@@ -127,7 +137,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       // checkpoint id from restored flink job to the current flink job.
       this.maxCommittedCheckpointId = getMaxCommittedCheckpointId(table, restoredFlinkJobId);
 
-      NavigableMap<Long, List<DataFile>> uncommittedDataFiles = Maps
+      NavigableMap<Long, byte[]> uncommittedDataFiles = Maps
           .newTreeMap(checkpointsState.get().iterator().next())
           .tailMap(maxCommittedCheckpointId, false);
       if (!uncommittedDataFiles.isEmpty()) {
@@ -145,7 +155,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     LOG.info("Start to flush snapshot state to state backend, table: {}, checkpointId: {}", table, checkpointId);
 
     // Update the checkpoint state.
-    dataFilesPerCheckpoint.put(checkpointId, ImmutableList.copyOf(dataFilesOfCurrentCheckpoint));
+    dataFilesPerCheckpoint.put(checkpointId, writeToManifest(checkpointId));
 
     // Reset the snapshot state to the latest state.
     checkpointsState.clear();
@@ -174,14 +184,24 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     }
   }
 
-  private void commitUpToCheckpoint(NavigableMap<Long, List<DataFile>> dataFilesMap,
+  private void commitUpToCheckpoint(NavigableMap<Long, byte[]> manifestsMap,
                                     String newFlinkJobId,
-                                    long checkpointId) {
-    NavigableMap<Long, List<DataFile>> pendingFileMap = dataFilesMap.headMap(checkpointId, true);
+                                    long checkpointId) throws IOException {
+    NavigableMap<Long, byte[]> pendingManifestMap = manifestsMap.headMap(checkpointId, true);
 
+    List<ManifestFile> manifestFiles = Lists.newArrayList();
     List<DataFile> pendingDataFiles = Lists.newArrayList();
-    for (List<DataFile> dataFiles : pendingFileMap.values()) {
-      pendingDataFiles.addAll(dataFiles);
+    for (byte[] manifestData : pendingManifestMap.values()) {
+      if (Arrays.equals(EMPTY_MANIFEST_DATA, manifestData)) {
+        // Skip the empty flink manifest.
+        continue;
+      }
+
+      ManifestFile manifestFile =
+          SimpleVersionedSerialization.readVersionAndDeSerialize(FlinkManifestSerializer.INSTANCE, manifestData);
+
+      manifestFiles.add(manifestFile);
+      pendingDataFiles.addAll(FlinkManifestUtil.readDataFiles(manifestFile, table.io()));
     }
 
     if (replacePartitions) {
@@ -190,8 +210,23 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       append(pendingDataFiles, newFlinkJobId, checkpointId);
     }
 
-    // Clear the committed data files from dataFilesPerCheckpoint.
-    pendingFileMap.clear();
+    pendingManifestMap.clear();
+
+    // Delete the committed manifests and clear the committed data files from dataFilesPerCheckpoint.
+    for (ManifestFile manifestFile : manifestFiles) {
+      try {
+        table.io().deleteFile(manifestFile.path());
+      } catch (Exception e) {
+        // The flink manifests cleaning failure shouldn't abort the completed checkpoint.
+        String details = MoreObjects.toStringHelper(this)
+            .add("flinkJobId", newFlinkJobId)
+            .add("checkpointId", checkpointId)
+            .add("manifestPath", manifestFile.path())
+            .toString();
+        LOG.warn("The iceberg transaction has been committed, but we failed to clean the temporary flink manifests: {}",
+            details, e);
+      }
+    }
   }
 
   private void replacePartitions(List<DataFile> dataFiles, String newFlinkJobId, long checkpointId) {
@@ -236,12 +271,27 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   }
 
   @Override
-  public void endInput() {
+  public void endInput() throws IOException {
     // Flush the buffered data files into 'dataFilesPerCheckpoint' firstly.
-    dataFilesPerCheckpoint.put(Long.MAX_VALUE, ImmutableList.copyOf(dataFilesOfCurrentCheckpoint));
+    long currentCheckpointId = Long.MAX_VALUE;
+    dataFilesPerCheckpoint.put(currentCheckpointId, writeToManifest(currentCheckpointId));
     dataFilesOfCurrentCheckpoint.clear();
 
-    commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, Long.MAX_VALUE);
+    commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, currentCheckpointId);
+  }
+
+  /**
+   * Write all the complete data files to a newly created manifest file and return the manifest's avro serialized bytes.
+   */
+  private byte[] writeToManifest(long checkpointId) throws IOException {
+    if (dataFilesOfCurrentCheckpoint.isEmpty()) {
+      return EMPTY_MANIFEST_DATA;
+    }
+
+    OutputFile manifestOutputFile = manifestOutputFileFactory.create(checkpointId);
+    ManifestFile manifestFile =
+        FlinkManifestUtil.writeDataFiles(manifestOutputFile, table.spec(), dataFilesOfCurrentCheckpoint);
+    return SimpleVersionedSerialization.writeVersionAndSerialize(FlinkManifestSerializer.INSTANCE, manifestFile);
   }
 
   @Override
@@ -251,13 +301,11 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     }
   }
 
-  private static ListStateDescriptor<SortedMap<Long, List<DataFile>>> buildStateDescriptor() {
+  private static ListStateDescriptor<SortedMap<Long, byte[]>> buildStateDescriptor() {
     Comparator<Long> longComparator = Comparators.forType(Types.LongType.get());
-    // Construct a ListTypeInfo.
-    ListTypeInfo<DataFile> dataFileListTypeInfo = new ListTypeInfo<>(TypeInformation.of(DataFile.class));
     // Construct a SortedMapTypeInfo.
-    SortedMapTypeInfo<Long, List<DataFile>> sortedMapTypeInfo = new SortedMapTypeInfo<>(
-        BasicTypeInfo.LONG_TYPE_INFO, dataFileListTypeInfo, longComparator
+    SortedMapTypeInfo<Long, byte[]> sortedMapTypeInfo = new SortedMapTypeInfo<>(
+        BasicTypeInfo.LONG_TYPE_INFO, PrimitiveArrayTypeInfo.BYTE_PRIMITIVE_ARRAY_TYPE_INFO, longComparator
     );
     return new ListStateDescriptor<>("iceberg-files-committer-state", sortedMapTypeInfo);
   }
