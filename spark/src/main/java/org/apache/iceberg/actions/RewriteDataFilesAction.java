@@ -40,7 +40,6 @@ public class RewriteDataFilesAction
   RewriteDataFilesAction(SparkSession spark, Table table) {
     super(table);
     this.sparkContext = new JavaSparkContext(spark.sparkContext());
-    caseSensitive(Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive", "false")));
   }
 
   @Override
@@ -59,7 +58,7 @@ public class RewriteDataFilesAction
     Broadcast<FileIO> io = sparkContext.broadcast(fileIO());
     Broadcast<EncryptionManager> encryption = sparkContext.broadcast(encryptionManager());
     RowDataRewriter rowDataRewriter =
-        new RowDataRewriter(table(), table().spec(), isCaseSensitive(), io, encryption);
+        new RowDataRewriter(table(), table().spec(), caseSensitive(), io, encryption);
     return rowDataRewriter.rewriteDataForTasks(taskRDD);
   }
 }

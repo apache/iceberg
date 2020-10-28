@@ -71,6 +71,8 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     this.table = table;
     this.spec = table.spec();
     this.filter = Expressions.alwaysTrue();
+    this.caseSensitive = false;
+
     long splitSize = PropertyUtil.propertyAsLong(
         table.properties(),
         TableProperties.SPLIT_SIZE,
@@ -103,12 +105,19 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     return encryptionManager;
   }
 
-  protected void caseSensitive(boolean newCaseSensitive) {
-    this.caseSensitive = newCaseSensitive;
+  protected boolean caseSensitive() {
+    return caseSensitive;
   }
 
-  protected boolean isCaseSensitive() {
-    return caseSensitive;
+  /**
+   * Is it case sensitive
+   *
+   * @param newCaseSensitive caseSensitive
+   * @return this for method chaining
+   */
+  public BaseRewriteDataFilesAction<ThisT> caseSensitive(boolean newCaseSensitive) {
+    this.caseSensitive = newCaseSensitive;
+    return this;
   }
 
   /**
