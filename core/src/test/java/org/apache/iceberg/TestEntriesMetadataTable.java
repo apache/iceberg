@@ -19,8 +19,11 @@
 
 package org.apache.iceberg;
 
+import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -129,6 +132,36 @@ public class TestEntriesMetadataTable extends TableTestBase {
     TableScan scan = entriesTable.newScan();
 
     Assert.assertEquals(expectedSplits, Iterables.size(scan.planTasks()));
+  }
+
+  @Test
+  public void testEntriesTableWithDeleteManifests() throws Exception {
+    Assume.assumeTrue("Only V2 Tables Support Deletes", formatVersion >= 2);
+    table.newAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    table.newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .commit();
+
+    Table entriesTable = new ManifestEntriesTable(table.ops(), table);
+    TableScan scan = entriesTable.newScan();
+
+    Schema expectedSchema = ManifestEntry.getSchema(table.spec().partitionType());
+
+    assertEquals("A tableScan.select() should prune the schema",
+        expectedSchema.asStruct(),
+        scan.schema().asStruct());
+
+    List<FileScanTask> files = ImmutableList.copyOf(scan.planFiles());
+    Assert.assertEquals("Data file should be the table's manifest",
+        Iterables.getOnlyElement(table.currentSnapshot().dataManifests()).path(), files.get(0).file().path());
+    Assert.assertEquals("Should contain 2 data file records", 2, files.get(0).file().recordCount());
+    Assert.assertEquals("Delete file should be in the table manifest",
+        Iterables.getOnlyElement(table.currentSnapshot().deleteManifests()).path(), files.get(1).file().path());
+    Assert.assertEquals("Should contain 1 delete file record", 1, files.get(1).file().recordCount());
   }
 
 }
