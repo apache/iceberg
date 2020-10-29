@@ -8,4 +8,4 @@ jobs:
     - uses: actions/labeler@v2
       with:
         repo-token: "${{ secrets.GITHUB_TOKEN }}"
-        sync-labels: true  # Run this action on PR pushes / changes
+        sync-labels: true
