@@ -18,6 +18,8 @@
 #
 
 # Pull Request Labeler Github Action Configuration: https://github.com/marketplace/actions/labeler
+repo:
+  - ./*
 INFRA:
   - any:
     - .baseline/**/*
@@ -33,7 +35,6 @@ INFRA:
 BUILD:
   - any:
     - /**/*gradle*
-    # - *gradle*
     - versions.props
 DOCS:
   - any:
