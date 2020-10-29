@@ -26,6 +26,7 @@ import java.util.function.Predicate;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
@@ -144,27 +145,26 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     return newMetadataLocation.location();
   }
 
-  protected void refreshFromMetadataLocation(String newLocation) {
-    refreshFromMetadataLocation(newLocation, null, 20);
+  protected boolean refreshFromMetadataLocation(String newLocation, String previousLocation) {
+    return refreshFromMetadataLocation(newLocation, previousLocation, null, 20);
   }
 
-  protected void refreshFromMetadataLocation(String newLocation, int numRetries) {
-    refreshFromMetadataLocation(newLocation, null, numRetries);
+  protected boolean refreshFromMetadataLocation(String newLocation, String previousLocation, int numRetries) {
+    return refreshFromMetadataLocation(newLocation, previousLocation, null, numRetries);
   }
 
-  protected void refreshFromMetadataLocation(String newLocation, Predicate<Exception> shouldRetry,
-                                             int numRetries) {
+  protected boolean refreshFromMetadataLocation(
+      String newLocation, String previousLocation,
+      Predicate<Exception> shouldRetry,
+      int numRetries) {
     // use null-safe equality check because new tables have a null metadata location
+    boolean isUnavailableForCurrentLocation = false;
     if (!Objects.equal(currentMetadataLocation, newLocation)) {
       LOG.info("Refreshing table metadata from new version: {}", newLocation);
 
       AtomicReference<TableMetadata> newMetadata = new AtomicReference<>();
-      Tasks.foreach(newLocation)
-          .retry(numRetries).exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */)
-          .throwFailureWhenFinished()
-          .shouldRetryTest(shouldRetry)
-          .run(metadataLocation -> newMetadata.set(
-              TableMetadataParser.read(io(), metadataLocation)));
+      isUnavailableForCurrentLocation =
+          resolveTableMetadata(newLocation, previousLocation, shouldRetry, numRetries, newMetadata);
 
       String newUUID = newMetadata.get().uuid();
       if (currentMetadata != null && currentMetadata.uuid() != null && newUUID != null) {
@@ -177,6 +177,41 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
       this.version = parseVersion(newLocation);
     }
     this.shouldRefresh = false;
+    return isUnavailableForCurrentLocation;
+  }
+
+  private boolean resolveTableMetadata(
+      String newLocation,
+      String previousLocation,
+      Predicate<Exception> shouldRetry,
+      int numRetries, AtomicReference<TableMetadata> newMetadata) {
+    boolean isUnavailableForCurrentLocation = false;
+    try {
+      getTableMetadata(newLocation, shouldRetry, numRetries, newMetadata);
+    } catch (NotFoundException e) {
+      // if current metalocation is not found  we will try previous metalocation
+      isUnavailableForCurrentLocation = true;
+      LOG.warn(
+          "CurrentMetadataLocation {} not found ,try previousMetadataLocation{}",
+          newLocation,
+          previousLocation,
+          e);
+      getTableMetadata(previousLocation, shouldRetry, numRetries, newMetadata);
+    }
+    return isUnavailableForCurrentLocation;
+  }
+
+  private void getTableMetadata(
+          String newLocation,
+          Predicate<Exception> shouldRetry,
+          int numRetries,
+          AtomicReference<TableMetadata> newMetadata) {
+    Tasks.foreach(newLocation)
+            .retry(numRetries).exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */)
+            .throwFailureWhenFinished()
+            .shouldRetryTest(shouldRetry)
+            .run(metadataLocation -> newMetadata.set(
+                    TableMetadataParser.read(io(), metadataLocation)));
   }
 
   private String metadataFileLocation(TableMetadata metadata, String filename) {

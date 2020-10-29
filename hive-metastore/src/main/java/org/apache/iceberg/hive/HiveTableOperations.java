@@ -117,27 +117,57 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   @Override
   protected void doRefresh() {
     String metadataLocation = null;
+    String previousMetadataLocation = null;
+    Table table = null;
     try {
-      Table table = metaClients.run(client -> client.getTable(database, tableName));
+      table = metaClients.run(client -> client.getTable(database, tableName));
       validateTableIsIceberg(table, fullName);
 
       metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
-
+      previousMetadataLocation = table.getParameters().get(PREVIOUS_METADATA_LOCATION_PROP);
     } catch (NoSuchObjectException e) {
       if (currentMetadataLocation() != null) {
         throw new NoSuchTableException("No such table: %s.%s", database, tableName);
       }
-
     } catch (TException e) {
       String errMsg = String.format("Failed to get table info from metastore %s.%s", database, tableName);
       throw new RuntimeException(errMsg, e);
-
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new RuntimeException("Interrupted during refresh", e);
     }
 
-    refreshFromMetadataLocation(metadataLocation);
+    refreshAndFixNoFoundMetadataLocation(metadataLocation, previousMetadataLocation, table);
+  }
+
+  private void refreshAndFixNoFoundMetadataLocation(
+      String metadataLocation,
+      String previousMetadataLocation,
+      Table table) {
+    try {
+      // if the current metadataLocation is unavaliable ,we will replace it with previousMetadataLocation in case of
+      // both metadataLocation no found.
+      if (refreshFromMetadataLocation(metadataLocation, previousMetadataLocation) && table != null) {
+        Map<String, String> parameters = table.getParameters();
+        parameters.put(METADATA_LOCATION_PROP, previousMetadataLocation);
+        persistTable(table, true);
+      }
+    } catch (TException e) {
+      if (e.getMessage() != null && e.getMessage().contains("Table/View 'HIVE_LOCKS' does not exist")) {
+        throw new RuntimeException("Failed to acquire locks from metastore because 'HIVE_LOCKS' doesn't " +
+                "exist, this probably happened when using embedded metastore or doesn't create a " +
+                "transactional meta table. To fix this, use an alternative metastore", e);
+      }
+      throw new RuntimeException(String.format(
+              "Metastore operation failed for %s.%s,localtion %s=>%s",
+              database,
+              tableName,
+              metadataLocation,
+              metadataLocation), e);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException("Interrupted during commit", e);
+    }
   }
 
   @Override
