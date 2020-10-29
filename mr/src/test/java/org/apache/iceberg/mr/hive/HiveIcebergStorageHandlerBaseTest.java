@@ -583,39 +583,37 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   }
 
   @Test
-  public void testArrayTypeInTable() throws IOException {
+  public void testArrayOfPrimitivesInTable() throws IOException {
     Schema schema =
-            new Schema(required(1, "arrayofprimitives", Types.ListType.ofRequired(2, Types.IntegerType.get())),
-                    required(3, "arrayofarrays",
-                            Types.ListType.ofRequired(4, Types.ListType.ofRequired(5, Types.DateType.get()))),
-                    required(6, "arrayofmaps", Types.ListType
-                            .ofRequired(7, Types.MapType.ofRequired(8, 9, Types.StringType.get(),
-                                    Types.BooleanType.get()))),
-                    required(10, "arrayofstructs", Types.ListType.ofRequired(11, Types.StructType
-                            .of(required(12, "something", Types.DoubleType.get()), required(13, "someone",
-                                    Types.LongType.get()), required(14, "somewhere", Types.StringType.get())))));
-    List<Record> records = TestHelper.generateRandomRecords(schema, 1, 0L);
-    createTable("arraytable", schema, records);
-    // sanity check, fetch all rows
-    List<Object[]> allRows = shell.executeStatement("SELECT * FROM default.arraytable");
-    Assert.assertTrue("Number of rows doesn't match expected.", records.size() == allRows.size());
+            new Schema(required(1, "arrayofprimitives", Types.ListType.ofRequired(2, Types.IntegerType.get())));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "arraytable");
     // access a single element from the array
-    List<Object[]> queryResult;
     for (int i = 0; i < records.size(); i++) {
       List<?> expectedList = (List<?>) records.get(i).getField("arrayofprimitives");
       for (int j = 0; j < expectedList.size(); j++) {
-        queryResult = shell.executeStatement(
+        List<Object[]> queryResult = shell.executeStatement(
                 String.format("SELECT arrayofprimitives[%d] FROM default.arraytable " + "LIMIT 1 OFFSET %d", j, i));
         Assert.assertEquals(expectedList.get(j), queryResult.get(0)[0]);
       }
     }
+    // drop test table
+    shell.executeStatement("DROP TABLE default.arraytable");
+  }
+
+  @Test
+  public void testArrayOfArraysInTable() throws IOException {
+    Schema schema =
+            new Schema(
+                    required(1, "arrayofarrays",
+                            Types.ListType.ofRequired(2, Types.ListType.ofRequired(3, Types.DateType.get()))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "arraytable");
     // access an element from a matrix
     for (int i = 0; i < records.size(); i++) {
       List<?> expectedList = (List<?>) records.get(i).getField("arrayofarrays");
       for (int j = 0; j < expectedList.size(); j++) {
         List<?> expectedInnerList = (List<?>) expectedList.get(j);
         for (int k = 0; k < expectedInnerList.size(); k++) {
-          queryResult = shell.executeStatement(
+          List<Object[]> queryResult = shell.executeStatement(
                   String.format("SELECT arrayofarrays[%d][%d] FROM default.arraytable " + "LIMIT 1 OFFSET %d",
                           j, k, i));
           Assert.assertEquals(expectedInnerList.get(k).toString(), queryResult.get(0)[0]);
@@ -623,53 +621,65 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
       }
     }
+    // drop test table
+    shell.executeStatement("DROP TABLE default.arraytable");
+  }
+
+  @Test
+  public void testArrayOfMapsInTable() throws IOException {
+    Schema schema =
+            new Schema(required(1, "arrayofmaps", Types.ListType
+                    .ofRequired(2, Types.MapType.ofRequired(3, 4, Types.StringType.get(),
+                            Types.BooleanType.get()))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "arraytable");
     // access an element from a map in an array
     for (int i = 0; i < records.size(); i++) {
       List<?> expectedList = (List<?>) records.get(i).getField("arrayofmaps");
       for (int j = 0; j < expectedList.size(); j++) {
         Map<?, ?> expectedMap = (Map<?, ?>) expectedList.get(j);
         for (Map.Entry<?, ?> entry : expectedMap.entrySet()) {
-          queryResult = shell.executeStatement(String
+          List<Object[]> queryResult = shell.executeStatement(String
                   .format("SELECT arrayofmaps[%d][\"%s\"] FROM default.arraytable LIMIT 1 OFFSET %d", j,
                           entry.getKey(), i));
           Assert.assertEquals(entry.getValue(), queryResult.get(0)[0]);
         }
       }
     }
+    // drop test table
+    shell.executeStatement("DROP TABLE default.arraytable");
+  }
+
+  @Test
+  public void testArrayOfStructsInTable() throws IOException {
+    Schema schema =
+            new Schema(
+                    required(1, "arrayofstructs", Types.ListType.ofRequired(2, Types.StructType
+                            .of(required(3, "something", Types.DoubleType.get()), required(4, "someone",
+                                    Types.LongType.get()), required(5, "somewhere", Types.StringType.get())))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "arraytable");
     // access an element from a struct in an array
     for (int i = 0; i < records.size(); i++) {
       List<?> expectedList = (List<?>) records.get(i).getField("arrayofstructs");
       for (int j = 0; j < expectedList.size(); j++) {
-        queryResult = shell.executeStatement(String.format("SELECT arrayofstructs[%d].something, " +
-                        "arrayofstructs[%d].someone, arrayofstructs[%d].somewhere FROM default.arraytable LIMIT 1 " +
-                        "OFFSET %d", j, j, j, i));
+        List<Object[]> queryResult = shell.executeStatement(String.format("SELECT arrayofstructs[%d].something, " +
+                "arrayofstructs[%d].someone, arrayofstructs[%d].somewhere FROM default.arraytable LIMIT 1 " +
+                "OFFSET %d", j, j, j, i));
         GenericRecord genericRecord = (GenericRecord) expectedList.get(j);
         Assert.assertEquals(genericRecord.getField("something"), queryResult.get(0)[0]);
         Assert.assertEquals(genericRecord.getField("someone"), queryResult.get(0)[1]);
         Assert.assertEquals(genericRecord.getField("somewhere"), queryResult.get(0)[2]);
       }
     }
+    // drop test table
+    shell.executeStatement("DROP TABLE default.arraytable");
   }
 
   @Test
-  public void testMapTypeInTable() throws IOException {
+  public void testMapOfPrimitivesInTable() throws IOException {
     Schema schema = new Schema(
             required(1, "mapofprimitives", Types.MapType.ofRequired(2, 3, Types.StringType.get(),
-                    Types.IntegerType.get())),
-            required(4, "mapofarrays",
-                    Types.MapType.ofRequired(5, 6, Types.StringType.get(), Types.ListType.ofRequired(7,
-                            Types.DateType.get()))),
-            required(8, "mapofmaps", Types.MapType.ofRequired(9, 10, Types.StringType.get(),
-                    Types.MapType.ofRequired(11, 12, Types.StringType.get(), Types.StringType.get()))),
-            required(13, "mapofstructs", Types.MapType.ofRequired(14, 15, Types.StringType.get(),
-                    Types.StructType.of(required(16, "something", Types.DoubleType.get()),
-                            required(17, "someone", Types.LongType.get()),
-                            required(18, "somewhere", Types.StringType.get())))));
-    List<Record> records = TestHelper.generateRandomRecords(schema, 1, 0L);
-    createTable("maptable", schema, records);
-    // sanity check, fetch all rows
-    List<Object[]> allRows = shell.executeStatement("SELECT * from default.maptable");
-    Assert.assertEquals(records.size(), allRows.size());
+                    Types.IntegerType.get())));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "maptable");
     // access a single value from the map
     for (int i = 0; i < records.size(); i++) {
       Map<?, ?> expectedMap = (Map<?, ?>) records.get(i).getField("mapofprimitives");
@@ -680,6 +690,17 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         Assert.assertEquals(entry.getValue(), queryResult.get(0)[0]);
       }
     }
+    // drop test table
+    shell.executeStatement("DROP TABLE default.maptable");
+  }
+
+  @Test
+  public void testMapOfArraysInTable() throws IOException {
+    Schema schema = new Schema(
+            required(1, "mapofarrays",
+                    Types.MapType.ofRequired(2, 3, Types.StringType.get(), Types.ListType.ofRequired(4,
+                            Types.DateType.get()))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "maptable");
     // access a single element from a list in a map
     for (int i = 0; i < records.size(); i++) {
       Map<?, ?> expectedMap = (Map<?, ?>) records.get(i).getField("mapofarrays");
@@ -692,6 +713,16 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         }
       }
     }
+    // drop test table
+    shell.executeStatement("DROP TABLE default.maptable");
+  }
+
+  @Test
+  public void testMapOfMapsInTable() throws IOException {
+    Schema schema = new Schema(
+            required(1, "mapofmaps", Types.MapType.ofRequired(2, 3, Types.StringType.get(),
+                    Types.MapType.ofRequired(4, 5, Types.StringType.get(), Types.StringType.get()))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "maptable");
     // access a single element from a map in a map
     for (int i = 0; i < records.size(); i++) {
       Map<?, ?> expectedMap = (Map<?, ?>) records.get(i).getField("mapofmaps");
@@ -705,6 +736,18 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         }
       }
     }
+    // drop test table
+    shell.executeStatement("DROP TABLE default.maptable");
+  }
+
+  @Test
+  public void testMapOfStructsInTable() throws IOException {
+    Schema schema = new Schema(
+            required(1, "mapofstructs", Types.MapType.ofRequired(2, 3, Types.StringType.get(),
+                    Types.StructType.of(required(4, "something", Types.DoubleType.get()),
+                            required(5, "someone", Types.LongType.get()),
+                            required(6, "somewhere", Types.StringType.get())))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "maptable");
     // access a single element from a struct in a map
     for (int i = 0; i < records.size(); i++) {
       Map<?, ?> expectedMap = (Map<?, ?>) records.get(i).getField("mapofstructs");
@@ -718,30 +761,16 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         Assert.assertEquals(genericRecord.getField("somewhere"), queryResult.get(0)[2]);
       }
     }
+    // drop test table
+    shell.executeStatement("DROP TABLE default.maptable");
   }
 
   @Test
-  public void testStructTypeInTable() throws IOException {
+  public void testStructOfPrimitivesInTable() throws IOException {
     Schema schema = new Schema(required(1, "structofprimitives",
             Types.StructType.of(required(2, "key", Types.StringType.get()), required(3, "value",
-                    Types.IntegerType.get()))),
-            required(4, "structofarrays", Types.StructType
-                    .of(required(5, "names", Types.ListType.ofRequired(6, Types.StringType.get())),
-                            required(7, "birthdays", Types.ListType.ofRequired(8,
-                                    Types.DateType.get())))),
-            required(9, "structofmaps", Types.StructType
-                    .of(required(10, "map1", Types.MapType.ofRequired(11, 12,
-                            Types.StringType.get(), Types.StringType.get())), required(13, "map2",
-                                    Types.MapType.ofRequired(14, 15, Types.StringType.get(),
-                                            Types.IntegerType.get())))),
-            required(16, "structofstructs", Types.StructType.of(required(17, "struct1", Types.StructType
-                    .of(required(18, "key", Types.StringType.get()), required(19, "value",
-                            Types.IntegerType.get()))))));
-    List<Record> records = TestHelper.generateRandomRecords(schema, 2, 0L);
-    createTable("structtable", schema, records);
-    // sanity check, fetch all rows
-    List<Object[]> allRows = shell.executeStatement("SELECT * from default.structtable");
-    Assert.assertEquals(records.size(), allRows.size());
+                    Types.IntegerType.get()))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "structtable");
     // access a single value in a struct
     for (int i = 0; i < records.size(); i++) {
       GenericRecord expectedStruct = (GenericRecord) records.get(i).getField("structofprimitives");
@@ -750,6 +779,18 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       Assert.assertEquals(expectedStruct.getField("key"), queryResult.get(0)[0]);
       Assert.assertEquals(expectedStruct.getField("value"), queryResult.get(0)[1]);
     }
+    // drop test table
+    shell.executeStatement("DROP TABLE default.structtable");
+  }
+
+  @Test
+  public void testStructOfArraysInTable() throws IOException {
+    Schema schema = new Schema(
+            required(1, "structofarrays", Types.StructType
+                    .of(required(2, "names", Types.ListType.ofRequired(3, Types.StringType.get())),
+                            required(4, "birthdays", Types.ListType.ofRequired(5,
+                                    Types.DateType.get())))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "structtable");
     // access an element of an array inside a struct
     for (int i = 0; i < records.size(); i++) {
       GenericRecord expectedStruct = (GenericRecord) records.get(i).getField("structofarrays");
@@ -766,6 +807,19 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         Assert.assertEquals(expectedList.get(j).toString(), queryResult.get(0)[0]);
       }
     }
+    // drop test table
+    shell.executeStatement("DROP TABLE default.structtable");
+  }
+
+  @Test
+  public void testStructOfMapsInTable() throws IOException {
+    Schema schema = new Schema(
+            required(1, "structofmaps", Types.StructType
+                    .of(required(2, "map1", Types.MapType.ofRequired(3, 4,
+                            Types.StringType.get(), Types.StringType.get())), required(5, "map2",
+                            Types.MapType.ofRequired(6, 7, Types.StringType.get(),
+                                    Types.IntegerType.get())))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "structtable");
     // access a map entry inside a struct
     for (int i = 0; i < records.size(); i++) {
       GenericRecord expectedStruct = (GenericRecord) records.get(i).getField("structofmaps");
@@ -784,6 +838,17 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         Assert.assertEquals(entry.getValue(), queryResult.get(0)[0]);
       }
     }
+    // drop test table
+    shell.executeStatement("DROP TABLE default.structtable");
+  }
+
+  @Test
+  public void testStructOfStructsInTable() throws IOException {
+    Schema schema = new Schema(
+            required(1, "structofstructs", Types.StructType.of(required(2, "struct1", Types.StructType
+                    .of(required(3, "key", Types.StringType.get()), required(4, "value",
+                            Types.IntegerType.get()))))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "structtable");
     // access a struct element inside a struct
     for (int i = 0; i < records.size(); i++) {
       GenericRecord expectedStruct = (GenericRecord) records.get(i).getField("structofstructs");
@@ -793,8 +858,9 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
                       "LIMIT 1 OFFSET %d", i));
       Assert.assertEquals(expectedInnerStruct.getField("key"), queryResult.get(0)[0]);
       Assert.assertEquals(expectedInnerStruct.getField("value"), queryResult.get(0)[1]);
-
     }
+    // drop test table
+    shell.executeStatement("DROP TABLE default.structtable");
   }
 
   protected void createTable(String tableName, Schema schema, List<Record> records)
@@ -827,5 +893,15 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   protected String locationForCreateTable(String tempDirName, String tableName) {
     return null;
+  }
+
+  private List<Record> createTableWithGeneratedRecords(Schema schema, int numRecords, long seed, String tableName)
+          throws IOException {
+    List<Record> records = TestHelper.generateRandomRecords(schema, numRecords, seed);
+    createTable(tableName, schema, records);
+    // sanity check, fetch all rows
+    List<Object[]> allRows = shell.executeStatement("SELECT * from default." + tableName);
+    Assert.assertEquals("Number of rows doesn't match expected.", records.size(), allRows.size());
+    return records;
   }
 }
