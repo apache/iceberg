@@ -255,7 +255,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
 
   private static void validateReplacedPartitions(TableMetadata meta, Long parentId,
                                                  PartitionSet replacedPartitions) {
-    if (replacedPartitions != null) {
+    if (replacedPartitions != null && meta.currentSnapshot() != null) {
       ValidationException.check(parentId == null || isCurrentAncestor(meta, parentId),
           "Cannot cherry-pick overwrite, based on non-ancestor of the current state: %s", parentId);
       List<DataFile> newFiles = SnapshotUtil.newFiles(parentId, meta.currentSnapshot().snapshotId(), meta::snapshot);
