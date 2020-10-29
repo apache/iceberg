@@ -31,6 +31,9 @@ INFRA:
 BUILD:
   - "**/*gradle*"
   - versions.props
+LICENSE:
+  - "**/*LICENSE*"
+  - "**/*NOTICE*"
 DOCS:
   - site/**/*
   - CHANGELOG.md
