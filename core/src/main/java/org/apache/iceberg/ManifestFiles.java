@@ -22,6 +22,8 @@ package org.apache.iceberg;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.ManifestReader.FileType;
+import org.apache.iceberg.avro.AvroEncoderUtil;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
@@ -29,10 +31,17 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class ManifestFiles {
   private ManifestFiles() {
   }
+
+  private static final org.apache.avro.Schema MANIFEST_AVRO_SCHEMA = AvroSchemaUtil.convert(ManifestFile.schema(),
+      ImmutableMap.of(
+          ManifestFile.schema().asStruct(), GenericManifestFile.class.getName(),
+          ManifestFile.PARTITION_SUMMARY_TYPE, GenericPartitionFieldSummary.class.getName()
+      ));
 
   /**
    * Returns a {@link CloseableIterable} of file paths in the {@link ManifestFile}.
@@ -147,6 +156,29 @@ public class ManifestFiles {
         return new ManifestWriter.V2DeleteWriter(spec, outputFile, snapshotId);
     }
     throw new UnsupportedOperationException("Cannot write manifest for table version: " + formatVersion);
+  }
+
+  /**
+   * Encode the {@link ManifestFile} to a byte array by using avro encoder.
+   *
+   * @param manifestFile a {@link ManifestFile}, which should always be a {@link GenericManifestFile}.
+   * @return the binary data.
+   * @throws IOException if encounter any IO error when encoding.
+   */
+  public static byte[] encode(ManifestFile manifestFile) throws IOException {
+    GenericManifestFile genericManifestFile = (GenericManifestFile) manifestFile;
+    return AvroEncoderUtil.encode(genericManifestFile, MANIFEST_AVRO_SCHEMA);
+  }
+
+  /**
+   * Decode the binary data into a {@link ManifestFile}.
+   *
+   * @param manifestData the binary data.
+   * @return a {@link ManifestFile}. To be precise, it's a {@link GenericManifestFile} which don't expose to public.
+   * @throws IOException if encounter any IO error when decoding.
+   */
+  public static ManifestFile decode(byte[] manifestData) throws IOException {
+    return AvroEncoderUtil.decode(manifestData);
   }
 
   static ManifestReader<?> open(ManifestFile manifest, FileIO io) {

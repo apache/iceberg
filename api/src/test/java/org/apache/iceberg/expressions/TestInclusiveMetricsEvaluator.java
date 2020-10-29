@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.expressions;
 
+import java.util.List;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
@@ -26,6 +27,7 @@ import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.TestHelpers.TestDataFile;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.StringType;
@@ -484,6 +486,14 @@ public class TestInclusiveMetricsEvaluator {
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA,
         in("no_nulls", "abc", "def")).eval(FILE);
     Assert.assertTrue("Should read: in on no nulls column", shouldRead);
+
+    // should read as the number of elements in the in expression is too big
+    List<Integer> ids = Lists.newArrayListWithExpectedSize(400);
+    for (int id = -400; id <= 0; id++) {
+      ids.add(id);
+    }
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, in("id", ids)).eval(FILE);
+    Assert.assertTrue("Should read: large in expression", shouldRead);
   }
 
   @Test

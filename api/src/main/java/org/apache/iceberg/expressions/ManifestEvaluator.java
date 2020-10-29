@@ -48,6 +48,8 @@ import static org.apache.iceberg.expressions.Expressions.rewriteNot;
  * return value of {@code eval} is false.
  */
 public class ManifestEvaluator {
+  private static final int IN_PREDICATE_LIMIT = 200;
+
   private final StructType struct;
   private final Expression expr;
 
@@ -251,6 +253,11 @@ public class ManifestEvaluator {
       }
 
       Collection<T> literals = literalSet;
+
+      if (literals.size() > IN_PREDICATE_LIMIT) {
+        // skip evaluating the predicate if the number of values is too big
+        return ROWS_MIGHT_MATCH;
+      }
 
       T lower = Conversions.fromByteBuffer(ref.type(), fieldStats.lowerBound());
       literals = literals.stream().filter(v -> ref.comparator().compare(lower, v) <= 0).collect(Collectors.toList());

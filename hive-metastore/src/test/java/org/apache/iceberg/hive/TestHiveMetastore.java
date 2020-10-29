@@ -68,6 +68,17 @@ public class TestHiveMetastore {
           .impl(RetryingHMSHandler.class, HiveConf.class, IHMSHandler.class, boolean.class)
           .buildStatic();
 
+  // Hive3 introduces background metastore tasks (MetastoreTaskThread) for performing various cleanup duties. These
+  // threads are scheduled and executed in a static thread pool (org.apache.hadoop.hive.metastore.ThreadPool).
+  // This thread pool is shut down normally as part of the JVM shutdown hook, but since we're creating and tearing down
+  // multiple metastore instances within the same JVM, we have to call this cleanup method manually, otherwise
+  // threads from our previous test suite will be stuck in the pool with stale config, and keep on being scheduled.
+  // This can lead to issues, e.g. accidental Persistence Manager closure by ScheduledQueryExecutionsMaintTask.
+  private static final DynMethods.StaticMethod METASTORE_THREADS_SHUTDOWN = DynMethods.builder("shutdown")
+          .impl("org.apache.hadoop.hive.metastore.ThreadPool")
+          .orNoop()
+          .buildStatic();
+
   private File hiveLocalDir;
   private HiveConf hiveConf;
   private ExecutorService executorService;
@@ -125,6 +136,7 @@ public class TestHiveMetastore {
     if (baseHandler != null) {
       baseHandler.shutdown();
     }
+    METASTORE_THREADS_SHUTDOWN.invoke();
   }
 
   public HiveConf hiveConf() {
