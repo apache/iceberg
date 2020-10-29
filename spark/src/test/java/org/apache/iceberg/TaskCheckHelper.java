@@ -26,6 +26,7 @@ import org.junit.Assert;
 
 public final class TaskCheckHelper {
   private TaskCheckHelper() {
+
   }
 
   public static void assertEquals(BaseCombinedScanTask expected, BaseCombinedScanTask actual) {
