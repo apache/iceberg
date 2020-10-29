@@ -294,10 +294,19 @@ public class HadoopTableOperations implements TableOperations {
     Path versionHintFile = versionHintFile();
     FileSystem fs = getFileSystem(versionHintFile, conf);
 
-    try (FSDataOutputStream out = fs.create(versionHintFile, true /* overwrite */)) {
-      out.write(String.valueOf(versionToWrite).getBytes(StandardCharsets.UTF_8));
+    try {
+      Path tempVersionHintFile = metadataPath(UUID.randomUUID().toString() + "-version-hint.temp");
+      writeVersionToPath(fs, tempVersionHintFile, versionToWrite);
+      fs.delete(versionHintFile, false /* recursive delete */);
+      fs.rename(tempVersionHintFile, versionHintFile);
     } catch (IOException e) {
       LOG.warn("Failed to update version hint", e);
+    }
+  }
+
+  private void writeVersionToPath(FileSystem fs, Path path, int versionToWrite) throws IOException {
+    try (FSDataOutputStream out = fs.create(path, false /* overwrite */)) {
+      out.write(String.valueOf(versionToWrite).getBytes(StandardCharsets.UTF_8));
     }
   }
 
