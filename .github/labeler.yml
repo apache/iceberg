@@ -35,3 +35,65 @@ BUILD:
     - /**/*gradle*
     # - *gradle*
     - versions.props
+DOCS:
+  - any:
+    - /site
+    - **CHANGELOG.md
+    - **README.md
+LICENSE:
+  - any:
+    - "**LICENSE"
+    - "**NOTICE"
+EXAMPLES:
+  - any:
+    - /examples/*
+    - /examples/**/*
+COMMON:
+  - any:
+    - /common/*
+    - /common/**/*
+API:
+  - any:
+    - /api/**/*
+CORE:
+  - any:
+    - /core/**/*
+PYTHON:
+  - any:
+    - /python/**/*
+PARQUET:
+  - any:
+    - /parquet/**/*
+ARROW:
+  - any:
+    - /arrow/**/*
+ORC:
+  - any:
+    - /orc/**/*
+HIVE:
+  - any:
+    - /hive3/**/*
+    - /hive-metastore/**/*
+    - /hive-runtime/**/*
+DATA:
+  - any:
+    - /data/**/*
+SPARK:
+  - any:
+    - /spark-runtime/**/*
+    - /spark3-runtime/**/*
+    - /spark/**/*
+    - /spark2/**/*
+    - /spark3/**/*
+FLINK:
+  - any:
+    - /flink-runtime/**/*
+    - /flink/**/*
+MR:
+  - any:
+    - /mr/**/*
+PIG:
+  - any:
+    - /pig/**/*
+
+
