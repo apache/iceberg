@@ -31,7 +31,6 @@ import org.apache.spark.sql.functions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestPartitionedWrites extends SparkCatalogTestBase {
@@ -69,7 +68,7 @@ public class TestPartitionedWrites extends SparkCatalogTestBase {
     assertEquals("Row data should match expected", expected, sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Ignore // broken because of SPARK-32168, which should be fixed in 3.0.1
+  @Test
   public void testInsertOverwrite() {
     Assert.assertEquals("Should have 3 rows", 3L, scalarSql("SELECT count(*) FROM %s", tableName));
 
