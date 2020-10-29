@@ -29,53 +29,45 @@ INFRA:
   - .github/**/*
   - dev/**/*
 BUILD:
-  - "**/*gradle*"
-  - "*gradle*"
   - versions.props
 DOCS:
-  - /site/**/*
+  - site/**/*
   - CHANGELOG.md
   - README.md
-LICENSE:
-    - "**LICENSE"
-    - "**NOTICE"
 EXAMPLES:
-  - /examples/*
-  - /examples/**/*
+  - examples/*
+  - examples/**/*
 COMMON:
-  - /common/*
-  - /common/**/*
+  - common/*
+  - common/**/*
 API:
-  - any:
-    - /api/**/*
+  - api/**/*
 CORE:
-  - /core/**/*
+  - core/**/*
 PYTHON:
-  - /python/**/*
+  - python/**/*
 PARQUET:
-  - /parquet/**/*
+  - parquet/**/*
 ARROW:
-  - /arrow/**/*
+  - arrow/**/*
 ORC:
-  - /orc/**/*
+  - orc/**/*
 HIVE:
-  - /hive3/**/*
-  - /hive-metastore/**/*
-  - /hive-runtime/**/*
+  - hive3/**/*
+  - hive-metastore/**/*
+  - hive-runtime/**/*
 DATA:
-  - /data/**/*
+  - data/**/*
 SPARK:
-  - /spark-runtime/**/*
-  - /spark3-runtime/**/*
-  - /spark/**/*
-  - /spark2/**/*
-  - /spark3/**/*
+  - spark-runtime/**/*
+  - spark3-runtime/**/*
+  - spark/**/*
+  - spark2/**/*
+  - spark3/**/*
 FLINK:
-  - /flink-runtime/**/*
-  - /flink/**/*
+  - flink-runtime/**/*
+  - flink/**/*
 MR:
-  - /mr/**/*
+  - mr/**/*
 PIG:
-  - /pig/**/*
-
-
+  - pig/**/*
