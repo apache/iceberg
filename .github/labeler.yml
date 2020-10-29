@@ -33,5 +33,5 @@ INFRA:
 BUILD:
   - any:
     - /**/*gradle*
-    - *gradle*
-  - versions.props
+    # - *gradle*
+    - versions.props
