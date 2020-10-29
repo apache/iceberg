@@ -29,13 +29,12 @@ INFRA:
   - .github/**/*
   - dev/**/*
 BUILD:
-  - "*gradle*"
   - "**/*gradle*"
   - versions.props
 DOCS:
   - site/**/*
-  - CHANGELOG.md
-  - README.md
+  - "**/*CHANGELOG.md"
+  - "**/*README.md"
 EXAMPLES:
   - examples/**/*
 COMMON:
