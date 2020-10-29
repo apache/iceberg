@@ -36,7 +36,7 @@ buildscript {
 }
 
 plugins {
-  id 'com.palantir.git-version' version '0.12.3'
+  id 'com.palantir.git-version' version '0.9.1'
   id 'nebula.dependency-recommender' version '9.0.2'
 }
 
