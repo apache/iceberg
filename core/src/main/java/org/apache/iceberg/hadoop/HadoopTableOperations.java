@@ -305,7 +305,7 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   private void writeVersionToPath(FileSystem fs, Path path, int versionToWrite) throws IOException {
-    try (FSDataOutputStream out = fs.create(path, false)) {
+    try (FSDataOutputStream out = fs.create(path, false /* overwrite */)) {
       out.write(String.valueOf(versionToWrite).getBytes(StandardCharsets.UTF_8));
     }
   }
