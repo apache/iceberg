@@ -29,6 +29,7 @@ buildscript {
   dependencies {
     classpath 'com.github.jengelman.gradle.plugins:shadow:5.0.0'
     classpath 'com.palantir.baseline:gradle-baseline-java:3.36.2'
+    classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.12.3'
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:3.14.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:2.1.0'
     classpath 'me.champeau.gradle:jmh-gradle-plugin:0.4.8'
@@ -36,8 +37,14 @@ buildscript {
 }
 
 plugins {
-  id 'com.palantir.git-version' version '0.9.1'
   id 'nebula.dependency-recommender' version '9.0.2'
+}
+
+try {
+  // apply this plugin in a try-catch block so that we can handle cases without .git directory
+  apply plugin: 'com.palantir.git-version'
+} catch (Exception e) {
+  project.logger.error(e.getMessage())
 }
 
 if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
