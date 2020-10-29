@@ -30,6 +30,7 @@ INFRA:
   - dev/**/*
 BUILD:
   - "*gradle*"
+  - "**/*gradle*"
   - versions.props
 DOCS:
   - site/**/*
