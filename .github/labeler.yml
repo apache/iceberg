@@ -25,19 +25,15 @@ INFRA:
   - deploy.gradle
   - jitpack.yml
   - travis.yml
-  - .baseline/**/*
-  - .github/**/*
-  - dev/**/*
+  - /.baseline/**/*
+  - /.github/**/*
+  - /dev/**/*
 BUILD:
-  - "*gradle*"
   - versions.props
 DOCS:
   - /site/**/*
   - CHANGELOG.md
   - README.md
-LICENSE:
-    - "**LICENSE"
-    - "**NOTICE"
 EXAMPLES:
   - /examples/*
   - /examples/**/*
