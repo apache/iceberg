@@ -17,6 +17,65 @@
 # under the License.
 #
 # Pull Request Labeler Github Action Configuration: https://github.com/marketplace/actions/labeler
-repo:
-  - "*"
+INFRA:
+  - .asf.yaml
+  - .gitattributes
+  - .gitignore
+  - baseline.gradle
+  - deploy.gradle
+  - jitpack.yml
+  - travis.yml
+  - .baseline/**/*
+  - .github/**/*
+  - dev/**/*
+BUILD:
+  - "**/*gradle*"
+  - "*gradle*"
+  - versions.props
+DOCS:
+  - /site/**/*
+  - CHANGELOG.md
+  - README.md
+LICENSE:
+    - "**LICENSE"
+    - "**NOTICE"
+EXAMPLES:
+  - /examples/*
+  - /examples/**/*
+COMMON:
+  - /common/*
+  - /common/**/*
+API:
+  - any:
+    - /api/**/*
+CORE:
+  - /core/**/*
+PYTHON:
+  - /python/**/*
+PARQUET:
+  - /parquet/**/*
+ARROW:
+  - /arrow/**/*
+ORC:
+  - /orc/**/*
+HIVE:
+  - /hive3/**/*
+  - /hive-metastore/**/*
+  - /hive-runtime/**/*
+DATA:
+  - /data/**/*
+SPARK:
+  - /spark-runtime/**/*
+  - /spark3-runtime/**/*
+  - /spark/**/*
+  - /spark2/**/*
+  - /spark3/**/*
+FLINK:
+  - /flink-runtime/**/*
+  - /flink/**/*
+MR:
+  - /mr/**/*
+PIG:
+  - /pig/**/*
+
 
