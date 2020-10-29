@@ -29,6 +29,7 @@ INFRA:
   - .github/**/*
   - dev/**/*
 BUILD:
+  - "*gradle*"
   - versions.props
 DOCS:
   - site/**/*
