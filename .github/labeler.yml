@@ -37,9 +37,9 @@ BUILD:
     - versions.props
 DOCS:
   - any:
-    - /site
-    - **CHANGELOG.md
-    - **README.md
+    - /site/**/*
+    - "**CHANGELOG.md"
+    - "**README.md"
 LICENSE:
   - any:
     - "**LICENSE"
