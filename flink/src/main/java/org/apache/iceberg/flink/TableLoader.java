@@ -34,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
  * Serializable loader to load an Iceberg {@link Table}.
  * Flink needs to get {@link Table} objects in the cluster (for example, to get splits), not just on the client side.
  * So we need an Iceberg table loader to get the {@link Table} object.
+ * Unnecessary Commit to trigger labeler check!
  */
 public interface TableLoader extends Closeable, Serializable {
 
