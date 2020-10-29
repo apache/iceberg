@@ -20,7 +20,7 @@
 # Pull Request Labeler Github Action Configuration: https://github.com/marketplace/actions/labeler
 INFRA:
   - any:
-    - .baseline/**/*  # Any file in the .baseline directory or subdirectory
+    - .baseline/**/*
     - .github/**/*
     - dev/**/*
     - .asf.yaml
