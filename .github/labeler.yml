@@ -35,10 +35,8 @@ DOCS:
   - CHANGELOG.md
   - README.md
 EXAMPLES:
-  - examples/*
   - examples/**/*
 COMMON:
-  - common/*
   - common/**/*
 API:
   - api/**/*
