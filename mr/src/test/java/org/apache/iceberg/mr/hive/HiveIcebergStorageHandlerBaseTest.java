@@ -596,8 +596,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         Assert.assertEquals(expectedList.get(j), queryResult.get(0)[0]);
       }
     }
-    // drop test table
-    shell.executeStatement("DROP TABLE default.arraytable");
   }
 
   @Test
@@ -621,8 +619,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
       }
     }
-    // drop test table
-    shell.executeStatement("DROP TABLE default.arraytable");
   }
 
   @Test
@@ -645,8 +641,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         }
       }
     }
-    // drop test table
-    shell.executeStatement("DROP TABLE default.arraytable");
   }
 
   @Test
@@ -670,8 +664,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         Assert.assertEquals(genericRecord.getField("somewhere"), queryResult.get(0)[2]);
       }
     }
-    // drop test table
-    shell.executeStatement("DROP TABLE default.arraytable");
   }
 
   @Test
@@ -690,8 +682,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         Assert.assertEquals(entry.getValue(), queryResult.get(0)[0]);
       }
     }
-    // drop test table
-    shell.executeStatement("DROP TABLE default.maptable");
   }
 
   @Test
@@ -713,8 +703,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         }
       }
     }
-    // drop test table
-    shell.executeStatement("DROP TABLE default.maptable");
   }
 
   @Test
@@ -736,8 +724,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         }
       }
     }
-    // drop test table
-    shell.executeStatement("DROP TABLE default.maptable");
   }
 
   @Test
@@ -761,8 +747,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         Assert.assertEquals(genericRecord.getField("somewhere"), queryResult.get(0)[2]);
       }
     }
-    // drop test table
-    shell.executeStatement("DROP TABLE default.maptable");
   }
 
   @Test
@@ -779,8 +763,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       Assert.assertEquals(expectedStruct.getField("key"), queryResult.get(0)[0]);
       Assert.assertEquals(expectedStruct.getField("value"), queryResult.get(0)[1]);
     }
-    // drop test table
-    shell.executeStatement("DROP TABLE default.structtable");
   }
 
   @Test
@@ -807,8 +789,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         Assert.assertEquals(expectedList.get(j).toString(), queryResult.get(0)[0]);
       }
     }
-    // drop test table
-    shell.executeStatement("DROP TABLE default.structtable");
   }
 
   @Test
@@ -838,8 +818,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         Assert.assertEquals(entry.getValue(), queryResult.get(0)[0]);
       }
     }
-    // drop test table
-    shell.executeStatement("DROP TABLE default.structtable");
   }
 
   @Test
@@ -859,8 +837,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       Assert.assertEquals(expectedInnerStruct.getField("key"), queryResult.get(0)[0]);
       Assert.assertEquals(expectedInnerStruct.getField("value"), queryResult.get(0)[1]);
     }
-    // drop test table
-    shell.executeStatement("DROP TABLE default.structtable");
   }
 
   protected void createTable(String tableName, Schema schema, List<Record> records)
