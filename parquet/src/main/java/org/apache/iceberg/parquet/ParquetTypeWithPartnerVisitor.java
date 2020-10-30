@@ -33,7 +33,6 @@ public abstract class ParquetTypeWithPartnerVisitor<P, T> {
   private final Deque<String> fieldNames = Lists.newLinkedList();
 
   public static <P, T> T visit(P partnerType, Type type, ParquetTypeWithPartnerVisitor<P, T> visitor) {
-    Preconditions.checkNotNull(partnerType, "partner type cannot be null");
     if (type instanceof MessageType) {
       return visitor.message(partnerType, (MessageType) type, visitFields(partnerType, type.asGroupType(), visitor));
     } else if (type.isPrimitive()) {
