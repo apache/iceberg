@@ -29,9 +29,7 @@ import org.apache.flink.table.data.MapData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
-import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.LogicalType;
-import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.SmallIntType;
 import org.apache.flink.table.types.logical.TinyIntType;
 import org.apache.iceberg.parquet.ParquetValueReaders;
@@ -95,7 +93,7 @@ public class FlinkParquetWriters {
 
       return new ArrayDataWriter<>(repeatedD, repeatedR,
           newOption(repeated.getType(0), elementWriter),
-          ((ArrayType) fArray).getElementType());
+          arrayElementType(fArray));
     }
 
     @Override
@@ -110,9 +108,8 @@ public class FlinkParquetWriters {
       return new MapDataWriter<>(repeatedD, repeatedR,
           newOption(repeatedKeyValue.getType(0), keyWriter),
           newOption(repeatedKeyValue.getType(1), valueWriter),
-          ((MapType) fMap).getKeyType(), ((MapType) fMap).getValueType());
+          mapKeyType(fMap), mapValueType(fMap));
     }
-
 
     private ParquetValueWriter<?> newOption(org.apache.parquet.schema.Type fieldType, ParquetValueWriter<?> writer) {
       int maxD = type.getMaxDefinitionLevel(path(fieldType.getName()));

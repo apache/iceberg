@@ -43,11 +43,9 @@ import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
-import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
-import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
@@ -100,7 +98,7 @@ public class SparkParquetWriters {
 
       return new ArrayDataWriter<>(repeatedD, repeatedR,
           newOption(repeated.getType(0), elementWriter),
-          ((ArrayType) sArray).elementType());
+          arrayElementType(sArray));
     }
 
     @Override
@@ -115,7 +113,7 @@ public class SparkParquetWriters {
       return new MapDataWriter<>(repeatedD, repeatedR,
           newOption(repeatedKeyValue.getType(0), keyWriter),
           newOption(repeatedKeyValue.getType(1), valueWriter),
-          ((MapType) sMap).keyType(), ((MapType) sMap).valueType());
+          mapKeyType(sMap), mapValueType(sMap));
     }
 
     private ParquetValueWriter<?> newOption(org.apache.parquet.schema.Type fieldType, ParquetValueWriter<?> writer) {
