@@ -23,7 +23,6 @@ import java.util.Deque;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.util.Pair;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.OriginalType;
@@ -34,6 +33,7 @@ public abstract class ParquetTypeWithPartnerVisitor<P, T> {
   private final Deque<String> fieldNames = Lists.newLinkedList();
 
   public static <P, T> T visit(P partnerType, Type type, ParquetTypeWithPartnerVisitor<P, T> visitor) {
+    Preconditions.checkNotNull(partnerType, "partner type cannot be null");
     if (type instanceof MessageType) {
       return visitor.message(partnerType, (MessageType) type, visitFields(partnerType, type.asGroupType(), visitor));
     } else if (type.isPrimitive()) {
@@ -157,12 +157,7 @@ public abstract class ParquetTypeWithPartnerVisitor<P, T> {
       Type field = group.getFields().get(i);
       visitor.beforeField(field);
       Integer fieldId = field.getId() == null ? null : field.getId().intValue();
-      Pair<String, P> filedNameAndType = visitor.fieldNameAndType(struct, i, fieldId);
-      if (filedNameAndType != null) {
-        results.add(visit(filedNameAndType.second(), field, visitor));
-      } else {
-        results.add(visit(null, field, visitor));
-      }
+      results.add(visit(visitor.fieldType(struct, i, fieldId), field, visitor));
       visitor.afterField(field);
     }
 
@@ -172,7 +167,7 @@ public abstract class ParquetTypeWithPartnerVisitor<P, T> {
   protected abstract P arrayElementType(P arrayType);
   protected abstract P mapKeyType(P mapType);
   protected abstract P mapValueType(P mapType);
-  protected abstract Pair<String, P> fieldNameAndType(P structType, int pos, Integer fieldId);
+  protected abstract P fieldType(P structType, int pos, Integer parquetFieldId);
 
   public T message(P struct, MessageType message, List<T> fields) {
     return null;

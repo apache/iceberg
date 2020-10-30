@@ -21,7 +21,6 @@ package org.apache.iceberg.parquet;
 
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.Pair;
 
 /**
  * Visitor for traversing a Parquet type with a companion Iceberg type.
@@ -58,18 +57,12 @@ public class TypeWithSchemaVisitor<T> extends ParquetTypeWithPartnerVisitor<Type
   }
 
   @Override
-  protected Pair<String, Type> fieldNameAndType(Type structType, int pos, Integer fieldId) {
+  protected Type fieldType(Type structType, int pos, Integer fieldId) {
     if (structType == null || fieldId == null) {
       return null;
     }
 
-    Types.StructType struct = structType.asStructType();
-    if (struct.field(fieldId) == null) {
-      return null;
-    }
-
-    Type type = struct.field(fieldId).type();
-    String name = struct.field(fieldId).name();
-    return Pair.of(name, type);
+    Types.NestedField field = structType.asStructType().field(fieldId);
+    return field == null ? null : field.type();
   }
 }

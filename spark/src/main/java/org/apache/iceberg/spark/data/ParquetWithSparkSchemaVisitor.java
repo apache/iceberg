@@ -20,7 +20,6 @@
 package org.apache.iceberg.spark.data;
 
 import org.apache.iceberg.parquet.ParquetTypeWithPartnerVisitor;
-import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.MapType;
@@ -61,13 +60,11 @@ public class ParquetWithSparkSchemaVisitor<T> extends ParquetTypeWithPartnerVisi
   }
 
   @Override
-  protected Pair<String, DataType> fieldNameAndType(DataType structType, int pos, Integer fieldId) {
+  protected DataType fieldType(DataType structType, int pos, Integer fieldId) {
     if (structType == null || ((StructType) structType).size() <  pos + 1) {
       return null;
     }
 
-    DataType type = ((StructType) structType).apply(pos).dataType();
-    String name = ((StructType) structType).apply(pos).name();
-    return Pair.of(name, type);
+    return ((StructType) structType).apply(pos).dataType();
   }
 }

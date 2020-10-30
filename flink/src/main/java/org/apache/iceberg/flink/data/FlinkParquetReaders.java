@@ -82,11 +82,7 @@ public class FlinkParquetReaders {
     @Override
     public ParquetValueReader<RowData> message(org.apache.iceberg.types.Type expected, MessageType message,
                                                List<ParquetValueReader<?>> fieldReaders) {
-      if (expected == null) {
-        return struct(null, message.asGroupType(), fieldReaders);
-      } else {
-        return struct(expected.asStructType(), message.asGroupType(), fieldReaders);
-      }
+      return struct(expected == null ? null : expected.asStructType(), message.asGroupType(), fieldReaders);
     }
 
     @Override

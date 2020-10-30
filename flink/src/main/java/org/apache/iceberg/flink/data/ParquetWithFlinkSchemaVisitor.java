@@ -24,7 +24,6 @@ import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.parquet.ParquetTypeWithPartnerVisitor;
-import org.apache.iceberg.util.Pair;
 
 public class ParquetWithFlinkSchemaVisitor<T> extends ParquetTypeWithPartnerVisitor<LogicalType, T> {
 
@@ -56,14 +55,12 @@ public class ParquetWithFlinkSchemaVisitor<T> extends ParquetTypeWithPartnerVisi
   }
 
   @Override
-  protected Pair<String, LogicalType> fieldNameAndType(LogicalType structType, int pos, Integer fieldId) {
+  protected LogicalType fieldType(LogicalType structType, int pos, Integer fieldId) {
     if (structType == null || ((RowType) structType).getFieldCount() < pos + 1) {
       return null;
     }
 
-    LogicalType type = ((RowType) structType).getTypeAt(pos);
-    String name = ((RowType) structType).getFieldNames().get(pos);
-    return Pair.of(name, type);
+    return ((RowType) structType).getTypeAt(pos);
   }
 
 }

@@ -32,8 +32,6 @@ import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.MapType;
-import org.apache.flink.table.types.logical.RowType;
-import org.apache.flink.table.types.logical.RowType.RowField;
 import org.apache.flink.table.types.logical.SmallIntType;
 import org.apache.flink.table.types.logical.TinyIntType;
 import org.apache.iceberg.parquet.ParquetValueReaders;
@@ -76,12 +74,12 @@ public class FlinkParquetWriters {
     public ParquetValueWriter<?> struct(LogicalType fStruct, GroupType struct,
                                         List<ParquetValueWriter<?>> fieldWriters) {
       List<Type> fields = struct.getFields();
-      List<RowField> flinkFields = ((RowType) fStruct).getFields();
+      List<LogicalType> flinkFields = fStruct.getChildren();
       List<ParquetValueWriter<?>> writers = Lists.newArrayListWithExpectedSize(fieldWriters.size());
       List<LogicalType> flinkTypes = Lists.newArrayList();
       for (int i = 0; i < fields.size(); i += 1) {
         writers.add(newOption(struct.getType(i), fieldWriters.get(i)));
-        flinkTypes.add(flinkFields.get(i).getType());
+        flinkTypes.add(flinkFields.get(i));
       }
 
       return new RowDataWriter(writers, flinkTypes);
