@@ -140,9 +140,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     refreshAndFixNoFoundMetadataLocation(metadataLocation, previousMetadataLocation, table);
   }
 
-  private void refreshAndFixNoFoundMetadataLocation(
-      String metadataLocation,
-      String previousMetadataLocation,
+  private void refreshAndFixNoFoundMetadataLocation(String metadataLocation, String previousMetadataLocation,
       Table table) {
     try {
       // if the current metadataLocation is unavaliable ,we will replace it with previousMetadataLocation in case of

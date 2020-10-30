@@ -146,17 +146,17 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   }
 
   protected boolean refreshFromMetadataLocation(String newLocation, String previousLocation) {
-    return refreshFromMetadataLocation(newLocation, previousLocation, null, 20);
+    return refreshFromMetadataLocation(newLocation, previousLocation, e -> !(e instanceof NotFoundException),
+            20);
   }
 
   protected boolean refreshFromMetadataLocation(String newLocation, String previousLocation, int numRetries) {
-    return refreshFromMetadataLocation(newLocation, previousLocation, null, numRetries);
+    return refreshFromMetadataLocation(newLocation, previousLocation, e -> !(e instanceof NotFoundException),
+            numRetries);
   }
 
-  protected boolean refreshFromMetadataLocation(
-      String newLocation, String previousLocation,
-      Predicate<Exception> shouldRetry,
-      int numRetries) {
+  protected boolean refreshFromMetadataLocation(String newLocation, String previousLocation,
+                                                Predicate<Exception> shouldRetry, int numRetries) {
     // use null-safe equality check because new tables have a null metadata location
     boolean isUnavailableForCurrentLocation = false;
     if (!Objects.equal(currentMetadataLocation, newLocation)) {
@@ -180,11 +180,8 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     return isUnavailableForCurrentLocation;
   }
 
-  private boolean resolveTableMetadata(
-      String newLocation,
-      String previousLocation,
-      Predicate<Exception> shouldRetry,
-      int numRetries, AtomicReference<TableMetadata> newMetadata) {
+  private boolean resolveTableMetadata(String newLocation, String previousLocation, Predicate<Exception> shouldRetry,
+                                       int numRetries, AtomicReference<TableMetadata> newMetadata) {
     boolean isUnavailableForCurrentLocation = false;
     try {
       getTableMetadata(newLocation, shouldRetry, numRetries, newMetadata);
