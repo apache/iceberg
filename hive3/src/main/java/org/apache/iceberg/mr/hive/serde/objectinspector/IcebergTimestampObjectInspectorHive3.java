@@ -81,10 +81,14 @@ public abstract class IcebergTimestampObjectInspectorHive3 extends AbstractPrimi
       return null;
     }
 
-    Timestamp ts = (Timestamp) o;
-    Timestamp copy = new Timestamp(ts);
-    copy.setNanos(ts.getNanos());
-    return copy;
+    if (o instanceof Timestamp) {
+      Timestamp ts = (Timestamp) o;
+      Timestamp copy = new Timestamp(ts);
+      copy.setNanos(ts.getNanos());
+      return copy;
+    } else {
+      return o;
+    }
   }
 
 }

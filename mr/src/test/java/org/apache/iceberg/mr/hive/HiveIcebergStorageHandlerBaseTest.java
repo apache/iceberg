@@ -51,6 +51,7 @@ import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.After;
@@ -211,6 +212,11 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Assert.assertArrayEquals(new Object[] {0L, "Alice", 100L, 11.11d}, rows.get(0));
     Assert.assertArrayEquals(new Object[] {0L, "Alice", 101L, 22.22d}, rows.get(1));
     Assert.assertArrayEquals(new Object[] {1L, "Bob", 102L, 33.33d}, rows.get(2));
+
+    joinTables("decimaltable", "decimal_col", Types.DecimalType.of(3, 1));
+    joinTables("timestamptable", "timestamp_col", Types.TimestampType.withZone());
+    joinTables("binarytable", "binary_col", Types.BinaryType.get());
+    joinTables("datetable", "date_col", Types.DateType.get());
   }
 
   @Test
@@ -531,5 +537,18 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   protected String locationForCreateTable(String tempDirName, String tableName) {
     return null;
+  }
+
+  private void joinTables(String tableName, String columnName, Type type) throws IOException {
+    Schema schema = new Schema(required(1, "id", Types.IntegerType.get()),
+            required(2, columnName, type));
+    List<Record> records = TestHelper.generateRandomRecords(schema, 10, 0L);
+    createTable(tableName, schema, records);
+    List<Object[]> queryResult = shell.executeStatement("select count(distinct(id)) from default." + tableName);
+    int distinctIds = ((Long) queryResult.get(0)[0]).intValue();
+
+    queryResult = shell.executeStatement("select s." + columnName + ", h." + columnName +
+            " from default." + tableName + " s join default." + tableName + " h on h.id=s.id");
+    Assert.assertEquals((records.size() - distinctIds) * 2 + records.size(), queryResult.size());
   }
 }

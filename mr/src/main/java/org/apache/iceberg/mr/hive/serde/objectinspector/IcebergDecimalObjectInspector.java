@@ -67,8 +67,12 @@ public final class IcebergDecimalObjectInspector extends AbstractPrimitiveJavaOb
       return null;
     }
 
-    HiveDecimal decimal = (HiveDecimal) o;
-    return HiveDecimal.create(decimal.bigDecimalValue());
+    if (o instanceof HiveDecimal) {
+      HiveDecimal decimal = (HiveDecimal) o;
+      return HiveDecimal.create(decimal.bigDecimalValue());
+    } else {
+      return o;
+    }
   }
 
 }

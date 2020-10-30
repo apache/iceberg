@@ -73,9 +73,12 @@ public abstract class IcebergBinaryObjectInspector extends AbstractPrimitiveJava
     if (o == null) {
       return null;
     }
-
-    byte[] bytes = (byte[]) o;
-    return Arrays.copyOf(bytes, bytes.length);
+    if (o instanceof byte[]) {
+      byte[] bytes = (byte[]) o;
+      return Arrays.copyOf(bytes, bytes.length);
+    } else {
+      return o;
+    }
   }
 
 }
