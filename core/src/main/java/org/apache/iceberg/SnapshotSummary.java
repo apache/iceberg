@@ -83,7 +83,7 @@ public class SnapshotSummary {
      * Sets the maximum number of changed partitions before partition summaries will be excluded.
      * <p>
      * If the number of changed partitions is over this max, summaries will not be included. If the number of changed
-     * partitions is <= this limit, then partition-level summaries will be included in the summary if they are
+     * partitions is &lt;= this limit, then partition-level summaries will be included in the summary if they are
      * available, and "partition-summaries-included" will be set to "true".
      *
      * @param max maximum number of changed partitions
