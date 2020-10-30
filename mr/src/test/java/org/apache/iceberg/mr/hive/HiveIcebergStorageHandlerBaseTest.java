@@ -109,13 +109,23 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   public abstract TestTables testTables(Configuration conf, TemporaryFolder tmp) throws IOException;
 
-  @Parameters(name = "fileFormat={0}")
-  public static Iterable<FileFormat> fileFormats() {
-    return ImmutableList.of(FileFormat.PARQUET, FileFormat.ORC, FileFormat.AVRO);
+  @Parameters(name = "fileFormat={0}, engine={1}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+        { FileFormat.PARQUET, "mr" },
+        { FileFormat.ORC,     "mr" },
+        { FileFormat.AVRO,    "mr" },
+        { FileFormat.PARQUET, "tez" },
+        { FileFormat.ORC,     "tez" },
+        { FileFormat.AVRO,    "tez" }
+    };
   }
 
-  @Parameter
+  @Parameter(0)
   public FileFormat fileFormat;
+
+  @Parameter(1)
+  public String executionEngine;
 
   @BeforeClass
   public static void beforeClass() {
@@ -136,6 +146,9 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     for (Map.Entry<String, String> property : testTables.properties().entrySet()) {
       shell.setHiveSessionValue(property.getKey(), property.getValue());
     }
+    shell.setHiveSessionValue("hive.execution.engine", executionEngine);
+    shell.setHiveSessionValue("hive.jar.directory", temp.getRoot().getAbsolutePath());
+    shell.setHiveSessionValue("tez.staging-dir", temp.getRoot().getAbsolutePath());
   }
 
   @After
