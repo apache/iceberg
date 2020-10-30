@@ -80,12 +80,13 @@ public abstract class BaseTestIceberg {
         tree.deleteTag(r.getName(), r.getHash());
       }
     }
-    tree.createEmptyBranch("main");
+    tree.createReference(Branch.of("main", null));
   }
 
   @Before
   public void beforeEach() throws NessieConflictException, NessieNotFoundException {
-    String path = "http://localhost:19121/api/v1";
+    String port = System.getProperty("quarkus.http.test-port", "19120");
+    String path = String.format("http://localhost:%s/api/v1", port);
     this.client = NessieClient.none(path);
     tree = client.getTreeApi();
     contents = client.getContentsApi();
@@ -93,7 +94,7 @@ public abstract class BaseTestIceberg {
     resetData();
 
     try {
-      tree.createEmptyBranch(branch);
+      tree.createReference(Branch.of(branch, null));
     } catch (Exception e) {
       // ignore, already created. Cant run this in BeforeAll as quarkus hasn't disabled auth
     }
@@ -131,9 +132,9 @@ public abstract class BaseTestIceberg {
 
   void createBranch(String name, String hash) throws NessieNotFoundException, NessieConflictException {
     if (hash == null) {
-      tree.createEmptyBranch(name);
+      tree.createReference(Branch.of(name, null));
     } else {
-      tree.createNewBranch(name, hash);
+      tree.createReference(Branch.of(name, hash));
     }
   }
 

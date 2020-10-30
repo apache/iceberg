@@ -114,7 +114,7 @@ public class TestNessieTable extends BaseTestIceberg {
     IcebergTable table = getTable(KEY);
     // check parameters are in expected state
     Assert.assertEquals(getTableLocation(tableName),
-                            (tempDir.toURI().toString() + "iceberg/warehouse/" + DB_NAME + "/" +
+                            (tempDir.toURI().toString() + DB_NAME + "/" +
                              tableName).replace("//",
                                                 "/"));
 
@@ -309,7 +309,7 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   private static String getTableBasePath(String tableName) {
-    String databasePath = tempDir.toString() + "/iceberg/warehouse/" + DB_NAME;
+    String databasePath = tempDir.toString() + "/" + DB_NAME;
     return Paths.get(databasePath, tableName).toAbsolutePath().toString();
   }
 

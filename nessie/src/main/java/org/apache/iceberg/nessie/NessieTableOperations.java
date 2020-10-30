@@ -80,7 +80,9 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
                   String.format("Nessie points to a non-Iceberg object for path: %s.", key)));
       metadataLocation = table.getMetadataLocation();
     } catch (NessieNotFoundException ex) {
-      throw new NoSuchTableException(ex, "No such table %s", key);
+      if (currentMetadataLocation() != null) {
+        throw new NoSuchTableException(ex, "No such table %s", key);
+      }
     }
     refreshFromMetadataLocation(metadataLocation, 2);
   }
@@ -100,9 +102,10 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
                                           newTable);
     } catch (NessieConflictException ex) {
       io().deleteFile(newMetadataLocation);
-      throw new CommitFailedException(ex, "Commit failed: Reference hash is out of date. " +
-          (reference.isBranch() ? "Update the reference %s and try again" : "Can't commit to the tag %s"),
-          reference.getName());
+      String fixMsg = reference.isBranch() ?
+          String.format("Update the reference %s and try again", reference.getName()) :
+          String.format("Can't commit to the tag %s", reference.getName());
+      throw new CommitFailedException(ex, "Commit failed: Reference hash is out of date. %s", fixMsg);
     } catch (NessieNotFoundException ex) {
       io().deleteFile(newMetadataLocation);
       throw new RuntimeException(String.format("Commit failed: Reference %s does not exist", reference.getName()), ex);

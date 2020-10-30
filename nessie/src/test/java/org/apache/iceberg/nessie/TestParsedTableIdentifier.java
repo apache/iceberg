@@ -53,10 +53,10 @@ public class TestParsedTableIdentifier {
     AssertHelpers.assertThrows("TableIdentifier is not parsable",
         IllegalArgumentException.class,
         "Currently we don't support referencing by timestamp", () ->
-      ParsedTableIdentifier.getParsedTableIdentifier(path, new HashMap<>()));
+            ParsedTableIdentifier.getParsedTableIdentifier(path, new HashMap<>()));
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void branchAndTimestamp() {
     String path = "foo@bar#baz";
     AssertHelpers.assertThrows("TableIdentifier is not parsable",
@@ -65,7 +65,7 @@ public class TestParsedTableIdentifier {
             ParsedTableIdentifier.getParsedTableIdentifier(path, new HashMap<>()));
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void twoBranches() {
     String path = "foo@bar@boo";
     AssertHelpers.assertThrows("TableIdentifier is not parsable",
@@ -74,7 +74,7 @@ public class TestParsedTableIdentifier {
             ParsedTableIdentifier.getParsedTableIdentifier(path, new HashMap<>()));
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void twoTimestamps() {
     String path = "foo#baz#baa";
     AssertHelpers.assertThrows("TableIdentifier is not parsable",

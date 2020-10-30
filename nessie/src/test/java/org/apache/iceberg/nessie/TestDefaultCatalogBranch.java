@@ -22,6 +22,7 @@ package org.apache.iceberg.nessie;
 import com.dremio.nessie.client.NessieClient;
 import com.dremio.nessie.error.NessieConflictException;
 import com.dremio.nessie.error.NessieNotFoundException;
+import com.dremio.nessie.model.Branch;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -45,7 +46,7 @@ public class TestDefaultCatalogBranch extends BaseTestIceberg {
     createTable(foobaz, 1); // table 2
 
     catalog.refresh();
-    tree.createNewBranch("FORWARD", catalog.getHash());
+    tree.createReference(Branch.of("FORWARD", catalog.getHash()));
     hadoopConfig.set(NessieClient.CONF_NESSIE_REF, "FORWARD");
     NessieCatalog forwardCatalog = NessieCatalog.builder(hadoopConfig).build();
     forwardCatalog.loadTable(foobaz).updateSchema().addColumn("id1", Types.LongType.get()).commit();
@@ -59,7 +60,9 @@ public class TestDefaultCatalogBranch extends BaseTestIceberg {
     System.out.println(getContent(catalog, foobar));
 
     forwardCatalog.refresh();
-    tree.assignBranch("main", tree.getReferenceByName("main").getHash(), forwardCatalog.getHash());
+    tree.assignBranch("main",
+        tree.getReferenceByName("main").getHash(),
+        Branch.of("main", forwardCatalog.getHash()));
 
     catalog.refresh();
 

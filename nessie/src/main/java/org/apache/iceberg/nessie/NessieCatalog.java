@@ -28,9 +28,9 @@ import com.dremio.nessie.model.ContentsKey;
 import com.dremio.nessie.model.EntriesResponse;
 import com.dremio.nessie.model.IcebergTable;
 import com.dremio.nessie.model.ImmutableDelete;
-import com.dremio.nessie.model.ImmutableMultiContents;
+import com.dremio.nessie.model.ImmutableOperations;
 import com.dremio.nessie.model.ImmutablePut;
-import com.dremio.nessie.model.MultiContents;
+import com.dremio.nessie.model.Operations;
 import com.dremio.nessie.model.Reference;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -41,6 +41,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.TableMetadata;
@@ -65,33 +66,34 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
  *   objects stored in them to assist with namespace-centric catalog exploration.
  * </p>
  */
-public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable, SupportsNamespaces {
+public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable, SupportsNamespaces, Configurable {
 
   private static final Joiner SLASH = Joiner.on("/");
   public static final String NESSIE_WAREHOUSE_DIR = "nessie.warehouse.dir";
-  private final NessieClient client;
-  private final String warehouseLocation;
-  private final Configuration config;
-  private final UpdateableReference reference;
-  private final String name;
+  private NessieClient client;
+  private String warehouseLocation;
+  private Configuration config;
+  private UpdateableReference reference;
+  private String name;
 
   /**
    * Try to avoid passing parameters via hadoop config. Dynamic catalog expects Map instead
+   *
+   * todo replace with #1640 style constructor
    */
-  public NessieCatalog(String name, Map<String, String> props, Configuration config) {
-    this(name,
-        config,
-        props.get(NessieClient.CONF_NESSIE_REF),
-        props.get(NessieClient.CONF_NESSIE_URL),
-        props.get(NESSIE_WAREHOUSE_DIR));
+  public NessieCatalog() {
   }
+
   /**
    * Create a catalog with a known name from a hadoop configuration.
    */
   public NessieCatalog(String name, Configuration config, String ref, String url, String warehouseLocation) {
     this.config = config;
-    this.name = name;
+    this.name = name == null ? "nessie" : name;
+    init(ref, url, warehouseLocation);
+  }
 
+  private void init(String ref, String url, String inputWarehouseLocation) {
     this.client = NessieClient.withConfig(s -> {
       if (s.equals(NessieClient.CONF_NESSIE_URL)) {
         return url == null ? config.get(s) : url;
@@ -99,7 +101,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
       return config.get(s);
     });
 
-    this.warehouseLocation = warehouseLocation == null ? getWarehouseLocation(config) : warehouseLocation;
+    this.warehouseLocation = inputWarehouseLocation == null ? getWarehouseLocation(config) : inputWarehouseLocation;
 
     final String requestedRef = ref != null ? ref : config.get(NessieClient.CONF_NESSIE_REF);
     this.reference = get(requestedRef);
@@ -276,9 +278,9 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
       throw new AlreadyExistsException("table %s already exists", to.name());
     }
 
-    MultiContents contents = ImmutableMultiContents.builder()
-        .addOperations(ImmutablePut.builder().key(toKey(to)).contents(existingFromTable).build())
-        .addOperations(ImmutableDelete.builder().key(toKey(from)).build())
+    Operations contents = ImmutableOperations.builder()
+        .addOperations(ImmutablePut.builder().key(toKey(to)).contents(existingFromTable).build(),
+            ImmutableDelete.builder().key(toKey(from)).build())
         .build();
 
     try {
@@ -344,7 +346,6 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
    *
    * @param namespace a namespace. {@link Namespace}
    * @return an empty map
-   * @throws NoSuchNamespaceException
    */
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
@@ -356,7 +357,6 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
    *
    * @param namespace a namespace. {@link Namespace}
    * @return always false.
-   * @throws NamespaceNotEmptyException
    */
   @Override
   public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
@@ -373,6 +373,23 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   public boolean removeProperties(Namespace namespace, Set<String> properties) throws NoSuchNamespaceException {
     throw new UnsupportedOperationException(
         "Cannot remove properties " + namespace + " : removeProperties is not supported");
+  }
+
+  @Override
+  public void setConf(Configuration conf) {
+    this.config = conf;
+  }
+
+  @Override
+  public Configuration getConf() {
+    return config;
+  }
+
+  public void initialize(String inputName, Map<String, String> options) {
+    this.name = inputName;
+    init(options.getOrDefault(NessieClient.CONF_NESSIE_REF, config.get(NessieClient.CONF_NESSIE_REF)),
+         options.getOrDefault(NessieClient.CONF_NESSIE_URL, config.get(NessieClient.CONF_NESSIE_URL)),
+         options.getOrDefault(NESSIE_WAREHOUSE_DIR, config.get(NESSIE_WAREHOUSE_DIR)));
   }
 
   public static class Builder {

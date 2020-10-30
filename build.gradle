@@ -38,7 +38,7 @@ buildscript {
 
 plugins {
   id 'nebula.dependency-recommender' version '9.0.2'
-  id 'org.projectnessie' version '0.2.0-SNAPSHOT'
+  id 'org.projectnessie' version '0.2.1'
 }
 
 try {
@@ -1073,7 +1073,7 @@ project(':iceberg-nessie') {
     compile project(':iceberg-core')
     compile project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compile "org.projectnessie:nessie-client"
-    quarkusAppRunnerConfig "org.projectnessie:nessie-quarkus"
+    quarkusAppRunnerConfig "org.projectnessie:nessie-quarkus:0.2.1"
     clientSupportImplementation("io.quarkus:quarkus-rest-client") {
       exclude group: "org.jboss.logging", module: "commons-logging-jboss-logging"
     }

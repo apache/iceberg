@@ -22,6 +22,7 @@ package org.apache.iceberg.nessie;
 import com.dremio.nessie.client.NessieClient;
 import com.dremio.nessie.error.NessieConflictException;
 import com.dremio.nessie.error.NessieNotFoundException;
+import com.dremio.nessie.model.Branch;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
@@ -69,7 +70,7 @@ public class TestCatalogBranch extends BaseTestIceberg {
     Assert.assertEquals(initialMetadataLocation, getContent(catalog, foobaz));
 
     String mainHash = tree.getReferenceByName("main").getHash();
-    tree.assignBranch("main", mainHash, newCatalog.getHash());
+    tree.assignBranch("main", mainHash, Branch.of("main", newCatalog.getHash()));
     Assert.assertEquals(getContent(newCatalog, foobar),
                             getContent(catalog, foobar));
     Assert.assertEquals(getContent(newCatalog, foobaz),
