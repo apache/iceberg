@@ -66,7 +66,7 @@ tarball=$tag.tar.gz
 
 # be conservative and use the release hash, even though git produces the same
 # archive (identical hashes) using the scm tag
-git archive $release_hash --worktree-attributes --prefix $tag/ -o $tarball HEAD
+git archive $release_hash --worktree-attributes --prefix $tag/ -o $tarball
 
 # sign the archive
 gpg --armor --output ${tarball}.asc --detach-sig $tarball
