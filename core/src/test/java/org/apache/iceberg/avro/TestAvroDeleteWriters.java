@@ -138,7 +138,7 @@ public class TestAvroDeleteWriters {
       }
     }
 
-    DeleteFile metadata = deleteWriter.toDeleteFile();
+    DeleteFile metadata = deleteWriter.toContentFile();
     Assert.assertEquals("Format should be Avro", FileFormat.AVRO, metadata.format());
     Assert.assertEquals("Should be position deletes", FileContent.POSITION_DELETES, metadata.content());
     Assert.assertEquals("Record count should be correct", records.size(), metadata.recordCount());
@@ -185,7 +185,7 @@ public class TestAvroDeleteWriters {
       }
     }
 
-    DeleteFile metadata = deleteWriter.toDeleteFile();
+    DeleteFile metadata = deleteWriter.toContentFile();
     Assert.assertEquals("Format should be Avro", FileFormat.AVRO, metadata.format());
     Assert.assertEquals("Should be position deletes", FileContent.POSITION_DELETES, metadata.content());
     Assert.assertEquals("Record count should be correct", records.size(), metadata.recordCount());

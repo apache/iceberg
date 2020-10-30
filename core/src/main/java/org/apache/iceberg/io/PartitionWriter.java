@@ -17,30 +17,19 @@
  * under the License.
  */
 
-package org.apache.iceberg.flink.sink;
+package org.apache.iceberg.io;
 
-import java.io.Serializable;
-import org.apache.iceberg.io.FileGroupWriter;
+import java.io.IOException;
 
-/**
- * Factory to create {@link FileGroupWriter}
- *
- * @param <T> data type of record.
- */
-public interface TaskWriterFactory<T> extends Serializable {
+public interface PartitionWriter<T> {
 
-  /**
-   * Initialize the factory with a given taskId and attemptId.
-   *
-   * @param taskId    the identifier of task.
-   * @param attemptId the attempt id of this task.
-   */
-  void initialize(int taskId, int attemptId);
+  void append(T row) throws IOException;
 
-  /**
-   * Initialize a {@link FileGroupWriter} with given task id and attempt id.
-   *
-   * @return a newly created task writer.
-   */
-  FileGroupWriter<T> create();
+  void delete(T deleteRow) throws IOException;
+
+  void delete(CharSequence path, long pos, T row) throws IOException;
+
+  void abort() throws IOException;
+
+  WriterResult complete() throws IOException;
 }

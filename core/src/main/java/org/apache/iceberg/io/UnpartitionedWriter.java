@@ -23,7 +23,7 @@ import java.io.IOException;
 import org.apache.iceberg.ContentFileWriterFactory;
 import org.apache.iceberg.FileFormat;
 
-public class UnpartitionedWriter<ContentFileT, T> extends BaseTaskWriter<ContentFileT, T> {
+public class UnpartitionedWriter<ContentFileT, T> extends BaseFileGroupWriter<ContentFileT, T> {
 
   private final RollingFileWriter currentWriter;
 
@@ -36,6 +36,16 @@ public class UnpartitionedWriter<ContentFileT, T> extends BaseTaskWriter<Content
   @Override
   public void write(T record) throws IOException {
     currentWriter.add(record);
+  }
+
+  @Override
+  public CharSequence currentPath() throws IOException {
+    return currentWriter.currentPath();
+  }
+
+  @Override
+  public long currentPos() throws IOException {
+    return currentWriter.currentPos();
   }
 
   @Override

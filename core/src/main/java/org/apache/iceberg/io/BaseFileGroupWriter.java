@@ -30,17 +30,17 @@ import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.util.Tasks;
 
-public abstract class BaseTaskWriter<ContentFileT, T> implements TaskWriter<T> {
-  private final TaskWriterResult.Builder builder;
+public abstract class BaseFileGroupWriter<ContentFileT, T> implements FileGroupWriter<T> {
+  private final WriterResult.Builder builder;
   private final FileFormat format;
   private final OutputFileFactory fileFactory;
   private final FileIO io;
   private final long targetFileSize;
   private final ContentFileWriterFactory<ContentFileT, T> writerFactory;
 
-  protected BaseTaskWriter(FileFormat format, OutputFileFactory fileFactory, FileIO io, long targetFileSize,
-                           ContentFileWriterFactory<ContentFileT, T> writerFactory) {
-    this.builder = TaskWriterResult.builder();
+  protected BaseFileGroupWriter(FileFormat format, OutputFileFactory fileFactory, FileIO io, long targetFileSize,
+                                ContentFileWriterFactory<ContentFileT, T> writerFactory) {
+    this.builder = WriterResult.builder();
     this.format = format;
     this.fileFactory = fileFactory;
     this.io = io;
@@ -53,7 +53,7 @@ public abstract class BaseTaskWriter<ContentFileT, T> implements TaskWriter<T> {
     close();
 
     // clean up files created by this writer
-    TaskWriterResult result = builder.build();
+    WriterResult result = builder.build();
 
     Tasks.foreach(result.contentFiles())
         .throwFailureWhenFinished()
@@ -62,7 +62,7 @@ public abstract class BaseTaskWriter<ContentFileT, T> implements TaskWriter<T> {
   }
 
   @Override
-  public TaskWriterResult complete() throws IOException {
+  public WriterResult complete() throws IOException {
     close();
 
     return builder.build();
@@ -89,6 +89,14 @@ public abstract class BaseTaskWriter<ContentFileT, T> implements TaskWriter<T> {
         closeCurrent();
         openCurrent();
       }
+    }
+
+    public CharSequence currentPath() {
+      return currentFile != null ? currentFile.encryptingOutputFile().location() : null;
+    }
+
+    public long currentPos() {
+      return currentRows;
     }
 
     private void openCurrent() {

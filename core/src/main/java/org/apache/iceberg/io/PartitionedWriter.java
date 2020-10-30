@@ -29,7 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public abstract class PartitionedWriter<ContentFileT, T> extends BaseTaskWriter<ContentFileT, T> {
+public abstract class PartitionedWriter<ContentFileT, T> extends BaseFileGroupWriter<ContentFileT, T> {
   private static final Logger LOG = LoggerFactory.getLogger(PartitionedWriter.class);
 
   private final Set<PartitionKey> completedPartitions = Sets.newHashSet();
