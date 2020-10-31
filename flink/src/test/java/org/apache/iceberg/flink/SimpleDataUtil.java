@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.table.api.DataTypes;
@@ -48,7 +49,6 @@ import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 
@@ -129,9 +129,28 @@ public class SimpleDataUtil {
   public static void assertTableRecords(Table table, List<Record> expected) throws IOException {
     table.refresh();
     try (CloseableIterable<Record> iterable = IcebergGenerics.read(table).build()) {
+
+      List<Record> expectedList = Lists.newArrayList(expected);
+      List<Record> iterList = Lists.newArrayList(iterable);
+      sortRecordList(expectedList);
+      sortRecordList(iterList);
       Assert.assertEquals("Should produce the expected record",
-          Sets.newHashSet(expected), Sets.newHashSet(iterable));
+          expectedList, iterList);
     }
+  }
+
+  private static void sortRecordList(List<Record> iterList) {
+    Collections.sort(iterList, (o1, o2) -> {
+      int id1 = (int) o1.getField("id");
+      String data1 = (String) o1.getField("data");
+      int id2 = (int) o2.getField("id");
+      String data2 = (String) o2.getField("data");
+      if (id1 != id2) {
+        return id1 - id2;
+      } else {
+        return data1.compareTo(data2);
+      }
+    });
   }
 
   public static void assertTableRecords(String tablePath, List<Record> expected) throws IOException {

@@ -18,14 +18,18 @@
  */
 
 
-package org.apache.iceberg.actions;
+package org.apache.iceberg.flink.actions;
 
+import java.io.IOException;
 import java.util.List;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.RewriteDataFilesActionResult;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.FlinkCatalogTestBase;
 import org.apache.iceberg.flink.SimpleDataUtil;
@@ -37,6 +41,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+
+import static org.apache.iceberg.flink.SimpleDataUtil.RECORD;
 
 @RunWith(Parameterized.class)
 public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
@@ -55,7 +61,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
   @Parameterized.Parameters(name = "catalogName={0}, baseNamespace={1}, format={2}")
   public static Iterable<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
-    for (FileFormat format : new FileFormat[] {FileFormat.ORC, FileFormat.AVRO, FileFormat.PARQUET}) {
+    for (FileFormat format : new FileFormat[] {FileFormat.AVRO, FileFormat.ORC, FileFormat.PARQUET}) {
       for (Object[] catalogParams : FlinkCatalogTestBase.parameters()) {
         String catalogName = (String) catalogParams[0];
         String[] baseNamespace = (String[]) catalogParams[1];
@@ -135,9 +141,9 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
   @Test
   public void testRewriteDataFilesPartitionedTable() throws Exception {
     sql("INSERT INTO %s SELECT 1, 'hello' ", TABLE_NAME_PARTIITONED);
+    sql("INSERT INTO %s SELECT 1, 'world' ", TABLE_NAME_PARTIITONED);
     sql("INSERT INTO %s SELECT 2, 'hello' ", TABLE_NAME_PARTIITONED);
-    sql("INSERT INTO %s SELECT 3, 'world' ", TABLE_NAME_PARTIITONED);
-    sql("INSERT INTO %s SELECT 4, 'world' ", TABLE_NAME_PARTIITONED);
+    sql("INSERT INTO %s SELECT 2, 'world' ", TABLE_NAME_PARTIITONED);
 
     icebergTablePartitioned.refresh();
 
@@ -162,9 +168,9 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     // Assert the table records as expected.
     SimpleDataUtil.assertTableRecords(icebergTablePartitioned, Lists.newArrayList(
         SimpleDataUtil.createRecord(1, "hello"),
+        SimpleDataUtil.createRecord(1, "world"),
         SimpleDataUtil.createRecord(2, "hello"),
-        SimpleDataUtil.createRecord(3, "world"),
-        SimpleDataUtil.createRecord(4, "world")
+        SimpleDataUtil.createRecord(2, "world")
     ));
   }
 
@@ -187,7 +193,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
         Actions.forTable(icebergTablePartitioned)
             .rewriteDataFiles()
             .filter(Expressions.equal("id", 1))
-            .filter(Expressions.startsWith("data", "he"))
+            .filter(Expressions.startsWith("data", "hello"))
             .execute();
 
     Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
@@ -207,5 +213,51 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
         SimpleDataUtil.createRecord(2, "world"),
         SimpleDataUtil.createRecord(3, "world")
     ));
+  }
+
+  @Test
+  public void testRewriteLargeTableHasResiduals() throws IOException {
+    // all records belong to the same partition
+    List<String> records = Lists.newArrayList();
+    List<Record> expected = Lists.newArrayList();
+    for (int i = 0; i < 100; i++) {
+      int id = i;
+      String data = String.valueOf(i % 4);
+      records.add("(" + id + ",'" + data + "')");
+
+      Record record = RECORD.copy();
+      record.setField("id", id);
+      record.setField("data", data);
+      expected.add(record);
+    }
+
+    String values = StringUtils.join(records, ",");
+    sql("INSERT INTO %s values " + values, TABLE_NAME_UNPARTIITONED);
+    sql("INSERT INTO %s values " + values, TABLE_NAME_UNPARTIITONED);
+
+    icebergTableUnPartitioned.refresh();
+
+    CloseableIterable<FileScanTask> tasks = icebergTableUnPartitioned.newScan()
+        .ignoreResiduals()
+        .filter(Expressions.equal("data", "0"))
+        .planFiles();
+    for (FileScanTask task : tasks) {
+      Assert.assertEquals("Residuals must be ignored", Expressions.alwaysTrue(), task.residual());
+    }
+    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
+    Assert.assertEquals("Should have 2 data files before rewrite", 2, dataFiles.size());
+
+    Actions actions = Actions.forTable(icebergTableUnPartitioned);
+
+    RewriteDataFilesActionResult result = actions
+        .rewriteDataFiles()
+        .filter(Expressions.equal("data", "0"))
+        .execute();
+    Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
+    Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
+
+    // Assert the table records as expected.
+    expected.addAll(expected);
+    SimpleDataUtil.assertTableRecords(icebergTableUnPartitioned, expected);
   }
 }

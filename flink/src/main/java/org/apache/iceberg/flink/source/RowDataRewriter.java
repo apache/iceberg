@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.flink.source;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -61,10 +62,11 @@ public class RowDataRewriter {
 
   public RowDataRewriter(Table table, boolean caseSensitive, FileIO io, EncryptionManager encryptionManager) {
     this.schema = table.schema();
+    this.caseSensitive = caseSensitive;
     this.io = io;
     this.encryptionManager = encryptionManager;
-    this.caseSensitive = caseSensitive;
     this.nameMapping = PropertyUtil.propertyAsString(table.properties(), DEFAULT_NAME_MAPPING, null);
+
     String formatString = PropertyUtil.propertyAsString(table.properties(), TableProperties.DEFAULT_FILE_FORMAT,
         TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
     this.format = FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
@@ -89,9 +91,9 @@ public class RowDataRewriter {
 
   public static class RewriteMap extends RichMapFunction<CombinedScanTask, List<DataFile>> {
 
-    private transient TaskWriter<RowData> writer;
-    private transient int subTaskId;
-    private transient int attemptId;
+    private TaskWriter<RowData> writer;
+    private int subTaskId;
+    private int attemptId;
 
     private final Schema schema;
     private final String nameMapping;
@@ -129,7 +131,6 @@ public class RowDataRewriter {
           RowData rowData = iterator.next();
           writer.write(rowData);
         }
-        iterator.close();
         return Lists.newArrayList(writer.complete());
       } catch (Throwable originalThrowable) {
         try {
@@ -142,10 +143,17 @@ public class RowDataRewriter {
             LOG.warn("Suppressing exception in catch: {}", inner.getMessage(), inner);
           }
         }
+
         if (originalThrowable instanceof Exception) {
           throw originalThrowable;
         } else {
           throw new RuntimeException(originalThrowable);
+        }
+      } finally {
+        try {
+          iterator.close();
+        } catch (IOException e) {
+          LOG.warn("lose iterator error", e);
         }
       }
     }

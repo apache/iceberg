@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.actions;
+package org.apache.iceberg.flink.actions;
 
 import java.util.List;
 import org.apache.flink.api.java.DataSet;
@@ -25,11 +25,11 @@ import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.BaseRewriteDataFilesAction;
 import org.apache.iceberg.flink.source.RowDataRewriter;
 import org.apache.iceberg.io.FileIO;
 
-public class RewriteDataFilesAction extends
-    BaseRewriteDataFilesAction<RewriteDataFilesAction> {
+public class RewriteDataFilesAction extends BaseRewriteDataFilesAction<RewriteDataFilesAction> {
 
   private ExecutionEnvironment env;
 

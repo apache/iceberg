@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.actions;
+package org.apache.iceberg.flink.actions;
 
 import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.iceberg.Table;
