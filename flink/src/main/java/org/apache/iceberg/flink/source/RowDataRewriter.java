@@ -153,7 +153,7 @@ public class RowDataRewriter {
         try {
           iterator.close();
         } catch (IOException e) {
-          LOG.warn("lose iterator error", e);
+          LOG.warn("close iterator error", e);
         }
       }
     }

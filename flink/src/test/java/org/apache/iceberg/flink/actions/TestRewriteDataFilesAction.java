@@ -20,29 +20,32 @@
 
 package org.apache.iceberg.flink.actions;
 
+import static org.apache.iceberg.flink.SimpleDataUtil.RECORD;
+
 import java.io.IOException;
 import java.util.List;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFilesActionResult;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.FlinkCatalogTestBase;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
-import static org.apache.iceberg.flink.SimpleDataUtil.RECORD;
 
 @RunWith(Parameterized.class)
 public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
@@ -82,7 +85,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     icebergTableUnPartitioned = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace,
         TABLE_NAME_UNPARTIITONED));
 
-    sql("CREATE TABLE %s (id int, data varchar)  PARTITIONED BY (data) with ('write.format.default'='%s')",
+    sql("CREATE TABLE %s (id int, data varchar,spec varchar)  PARTITIONED BY (data,spec) with ('write.format.default'='%s')",
         TABLE_NAME_PARTIITONED, format.name());
     icebergTablePartitioned = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace,
         TABLE_NAME_PARTIITONED));
@@ -140,10 +143,10 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
 
   @Test
   public void testRewriteDataFilesPartitionedTable() throws Exception {
-    sql("INSERT INTO %s SELECT 1, 'hello' ", TABLE_NAME_PARTIITONED);
-    sql("INSERT INTO %s SELECT 1, 'world' ", TABLE_NAME_PARTIITONED);
-    sql("INSERT INTO %s SELECT 2, 'hello' ", TABLE_NAME_PARTIITONED);
-    sql("INSERT INTO %s SELECT 2, 'world' ", TABLE_NAME_PARTIITONED);
+    sql("INSERT INTO %s SELECT 1, 'hello' ,'a'", TABLE_NAME_PARTIITONED);
+    sql("INSERT INTO %s SELECT 2, 'hello' ,'a'", TABLE_NAME_PARTIITONED);
+    sql("INSERT INTO %s SELECT 3, 'world' ,'b'", TABLE_NAME_PARTIITONED);
+    sql("INSERT INTO %s SELECT 4, 'world' ,'b'", TABLE_NAME_PARTIITONED);
 
     icebergTablePartitioned.refresh();
 
@@ -166,22 +169,29 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     Assert.assertEquals("Should have 2 data files after rewrite", 2, dataFiles1.size());
 
     // Assert the table records as expected.
+    Schema schema = new Schema(
+        Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+        Types.NestedField.optional(2, "data", Types.StringType.get()),
+        Types.NestedField.optional(3, "spec", Types.StringType.get())
+    );
+
+    Record record = GenericRecord.create(schema);
     SimpleDataUtil.assertTableRecords(icebergTablePartitioned, Lists.newArrayList(
-        SimpleDataUtil.createRecord(1, "hello"),
-        SimpleDataUtil.createRecord(1, "world"),
-        SimpleDataUtil.createRecord(2, "hello"),
-        SimpleDataUtil.createRecord(2, "world")
+        record.copy("id", 1, "data", "hello", "spec", "a"),
+        record.copy("id", 2, "data", "hello", "spec", "a"),
+        record.copy("id", 3, "data", "world", "spec", "b"),
+        record.copy("id", 4, "data", "world", "spec", "b")
     ));
   }
 
 
   @Test
   public void testRewriteDataFilesWithFilter() throws Exception {
-    sql("INSERT INTO %s SELECT 1, 'hello' ", TABLE_NAME_PARTIITONED);
-    sql("INSERT INTO %s SELECT 1, 'hello' ", TABLE_NAME_PARTIITONED);
-    sql("INSERT INTO %s SELECT 1, 'world' ", TABLE_NAME_PARTIITONED);
-    sql("INSERT INTO %s SELECT 2, 'world' ", TABLE_NAME_PARTIITONED);
-    sql("INSERT INTO %s SELECT 3, 'world' ", TABLE_NAME_PARTIITONED);
+    sql("INSERT INTO %s SELECT 1, 'hello' ,'a'", TABLE_NAME_PARTIITONED);
+    sql("INSERT INTO %s SELECT 2, 'hello' ,'a'", TABLE_NAME_PARTIITONED);
+    sql("INSERT INTO %s SELECT 3, 'world' ,'a'", TABLE_NAME_PARTIITONED);
+    sql("INSERT INTO %s SELECT 4, 'world' ,'b'", TABLE_NAME_PARTIITONED);
+    sql("INSERT INTO %s SELECT 5, 'world' ,'b'", TABLE_NAME_PARTIITONED);
 
     icebergTablePartitioned.refresh();
 
@@ -192,8 +202,8 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     RewriteDataFilesActionResult result =
         Actions.forTable(icebergTablePartitioned)
             .rewriteDataFiles()
-            .filter(Expressions.equal("id", 1))
-            .filter(Expressions.startsWith("data", "hello"))
+            .filter(Expressions.equal("spec", "a"))
+            .filter(Expressions.startsWith("data", "he"))
             .execute();
 
     Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
@@ -206,34 +216,44 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     Assert.assertEquals("Should have 4 data files after rewrite", 4, dataFiles1.size());
 
     // Assert the table records as expected.
+    Schema schema = new Schema(
+        Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+        Types.NestedField.optional(2, "data", Types.StringType.get()),
+        Types.NestedField.optional(3, "spec", Types.StringType.get())
+    );
+
+    Record record = GenericRecord.create(schema);
     SimpleDataUtil.assertTableRecords(icebergTablePartitioned, Lists.newArrayList(
-        SimpleDataUtil.createRecord(1, "hello"),
-        SimpleDataUtil.createRecord(1, "hello"),
-        SimpleDataUtil.createRecord(1, "world"),
-        SimpleDataUtil.createRecord(2, "world"),
-        SimpleDataUtil.createRecord(3, "world")
+        record.copy("id", 1, "data", "hello", "spec", "a"),
+        record.copy("id", 2, "data", "hello", "spec", "a"),
+        record.copy("id", 3, "data", "world", "spec", "a"),
+        record.copy("id", 4, "data", "world", "spec", "b"),
+        record.copy("id", 5, "data", "world", "spec", "b")
     ));
   }
 
   @Test
   public void testRewriteLargeTableHasResiduals() throws IOException {
     // all records belong to the same partition
-    List<String> records = Lists.newArrayList();
+    List<String> records1 = Lists.newArrayList();
+    List<String> records2 = Lists.newArrayList();
     List<Record> expected = Lists.newArrayList();
     for (int i = 0; i < 100; i++) {
       int id = i;
-      String data = String.valueOf(i % 4);
-      records.add("(" + id + ",'" + data + "')");
-
+      String data = String.valueOf(i % 3);
+      if (i % 2 == 0) {
+        records1.add("(" + id + ",'" + data + "')");
+      } else {
+        records2.add("(" + id + ",'" + data + "')");
+      }
       Record record = RECORD.copy();
       record.setField("id", id);
       record.setField("data", data);
       expected.add(record);
     }
 
-    String values = StringUtils.join(records, ",");
-    sql("INSERT INTO %s values " + values, TABLE_NAME_UNPARTIITONED);
-    sql("INSERT INTO %s values " + values, TABLE_NAME_UNPARTIITONED);
+    sql("INSERT INTO %s values " + StringUtils.join(records1, ","), TABLE_NAME_UNPARTIITONED);
+    sql("INSERT INTO %s values " + StringUtils.join(records2, ","), TABLE_NAME_UNPARTIITONED);
 
     icebergTableUnPartitioned.refresh();
 
@@ -257,7 +277,6 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
 
     // Assert the table records as expected.
-    expected.addAll(expected);
     SimpleDataUtil.assertTableRecords(icebergTableUnPartitioned, expected);
   }
 }
