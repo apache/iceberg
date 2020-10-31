@@ -20,8 +20,6 @@
 
 package org.apache.iceberg.flink.actions;
 
-import static org.apache.iceberg.flink.SimpleDataUtil.RECORD;
-
 import java.io.IOException;
 import java.util.List;
 import org.apache.commons.lang3.StringUtils;
@@ -46,6 +44,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+
+import static org.apache.iceberg.flink.SimpleDataUtil.RECORD;
 
 @RunWith(Parameterized.class)
 public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
@@ -85,7 +85,8 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     icebergTableUnPartitioned = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace,
         TABLE_NAME_UNPARTIITONED));
 
-    sql("CREATE TABLE %s (id int, data varchar,spec varchar)  PARTITIONED BY (data,spec) with ('write.format.default'='%s')",
+    sql("CREATE TABLE %s (id int, data varchar,spec varchar) " +
+            " PARTITIONED BY (data,spec) with ('write.format.default'='%s')",
         TABLE_NAME_PARTIITONED, format.name());
     icebergTablePartitioned = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace,
         TABLE_NAME_PARTIITONED));
