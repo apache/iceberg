@@ -196,7 +196,7 @@ public abstract class TestMetrics {
     secondRecord.setField("timestampColAboveEpoch", DateTimeUtil.timestampFromMicros(900L));
     secondRecord.setField("fixedCol", fixed);
     secondRecord.setField("binaryCol", ByteBuffer.wrap("W".getBytes()));
-    secondRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(0L));
+    secondRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(-7_000L));
 
     InputFile recordsFile = writeRecords(SIMPLE_SCHEMA, firstRecord, secondRecord);
 
@@ -221,12 +221,7 @@ public abstract class TestMetrics {
     assertCounts(9, 2L, 0L, metrics);
     assertBounds(9, TimeType.get(), 2000L, 3000L, metrics);
     assertCounts(10, 2L, 0L, metrics);
-    if (fileFormat() == FileFormat.ORC) {
-      // ORC-611: ORC only supports millisecond precision, so we adjust by 1 millisecond
-      assertBounds(10, TimestampType.withoutZone(), 0L, 1000L, metrics);
-    } else {
-      assertBounds(10, TimestampType.withoutZone(), 0L, 900L, metrics);
-    }
+    assertBounds(10, TimestampType.withoutZone(), 0L, 900L, metrics);
     assertCounts(11, 2L, 0L, metrics);
     assertBounds(11, FixedType.ofLength(4),
         ByteBuffer.wrap(fixed), ByteBuffer.wrap(fixed), metrics);
@@ -234,13 +229,13 @@ public abstract class TestMetrics {
     assertBounds(12, BinaryType.get(),
         ByteBuffer.wrap("S".getBytes()), ByteBuffer.wrap("W".getBytes()), metrics);
     if (fileFormat() == FileFormat.ORC) {
-      // TODO: enable when ORC-342 is fixed - ORC-342: creates inaccurate timestamp/stats below epoch
-      // ORC-611: ORC only supports millisecond precision, so we adjust by 1 millisecond, e.g.
-      // assertBounds(13, TimestampType.withoutZone(), -1000L, 1000L, metrics); would fail for a value
-      // in the range `[1970-01-01 00:00:00.000,1970-01-01 00:00:00.999]`
-      assertBounds(13, TimestampType.withoutZone(), -1_901_000L, 1000L, metrics);
+      // TODO: The special condition for ORC can be removed when ORC-342 is fixed
+      // ORC-342: ORC writer creates inaccurate timestamp data and stats 1 sec below epoch
+      // Values in the range `[1969-12-31 23:59:59.000,1969-12-31 23:59:59.999]` will have 1 sec added to them
+      // So the upper bound value of -7_000 micros becomes 993_000 micros
+      assertBounds(13, TimestampType.withoutZone(), -1_900_300L, 993_000L, metrics);
     } else {
-      assertBounds(13, TimestampType.withoutZone(), -1_900_300L, 0L, metrics);
+      assertBounds(13, TimestampType.withoutZone(), -1_900_300L, -7_000L, metrics);
     }
   }
 

@@ -53,7 +53,6 @@ class ExpressionToSearchArgument extends ExpressionVisitors.BoundVisitor<Express
 
   // Currently every predicate in ORC requires a PredicateLeaf.Type field which is not available for these Iceberg types
   private static final Set<TypeID> UNSUPPORTED_TYPES = ImmutableSet.of(
-      TypeID.TIMESTAMP, // Temporarily disable filters on Timestamp columns due to ORC-611
       TypeID.BINARY,
       TypeID.FIXED,
       TypeID.UUID,

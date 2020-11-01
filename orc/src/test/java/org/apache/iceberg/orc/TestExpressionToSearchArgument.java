@@ -22,6 +22,7 @@ package org.apache.iceberg.orc;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.sql.Date;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -129,8 +130,8 @@ public class TestExpressionToSearchArgument {
         SearchArgument expected = SearchArgumentFactory.newBuilder()
             .startAnd()
             .equals("`date`", Type.DATE, Date.valueOf(LocalDate.parse("1970-01-11", DateTimeFormatter.ISO_LOCAL_DATE)))
-            // .equals("`tsTz`", Type.TIMESTAMP, Timestamp.from(tsTzPredicate.toInstant()))
-            // .equals("`ts`", Type.TIMESTAMP, Timestamp.from(tsPredicate.toInstant()))
+            .equals("`tsTz`", Type.TIMESTAMP, Timestamp.from(tsTzPredicate.toInstant()))
+            .equals("`ts`", Type.TIMESTAMP, Timestamp.from(tsPredicate.toInstant()))
             .end()
             .build();
 
