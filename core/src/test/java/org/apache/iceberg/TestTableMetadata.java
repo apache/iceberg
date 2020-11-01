@@ -24,6 +24,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -57,7 +59,6 @@ import static org.apache.iceberg.TableMetadataParser.PARTITION_SPEC;
 import static org.apache.iceberg.TableMetadataParser.PROPERTIES;
 import static org.apache.iceberg.TableMetadataParser.SCHEMA;
 import static org.apache.iceberg.TableMetadataParser.SNAPSHOTS;
-import static org.apache.iceberg.TableMetadataParser.TABLE_UUID;
 
 public class TestTableMetadata {
   private static final String TEST_LOCATION = "s3://bucket/test/location";
@@ -446,68 +447,48 @@ public class TestTableMetadata {
 
   @Test
   public void testParserVersionValidation() throws Exception {
-    String supportedVersion = toJsonWithVersion(
-        TableMetadata.newTableMetadata(TEST_SCHEMA, SPEC_5, TEST_LOCATION, ImmutableMap.of()),
-        TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION);
-    TableMetadata parsed = TableMetadataParser.fromJson(
-        ops.io(), null, JsonUtil.mapper().readValue(supportedVersion, JsonNode.class));
-    Assert.assertNotNull("Should successfully read supported metadata version", parsed);
+    String supportedVersion1 = readTableMetadataInputFile("TableMetadataV1Valid.json");
+    TableMetadata parsed1 = TableMetadataParser.fromJson(
+        ops.io(), null, JsonUtil.mapper().readValue(supportedVersion1, JsonNode.class));
+    Assert.assertNotNull("Should successfully read supported metadata version", parsed1);
 
-    String unsupportedVersion = toJsonWithVersion(
-        TableMetadata.newTableMetadata(TEST_SCHEMA, SPEC_5, TEST_LOCATION, ImmutableMap.of()),
-        TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION + 1);
+    String supportedVersion2 = readTableMetadataInputFile("TableMetadataV2Valid.json");
+    TableMetadata parsed2 = TableMetadataParser.fromJson(
+        ops.io(), null, JsonUtil.mapper().readValue(supportedVersion2, JsonNode.class));
+    Assert.assertNotNull("Should successfully read supported metadata version", parsed2);
+
+    String unsupportedVersion = readTableMetadataInputFile("TableMetadataUnsupportedVersion.json");
     AssertHelpers.assertThrows("Should not read unsupported metadata",
         IllegalArgumentException.class, "Cannot read unsupported version",
         () -> TableMetadataParser.fromJson(
-            ops.io(), null, JsonUtil.mapper().readValue(unsupportedVersion, JsonNode.class)));
+            ops.io(), null, JsonUtil.mapper().readValue(unsupportedVersion, JsonNode.class))
+    );
   }
 
-  public static String toJsonWithVersion(TableMetadata metadata, int version) {
-    StringWriter writer = new StringWriter();
-    try {
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
 
-      generator.writeStartObject(); // start table metadata object
+  @Test
+  public void testParserV2PartitionSpecsValidation() throws Exception {
+    String unsupportedVersion = readTableMetadataInputFile("TableMetadataV2MissingPartitionSpecs.json");
+    AssertHelpers.assertThrows("Should reject v2 metadata without partition specs",
+        IllegalArgumentException.class, "partition-specs must exist in format v2",
+        () -> TableMetadataParser.fromJson(
+            ops.io(), null, JsonUtil.mapper().readValue(unsupportedVersion, JsonNode.class))
+    );
+  }
 
-      generator.writeNumberField(FORMAT_VERSION, version);
-      generator.writeStringField(TABLE_UUID, metadata.uuid());
-      generator.writeStringField(LOCATION, metadata.location());
-      generator.writeNumberField(LAST_UPDATED_MILLIS, metadata.lastUpdatedMillis());
-      if (version > 1) {
-        generator.writeNumberField(TableMetadataParser.LAST_SEQUENCE_NUMBER, metadata.lastSequenceNumber());
-      }
-      generator.writeNumberField(LAST_COLUMN_ID, metadata.lastColumnId());
+  @Test
+  public void testParserV2SortOrderValidation() throws Exception {
+    String unsupportedVersion = readTableMetadataInputFile("TableMetadataV2MissingSortOrder.json");
+    AssertHelpers.assertThrows("Should reject v2 metadata without sort order",
+        IllegalArgumentException.class, "sort-orders must exist in format v2",
+        () -> TableMetadataParser.fromJson(
+            ops.io(), null, JsonUtil.mapper().readValue(unsupportedVersion, JsonNode.class))
+    );
+  }
 
-      generator.writeFieldName(SCHEMA);
-      SchemaParser.toJson(metadata.schema(), generator);
-
-      // mimic an old writer by writing only partition-spec and not the default ID or spec list
-      generator.writeFieldName(PARTITION_SPEC);
-      PartitionSpecParser.toJsonFields(metadata.spec(), generator);
-
-      generator.writeObjectFieldStart(PROPERTIES);
-      for (Map.Entry<String, String> keyValue : metadata.properties().entrySet()) {
-        generator.writeStringField(keyValue.getKey(), keyValue.getValue());
-      }
-      generator.writeEndObject();
-
-      generator.writeNumberField(CURRENT_SNAPSHOT_ID,
-          metadata.currentSnapshot() != null ? metadata.currentSnapshot().snapshotId() : -1);
-
-      generator.writeArrayFieldStart(SNAPSHOTS);
-      for (Snapshot snapshot : metadata.snapshots()) {
-        SnapshotParser.toJson(snapshot, generator);
-      }
-      generator.writeEndArray();
-      // skip the snapshot log
-
-      generator.writeEndObject(); // end table metadata object
-
-      generator.flush();
-    } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Failed to write json for: %s", metadata), e);
-    }
-    return writer.toString();
+  private String readTableMetadataInputFile(String fileName) throws Exception {
+    Path path = Paths.get(getClass().getClassLoader().getResource(fileName).toURI());
+    return String.join("", java.nio.file.Files.readAllLines(path));
   }
 
   @Test
