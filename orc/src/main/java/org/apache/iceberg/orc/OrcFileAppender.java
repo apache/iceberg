@@ -101,7 +101,7 @@ class OrcFileAppender<D> implements FileAppender<D> {
   public long length() {
     Preconditions.checkState(isClosed,
         "Cannot return length while appending to an open file.");
-    return writer.getRawDataSize();
+    return file.toInputFile().getLength();
   }
 
   @Override
