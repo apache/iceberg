@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
@@ -44,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.UnicodeUtil;
 import org.apache.orc.BooleanColumnStatistics;
 import org.apache.orc.ColumnStatistics;
@@ -198,7 +198,7 @@ public class OrcMetrics {
       TimestampColumnStatistics tColStats = (TimestampColumnStatistics) columnStats;
       Timestamp minValue = tColStats.getMinimumUTC();
       min = Optional.ofNullable(minValue)
-          .map(v -> TimeUnit.MILLISECONDS.toMicros(v.getTime()))
+          .map(v -> DateTimeUtil.microsFromInstant(v.toInstant()))
           .orElse(null);
     } else if (columnStats instanceof BooleanColumnStatistics) {
       BooleanColumnStatistics booleanStats = (BooleanColumnStatistics) columnStats;
@@ -235,8 +235,7 @@ public class OrcMetrics {
       TimestampColumnStatistics tColStats = (TimestampColumnStatistics) columnStats;
       Timestamp maxValue = tColStats.getMaximumUTC();
       max = Optional.ofNullable(maxValue)
-          .map(v -> TimeUnit.MILLISECONDS.toMicros(v.getTime()))
-          .map(v -> v + 1_000) // Add 1 millisecond to handle precision issue due to ORC-611
+          .map(v -> DateTimeUtil.microsFromInstant(v.toInstant()))
           .orElse(null);
     } else if (columnStats instanceof BooleanColumnStatistics) {
       BooleanColumnStatistics booleanStats = (BooleanColumnStatistics) columnStats;
