@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
@@ -238,6 +239,11 @@ public class Spark3Util {
           @Override
           public Transform hour(String sourceName, int sourceId) {
             return Expressions.hours(sourceName);
+          }
+
+          @Override
+          public Transform unknown(int fieldId, String sourceName, int sourceId, String transform) {
+            return Expressions.apply(transform, Expressions.column(sourceName));
           }
         });
 
