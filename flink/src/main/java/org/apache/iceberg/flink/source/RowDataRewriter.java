@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.flink.source;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -124,9 +123,8 @@ public class RowDataRewriter {
     public List<DataFile> map(CombinedScanTask task) throws Exception {
       // Initialize the task writer.
       this.writer = taskWriterFactory.create();
-      RowDataIterator iterator =
-          new RowDataIterator(task, io, encryptionManager, schema, schema, nameMapping, caseSensitive);
-      try {
+      try (RowDataIterator iterator =
+               new RowDataIterator(task, io, encryptionManager, schema, schema, nameMapping, caseSensitive)) {
         while (iterator.hasNext()) {
           RowData rowData = iterator.next();
           writer.write(rowData);
@@ -148,12 +146,6 @@ public class RowDataRewriter {
           throw originalThrowable;
         } else {
           throw new RuntimeException(originalThrowable);
-        }
-      } finally {
-        try {
-          iterator.close();
-        } catch (IOException e) {
-          LOG.warn("close iterator error", e);
         }
       }
     }

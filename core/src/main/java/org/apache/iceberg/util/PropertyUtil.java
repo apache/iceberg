@@ -54,7 +54,7 @@ public class PropertyUtil {
   }
 
   public static String propertyAsString(Map<String, String> properties,
-                                    String property, String defaultValue) {
+                                        String property, String defaultValue) {
     String value = properties.get(property);
     if (value != null) {
       return properties.get(property);

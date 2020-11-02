@@ -39,7 +39,7 @@ public class RewriteDataFilesAction extends BaseRewriteDataFilesAction<RewriteDa
   }
 
   @Override
-  protected FileIO setFileIO() {
+  protected FileIO fileIO() {
     return table().io();
   }
 
