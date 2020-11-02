@@ -228,9 +228,17 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
         .flatMap(Streams::stream)
         .collect(Collectors.toList());
 
-    List<DataFile> addedDataFiles = rewriteDataForTasks(combinedScanTasks);
-    List<DataFile> currentDataFiles = filteredGroupedTasks.values().stream()
-        .flatMap(tasks -> tasks.stream().map(FileScanTask::file))
+    // add a filter  to the CombinedScanTask list to avoid repeated rewrite datafile
+    List<CombinedScanTask> filteredCombinedScanTasks =
+        combinedScanTasks.stream().filter(task -> task.files().size() > 1).collect(Collectors.toList());
+
+    if (filteredCombinedScanTasks.isEmpty()) {
+      return RewriteDataFilesActionResult.empty();
+    }
+
+    List<DataFile> addedDataFiles = rewriteDataForTasks(filteredCombinedScanTasks);
+    List<DataFile> currentDataFiles = filteredCombinedScanTasks.stream()
+        .flatMap(tasks -> tasks.files().stream().map(FileScanTask::file))
         .collect(Collectors.toList());
     replaceDataFiles(currentDataFiles, addedDataFiles);
 
