@@ -66,7 +66,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * TODO we should be able to extract some more commonalities to BaseMetastoreTableOperations to
- * avoid code duplication between this class and Metacat Tables.
+ * avoid code duplication between this class and Metadat Tables.
  */
 public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HiveTableOperations.class);
