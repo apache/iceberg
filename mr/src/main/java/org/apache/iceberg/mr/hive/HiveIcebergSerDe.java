@@ -67,7 +67,6 @@ public class HiveIcebergSerDe extends AbstractSerDe {
           serDeProperties.getProperty(serdeConstants.COLUMN_NAME_DELIMITER) : String.valueOf(SerDeUtils.COMMA);
       if (columnNames != null && columnTypes != null && columnNameDelimiter != null &&
           !columnNames.isEmpty() && !columnTypes.isEmpty() && !columnNameDelimiter.isEmpty()) {
-        // This table schema will be used only for table creation so it should not contain partition columns
         tableSchema = HiveSchemaUtil.schema(columnNames, columnTypes, columnNameDelimiter);
         LOG.info("Using schema from column specification {}", SchemaParser.toJson(tableSchema));
       } else {

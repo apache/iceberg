@@ -579,16 +579,30 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   @Test
   public void testCreateTableWithColumnSpecificationPartitioned() throws IOException {
-    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
+        "currently not supported", () -> {
+          shell.executeStatement("CREATE EXTERNAL TABLE customers (customer_id BIGINT) " +
+              "PARTITIONED BY (first_name STRING) " +
+              "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+              testTables.locationForCreateTableSQL(TableIdentifier.of("default", "customers")));
+        }
+    );
+  }
 
-    shell.executeStatement("CREATE EXTERNAL TABLE customers (customer_id BIGINT) " +
-        "PARTITIONED BY (first_name STRING) " +
+  @Test
+  public void testCreatePartitionedTable() throws IOException {
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    PartitionSpec spec = PartitionSpec.builderFor(CUSTOMER_SCHEMA).identity("first_name").build();
+
+    shell.executeStatement("CREATE EXTERNAL TABLE customers " +
         "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
-        testTables.locationForCreateTableSQL(identifier));
+        testTables.locationForCreateTableSQL(identifier) +
+        "TBLPROPERTIES ('" + InputFormatConfig.PARTITION_SPEC + "'='" + PartitionSpecParser.toJson(spec) + "', " +
+        "'" + InputFormatConfig.TABLE_SCHEMA + "'='" + SchemaParser.toJson(CUSTOMER_SCHEMA) + "')");
 
     org.apache.iceberg.Table icebergTable = loadTable(identifier);
     Assert.assertEquals(CUSTOMER_SCHEMA.asStruct(), icebergTable.schema().asStruct());
-    Assert.assertEquals(PartitionSpec.builderFor(CUSTOMER_SCHEMA).identity("first_name").build(), icebergTable.spec());
+    Assert.assertEquals(spec, icebergTable.spec());
 
     appendIcebergTable(icebergTable, fileFormat, Row.of("Alice"), Arrays.asList(CUSTOMER_RECORDS.get(0)));
     appendIcebergTable(icebergTable, fileFormat, Row.of("Bob"), Arrays.asList(CUSTOMER_RECORDS.get(1)));
@@ -650,29 +664,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     // Check the Iceberg table data
     org.apache.iceberg.Table icebergTable = loadTable(identifier);
     Assert.assertEquals(expectedSchema.asStruct(), icebergTable.schema().asStruct());
-  }
-
-  @Test
-  public void testCreateTableWithColumnSpecificationMultilevelPartitioned() {
-    TableIdentifier identifier = TableIdentifier.of("default", "customers");
-    final Schema expectedSchema = new Schema(
-        optional(1, "id", Types.LongType.get()),
-        optional(2, "name", Types.StringType.get()),
-        optional(3, "branch_id", Types.IntegerType.get()),
-        optional(4, "country", Types.StringType.get()));
-
-    final PartitionSpec expectedSpec =
-        PartitionSpec.builderFor(expectedSchema).identity("branch_id").identity("country").build();
-
-    shell.executeStatement("CREATE EXTERNAL TABLE customers (id BIGINT, name STRING) " +
-        "PARTITIONED BY (branch_id INT, country STRING) " +
-        "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
-        testTables.locationForCreateTableSQL(identifier));
-
-    // Check the Iceberg table data
-    org.apache.iceberg.Table icebergTable = loadTable(identifier);
-    Assert.assertEquals(expectedSchema.asStruct(), icebergTable.schema().asStruct());
-    Assert.assertEquals(expectedSpec, icebergTable.spec());
   }
 
   @Test
