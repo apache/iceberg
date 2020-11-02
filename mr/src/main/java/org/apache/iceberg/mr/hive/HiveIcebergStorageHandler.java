@@ -97,17 +97,7 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
 
   @Override
   public void configureJobConf(TableDesc tableDesc, JobConf jobConf) {
-    Properties props = tableDesc.getProperties();
-    Table table = Catalogs.loadTable(conf, props);
-    String schemaString = SchemaParser.toJson(table.schema());
 
-    jobConf.set(InputFormatConfig.TABLE_IDENTIFIER, props.getProperty(Catalogs.NAME));
-    jobConf.set(InputFormatConfig.TABLE_LOCATION, table.location());
-    jobConf.set(InputFormatConfig.TABLE_SCHEMA, schemaString);
-
-    // cache the schema of each table separately in the conf, so they're not overwritten by each other
-    String tableSchemaKey = InputFormatConfig.TABLE_SCHEMA + "." + props.getProperty(Catalogs.NAME);
-    jobConf.set(tableSchemaKey, schemaString);
   }
 
   @Override

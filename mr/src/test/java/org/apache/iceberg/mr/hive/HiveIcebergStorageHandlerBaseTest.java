@@ -20,6 +20,8 @@
 package org.apache.iceberg.mr.hive;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -110,15 +112,20 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   public abstract TestTables testTables(Configuration conf, TemporaryFolder tmp) throws IOException;
 
   @Parameters(name = "fileFormat={0}, engine={1}")
-  public static Object[][] parameters() {
-    return new Object[][] {
-        { FileFormat.PARQUET, "mr" },
-        { FileFormat.ORC,     "mr" },
-        { FileFormat.AVRO,    "mr" },
-        { FileFormat.PARQUET, "tez" },
-        { FileFormat.ORC,     "tez" },
-        { FileFormat.AVRO,    "tez" }
-    };
+  public static Collection<Object[]> parameters() {
+    Collection<Object[]> testParams = new ArrayList<>();
+    testParams.add(new Object[] { FileFormat.PARQUET, "mr" });
+    testParams.add(new Object[] { FileFormat.ORC, "mr" });
+    testParams.add(new Object[] { FileFormat.AVRO, "mr" });
+
+    // include Tez tests only for Java 8
+    String javaVersion = System.getProperty("java.specification.version");
+    if (javaVersion.equals("1.8")) {
+      testParams.add(new Object[] { FileFormat.PARQUET, "tez" });
+      testParams.add(new Object[] { FileFormat.ORC, "tez" });
+      testParams.add(new Object[] { FileFormat.AVRO, "tez" });
+    }
+    return testParams;
   }
 
   @Parameter(0)
