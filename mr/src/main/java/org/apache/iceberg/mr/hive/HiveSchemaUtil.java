@@ -33,6 +33,7 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 public class HiveSchemaUtil {
@@ -100,45 +101,41 @@ public class HiveSchemaUtil {
     private List<Types.NestedField> visit(List<String> names, List<TypeInfo> typeInfos) {
       List<Types.NestedField> result = new ArrayList<>(names.size());
       for (int i = 0; i < names.size(); ++i) {
-        result.add(visit(names.get(i), typeInfos.get(i)));
+        result.add(Types.NestedField.optional(id++, names.get(i), visit(typeInfos.get(i))));
       }
 
       return result;
     }
 
-    private Types.NestedField visit(String name, TypeInfo typeInfo) {
+    private Type visit(TypeInfo typeInfo) {
       switch (typeInfo.getCategory()) {
         case PRIMITIVE:
           switch (((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory()) {
             case FLOAT:
-              return Types.NestedField.optional(id++, name, Types.FloatType.get());
+              return Types.FloatType.get();
             case DOUBLE:
-              return Types.NestedField.optional(id++, name, Types.DoubleType.get());
+              return Types.DoubleType.get();
             case BOOLEAN:
-              return Types.NestedField.optional(id++, name, Types.BooleanType.get());
+              return Types.BooleanType.get();
             case BYTE:
             case SHORT:
             case INT:
-              return Types.NestedField.optional(id++, name, Types.IntegerType.get());
+              return Types.IntegerType.get();
             case LONG:
-              return Types.NestedField.optional(id++, name, Types.LongType.get());
+              return Types.LongType.get();
             case BINARY:
-              return Types.NestedField.optional(id++, name, Types.BinaryType.get());
+              return Types.BinaryType.get();
             case STRING:
-            case VARCHAR:
-              return Types.NestedField.optional(id++, name, Types.StringType.get());
             case CHAR:
-              Types.FixedType fixedType = Types.FixedType.ofLength(((CharTypeInfo) typeInfo).getLength());
-              return Types.NestedField.optional(id++, name, fixedType);
+            case VARCHAR:
+              return Types.StringType.get();
             case TIMESTAMP:
-              return Types.NestedField.optional(id++, name, Types.TimestampType.withZone());
+              return Types.TimestampType.withZone();
             case DATE:
-              return Types.NestedField.optional(id++, name, Types.DateType.get());
+              return Types.DateType.get();
             case DECIMAL:
               DecimalTypeInfo decimalTypeInfo = (DecimalTypeInfo) typeInfo;
-              Types.DecimalType decimalType =
-                  Types.DecimalType.of(decimalTypeInfo.precision(), decimalTypeInfo.scale());
-              return Types.NestedField.optional(id++, name, decimalType);
+              return Types.DecimalType.of(decimalTypeInfo.precision(), decimalTypeInfo.scale());
             // TODO: In Hive3 we have TIMESTAMPLOCALTZ
             default:
               throw new IllegalArgumentException("Unknown primitive type " +
@@ -148,20 +145,16 @@ public class HiveSchemaUtil {
           StructTypeInfo structTypeInfo = (StructTypeInfo) typeInfo;
           List<Types.NestedField> fields =
               visit(structTypeInfo.getAllStructFieldNames(), structTypeInfo.getAllStructFieldTypeInfos());
-          Types.StructType structType = Types.StructType.of(fields);
-          return Types.NestedField.optional(id++, name, structType);
+          return Types.StructType.of(fields);
         case MAP:
           MapTypeInfo mapTypeInfo = (MapTypeInfo) typeInfo;
-          Types.NestedField keyField = visit(name + "_key", mapTypeInfo.getMapKeyTypeInfo());
-          Types.NestedField valueField = visit(name + "_value", mapTypeInfo.getMapValueTypeInfo());
-          Types.MapType mapType =
-              Types.MapType.ofOptional(keyField.fieldId(), valueField.fieldId(), keyField.type(), valueField.type());
-          return Types.NestedField.optional(id++, name, mapType);
+          Type keyType = visit(mapTypeInfo.getMapKeyTypeInfo());
+          Type valueType = visit(mapTypeInfo.getMapValueTypeInfo());
+          return Types.MapType.ofOptional(id++, id++, keyType, valueType);
         case LIST:
           ListTypeInfo listTypeInfo = (ListTypeInfo) typeInfo;
-          Types.NestedField listField = visit(name + "_element", listTypeInfo.getListElementTypeInfo());
-          Types.ListType listType = Types.ListType.ofOptional(listField.fieldId(), listField.type());
-          return Types.NestedField.optional(id++, name, listType);
+          Type listType = visit(listTypeInfo.getListElementTypeInfo());
+          return Types.ListType.ofOptional(id++, listType);
         case UNION:
         default:
           throw new IllegalArgumentException("Unknown type " + typeInfo.getCategory());
