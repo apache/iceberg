@@ -28,7 +28,7 @@ import org.apache.iceberg.StructLike;
  */
 public interface Bound<T> {
   /**
-   * @return the underlying reference
+   * Returns the underlying reference.
    */
   BoundReference<?> ref();
 

@@ -75,37 +75,37 @@ public interface ManifestFile {
   }
 
   /**
-   * @return fully qualified path to the file, suitable for constructing a Hadoop Path
+   * Returns fully qualified path to the file, suitable for constructing a Hadoop Path.
    */
   String path();
 
   /**
-   * @return length of the manifest file
+   * Returns length of the manifest file.
    */
   long length();
 
   /**
-   * @return ID of the {@link PartitionSpec} used to write the manifest file
+   * Returns iD of the {@link PartitionSpec} used to write the manifest file.
    */
   int partitionSpecId();
 
   /**
-   * @return the content stored in the manifest; either DATA or DELETES
+   * Returns the content stored in the manifest; either DATA or DELETES.
    */
   ManifestContent content();
 
   /**
-   * @return the sequence number of the commit that added the manifest file
+   * Returns the sequence number of the commit that added the manifest file.
    */
   long sequenceNumber();
 
   /**
-   * @return the lowest sequence number of any data file in the manifest
+   * Returns the lowest sequence number of any data file in the manifest.
    */
   long minSequenceNumber();
 
   /**
-   * @return ID of the snapshot that added the manifest file to table metadata
+   * Returns iD of the snapshot that added the manifest file to table metadata.
    */
   Long snapshotId();
 
@@ -119,12 +119,12 @@ public interface ManifestFile {
   }
 
   /**
-   * @return the number of data files with status ADDED in the manifest file
+   * Returns the number of data files with status ADDED in the manifest file.
    */
   Integer addedFilesCount();
 
   /**
-   * @return the total number of rows in all data files with status ADDED in the manifest file
+   * Returns the total number of rows in all data files with status ADDED in the manifest file.
    */
   Long addedRowsCount();
 
@@ -138,12 +138,12 @@ public interface ManifestFile {
   }
 
   /**
-   * @return the number of data files with status EXISTING in the manifest file
+   * Returns the number of data files with status EXISTING in the manifest file.
    */
   Integer existingFilesCount();
 
   /**
-   * @return the total number of rows in all data files with status EXISTING in the manifest file
+   * Returns the total number of rows in all data files with status EXISTING in the manifest file.
    */
   Long existingRowsCount();
 
@@ -157,12 +157,12 @@ public interface ManifestFile {
   }
 
   /**
-   * @return the number of data files with status DELETED in the manifest file
+   * Returns the number of data files with status DELETED in the manifest file.
    */
   Integer deletedFilesCount();
 
   /**
-   * @return the total number of rows in all data files with status DELETED in the manifest file
+   * Returns the total number of rows in all data files with status DELETED in the manifest file.
    */
   Long deletedRowsCount();
 
@@ -195,17 +195,17 @@ public interface ManifestFile {
     }
 
     /**
-     * @return true if at least one data file in the manifest has a null value for the field
+     * Returns true if at least one data file in the manifest has a null value for the field.
      */
     boolean containsNull();
 
     /**
-     * @return a ByteBuffer that contains a serialized bound lower than all values of the field
+     * Returns a ByteBuffer that contains a serialized bound lower than all values of the field.
      */
     ByteBuffer lowerBound();
 
     /**
-     * @return a ByteBuffer that contains a serialized bound higher than all values of the field
+     * Returns a ByteBuffer that contains a serialized bound higher than all values of the field.
      */
     ByteBuffer upperBound();
 

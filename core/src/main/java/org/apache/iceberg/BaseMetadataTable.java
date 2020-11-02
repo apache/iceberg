@@ -27,10 +27,10 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 abstract class BaseMetadataTable implements Table {
-  private PartitionSpec spec = PartitionSpec.unpartitioned();
+  private final PartitionSpec spec = PartitionSpec.unpartitioned();
+  private final SortOrder sortOrder = SortOrder.unsorted();
 
   abstract Table table();
-  abstract String metadataTableName();
 
   @Override
   public FileIO io() {
@@ -65,6 +65,16 @@ abstract class BaseMetadataTable implements Table {
   @Override
   public Map<Integer, PartitionSpec> specs() {
     return ImmutableMap.of(spec.specId(), spec);
+  }
+
+  @Override
+  public SortOrder sortOrder() {
+    return sortOrder;
+  }
+
+  @Override
+  public Map<Integer, SortOrder> sortOrders() {
+    return ImmutableMap.of(sortOrder.orderId(), sortOrder);
   }
 
   @Override
@@ -164,6 +174,6 @@ abstract class BaseMetadataTable implements Table {
 
   @Override
   public String toString() {
-    return table().toString() + "." + metadataTableName();
+    return name();
   }
 }

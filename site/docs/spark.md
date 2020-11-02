@@ -45,6 +45,7 @@ This creates an Iceberg catalog named `hive_prod` that loads tables from a Hive 
 spark.sql.catalog.hive_prod = org.apache.iceberg.spark.SparkCatalog
 spark.sql.catalog.hive_prod.type = hive
 spark.sql.catalog.hive_prod.uri = thrift://metastore-host:port
+# omit uri to use the same URI as Spark: hive.metastore.uris in hive-site.xml
 ```
 
 Iceberg also supports a directory-based catalog in HDFS that can be configured using `type=hadoop`:
@@ -82,7 +83,6 @@ To add Iceberg table support to Spark's built-in catalog, configure `spark_catal
 ```plain
 spark.sql.catalog.spark_catalog = org.apache.iceberg.spark.SparkSessionCatalog
 spark.sql.catalog.spark_catalog.type = hive
-# omit uri to use the same URI as Spark: hive.metastore.uris in hive-site.xml
 ```
 
 Spark's built-in catalog supports existing v1 and v2 tables tracked in a Hive Metastore. This configures Spark to use Iceberg's `SparkSessionCatalog` as a wrapper around that session catalog. When a table is not an Iceberg table, the built-in catalog will be used to load it instead.
@@ -177,7 +177,7 @@ AS SELECT ...
 ```
 
 The schema and partition spec will be replaced if changed. To avoid modifying the table's schema and partitioning, use `INSERT OVERWRITE` instead of `REPLACE TABLE`.
-
+The new table properties in the `REPLACE TABLE` command will be merged with any existing table properties. The existing table properties will be updated if changed else they are preserved.
 ### `ALTER TABLE`
 
 Iceberg has full `ALTER TABLE` support in Spark 3, including:
@@ -278,16 +278,8 @@ To load a table as a DataFrame, use `table`:
 val df = spark.table("prod.db.table")
 ```
 
-To configure the `DataFrameReader`, use a reader directly:
-
-```sql
-val df = spark.read
-    .option("split-size", "268435456")
-    .table("prod.db.table")
-```
-
 !!! Warning
-    When reading with DataFrames in Spark 3, use `table` to load a table by name from a catalog.
+    When reading with DataFrames in Spark 3, use `table` to load a table by name from a catalog unless `option` is also required.
     Using `format("iceberg")` loads an isolated table reference that is not refreshed when other queries update the table.
 
 
@@ -302,21 +294,28 @@ To select a specific table snapshot or the snapshot at some time, Iceberg suppor
 // time travel to October 26, 1986 at 01:21:00
 spark.read
     .option("as-of-timestamp", "499162860000")
-    .table("prod.db.table")
+    .format("iceberg")
+    .load("path/to/table")
 ```
 
 ```scala
 // time travel to snapshot with ID 10963874102873L
 spark.read
     .option("snapshot-id", 10963874102873L)
-    .table("prod.db.table")
+    .format("iceberg")
+    .load("path/to/table")
 ```
+
+!!! Note
+    Spark does not currently support using `option` with `table` in DataFrameReader commands. All options will be silently 
+    ignored. Do not use `table` when attempting to time-travel or use other options. Options will be supported with `table`
+    in [Spark 3.1 - SPARK-32592](https://issues.apache.org/jira/browse/SPARK-32592).
 
 Time travel is not yet supported by Spark's SQL syntax.
 
 ### Spark 2.4
 
-Spark 2.4 requires using the DataFrame reader with `iceberg` as a format, becuase 2.4 does not support catalogs:
+Spark 2.4 requires using the DataFrame reader with `iceberg` as a format, because 2.4 does not support catalogs:
 
 ```scala
 // named metastore table
@@ -520,6 +519,97 @@ data.writeTo("prod.db.table")
     .createOrReplace()
 ```
 
+## Writing against partitioned table
+
+Iceberg requires the data to be sorted according to the partition spec per task (Spark partition) in prior to write
+against partitioned table. This applies both Writing with SQL and Writing with DataFrames.
+
+!!! Note
+    Explicit sort is necessary because Spark doesn't allow Iceberg to request a sort before writing as of Spark 3.0.
+    [SPARK-23889](https://issues.apache.org/jira/browse/SPARK-23889) is filed to enable Iceberg to require specific
+    distribution & sort order to Spark.
+
+!!! Note
+    Both global sort (`orderBy`/`sort`) and local sort (`sortWithinPartitions`) work for the requirement.
+
+Let's go through writing the data against below sample table:
+
+```sql
+CREATE TABLE prod.db.sample (
+    id bigint,
+    data string,
+    category string,
+    ts timestamp)
+USING iceberg
+PARTITIONED BY (days(ts), category)
+```
+
+To write data to the sample table, your data needs to be sorted by `days(ts), category`.
+
+If you're inserting data with SQL statement, you can use `ORDER BY` to achieve it, like below:
+
+```sql
+INSERT INTO prod.db.sample
+SELECT id, data, category, ts FROM another_table
+ORDER BY ts, category
+```
+
+If you're inserting data with DataFrame, you can use either `orderBy`/`sort` to trigger global sort, or `sortWithinPartitions`
+to trigger local sort. Local sort for example:
+
+```scala
+data.sortWithinPartitions("ts", "category")
+    .writeTo("prod.db.sample")
+    .append()
+```
+
+You can simply add the original column to the sort condition for the most partition transformations, except `bucket`.
+
+For `bucket` partition transformation, you need to register the Iceberg transform function in Spark to specify it during sort.
+
+Let's go through another sample table having bucket partition:
+
+```sql
+CREATE TABLE prod.db.sample (
+    id bigint,
+    data string,
+    category string,
+    ts timestamp)
+USING iceberg
+PARTITIONED BY (bucket(16, id))
+```
+
+You need to register the function to deal with bucket, like below:
+
+```scala
+import org.apache.iceberg.spark.IcebergSpark
+import org.apache.spark.sql.types.DataTypes
+
+IcebergSpark.registerBucketUDF(spark, "iceberg_bucket16", DataTypes.LongType, 16)
+```
+
+!!! Note
+    Explicit registration of the function is necessary because Spark doesn't allow Iceberg to provide functions.
+    [SPARK-27658](https://issues.apache.org/jira/browse/SPARK-27658) is filed to enable Iceberg to provide functions
+    which can be used in query.
+
+Here we just registered the bucket function as `iceberg_bucket16`, which can be used in sort clause.
+
+If you're inserting data with SQL statement, you can use the function like below:
+
+```sql
+INSERT INTO prod.db.sample
+SELECT id, data, category, ts FROM another_table
+ORDER BY iceberg_bucket16(id)
+```
+
+If you're inserting data with DataFrame, you can use the function like below:
+
+```scala
+data.sortWithinPartitions(expr("iceberg_bucket16(id)"))
+    .writeTo("prod.db.sample")
+    .append()
+```
 
 ## Inspecting tables
 

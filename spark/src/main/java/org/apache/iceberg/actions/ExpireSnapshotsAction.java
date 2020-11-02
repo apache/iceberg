@@ -52,7 +52,8 @@ import org.slf4j.LoggerFactory;
  * locally using a direct call to RemoveSnapshots. The snapshot expiration will be fully committed before any deletes
  * are issued. Deletes are still performed locally after retrieving the results from the Spark executors.
  */
-public class ExpireSnapshotsAction extends BaseAction<ExpireSnapshotsActionResult> {
+@SuppressWarnings("UnnecessaryAnonymousClass")
+public class ExpireSnapshotsAction extends BaseSparkAction<ExpireSnapshotsActionResult> {
   private static final Logger LOG = LoggerFactory.getLogger(ExpireSnapshotsAction.class);
 
   private static final String DATA_FILE = "Data File";

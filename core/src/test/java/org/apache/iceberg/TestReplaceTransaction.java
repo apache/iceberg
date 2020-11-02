@@ -21,10 +21,14 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -32,21 +36,59 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.PartitionSpec.unpartitioned;
+import static org.apache.iceberg.SortDirection.ASC;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
 public class TestReplaceTransaction extends TableTestBase {
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { 1 },
-        new Object[] { 2 },
-    };
+  @Parameterized.Parameters(name = "formatVersion = {0}")
+  public static Object[] parameters() {
+    return new Object[] { 1, 2 };
   }
 
   public TestReplaceTransaction(int formatVersion) {
     super(formatVersion);
+  }
+
+  @Test
+  public void testReplaceTransactionWithCustomSortOrder() {
+    Snapshot start = table.currentSnapshot();
+    Schema schema = table.schema();
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    Assert.assertEquals("Version should be 1", 1L, (long) version());
+
+    validateSnapshot(start, table.currentSnapshot(), FILE_A);
+
+    SortOrder newSortOrder = SortOrder.builderFor(schema)
+        .asc("id", NULLS_FIRST)
+        .build();
+
+    Map<String, String> props = Maps.newHashMap();
+    Transaction replace = TestTables.beginReplace(tableDir, "test", schema, unpartitioned(), newSortOrder, props);
+    replace.commitTransaction();
+
+    table.refresh();
+
+    Assert.assertEquals("Version should be 2", 2L, (long) version());
+    Assert.assertNull("Table should not have a current snapshot", table.currentSnapshot());
+    Assert.assertEquals("Schema should match previous schema",
+        schema.asStruct(), table.schema().asStruct());
+    Assert.assertEquals("Partition spec should have no fields",
+        0, table.spec().fields().size());
+    Assert.assertEquals("Table should have 2 orders", 2, table.sortOrders().size());
+    SortOrder sortOrder = table.sortOrder();
+    Assert.assertEquals("Order ID must match", 1, sortOrder.orderId());
+    Assert.assertEquals("Order must have 1 field", 1, sortOrder.fields().size());
+    Assert.assertEquals("Direction must match ", ASC, sortOrder.fields().get(0).direction());
+    Assert.assertEquals("Null order must match ", NULLS_FIRST, sortOrder.fields().get(0).nullOrder());
+    Transform<?, ?> transform = Transforms.identity(Types.IntegerType.get());
+    Assert.assertEquals("Transform must match", transform, sortOrder.fields().get(0).transform());
   }
 
   @Test
@@ -77,6 +119,9 @@ public class TestReplaceTransaction extends TableTestBase {
         schema.asStruct(), table.schema().asStruct());
     Assert.assertEquals("Partition spec should have no fields",
         0, table.spec().fields().size());
+    Assert.assertEquals("Table should have 1 order", 1, table.sortOrders().size());
+    Assert.assertEquals("Table order ID should match", 0, table.sortOrder().orderId());
+    Assert.assertTrue("Table should be unsorted", table.sortOrder().isUnsorted());
   }
 
   @Test
@@ -102,7 +147,7 @@ public class TestReplaceTransaction extends TableTestBase {
     Assert.assertEquals("Version should be 2", 2L, (long) version());
     Assert.assertNull("Table should not have a current snapshot", table.currentSnapshot());
     Assert.assertEquals("Schema should use new schema, not compatible with previous",
-        new Schema(required(1, "obj_id", Types.IntegerType.get())).asStruct(),
+        new Schema(required(3, "obj_id", Types.IntegerType.get())).asStruct(),
         table.schema().asStruct());
   }
 

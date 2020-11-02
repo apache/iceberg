@@ -24,6 +24,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -35,6 +37,7 @@ import java.util.UUID;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -56,7 +59,6 @@ import static org.apache.iceberg.TableMetadataParser.PARTITION_SPEC;
 import static org.apache.iceberg.TableMetadataParser.PROPERTIES;
 import static org.apache.iceberg.TableMetadataParser.SCHEMA;
 import static org.apache.iceberg.TableMetadataParser.SNAPSHOTS;
-import static org.apache.iceberg.TableMetadataParser.TABLE_UUID;
 
 public class TestTableMetadata {
   private static final String TEST_LOCATION = "s3://bucket/test/location";
@@ -71,6 +73,11 @@ public class TestTableMetadata {
   private static final int LAST_ASSIGNED_COLUMN_ID = 3;
 
   private static final PartitionSpec SPEC_5 = PartitionSpec.builderFor(TEST_SCHEMA).withSpecId(5).build();
+  private static final SortOrder SORT_ORDER_3 = SortOrder.builderFor(TEST_SCHEMA)
+      .withOrderId(3)
+      .asc("y", NullOrder.NULLS_FIRST)
+      .desc(Expressions.bucket("z", 4), NullOrder.NULLS_LAST)
+      .build();
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -95,7 +102,7 @@ public class TestTableMetadata {
 
     TableMetadata expected = new TableMetadata(null, 2, UUID.randomUUID().toString(), TEST_LOCATION,
         SEQ_NO, System.currentTimeMillis(), 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5),
-        ImmutableMap.of("property", "value"), currentSnapshotId,
+        3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), snapshotLog, ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(expected);
@@ -140,6 +147,7 @@ public class TestTableMetadata {
   @Test
   public void testBackwardCompat() throws Exception {
     PartitionSpec spec = PartitionSpec.builderFor(TEST_SCHEMA).identity("x").withSpecId(6).build();
+    SortOrder sortOrder = SortOrder.unsorted();
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
@@ -152,8 +160,8 @@ public class TestTableMetadata {
 
     TableMetadata expected = new TableMetadata(null, 1, null, TEST_LOCATION,
         0, System.currentTimeMillis(), 3, TEST_SCHEMA, 6, ImmutableList.of(spec),
-        ImmutableMap.of("property", "value"), currentSnapshotId,
-        Arrays.asList(previousSnapshot, currentSnapshot), ImmutableList.of(), ImmutableList.of());
+        TableMetadata.INITIAL_SORT_ORDER_ID, ImmutableList.of(sortOrder), ImmutableMap.of("property", "value"),
+        currentSnapshotId, Arrays.asList(previousSnapshot, currentSnapshot), ImmutableList.of(), ImmutableList.of());
 
     String asJson = toJsonWithoutSpecList(expected);
     TableMetadata metadata = TableMetadataParser
@@ -262,7 +270,7 @@ public class TestTableMetadata {
 
     TableMetadata base = new TableMetadata(null, 1, UUID.randomUUID().toString(), TEST_LOCATION,
         0, System.currentTimeMillis(), 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5),
-        ImmutableMap.of("property", "value"), currentSnapshotId,
+        3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
 
@@ -297,7 +305,7 @@ public class TestTableMetadata {
 
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
         TEST_LOCATION, 0, currentTimestamp - 80, 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5),
-        ImmutableMap.of("property", "value"), currentSnapshotId,
+        3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
 
@@ -342,7 +350,8 @@ public class TestTableMetadata {
 
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
         TEST_LOCATION, 0, currentTimestamp - 50, 3, TEST_SCHEMA, 5,
-        ImmutableList.of(SPEC_5), ImmutableMap.of("property", "value"), currentSnapshotId,
+        ImmutableList.of(SPEC_5), 3, ImmutableList.of(SORT_ORDER_3),
+        ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
 
@@ -392,7 +401,8 @@ public class TestTableMetadata {
 
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
         TEST_LOCATION, 0, currentTimestamp - 50, 3, TEST_SCHEMA, 2,
-        ImmutableList.of(SPEC_5), ImmutableMap.of("property", "value"), currentSnapshotId,
+        ImmutableList.of(SPEC_5), TableMetadata.INITIAL_SORT_ORDER_ID, ImmutableList.of(SortOrder.unsorted()),
+        ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
 
@@ -417,7 +427,8 @@ public class TestTableMetadata {
     AssertHelpers.assertThrows("Should reject v2 metadata without a UUID",
         IllegalArgumentException.class, "UUID is required in format v2",
         () -> new TableMetadata(null, 2, null, TEST_LOCATION, SEQ_NO, System.currentTimeMillis(),
-            LAST_ASSIGNED_COLUMN_ID, TEST_SCHEMA, SPEC_5.specId(), ImmutableList.of(SPEC_5), ImmutableMap.of(), -1L,
+            LAST_ASSIGNED_COLUMN_ID, TEST_SCHEMA, SPEC_5.specId(), ImmutableList.of(SPEC_5),
+            3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of(), -1L,
             ImmutableList.of(), ImmutableList.of(), ImmutableList.of())
     );
   }
@@ -429,74 +440,55 @@ public class TestTableMetadata {
         IllegalArgumentException.class, "Unsupported format version: v" + unsupportedVersion,
         () -> new TableMetadata(null, unsupportedVersion, null, TEST_LOCATION, SEQ_NO,
             System.currentTimeMillis(), LAST_ASSIGNED_COLUMN_ID, TEST_SCHEMA, SPEC_5.specId(), ImmutableList.of(SPEC_5),
-            ImmutableMap.of(), -1L, ImmutableList.of(), ImmutableList.of(), ImmutableList.of())
+            3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of(), -1L,
+            ImmutableList.of(), ImmutableList.of(), ImmutableList.of())
     );
   }
 
   @Test
   public void testParserVersionValidation() throws Exception {
-    String supportedVersion = toJsonWithVersion(
-        TableMetadata.newTableMetadata(TEST_SCHEMA, SPEC_5, TEST_LOCATION, ImmutableMap.of()),
-        TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION);
-    TableMetadata parsed = TableMetadataParser.fromJson(
-        ops.io(), null, JsonUtil.mapper().readValue(supportedVersion, JsonNode.class));
-    Assert.assertNotNull("Should successfully read supported metadata version", parsed);
+    String supportedVersion1 = readTableMetadataInputFile("TableMetadataV1Valid.json");
+    TableMetadata parsed1 = TableMetadataParser.fromJson(
+        ops.io(), null, JsonUtil.mapper().readValue(supportedVersion1, JsonNode.class));
+    Assert.assertNotNull("Should successfully read supported metadata version", parsed1);
 
-    String unsupportedVersion = toJsonWithVersion(
-        TableMetadata.newTableMetadata(TEST_SCHEMA, SPEC_5, TEST_LOCATION, ImmutableMap.of()),
-        TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION + 1);
+    String supportedVersion2 = readTableMetadataInputFile("TableMetadataV2Valid.json");
+    TableMetadata parsed2 = TableMetadataParser.fromJson(
+        ops.io(), null, JsonUtil.mapper().readValue(supportedVersion2, JsonNode.class));
+    Assert.assertNotNull("Should successfully read supported metadata version", parsed2);
+
+    String unsupportedVersion = readTableMetadataInputFile("TableMetadataUnsupportedVersion.json");
     AssertHelpers.assertThrows("Should not read unsupported metadata",
         IllegalArgumentException.class, "Cannot read unsupported version",
         () -> TableMetadataParser.fromJson(
-            ops.io(), null, JsonUtil.mapper().readValue(unsupportedVersion, JsonNode.class)));
+            ops.io(), null, JsonUtil.mapper().readValue(unsupportedVersion, JsonNode.class))
+    );
   }
 
-  public static String toJsonWithVersion(TableMetadata metadata, int version) {
-    StringWriter writer = new StringWriter();
-    try {
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
 
-      generator.writeStartObject(); // start table metadata object
+  @Test
+  public void testParserV2PartitionSpecsValidation() throws Exception {
+    String unsupportedVersion = readTableMetadataInputFile("TableMetadataV2MissingPartitionSpecs.json");
+    AssertHelpers.assertThrows("Should reject v2 metadata without partition specs",
+        IllegalArgumentException.class, "partition-specs must exist in format v2",
+        () -> TableMetadataParser.fromJson(
+            ops.io(), null, JsonUtil.mapper().readValue(unsupportedVersion, JsonNode.class))
+    );
+  }
 
-      generator.writeNumberField(FORMAT_VERSION, version);
-      generator.writeStringField(TABLE_UUID, metadata.uuid());
-      generator.writeStringField(LOCATION, metadata.location());
-      generator.writeNumberField(LAST_UPDATED_MILLIS, metadata.lastUpdatedMillis());
-      if (version > 1) {
-        generator.writeNumberField(TableMetadataParser.LAST_SEQUENCE_NUMBER, metadata.lastSequenceNumber());
-      }
-      generator.writeNumberField(LAST_COLUMN_ID, metadata.lastColumnId());
+  @Test
+  public void testParserV2SortOrderValidation() throws Exception {
+    String unsupportedVersion = readTableMetadataInputFile("TableMetadataV2MissingSortOrder.json");
+    AssertHelpers.assertThrows("Should reject v2 metadata without sort order",
+        IllegalArgumentException.class, "sort-orders must exist in format v2",
+        () -> TableMetadataParser.fromJson(
+            ops.io(), null, JsonUtil.mapper().readValue(unsupportedVersion, JsonNode.class))
+    );
+  }
 
-      generator.writeFieldName(SCHEMA);
-      SchemaParser.toJson(metadata.schema(), generator);
-
-      // mimic an old writer by writing only partition-spec and not the default ID or spec list
-      generator.writeFieldName(PARTITION_SPEC);
-      PartitionSpecParser.toJsonFields(metadata.spec(), generator);
-
-      generator.writeObjectFieldStart(PROPERTIES);
-      for (Map.Entry<String, String> keyValue : metadata.properties().entrySet()) {
-        generator.writeStringField(keyValue.getKey(), keyValue.getValue());
-      }
-      generator.writeEndObject();
-
-      generator.writeNumberField(CURRENT_SNAPSHOT_ID,
-          metadata.currentSnapshot() != null ? metadata.currentSnapshot().snapshotId() : -1);
-
-      generator.writeArrayFieldStart(SNAPSHOTS);
-      for (Snapshot snapshot : metadata.snapshots()) {
-        SnapshotParser.toJson(snapshot, generator);
-      }
-      generator.writeEndArray();
-      // skip the snapshot log
-
-      generator.writeEndObject(); // end table metadata object
-
-      generator.flush();
-    } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Failed to write json for: %s", metadata), e);
-    }
-    return writer.toString();
+  private String readTableMetadataInputFile(String fileName) throws Exception {
+    Path path = Paths.get(getClass().getClassLoader().getResource(fileName).toURI());
+    return String.join("", java.nio.file.Files.readAllLines(path));
   }
 
   @Test
@@ -538,5 +530,58 @@ public class TestTableMetadata {
     AssertHelpers.assertThrows("Should fail to update an invalid partition spec",
         ValidationException.class, "Spec does not use sequential IDs that are required in v1",
         () -> metadata.updatePartitionSpec(spec));
+  }
+
+  @Test
+  public void testSortOrder() {
+    Schema schema = new Schema(
+        Types.NestedField.required(10, "x", Types.StringType.get())
+    );
+
+    TableMetadata meta = TableMetadata.newTableMetadata(
+        schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+    Assert.assertTrue("Should default to unsorted order", meta.sortOrder().isUnsorted());
+    Assert.assertSame("Should detect identical unsorted order", meta, meta.updateSortOrder(SortOrder.unsorted()));
+  }
+
+  @Test
+  public void testUpdateSortOrder() {
+    Schema schema = new Schema(
+        Types.NestedField.required(10, "x", Types.StringType.get())
+    );
+
+    SortOrder order = SortOrder.builderFor(schema).asc("x").build();
+
+    TableMetadata sortedByX = TableMetadata.newTableMetadata(
+        schema, PartitionSpec.unpartitioned(), order, null, ImmutableMap.of());
+    Assert.assertEquals("Should have 1 sort order", 1, sortedByX.sortOrders().size());
+    Assert.assertEquals("Should use orderId 1", 1, sortedByX.sortOrder().orderId());
+    Assert.assertEquals("Should be sorted by one field", 1, sortedByX.sortOrder().fields().size());
+    Assert.assertEquals("Should use the table's field ids", 1, sortedByX.sortOrder().fields().get(0).sourceId());
+    Assert.assertEquals("Should be ascending",
+        SortDirection.ASC, sortedByX.sortOrder().fields().get(0).direction());
+    Assert.assertEquals("Should be nulls first",
+        NullOrder.NULLS_FIRST, sortedByX.sortOrder().fields().get(0).nullOrder());
+
+    // build an equivalent order with the correct schema
+    SortOrder newOrder = SortOrder.builderFor(sortedByX.schema()).asc("x").build();
+
+    TableMetadata alsoSortedByX = sortedByX.updateSortOrder(newOrder);
+    Assert.assertSame("Should detect current sortOrder and not update", alsoSortedByX, sortedByX);
+
+    TableMetadata unsorted = alsoSortedByX.updateSortOrder(SortOrder.unsorted());
+    Assert.assertEquals("Should have 2 sort orders", 2, unsorted.sortOrders().size());
+    Assert.assertEquals("Should use orderId 0", 0, unsorted.sortOrder().orderId());
+    Assert.assertTrue("Should be unsorted", unsorted.sortOrder().isUnsorted());
+
+    TableMetadata sortedByXDesc = unsorted.updateSortOrder(SortOrder.builderFor(unsorted.schema()).desc("x").build());
+    Assert.assertEquals("Should have 3 sort orders", 3, sortedByXDesc.sortOrders().size());
+    Assert.assertEquals("Should use orderId 2", 2, sortedByXDesc.sortOrder().orderId());
+    Assert.assertEquals("Should be sorted by one field", 1, sortedByXDesc.sortOrder().fields().size());
+    Assert.assertEquals("Should use the table's field ids", 1, sortedByXDesc.sortOrder().fields().get(0).sourceId());
+    Assert.assertEquals("Should be ascending",
+        SortDirection.DESC, sortedByXDesc.sortOrder().fields().get(0).direction());
+    Assert.assertEquals("Should be nulls first",
+        NullOrder.NULLS_FIRST, sortedByX.sortOrder().fields().get(0).nullOrder());
   }
 }

@@ -33,6 +33,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.orc.ORC;
@@ -61,7 +62,7 @@ public class TestFlinkOrcReaderWriter extends DataTest {
 
     try (CloseableIterable<RowData> reader = ORC.read(Files.localInput(recordsFile))
         .project(schema)
-        .createReaderFunc(type -> FlinkOrcReader.buildReader(schema, type))
+        .createReaderFunc(type -> new FlinkOrcReader(schema, type))
         .build()) {
       Iterator<Record> expected = expectedRecords.iterator();
       Iterator<RowData> rows = reader.iterator();

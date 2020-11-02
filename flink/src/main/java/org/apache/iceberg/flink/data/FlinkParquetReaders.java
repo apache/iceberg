@@ -35,6 +35,7 @@ import org.apache.flink.table.data.RawValueData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
@@ -52,7 +53,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
-class FlinkParquetReaders {
+public class FlinkParquetReaders {
   private FlinkParquetReaders() {
   }
 
@@ -111,6 +112,9 @@ class FlinkParquetReaders {
         if (idToConstant.containsKey(id)) {
           // containsKey is used because the constant may be null
           reorderedFields.add(ParquetValueReaders.constant(idToConstant.get(id)));
+          types.add(null);
+        } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
+          reorderedFields.add(ParquetValueReaders.position());
           types.add(null);
         } else {
           ParquetValueReader<?> reader = readersById.get(id);

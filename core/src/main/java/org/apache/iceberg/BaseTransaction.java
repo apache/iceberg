@@ -67,8 +67,8 @@ class BaseTransaction implements Transaction {
   private final Consumer<String> enqueueDelete = deletedFiles::add;
   private TransactionType type;
   private TableMetadata base;
-  private TableMetadata lastBase;
   private TableMetadata current;
+  private boolean hasLastOpCommitted;
 
   BaseTransaction(String tableName, TableOperations ops, TransactionType type, TableMetadata start) {
     this.tableName = tableName;
@@ -80,7 +80,7 @@ class BaseTransaction implements Transaction {
     this.intermediateSnapshotIds = Sets.newHashSet();
     this.base = ops.current();
     this.type = type;
-    this.lastBase = null;
+    this.hasLastOpCommitted = true;
   }
 
   @Override
@@ -89,9 +89,9 @@ class BaseTransaction implements Transaction {
   }
 
   private void checkLastOperationCommitted(String operation) {
-    Preconditions.checkState(lastBase != current,
+    Preconditions.checkState(hasLastOpCommitted,
         "Cannot create new %s: last operation has not committed", operation);
-    this.lastBase = current;
+    this.hasLastOpCommitted = false;
   }
 
   @Override
@@ -200,7 +200,7 @@ class BaseTransaction implements Transaction {
 
   @Override
   public void commitTransaction() {
-    Preconditions.checkState(lastBase != current,
+    Preconditions.checkState(hasLastOpCommitted,
         "Cannot commit transaction: last operation has not committed");
 
     switch (type) {
@@ -453,6 +453,8 @@ class BaseTransaction implements Transaction {
       BaseTransaction.this.current = metadata;
 
       this.tempOps = ops.temp(metadata);
+
+      BaseTransaction.this.hasLastOpCommitted = true;
     }
 
     @Override
@@ -482,6 +484,12 @@ class BaseTransaction implements Transaction {
   }
 
   public class TransactionTable implements Table {
+
+    @Override
+    public String name() {
+      return tableName;
+    }
+
     @Override
     public void refresh() {
     }
@@ -504,6 +512,16 @@ class BaseTransaction implements Transaction {
     @Override
     public Map<Integer, PartitionSpec> specs() {
       return current.specsById();
+    }
+
+    @Override
+    public SortOrder sortOrder() {
+      return current.sortOrder();
+    }
+
+    @Override
+    public Map<Integer, SortOrder> sortOrders() {
+      return current.sortOrdersById();
     }
 
     @Override
@@ -624,6 +642,11 @@ class BaseTransaction implements Transaction {
     @Override
     public LocationProvider locationProvider() {
       return transactionOps.locationProvider();
+    }
+
+    @Override
+    public String toString() {
+      return name();
     }
   }
 

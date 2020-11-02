@@ -45,6 +45,11 @@ public class BaseTable implements Table, HasTableOperations {
   }
 
   @Override
+  public String name() {
+    return name;
+  }
+
+  @Override
   public void refresh() {
     ops.refresh();
   }
@@ -67,6 +72,16 @@ public class BaseTable implements Table, HasTableOperations {
   @Override
   public Map<Integer, PartitionSpec> specs() {
     return ops.current().specsById();
+  }
+
+  @Override
+  public SortOrder sortOrder() {
+    return ops.current().sortOrder();
+  }
+
+  @Override
+  public Map<Integer, SortOrder> sortOrders() {
+    return ops.current().sortOrdersById();
   }
 
   @Override
@@ -191,6 +206,6 @@ public class BaseTable implements Table, HasTableOperations {
 
   @Override
   public String toString() {
-    return name;
+    return name();
   }
 }

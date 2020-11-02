@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
@@ -46,6 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.read.Batch;
@@ -82,6 +84,7 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   private final int batchSize;
 
   // lazy variables
+  private StructType readSchema = null;
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
 
   SparkBatchScan(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryption, boolean caseSensitive,
@@ -128,7 +131,10 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
   @Override
   public StructType readSchema() {
-    return SparkSchemaUtil.convert(expectedSchema);
+    if (readSchema == null) {
+      this.readSchema = SparkSchemaUtil.convert(expectedSchema);
+    }
+    return readSchema;
   }
 
   @Override
@@ -168,7 +174,9 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
     boolean onlyPrimitives = expectedSchema.columns().stream().allMatch(c -> c.type().isPrimitiveType());
 
-    boolean readUsingBatch = batchReadsEnabled && (allOrcFileScanTasks ||
+    boolean hasNoDeleteFiles = tasks().stream().noneMatch(TableScanUtil::hasDeletes);
+
+    boolean readUsingBatch = batchReadsEnabled && hasNoDeleteFiles && (allOrcFileScanTasks ||
         (allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives));
 
     return new ReaderFactory(readUsingBatch ? batchSize : 0);
@@ -203,6 +211,33 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     }
 
     return new Stats(sizeInBytes, numRows);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    SparkBatchScan that = (SparkBatchScan) o;
+    return table.name().equals(that.table.name()) &&
+        readSchema().equals(that.readSchema()) && // compare Spark schemas to ignore field ids
+        filterExpressions.toString().equals(that.filterExpressions.toString()) &&
+        Objects.equals(snapshotId, that.snapshotId) &&
+        Objects.equals(startSnapshotId, that.startSnapshotId) &&
+        Objects.equals(endSnapshotId, that.endSnapshotId) &&
+        Objects.equals(asOfTimestamp, that.asOfTimestamp);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(
+        table.name(), readSchema(), filterExpressions.toString(), snapshotId, startSnapshotId, endSnapshotId,
+        asOfTimestamp);
   }
 
   private List<CombinedScanTask> tasks() {

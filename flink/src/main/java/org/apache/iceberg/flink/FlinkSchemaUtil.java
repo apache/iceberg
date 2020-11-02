@@ -27,6 +27,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 
 /**
  * Converter between Flink types and Iceberg type.
@@ -61,6 +62,28 @@ public class FlinkSchemaUtil {
     Type converted = root.accept(new FlinkTypeToType(root));
 
     return new Schema(converted.asStructType().fields());
+  }
+
+  /**
+   * Convert a Flink {@link TableSchema} to a {@link Schema} based on the given schema.
+   * <p>
+   * This conversion does not assign new ids; it uses ids from the base schema.
+   * <p>
+   * Data types, field order, and nullability will match the Flink type. This conversion may return
+   * a schema that is not compatible with base schema.
+   *
+   * @param baseSchema a Schema on which conversion is based
+   * @param flinkSchema a Flink TableSchema
+   * @return the equivalent Schema
+   * @throws IllegalArgumentException if the type cannot be converted or there are missing ids
+   */
+  public static Schema convert(Schema baseSchema, TableSchema flinkSchema) {
+    // convert to a type with fresh ids
+    Types.StructType struct = convert(flinkSchema).asStruct();
+    // reassign ids to match the base schema
+    Schema schema = TypeUtil.reassignIds(new Schema(struct.fields()), baseSchema);
+    // fix types that can't be represented in Flink (UUID)
+    return FlinkFixupTypes.fixup(schema, baseSchema);
   }
 
   /**

@@ -23,20 +23,21 @@ import java.io.IOException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
+
 @RunWith(Parameterized.class)
 public class TestMetadataTableScans extends TableTestBase {
 
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { 1 },
-        new Object[] { 2 },
-    };
+  @Parameterized.Parameters(name = "formatVersion = {0}")
+  public static Object[] parameters() {
+    return new Object[] { 1, 2 };
   }
 
   public TestMetadataTableScans(int formatVersion) {
@@ -53,7 +54,7 @@ public class TestMetadataTableScans extends TableTestBase {
     Table manifestsTable = new ManifestsTable(table.ops(), table);
 
     TableScan scan = manifestsTable.newScan()
-        .filter(Expressions.equal("id", 5));
+        .filter(Expressions.lessThan("length", 10000L));
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       Assert.assertTrue("Tasks should not be empty", Iterables.size(tasks) > 0);
@@ -73,11 +74,11 @@ public class TestMetadataTableScans extends TableTestBase {
     Table dataFilesTable = new DataFilesTable(table.ops(), table);
 
     TableScan scan1 = dataFilesTable.newScan()
-        .filter(Expressions.equal("id", 5));
+        .filter(Expressions.equal("record_count", 1));
     validateTaskScanResiduals(scan1, false);
 
     TableScan scan2 = dataFilesTable.newScan()
-        .filter(Expressions.equal("id", 5))
+        .filter(Expressions.equal("record_count", 1))
         .ignoreResiduals();
     validateTaskScanResiduals(scan2, true);
   }
@@ -92,11 +93,11 @@ public class TestMetadataTableScans extends TableTestBase {
     Table manifestEntriesTable = new ManifestEntriesTable(table.ops(), table);
 
     TableScan scan1 = manifestEntriesTable.newScan()
-        .filter(Expressions.equal("id", 5));
+        .filter(Expressions.equal("snapshot_id", 1L));
     validateTaskScanResiduals(scan1, false);
 
     TableScan scan2 = manifestEntriesTable.newScan()
-        .filter(Expressions.equal("id", 5))
+        .filter(Expressions.equal("snapshot_id", 1L))
         .ignoreResiduals();
     validateTaskScanResiduals(scan2, true);
   }
@@ -111,11 +112,11 @@ public class TestMetadataTableScans extends TableTestBase {
     Table allDataFilesTable = new AllDataFilesTable(table.ops(), table);
 
     TableScan scan1 = allDataFilesTable.newScan()
-        .filter(Expressions.equal("id", 5));
+        .filter(Expressions.equal("record_count", 1));
     validateTaskScanResiduals(scan1, false);
 
     TableScan scan2 = allDataFilesTable.newScan()
-        .filter(Expressions.equal("id", 5))
+        .filter(Expressions.equal("record_count", 1))
         .ignoreResiduals();
     validateTaskScanResiduals(scan2, true);
   }
@@ -130,11 +131,11 @@ public class TestMetadataTableScans extends TableTestBase {
     Table allEntriesTable = new AllEntriesTable(table.ops(), table);
 
     TableScan scan1 = allEntriesTable.newScan()
-        .filter(Expressions.equal("id", 5));
+        .filter(Expressions.equal("snapshot_id", 1L));
     validateTaskScanResiduals(scan1, false);
 
     TableScan scan2 = allEntriesTable.newScan()
-        .filter(Expressions.equal("id", 5))
+        .filter(Expressions.equal("snapshot_id", 1L))
         .ignoreResiduals();
     validateTaskScanResiduals(scan2, true);
   }
@@ -149,13 +150,34 @@ public class TestMetadataTableScans extends TableTestBase {
     Table allManifestsTable = new AllManifestsTable(table.ops(), table);
 
     TableScan scan1 = allManifestsTable.newScan()
-        .filter(Expressions.equal("id", 5));
+        .filter(Expressions.lessThan("length", 10000L));
     validateTaskScanResiduals(scan1, false);
 
     TableScan scan2 = allManifestsTable.newScan()
-        .filter(Expressions.equal("id", 5))
+        .filter(Expressions.lessThan("length", 10000L))
         .ignoreResiduals();
     validateTaskScanResiduals(scan2, true);
+  }
+
+  @Test
+  public void testDataFilesTableSelection() throws IOException {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    Table dataFilesTable = new DataFilesTable(table.ops(), table);
+
+    TableScan scan = dataFilesTable.newScan()
+        .filter(Expressions.equal("record_count", 1))
+        .select("content", "record_count");
+    validateTaskScanResiduals(scan, false);
+    Types.StructType expected = new Schema(
+        optional(134, "content", Types.IntegerType.get(),
+                 "Contents of the file: 0=data, 1=position deletes, 2=equality deletes"),
+        required(103, "record_count", Types.LongType.get(), "Number of records in the file")
+    ).asStruct();
+    Assert.assertEquals(expected, scan.schema().asStruct());
   }
 
   private void validateTaskScanResiduals(TableScan scan, boolean ignoreResiduals) throws IOException {

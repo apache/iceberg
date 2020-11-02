@@ -185,7 +185,7 @@ public class FindFiles {
     }
 
     /**
-     * @return all files in the table that match all of the filters
+     * Returns all files in the table that match all of the filters.
      */
     public CloseableIterable<DataFile> collect() {
       Snapshot snapshot = snapshotId != null ?

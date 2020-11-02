@@ -91,6 +91,8 @@ public class TableMetadataParser {
   static final String PARTITION_SPEC = "partition-spec";
   static final String PARTITION_SPECS = "partition-specs";
   static final String DEFAULT_SPEC_ID = "default-spec-id";
+  static final String DEFAULT_SORT_ORDER_ID = "default-sort-order-id";
+  static final String SORT_ORDERS = "sort-orders";
   static final String PROPERTIES = "properties";
   static final String CURRENT_SNAPSHOT_ID = "current-snapshot-id";
   static final String SNAPSHOTS = "snapshots";
@@ -173,6 +175,13 @@ public class TableMetadataParser {
     generator.writeArrayFieldStart(PARTITION_SPECS);
     for (PartitionSpec spec : metadata.specs()) {
       PartitionSpecParser.toJson(spec, generator);
+    }
+    generator.writeEndArray();
+
+    generator.writeNumberField(DEFAULT_SORT_ORDER_ID, metadata.defaultSortOrderId());
+    generator.writeArrayFieldStart(SORT_ORDERS);
+    for (SortOrder sortOrder : metadata.sortOrders()) {
+      SortOrderParser.toJson(sortOrder, generator);
     }
     generator.writeEndArray();
 
@@ -269,12 +278,32 @@ public class TableMetadataParser {
       specs = builder.build();
 
     } else {
+      Preconditions.checkArgument(formatVersion == 1,
+          "%s must exist in format v%s", PARTITION_SPECS, formatVersion);
       // partition spec is required for older readers, but is always set to the default if the spec
       // array is set. it is only used to default the spec map is missing, indicating that the
       // table metadata was written by an older writer.
       defaultSpecId = TableMetadata.INITIAL_SPEC_ID;
       specs = ImmutableList.of(PartitionSpecParser.fromJsonFields(
           schema, TableMetadata.INITIAL_SPEC_ID, node.get(PARTITION_SPEC)));
+    }
+
+    JsonNode sortOrderArray = node.get(SORT_ORDERS);
+    List<SortOrder> sortOrders;
+    int defaultSortOrderId;
+    if (sortOrderArray != null) {
+      defaultSortOrderId = JsonUtil.getInt(DEFAULT_SORT_ORDER_ID, node);
+      ImmutableList.Builder<SortOrder> sortOrdersBuilder = ImmutableList.builder();
+      for (JsonNode sortOrder : sortOrderArray) {
+        sortOrdersBuilder.add(SortOrderParser.fromJson(schema, sortOrder));
+      }
+      sortOrders = sortOrdersBuilder.build();
+    } else {
+      Preconditions.checkArgument(formatVersion == 1,
+          "%s must exist in format v%s", SORT_ORDERS, formatVersion);
+      SortOrder defaultSortOrder = SortOrder.unsorted();
+      sortOrders = ImmutableList.of(defaultSortOrder);
+      defaultSortOrderId = defaultSortOrder.orderId();
     }
 
     Map<String, String> properties = JsonUtil.getStringMap(PROPERTIES, node);
@@ -312,7 +341,8 @@ public class TableMetadataParser {
     }
 
     return new TableMetadata(file, formatVersion, uuid, location,
-        lastSequenceNumber, lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs, properties,
-        currentVersionId, snapshots, entries.build(), metadataEntries.build());
+        lastSequenceNumber, lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs,
+        defaultSortOrderId, sortOrders, properties, currentVersionId, snapshots, entries.build(),
+        metadataEntries.build());
   }
 }

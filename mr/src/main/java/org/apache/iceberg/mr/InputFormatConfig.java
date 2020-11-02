@@ -44,11 +44,13 @@ public class InputFormatConfig {
   public static final String TABLE_IDENTIFIER = "iceberg.mr.table.identifier";
   public static final String TABLE_LOCATION = "iceberg.mr.table.location";
   public static final String TABLE_SCHEMA = "iceberg.mr.table.schema";
+  public static final String PARTITION_SPEC = "iceberg.mr.table.partition.spec";
   public static final String LOCALITY = "iceberg.mr.locality";
   public static final String CATALOG = "iceberg.mr.catalog";
   public static final String HADOOP_CATALOG_WAREHOUSE_LOCATION = "iceberg.mr.catalog.hadoop.warehouse.location";
   public static final String CATALOG_LOADER_CLASS = "iceberg.mr.catalog.loader.class";
   public static final String SELECTED_COLUMNS = "iceberg.mr.selected.columns";
+  public static final String EXTERNAL_TABLE_PURGE = "external.table.purge";
 
   public static final String CATALOG_NAME = "iceberg.catalog";
   public static final String HADOOP_CATALOG = "hadoop.catalog";

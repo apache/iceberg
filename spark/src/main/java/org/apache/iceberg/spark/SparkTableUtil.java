@@ -322,8 +322,7 @@ public class SparkTableUtil {
     } else if (format.contains("parquet")) {
       return listParquetPartition(partition, uri, spec, conf, metricsConfig, mapping);
     } else if (format.contains("orc")) {
-      // TODO: use NameMapping in listOrcPartition
-      return listOrcPartition(partition, uri, spec, conf, metricsConfig);
+      return listOrcPartition(partition, uri, spec, conf, metricsConfig, mapping);
     } else {
       throw new UnsupportedOperationException("Unknown partition format: " + format);
     }
@@ -396,7 +395,7 @@ public class SparkTableUtil {
 
   private static List<DataFile> listOrcPartition(Map<String, String> partitionPath, String partitionUri,
                                                  PartitionSpec spec, Configuration conf,
-                                                 MetricsConfig metricsSpec) {
+                                                 MetricsConfig metricsSpec, NameMapping mapping) {
     try {
       Path partition = new Path(partitionUri);
       FileSystem fs = partition.getFileSystem(conf);
@@ -404,7 +403,8 @@ public class SparkTableUtil {
       return Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
           .filter(FileStatus::isFile)
           .map(stat -> {
-            Metrics metrics = OrcMetrics.fromInputFile(HadoopInputFile.fromPath(stat.getPath(), conf), metricsSpec);
+            Metrics metrics = OrcMetrics.fromInputFile(HadoopInputFile.fromPath(stat.getPath(), conf),
+                metricsSpec, mapping);
             String partitionKey = spec.fields().stream()
                 .map(PartitionField::name)
                 .map(name -> String.format("%s=%s", name, partitionPath.get(name)))
@@ -508,8 +508,7 @@ public class SparkTableUtil {
     TableIdentifier sourceTableIdentWithDB = new TableIdentifier(sourceTableIdent.table(), Some.apply(db));
 
     if (!catalog.tableExists(sourceTableIdentWithDB)) {
-      throw new org.apache.iceberg.exceptions.NoSuchTableException(
-          String.format("Table %s does not exist", sourceTableIdentWithDB));
+      throw new org.apache.iceberg.exceptions.NoSuchTableException("Table %s does not exist", sourceTableIdentWithDB);
     }
 
     try {

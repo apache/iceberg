@@ -25,8 +25,11 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.LocationProviders;
@@ -40,6 +43,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Pair;
@@ -54,6 +58,7 @@ import org.slf4j.LoggerFactory;
  */
 public class HadoopTableOperations implements TableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HadoopTableOperations.class);
+  private static final Pattern VERSION_PATTERN = Pattern.compile("v([^\\.]*)\\..*");
 
   private final Configuration conf;
   private final Path location;
@@ -90,7 +95,7 @@ public class HadoopTableOperations implements TableOperations {
 
   @Override
   public TableMetadata refresh() {
-    int ver = version != null ? version : readVersionHint();
+    int ver = version != null ? version : findVersion();
     try {
       Path metadataFile = getMetadataFile(ver);
       if (version == null && metadataFile == null && ver == 0) {
@@ -152,7 +157,7 @@ public class HadoopTableOperations implements TableOperations {
       }
     } catch (IOException e) {
       throw new RuntimeIOException(e,
-          "Failed to check if next version exists: " + finalMetadataFile);
+          "Failed to check if next version exists: %s", finalMetadataFile);
     }
 
     // this rename operation is the atomic commit operation
@@ -229,7 +234,8 @@ public class HadoopTableOperations implements TableOperations {
     };
   }
 
-  private Path getMetadataFile(int metadataVersion) throws IOException {
+  @VisibleForTesting
+  Path getMetadataFile(int metadataVersion) throws IOException {
     for (TableMetadataParser.Codec codec : TableMetadataParser.Codec.values()) {
       Path metadataFile = metadataFilePath(metadataVersion, codec);
       FileSystem fs = getFileSystem(metadataFile, conf);
@@ -259,10 +265,28 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   private Path metadataPath(String filename) {
-    return new Path(new Path(location, "metadata"), filename);
+    return new Path(metadataRoot(), filename);
   }
 
-  private Path versionHintFile() {
+  private Path metadataRoot() {
+    return new Path(location, "metadata");
+  }
+
+  private int version(String fileName) {
+    Matcher matcher = VERSION_PATTERN.matcher(fileName);
+    if (!matcher.matches()) {
+      return -1;
+    }
+    String versionNumber = matcher.group(1);
+    try {
+      return Integer.parseInt(versionNumber);
+    } catch (NumberFormatException ne) {
+      return -1;
+    }
+  }
+
+  @VisibleForTesting
+  Path versionHintFile() {
     return metadataPath("version-hint.text");
   }
 
@@ -270,28 +294,56 @@ public class HadoopTableOperations implements TableOperations {
     Path versionHintFile = versionHintFile();
     FileSystem fs = getFileSystem(versionHintFile, conf);
 
-    try (FSDataOutputStream out = fs.create(versionHintFile, true /* overwrite */)) {
-      out.write(String.valueOf(versionToWrite).getBytes(StandardCharsets.UTF_8));
+    try {
+      Path tempVersionHintFile = metadataPath(UUID.randomUUID().toString() + "-version-hint.temp");
+      writeVersionToPath(fs, tempVersionHintFile, versionToWrite);
+      fs.delete(versionHintFile, false /* recursive delete */);
+      fs.rename(tempVersionHintFile, versionHintFile);
     } catch (IOException e) {
       LOG.warn("Failed to update version hint", e);
     }
   }
 
-  private int readVersionHint() {
+  private void writeVersionToPath(FileSystem fs, Path path, int versionToWrite) throws IOException {
+    try (FSDataOutputStream out = fs.create(path, false /* overwrite */)) {
+      out.write(String.valueOf(versionToWrite).getBytes(StandardCharsets.UTF_8));
+    }
+  }
+
+  @VisibleForTesting
+  int findVersion() {
     Path versionHintFile = versionHintFile();
-    try {
-      FileSystem fs = Util.getFs(versionHintFile, conf);
-      if (!fs.exists(versionHintFile)) {
+    FileSystem fs = Util.getFs(versionHintFile, conf);
+
+    try (InputStreamReader fsr = new InputStreamReader(fs.open(versionHintFile), StandardCharsets.UTF_8);
+         BufferedReader in = new BufferedReader(fsr)) {
+      return Integer.parseInt(in.readLine().replace("\n", ""));
+
+    } catch (Exception e) {
+      try {
+        if (fs.exists(metadataRoot())) {
+          LOG.warn("Error reading version hint file {}", versionHintFile, e);
+        } else {
+          LOG.debug("Metadata for table not found in directory {}", metadataRoot(), e);
+          return 0;
+        }
+
+        // List the metadata directory to find the version files, and try to recover the max available version
+        FileStatus[] files = fs.listStatus(metadataRoot(), name -> VERSION_PATTERN.matcher(name.getName()).matches());
+        int maxVersion = 0;
+
+        for (FileStatus file : files) {
+          int currentVersion = version(file.getPath().getName());
+          if (currentVersion > maxVersion && getMetadataFile(currentVersion) != null) {
+            maxVersion = currentVersion;
+          }
+        }
+
+        return maxVersion;
+      } catch (IOException io) {
+        LOG.warn("Error trying to recover version-hint.txt data for {}", versionHintFile, e);
         return 0;
       }
-
-      try (InputStreamReader fsr = new InputStreamReader(fs.open(versionHintFile), StandardCharsets.UTF_8);
-           BufferedReader in = new BufferedReader(fsr)) {
-        return Integer.parseInt(in.readLine().replace("\n", ""));
-      }
-
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to get file system for path: %s", versionHintFile);
     }
   }
 

@@ -34,12 +34,9 @@ import static org.junit.Assert.assertEquals;
 
 @RunWith(Parameterized.class)
 public class TestDataTableScan extends TableTestBase {
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { 1 },
-        new Object[] { 2 },
-    };
+  @Parameterized.Parameters(name = "formatVersion = {0}")
+  public static Object[] parameters() {
+    return new Object[] { 1, 2 };
   }
 
   public TestDataTableScan(int formatVersion) {
@@ -55,6 +52,14 @@ public class TestDataTableScan extends TableTestBase {
     assertEquals("A tableScan.select() should prune the schema",
         expectedSchema.asStruct(),
         scan.schema().asStruct());
+  }
+
+  @Test
+  public void testTableBothProjectAndSelect() {
+    AssertHelpers.assertThrows("Cannot set projection schema when columns are selected",
+        IllegalStateException.class, () -> table.newScan().select("id").project(SCHEMA.select("data")));
+    AssertHelpers.assertThrows("Cannot select columns when projection schema is set",
+        IllegalStateException.class, () -> table.newScan().project(SCHEMA.select("data")).select("id"));
   }
 
   @Test

@@ -210,7 +210,7 @@ Iceberg table support is organized in library modules:
 * `iceberg-core` contains implementations of the Iceberg API and support for Avro data files, **this is what processing engines should depend on**
 * `iceberg-parquet` is an optional module for working with tables backed by Parquet files
 * `iceberg-orc` is an optional module for working with tables backed by ORC files (*experimental*)
-* `iceberg-hive` is an implementation of iceberg tables backed by hive metastore thrift client
+* `iceberg-hive-metastore` is an implementation of Iceberg tables backed by the Hive metastore Thrift client
 
 This project Iceberg also has modules for adding Iceberg support to processing engines:
 

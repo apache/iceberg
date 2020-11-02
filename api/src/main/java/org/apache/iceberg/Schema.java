@@ -31,6 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.BiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -47,21 +48,22 @@ public class Schema implements Serializable {
   private final StructType struct;
   private transient BiMap<String, Integer> aliasToId = null;
   private transient Map<Integer, NestedField> idToField = null;
-  private transient BiMap<String, Integer> nameToId = null;
-  private transient BiMap<String, Integer> lowerCaseNameToId = null;
+  private transient Map<String, Integer> nameToId = null;
+  private transient Map<String, Integer> lowerCaseNameToId = null;
   private transient Map<Integer, Accessor<StructLike>> idToAccessor = null;
+  private transient Map<Integer, String> idToName = null;
 
   public Schema(List<NestedField> columns, Map<String, Integer> aliases) {
     this.struct = StructType.of(columns);
     this.aliasToId = aliases != null ? ImmutableBiMap.copyOf(aliases) : null;
 
     // validate the schema through IndexByName visitor
-    lazyNameToId();
+    lazyIdToName();
   }
 
   public Schema(List<NestedField> columns) {
     this.struct = StructType.of(columns);
-    lazyNameToId();
+    lazyIdToName();
   }
 
   public Schema(NestedField... columns) {
@@ -75,16 +77,23 @@ public class Schema implements Serializable {
     return idToField;
   }
 
-  private BiMap<String, Integer> lazyNameToId() {
+  private Map<String, Integer> lazyNameToId() {
     if (nameToId == null) {
-      this.nameToId = ImmutableBiMap.copyOf(TypeUtil.indexByName(struct));
+      this.nameToId = ImmutableMap.copyOf(TypeUtil.indexByName(struct));
     }
     return nameToId;
   }
 
-  private BiMap<String, Integer> lazyLowerCaseNameToId() {
+  private Map<Integer, String> lazyIdToName() {
+    if (idToName == null) {
+      this.idToName = ImmutableMap.copyOf(TypeUtil.indexNameById(struct));
+    }
+    return idToName;
+  }
+
+  private Map<String, Integer> lazyLowerCaseNameToId() {
     if (lowerCaseNameToId == null) {
-      this.lowerCaseNameToId = ImmutableBiMap.copyOf(TypeUtil.indexByLowerCaseName(struct));
+      this.lowerCaseNameToId = ImmutableMap.copyOf(TypeUtil.indexByLowerCaseName(struct));
     }
     return lowerCaseNameToId;
   }
@@ -118,7 +127,7 @@ public class Schema implements Serializable {
   }
 
   /**
-   * @return a List of the {@link NestedField columns} in this Schema.
+   * Returns a List of the {@link NestedField columns} in this Schema.
    */
   public List<NestedField> columns() {
     return struct.fields();
@@ -206,7 +215,7 @@ public class Schema implements Serializable {
    * @return the full column name in this schema that resolves to the id
    */
   public String findColumnName(int id) {
-    return lazyNameToId().inverse().get(id);
+    return lazyIdToName().get(id);
   }
 
   /**

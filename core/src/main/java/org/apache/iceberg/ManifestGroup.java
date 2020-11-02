@@ -213,7 +213,12 @@ class ManifestGroup {
               spec, caseSensitive);
         });
 
-    Evaluator evaluator = new Evaluator(DataFile.getType(EMPTY_STRUCT), fileFilter, caseSensitive);
+    Evaluator evaluator;
+    if (fileFilter != null && fileFilter != Expressions.alwaysTrue()) {
+      evaluator = new Evaluator(DataFile.getType(EMPTY_STRUCT), fileFilter, caseSensitive);
+    } else {
+      evaluator = null;
+    }
 
     Iterable<ManifestFile> matchingManifests = evalCache == null ? dataManifests :
         Iterables.filter(dataManifests, manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
@@ -255,7 +260,7 @@ class ManifestGroup {
                 entry -> entry.status() != ManifestEntry.Status.EXISTING);
           }
 
-          if (fileFilter != null && fileFilter != Expressions.alwaysTrue()) {
+          if (evaluator != null) {
             entries = CloseableIterable.filter(entries,
                 entry -> evaluator.eval((GenericDataFile) entry.file()));
           }

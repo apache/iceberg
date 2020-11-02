@@ -30,12 +30,12 @@ import org.apache.iceberg.types.Type;
  */
 public interface BoundTerm<T> extends Bound<T>, Term {
   /**
-   * @return the type produced by this expression
+   * Returns the type produced by this expression.
    */
   Type type();
 
   /**
-   * @return a {@link Comparator} for values produced by this term
+   * Returns a {@link Comparator} for values produced by this term.
    */
   default Comparator<T> comparator() {
     return Comparators.forType(type().asPrimitiveType());

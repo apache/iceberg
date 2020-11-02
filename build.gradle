@@ -29,6 +29,7 @@ buildscript {
   dependencies {
     classpath 'com.github.jengelman.gradle.plugins:shadow:5.0.0'
     classpath 'com.palantir.baseline:gradle-baseline-java:3.36.2'
+    classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.12.3'
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:3.14.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:2.1.0'
     classpath 'me.champeau.gradle:jmh-gradle-plugin:0.4.8'
@@ -36,8 +37,14 @@ buildscript {
 }
 
 plugins {
-  id 'com.palantir.git-version' version '0.12.3'
   id 'nebula.dependency-recommender' version '9.0.2'
+}
+
+try {
+  // apply this plugin in a try-catch block so that we can handle cases without .git directory
+  apply plugin: 'com.palantir.git-version'
+} catch (Exception e) {
+  project.logger.error(e.getMessage())
 }
 
 if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
@@ -99,6 +106,10 @@ subprojects {
 
   compileTestJava {
     options.encoding = "UTF-8"
+  }
+
+  javadoc {
+    options.encoding = 'UTF-8'
   }
 
   ext {
@@ -174,6 +185,7 @@ project(':iceberg-bundled-guava') {
 project(':iceberg-api') {
   dependencies {
     compile project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    compileOnly "com.google.errorprone:error_prone_annotations:2.3.3"
     testCompile "org.apache.avro:avro"
   }
 }
@@ -240,7 +252,7 @@ project(':iceberg-flink') {
     compile project(':iceberg-data')
     compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
-    compile project(':iceberg-hive')
+    compile project(':iceberg-hive-metastore')
 
     compileOnly "org.apache.flink:flink-streaming-java_2.12"
     compileOnly "org.apache.flink:flink-streaming-java_2.12::tests"
@@ -261,7 +273,7 @@ project(':iceberg-flink') {
       exclude group: "org.apache.curator", module: 'curator-test'
     }
 
-    testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
 
@@ -299,7 +311,61 @@ project(':iceberg-flink') {
   }
 }
 
-project(':iceberg-hive') {
+project(':iceberg-flink-runtime') {
+  apply plugin: 'com.github.johnrengelman.shadow'
+
+  tasks.jar.dependsOn tasks.shadowJar
+
+  configurations {
+    compile {
+      exclude group: 'org.apache.flink'
+      // included in Flink
+      exclude group: 'org.slf4j'
+      exclude group: 'org.apache.commons'
+      exclude group: 'commons-pool'
+      exclude group: 'commons-codec'
+      exclude group: 'org.xerial.snappy'
+      exclude group: 'javax.xml.bind'
+      exclude group: 'javax.annotation'
+    }
+  }
+
+  dependencies {
+    compile project(':iceberg-flink')
+  }
+
+  shadowJar {
+    configurations = [project.configurations.compile]
+
+    zip64 true
+
+    // include the LICENSE and NOTICE files for the shaded Jar
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
+    // Relocate dependencies to avoid conflicts
+    relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
+    relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
+    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
+    relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
+    relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
+    relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
+    relocate 'shaded.parquet', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
+    relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
+    relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
+    relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
+
+    classifier null
+  }
+
+  jar {
+    enabled = false
+  }
+}
+
+project(':iceberg-hive-metastore') {
   dependencies {
     compile project(':iceberg-core')
 
@@ -373,7 +439,7 @@ project(':iceberg-mr') {
     compile project(':iceberg-api')
     compile project(':iceberg-core')
     compile project(':iceberg-data')
-    compile project(':iceberg-hive')
+    compile project(':iceberg-hive-metastore')
     compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
 
@@ -398,17 +464,85 @@ project(':iceberg-mr') {
     testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
-    testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
 
     testCompile("org.apache.avro:avro:1.9.2")
     testCompile("org.apache.calcite:calcite-core")
     testCompile("com.esotericsoftware:kryo-shaded:4.0.2")
     testCompile("com.fasterxml.jackson.core:jackson-annotations:2.6.5")
-    testCompile("com.klarna:hiverunner:5.2.1") {
-      exclude group: 'javax.jms', module: 'jms'
+    testCompile("org.apache.hive:hive-service") {
       exclude group: 'org.apache.hive', module: 'hive-exec'
-      exclude group: 'org.codehaus.jettison', module: 'jettison'
-      exclude group: 'org.apache.calcite.avatica'
+    }
+  }
+
+  test {
+    // testJoinTables / testScanTable
+    maxHeapSize '1500m'
+  }
+}
+
+if (jdkVersion == '8') {
+  project(':iceberg-hive3') {
+
+    // run the tests in iceberg-mr with Hive3 dependencies
+    sourceSets {
+      test {
+        java.srcDirs = ['../mr/src/test/java', 'src/test/java']
+        resources.srcDirs = ['../mr/src/test/resources', 'src/test/resources']
+      }
+    }
+
+    // exclude these Hive2-specific tests from iceberg-mr
+    test {
+      exclude '**/TestIcebergDateObjectInspector.class'
+      exclude '**/TestIcebergTimestampObjectInspector.class'
+    }
+
+    dependencies {
+      compile project(':iceberg-api')
+      compile project(':iceberg-core')
+      compile project(':iceberg-data')
+      compile project(':iceberg-hive-metastore')
+      compile project(':iceberg-orc')
+      compile project(':iceberg-parquet')
+      compile project(':iceberg-mr')
+
+      compileOnly("org.apache.hadoop:hadoop-client:3.1.0") {
+        exclude group: 'org.apache.avro', module: 'avro'
+      }
+
+      compileOnly("org.apache.hive:hive-exec:3.1.2:core") {
+        exclude group: 'com.google.code.findbugs', module: 'jsr305'
+        exclude group: 'com.google.guava'
+        exclude group: 'com.google.protobuf', module: 'protobuf-java'
+        exclude group: 'org.apache.avro', module: 'avro'
+        exclude group: 'org.apache.calcite.avatica'
+        exclude group: 'org.apache.hive', module: 'hive-llap-tez'
+        exclude group: 'org.apache.logging.log4j'
+        exclude group: 'org.pentaho' // missing dependency
+        exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      }
+      compileOnly("org.apache.hive:hive-metastore:3.1.2")
+      compileOnly("org.apache.hive:hive-serde:3.1.2")
+
+      testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
+      testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+      testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
+      testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
+
+      testCompile("org.apache.avro:avro:1.9.2")
+      testCompile("org.apache.calcite:calcite-core")
+      testCompile("com.esotericsoftware:kryo-shaded:4.0.2")
+      testCompile("com.fasterxml.jackson.core:jackson-annotations:2.6.5")
+      testCompile("org.apache.hive:hive-service:3.1.2") {
+        exclude group: 'org.apache.hive', module: 'hive-exec'
+      }
+      testCompile("org.apache.tez:tez-dag:0.9.1")
+    }
+
+    test {
+      // testJoinTables / testScanTable
+      maxHeapSize '1500m'
     }
   }
 }
@@ -432,6 +566,9 @@ project(':iceberg-hive-runtime') {
 
   dependencies {
     compile project(':iceberg-mr')
+    if (jdkVersion == '8') {
+      compile project(':iceberg-hive3')
+    }
   }
   
   shadowJar {
@@ -549,7 +686,7 @@ project(':iceberg-spark') {
     compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
     compile project(':iceberg-arrow')
-    compile project(':iceberg-hive')
+    compile project(':iceberg-hive-metastore')
     compile project(':iceberg-arrow')
 
     compileOnly "org.apache.avro:avro"
@@ -562,7 +699,7 @@ project(':iceberg-spark') {
     testCompile("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
-    testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
   }
@@ -603,7 +740,7 @@ if (jdkVersion == '8') {
       compile project(':iceberg-orc')
       compile project(':iceberg-parquet')
       compile project(':iceberg-arrow')
-      compile project(':iceberg-hive')
+      compile project(':iceberg-hive-metastore')
       compile project(':iceberg-spark')
 
       compileOnly "org.apache.avro:avro"
@@ -618,8 +755,9 @@ if (jdkVersion == '8') {
       testCompile("org.apache.hadoop:hadoop-minicluster") {
         exclude group: 'org.apache.avro', module: 'avro'
       }
-      testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
+      testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
       testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+      testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
     }
 
     test {
@@ -709,7 +847,7 @@ project(':iceberg-spark3') {
     compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
     compile project(':iceberg-arrow')
-    compile project(':iceberg-hive')
+    compile project(':iceberg-hive-metastore')
     compile project(':iceberg-spark')
 
     compileOnly "org.apache.avro:avro"
@@ -725,8 +863,9 @@ project(':iceberg-spark3') {
     testCompile("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
-    testCompile project(path: ':iceberg-hive', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
   }
 
   test {

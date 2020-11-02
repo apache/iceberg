@@ -34,18 +34,20 @@ Iceberg tables support table properties to configure table behavior, like the de
 
 | Property                           | Default            | Description                                        |
 | ---------------------------------- | ------------------ | -------------------------------------------------- |
-| write.format.default               | parquet            | Default file format for the table; parquet or avro |
+| write.format.default               | parquet            | Default file format for the table; parquet, avro, or orc |
 | write.parquet.row-group-size-bytes | 134217728 (128 MB) | Parquet row group size                             |
 | write.parquet.page-size-bytes      | 1048576 (1 MB)     | Parquet page size                                  |
 | write.parquet.dict-size-bytes      | 2097152 (2 MB)     | Parquet dictionary page size                       |
 | write.parquet.compression-codec    | gzip               | Parquet compression codec                          |
 | write.parquet.compression-level    | null               | Parquet compression level                          |
 | write.avro.compression-codec       | gzip               | Avro compression codec                             |
+| write.location-provider.impl       | null               | Optional custom implemention for LocationProvider  |
 | write.metadata.compression-codec   | none               | Metadata compression codec; none or gzip           |
 | write.metadata.metrics.default     | truncate(16)       | Default metrics mode for all columns in the table; none, counts, truncate(length), or full |
 | write.metadata.metrics.column.col1 | (not set)          | Metrics mode for column 'col1' to allow per-column tuning; none, counts, truncate(length), or full |
 | write.target-file-size-bytes       | Long.MAX_VALUE     | Controls the size of files generated to target about this many bytes |
 | write.wap.enabled                  | false              | Enables write-audit-publish writes |
+| write.summary.partition-limit      | 0                  | Includes partition-level summary stats in snapshot summaries if the changed partition count is less than this limit |
 | write.metadata.delete-after-commit.enabled | false      | Controls whether to delete the oldest version metadata files after commit |
 | write.metadata.previous-versions-max       | 100        | The max number of previous version metadata files to keep before deleting after commit |
 
@@ -130,7 +132,7 @@ df.write
 
 | Spark option           | Default                    | Description                                                  |
 | ---------------------- | -------------------------- | ------------------------------------------------------------ |
-| write-format           | Table write.format.default | File format to use for this write operation; parquet or avro |
+| write-format           | Table write.format.default | File format to use for this write operation; parquet, avro, or orc |
 | target-file-size-bytes | As per table property      | Overrides this table's write.target-file-size-bytes          |
 | check-nullability      | true                       | Sets the nullable check on fields                            |
 | snapshot-property._custom-key_    | null            | Adds an entry with custom-key and corresponding value in the snapshot summary  |

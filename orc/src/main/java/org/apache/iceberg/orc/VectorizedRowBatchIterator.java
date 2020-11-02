@@ -56,7 +56,7 @@ public class VectorizedRowBatchIterator implements CloseableIterator<Pair<Vector
         batchOffsetInFile = rows.getRowNumber();
         rows.nextBatch(batch);
       } catch (IOException ioe) {
-        throw new RuntimeIOException(ioe, "Problem reading ORC file " + fileLocation);
+        throw new RuntimeIOException(ioe, "Problem reading ORC file %s", fileLocation);
       }
       advanced = true;
     }

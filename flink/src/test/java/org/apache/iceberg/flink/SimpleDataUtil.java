@@ -126,12 +126,16 @@ public class SimpleDataUtil {
     assertTableRecords(tablePath, expectedRecords);
   }
 
-  public static void assertTableRecords(String tablePath, List<Record> expected) throws IOException {
-    Preconditions.checkArgument(expected != null, "expected records shouldn't be null");
-    Table newTable = new HadoopTables().load(tablePath);
-    try (CloseableIterable<Record> iterable = IcebergGenerics.read(newTable).build()) {
+  public static void assertTableRecords(Table table, List<Record> expected) throws IOException {
+    table.refresh();
+    try (CloseableIterable<Record> iterable = IcebergGenerics.read(table).build()) {
       Assert.assertEquals("Should produce the expected record",
           Sets.newHashSet(expected), Sets.newHashSet(iterable));
     }
+  }
+
+  public static void assertTableRecords(String tablePath, List<Record> expected) throws IOException {
+    Preconditions.checkArgument(expected != null, "expected records shouldn't be null");
+    assertTableRecords(new HadoopTables().load(tablePath), expected);
   }
 }

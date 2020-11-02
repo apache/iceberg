@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark;
 
+import com.google.errorprone.annotations.FormatMethod;
 import java.io.IOException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -39,7 +40,10 @@ public class SparkExceptionUtil {
    * @param args format specifiers
    * @return unchecked exception.
    */
-  public static RuntimeException toUncheckedException(Throwable cause, String message, Object... args) {
+  @FormatMethod
+  public static RuntimeException toUncheckedException(final Throwable cause, final String message,
+                                                      final Object... args) {
+    // Parameters are required to be final to help @FormatMethod do static analysis
     if (cause instanceof RuntimeException) {
       return (RuntimeException) cause;
 

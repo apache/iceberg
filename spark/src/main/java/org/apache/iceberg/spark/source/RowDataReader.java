@@ -21,16 +21,16 @@ package org.apache.iceberg.spark.source;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -40,7 +40,6 @@ import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -64,15 +63,17 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       .impl(UnsafeProjection.class, InternalRow.class)
       .build();
 
+  private final FileIO io;
   private final Schema tableSchema;
   private final Schema expectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
 
   RowDataReader(
-      CombinedScanTask task, Schema tableSchema, Schema expectedSchema, String nameMapping, FileIO fileIo,
+      CombinedScanTask task, Schema tableSchema, Schema expectedSchema, String nameMapping, FileIO io,
       EncryptionManager encryptionManager, boolean caseSensitive) {
-    super(task, fileIo, encryptionManager);
+    super(task, io, encryptionManager);
+    this.io = io;
     this.tableSchema = tableSchema;
     this.expectedSchema = expectedSchema;
     this.nameMapping = nameMapping;
@@ -81,23 +82,17 @@ class RowDataReader extends BaseDataReader<InternalRow> {
 
   @Override
   CloseableIterator<InternalRow> open(FileScanTask task) {
+    SparkDeleteFilter deletes = new SparkDeleteFilter(task, tableSchema, expectedSchema);
+
+    // schema or rows returned by readers
+    Schema requiredSchema = deletes.requiredSchema();
+    Map<Integer, ?> idToConstant = PartitionUtil.constantsMap(task, RowDataReader::convertConstant);
     DataFile file = task.file();
 
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(file.path().toString(), task.start(), task.length());
 
-    // schema or rows returned by readers
-    PartitionSpec spec = task.spec();
-    Set<Integer> idColumns = spec.identitySourceIds();
-    Schema partitionSchema = TypeUtil.select(expectedSchema, idColumns);
-    boolean projectsIdentityPartitionColumns = !partitionSchema.columns().isEmpty();
-
-    if (projectsIdentityPartitionColumns) {
-      return open(task, expectedSchema, PartitionUtil.constantsMap(task, RowDataReader::convertConstant))
-          .iterator();
-    }
-    // return the base iterator
-    return open(task, expectedSchema, ImmutableMap.of()).iterator();
+    return deletes.filter(open(task, requiredSchema, idToConstant)).iterator();
   }
 
   private CloseableIterable<InternalRow> open(FileScanTask task, Schema readSchema, Map<Integer, ?> idToConstant) {
@@ -154,6 +149,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       Schema readSchema,
       Map<Integer, ?> idToConstant) {
     Parquet.ReadBuilder builder = Parquet.read(location)
+        .reuseContainers()
         .split(task.start(), task.length())
         .project(readSchema)
         .createReaderFunc(fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema, idToConstant))
@@ -217,5 +213,24 @@ class RowDataReader extends BaseDataReader<InternalRow> {
     return UnsafeProjection.create(
         JavaConverters.asScalaBufferConverter(exprs).asScala().toSeq(),
         JavaConverters.asScalaBufferConverter(attrs).asScala().toSeq());
+  }
+
+  private class SparkDeleteFilter extends DeleteFilter<InternalRow> {
+    private final InternalRowWrapper asStructLike;
+
+    SparkDeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema) {
+      super(task, tableSchema, requestedSchema);
+      this.asStructLike = new InternalRowWrapper(SparkSchemaUtil.convert(requiredSchema()));
+    }
+
+    @Override
+    protected StructLike asStructLike(InternalRow row) {
+      return asStructLike.wrap(row);
+    }
+
+    @Override
+    protected InputFile getInputFile(String location) {
+      return RowDataReader.this.getInputFile(location);
+    }
   }
 }

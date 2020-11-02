@@ -76,7 +76,7 @@ class DeleteFileIndex {
     ImmutableMap.Builder<Integer, Types.StructType> builder = ImmutableMap.builder();
     specsById.forEach((specId, spec) -> builder.put(specId, spec.partitionType()));
     this.partitionTypeById = builder.build();
-    this.wrapperById = Maps.newHashMap();
+    this.wrapperById = Maps.newConcurrentMap();
     this.globalSeqs = globalSeqs;
     this.globalDeletes = globalDeletes;
     this.sortedDeletesByPartition = sortedDeletesByPartition;
@@ -361,7 +361,7 @@ class DeleteFileIndex {
                 deleteEntries.add(entry.copy());
               }
             } catch (IOException e) {
-              throw new RuntimeIOException("Failed to close", e);
+              throw new RuntimeIOException(e, "Failed to close");
             }
           });
 

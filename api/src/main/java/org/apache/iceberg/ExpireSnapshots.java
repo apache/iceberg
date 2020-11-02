@@ -60,11 +60,11 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
    * Retains the most recent ancestors of the current snapshot.
    * <p>
    * If a snapshot would be expired because it is older than the expiration timestamp, but is one of
-   * the {@code numSnapshot} most recent ancestors of the current state, it will be retained. This
+   * the {@code numSnapshots} most recent ancestors of the current state, it will be retained. This
    * will not cause snapshots explicitly identified by id from expiring.
    * <p>
-   * This may keep more than {@code numSnapshot} ancestors if snapshots are added concurrently. This
-   * may keep less than {@code numSnapshot} ancestors if the current table state does not have that many.
+   * This may keep more than {@code numSnapshots} ancestors if snapshots are added concurrently. This
+   * may keep less than {@code numSnapshots} ancestors if the current table state does not have that many.
    *
    * @param numSnapshots the number of snapshots to retain
    * @return this for method chaining

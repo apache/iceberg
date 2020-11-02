@@ -26,10 +26,46 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
+  private final Schema visitingSchema;
+  private final Schema baseSchema;
   private final TypeUtil.NextID nextId;
 
   AssignFreshIds(TypeUtil.NextID nextId) {
+    this.visitingSchema = null;
+    this.baseSchema = null;
     this.nextId = nextId;
+  }
+
+  /**
+   * Replaces the ids in a schema with ids from a base schema, or uses nextId to assign a fresh ids.
+   *
+   * @param visitingSchema current schema that will have ids replaced (for id to name lookup)
+   * @param baseSchema base schema to assign existing ids from
+   * @param nextId new id assigner
+   */
+  AssignFreshIds(Schema visitingSchema, Schema baseSchema, TypeUtil.NextID nextId) {
+    this.visitingSchema = visitingSchema;
+    this.baseSchema = baseSchema;
+    this.nextId = nextId;
+  }
+
+  private int idFor(String fullName) {
+    if (baseSchema != null && fullName != null) {
+      Types.NestedField field = baseSchema.findField(fullName);
+      if (field != null) {
+        return field.fieldId();
+      }
+    }
+
+    return nextId.get();
+  }
+
+  private String name(int id) {
+    if (visitingSchema != null) {
+      return visitingSchema.findColumnName(id);
+    }
+
+    return null;
   }
 
   @Override
@@ -42,9 +78,10 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     List<Types.NestedField> fields = struct.fields();
     int length = struct.fields().size();
 
+    // assign IDs for this struct's fields first
     List<Integer> newIds = Lists.newArrayListWithExpectedSize(length);
     for (int i = 0; i < length; i += 1) {
-      newIds.add(nextId.get()); // assign IDs for this struct's fields first
+      newIds.add(idFor(name(fields.get(i).fieldId())));
     }
 
     List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(length);
@@ -69,7 +106,7 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
   @Override
   public Type list(Types.ListType list, Supplier<Type> future) {
-    int newId = nextId.get();
+    int newId = idFor(name(list.elementId()));
     if (list.isElementOptional()) {
       return Types.ListType.ofOptional(newId, future.get());
     } else {
@@ -78,13 +115,13 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   }
 
   @Override
-  public Type map(Types.MapType map, Supplier<Type> keyFuture, Supplier<Type> valuefuture) {
-    int newKeyId = nextId.get();
-    int newValueId = nextId.get();
+  public Type map(Types.MapType map, Supplier<Type> keyFuture, Supplier<Type> valueFuture) {
+    int newKeyId = idFor(name(map.keyId()));
+    int newValueId = idFor(name(map.valueId()));
     if (map.isValueOptional()) {
-      return Types.MapType.ofOptional(newKeyId, newValueId, keyFuture.get(), valuefuture.get());
+      return Types.MapType.ofOptional(newKeyId, newValueId, keyFuture.get(), valueFuture.get());
     } else {
-      return Types.MapType.ofRequired(newKeyId, newValueId, keyFuture.get(), valuefuture.get());
+      return Types.MapType.ofRequired(newKeyId, newValueId, keyFuture.get(), valueFuture.get());
     }
   }
 

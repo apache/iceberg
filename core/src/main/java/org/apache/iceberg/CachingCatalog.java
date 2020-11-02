@@ -30,7 +30,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 
 public class CachingCatalog implements Catalog {
-
   public static Catalog wrap(Catalog catalog) {
     return wrap(catalog, true);
   }
@@ -57,13 +56,42 @@ public class CachingCatalog implements Catalog {
   }
 
   @Override
+  public String name() {
+    return catalog.name();
+  }
+
+  @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
     return catalog.listTables(namespace);
   }
 
   @Override
   public Table loadTable(TableIdentifier ident) {
-    return tableCache.get(canonicalizeIdentifier(ident), catalog::loadTable);
+    TableIdentifier canonicalized = canonicalizeIdentifier(ident);
+    Table cached = tableCache.getIfPresent(canonicalized);
+    if (cached != null) {
+      return cached;
+    }
+
+    if (MetadataTableUtils.hasMetadataTableName(canonicalized)) {
+      TableIdentifier originTableIdentifier = TableIdentifier.of(canonicalized.namespace().levels());
+      Table originTable = tableCache.get(originTableIdentifier, catalog::loadTable);
+
+      // share TableOperations instance of origin table for all metadata tables, so that metadata table instances are
+      // also refreshed as well when origin table instance is refreshed.
+      if (originTable instanceof HasTableOperations) {
+        TableOperations ops = ((HasTableOperations) originTable).operations();
+        MetadataTableType type = MetadataTableType.from(canonicalized.name());
+
+        Table metadataTable = MetadataTableUtils.createMetadataTableInstance(
+            ops, catalog.name(), originTableIdentifier,
+            canonicalized, type);
+        tableCache.put(canonicalized, metadataTable);
+        return metadataTable;
+      }
+    }
+
+    return tableCache.get(canonicalized, catalog::loadTable);
   }
 
   @Override

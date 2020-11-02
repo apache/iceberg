@@ -54,6 +54,15 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   protected BaseMetastoreTableOperations() {
   }
 
+  /**
+   * The full name of the table used for logging purposes only. For example for HiveTableOperations it is
+   * catalogName + "." + database + "." + table.
+   * @return The full name
+   */
+  protected String tableName() {
+    return null;
+  }
+
   @Override
   public TableMetadata current() {
     if (shouldRefresh) {
@@ -72,14 +81,18 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   @Override
   public TableMetadata refresh() {
+    boolean currentMetadataWasAvailable = currentMetadata != null;
     try {
       doRefresh();
     } catch (NoSuchTableException e) {
-      LOG.warn("Could not find the table during refresh, setting current metadata to null", e);
+      if (currentMetadataWasAvailable) {
+        LOG.warn("Could not find the table during refresh, setting current metadata to null", e);
+        shouldRefresh = true;
+      }
+
       currentMetadata = null;
       currentMetadataLocation = null;
       version = -1;
-      shouldRefresh = false;
       throw e;
     }
     return current();
@@ -101,9 +114,14 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
       return;
     }
 
+    long start = System.currentTimeMillis();
     doCommit(base, metadata);
     deleteRemovedMetadataFiles(base, metadata);
     requestRefresh();
+
+    LOG.info("Successfully committed to table {} in {} ms",
+        tableName(),
+        System.currentTimeMillis() - start);
   }
 
   protected void doCommit(TableMetadata base, TableMetadata metadata) {

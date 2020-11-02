@@ -106,7 +106,15 @@ public class TypeUtil {
   }
 
   public static Map<String, Integer> indexByName(Types.StructType struct) {
-    return visit(struct, new IndexByName());
+    IndexByName indexer = new IndexByName();
+    visit(struct, indexer);
+    return indexer.byName();
+  }
+
+  public static Map<Integer, String> indexNameById(Types.StructType struct) {
+    IndexByName indexer = new IndexByName();
+    visit(struct, indexer);
+    return indexer.byId();
   }
 
   public static Map<String, Integer> indexByLowerCaseName(Types.StructType struct) {
@@ -145,6 +153,21 @@ public class TypeUtil {
   public static Schema assignFreshIds(Schema schema, NextID nextId) {
     return new Schema(TypeUtil
         .visit(schema.asStruct(), new AssignFreshIds(nextId))
+        .asNestedType()
+        .fields());
+  }
+
+  /**
+   * Assigns ids to match a given schema, and fresh ids from the {@link NextID nextId function} for all other fields.
+   *
+   * @param schema a schema
+   * @param baseSchema a schema with existing IDs to copy by name
+   * @param nextId an id assignment function
+   * @return a structurally identical schema with new ids assigned by the nextId function
+   */
+  public static Schema assignFreshIds(Schema schema, Schema baseSchema, NextID nextId) {
+    return new Schema(TypeUtil
+        .visit(schema.asStruct(), new AssignFreshIds(schema, baseSchema, nextId))
         .asNestedType()
         .fields());
   }

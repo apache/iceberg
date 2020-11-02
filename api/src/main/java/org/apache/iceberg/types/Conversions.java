@@ -110,7 +110,7 @@ public class Conversions {
         try {
           return ENCODER.get().encode(buffer);
         } catch (CharacterCodingException e) {
-          throw new RuntimeIOException(e, "Failed to encode value as UTF-8: " + value);
+          throw new RuntimeIOException(e, "Failed to encode value as UTF-8: %s", value);
         }
       case UUID:
         return UUIDUtil.convertToByteBuffer((UUID) value);
@@ -166,7 +166,7 @@ public class Conversions {
         try {
           return DECODER.get().decode(tmp);
         } catch (CharacterCodingException e) {
-          throw new RuntimeIOException(e, "Failed to decode value as UTF-8: " + buffer);
+          throw new RuntimeIOException(e, "Failed to decode value as UTF-8: %s", buffer);
         }
       case UUID:
         return UUIDUtil.convert(tmp);

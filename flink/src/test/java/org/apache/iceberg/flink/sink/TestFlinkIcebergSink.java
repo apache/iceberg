@@ -36,7 +36,6 @@ import org.apache.flink.table.data.util.DataFormatConverters;
 import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo;
 import org.apache.flink.test.util.AbstractTestBase;
 import org.apache.flink.types.Row;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -55,7 +54,6 @@ import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
 public class TestFlinkIcebergSink extends AbstractTestBase {
-  private static final Configuration CONF = new Configuration();
   private static final TypeInformation<Row> ROW_TYPE_INFO = new RowTypeInfo(
       SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
   private static final DataFormatConverters.RowConverter CONVERTER = new DataFormatConverters.RowConverter(
@@ -76,18 +74,18 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
   @Parameterized.Parameters(name = "format={0}, parallelism = {1}, partitioned = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] {"avro", 1, true},
-        new Object[] {"avro", 1, false},
-        new Object[] {"avro", 2, true},
-        new Object[] {"avro", 2, false},
-        new Object[] {"orc", 1, true},
-        new Object[] {"orc", 1, false},
-        new Object[] {"orc", 2, true},
-        new Object[] {"orc", 2, false},
-        new Object[] {"parquet", 1, true},
-        new Object[] {"parquet", 1, false},
-        new Object[] {"parquet", 2, true},
-        new Object[] {"parquet", 2, false}
+        {"avro", 1, true},
+        {"avro", 1, false},
+        {"avro", 2, true},
+        {"avro", 2, false},
+        {"orc", 1, true},
+        {"orc", 1, false},
+        {"orc", 2, true},
+        {"orc", 2, false},
+        {"parquet", 1, true},
+        {"parquet", 1, false},
+        {"parquet", 2, true},
+        {"parquet", 2, false}
     };
   }
 
@@ -133,7 +131,7 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
     FlinkSink.forRowData(dataStream)
         .table(table)
         .tableLoader(tableLoader)
-        .hadoopConf(CONF)
+        .writeParallelism(parallelism)
         .build();
 
     // Execute the program.
@@ -156,7 +154,7 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
         .table(table)
         .tableLoader(tableLoader)
         .tableSchema(tableSchema)
-        .hadoopConf(CONF)
+        .writeParallelism(parallelism)
         .build();
 
     // Execute the program.

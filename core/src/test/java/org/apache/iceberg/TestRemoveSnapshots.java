@@ -39,12 +39,9 @@ import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
 public class TestRemoveSnapshots extends TableTestBase {
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { 1 },
-        new Object[] { 2 },
-    };
+  @Parameterized.Parameters(name = "formatVersion = {0}")
+  public static Object[] parameters() {
+    return new Object[] { 1, 2 };
   }
 
   public TestRemoveSnapshots(int formatVersion) {
@@ -459,6 +456,48 @@ public class TestRemoveSnapshots extends TableTestBase {
         2, Lists.newArrayList(table.snapshots()).size());
     Assert.assertEquals("First snapshot should still present",
         firstSnapshotId, table.snapshot(firstSnapshotId).snapshotId());
+  }
+
+  @Test
+  public void testRetainNLargerThanCurrentSnapshots() {
+    // Append 3 files
+    table.newAppend()
+        .appendFile(FILE_A) // data_bucket=0
+        .commit();
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
+    long t1 = System.currentTimeMillis();
+    while (t1 <= table.currentSnapshot().timestampMillis()) {
+      t1 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_B) // data_bucket=1
+        .commit();
+
+    long t2 = System.currentTimeMillis();
+    while (t2 <= table.currentSnapshot().timestampMillis()) {
+      t2 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_C) // data_bucket=2
+        .commit();
+
+    long t3 = System.currentTimeMillis();
+    while (t3 <= table.currentSnapshot().timestampMillis()) {
+      t3 = System.currentTimeMillis();
+    }
+
+    // Retain last 4 snapshots
+    Transaction tx = table.newTransaction();
+    tx.expireSnapshots()
+        .expireOlderThan(t3)
+        .retainLast(4)
+        .commit();
+    tx.commitTransaction();
+
+    Assert.assertEquals("Should have three snapshots.",
+        3, Lists.newArrayList(table.snapshots()).size());
   }
 
   @Test

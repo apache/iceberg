@@ -36,6 +36,7 @@ import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.iceberg.orc.OrcValueReader;
 import org.apache.iceberg.orc.OrcValueReaders;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
@@ -127,6 +128,11 @@ class FlinkOrcReaders {
     @Override
     public DecimalData nonNullRead(ColumnVector vector, int row) {
       HiveDecimalWritable value = ((DecimalColumnVector) vector).vector[row];
+
+      // The hive ORC writer may will adjust the scale of decimal data.
+      Preconditions.checkArgument(value.precision() <= precision,
+          "Cannot read value as decimal(%s,%s), too large: %s", precision, scale, value);
+
       return DecimalData.fromUnscaledLong(value.serialize64(scale), precision, scale);
     }
   }
@@ -143,6 +149,10 @@ class FlinkOrcReaders {
     @Override
     public DecimalData nonNullRead(ColumnVector vector, int row) {
       BigDecimal value = ((DecimalColumnVector) vector).vector[row].getHiveDecimal().bigDecimalValue();
+
+      Preconditions.checkArgument(value.precision() <= precision,
+          "Cannot read value as decimal(%s,%s), too large: %s", precision, scale, value);
+
       return DecimalData.fromBigDecimal(value, precision, scale);
     }
   }
@@ -246,7 +256,7 @@ class FlinkOrcReaders {
 
     StructReader(List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
       super(readers, struct, idToConstant);
-      this.numFields = readers.size();
+      this.numFields = struct.fields().size();
     }
 
     @Override

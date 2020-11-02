@@ -44,7 +44,7 @@ public interface Expression extends Serializable {
     STARTS_WITH;
 
     /**
-     * @return the operation used when this is negated
+     * Returns the operation used when this is negated.
      */
     public Operation negate() {
       switch (this) {
@@ -74,7 +74,7 @@ public interface Expression extends Serializable {
     }
 
     /**
-     * @return the equivalent operation when the left and right operands are exchanged
+     * Returns the equivalent operation when the left and right operands are exchanged.
      */
     // Allow flipLR as a name because it's a public API
     @SuppressWarnings("checkstyle:AbbreviationAsWordInName")
@@ -103,12 +103,12 @@ public interface Expression extends Serializable {
   }
 
   /**
-   * @return the operation for an expression node.
+   * Returns the operation for an expression node.
    */
   Operation op();
 
   /**
-   * @return the negation of this expression, equivalent to not(this).
+   * Returns the negation of this expression, equivalent to not(this).
    */
   default Expression negate() {
     throw new UnsupportedOperationException(String.format("%s cannot be negated", this));

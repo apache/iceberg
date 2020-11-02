@@ -17,6 +17,9 @@
 
 # Table Maintenance
 
+!!! Note
+    Maintenance operations require the `Table` instance. Please refer [Java API quickstart](/java-api-quickstart/#create-a-table) page to refer how to load an existing table.
+
 ## Recommended Maintenance
 
 ### Expire Snapshots
@@ -87,6 +90,14 @@ This action may take a long time to finish if you have lots of files in data and
 !!! Note
     It is dangerous to remove orphan files with a retention interval shorter than the time expected for any write to complete because it
     might corrupt the table if in-progress files are considered orphaned and are deleted. The default interval is 3 days.
+    
+    
+!!! Note
+    Iceberg uses the string representations of paths when determining which files need to be removed. On some file systems,
+    the path can change over time, but it still represents the same file. For example, if you change authorities for an HDFS cluster, 
+    none of the old path urls used during creation will match those that appear in a current listing. *This will lead to data loss when 
+    RemoveOrphanFiles is run*. Please be sure the entries in your MetadataTables match those listed by the Hadoop
+    FileSystem API to avoid unintentional deletion. 
 
 ## Optional Maintenance
 
@@ -129,4 +140,3 @@ table.rewriteManifests()
 ```
 
 See the [`RewriteManifestsAction` Javadoc](/javadoc/master/org/apache/iceberg/actions/RewriteManifestsAction.html) to see more configuration options.
-

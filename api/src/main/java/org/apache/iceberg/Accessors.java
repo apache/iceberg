@@ -212,10 +212,6 @@ public class Accessors {
         }
       }
 
-      if (accessors.isEmpty()) {
-        return null;
-      }
-
       return accessors;
     }
 

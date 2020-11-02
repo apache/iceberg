@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.exceptions;
 
+import com.google.errorprone.annotations.FormatMethod;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 
@@ -29,14 +30,17 @@ import org.apache.iceberg.Schema;
  * is not compatible with the table {@link Schema}
  */
 public class ValidationException extends RuntimeException {
+  @FormatMethod
   public ValidationException(String message, Object... args) {
     super(String.format(message, args));
   }
 
+  @FormatMethod
   public ValidationException(Throwable cause, String message, Object... args) {
     super(String.format(message, args), cause);
   }
 
+  @FormatMethod
   public static void check(boolean test, String message, Object... args) {
     if (!test) {
       throw new ValidationException(message, args);

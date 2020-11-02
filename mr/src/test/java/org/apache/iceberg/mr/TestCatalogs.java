@@ -20,14 +20,20 @@
 package org.apache.iceberg.mr;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Optional;
+import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveCatalog;
@@ -43,6 +49,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 public class TestCatalogs {
 
   private static final Schema SCHEMA = new Schema(required(1, "foo", Types.StringType.get()));
+  private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).identity("foo").build();
 
   private Configuration conf;
 
@@ -83,6 +90,96 @@ public class TestCatalogs {
     conf.set(InputFormatConfig.TABLE_IDENTIFIER, "table");
 
     Assert.assertEquals(hadoopCatalogTable.location(), Catalogs.loadTable(conf).location());
+  }
+
+  @Test
+  public void testCreateDropTableToLocation() throws IOException {
+    Properties missingSchema = new Properties();
+    missingSchema.put("location", temp.newFolder("hadoop_tables").toString());
+    AssertHelpers.assertThrows(
+        "Should complain about table schema not set", NullPointerException.class,
+        "schema not set", () -> Catalogs.createTable(conf, missingSchema));
+
+    Properties missingLocation = new Properties();
+    missingLocation.put(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(SCHEMA));
+    AssertHelpers.assertThrows(
+        "Should complain about table location not set", NullPointerException.class,
+        "location not set", () -> Catalogs.createTable(conf, missingLocation));
+
+    Properties properties = new Properties();
+    properties.put("location", temp.getRoot() + "/hadoop_tables");
+    properties.put(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(SCHEMA));
+    properties.put(InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(SPEC));
+    properties.put("dummy", "test");
+
+    Catalogs.createTable(conf, properties);
+
+    HadoopTables tables = new HadoopTables();
+    Table table = tables.load(properties.getProperty("location"));
+
+    Assert.assertEquals(properties.getProperty("location"), table.location());
+    Assert.assertEquals(SchemaParser.toJson(SCHEMA), SchemaParser.toJson(table.schema()));
+    Assert.assertEquals(PartitionSpecParser.toJson(SPEC), PartitionSpecParser.toJson(table.spec()));
+    Assert.assertEquals(Collections.singletonMap("dummy", "test"), table.properties());
+
+    AssertHelpers.assertThrows(
+        "Should complain about table location not set", NullPointerException.class,
+        "location not set", () -> Catalogs.dropTable(conf, new Properties()));
+
+    Properties dropProperties = new Properties();
+    dropProperties.put("location", temp.getRoot() + "/hadoop_tables");
+    Catalogs.dropTable(conf, dropProperties);
+
+    AssertHelpers.assertThrows(
+        "Should complain about table not found", NoSuchTableException.class,
+        "Table does not exist", () -> Catalogs.loadTable(conf, dropProperties));
+  }
+
+  @Test
+  public void testCreateDropTableToCatalog() throws IOException {
+    TableIdentifier identifier = TableIdentifier.of("test", "table");
+
+    conf.set("warehouse.location", temp.newFolder("hadoop", "warehouse").toString());
+    conf.setClass(InputFormatConfig.CATALOG_LOADER_CLASS, CustomHadoopCatalogLoader.class, CatalogLoader.class);
+
+    Properties missingSchema = new Properties();
+    missingSchema.put("name", identifier.toString());
+    AssertHelpers.assertThrows(
+        "Should complain about table schema not set", NullPointerException.class,
+        "schema not set", () -> Catalogs.createTable(conf, missingSchema));
+
+    Properties missingIdentifier = new Properties();
+    missingIdentifier.put(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(SCHEMA));
+    AssertHelpers.assertThrows(
+        "Should complain about table identifier not set", NullPointerException.class,
+        "identifier not set", () -> Catalogs.createTable(conf, missingIdentifier));
+
+    Properties properties = new Properties();
+    properties.put("name", identifier.toString());
+    properties.put(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(SCHEMA));
+    properties.put(InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(SPEC));
+    properties.put("dummy", "test");
+
+    Catalogs.createTable(conf, properties);
+
+    HadoopCatalog catalog = new CustomHadoopCatalog(conf);
+    Table table = catalog.loadTable(identifier);
+
+    Assert.assertEquals(SchemaParser.toJson(SCHEMA), SchemaParser.toJson(table.schema()));
+    Assert.assertEquals(PartitionSpecParser.toJson(SPEC), PartitionSpecParser.toJson(table.spec()));
+    Assert.assertEquals(Collections.singletonMap("dummy", "test"), table.properties());
+
+    AssertHelpers.assertThrows(
+        "Should complain about table identifier not set", NullPointerException.class,
+        "identifier not set", () -> Catalogs.dropTable(conf, new Properties()));
+
+    Properties dropProperties = new Properties();
+    dropProperties.put("name", identifier.toString());
+    Catalogs.dropTable(conf, dropProperties);
+
+    AssertHelpers.assertThrows(
+        "Should complain about table not found", NoSuchTableException.class,
+        "Table does not exist", () -> Catalogs.loadTable(conf, dropProperties));
   }
 
   @Test

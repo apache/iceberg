@@ -53,7 +53,6 @@ class ExpressionToSearchArgument extends ExpressionVisitors.BoundVisitor<Express
 
   // Currently every predicate in ORC requires a PredicateLeaf.Type field which is not available for these Iceberg types
   private static final Set<TypeID> UNSUPPORTED_TYPES = ImmutableSet.of(
-      TypeID.TIMESTAMP, // Temporarily disable filters on Timestamp columns due to ORC-611
       TypeID.BINARY,
       TypeID.FIXED,
       TypeID.UUID,
@@ -168,11 +167,19 @@ class ExpressionToSearchArgument extends ExpressionVisitors.BoundVisitor<Express
 
   @Override
   public <T> Action notEq(Bound<T> expr, Literal<T> lit) {
-    return () -> this.builder.startNot()
-          .equals(idToColumnName.get(expr.ref().fieldId()),
-              type(expr.ref().type()),
-              literal(expr.ref().type(), lit.value()))
-          .end();
+    // NOTE: ORC uses SQL semantics for Search Arguments, so an expression like
+    // `col != 1` will exclude rows where col is NULL along with rows where col = 1
+    // In contrast, Iceberg's Expressions will keep rows with NULL values
+    // So the equivalent ORC Search Argument for an Iceberg Expression `col != x`
+    // is `col IS NULL OR col != x`
+    return () -> {
+      this.builder.startOr();
+      isNull(expr).invoke();
+      this.builder.startNot();
+      eq(expr, lit).invoke();
+      this.builder.end(); // end NOT
+      this.builder.end(); // end OR
+    };
   }
 
   @Override
@@ -185,10 +192,19 @@ class ExpressionToSearchArgument extends ExpressionVisitors.BoundVisitor<Express
 
   @Override
   public <T> Action notIn(Bound<T> expr, Set<T> literalSet) {
-    return () -> this.builder.startNot()
-          .in(idToColumnName.get(expr.ref().fieldId()), type(expr.ref().type()),
-              literalSet.stream().map(lit -> literal(expr.ref().type(), lit)).toArray(Object[]::new))
-          .end();
+    // NOTE: ORC uses SQL semantics for Search Arguments, so an expression like
+    // `col NOT IN {1}` will exclude rows where col is NULL along with rows where col = 1
+    // In contrast, Iceberg's Expressions will keep rows with NULL values
+    // So the equivalent ORC Search Argument for an Iceberg Expression `col NOT IN {x}`
+    // is `col IS NULL OR col NOT IN {x}`
+    return () -> {
+      this.builder.startOr();
+      isNull(expr).invoke();
+      this.builder.startNot();
+      in(expr, literalSet).invoke();
+      this.builder.end(); // end NOT
+      this.builder.end(); // end OR
+    };
   }
 
   @Override

@@ -174,7 +174,7 @@ public class RewriteManifestsAction
     int numEntries = 0;
 
     for (ManifestFile manifest : matchingManifests) {
-      ValidationException.check(hasFileCounts(manifest), "No file counts in manifest: " + manifest.path());
+      ValidationException.check(hasFileCounts(manifest), "No file counts in manifest: %s", manifest.path());
 
       totalSizeBytes += manifest.length();
       numEntries += manifest.addedFilesCount() + manifest.existingFilesCount() + manifest.deletedFilesCount();

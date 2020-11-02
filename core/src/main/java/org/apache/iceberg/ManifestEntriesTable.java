@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
@@ -38,10 +39,16 @@ import org.apache.iceberg.types.TypeUtil;
 public class ManifestEntriesTable extends BaseMetadataTable {
   private final TableOperations ops;
   private final Table table;
+  private final String name;
 
-  public ManifestEntriesTable(TableOperations ops, Table table) {
+  ManifestEntriesTable(TableOperations ops, Table table) {
+    this(ops, table, table.name() + ".entries");
+  }
+
+  ManifestEntriesTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
+    this.name = name;
   }
 
   @Override
@@ -50,8 +57,8 @@ public class ManifestEntriesTable extends BaseMetadataTable {
   }
 
   @Override
-  String metadataTableName() {
-    return "entries";
+  public String name() {
+    return name;
   }
 
   @Override
@@ -106,7 +113,8 @@ public class ManifestEntriesTable extends BaseMetadataTable {
       ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
       return CloseableIterable.transform(manifests, manifest ->
-          new ManifestReadTask(ops.io(), manifest, fileSchema, schemaString, specString, residuals));
+          new ManifestReadTask(ops.io(), manifest, fileSchema, schemaString, specString, residuals,
+              ops.current().specsById()));
     }
   }
 
@@ -114,20 +122,27 @@ public class ManifestEntriesTable extends BaseMetadataTable {
     private final Schema fileSchema;
     private final FileIO io;
     private final ManifestFile manifest;
+    private final Map<Integer, PartitionSpec> specsById;
 
     ManifestReadTask(FileIO io, ManifestFile manifest, Schema fileSchema, String schemaString,
-                     String specString, ResidualEvaluator residuals) {
+                     String specString, ResidualEvaluator residuals, Map<Integer, PartitionSpec> specsById) {
       super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
       this.fileSchema = fileSchema;
       this.io = io;
       this.manifest = manifest;
+      this.specsById = specsById;
     }
 
     @Override
     public CloseableIterable<StructLike> rows() {
-      return CloseableIterable.transform(
-          ManifestFiles.read(manifest, io).project(fileSchema).entries(),
-          file -> (GenericManifestEntry<?>) file);
+      if (manifest.content() == ManifestContent.DATA) {
+        return CloseableIterable.transform(ManifestFiles.read(manifest, io).project(fileSchema).entries(),
+            file -> (GenericManifestEntry<DataFile>) file);
+      } else {
+        return CloseableIterable.transform(ManifestFiles.readDeleteManifest(manifest, io, specsById)
+                .project(fileSchema).entries(),
+            file -> (GenericManifestEntry<DeleteFile>) file);
+      }
     }
 
     @Override

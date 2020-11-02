@@ -22,9 +22,9 @@ package org.apache.iceberg.spark.source;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
@@ -47,32 +47,31 @@ import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.experimental.runners.Enclosed;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
 import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
+@RunWith(Enclosed.class)
 public class TestSparkTableUtil extends HiveTableBaseTest {
-  private static final Configuration CONF = HiveTableBaseTest.hiveConf;
-  private static final String tableName = "hive_table";
-  private static final String dbName = HiveTableBaseTest.DB_NAME;
-  private static final String qualifiedTableName = String.format("%s.%s", dbName, tableName);
-  private static final Path tableLocationPath = HiveTableBaseTest.getTableLocationPath(tableName);
-  private static final String tableLocationStr = tableLocationPath.toString();
+  private static final String TABLE_NAME = "hive_table";
+  private static final String QUALIFIED_TABLE_NAME = String.format("%s.%s", HiveTableBaseTest.DB_NAME, TABLE_NAME);
+  private static final Path TABLE_LOCATION_PATH = HiveTableBaseTest.getTableLocationPath(TABLE_NAME);
+  private static final String TABLE_LOCATION_STR = TABLE_LOCATION_PATH.toString();
   private static SparkSession spark = null;
-
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
-
 
   @BeforeClass
   public static void startSpark() {
-    String metastoreURI = CONF.get(HiveConf.ConfVars.METASTOREURIS.varname);
+    String metastoreURI = HiveTableBaseTest.hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname);
 
     // Create a spark session.
     TestSparkTableUtil.spark = SparkSession.builder().master("local[2]")
@@ -92,9 +91,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
     currentSpark.stop();
   }
 
-  @Before
-  public void before() {
-
+  static void loadData(FileFormat fileFormat) {
     // Create a hive table.
     SQLContext sc = new SQLContext(TestSparkTableUtil.spark);
 
@@ -102,8 +99,9 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
                     "CREATE TABLE %s (\n" +
                     "    id int COMMENT 'unique id'\n" +
                     ")\n" +
-                    " PARTITIONED BY (data string)\n" +
-                    " LOCATION '%s'", qualifiedTableName, tableLocationStr)
+                    "PARTITIONED BY (data string)\n" +
+                    "STORED AS %s\n" +
+                    "LOCATION '%s'", QUALIFIED_TABLE_NAME, fileFormat, TABLE_LOCATION_STR)
     );
 
     List<SimpleRecord> expected = Lists.newArrayList(
@@ -116,237 +114,289 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
 
     df.select("id", "data").orderBy("data").write()
             .mode("append")
-            .insertInto(qualifiedTableName);
+            .insertInto(QUALIFIED_TABLE_NAME);
   }
 
-  @After
-  public void after() throws IOException {
+  static void cleanupData() throws IOException {
     // Drop the hive table.
     SQLContext sc = new SQLContext(TestSparkTableUtil.spark);
-    sc.sql(String.format("DROP TABLE IF EXISTS %s", qualifiedTableName));
+    sc.sql(String.format("DROP TABLE IF EXISTS %s", QUALIFIED_TABLE_NAME));
 
     // Delete the data corresponding to the table.
-    tableLocationPath.getFileSystem(CONF).delete(tableLocationPath, true);
+    TABLE_LOCATION_PATH.getFileSystem(HiveTableBaseTest.hiveConf).delete(TABLE_LOCATION_PATH, true);
   }
 
-  @Test
-  public void testPartitionScan() {
-    List<SparkPartition> partitions = SparkTableUtil.getPartitions(spark, qualifiedTableName);
-    Assert.assertEquals("There should be 3 partitions", 3, partitions.size());
+  @RunWith(Parameterized.class)
+  public static class TableImport {
 
-    Dataset<Row> partitionDF = SparkTableUtil.partitionDF(spark, qualifiedTableName);
-    Assert.assertEquals("There should be 3 partitions", 3, partitionDF.count());
+    private final FileFormat format;
+
+    @Rule
+    public TemporaryFolder temp = new TemporaryFolder();
+
+    @Parameterized.Parameters(name = "format = {0}")
+    public static Object[] parameters() {
+      return new Object[] { "parquet", "orc" };
+    }
+
+    public TableImport(String format) {
+      this.format = FileFormat.valueOf(format.toUpperCase());
+    }
+
+    @Before
+    public void before() {
+      loadData(format);
+    }
+
+    @After
+    public void after() throws IOException {
+      cleanupData();
+    }
+
+    @Test
+    public void testImportPartitionedTable() throws Exception {
+      File location = temp.newFolder("partitioned_table");
+      spark.table(QUALIFIED_TABLE_NAME).write().mode("overwrite").partitionBy("data").format(format.toString())
+          .saveAsTable("test_partitioned_table");
+      TableIdentifier source = spark.sessionState().sqlParser()
+          .parseTableIdentifier("test_partitioned_table");
+      HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
+      Schema tableSchema = SparkSchemaUtil.schemaForTable(spark, QUALIFIED_TABLE_NAME);
+      Table table = tables.create(tableSchema,
+          SparkSchemaUtil.specForTable(spark, QUALIFIED_TABLE_NAME),
+          ImmutableMap.of(),
+          location.getCanonicalPath());
+      File stagingDir = temp.newFolder("staging-dir");
+      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
+      long count = spark.read().format("iceberg").load(location.toString()).count();
+      Assert.assertEquals("three values ", 3, count);
+    }
+
+    @Test
+    public void testImportUnpartitionedTable() throws Exception {
+      File location = temp.newFolder("unpartitioned_table");
+      spark.table(QUALIFIED_TABLE_NAME).write().mode("overwrite").format(format.toString())
+          .saveAsTable("test_unpartitioned_table");
+      TableIdentifier source = spark.sessionState().sqlParser()
+          .parseTableIdentifier("test_unpartitioned_table");
+      HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
+      Table table = tables.create(SparkSchemaUtil.schemaForTable(spark, QUALIFIED_TABLE_NAME),
+          SparkSchemaUtil.specForTable(spark, QUALIFIED_TABLE_NAME),
+          ImmutableMap.of(),
+          location.getCanonicalPath());
+      File stagingDir = temp.newFolder("staging-dir");
+      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
+      long count = spark.read().format("iceberg").load(location.toString()).count();
+      Assert.assertEquals("three values ", 3, count);
+    }
+
+    @Test
+    public void testImportAsHiveTable() throws Exception {
+      spark.table(QUALIFIED_TABLE_NAME).write().mode("overwrite").format(format.toString())
+          .saveAsTable("unpartitioned_table");
+      TableIdentifier source = new TableIdentifier("unpartitioned_table");
+      org.apache.iceberg.catalog.TableIdentifier testUnpartitionedTableId =
+          org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "test_unpartitioned_table_" + format);
+      File stagingDir = temp.newFolder("staging-dir");
+      Table table = catalog.createTable(
+          testUnpartitionedTableId,
+          SparkSchemaUtil.schemaForTable(spark, "unpartitioned_table"),
+          SparkSchemaUtil.specForTable(spark, "unpartitioned_table"));
+
+      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
+      long count1 = spark.read().format("iceberg").load(testUnpartitionedTableId.toString()).count();
+      Assert.assertEquals("three values ", 3, count1);
+
+      spark.table(QUALIFIED_TABLE_NAME).write().mode("overwrite").partitionBy("data").format(format.toString())
+          .saveAsTable("partitioned_table");
+
+      source = new TableIdentifier("partitioned_table");
+      org.apache.iceberg.catalog.TableIdentifier testPartitionedTableId =
+          org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "test_partitioned_table_" + format);
+      table = catalog.createTable(
+          testPartitionedTableId,
+          SparkSchemaUtil.schemaForTable(spark, "partitioned_table"),
+          SparkSchemaUtil.specForTable(spark, "partitioned_table"));
+
+      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
+      long count2 = spark.read().format("iceberg").load(testPartitionedTableId.toString()).count();
+      Assert.assertEquals("three values ", 3, count2);
+    }
+
+    @Test
+    public void testImportWithNameMapping() throws Exception {
+      spark.table(QUALIFIED_TABLE_NAME).write().mode("overwrite").format(format.toString())
+          .saveAsTable("original_table");
+
+      // The field is different so that it will project with name mapping
+      Schema filteredSchema = new Schema(
+          optional(1, "data", Types.StringType.get())
+      );
+
+      NameMapping nameMapping = MappingUtil.create(filteredSchema);
+
+      String targetTableName = "target_table_" + format;
+      TableIdentifier source = new TableIdentifier("original_table");
+      org.apache.iceberg.catalog.TableIdentifier targetTable =
+          org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, targetTableName);
+      Table table = catalog.createTable(
+          targetTable,
+          filteredSchema,
+          SparkSchemaUtil.specForTable(spark, "original_table"));
+
+      table.updateProperties().set(DEFAULT_NAME_MAPPING, NameMappingParser.toJson(nameMapping)).commit();
+
+      File stagingDir = temp.newFolder("staging-dir");
+      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
+
+      // The filter invoke the metric/dictionary row group filter in which it project schema
+      // with name mapping again to match the metric read from footer.
+      List<String> actual = spark.read().format("iceberg").load(targetTable.toString())
+          .select("data")
+          .sort("data")
+          .filter("data >= 'b'")
+          .as(Encoders.STRING())
+          .collectAsList();
+
+      List<String> expected = Lists.newArrayList("b", "c");
+
+      Assert.assertEquals(expected, actual);
+    }
+
+    @Test
+    public void testImportWithNameMappingForVectorizedParquetReader() throws Exception {
+      Assume.assumeTrue("Applies only to parquet format.",
+          FileFormat.PARQUET == format);
+      spark.table(QUALIFIED_TABLE_NAME).write().mode("overwrite").format(format.toString())
+          .saveAsTable("original_table");
+
+      // The field is different so that it will project with name mapping
+      Schema filteredSchema = new Schema(
+          optional(1, "data", Types.StringType.get())
+      );
+
+      NameMapping nameMapping = MappingUtil.create(filteredSchema);
+
+      TableIdentifier source = new TableIdentifier("original_table");
+      Table table = catalog.createTable(
+          org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "target_table_for_vectorization"),
+          filteredSchema,
+          SparkSchemaUtil.specForTable(spark, "original_table"));
+
+      table.updateProperties()
+          .set(DEFAULT_NAME_MAPPING, NameMappingParser.toJson(nameMapping))
+          .set(PARQUET_VECTORIZATION_ENABLED, "true")
+          .commit();
+
+      File stagingDir = temp.newFolder("staging-dir");
+      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
+
+      // The filter invoke the metric/dictionary row group filter in which it project schema
+      // with name mapping again to match the metric read from footer.
+      List<String> actual = spark.read().format("iceberg")
+          .load(DB_NAME + ".target_table_for_vectorization")
+          .select("data")
+          .sort("data")
+          .filter("data >= 'b'")
+          .as(Encoders.STRING())
+          .collectAsList();
+
+      List<String> expected = Lists.newArrayList("b", "c");
+
+      Assert.assertEquals(expected, actual);
+    }
+
+    @Test
+    public void testImportPartitionedWithWhitespace() throws Exception {
+      String partitionCol = "dAtA sPaced";
+      String spacedTableName = "whitespacetable";
+      String whiteSpaceKey = "some key value";
+
+      List<SimpleRecord> spacedRecords = Lists.newArrayList(new SimpleRecord(1, whiteSpaceKey));
+
+      File icebergLocation = temp.newFolder("partitioned_table");
+
+      spark.createDataFrame(spacedRecords, SimpleRecord.class)
+          .withColumnRenamed("data", partitionCol)
+          .write().mode("overwrite").partitionBy(partitionCol).format(format.toString())
+          .saveAsTable(spacedTableName);
+
+      TableIdentifier source = spark.sessionState().sqlParser()
+          .parseTableIdentifier(spacedTableName);
+      HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
+      Table table = tables.create(SparkSchemaUtil.schemaForTable(spark, spacedTableName),
+          SparkSchemaUtil.specForTable(spark, spacedTableName),
+          ImmutableMap.of(),
+          icebergLocation.getCanonicalPath());
+      File stagingDir = temp.newFolder("staging-dir");
+      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
+      List<SimpleRecord> results = spark.read().format("iceberg").load(icebergLocation.toString())
+          .withColumnRenamed(partitionCol, "data")
+          .as(Encoders.bean(SimpleRecord.class))
+          .collectAsList();
+
+      Assert.assertEquals("Data should match", spacedRecords, results);
+    }
+
+    @Test
+    public void testImportUnpartitionedWithWhitespace() throws Exception {
+      String spacedTableName = "whitespacetable_" + format;
+      String whiteSpaceKey = "some key value";
+
+      List<SimpleRecord> spacedRecords = Lists.newArrayList(new SimpleRecord(1, whiteSpaceKey));
+
+      File whiteSpaceOldLocation = temp.newFolder("white space location");
+      File icebergLocation = temp.newFolder("partitioned_table");
+
+      spark.createDataFrame(spacedRecords, SimpleRecord.class)
+          .write().mode("overwrite").format(format.toString()).save(whiteSpaceOldLocation.getPath());
+
+      spark.catalog().createExternalTable(spacedTableName, whiteSpaceOldLocation.getPath(), format.toString());
+
+      TableIdentifier source = spark.sessionState().sqlParser()
+          .parseTableIdentifier(spacedTableName);
+      HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
+      Table table = tables.create(SparkSchemaUtil.schemaForTable(spark, spacedTableName),
+          SparkSchemaUtil.specForTable(spark, spacedTableName),
+          ImmutableMap.of(),
+          icebergLocation.getCanonicalPath());
+      File stagingDir = temp.newFolder("staging-dir");
+      SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
+      List<SimpleRecord> results = spark.read().format("iceberg").load(icebergLocation.toString())
+          .as(Encoders.bean(SimpleRecord.class)).collectAsList();
+
+      Assert.assertEquals("Data should match", spacedRecords, results);
+    }
   }
 
-  @Test
-  public void testPartitionScanByFilter() {
-    List<SparkPartition> partitions = SparkTableUtil.getPartitionsByFilter(spark, qualifiedTableName, "data = 'a'");
-    Assert.assertEquals("There should be 1 matching partition", 1, partitions.size());
+  public static class PartitionScan {
 
-    Dataset<Row> partitionDF = SparkTableUtil.partitionDFByFilter(spark, qualifiedTableName, "data = 'a'");
-    Assert.assertEquals("There should be 1 matching partition", 1, partitionDF.count());
-  }
+    @Before
+    public void before() {
+      loadData(FileFormat.PARQUET);
+    }
 
-  @Test
-  public void testImportPartitionedTable() throws Exception {
-    File location = temp.newFolder("partitioned_table");
-    spark.table(qualifiedTableName).write().mode("overwrite").partitionBy("data").format("parquet")
-            .saveAsTable("test_partitioned_table");
-    TableIdentifier source = spark.sessionState().sqlParser()
-            .parseTableIdentifier("test_partitioned_table");
-    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
-    Table table = tables.create(SparkSchemaUtil.schemaForTable(spark, qualifiedTableName),
-            SparkSchemaUtil.specForTable(spark, qualifiedTableName),
-            ImmutableMap.of(),
-            location.getCanonicalPath());
-    File stagingDir = temp.newFolder("staging-dir");
-    SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
-    long count = spark.read().format("iceberg").load(location.toString()).count();
-    Assert.assertEquals("three values ", 3, count);
-  }
+    @After
+    public void after() throws IOException {
+      cleanupData();
+    }
 
-  @Test
-  public void testImportUnpartitionedTable() throws Exception {
-    File location = temp.newFolder("unpartitioned_table");
-    spark.table(qualifiedTableName).write().mode("overwrite").format("parquet")
-            .saveAsTable("test_unpartitioned_table");
-    TableIdentifier source = spark.sessionState().sqlParser()
-            .parseTableIdentifier("test_unpartitioned_table");
-    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
-    Table table = tables.create(SparkSchemaUtil.schemaForTable(spark, qualifiedTableName),
-            SparkSchemaUtil.specForTable(spark, qualifiedTableName),
-            ImmutableMap.of(),
-            location.getCanonicalPath());
-    File stagingDir = temp.newFolder("staging-dir");
-    SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
-    long count = spark.read().format("iceberg").load(location.toString()).count();
-    Assert.assertEquals("three values ", 3, count);
-  }
+    @Test
+    public void testPartitionScan() {
+      List<SparkPartition> partitions = SparkTableUtil.getPartitions(spark, QUALIFIED_TABLE_NAME);
+      Assert.assertEquals("There should be 3 partitions", 3, partitions.size());
 
-  @Test
-  public void testImportAsHiveTable() throws Exception {
-    spark.table(qualifiedTableName).write().mode("overwrite").format("parquet")
-            .saveAsTable("unpartitioned_table");
-    TableIdentifier source = new TableIdentifier("unpartitioned_table");
-    Table table = catalog.createTable(
-            org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "test_unpartitioned_table"),
-            SparkSchemaUtil.schemaForTable(spark, "unpartitioned_table"),
-            SparkSchemaUtil.specForTable(spark, "unpartitioned_table"));
-    File stagingDir = temp.newFolder("staging-dir");
-    SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
-    long count1 = spark.read().format("iceberg").load(DB_NAME + ".test_unpartitioned_table").count();
-    Assert.assertEquals("three values ", 3, count1);
+      Dataset<Row> partitionDF = SparkTableUtil.partitionDF(spark, QUALIFIED_TABLE_NAME);
+      Assert.assertEquals("There should be 3 partitions", 3, partitionDF.count());
+    }
 
-    spark.table(qualifiedTableName).write().mode("overwrite").partitionBy("data").format("parquet")
-            .saveAsTable("partitioned_table");
-    source = new TableIdentifier("partitioned_table");
-    table = catalog.createTable(
-            org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "test_partitioned_table"),
-            SparkSchemaUtil.schemaForTable(spark, "partitioned_table"),
-            SparkSchemaUtil.specForTable(spark, "partitioned_table"));
+    @Test
+    public void testPartitionScanByFilter() {
+      List<SparkPartition> partitions = SparkTableUtil.getPartitionsByFilter(spark, QUALIFIED_TABLE_NAME, "data = 'a'");
+      Assert.assertEquals("There should be 1 matching partition", 1, partitions.size());
 
-    SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
-    long count2 = spark.read().format("iceberg").load(DB_NAME + ".test_partitioned_table").count();
-    Assert.assertEquals("three values ", 3, count2);
-  }
-
-  @Test
-  public void testImportWithNameMapping() throws Exception {
-    spark.table(qualifiedTableName).write().mode("overwrite").format("parquet")
-        .saveAsTable("original_table");
-
-    // The field is different so that it will project with name mapping
-    Schema filteredSchema = new Schema(
-        optional(1, "data", Types.StringType.get())
-    );
-
-    NameMapping nameMapping = MappingUtil.create(filteredSchema);
-
-    TableIdentifier source = new TableIdentifier("original_table");
-    Table table = catalog.createTable(
-        org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "target_table"),
-        filteredSchema,
-        SparkSchemaUtil.specForTable(spark, "original_table"));
-
-    table.updateProperties().set(DEFAULT_NAME_MAPPING, NameMappingParser.toJson(nameMapping)).commit();
-
-    File stagingDir = temp.newFolder("staging-dir");
-    SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
-
-    // The filter invoke the metric/dictionary row group filter in which it project schema
-    // with name mapping again to match the metric read from footer.
-    List<String> actual = spark.read().format("iceberg").load(DB_NAME + ".target_table")
-        .select("data")
-        .sort("data")
-        .filter("data >= 'b'")
-        .as(Encoders.STRING())
-        .collectAsList();
-
-    List<String> expected = Lists.newArrayList("b", "c");
-
-    Assert.assertEquals(expected, actual);
-  }
-
-  @Test
-  public void testImportWithNameMappingForVectorizedParquetReader() throws Exception {
-    spark.table(qualifiedTableName).write().mode("overwrite").format("parquet")
-        .saveAsTable("original_table");
-
-    // The field is different so that it will project with name mapping
-    Schema filteredSchema = new Schema(
-        optional(1, "data", Types.StringType.get())
-    );
-
-    NameMapping nameMapping = MappingUtil.create(filteredSchema);
-
-    TableIdentifier source = new TableIdentifier("original_table");
-    Table table = catalog.createTable(
-        org.apache.iceberg.catalog.TableIdentifier.of(DB_NAME, "target_table_for_vectorization"),
-        filteredSchema,
-        SparkSchemaUtil.specForTable(spark, "original_table"));
-
-    table.updateProperties()
-        .set(DEFAULT_NAME_MAPPING, NameMappingParser.toJson(nameMapping))
-        .set(PARQUET_VECTORIZATION_ENABLED, "true")
-        .commit();
-
-    File stagingDir = temp.newFolder("staging-dir");
-    SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
-
-    // The filter invoke the metric/dictionary row group filter in which it project schema
-    // with name mapping again to match the metric read from footer.
-    List<String> actual = spark.read().format("iceberg")
-        .load(DB_NAME + ".target_table_for_vectorization")
-        .select("data")
-        .sort("data")
-        .filter("data >= 'b'")
-        .as(Encoders.STRING())
-        .collectAsList();
-
-    List<String> expected = Lists.newArrayList("b", "c");
-
-    Assert.assertEquals(expected, actual);
-  }
-
-  @Test
-  public void testImportPartitionedWithWhitespace() throws Exception {
-    String partitionCol = "dAtA sPaced";
-    String spacedTableName = "whitespacetable";
-    String whiteSpaceKey = "some key value";
-
-    List<SimpleRecord> spacedRecords = Lists.newArrayList(new SimpleRecord(1, whiteSpaceKey));
-
-    File icebergLocation = temp.newFolder("partitioned_table");
-
-    spark.createDataFrame(spacedRecords, SimpleRecord.class)
-        .withColumnRenamed("data", partitionCol)
-        .write().mode("overwrite").partitionBy(partitionCol).format("parquet")
-        .saveAsTable(spacedTableName);
-
-    TableIdentifier source = spark.sessionState().sqlParser()
-        .parseTableIdentifier(spacedTableName);
-    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
-    Table table = tables.create(SparkSchemaUtil.schemaForTable(spark, spacedTableName),
-        SparkSchemaUtil.specForTable(spark, spacedTableName),
-        ImmutableMap.of(),
-        icebergLocation.getCanonicalPath());
-    File stagingDir = temp.newFolder("staging-dir");
-    SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
-    List<SimpleRecord> results = spark.read().format("iceberg").load(icebergLocation.toString())
-        .withColumnRenamed(partitionCol, "data")
-        .as(Encoders.bean(SimpleRecord.class))
-        .collectAsList();
-
-    Assert.assertEquals("Data should match", spacedRecords, results);
-  }
-
-  @Test
-  public void testImportUnpartitionedWithWhitespace() throws Exception {
-    String spacedTableName = "whitespacetable";
-    String whiteSpaceKey = "some key value";
-
-    List<SimpleRecord> spacedRecords = Lists.newArrayList(new SimpleRecord(1, whiteSpaceKey));
-
-    File whiteSpaceOldLocation = temp.newFolder("white space location");
-    File icebergLocation = temp.newFolder("partitioned_table");
-
-    spark.createDataFrame(spacedRecords, SimpleRecord.class)
-        .write().mode("overwrite").parquet(whiteSpaceOldLocation.getPath());
-
-    spark.catalog().createExternalTable(spacedTableName, whiteSpaceOldLocation.getPath());
-
-    TableIdentifier source = spark.sessionState().sqlParser()
-        .parseTableIdentifier(spacedTableName);
-    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
-    Table table = tables.create(SparkSchemaUtil.schemaForTable(spark, spacedTableName),
-        SparkSchemaUtil.specForTable(spark, spacedTableName),
-        ImmutableMap.of(),
-        icebergLocation.getCanonicalPath());
-    File stagingDir = temp.newFolder("staging-dir");
-    SparkTableUtil.importSparkTable(spark, source, table, stagingDir.toString());
-    List<SimpleRecord> results = spark.read().format("iceberg").load(icebergLocation.toString())
-        .as(Encoders.bean(SimpleRecord.class)).collectAsList();
-
-    Assert.assertEquals("Data should match", spacedRecords, results);
+      Dataset<Row> partitionDF = SparkTableUtil.partitionDFByFilter(spark, QUALIFIED_TABLE_NAME, "data = 'a'");
+      Assert.assertEquals("There should be 1 matching partition", 1, partitionDF.count());
+    }
   }
 }

@@ -22,6 +22,7 @@ package org.apache.iceberg.orc;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.sql.Date;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -95,9 +96,9 @@ public class TestExpressionToSearchArgument {
         .startNot().lessThanEquals("`float`", Type.FLOAT, 5.0).end()
         .startNot().lessThan("`double`", Type.FLOAT, 500.0).end()
         .equals("`boolean`", Type.BOOLEAN, true)
-        .startNot().equals("`string`", Type.STRING, "test").end()
+        .startOr().isNull("`string`", Type.STRING).startNot().equals("`string`", Type.STRING, "test").end().end()
         .in("`decimal`", Type.DECIMAL, new HiveDecimalWritable("-123.45"), new HiveDecimalWritable("123.45"))
-        .startNot().in("`time`", Type.LONG, 100L, 200L).end()
+        .startOr().isNull("`time`", Type.LONG).startNot().in("`time`", Type.LONG, 100L, 200L).end().end()
         .end()
         .build();
 
@@ -129,8 +130,8 @@ public class TestExpressionToSearchArgument {
         SearchArgument expected = SearchArgumentFactory.newBuilder()
             .startAnd()
             .equals("`date`", Type.DATE, Date.valueOf(LocalDate.parse("1970-01-11", DateTimeFormatter.ISO_LOCAL_DATE)))
-            // .equals("`tsTz`", Type.TIMESTAMP, Timestamp.from(tsTzPredicate.toInstant()))
-            // .equals("`ts`", Type.TIMESTAMP, Timestamp.from(tsPredicate.toInstant()))
+            .equals("`tsTz`", Type.TIMESTAMP, Timestamp.from(tsTzPredicate.toInstant()))
+            .equals("`ts`", Type.TIMESTAMP, Timestamp.from(tsPredicate.toInstant()))
             .end()
             .build();
 
@@ -382,8 +383,9 @@ public class TestExpressionToSearchArgument {
         .equals("`newMap_r5`.`_key`", Type.STRING, "country")
         // Drops listOfStruct.long
         .equals("`listOfStruct`.`_elem`.`newLong_r10`", Type.LONG, 100L)
-        .startNot()
-        .equals("`listOfPeople`.`_elem`.`name`", Type.STRING, "Bob")
+        .startOr()
+        .isNull("`listOfPeople`.`_elem`.`name`", Type.STRING)
+        .startNot().equals("`listOfPeople`.`_elem`.`name`", Type.STRING, "Bob").end()
         .end()
         .lessThan("`listOfPeople`.`_elem`.`age_r14`", Type.LONG, 30L)
         .end()

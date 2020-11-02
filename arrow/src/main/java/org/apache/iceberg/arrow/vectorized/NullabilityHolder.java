@@ -60,7 +60,7 @@ public class NullabilityHolder {
   }
 
   /**
-   * @return 1 if null, 0 otherwise
+   * Returns 1 if null, 0 otherwise.
    */
   public byte isNullAt(int index) {
     return isNull[index];

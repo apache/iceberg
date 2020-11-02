@@ -19,23 +19,19 @@
 
 package org.apache.iceberg.hadoop;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.AllDataFilesTable;
-import org.apache.iceberg.AllEntriesTable;
-import org.apache.iceberg.AllManifestsTable;
 import org.apache.iceberg.BaseTable;
-import org.apache.iceberg.DataFilesTable;
-import org.apache.iceberg.HistoryTable;
-import org.apache.iceberg.ManifestEntriesTable;
-import org.apache.iceberg.ManifestsTable;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.PartitionsTable;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SnapshotsTable;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -43,15 +39,19 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Tables;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Implementation of Iceberg tables that uses the Hadoop FileSystem
  * to store metadata and manifests.
  */
 public class HadoopTables implements Tables, Configurable {
+  private static final Logger LOG = LoggerFactory.getLogger(HadoopTables.class);
   private static final String METADATA_JSON = "metadata.json";
   private Configuration conf;
 
@@ -71,20 +71,24 @@ public class HadoopTables implements Tables, Configurable {
    */
   @Override
   public Table load(String location) {
+    Table result;
     Pair<String, MetadataTableType> parsedMetadataType = parseMetadataType(location);
 
     if (parsedMetadataType != null) {
       // Load a metadata table
-      return loadMetadataTable(parsedMetadataType.first(), parsedMetadataType.second());
+      result = loadMetadataTable(parsedMetadataType.first(), location, parsedMetadataType.second());
     } else {
       // Load a normal table
       TableOperations ops = newTableOps(location);
       if (ops.current() != null) {
-        return new BaseTable(ops, location);
+        result = new BaseTable(ops, location);
       } else {
-        throw new NoSuchTableException("Table does not exist at location: " + location);
+        throw new NoSuchTableException("Table does not exist at location: %s", location);
       }
     }
+
+    LOG.info("Table location loaded: {}", result.location());
+    return result;
   }
 
   /**
@@ -95,7 +99,7 @@ public class HadoopTables implements Tables, Configurable {
    */
   private Pair<String, MetadataTableType> parseMetadataType(String location) {
     int hashIndex = location.lastIndexOf('#');
-    if (hashIndex != -1 & !location.endsWith("#")) {
+    if (hashIndex != -1 && !location.endsWith("#")) {
       String baseTable = location.substring(0, hashIndex);
       String metaTable = location.substring(hashIndex + 1);
       MetadataTableType type = MetadataTableType.from(metaTable);
@@ -105,36 +109,13 @@ public class HadoopTables implements Tables, Configurable {
     }
   }
 
-  private Table loadMetadataTable(String location, MetadataTableType type) {
+  private Table loadMetadataTable(String location, String metadataTableName, MetadataTableType type) {
     TableOperations ops = newTableOps(location);
     if (ops.current() == null) {
-      throw new NoSuchTableException("Table does not exist at location: " + location);
+      throw new NoSuchTableException("Table does not exist at location: %s", location);
     }
 
-    Table baseTable = new BaseTable(ops, location);
-
-    switch (type) {
-      case ENTRIES:
-        return new ManifestEntriesTable(ops, baseTable);
-      case FILES:
-        return new DataFilesTable(ops, baseTable);
-      case HISTORY:
-        return new HistoryTable(ops, baseTable);
-      case SNAPSHOTS:
-        return new SnapshotsTable(ops, baseTable);
-      case MANIFESTS:
-        return new ManifestsTable(ops, baseTable);
-      case PARTITIONS:
-        return new PartitionsTable(ops, baseTable);
-      case ALL_DATA_FILES:
-        return new AllDataFilesTable(ops, baseTable);
-      case ALL_MANIFESTS:
-        return new AllManifestsTable(ops, baseTable);
-      case ALL_ENTRIES:
-        return new AllEntriesTable(ops, baseTable);
-      default:
-        throw new NoSuchTableException(String.format("Unknown metadata table type: %s for %s", type, location));
-    }
+    return MetadataTableUtils.createMetadataTableInstance(ops, location, metadataTableName, type);
   }
 
   /**
@@ -148,24 +129,70 @@ public class HadoopTables implements Tables, Configurable {
    * @return newly created table implementation
    */
   @Override
-  public Table create(Schema schema, PartitionSpec spec, Map<String, String> properties,
-                      String location) {
+  public Table create(Schema schema, PartitionSpec spec, SortOrder order,
+                      Map<String, String> properties, String location) {
     Preconditions.checkNotNull(schema, "A table schema is required");
 
     TableOperations ops = newTableOps(location);
     if (ops.current() != null) {
-      throw new AlreadyExistsException("Table already exists at location: " + location);
+      throw new AlreadyExistsException("Table already exists at location: %s", location);
     }
 
     Map<String, String> tableProps = properties == null ? ImmutableMap.of() : properties;
     PartitionSpec partitionSpec = spec == null ? PartitionSpec.unpartitioned() : spec;
-    TableMetadata metadata = TableMetadata.newTableMetadata(schema, partitionSpec, location, tableProps);
+    SortOrder sortOrder = order == null ? SortOrder.unsorted() : order;
+    TableMetadata metadata = TableMetadata.newTableMetadata(schema, partitionSpec, sortOrder, location, tableProps);
     ops.commit(null, metadata);
 
     return new BaseTable(ops, location);
   }
 
-  private TableOperations newTableOps(String location) {
+  /**
+   * Drop a table and delete all data and metadata files.
+   *
+   * @param location a path URI (e.g. hdfs:///warehouse/my_table)
+   * @return true if the table was dropped, false if it did not exist
+   */
+  public boolean dropTable(String location) {
+    return dropTable(location, true);
+  }
+
+  /**
+   * Drop a table; optionally delete data and metadata files.
+   * <p>
+   * If purge is set to true the implementation should delete all data and metadata files.
+   *
+   * @param location a path URI (e.g. hdfs:///warehouse/my_table)
+   * @param purge if true, delete all data and metadata files in the table
+   * @return true if the table was dropped, false if it did not exist
+   */
+  public boolean dropTable(String location, boolean purge) {
+    TableOperations ops = newTableOps(location);
+    TableMetadata lastMetadata = null;
+    if (ops.current() != null) {
+      if (purge) {
+        lastMetadata = ops.current();
+      }
+    } else {
+      return false;
+    }
+
+    try {
+      if (purge && lastMetadata != null) {
+        // Since the data files and the metadata files may store in different locations,
+        // so it has to call dropTableData to force delete the data file.
+        CatalogUtil.dropTableData(ops.io(), lastMetadata);
+      }
+      Path tablePath = new Path(location);
+      Util.getFs(tablePath, conf).delete(tablePath, true /* recursive */);
+      return true;
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to delete file: " + location, e);
+    }
+  }
+
+  @VisibleForTesting
+  TableOperations newTableOps(String location) {
     if (location.contains(METADATA_JSON)) {
       return new StaticTableOperations(location, new HadoopFileIO(conf));
     } else {

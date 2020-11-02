@@ -44,7 +44,6 @@ import org.slf4j.LoggerFactory;
 /**
  * Base class for {@link TableScan} implementations.
  */
-@SuppressWarnings("checkstyle:OverloadMethodsDeclarationOrder")
 abstract class BaseTableScan implements TableScan {
   private static final Logger LOG = LoggerFactory.getLogger(TableScan.class);
 
@@ -160,7 +159,7 @@ abstract class BaseTableScan implements TableScan {
   @Override
   public TableScan project(Schema projectedSchema) {
     return newRefinedScan(
-        ops, table, projectedSchema, context);
+        ops, table, schema, context.project(projectedSchema));
   }
 
   @Override
@@ -207,7 +206,7 @@ abstract class BaseTableScan implements TableScan {
           context.rowFilter());
 
       Listeners.notifyAll(
-          new ScanEvent(table.toString(), snapshot.snapshotId(), context.rowFilter(), schema()));
+          new ScanEvent(table.name(), snapshot.snapshotId(), context.rowFilter(), schema()));
 
       return planFiles(ops, snapshot,
           context.rowFilter(), context.ignoreResiduals(), context.caseSensitive(), context.returnColumnStats());
@@ -288,19 +287,22 @@ abstract class BaseTableScan implements TableScan {
 
       // all of the filter columns are required
       requiredFieldIds.addAll(
-          Binder.boundReferences(table.schema().asStruct(),
+          Binder.boundReferences(schema.asStruct(),
               Collections.singletonList(context.rowFilter()), context.caseSensitive()));
 
       // all of the projection columns are required
       Set<Integer> selectedIds;
       if (context.caseSensitive()) {
-        selectedIds = TypeUtil.getProjectedIds(table.schema().select(selectedColumns));
+        selectedIds = TypeUtil.getProjectedIds(schema.select(selectedColumns));
       } else {
-        selectedIds = TypeUtil.getProjectedIds(table.schema().caseInsensitiveSelect(selectedColumns));
+        selectedIds = TypeUtil.getProjectedIds(schema.caseInsensitiveSelect(selectedColumns));
       }
       requiredFieldIds.addAll(selectedIds);
 
-      return TypeUtil.select(table.schema(), requiredFieldIds);
+      return TypeUtil.select(schema, requiredFieldIds);
+
+    } else if (context.projectedSchema() != null) {
+      return context.projectedSchema();
     }
 
     return schema;

@@ -33,7 +33,7 @@ public class SnapshotUtil {
   }
 
   /**
-   * @return whether ancestorSnapshotId is an ancestor of snapshotId
+   * Returns whether ancestorSnapshotId is an ancestor of snapshotId.
    */
   public static boolean ancestorOf(Table table, long snapshotId, long ancestorSnapshotId) {
     Snapshot current = table.snapshot(snapshotId);
@@ -64,8 +64,9 @@ public class SnapshotUtil {
   }
 
   /**
-   * @return List of snapshot ids in the range - (fromSnapshotId, toSnapshotId]
-   * This method assumes that fromSnapshotId is an ancestor of toSnapshotId
+   * Returns list of snapshot ids in the range - (fromSnapshotId, toSnapshotId]
+   * <p>
+   * This method assumes that fromSnapshotId is an ancestor of toSnapshotId.
    */
   public static List<Long> snapshotIdsBetween(Table table, long fromSnapshotId, long toSnapshotId) {
     List<Long> snapshotIds = Lists.newArrayList(ancestorIds(table.snapshot(toSnapshotId),

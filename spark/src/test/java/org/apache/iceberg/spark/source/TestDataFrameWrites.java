@@ -26,11 +26,13 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
@@ -44,14 +46,18 @@ import org.apache.iceberg.spark.data.AvroDataTest;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkAvroReader;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.SparkException;
+import org.apache.spark.TaskContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.sql.DataFrameWriter;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.encoders.RowEncoder;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -70,13 +76,9 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
 
   private final String format;
 
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { "parquet" },
-        new Object[] { "avro" },
-        new Object[] { "orc" }
-    };
+  @Parameterized.Parameters(name = "format = {0}")
+  public static Object[] parameters() {
+    return new Object[] { "parquet", "avro", "orc" };
   }
 
   public TestDataFrameWrites(String format) {
@@ -168,11 +170,7 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
 
     table.refresh();
 
-    Dataset<Row> result = spark.read()
-        .format("iceberg")
-        .load(location.toString());
-
-    List<Row> actual = result.collectAsList();
+    List<Row> actual = readTable(location.toString());
 
     Iterator<Record> expectedIter = expected.iterator();
     Iterator<Row> actualIter = actual.iterator();
@@ -190,9 +188,41 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
             URI.create(dataFile.path().toString()).getPath().startsWith(expectedDataDir.getAbsolutePath())));
   }
 
+  private List<Row> readTable(String location) {
+    Dataset<Row> result = spark.read()
+        .format("iceberg")
+        .load(location);
+
+    return result.collectAsList();
+  }
+
   private void writeData(Iterable<Record> records, Schema schema, String location) throws IOException {
     Dataset<Row> df = createDataset(records, schema);
     DataFrameWriter<?> writer = df.write().format("iceberg").mode("append");
+    writer.save(location);
+  }
+
+  private void writeDataWithFailOnPartition(Iterable<Record> records, Schema schema, String location)
+      throws IOException, SparkException {
+    final int numPartitions = 10;
+    final int partitionToFail = new Random().nextInt(numPartitions);
+    MapPartitionsFunction<Row, Row> failOnFirstPartitionFunc = (MapPartitionsFunction<Row, Row>) input -> {
+      int partitionId = TaskContext.getPartitionId();
+
+      if (partitionId == partitionToFail) {
+        throw new SparkException(String.format("Intended exception in partition %d !", partitionId));
+      }
+      return input;
+    };
+
+    Dataset<Row> df = createDataset(records, schema)
+        .repartition(numPartitions)
+        .mapPartitions(failOnFirstPartitionFunc, RowEncoder.apply(convert(schema)));
+    // This trick is needed because Spark 3 handles decimal overflow in RowEncoder which "changes"
+    // nullability of the column to "true" regardless of original nullability.
+    // Setting "check-nullability" option to "false" doesn't help as it fails at Spark analyzer.
+    Dataset<Row> convertedDf = df.sqlContext().createDataFrame(df.rdd(), convert(schema));
+    DataFrameWriter<?> writer = convertedDf.write().format("iceberg").mode("append");
     writer.save(location);
   }
 
@@ -317,5 +347,36 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
     List<Row> rows = newSparkSession.read().format("iceberg").load(targetPath).collectAsList();
     Assert.assertEquals("Should contain 6 rows", 6, rows.size());
 
+  }
+
+  @Test
+  public void testFaultToleranceOnWrite() throws IOException {
+    File location = createTableFolder();
+    Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
+    Table table = createTable(schema, location);
+
+    Iterable<Record> records = RandomData.generate(schema, 100, 0L);
+    writeData(records, schema, location.toString());
+
+    table.refresh();
+
+    Snapshot snapshotBeforeFailingWrite = table.currentSnapshot();
+    List<Row> resultBeforeFailingWrite = readTable(location.toString());
+
+    try {
+      Iterable<Record> records2 = RandomData.generate(schema, 100, 0L);
+      writeDataWithFailOnPartition(records2, schema, location.toString());
+      Assert.fail("The query should fail");
+    } catch (SparkException e) {
+      // no-op
+    }
+
+    table.refresh();
+
+    Snapshot snapshotAfterFailingWrite = table.currentSnapshot();
+    List<Row> resultAfterFailingWrite = readTable(location.toString());
+
+    Assert.assertEquals(snapshotAfterFailingWrite, snapshotBeforeFailingWrite);
+    Assert.assertEquals(resultAfterFailingWrite, resultBeforeFailingWrite);
   }
 }

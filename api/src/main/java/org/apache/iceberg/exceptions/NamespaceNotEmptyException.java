@@ -19,14 +19,18 @@
 
 package org.apache.iceberg.exceptions;
 
+import com.google.errorprone.annotations.FormatMethod;
+
 /**
  * Exception raised when attempting to drop a namespace that is not empty.
  */
 public class NamespaceNotEmptyException extends RuntimeException {
+  @FormatMethod
   public NamespaceNotEmptyException(String message, Object... args) {
     super(String.format(message, args));
   }
 
+  @FormatMethod
   public NamespaceNotEmptyException(Throwable cause, String message, Object... args) {
     super(String.format(message, args), cause);
   }

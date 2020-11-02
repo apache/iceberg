@@ -251,7 +251,16 @@ public class Expressions {
     return ExpressionVisitors.visit(expr, RewriteNot.get());
   }
 
-  static <T> NamedReference<T> ref(String name) {
+  /**
+   * Constructs a reference for a given column.
+   * <p>
+   * The following are equivalent: equals("a", 5) and equals(ref("a"), 5).
+   *
+   * @param name a column name
+   * @param <T> the Java type of this reference
+   * @return a named reference
+   */
+  public static <T> NamedReference<T> ref(String name) {
     return new NamedReference<>(name);
   }
 }
