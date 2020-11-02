@@ -543,6 +543,24 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Assert.assertEquals("Name must match", "hadoop.db.ns1.ns2.tbl.snapshots", snapshotsTable.name());
   }
 
+  @Test
+  public void testTableRefreshWithMissingMetadataFile() throws Exception {
+    HadoopTableOperations tableOperations = (HadoopTableOperations) TABLES.newTableOps(tableLocation);
+    table.refresh();
+    Assert.assertEquals("Table version is abnormal.", 1, tableOperations.findVersion());
+
+    // Another thread add version.
+    Table otherTheadTable = TABLES.load(tableLocation);
+    addVersionsToTable(otherTheadTable);
+
+    // Another thread remove the first version file.
+    FileIO otherTheadIo = otherTheadTable.io();
+    otherTheadIo.deleteFile(tableOperations.getMetadataFile(1).toString());
+
+    table.refresh();
+    Assert.assertEquals("Table version is abnormal.", 3, tableOperations.findVersion());
+  }
+
   private static void addVersionsToTable(Table table) {
     DataFile dataFile1 = DataFiles.builder(SPEC)
         .withPath("/a.parquet")

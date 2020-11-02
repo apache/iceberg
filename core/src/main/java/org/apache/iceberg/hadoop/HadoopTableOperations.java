@@ -101,7 +101,11 @@ public class HadoopTableOperations implements TableOperations {
       if (version == null && metadataFile == null && ver == 0) {
         // no v0 metadata means the table doesn't exist yet
         return null;
-      } else if (metadataFile == null) {
+      } else if (metadataFile == null && version != null) {
+        ver = findVersion();
+        metadataFile = getMetadataFile(ver);
+      }
+      if (metadataFile == null) {
         throw new ValidationException("Metadata file for version %d is missing", ver);
       }
 
