@@ -21,14 +21,17 @@ package org.apache.iceberg.transforms;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.Set;
 import org.apache.iceberg.expressions.BoundLiteralPredicate;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundSetPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 import static org.apache.iceberg.expressions.Expressions.predicate;
 
@@ -253,5 +256,125 @@ class ProjectionUtil {
                                                  Transform<S, T> transform) {
     return predicate(predicate.op(), fieldName,
         Iterables.transform(predicate.asSetPredicate().literalSet(), transform::apply));
+  }
+
+  static UnboundPredicate<Integer> fixInclusiveTimeProjection(UnboundPredicate<Integer> projected) {
+    if (projected == null) {
+      return projected;
+    }
+
+    // adjust the predicate for values that were 1 larger than the correct transformed value
+    switch (projected.op()) {
+      case LT:
+        if (projected.literal().value() < 0) {
+          return Expressions.lessThan(projected.term(), projected.literal().value() + 1);
+        }
+
+        return projected;
+
+      case LT_EQ:
+        if (projected.literal().value() < 0) {
+          return Expressions.lessThanOrEqual(projected.term(), projected.literal().value() + 1);
+        }
+
+        return projected;
+
+      case GT:
+      case GT_EQ:
+        // incorrect projected values are already greater than the bound for GT, GT_EQ
+        return projected;
+
+      case EQ:
+        if (projected.literal().value() < 0) {
+          // match either the incorrect value (projectedValue + 1) or the correct value (projectedValue)
+          return Expressions.in(projected.term(), projected.literal().value(), projected.literal().value() + 1);
+        }
+
+        return projected;
+
+      case IN:
+        Set<Integer> fixedSet = Sets.newHashSet();
+        boolean hasNegativeValue = false;
+        for (Literal<Integer> lit : projected.literals()) {
+          Integer value = lit.value();
+          fixedSet.add(value);
+          if (value < 0) {
+            hasNegativeValue = true;
+            fixedSet.add(value + 1);
+          }
+        }
+
+        if (hasNegativeValue) {
+          return Expressions.in(projected.term(), fixedSet);
+        }
+
+        return projected;
+
+      case NOT_IN:
+      case NOT_EQ:
+        // there is no inclusive projection for NOT_EQ and NOT_IN
+        return null;
+
+      default:
+        return projected;
+    }
+  }
+
+  static UnboundPredicate<Integer> fixStrictTimeProjection(UnboundPredicate<Integer> projected) {
+    if (projected == null) {
+      return null;
+    }
+
+    switch (projected.op()) {
+      case LT:
+      case LT_EQ:
+        if (projected.literal().value() <= 0) {
+          // LT and LT_EQ cannot be fixed because adjusting the strict projection may include values that were not
+          // written incorrectly. for example, if the correct strict projection is x < 5, adjusting to produce x < 6
+          // cannot guarantee that all values match the original predicate
+          return null;
+        }
+
+        return projected;
+
+      case GT:
+      case GT_EQ:
+        // EQ and GT_EQ do not need to be adjusted because the incorrect value is more strict than the projection
+        // for example, if the correct strict projection is x > 5, the incorrect value, x > 6, is more strict
+        return projected;
+
+      case EQ:
+      case IN:
+        // there is no strict projection for EQ and IN
+        return null;
+
+      case NOT_EQ:
+        if (projected.literal().value() < 0) {
+          return Expressions.notIn(projected.term(), projected.literal().value(), projected.literal().value() + 1);
+        }
+
+        return projected;
+
+      case NOT_IN:
+        Set<Integer> fixedSet = Sets.newHashSet();
+        boolean hasNegativeValue = false;
+        for (Literal<Integer> lit : projected.literals()) {
+          Integer value = lit.value();
+          fixedSet.add(value);
+          if (value < 0) {
+            hasNegativeValue = true;
+            fixedSet.add(value + 1);
+          }
+        }
+
+        if (hasNegativeValue) {
+          return Expressions.notIn(projected.term(), fixedSet);
+        }
+
+        return projected;
+
+      default:
+        return null;
+    }
   }
 }

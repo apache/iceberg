@@ -74,14 +74,14 @@ public class TestTimestampsProjection {
                                           Expression.Operation expectedOp) {
 
     Expression projection = Projections.strict(spec).project(filter);
-    Assert.assertEquals(projection.op(), expectedOp);
+    Assert.assertEquals(expectedOp, projection.op());
   }
 
   public void assertProjectionInclusiveValue(PartitionSpec spec, UnboundPredicate<?> filter,
                                              Expression.Operation expectedOp) {
 
     Expression projection = Projections.inclusive(spec).project(filter);
-    Assert.assertEquals(projection.op(), expectedOp);
+    Assert.assertEquals(expectedOp, projection.op());
   }
 
   public void assertProjectionInclusive(PartitionSpec spec, UnboundPredicate<?> filter,
@@ -89,7 +89,7 @@ public class TestTimestampsProjection {
     Expression projection = Projections.inclusive(spec).project(filter);
     UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
 
-    Assert.assertEquals(predicate.op(), expectedOp);
+    Assert.assertEquals(expectedOp, predicate.op());
 
     Assert.assertNotEquals("Inclusive projection never runs for NOT_IN", Expression.Operation.NOT_IN, predicate.op());
 
