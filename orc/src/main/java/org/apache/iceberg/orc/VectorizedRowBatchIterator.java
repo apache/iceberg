@@ -32,7 +32,7 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
  * Because the same VectorizedRowBatch is reused on each call to next,
  * it gets changed when hasNext or next is called.
  */
-public class VectorizedRowBatchIterator implements CloseableIterator<Pair<VectorizedRowBatch, Long>> {
+class VectorizedRowBatchIterator implements CloseableIterator<Pair<VectorizedRowBatch, Long>> {
   private final String fileLocation;
   private final RecordReader rows;
   private final VectorizedRowBatch batch;
@@ -75,5 +75,12 @@ public class VectorizedRowBatchIterator implements CloseableIterator<Pair<Vector
     // mark it as used
     advanced = false;
     return Pair.of(batch, batchOffsetInFile);
+  }
+
+  /**
+   * @return true if a new data was read into the {@link VectorizedRowBatch}
+   */
+  boolean hasAdvanced() {
+    return advanced;
   }
 }

@@ -151,7 +151,11 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
 
     @Override
     public T next() {
-      if (current == null || nextRow >= current.size) {
+      // batchIter.hasAdvanced() signifies that new data was already read into the VectorizedRowBatchIterator
+      // by the previous batchIter.hasNext() call and the current batch information must be reset/refetched
+      // batchIter.next() will set batchIter.hasAdvanced() to false until the row batch is exhausted and
+      // batchIter.hasNext() triggers another advance
+      if (current == null || nextRow >= current.size || batchIter.hasAdvanced()) {
         Pair<VectorizedRowBatch, Long> nextBatch = batchIter.next();
         current = nextBatch.first();
         nextRow = 0;
