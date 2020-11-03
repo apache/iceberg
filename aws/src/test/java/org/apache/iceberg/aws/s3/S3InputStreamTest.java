@@ -20,7 +20,6 @@
 package org.apache.iceberg.aws.s3;
 
 import com.adobe.testing.s3mock.junit4.S3MockRule;
-import com.amazonaws.services.s3.AmazonS3URI;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
@@ -52,7 +51,7 @@ public class S3InputStreamTest {
 
   @Test
   public void testRead() throws Exception {
-    AmazonS3URI uri = new AmazonS3URI("s3://bucket/path/to/read.dat");
+    S3URI uri = new S3URI("s3://bucket/path/to/read.dat");
     int dataSize = 1024 * 1024 * 10;
     byte[] data = randomData(dataSize);
 
@@ -108,7 +107,7 @@ public class S3InputStreamTest {
 
   @Test
   public void testClose() throws Exception {
-    AmazonS3URI uri = new AmazonS3URI("s3://bucket/path/to/closed.dat");
+    S3URI uri = new S3URI("s3://bucket/path/to/closed.dat");
     SeekableInputStream closed = new S3InputStream(s3, uri);
     closed.close();
     assertThrows(IllegalStateException.class, () -> closed.seek(0));
@@ -116,7 +115,7 @@ public class S3InputStreamTest {
 
   @Test
   public void testSeek() throws Exception {
-    AmazonS3URI uri = new AmazonS3URI("s3://bucket/path/to/seek.dat");
+    S3URI uri = new S3URI("s3://bucket/path/to/seek.dat");
     byte[] expected = randomData(1024 * 1024);
 
     writeS3Data(uri, expected);
@@ -134,11 +133,11 @@ public class S3InputStreamTest {
     return data;
   }
 
-  private void writeS3Data(AmazonS3URI uri, byte[] data) throws IOException {
+  private void writeS3Data(S3URI uri, byte[] data) throws IOException {
     s3.putObject(
         PutObjectRequest.builder()
-            .bucket(uri.getBucket())
-            .key(uri.getKey())
+            .bucket(uri.bucket())
+            .key(uri.key())
             .contentLength((long) data.length)
             .build(),
         RequestBody.fromBytes(data));

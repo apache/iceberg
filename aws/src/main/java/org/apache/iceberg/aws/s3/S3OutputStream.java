@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.aws.s3;
 
-import com.amazonaws.services.s3.AmazonS3URI;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -39,7 +38,7 @@ public class S3OutputStream extends PositionOutputStream {
 
   private final StackTraceElement[] createStack;
   private final S3Client s3;
-  private final AmazonS3URI location;
+  private final S3URI location;
 
   private final OutputStream stream;
   private final File stagingFile;
@@ -47,7 +46,7 @@ public class S3OutputStream extends PositionOutputStream {
 
   private boolean closed = false;
 
-  public S3OutputStream(S3Client s3, AmazonS3URI location) throws IOException {
+  public S3OutputStream(S3Client s3, S3URI location) throws IOException {
     this.s3 = s3;
     this.location = location;
 
@@ -89,7 +88,7 @@ public class S3OutputStream extends PositionOutputStream {
       stream.close();
 
       s3.putObject(
-          PutObjectRequest.builder().bucket(location.getBucket()).key(location.getKey()).build(),
+          PutObjectRequest.builder().bucket(location.bucket()).key(location.key()).build(),
           RequestBody.fromFile(stagingFile));
     } finally {
       if (!stagingFile.delete()) {

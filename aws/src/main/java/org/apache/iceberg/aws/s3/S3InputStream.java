@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.aws.s3;
 
-import com.amazonaws.services.s3.AmazonS3URI;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
@@ -38,7 +37,7 @@ public class S3InputStream extends SeekableInputStream {
 
   private final StackTraceElement[] createStack;
   private final S3Client s3;
-  private final AmazonS3URI location;
+  private final S3URI location;
 
   private InputStream stream;
   private long pos = 0;
@@ -47,7 +46,7 @@ public class S3InputStream extends SeekableInputStream {
 
   private int skipSize = 1024 * 1024;
 
-  public S3InputStream(S3Client s3, AmazonS3URI location) {
+  public S3InputStream(S3Client s3, S3URI location) {
     this.s3 = s3;
     this.location = location;
 
@@ -128,8 +127,8 @@ public class S3InputStream extends SeekableInputStream {
 
   private void openStream() throws IOException {
     GetObjectRequest request = GetObjectRequest.builder()
-        .bucket(location.getBucket())
-        .key(location.getKey())
+        .bucket(location.bucket())
+        .key(location.key())
         .range(String.format("bytes=%s-", pos))
         .build();
     closeStream();

@@ -20,7 +20,6 @@
 package org.apache.iceberg.aws.s3;
 
 import com.adobe.testing.s3mock.junit4.S3MockRule;
-import com.amazonaws.services.s3.AmazonS3URI;
 import java.io.IOException;
 import java.util.Random;
 import org.junit.Before;
@@ -50,7 +49,7 @@ public class S3OutputStreamTest {
 
   @Test
   public void getPos() throws IOException {
-    AmazonS3URI uri = new AmazonS3URI("s3://bucket/path/to/pos.dat");
+    S3URI uri = new S3URI("s3://bucket/path/to/pos.dat");
     int writeSize = 1024;
 
     try (S3OutputStream stream = new S3OutputStream(s3, uri)) {
@@ -61,7 +60,7 @@ public class S3OutputStreamTest {
 
   @Test
   public void testWrite() throws IOException {
-    AmazonS3URI uri = new AmazonS3URI("s3://bucket/path/to/out.dat");
+    S3URI uri = new S3URI("s3://bucket/path/to/out.dat");
     byte [] expected =  new byte[5 * 1024 * 1024];
     random.nextBytes(expected);
 
@@ -74,9 +73,9 @@ public class S3OutputStreamTest {
     assertArrayEquals(expected, actual);
   }
 
-  private byte[] readS3Data(AmazonS3URI uri) throws IOException {
+  private byte[] readS3Data(S3URI uri) throws IOException {
     ResponseBytes<GetObjectResponse> data =
-        s3.getObject(GetObjectRequest.builder().bucket(uri.getBucket()).key(uri.getKey()).build(),
+        s3.getObject(GetObjectRequest.builder().bucket(uri.bucket()).key(uri.key()).build(),
         ResponseTransformer.toBytes());
 
     return data.asByteArray();

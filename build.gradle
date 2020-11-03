@@ -242,7 +242,6 @@ project(':iceberg-aws') {
     compile project(':iceberg-api')
     compile project(':iceberg-core')
 
-    compile "com.amazonaws:aws-java-sdk-s3"
     compile 'software.amazon.awssdk:s3'
 
     testCompile("com.adobe.testing:s3mock-junit4") {
