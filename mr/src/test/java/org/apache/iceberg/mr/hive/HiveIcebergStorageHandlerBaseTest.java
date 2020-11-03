@@ -109,6 +109,37 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   private static final PartitionSpec IDENTITY_SPEC =
       PartitionSpec.builderFor(CUSTOMER_SCHEMA).identity("customer_id").build();
 
+  private static final Schema COMPLEX_SCHEMA = new Schema(
+      optional(1, "id", Types.LongType.get()),
+      optional(2, "name", Types.StringType.get()),
+      optional(3, "employee_info", Types.StructType.of(
+          optional(7, "employer", Types.StringType.get()),
+          optional(8, "id", Types.LongType.get()),
+          optional(9, "address", Types.StringType.get())
+      )),
+      optional(4, "places_lived", Types.ListType.ofOptional(10, Types.StructType.of(
+          optional(11, "street", Types.StringType.get()),
+          optional(12, "city", Types.StringType.get()),
+          optional(13, "country", Types.StringType.get())
+      ))),
+      optional(5, "memorable_moments", Types.MapType.ofOptional(14, 15,
+          Types.StringType.get(),
+          Types.StructType.of(
+              optional(16, "year", Types.IntegerType.get()),
+              optional(17, "place", Types.StringType.get()),
+              optional(18, "details", Types.StringType.get())
+          ))),
+      optional(6, "current_address", Types.StructType.of(
+          optional(19, "street_address", Types.StructType.of(
+              optional(22, "street_number", Types.IntegerType.get()),
+              optional(23, "street_name", Types.StringType.get()),
+              optional(24, "street_type", Types.StringType.get())
+          )),
+          optional(20, "country", Types.StringType.get()),
+          optional(21, "postal_code", Types.StringType.get())
+      ))
+  );
+
   private static final Set<String> IGNORED_PARAMS =
       ImmutableSet.of("bucketing_version", StatsSetupConst.ROW_COUNT,
           StatsSetupConst.RAW_DATA_SIZE, StatsSetupConst.TOTAL_SIZE, StatsSetupConst.NUM_FILES, "numFilesErasureCoded");
@@ -519,7 +550,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   @Test
   public void testCreateTableAboveExistingTable() throws TException, IOException, InterruptedException {
     // Create the Iceberg table
-    createIcebergTable("customers", CUSTOMER_SCHEMA, Collections.emptyList());
+    createIcebergTable("customers", COMPLEX_SCHEMA, Collections.emptyList());
 
     if (Catalogs.hiveCatalog(shell.getHiveConf())) {
 
@@ -555,6 +586,23 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   }
 
   @Test
+  public void testCreateTableAboveExistingTableWithColumnSpecification() throws IOException {
+    // Create the Iceberg table
+    createIcebergTable("customers", CUSTOMER_SCHEMA, Collections.emptyList());
+
+    if (!Catalogs.hiveCatalog(shell.getHiveConf())) {
+      // We should throw an error if column specification is provided when creating a table above an existing table
+      AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
+          "with different specification", () -> {
+            shell.executeStatement("CREATE EXTERNAL TABLE customers (customer_id BIGINT) " +
+                "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+                testTables.locationForCreateTableSQL(TableIdentifier.of("default", "customers")));
+          }
+      );
+    }
+  }
+
+  @Test
   public void testCreateTableWithColumnSpecification() throws IOException {
     TableIdentifier identifier = TableIdentifier.of("default", "customers");
 
@@ -578,7 +626,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   }
 
   @Test
-  public void testCreateTableWithColumnSpecificationPartitioned() throws IOException {
+  public void testCreateTableWithColumnSpecificationPartitioned() {
     AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
         "currently not supported", () -> {
           shell.executeStatement("CREATE EXTERNAL TABLE customers (customer_id BIGINT) " +
@@ -620,37 +668,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   public void testCreateTableWithColumnSpecificationHierarchy() {
     TableIdentifier identifier = TableIdentifier.of("default", "customers");
 
-    final Schema expectedSchema = new Schema(
-        optional(1, "id", Types.LongType.get()),
-        optional(2, "name", Types.StringType.get()),
-        optional(3, "employee_info", Types.StructType.of(
-            optional(7, "employer", Types.StringType.get()),
-            optional(8, "id", Types.LongType.get()),
-            optional(9, "address", Types.StringType.get())
-        )),
-        optional(4, "places_lived", Types.ListType.ofOptional(10, Types.StructType.of(
-            optional(11, "street", Types.StringType.get()),
-            optional(12, "city", Types.StringType.get()),
-            optional(13, "country", Types.StringType.get())
-        ))),
-        optional(5, "memorable_moments", Types.MapType.ofOptional(14, 15,
-            Types.StringType.get(),
-            Types.StructType.of(
-                optional(16, "year", Types.IntegerType.get()),
-                optional(17, "place", Types.StringType.get()),
-                optional(18, "details", Types.StringType.get())
-            ))),
-        optional(6, "current_address", Types.StructType.of(
-            optional(19, "street_address", Types.StructType.of(
-                optional(22, "street_number", Types.IntegerType.get()),
-                optional(23, "street_name", Types.StringType.get()),
-                optional(24, "street_type", Types.StringType.get())
-            )),
-            optional(20, "country", Types.StringType.get()),
-            optional(21, "postal_code", Types.StringType.get())
-        ))
-    );
-
     shell.executeStatement("CREATE EXTERNAL TABLE customers (" +
         "id BIGINT, name STRING, " +
         "employee_info STRUCT < employer: STRING, id: BIGINT, address: STRING >, " +
@@ -663,22 +680,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
     // Check the Iceberg table data
     org.apache.iceberg.Table icebergTable = loadTable(identifier);
-    Assert.assertEquals(expectedSchema.asStruct(), icebergTable.schema().asStruct());
-  }
-
-  @Test
-  public void testCreateTableWithColumnSpecificationError() {
-    // Wrong schema
-    AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
-        "only one of the following: Hive partition specification", () -> {
-          shell.executeStatement("CREATE EXTERNAL TABLE customers (id BIGINT, name STRING) " +
-              "PARTITIONED BY (branch_id INT, country STRING) " +
-              "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
-              testTables.locationForCreateTableSQL(TableIdentifier.of("default", "customers")) +
-              "TBLPROPERTIES ('" + InputFormatConfig.PARTITION_SPEC + "'='" +
-              PartitionSpecParser.toJson(IDENTITY_SPEC) + "')");
-        }
-    );
+    Assert.assertEquals(COMPLEX_SCHEMA.asStruct(), icebergTable.schema().asStruct());
   }
 
   protected void createTable(String tableName, Schema schema, List<Record> records)

@@ -83,7 +83,10 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
             "Iceberg table already created - can not use provided schema");
         Preconditions.checkArgument(catalogProperties.getProperty(InputFormatConfig.PARTITION_SPEC) == null,
             "Iceberg table already created - can not use provided partition specification");
-        // TODO: Check type compatibility between this.icebergTable and hmsTable.getSd().getCols()
+
+        Schema hmsSchema = HiveSchemaUtil.schema(hmsTable.getSd().getCols());
+        Preconditions.checkArgument(HiveSchemaUtil.compatible(hmsSchema, icebergTable.schema()),
+            "Iceberg table already created - with different specification");
 
         LOG.info("Iceberg table already exists {}", icebergTable);
 
@@ -214,9 +217,6 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
   private PartitionSpec spec(Schema schema, Properties properties,
       org.apache.hadoop.hive.metastore.api.Table hmsTable) {
     if (properties.getProperty(InputFormatConfig.PARTITION_SPEC) != null) {
-      Preconditions.checkArgument(hmsTable.getPartitionKeys() == null || hmsTable.getPartitionKeys().isEmpty(),
-          "Provide only one of the following: Hive partition specification, or the " +
-              InputFormatConfig.PARTITION_SPEC + " property");
       return PartitionSpecParser.fromJson(schema, properties.getProperty(InputFormatConfig.PARTITION_SPEC));
     } else {
       // Create the partition specification from the columns
