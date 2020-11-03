@@ -95,6 +95,7 @@ public class SparkFilters {
     return expression;
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static Expression convert(Filter filter) {
     // avoid using a chain of if instanceof statements by mapping to the expression enum.
     Operation op = FILTERS.get(filter.getClass());
