@@ -138,6 +138,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   public static void beforeClass() {
     shell = new TestHiveShell();
     shell.setHiveConfValue("hive.notification.event.poll.interval", "-1");
+    shell.setHiveConfValue("hive.tez.exec.print.summary", "true");
     shell.start();
   }
 
