@@ -473,6 +473,8 @@ project(':iceberg-mr') {
     testCompile("org.apache.hive:hive-service") {
       exclude group: 'org.apache.hive', module: 'hive-exec'
     }
+    testCompile("org.apache.tez:tez-dag")
+    testCompile("org.apache.tez:tez-mapreduce")
   }
 
   test {
@@ -538,6 +540,7 @@ if (jdkVersion == '8') {
         exclude group: 'org.apache.hive', module: 'hive-exec'
       }
       testCompile("org.apache.tez:tez-dag:0.9.1")
+      testCompile("org.apache.tez:tez-mapreduce:0.9.1")
     }
 
     test {
