@@ -45,10 +45,10 @@ public class RewriteDataFilesAction extends BaseRewriteDataFilesAction<RewriteDa
 
   @Override
   protected List<DataFile> rewriteDataForTasks(List<CombinedScanTask> combinedScanTasks) {
-    env.setParallelism(combinedScanTasks.size());
+    int parallelism = combinedScanTasks.size();
     DataStream<CombinedScanTask> dataStream = env.fromCollection(combinedScanTasks);
     RowDataRewriter rowDataRewriter = new RowDataRewriter(table(), caseSensitive(), fileIO(), encryptionManager());
-    List<DataFile> addedDataFiles = rowDataRewriter.rewriteDataForTasks(dataStream);
+    List<DataFile> addedDataFiles = rowDataRewriter.rewriteDataForTasks(dataStream, parallelism);
     return addedDataFiles;
   }
 
