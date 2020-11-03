@@ -305,10 +305,10 @@ public abstract class TestMetrics {
       assertCounts(4, 3L, 0L, metrics);
       assertCounts(6, 1L, 0L, metrics);
     } else {
-      assertCounts(1, null, null, null, metrics);
-      assertCounts(2, null, null, null, metrics);
-      assertCounts(4, null, null, null, metrics);
-      assertCounts(6, null, null, null, metrics);
+      assertCounts(1, null, null, metrics);
+      assertCounts(2, null, null, metrics);
+      assertCounts(4, null, null, metrics);
+      assertCounts(6, null, null, metrics);
     }
     assertBounds(1, IntegerType.get(), null, null, metrics);
     assertBounds(2, StringType.get(), null, null, metrics);
