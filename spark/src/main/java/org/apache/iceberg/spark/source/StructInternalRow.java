@@ -146,12 +146,15 @@ class StructInternalRow extends InternalRow {
 
   @Override
   public byte[] getBinary(int ordinal) {
-    try {
-      ByteBuffer bytes = struct.get(ordinal, ByteBuffer.class);
-      return ByteBuffers.toByteArray(bytes);
-    } catch (IllegalStateException e) {
-      // fall back to use byte array for parsing
-      return struct.get(ordinal, byte[].class);
+    Object bytes = struct.get(ordinal, Object.class);
+
+    // should only be either ByteBuffer or byte[]
+    if (bytes instanceof ByteBuffer) {
+      return ByteBuffers.toByteArray((ByteBuffer) bytes);
+    } else if (bytes instanceof byte[]) {
+      return (byte[]) bytes;
+    } else {
+      throw new IllegalStateException("Unknown type for binary field. Type name: " + bytes.getClass().getName());
     }
   }
 

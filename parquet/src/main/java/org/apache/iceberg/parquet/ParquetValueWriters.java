@@ -54,55 +54,55 @@ public class ParquetValueWriters {
     return writer;
   }
 
-  public static UnboxedWriter<Boolean> booleans(ColumnDescriptor desc, Type.ID id) {
-    return new UnboxedWriter<>(desc, id);
+  public static UnboxedWriter<Boolean> booleans(ColumnDescriptor desc) {
+    return new UnboxedWriter<>(desc);
   }
 
-  public static UnboxedWriter<Byte> tinyints(ColumnDescriptor desc, Type.ID id) {
-    return new ByteWriter(desc, id);
+  public static UnboxedWriter<Byte> tinyints(ColumnDescriptor desc) {
+    return new ByteWriter(desc);
   }
 
-  public static UnboxedWriter<Short> shorts(ColumnDescriptor desc, Type.ID id) {
-    return new ShortWriter(desc, id);
+  public static UnboxedWriter<Short> shorts(ColumnDescriptor desc) {
+    return new ShortWriter(desc);
   }
 
-  public static UnboxedWriter<Integer> ints(ColumnDescriptor desc, Type.ID id) {
-    return new UnboxedWriter<>(desc, id);
+  public static UnboxedWriter<Integer> ints(ColumnDescriptor desc) {
+    return new UnboxedWriter<>(desc);
   }
 
-  public static UnboxedWriter<Long> longs(ColumnDescriptor desc, Type.ID id) {
-    return new UnboxedWriter<>(desc, id);
+  public static UnboxedWriter<Long> longs(ColumnDescriptor desc) {
+    return new UnboxedWriter<>(desc);
   }
 
-  public static UnboxedWriter<Float> floats(ColumnDescriptor desc, Type.ID id) {
-    return new FloatWriter(desc, id);
+  public static UnboxedWriter<Float> floats(ColumnDescriptor desc) {
+    return new FloatWriter(desc);
   }
 
-  public static UnboxedWriter<Double> doubles(ColumnDescriptor desc, Type.ID id) {
-    return new DoubleWriter(desc, id);
+  public static UnboxedWriter<Double> doubles(ColumnDescriptor desc) {
+    return new DoubleWriter(desc);
   }
 
-  public static PrimitiveWriter<CharSequence> strings(ColumnDescriptor desc, Type.ID id) {
-    return new StringWriter(desc, id);
+  public static PrimitiveWriter<CharSequence> strings(ColumnDescriptor desc) {
+    return new StringWriter(desc);
   }
 
-  public static PrimitiveWriter<BigDecimal> decimalAsInteger(ColumnDescriptor desc, Type.ID id,
+  public static PrimitiveWriter<BigDecimal> decimalAsInteger(ColumnDescriptor desc,
                                                              int precision, int scale) {
-    return new IntegerDecimalWriter(desc, id, precision, scale);
+    return new IntegerDecimalWriter(desc, precision, scale);
   }
 
-  public static PrimitiveWriter<BigDecimal> decimalAsLong(ColumnDescriptor desc, Type.ID id,
+  public static PrimitiveWriter<BigDecimal> decimalAsLong(ColumnDescriptor desc,
                                                           int precision, int scale) {
-    return new LongDecimalWriter(desc, id, precision, scale);
+    return new LongDecimalWriter(desc, precision, scale);
   }
 
-  public static PrimitiveWriter<BigDecimal> decimalAsFixed(ColumnDescriptor desc, Type.ID id,
+  public static PrimitiveWriter<BigDecimal> decimalAsFixed(ColumnDescriptor desc,
                                                            int precision, int scale) {
-    return new FixedDecimalWriter(desc, id, precision, scale);
+    return new FixedDecimalWriter(desc, precision, scale);
   }
 
-  public static PrimitiveWriter<ByteBuffer> byteBuffers(ColumnDescriptor desc, Type.ID id) {
-    return new BytesWriter(desc, id);
+  public static PrimitiveWriter<ByteBuffer> byteBuffers(ColumnDescriptor desc) {
+    return new BytesWriter(desc);
   }
 
   public static <E> CollectionWriter<E> collections(int dl, int rl, ParquetValueWriter<E> writer) {
@@ -119,12 +119,10 @@ public class ParquetValueWriters {
   public abstract static class PrimitiveWriter<T> implements ParquetValueWriter<T> {
     protected final ColumnWriter<T> column;
     private final List<TripleWriter<?>> children;
-    protected final Type.ID id;
 
-    protected PrimitiveWriter(ColumnDescriptor desc, Type.ID id) {
+    protected PrimitiveWriter(ColumnDescriptor desc) {
       this.column = ColumnWriter.newWriter(desc);
       this.children = ImmutableList.of(column);
-      this.id = id;
     }
 
     @Override
@@ -141,20 +139,11 @@ public class ParquetValueWriters {
     public void setColumnStore(ColumnWriteStore columnStore) {
       this.column.setColumnStore(columnStore);
     }
-
-    @Override
-    public Stream<FieldMetrics> metrics() {
-      if (id != null) {
-        return Stream.of(new FieldMetrics(id.intValue(), 0L, 0L, 0L, null, null));
-      } else {
-        return Stream.empty();
-      }
-    }
   }
 
   private static class UnboxedWriter<T> extends PrimitiveWriter<T> {
-    private UnboxedWriter(ColumnDescriptor desc, Type.ID id) {
-      super(desc, id);
+    private UnboxedWriter(ColumnDescriptor desc) {
+      super(desc);
     }
 
     public void writeBoolean(int repetitionLevel, boolean value) {
@@ -179,64 +168,56 @@ public class ParquetValueWriters {
   }
 
   private static class FloatWriter extends UnboxedWriter<Float> {
-    private final ColumnDescriptor desc;
+    private final int id;
     private long nanCount;
 
-    private FloatWriter(ColumnDescriptor desc, Type.ID id) {
-      super(desc, id);
-      this.desc = desc;
+    private FloatWriter(ColumnDescriptor desc) {
+      super(desc);
+      this.id = desc.getPrimitiveType().getId().intValue();
       this.nanCount = 0;
     }
 
     @Override
     public void write(int repetitionLevel, Float value) {
-      super.write(repetitionLevel, value);
-      if (Float.compare(Float.NaN, value) == 0) {
+      writeFloat(repetitionLevel, value);
+      if (Float.isNaN(value)) {
         nanCount++;
       }
     }
 
     @Override
     public Stream<FieldMetrics> metrics() {
-      if (id != null) {
-        return Stream.of(new FieldMetrics(id.intValue(), 0L, 0L, nanCount, null, null));
-      } else {
-        return Stream.empty();
-      }
+      return Stream.of(new ParquetFieldMetrics(id, nanCount));
     }
   }
 
   private static class DoubleWriter extends UnboxedWriter<Double> {
-    private final ColumnDescriptor desc;
+    private final int id;
     private long nanCount;
 
-    private DoubleWriter(ColumnDescriptor desc, Type.ID id) {
-      super(desc, id);
-      this.desc = desc;
+    private DoubleWriter(ColumnDescriptor desc) {
+      super(desc);
+      this.id = desc.getPrimitiveType().getId().intValue();
       this.nanCount = 0;
     }
 
     @Override
     public void write(int repetitionLevel, Double value) {
-      super.write(repetitionLevel, value);
-      if (Double.compare(Double.NaN, value) == 0) {
+      writeDouble(repetitionLevel, value);
+      if (Double.isNaN(value)) {
         nanCount++;
       }
     }
 
     @Override
     public Stream<FieldMetrics> metrics() {
-      if (id != null) {
-        return Stream.of(new FieldMetrics(id.intValue(), 0L, 0L, nanCount, null, null));
-      } else {
-        return Stream.empty();
-      }
+      return Stream.of(new ParquetFieldMetrics(id, nanCount));
     }
   }
 
   private static class ByteWriter extends UnboxedWriter<Byte> {
-    private ByteWriter(ColumnDescriptor desc, Type.ID id) {
-      super(desc, id);
+    private ByteWriter(ColumnDescriptor desc) {
+      super(desc);
     }
 
     @Override
@@ -246,8 +227,8 @@ public class ParquetValueWriters {
   }
 
   private static class ShortWriter extends UnboxedWriter<Short> {
-    private ShortWriter(ColumnDescriptor desc, Type.ID id) {
-      super(desc, id);
+    private ShortWriter(ColumnDescriptor desc) {
+      super(desc);
     }
 
     @Override
@@ -260,8 +241,8 @@ public class ParquetValueWriters {
     private final int precision;
     private final int scale;
 
-    private IntegerDecimalWriter(ColumnDescriptor desc, Type.ID id, int precision, int scale) {
-      super(desc, id);
+    private IntegerDecimalWriter(ColumnDescriptor desc, int precision, int scale) {
+      super(desc);
       this.precision = precision;
       this.scale = scale;
     }
@@ -281,8 +262,8 @@ public class ParquetValueWriters {
     private final int precision;
     private final int scale;
 
-    private LongDecimalWriter(ColumnDescriptor desc, Type.ID id, int precision, int scale) {
-      super(desc, id);
+    private LongDecimalWriter(ColumnDescriptor desc, int precision, int scale) {
+      super(desc);
       this.precision = precision;
       this.scale = scale;
     }
@@ -303,8 +284,8 @@ public class ParquetValueWriters {
     private final int scale;
     private final ThreadLocal<byte[]> bytes;
 
-    private FixedDecimalWriter(ColumnDescriptor desc, Type.ID id, int precision, int scale) {
-      super(desc, id);
+    private FixedDecimalWriter(ColumnDescriptor desc, int precision, int scale) {
+      super(desc);
       this.precision = precision;
       this.scale = scale;
       this.bytes = ThreadLocal.withInitial(() -> new byte[TypeUtil.decimalRequiredBytes(precision)]);
@@ -318,8 +299,8 @@ public class ParquetValueWriters {
   }
 
   private static class BytesWriter extends PrimitiveWriter<ByteBuffer> {
-    private BytesWriter(ColumnDescriptor desc, Type.ID id) {
-      super(desc, id);
+    private BytesWriter(ColumnDescriptor desc) {
+      super(desc);
     }
 
     @Override
@@ -329,8 +310,8 @@ public class ParquetValueWriters {
   }
 
   private static class StringWriter extends PrimitiveWriter<CharSequence> {
-    private StringWriter(ColumnDescriptor desc, Type.ID id) {
-      super(desc, id);
+    private StringWriter(ColumnDescriptor desc) {
+      super(desc);
     }
 
     @Override
@@ -517,7 +498,7 @@ public class ParquetValueWriters {
 
     @Override
     public Stream<FieldMetrics> metrics() {
-      return Stream.of(keyWriter, valueWriter).flatMap(ParquetValueWriter::metrics);
+      return Stream.concat(keyWriter.metrics(), valueWriter.metrics());
     }
   }
 

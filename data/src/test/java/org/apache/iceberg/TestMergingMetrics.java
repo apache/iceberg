@@ -21,14 +21,12 @@ package org.apache.iceberg;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -64,8 +62,6 @@ public abstract class TestMergingMetrics<T> {
       optional(25, "date", Types.DateType.get()),
       optional(27, "timestamp", Types.TimestampType.withZone())
   ));
-
-  private static final Set<Integer> IDS_WITH_ZERO_NAN_COUNT = ImmutableSet.of(1, 2, 5, 7, 8, 11, 24, 25, 27);
 
   private static final Map<Types.NestedField, Integer> FIELDS_WITH_NAN_COUNT_TO_ID = ImmutableMap.of(
       FLOAT_FIELD, 3, DOUBLE_FIELD, 4, FLOAT_LIST, 10, MAP_FIELD_1, 18, MAP_FIELD_2, 22
@@ -126,13 +122,15 @@ public abstract class TestMergingMetrics<T> {
     FileAppender<T> appender = writeAndGetAppender(recordList);
     Map<Integer, Long> nanValueCount = appender.metrics().nanValueCounts();
 
-    IDS_WITH_ZERO_NAN_COUNT.forEach(i -> Assert.assertEquals(String.format("Field %s " +
-        "shouldn't have non-zero nanValueCount", i), Long.valueOf(0), nanValueCount.get(i)));
-
     FIELDS_WITH_NAN_COUNT_TO_ID.forEach((key, value) -> Assert.assertEquals(
         String.format("NaN count for field %s does not match expected", key.name()),
         getExpectedNaNCount(recordList, key),
         nanValueCount.get(value)));
+
+    SCHEMA.columns().stream()
+        .filter(column -> !FIELDS_WITH_NAN_COUNT_TO_ID.containsKey(column))
+        .map(Types.NestedField::fieldId)
+        .forEach(id -> Assert.assertNull("NaN count for field %s should be null", nanValueCount.get(id)));
   }
 
   private Long getExpectedNaNCount(List<Record> expectedRecords, Types.NestedField field) {

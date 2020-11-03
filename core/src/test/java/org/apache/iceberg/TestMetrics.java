@@ -97,6 +97,11 @@ public abstract class TestMetrics {
       required(13, "timestampColBelowEpoch", TimestampType.withoutZone())
   );
 
+  private static final Schema FLOAT_DOUBLE_ONLY_SCHEMA = new Schema(
+      optional(1, "floatCol", FloatType.get()),
+      optional(2, "doubleCol", DoubleType.get())
+  );
+
   private final byte[] fixed = "abcd".getBytes(StandardCharsets.UTF_8);
 
   public abstract FileFormat fileFormat();
@@ -135,19 +140,19 @@ public abstract class TestMetrics {
 
     Metrics metrics = getMetrics(SIMPLE_SCHEMA, record, record);
     Assert.assertEquals(2L, (long) metrics.recordCount());
-    assertCounts(1, 2L, 0L, 0L, metrics);
-    assertCounts(2, 2L, 0L, 0L, metrics);
-    assertCounts(3, 2L, 2L, 0L, metrics);
+    assertCounts(1, 2L, 0L, metrics);
+    assertCounts(2, 2L, 0L, metrics);
+    assertCounts(3, 2L, 2L, metrics);
     assertCounts(4, 2L, 0L, 2L, metrics);
     assertCounts(5, 2L, 0L, 0L, metrics);
-    assertCounts(6, 2L, 0L, 0L, metrics);
-    assertCounts(7, 2L, 0L, 0L, metrics);
-    assertCounts(8, 2L, 0L, 0L, metrics);
-    assertCounts(9, 2L, 0L, 0L, metrics);
-    assertCounts(10, 2L, 0L, 0L, metrics);
-    assertCounts(11, 2L, 0L, 0L, metrics);
-    assertCounts(12, 2L, 0L, 0L, metrics);
-    assertCounts(13, 2L, 0L, 0L, metrics);
+    assertCounts(6, 2L, 0L, metrics);
+    assertCounts(7, 2L, 0L, metrics);
+    assertCounts(8, 2L, 0L, metrics);
+    assertCounts(9, 2L, 0L, metrics);
+    assertCounts(10, 2L, 0L, metrics);
+    assertCounts(11, 2L, 0L, metrics);
+    assertCounts(12, 2L, 0L, metrics);
+    assertCounts(13, 2L, 0L, metrics);
   }
 
   @Test
@@ -183,30 +188,30 @@ public abstract class TestMetrics {
 
     Metrics metrics = getMetrics(SIMPLE_SCHEMA, firstRecord, secondRecord);
     Assert.assertEquals(2L, (long) metrics.recordCount());
-    assertCounts(1, 2L, 0L, 0L, metrics);
+    assertCounts(1, 2L, 0L, metrics);
     assertBounds(1, BooleanType.get(), false, true, metrics);
-    assertCounts(2, 2L, 0L, 0L, metrics);
+    assertCounts(2, 2L, 0L, metrics);
     assertBounds(2, IntegerType.get(), Integer.MIN_VALUE, 3, metrics);
-    assertCounts(3, 2L, 1L, 0L, metrics);
+    assertCounts(3, 2L, 1L, metrics);
     assertBounds(3, LongType.get(), 5L, 5L, metrics);
     assertCounts(4, 2L, 0L, 0L, metrics);
     assertBounds(4, FloatType.get(), 1.0F, 2.0F, metrics);
     assertCounts(5, 2L, 1L, 0L, metrics);
     assertBounds(5, DoubleType.get(), 2.0D, 2.0D, metrics);
-    assertCounts(6, 2L, 1L, 0L, metrics);
+    assertCounts(6, 2L, 1L, metrics);
     assertBounds(6, DecimalType.of(10, 2), new BigDecimal("3.50"), new BigDecimal("3.50"), metrics);
-    assertCounts(7, 2L, 0L, 0L, metrics);
+    assertCounts(7, 2L, 0L, metrics);
     assertBounds(7, StringType.get(), CharBuffer.wrap("AAA"), CharBuffer.wrap("ZZZ"), metrics);
-    assertCounts(8, 2L, 1L, 0L, metrics);
+    assertCounts(8, 2L, 1L, metrics);
     assertBounds(8, DateType.get(), 1500, 1500, metrics);
-    assertCounts(9, 2L, 0L, 0L, metrics);
+    assertCounts(9, 2L, 0L, metrics);
     assertBounds(9, TimeType.get(), 2000L, 3000L, metrics);
-    assertCounts(10, 2L, 0L, 0L, metrics);
+    assertCounts(10, 2L, 0L, metrics);
     assertBounds(10, TimestampType.withoutZone(), 0L, 900L, metrics);
-    assertCounts(11, 2L, 0L, 0L, metrics);
+    assertCounts(11, 2L, 0L, metrics);
     assertBounds(11, FixedType.ofLength(4),
         ByteBuffer.wrap(fixed), ByteBuffer.wrap(fixed), metrics);
-    assertCounts(12, 2L, 0L, 0L, metrics);
+    assertCounts(12, 2L, 0L, metrics);
     assertBounds(12, BinaryType.get(),
         ByteBuffer.wrap("S".getBytes()), ByteBuffer.wrap("W".getBytes()), metrics);
     if (fileFormat() == FileFormat.ORC) {
@@ -235,11 +240,11 @@ public abstract class TestMetrics {
 
     Metrics metrics = getMetrics(schema, record);
     Assert.assertEquals(1L, (long) metrics.recordCount());
-    assertCounts(1, 1L, 0L, 0L, metrics);
+    assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, DecimalType.of(4, 2), new BigDecimal("2.55"), new BigDecimal("2.55"), metrics);
-    assertCounts(2, 1L, 0L, 0L, metrics);
+    assertCounts(2, 1L, 0L, metrics);
     assertBounds(2, DecimalType.of(14, 2), new BigDecimal("4.75"), new BigDecimal("4.75"), metrics);
-    assertCounts(3, 1L, 0L, 0L, metrics);
+    assertCounts(3, 1L, 0L, metrics);
     assertBounds(3, DecimalType.of(22, 2), new BigDecimal("5.80"), new BigDecimal("5.80"), metrics);
   }
 
@@ -247,13 +252,13 @@ public abstract class TestMetrics {
   public void testMetricsForNestedStructFields() throws IOException {
     Metrics metrics = getMetrics(NESTED_SCHEMA, buildNestedTestRecord());
     Assert.assertEquals(1L, (long) metrics.recordCount());
-    assertCounts(1, 1L, 0L, 0L, metrics);
+    assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, IntegerType.get(), Integer.MAX_VALUE, Integer.MAX_VALUE, metrics);
-    assertCounts(3, 1L, 0L, 0L, metrics);
+    assertCounts(3, 1L, 0L, metrics);
     assertBounds(3, LongType.get(), 100L, 100L, metrics);
-    assertCounts(5, 1L, 0L, 0L, metrics);
+    assertCounts(5, 1L, 0L, metrics);
     assertBounds(5, LongType.get(), 20L, 20L, metrics);
-    assertCounts(6, 1L, 0L, 0L, metrics);
+    assertCounts(6, 1L, 0L, metrics);
     assertBounds(6, BinaryType.get(),
         ByteBuffer.wrap("A".getBytes()), ByteBuffer.wrap("A".getBytes()), metrics);
   }
@@ -295,10 +300,10 @@ public abstract class TestMetrics {
     Metrics metrics = getMetrics(schema, record);
     Assert.assertEquals(1L, (long) metrics.recordCount());
     if (fileFormat() != FileFormat.ORC) {
-      assertCounts(1, 1L, 0L, 0L, metrics);
-      assertCounts(2, 1L, 0L, 0L, metrics);
-      assertCounts(4, 3L, 0L, 0L, metrics);
-      assertCounts(6, 1L, 0L, 0L, metrics);
+      assertCounts(1, 1L, 0L, metrics);
+      assertCounts(2, 1L, 0L, metrics);
+      assertCounts(4, 3L, 0L, metrics);
+      assertCounts(6, 1L, 0L, metrics);
     } else {
       assertCounts(1, null, null, null, metrics);
       assertCounts(2, null, null, null, metrics);
@@ -324,30 +329,116 @@ public abstract class TestMetrics {
 
     Metrics metrics = getMetrics(schema, firstRecord, secondRecord);
     Assert.assertEquals(2L, (long) metrics.recordCount());
-    assertCounts(1, 2L, 2L, 0L, metrics);
+    assertCounts(1, 2L, 2L, metrics);
     assertBounds(1, IntegerType.get(), null, null, metrics);
   }
 
   @Test
   public void testMetricsForNaNColumns() throws IOException {
-    Schema schema = new Schema(
-        optional(1, "floatCol", FloatType.get()),
-        optional(2, "doubleCol", DoubleType.get())
-    );
-    Record firstRecord = GenericRecord.create(schema);
+    Record firstRecord = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
     firstRecord.setField("floatCol", Float.NaN);
     firstRecord.setField("doubleCol", Double.NaN);
-    Record secondRecord = GenericRecord.create(schema);
+    Record secondRecord = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
     secondRecord.setField("floatCol", Float.NaN);
     secondRecord.setField("doubleCol", Double.NaN);
 
-    Metrics metrics = getMetrics(schema, firstRecord, secondRecord);
+    Metrics metrics = getMetrics(FLOAT_DOUBLE_ONLY_SCHEMA, firstRecord, secondRecord);
     Assert.assertEquals(2L, (long) metrics.recordCount());
     assertCounts(1, 2L, 0L, 2L, metrics);
     assertCounts(2, 2L, 0L, 2L, metrics);
     // below: current behavior; will be null once NaN is excluded from upper/lower bound
     assertBounds(1, FloatType.get(), Float.NaN, Float.NaN, metrics);
     assertBounds(2, DoubleType.get(), Double.NaN, Double.NaN, metrics);
+  }
+
+  @Test
+  public void testColumnBoundsWithNaNValueAtFront() throws IOException {
+    Record nonNaNRecord1 = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
+    nonNaNRecord1.setField("floatCol", 1.2F);
+    nonNaNRecord1.setField("doubleCol", 3.4D);
+
+    Record nonNaNRecord2 = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
+    nonNaNRecord2.setField("floatCol", 5.6F);
+    nonNaNRecord2.setField("doubleCol", 7.8D);
+
+    Record nanRecord = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
+    nanRecord.setField("floatCol", Float.NaN);
+    nanRecord.setField("doubleCol", Double.NaN);
+
+    Metrics metrics = getMetrics(FLOAT_DOUBLE_ONLY_SCHEMA, nanRecord, nonNaNRecord1, nonNaNRecord2);
+    Assert.assertEquals(3L, (long) metrics.recordCount());
+    assertCounts(1, 3L, 0L, 1L, metrics);
+    assertCounts(2, 3L, 0L, 1L, metrics);
+
+    // below: current behavior; will be non-NaN values once NaN is excluded from upper/lower bound. ORC and Parquet's
+    // behaviors differ due to their implementation of comparison being different.
+    if (fileFormat() == FileFormat.ORC) {
+      assertBounds(1, FloatType.get(), Float.NaN, Float.NaN, metrics);
+      assertBounds(2, DoubleType.get(), Double.NaN, Double.NaN, metrics);
+    } else {
+      assertBounds(1, FloatType.get(), 1.2F, Float.NaN, metrics);
+      assertBounds(2, DoubleType.get(), 3.4D, Double.NaN, metrics);
+    }
+  }
+
+  @Test
+  public void testColumnBoundsWithNaNValueInMiddle() throws IOException {
+    Record nonNaNRecord1 = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
+    nonNaNRecord1.setField("floatCol", 1.2F);
+    nonNaNRecord1.setField("doubleCol", 3.4D);
+
+    Record nonNaNRecord2 = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
+    nonNaNRecord2.setField("floatCol", 5.6F);
+    nonNaNRecord2.setField("doubleCol", 7.8D);
+
+    Record nanRecord = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
+    nanRecord.setField("floatCol", Float.NaN);
+    nanRecord.setField("doubleCol", Double.NaN);
+
+    Metrics metrics = getMetrics(FLOAT_DOUBLE_ONLY_SCHEMA, nonNaNRecord1, nanRecord, nonNaNRecord2);
+    Assert.assertEquals(3L, (long) metrics.recordCount());
+    assertCounts(1, 3L, 0L, 1L, metrics);
+    assertCounts(2, 3L, 0L, 1L, metrics);
+
+    // below: current behavior; will be non-NaN values once NaN is excluded from upper/lower bound. ORC and Parquet's
+    // behaviors differ due to their implementation of comparison being different.
+    if (fileFormat() == FileFormat.ORC) {
+      assertBounds(1, FloatType.get(), 1.2F, 5.6F, metrics);
+      assertBounds(2, DoubleType.get(), 3.4D, 7.8D, metrics);
+    } else {
+      assertBounds(1, FloatType.get(), 1.2F, Float.NaN, metrics);
+      assertBounds(2, DoubleType.get(), 3.4D, Double.NaN, metrics);
+    }
+  }
+
+  @Test
+  public void testColumnBoundsWithNaNValueAtEnd() throws IOException {
+    Record nonNaNRecord1 = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
+    nonNaNRecord1.setField("floatCol", 1.2F);
+    nonNaNRecord1.setField("doubleCol", 3.4D);
+
+    Record nonNaNRecord2 = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
+    nonNaNRecord2.setField("floatCol", 5.6F);
+    nonNaNRecord2.setField("doubleCol", 7.8D);
+
+    Record nanRecord = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
+    nanRecord.setField("floatCol", Float.NaN);
+    nanRecord.setField("doubleCol", Double.NaN);
+
+    Metrics metrics = getMetrics(FLOAT_DOUBLE_ONLY_SCHEMA, nonNaNRecord1, nonNaNRecord2, nanRecord);
+    Assert.assertEquals(3L, (long) metrics.recordCount());
+    assertCounts(1, 3L, 0L, 1L, metrics);
+    assertCounts(2, 3L, 0L, 1L, metrics);
+
+    // below: current behavior; will be non-NaN values once NaN is excluded from upper/lower bound. ORC and Parquet's
+    // behaviors differ due to their implementation of comparison being different.
+    if (fileFormat() == FileFormat.ORC) {
+      assertBounds(1, FloatType.get(), 1.2F, 5.6F, metrics);
+      assertBounds(2, DoubleType.get(), 3.4D, 7.8D, metrics);
+    } else {
+      assertBounds(1, FloatType.get(), 1.2F, Float.NaN, metrics);
+      assertBounds(2, DoubleType.get(), 3.4D, Double.NaN, metrics);
+    }
   }
 
   @Test
@@ -385,16 +476,16 @@ public abstract class TestMetrics {
     Assert.assertEquals(3, splitCount(recordsFile));
 
     Assert.assertEquals(201L, (long) metrics.recordCount());
-    assertCounts(1, 201L, 0L, 0L, metrics);
+    assertCounts(1, 201L, 0L, metrics);
     assertBounds(1, Types.BooleanType.get(), false, true, metrics);
     assertBounds(2, Types.IntegerType.get(), 1, 201, metrics);
-    assertCounts(3, 201L, 1L, 0L, metrics);
+    assertCounts(3, 201L, 1L, metrics);
     assertBounds(3, Types.LongType.get(), 2L, 201L, metrics);
     assertCounts(4, 201L, 0L, 0L, metrics);
     assertBounds(4, Types.FloatType.get(), 1.0F, 201.0F, metrics);
     assertCounts(5, 201L, 1L, 0L, metrics);
     assertBounds(5, Types.DoubleType.get(), 2.0D, 201.0D, metrics);
-    assertCounts(6, 201L, 1L, 0L, metrics);
+    assertCounts(6, 201L, 1L, metrics);
     assertBounds(6, Types.DecimalType.of(10, 2), new BigDecimal("2.00"),
         new BigDecimal("201.00"), metrics);
   }
@@ -429,13 +520,13 @@ public abstract class TestMetrics {
     Assert.assertEquals(3, splitCount(recordsFile));
 
     Assert.assertEquals(201L, (long) metrics.recordCount());
-    assertCounts(1, 201L, 0L, 0L, metrics);
+    assertCounts(1, 201L, 0L, metrics);
     assertBounds(1, IntegerType.get(), 1, 201, metrics);
-    assertCounts(3, 201L, 0L, 0L, metrics);
+    assertCounts(3, 201L, 0L, metrics);
     assertBounds(3, LongType.get(), 1L, 201L, metrics);
-    assertCounts(5, 201L, 0L, 0L, metrics);
+    assertCounts(5, 201L, 0L, metrics);
     assertBounds(5, LongType.get(), 1L, 201L, metrics);
-    assertCounts(6, 201L, 0L, 0L, metrics);
+    assertCounts(6, 201L, 0L, metrics);
     assertBounds(6, BinaryType.get(),
         ByteBuffer.wrap("A".getBytes()), ByteBuffer.wrap("A".getBytes()), metrics);
   }
@@ -448,13 +539,13 @@ public abstract class TestMetrics {
         buildNestedTestRecord());
     Assert.assertEquals(1L, (long) metrics.recordCount());
     Assert.assertTrue(metrics.columnSizes().values().stream().allMatch(Objects::nonNull));
-    assertCounts(1, null, null, null, metrics);
+    assertCounts(1, null, null, metrics);
     assertBounds(1, Types.IntegerType.get(), null, null, metrics);
-    assertCounts(3, null, null, null, metrics);
+    assertCounts(3, null, null, metrics);
     assertBounds(3, Types.LongType.get(), null, null, metrics);
-    assertCounts(5, null, null, null, metrics);
+    assertCounts(5, null, null, metrics);
     assertBounds(5, Types.LongType.get(), null, null, metrics);
-    assertCounts(6, null, null, null, metrics);
+    assertCounts(6, null, null, metrics);
     assertBounds(6, Types.BinaryType.get(), null, null, metrics);
   }
 
@@ -466,13 +557,13 @@ public abstract class TestMetrics {
         buildNestedTestRecord());
     Assert.assertEquals(1L, (long) metrics.recordCount());
     Assert.assertTrue(metrics.columnSizes().values().stream().allMatch(Objects::nonNull));
-    assertCounts(1, 1L, 0L, 0L, metrics);
+    assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, Types.IntegerType.get(), null, null, metrics);
-    assertCounts(3, 1L, 0L, 0L, metrics);
+    assertCounts(3, 1L, 0L, metrics);
     assertBounds(3, Types.LongType.get(), null, null, metrics);
-    assertCounts(5, 1L, 0L, 0L, metrics);
+    assertCounts(5, 1L, 0L, metrics);
     assertBounds(5, Types.LongType.get(), null, null, metrics);
-    assertCounts(6, 1L, 0L, 0L, metrics);
+    assertCounts(6, 1L, 0L, metrics);
     assertBounds(6, Types.BinaryType.get(), null, null, metrics);
   }
 
@@ -484,13 +575,13 @@ public abstract class TestMetrics {
         buildNestedTestRecord());
     Assert.assertEquals(1L, (long) metrics.recordCount());
     Assert.assertTrue(metrics.columnSizes().values().stream().allMatch(Objects::nonNull));
-    assertCounts(1, 1L, 0L, 0L, metrics);
+    assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, Types.IntegerType.get(), Integer.MAX_VALUE, Integer.MAX_VALUE, metrics);
-    assertCounts(3, 1L, 0L, 0L, metrics);
+    assertCounts(3, 1L, 0L, metrics);
     assertBounds(3, Types.LongType.get(), 100L, 100L, metrics);
-    assertCounts(5, 1L, 0L, 0L, metrics);
+    assertCounts(5, 1L, 0L, metrics);
     assertBounds(5, Types.LongType.get(), 20L, 20L, metrics);
-    assertCounts(6, 1L, 0L, 0L, metrics);
+    assertCounts(6, 1L, 0L, metrics);
     assertBounds(6, Types.BinaryType.get(),
         ByteBuffer.wrap("A".getBytes()), ByteBuffer.wrap("A".getBytes()), metrics);
   }
@@ -515,7 +606,7 @@ public abstract class TestMetrics {
     CharBuffer expectedMaxBound = CharBuffer.wrap("Lorem ipsv");
     Assert.assertEquals(1L, (long) metrics.recordCount());
     Assert.assertTrue(metrics.columnSizes().values().stream().allMatch(Objects::nonNull));
-    assertCounts(1, 1L, 0L, 0L, metrics);
+    assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, Types.StringType.get(), expectedMinBound, expectedMaxBound, metrics);
   }
 
@@ -539,8 +630,12 @@ public abstract class TestMetrics {
     ByteBuffer expectedMaxBounds = ByteBuffer.wrap(new byte[]{ 0x1, 0x2, 0x3, 0x4, 0x6 });
     Assert.assertEquals(1L, (long) metrics.recordCount());
     Assert.assertTrue(metrics.columnSizes().values().stream().allMatch(Objects::nonNull));
-    assertCounts(1, 1L, 0L, 0L, metrics);
+    assertCounts(1, 1L, 0L, metrics);
     assertBounds(1, Types.BinaryType.get(), expectedMinBounds, expectedMaxBounds, metrics);
+  }
+
+  protected void assertCounts(int fieldId, Long valueCount, Long nullValueCount, Metrics metrics) {
+    assertCounts(fieldId, valueCount, nullValueCount, null, metrics);
   }
 
   protected void assertCounts(int fieldId, Long valueCount, Long nullValueCount, Long nanValueCount, Metrics metrics) {
@@ -552,7 +647,6 @@ public abstract class TestMetrics {
     if (fileFormat() != FileFormat.ORC) {
       Assert.assertEquals(nanValueCount, nanValueCounts.get(fieldId));
     }
-
   }
 
   protected <T> void assertBounds(int fieldId, Type type, T lowerBound, T upperBound, Metrics metrics) {

@@ -74,19 +74,19 @@ public class ParquetUtil {
 
   public static Metrics fileMetrics(InputFile file, MetricsConfig metricsConfig, NameMapping nameMapping) {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
-      return footerMetrics(reader.getFooter(), Stream.empty(), null, metricsConfig, nameMapping);
+      return footerMetrics(reader.getFooter(), Stream.empty(), metricsConfig, nameMapping);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read footer of file: %s", file);
     }
   }
 
   public static Metrics footerMetrics(ParquetMetadata metadata, Stream<FieldMetrics> fieldMetrics,
-                                      Schema inputSchema, MetricsConfig metricsConfig) {
-    return footerMetrics(metadata, fieldMetrics, inputSchema, metricsConfig, null);
+                                      MetricsConfig metricsConfig) {
+    return footerMetrics(metadata, fieldMetrics, metricsConfig, null);
   }
 
   public static Metrics footerMetrics(ParquetMetadata metadata, Stream<FieldMetrics> fieldMetrics,
-                                      Schema inputSchema, MetricsConfig metricsConfig, NameMapping nameMapping) {
+                                      MetricsConfig metricsConfig, NameMapping nameMapping) {
     long rowCount = 0;
     Map<Integer, Long> columnSizes = Maps.newHashMap();
     Map<Integer, Long> valueCounts = Maps.newHashMap();
@@ -149,7 +149,7 @@ public class ParquetUtil {
     }
 
     return new Metrics(rowCount, columnSizes, valueCounts, nullValueCounts,
-        getNanValueCounts(fieldMetrics, metricsConfig, inputSchema),
+        getNanValueCounts(fieldMetrics, metricsConfig, fileSchema),
         toBufferMap(fileSchema, lowerBounds), toBufferMap(fileSchema, upperBounds));
   }
 
@@ -161,11 +161,11 @@ public class ParquetUtil {
 
     return fieldMetrics
         .filter(metrics -> {
-          String alias = inputSchema.idToAlias(metrics.getId());
-          MetricsMode metricsMode = metricsConfig.columnMode(alias);
+          String columnName = inputSchema.findColumnName(metrics.id());
+          MetricsMode metricsMode = metricsConfig.columnMode(columnName);
           return metricsMode != MetricsModes.None.get();
         })
-        .collect(Collectors.toMap(FieldMetrics::getId, FieldMetrics::getNanValueCount));
+        .collect(Collectors.toMap(FieldMetrics::id, FieldMetrics::nanValueCount));
   }
 
   private static MessageType getParquetTypeWithIds(ParquetMetadata metadata, NameMapping nameMapping) {

@@ -44,7 +44,10 @@ public class Metrics implements Serializable {
   public Metrics() {
   }
 
-  // for temporary backward compatibility, will be removed when all writers support nanValueCounts
+  /**
+   * @deprecated will be removed in 0.12.0; use {@link #Metrics(Long, Map, Map, Map, Map)} instead.
+   */
+  @Deprecated
   public Metrics(Long rowCount,
                  Map<Integer, Long> columnSizes,
                  Map<Integer, Long> valueCounts,
@@ -67,7 +70,10 @@ public class Metrics implements Serializable {
     this.nanValueCounts = nanValueCounts;
   }
 
-  // for temporary backward compatibility, will be removed when all writers support nanValueCounts
+  /**
+   * @deprecated will be removed in 0.12.0; use {@link #Metrics(Long, Map, Map, Map, Map, Map, Map)} instead.
+   */
+  @Deprecated
   public Metrics(Long rowCount,
                  Map<Integer, Long> columnSizes,
                  Map<Integer, Long> valueCounts,
@@ -135,7 +141,7 @@ public class Metrics implements Serializable {
   }
 
   /**
-   * Get the number of NaN values for all fields in a file.
+   * Get the number of NaN values for all float and double fields in a file.
    *
    * @return a Map of fieldId to the number of NaN counts
    */

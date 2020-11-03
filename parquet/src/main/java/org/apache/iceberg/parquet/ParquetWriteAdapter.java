@@ -60,7 +60,7 @@ public class ParquetWriteAdapter<D> implements FileAppender<D> {
     Preconditions.checkState(footer != null, "Cannot produce metrics until closed");
     // Note: Metrics reported by this method do not contain a full set of available metrics.
     // Specifically, it lacks metrics not included in Parquet file's footer (e.g. NaN count)
-    return ParquetUtil.footerMetrics(footer, Stream.empty(), null,  metricsConfig);
+    return ParquetUtil.footerMetrics(footer, Stream.empty(),  metricsConfig);
   }
 
   @Override

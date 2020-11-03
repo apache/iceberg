@@ -19,27 +19,36 @@
 
 package org.apache.iceberg.parquet;
 
-import java.util.List;
-import java.util.stream.Stream;
+import java.nio.ByteBuffer;
 import org.apache.iceberg.FieldMetrics;
-import org.apache.parquet.column.ColumnWriteStore;
 
-public interface ParquetValueWriter<T> {
-  void write(int repetitionLevel, T value);
+/**
+ * TODO comments
+ */
+public class ParquetFieldMetrics extends FieldMetrics {
 
-  List<TripleWriter<?>> columns();
+  public ParquetFieldMetrics(int id,
+                             long nanValueCount) {
+    super(id, 0L, 0L, nanValueCount, null, null);
+  }
 
-  void setColumnStore(ColumnWriteStore columnStore);
+  @Override
+  public long valueCount() {
+    throw new IllegalStateException("TODO");
+  }
 
-  /**
-   * Returns a stream of {@link FieldMetrics} that this ParquetValueWriter keeps track of.
-   *
-   * Since Parquet keeps track of most metrics in its footer, for now ParquetValueWriter only keeps track of NaN
-   * counter, and only return non-empty stream if the writer writes double or float values either by itself or
-   * transitively.
-   */
-  default Stream<FieldMetrics> metrics() {
-    return Stream.empty();
+  @Override
+  public long nullValueCount() {
+    throw new IllegalStateException("TODO");
+  }
+
+  @Override
+  public ByteBuffer lowerBound() {
+    throw new IllegalStateException("TODO");
+  }
+
+  @Override
+  public ByteBuffer upperBound() {
+    throw new IllegalStateException("TODO");
   }
 }
-

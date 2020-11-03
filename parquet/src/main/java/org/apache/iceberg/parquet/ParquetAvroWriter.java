@@ -107,42 +107,41 @@ public class ParquetAvroWriter {
     @Override
     public ParquetValueWriter<?> primitive(PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
-      Type.ID id = primitive.getId();
 
       if (primitive.getOriginalType() != null) {
         switch (primitive.getOriginalType()) {
           case ENUM:
           case JSON:
           case UTF8:
-            return ParquetValueWriters.strings(desc, id);
+            return ParquetValueWriters.strings(desc);
           case DATE:
           case INT_8:
           case INT_16:
           case INT_32:
-            return ParquetValueWriters.ints(desc, id);
+            return ParquetValueWriters.ints(desc);
           case INT_64:
           case TIME_MICROS:
           case TIMESTAMP_MICROS:
-            return ParquetValueWriters.longs(desc, id);
+            return ParquetValueWriters.longs(desc);
           case DECIMAL:
             DecimalMetadata decimal = primitive.getDecimalMetadata();
             switch (primitive.getPrimitiveTypeName()) {
               case INT32:
                 return ParquetValueWriters.decimalAsInteger(
-                    desc, id, decimal.getPrecision(), decimal.getScale());
+                    desc, decimal.getPrecision(), decimal.getScale());
               case INT64:
                 return ParquetValueWriters.decimalAsLong(
-                    desc, id, decimal.getPrecision(), decimal.getScale());
+                    desc, decimal.getPrecision(), decimal.getScale());
               case BINARY:
               case FIXED_LEN_BYTE_ARRAY:
                 return ParquetValueWriters.decimalAsFixed(
-                    desc, id, decimal.getPrecision(), decimal.getScale());
+                    desc, decimal.getPrecision(), decimal.getScale());
               default:
                 throw new UnsupportedOperationException(
                     "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
             }
           case BSON:
-            return ParquetValueWriters.byteBuffers(desc, id);
+            return ParquetValueWriters.byteBuffers(desc);
           default:
             throw new UnsupportedOperationException(
                 "Unsupported logical type: " + primitive.getOriginalType());
@@ -151,19 +150,19 @@ public class ParquetAvroWriter {
 
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
-          return new FixedWriter(desc, id);
+          return new FixedWriter(desc);
         case BINARY:
-          return ParquetValueWriters.byteBuffers(desc, id);
+          return ParquetValueWriters.byteBuffers(desc);
         case BOOLEAN:
-          return ParquetValueWriters.booleans(desc, id);
+          return ParquetValueWriters.booleans(desc);
         case INT32:
-          return ParquetValueWriters.ints(desc, id);
+          return ParquetValueWriters.ints(desc);
         case INT64:
-          return ParquetValueWriters.longs(desc, id);
+          return ParquetValueWriters.longs(desc);
         case FLOAT:
-          return ParquetValueWriters.floats(desc, id);
+          return ParquetValueWriters.floats(desc);
         case DOUBLE:
-          return ParquetValueWriters.doubles(desc, id);
+          return ParquetValueWriters.doubles(desc);
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
@@ -171,8 +170,8 @@ public class ParquetAvroWriter {
   }
 
   private static class FixedWriter extends PrimitiveWriter<Fixed> {
-    private FixedWriter(ColumnDescriptor desc, Type.ID id) {
-      super(desc, id);
+    private FixedWriter(ColumnDescriptor desc) {
+      super(desc);
     }
 
     @Override

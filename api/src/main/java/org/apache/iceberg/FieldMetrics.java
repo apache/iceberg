@@ -47,27 +47,45 @@ public class FieldMetrics {
     this.upperBound = upperBound;
   }
 
-  public int getId() {
+  /**
+   * Returns the id of the field that the metrics within this class are associated with.
+   */
+  public int id() {
     return id;
   }
 
-  public long getValueCount() {
+  /**
+   * Returns the number of all values, including nulls, NaN and repeated, for the given field.
+   */
+  public long valueCount() {
     return valueCount;
   }
 
-  public long getNullValueCount() {
+  /**
+   * Returns the number of null values for this field.
+   */
+  public long nullValueCount() {
     return nullValueCount;
   }
 
-  public long getNanValueCount() {
+  /**
+   * Returns the number of NaN values for this field. Will only be non-0 if this field is a double or float field.
+   */
+  public long nanValueCount() {
     return nanValueCount;
   }
 
-  public ByteBuffer getLowerBound() {
+  /**
+   * Returns the lower bound value of this field.
+   */
+  public ByteBuffer lowerBound() {
     return lowerBound;
   }
 
-  public ByteBuffer getUpperBound() {
+  /**
+   * Returns the upper bound value of this field.
+   */
+  public ByteBuffer upperBound() {
     return upperBound;
   }
 }
