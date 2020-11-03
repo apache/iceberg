@@ -24,8 +24,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.functions.RichMapFunction;
-import org.apache.flink.api.java.DataSet;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.DataStreamUtils;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.CombinedScanTask;
@@ -82,10 +83,11 @@ public class RowDataRewriter {
         table.properties());
   }
 
-  public List<DataFile> rewriteDataForTasks(DataSet<CombinedScanTask> dataSet) throws Exception {
+  public List<DataFile> rewriteDataForTasks(DataStream<CombinedScanTask> dataSet) {
     RewriteMap map = new RewriteMap(schema, nameMapping, io, caseSensitive, encryptionManager, taskWriterFactory);
-    DataSet<List<DataFile>> ds = dataSet.map(map);
-    return ds.collect().stream().flatMap(Collection::stream).collect(Collectors.toList());
+    DataStream<List<DataFile>> ds = dataSet.map(map);
+    return Lists.newArrayList(DataStreamUtils.collect(ds)).stream().flatMap(Collection::stream)
+        .collect(Collectors.toList());
   }
 
   public static class RewriteMap extends RichMapFunction<CombinedScanTask, List<DataFile>> {

@@ -20,8 +20,8 @@
 package org.apache.iceberg.flink.actions;
 
 import java.util.List;
-import org.apache.flink.api.java.DataSet;
-import org.apache.flink.api.java.ExecutionEnvironment;
+import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
@@ -31,9 +31,9 @@ import org.apache.iceberg.io.FileIO;
 
 public class RewriteDataFilesAction extends BaseRewriteDataFilesAction<RewriteDataFilesAction> {
 
-  private ExecutionEnvironment env;
+  private StreamExecutionEnvironment env;
 
-  public RewriteDataFilesAction(ExecutionEnvironment env, Table table) {
+  public RewriteDataFilesAction(StreamExecutionEnvironment env, Table table) {
     super(table);
     this.env = env;
   }
@@ -45,14 +45,10 @@ public class RewriteDataFilesAction extends BaseRewriteDataFilesAction<RewriteDa
 
   @Override
   protected List<DataFile> rewriteDataForTasks(List<CombinedScanTask> combinedScanTasks) {
-    DataSet<CombinedScanTask> dataSet = env.fromCollection(combinedScanTasks).setParallelism(combinedScanTasks.size());
+    env.setParallelism(combinedScanTasks.size());
+    DataStream<CombinedScanTask> dataStream = env.fromCollection(combinedScanTasks);
     RowDataRewriter rowDataRewriter = new RowDataRewriter(table(), caseSensitive(), fileIO(), encryptionManager());
-    List<DataFile> addedDataFiles = null;
-    try {
-      addedDataFiles = rowDataRewriter.rewriteDataForTasks(dataSet);
-    } catch (Exception e) {
-      throw new RuntimeException("Rewrite Data File error.", e);
-    }
+    List<DataFile> addedDataFiles = rowDataRewriter.rewriteDataForTasks(dataStream);
     return addedDataFiles;
   }
 

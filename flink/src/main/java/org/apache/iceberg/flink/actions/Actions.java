@@ -19,25 +19,25 @@
 
 package org.apache.iceberg.flink.actions;
 
-import org.apache.flink.api.java.ExecutionEnvironment;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.iceberg.Table;
 
 public class Actions {
 
-  private ExecutionEnvironment env;
+  private StreamExecutionEnvironment env;
   private Table table;
 
-  private Actions(ExecutionEnvironment env, Table table) {
+  private Actions(StreamExecutionEnvironment env, Table table) {
     this.env = env;
     this.table = table;
   }
 
-  public static Actions forTable(ExecutionEnvironment env, Table table) {
+  public static Actions forTable(StreamExecutionEnvironment env, Table table) {
     return new Actions(env, table);
   }
 
   public static Actions forTable(Table table) {
-    return new Actions(ExecutionEnvironment.getExecutionEnvironment(), table);
+    return new Actions(StreamExecutionEnvironment.getExecutionEnvironment(), table);
   }
 
   public RewriteDataFilesAction rewriteDataFiles() {
