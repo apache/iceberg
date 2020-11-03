@@ -71,8 +71,8 @@ public abstract class ParquetTypeWithPartnerVisitor<P, T> {
       T elementResult = null;
       if (repeatedElement.getFieldCount() > 0) {
         Type elementField = repeatedElement.getType(0);
+        visitor.beforeElementField(elementField);
         try {
-          visitor.beforeElementField(elementField);
           elementResult = visit(visitor.arrayElementType(list), elementField, visitor);
         } finally {
           visitor.afterElementField(elementField);
@@ -155,9 +155,12 @@ public abstract class ParquetTypeWithPartnerVisitor<P, T> {
     for (int i = 0; i < group.getFieldCount(); i += 1) {
       Type field = group.getFields().get(i);
       visitor.beforeField(field);
-      Integer fieldId = field.getId() == null ? null : field.getId().intValue();
-      results.add(visit(visitor.fieldType(struct, i, fieldId), field, visitor));
-      visitor.afterField(field);
+      try {
+        Integer fieldId = field.getId() == null ? null : field.getId().intValue();
+        results.add(visit(visitor.fieldType(struct, i, fieldId), field, visitor));
+      } finally {
+        visitor.afterField(field);
+      }
     }
 
     return results;
