@@ -120,8 +120,8 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     requestRefresh();
 
     LOG.info("Successfully committed to table {} in {} ms",
-            tableName(),
-            System.currentTimeMillis() - start);
+        tableName(),
+        System.currentTimeMillis() - start);
   }
 
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
@@ -160,16 +160,16 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
       AtomicReference<TableMetadata> newMetadata = new AtomicReference<>();
       Tasks.foreach(newLocation)
-              .retry(numRetries).exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */)
-              .throwFailureWhenFinished()
-              .shouldRetryTest(shouldRetry)
-              .run(metadataLocation -> newMetadata.set(
-                      TableMetadataParser.read(io(), metadataLocation)));
+          .retry(numRetries).exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */)
+          .throwFailureWhenFinished()
+          .shouldRetryTest(shouldRetry)
+          .run(metadataLocation -> newMetadata.set(
+              TableMetadataParser.read(io(), metadataLocation)));
 
       String newUUID = newMetadata.get().uuid();
       if (currentMetadata != null && currentMetadata.uuid() != null && newUUID != null) {
         Preconditions.checkState(newUUID.equals(currentMetadata.uuid()),
-                "Table UUID does not match: current=%s != refreshed=%s", currentMetadata.uuid(), newUUID);
+            "Table UUID does not match: current=%s != refreshed=%s", currentMetadata.uuid(), newUUID);
       }
 
       this.currentMetadata = newMetadata.get();
@@ -181,7 +181,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   private String metadataFileLocation(TableMetadata metadata, String filename) {
     String metadataLocation = metadata.properties()
-            .get(TableProperties.WRITE_METADATA_LOCATION);
+        .get(TableProperties.WRITE_METADATA_LOCATION);
 
     if (metadataLocation != null) {
       return String.format("%s/%s", metadataLocation, filename);
@@ -247,7 +247,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   private String newTableMetadataFilePath(TableMetadata meta, int newVersion) {
     String codecName = meta.property(
-            TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
+        TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
     String fileExtension = TableMetadataParser.getFileExtension(codecName);
     return metadataFileLocation(meta, String.format("%05d-%s%s", newVersion, UUID.randomUUID(), fileExtension));
   }
@@ -275,18 +275,18 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     }
 
     boolean deleteAfterCommit = metadata.propertyAsBoolean(
-            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
-            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
+        TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
+        TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
 
     Set<TableMetadata.MetadataLogEntry> removedPreviousMetadataFiles = Sets.newHashSet(base.previousFiles());
     removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
 
     if (deleteAfterCommit) {
       Tasks.foreach(removedPreviousMetadataFiles)
-              .noRetry().suppressFailureWhenFinished()
-              .onFailure((previousMetadataFile, exc) ->
-                      LOG.warn("Delete failed for previous metadata file: {}", previousMetadataFile, exc))
-              .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
+          .noRetry().suppressFailureWhenFinished()
+          .onFailure((previousMetadataFile, exc) ->
+              LOG.warn("Delete failed for previous metadata file: {}", previousMetadataFile, exc))
+          .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
     }
   }
 }

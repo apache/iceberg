@@ -75,8 +75,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
   private static final String HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
   private static final long HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
-  private static final String HIVE_COMMIT_RETRY_TIMES = "iceberg.hive.commit.retry.times";
-  private static final int HIVE_UPDATE_RETRY_TIMES_DEFAULT = 3;
+
 
   private static final DynMethods.UnboundMethod ALTER_TABLE = DynMethods.builder("alter_table")
           .impl(HiveMetaStoreClient.class, "alter_table_with_environmentContext",
@@ -91,7 +90,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final String tableName;
   private final Configuration conf;
   private final long lockAcquireTimeout;
-  private final int commitRetrytimes;
   private FileIO fileIO;
 
   protected HiveTableOperations(Configuration conf, HiveClientPool metaClients,
@@ -103,7 +101,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     this.tableName = table;
     this.lockAcquireTimeout =
             conf.getLong(HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS, HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT);
-    this.commitRetrytimes = conf.getInt(HIVE_COMMIT_RETRY_TIMES, HIVE_UPDATE_RETRY_TIMES_DEFAULT);
   }
 
   @Override
@@ -148,15 +145,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
-    // todo unify the hms io operator retry and backoff config
-    Tasks.range(1)
-            .retry(commitRetrytimes)
-            .exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */)
-            .throwFailureWhenFinished()
-            .run(task -> doCommitMetadataToHive(base, metadata));
-  }
-
-  private void doCommitMetadataToHive(TableMetadata base, TableMetadata metadata) {
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
     boolean hiveEngineEnabled = hiveEngineEnabled(metadata, conf);
     boolean threw = true;
