@@ -50,8 +50,8 @@ import static org.apache.iceberg.flink.SimpleDataUtil.RECORD;
 @RunWith(Parameterized.class)
 public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
 
-  private static final String TABLE_NAME_UNPARTIITONED = "test_table_unpartitioned";
-  private static final String TABLE_NAME_PARTIITONED = "test_table_partitioned";
+  private static final String TABLE_NAME_UNPARTITIONED = "test_table_unpartitioned";
+  private static final String TABLE_NAME_PARTITIONED = "test_table_partitioned";
   private final FileFormat format;
   private Table icebergTableUnPartitioned;
   private Table icebergTablePartitioned;
@@ -80,22 +80,22 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     sql("CREATE DATABASE %s", flinkDatabase);
     sql("USE CATALOG %s", catalogName);
     sql("USE %s", DATABASE);
-    sql("CREATE TABLE %s (id int, data varchar) with ('write.format.default'='%s')", TABLE_NAME_UNPARTIITONED,
+    sql("CREATE TABLE %s (id int, data varchar) with ('write.format.default'='%s')", TABLE_NAME_UNPARTITIONED,
         format.name());
     icebergTableUnPartitioned = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace,
-        TABLE_NAME_UNPARTIITONED));
+        TABLE_NAME_UNPARTITIONED));
 
     sql("CREATE TABLE %s (id int, data varchar,spec varchar) " +
             " PARTITIONED BY (data,spec) with ('write.format.default'='%s')",
-        TABLE_NAME_PARTIITONED, format.name());
+        TABLE_NAME_PARTITIONED, format.name());
     icebergTablePartitioned = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace,
-        TABLE_NAME_PARTIITONED));
+        TABLE_NAME_PARTITIONED));
   }
 
   @After
   public void clean() {
-    sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME_UNPARTIITONED);
-    sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME_PARTIITONED);
+    sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME_UNPARTITIONED);
+    sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME_PARTITIONED);
     sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
     super.clean();
   }
@@ -112,8 +112,8 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
 
   @Test
   public void testRewriteDataFilesUnpartitionedTable() throws Exception {
-    sql("INSERT INTO %s SELECT 1, 'hello'", TABLE_NAME_UNPARTIITONED);
-    sql("INSERT INTO %s SELECT 2, 'world'", TABLE_NAME_UNPARTIITONED);
+    sql("INSERT INTO %s SELECT 1, 'hello'", TABLE_NAME_UNPARTITIONED);
+    sql("INSERT INTO %s SELECT 2, 'world'", TABLE_NAME_UNPARTITIONED);
 
     icebergTableUnPartitioned.refresh();
 
@@ -144,10 +144,10 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
 
   @Test
   public void testRewriteDataFilesPartitionedTable() throws Exception {
-    sql("INSERT INTO %s SELECT 1, 'hello' ,'a'", TABLE_NAME_PARTIITONED);
-    sql("INSERT INTO %s SELECT 2, 'hello' ,'a'", TABLE_NAME_PARTIITONED);
-    sql("INSERT INTO %s SELECT 3, 'world' ,'b'", TABLE_NAME_PARTIITONED);
-    sql("INSERT INTO %s SELECT 4, 'world' ,'b'", TABLE_NAME_PARTIITONED);
+    sql("INSERT INTO %s SELECT 1, 'hello' ,'a'", TABLE_NAME_PARTITIONED);
+    sql("INSERT INTO %s SELECT 2, 'hello' ,'a'", TABLE_NAME_PARTITIONED);
+    sql("INSERT INTO %s SELECT 3, 'world' ,'b'", TABLE_NAME_PARTITIONED);
+    sql("INSERT INTO %s SELECT 4, 'world' ,'b'", TABLE_NAME_PARTITIONED);
 
     icebergTablePartitioned.refresh();
 
@@ -188,11 +188,11 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
 
   @Test
   public void testRewriteDataFilesWithFilter() throws Exception {
-    sql("INSERT INTO %s SELECT 1, 'hello' ,'a'", TABLE_NAME_PARTIITONED);
-    sql("INSERT INTO %s SELECT 2, 'hello' ,'a'", TABLE_NAME_PARTIITONED);
-    sql("INSERT INTO %s SELECT 3, 'world' ,'a'", TABLE_NAME_PARTIITONED);
-    sql("INSERT INTO %s SELECT 4, 'world' ,'b'", TABLE_NAME_PARTIITONED);
-    sql("INSERT INTO %s SELECT 5, 'world' ,'b'", TABLE_NAME_PARTIITONED);
+    sql("INSERT INTO %s SELECT 1, 'hello' ,'a'", TABLE_NAME_PARTITIONED);
+    sql("INSERT INTO %s SELECT 2, 'hello' ,'a'", TABLE_NAME_PARTITIONED);
+    sql("INSERT INTO %s SELECT 3, 'world' ,'a'", TABLE_NAME_PARTITIONED);
+    sql("INSERT INTO %s SELECT 4, 'world' ,'b'", TABLE_NAME_PARTITIONED);
+    sql("INSERT INTO %s SELECT 5, 'world' ,'b'", TABLE_NAME_PARTITIONED);
 
     icebergTablePartitioned.refresh();
 
@@ -253,8 +253,8 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
       expected.add(record);
     }
 
-    sql("INSERT INTO %s values " + StringUtils.join(records1, ","), TABLE_NAME_UNPARTIITONED);
-    sql("INSERT INTO %s values " + StringUtils.join(records2, ","), TABLE_NAME_UNPARTIITONED);
+    sql("INSERT INTO %s values " + StringUtils.join(records1, ","), TABLE_NAME_UNPARTITIONED);
+    sql("INSERT INTO %s values " + StringUtils.join(records2, ","), TABLE_NAME_UNPARTITIONED);
 
     icebergTableUnPartitioned.refresh();
 
