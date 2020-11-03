@@ -19,13 +19,10 @@
 
 package org.apache.iceberg.mr.hive;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.HiveMetaHook;
-import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogUtil;
@@ -102,7 +99,7 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
     // - Partitioned Hive tables are currently not allowed
 
     Schema schema = schema(catalogProperties, hmsTable);
-    PartitionSpec spec = spec(schema, catalogProperties, hmsTable);
+    PartitionSpec spec = spec(schema, catalogProperties);
 
     catalogProperties.put(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(schema));
     catalogProperties.put(InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(spec));
@@ -206,25 +203,15 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
     if (properties.getProperty(InputFormatConfig.TABLE_SCHEMA) != null) {
       return SchemaParser.fromJson(properties.getProperty(InputFormatConfig.TABLE_SCHEMA));
     } else {
-      List<FieldSchema> cols = new ArrayList<>(hmsTable.getSd().getCols());
-      if (hmsTable.getPartitionKeys() != null && !hmsTable.getPartitionKeys().isEmpty()) {
-        cols.addAll(hmsTable.getPartitionKeys());
-      }
-      return HiveSchemaUtil.schema(cols);
+      return HiveSchemaUtil.schema(hmsTable.getSd().getCols());
     }
   }
 
-  private PartitionSpec spec(Schema schema, Properties properties,
-      org.apache.hadoop.hive.metastore.api.Table hmsTable) {
+  private PartitionSpec spec(Schema schema, Properties properties) {
     if (properties.getProperty(InputFormatConfig.PARTITION_SPEC) != null) {
       return PartitionSpecParser.fromJson(schema, properties.getProperty(InputFormatConfig.PARTITION_SPEC));
     } else {
-      // Create the partition specification from the columns
-      if (hmsTable.getPartitionKeys() != null && !hmsTable.getPartitionKeys().isEmpty()) {
-        return HiveSchemaUtil.spec(schema, hmsTable.getPartitionKeys());
-      } else {
-        return PartitionSpec.unpartitioned();
-      }
+      return PartitionSpec.unpartitioned();
     }
   }
 }
