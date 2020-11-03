@@ -26,7 +26,6 @@ import java.util.function.Predicate;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
@@ -121,8 +120,8 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     requestRefresh();
 
     LOG.info("Successfully committed to table {} in {} ms",
-        tableName(),
-        System.currentTimeMillis() - start);
+            tableName(),
+            System.currentTimeMillis() - start);
   }
 
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
@@ -145,31 +144,32 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     return newMetadataLocation.location();
   }
 
-  protected boolean refreshFromMetadataLocation(String newLocation, String previousLocation) {
-    return refreshFromMetadataLocation(newLocation, previousLocation, e -> !(e instanceof NotFoundException),
-            20);
+  protected void refreshFromMetadataLocation(String newLocation) {
+    refreshFromMetadataLocation(newLocation, null, 20);
   }
 
-  protected boolean refreshFromMetadataLocation(String newLocation, String previousLocation, int numRetries) {
-    return refreshFromMetadataLocation(newLocation, previousLocation, e -> !(e instanceof NotFoundException),
-            numRetries);
+  protected void refreshFromMetadataLocation(String newLocation, int numRetries) {
+    refreshFromMetadataLocation(newLocation, null, numRetries);
   }
 
-  protected boolean refreshFromMetadataLocation(String newLocation, String previousLocation,
-                                                Predicate<Exception> shouldRetry, int numRetries) {
+  protected void refreshFromMetadataLocation(String newLocation, Predicate<Exception> shouldRetry,
+                                             int numRetries) {
     // use null-safe equality check because new tables have a null metadata location
-    boolean isUnavailableForCurrentLocation = false;
     if (!Objects.equal(currentMetadataLocation, newLocation)) {
       LOG.info("Refreshing table metadata from new version: {}", newLocation);
 
       AtomicReference<TableMetadata> newMetadata = new AtomicReference<>();
-      isUnavailableForCurrentLocation =
-          resolveTableMetadata(newLocation, previousLocation, shouldRetry, numRetries, newMetadata);
+      Tasks.foreach(newLocation)
+              .retry(numRetries).exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */)
+              .throwFailureWhenFinished()
+              .shouldRetryTest(shouldRetry)
+              .run(metadataLocation -> newMetadata.set(
+                      TableMetadataParser.read(io(), metadataLocation)));
 
       String newUUID = newMetadata.get().uuid();
       if (currentMetadata != null && currentMetadata.uuid() != null && newUUID != null) {
         Preconditions.checkState(newUUID.equals(currentMetadata.uuid()),
-            "Table UUID does not match: current=%s != refreshed=%s", currentMetadata.uuid(), newUUID);
+                "Table UUID does not match: current=%s != refreshed=%s", currentMetadata.uuid(), newUUID);
       }
 
       this.currentMetadata = newMetadata.get();
@@ -177,43 +177,11 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
       this.version = parseVersion(newLocation);
     }
     this.shouldRefresh = false;
-    return isUnavailableForCurrentLocation;
-  }
-
-  private boolean resolveTableMetadata(String newLocation, String previousLocation, Predicate<Exception> shouldRetry,
-                                       int numRetries, AtomicReference<TableMetadata> newMetadata) {
-    boolean isUnavailableForCurrentLocation = false;
-    try {
-      getTableMetadata(newLocation, shouldRetry, numRetries, newMetadata);
-    } catch (NotFoundException e) {
-      // if current metalocation is not found  we will try previous metalocation
-      isUnavailableForCurrentLocation = true;
-      LOG.warn(
-          "CurrentMetadataLocation {} not found ,try previousMetadataLocation{}",
-          newLocation,
-          previousLocation,
-          e);
-      getTableMetadata(previousLocation, shouldRetry, numRetries, newMetadata);
-    }
-    return isUnavailableForCurrentLocation;
-  }
-
-  private void getTableMetadata(
-          String newLocation,
-          Predicate<Exception> shouldRetry,
-          int numRetries,
-          AtomicReference<TableMetadata> newMetadata) {
-    Tasks.foreach(newLocation)
-            .retry(numRetries).exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */)
-            .throwFailureWhenFinished()
-            .shouldRetryTest(shouldRetry)
-            .run(metadataLocation -> newMetadata.set(
-                    TableMetadataParser.read(io(), metadataLocation)));
   }
 
   private String metadataFileLocation(TableMetadata metadata, String filename) {
     String metadataLocation = metadata.properties()
-        .get(TableProperties.WRITE_METADATA_LOCATION);
+            .get(TableProperties.WRITE_METADATA_LOCATION);
 
     if (metadataLocation != null) {
       return String.format("%s/%s", metadataLocation, filename);
@@ -279,7 +247,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   private String newTableMetadataFilePath(TableMetadata meta, int newVersion) {
     String codecName = meta.property(
-        TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
+            TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
     String fileExtension = TableMetadataParser.getFileExtension(codecName);
     return metadataFileLocation(meta, String.format("%05d-%s%s", newVersion, UUID.randomUUID(), fileExtension));
   }
@@ -307,18 +275,18 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     }
 
     boolean deleteAfterCommit = metadata.propertyAsBoolean(
-        TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
-        TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
+            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
+            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
 
     Set<TableMetadata.MetadataLogEntry> removedPreviousMetadataFiles = Sets.newHashSet(base.previousFiles());
     removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
 
     if (deleteAfterCommit) {
       Tasks.foreach(removedPreviousMetadataFiles)
-          .noRetry().suppressFailureWhenFinished()
-          .onFailure((previousMetadataFile, exc) ->
-              LOG.warn("Delete failed for previous metadata file: {}", previousMetadataFile, exc))
-          .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
+              .noRetry().suppressFailureWhenFinished()
+              .onFailure((previousMetadataFile, exc) ->
+                      LOG.warn("Delete failed for previous metadata file: {}", previousMetadataFile, exc))
+              .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
     }
   }
 }

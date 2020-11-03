@@ -58,8 +58,10 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.Tasks;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,12 +75,15 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
   private static final String HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
   private static final long HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
+  private static final String HIVE_COMMIT_RETRY_TIMES = "iceberg.hive.commit.retry.times";
+  private static final int HIVE_UPDATE_RETRY_TIMES_DEFAULT = 3;
+
   private static final DynMethods.UnboundMethod ALTER_TABLE = DynMethods.builder("alter_table")
-      .impl(HiveMetaStoreClient.class, "alter_table_with_environmentContext",
-          String.class, String.class, Table.class, EnvironmentContext.class)
-      .impl(HiveMetaStoreClient.class, "alter_table",
-          String.class, String.class, Table.class, EnvironmentContext.class)
-      .build();
+          .impl(HiveMetaStoreClient.class, "alter_table_with_environmentContext",
+                  String.class, String.class, Table.class, EnvironmentContext.class)
+          .impl(HiveMetaStoreClient.class, "alter_table",
+                  String.class, String.class, Table.class, EnvironmentContext.class)
+          .build();
 
   private final HiveClientPool metaClients;
   private final String fullName;
@@ -86,7 +91,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final String tableName;
   private final Configuration conf;
   private final long lockAcquireTimeout;
-
+  private final int commitRetrytimes;
   private FileIO fileIO;
 
   protected HiveTableOperations(Configuration conf, HiveClientPool metaClients,
@@ -97,7 +102,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     this.database = database;
     this.tableName = table;
     this.lockAcquireTimeout =
-        conf.getLong(HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS, HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT);
+            conf.getLong(HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS, HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT);
+    this.commitRetrytimes = conf.getInt(HIVE_COMMIT_RETRY_TIMES, HIVE_UPDATE_RETRY_TIMES_DEFAULT);
   }
 
   @Override
@@ -117,62 +123,42 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   @Override
   protected void doRefresh() {
     String metadataLocation = null;
-    String previousMetadataLocation = null;
-    Table table = null;
     try {
-      table = metaClients.run(client -> client.getTable(database, tableName));
+      Table table = metaClients.run(client -> client.getTable(database, tableName));
       validateTableIsIceberg(table, fullName);
 
       metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
-      previousMetadataLocation = table.getParameters().get(PREVIOUS_METADATA_LOCATION_PROP);
+
     } catch (NoSuchObjectException e) {
       if (currentMetadataLocation() != null) {
         throw new NoSuchTableException("No such table: %s.%s", database, tableName);
       }
+
     } catch (TException e) {
       String errMsg = String.format("Failed to get table info from metastore %s.%s", database, tableName);
       throw new RuntimeException(errMsg, e);
+
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new RuntimeException("Interrupted during refresh", e);
     }
 
-    refreshAndFixNoFoundMetadataLocation(metadataLocation, previousMetadataLocation, table);
-  }
-
-  private void refreshAndFixNoFoundMetadataLocation(String metadataLocation, String previousMetadataLocation,
-      Table table) {
-    try {
-      // if the current metadataLocation is unavaliable ,we will replace it with previousMetadataLocation in case of
-      // both metadataLocation no found.
-      if (refreshFromMetadataLocation(metadataLocation, previousMetadataLocation) && table != null) {
-        Map<String, String> parameters = table.getParameters();
-        parameters.put(METADATA_LOCATION_PROP, previousMetadataLocation);
-        persistTable(table, true);
-      }
-    } catch (TException e) {
-      if (e.getMessage() != null && e.getMessage().contains("Table/View 'HIVE_LOCKS' does not exist")) {
-        throw new RuntimeException("Failed to acquire locks from metastore because 'HIVE_LOCKS' doesn't " +
-                "exist, this probably happened when using embedded metastore or doesn't create a " +
-                "transactional meta table. To fix this, use an alternative metastore", e);
-      }
-      throw new RuntimeException(String.format(
-              "Metastore operation failed for %s.%s,localtion %s=>%s",
-              database,
-              tableName,
-              metadataLocation,
-              metadataLocation), e);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      throw new RuntimeException("Interrupted during commit", e);
-    }
+    refreshFromMetadataLocation(metadataLocation);
   }
 
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
+    // todo unify the hms io operator retry and backoff config
+    Tasks.range(1)
+            .retry(commitRetrytimes)
+            .exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */)
+            .throwFailureWhenFinished()
+            .run(task -> doCommitMetadataToHive(base, metadata));
+  }
+
+  private void doCommitMetadataToHive(TableMetadata base, TableMetadata metadata) {
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
     boolean hiveEngineEnabled = hiveEngineEnabled(metadata, conf);
-
     boolean threw = true;
     boolean updateHiveTable = false;
     Optional<Long> lockId = Optional.empty();
@@ -184,10 +170,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
       if (tbl != null) {
         // If we try to create the table but the metadata location is already set, then we had a concurrent commit
-        if (base == null && tbl.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP) != null) {
-          throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);
-        }
-
+        checkConcurrentCommit(base, tbl);
         updateHiveTable = true;
         LOG.debug("Committing existing table: {}", fullName);
       } else {
@@ -201,8 +184,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       String baseMetadataLocation = base != null ? base.metadataFileLocation() : null;
       if (!Objects.equals(baseMetadataLocation, metadataLocation)) {
         throw new CommitFailedException(
-            "Base metadata location '%s' is not same as the current table metadata location '%s' for %s.%s",
-            baseMetadataLocation, metadataLocation, database, tableName);
+                "Base metadata location '%s' is not same as the current table metadata location '%s' for %s.%s",
+                baseMetadataLocation, metadataLocation, database, tableName);
       }
 
       setParameters(newMetadataLocation, tbl, hiveEngineEnabled);
@@ -215,16 +198,23 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     } catch (TException | UnknownHostException e) {
       if (e.getMessage() != null && e.getMessage().contains("Table/View 'HIVE_LOCKS' does not exist")) {
         throw new RuntimeException("Failed to acquire locks from metastore because 'HIVE_LOCKS' doesn't " +
-            "exist, this probably happened when using embedded metastore or doesn't create a " +
-            "transactional meta table. To fix this, use an alternative metastore", e);
+                "exist, this probably happened when using embedded metastore or doesn't create a " +
+                "transactional meta table. To fix this, use an alternative metastore", e);
       }
-
-      throw new RuntimeException(String.format("Metastore operation failed for %s.%s", database, tableName), e);
+      if (checkPersisTableSuccess(newMetadataLocation, e, updateHiveTable)) {
+        // Check whether the committing metadatalocation  is same with hive.
+        // Ignore exception  If it's  the same
+        LOG.warn(
+                "Metastore operation is fail for {} . but the commit is done successfully, " +
+                        "please check the log of the hive metastore", e.getMessage(), e);
+        threw = false;
+      } else {
+        throw new RuntimeException(String.format("Metastore operation failed for %s.%s", database, tableName), e);
+      }
 
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new RuntimeException("Interrupted during commit", e);
-
     } finally {
       if (threw) {
         // if anything went wrong, clean up the uncommitted metadata file
@@ -234,21 +224,56 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     }
   }
 
-  private void persistTable(Table hmsTable, boolean updateHiveTable) throws TException, InterruptedException {
-    if (updateHiveTable) {
-      metaClients.run(client -> {
-        EnvironmentContext envContext = new EnvironmentContext(
-            ImmutableMap.of(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE)
-        );
-        ALTER_TABLE.invoke(client, database, tableName, hmsTable, envContext);
-        return null;
-      });
-    } else {
-      metaClients.run(client -> {
-        client.createTable(hmsTable);
-        return null;
-      });
+  private void checkConcurrentCommit(TableMetadata base, Table tbl) {
+    if (base == null && tbl.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP) != null) {
+      throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);
     }
+  }
+
+  private boolean checkPersisTableSuccess(String newMetadataLocation, Exception exception, boolean updateHiveTable) {
+    boolean success = false;
+    try {
+      Table table = loadHmsTable();
+      if (table != null && exception instanceof TException && updateHiveTable) {
+        Map<String, String> parameters = table.getParameters();
+        String hiveMetadataLocation = parameters.get(METADATA_LOCATION_PROP);
+        success = checkLocationSameWithHive(newMetadataLocation, hiveMetadataLocation);
+      }
+    } catch (Exception e) {
+      LOG.warn("Checking the newMetadataLocation with hive failed", e);
+    }
+    return success;
+  }
+
+  @VisibleForTesting
+  boolean checkLocationSameWithHive(String newMetadataLocation, String hiveMetadataLocation) {
+    return newMetadataLocation.equals(hiveMetadataLocation);
+  }
+
+  @VisibleForTesting
+  void persistTable(Table hmsTable, boolean updateHiveTable) throws TException, InterruptedException {
+    if (updateHiveTable) {
+      doUpdateTable(hmsTable);
+    } else {
+      doCreateTable(hmsTable);
+    }
+  }
+
+  void doCreateTable(Table hmsTable) throws TException, InterruptedException {
+    metaClients.run(client -> {
+      client.createTable(hmsTable);
+      return null;
+    });
+  }
+
+  public void doUpdateTable(Table hmsTable) throws TException, InterruptedException {
+    metaClients.run(client -> {
+      EnvironmentContext envContext = new EnvironmentContext(
+              ImmutableMap.of(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE)
+      );
+      ALTER_TABLE.invoke(client, database, tableName, hmsTable, envContext);
+      return null;
+    });
   }
 
   private Table loadHmsTable() throws TException, InterruptedException {
@@ -264,17 +289,17 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     final long currentTimeMillis = System.currentTimeMillis();
 
     Table newTable = new Table(tableName,
-        database,
-        System.getProperty("user.name"),
-        (int) currentTimeMillis / 1000,
-        (int) currentTimeMillis / 1000,
-        Integer.MAX_VALUE,
-        null,
-        Collections.emptyList(),
-        new HashMap<>(),
-        null,
-        null,
-        TableType.EXTERNAL_TABLE.toString());
+            database,
+            System.getProperty("user.name"),
+            (int) currentTimeMillis / 1000,
+            (int) currentTimeMillis / 1000,
+            Integer.MAX_VALUE,
+            null,
+            Collections.emptyList(),
+            new HashMap<>(),
+            null,
+            null,
+            TableType.EXTERNAL_TABLE.toString());
 
     newTable.getParameters().put("EXTERNAL", "TRUE"); // using the external table type also requires this
     return newTable;
@@ -297,7 +322,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     // If needed set the 'storage_handler' property to enable query from Hive
     if (hiveEngineEnabled) {
       parameters.put(hive_metastoreConstants.META_TABLE_STORAGE,
-          "org.apache.iceberg.mr.hive.HiveIcebergStorageHandler");
+              "org.apache.iceberg.mr.hive.HiveIcebergStorageHandler");
     } else {
       parameters.remove(hive_metastoreConstants.META_TABLE_STORAGE);
     }
@@ -326,16 +351,16 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
   private List<FieldSchema> columns(Schema schema) {
     return schema.columns().stream()
-        .map(col -> new FieldSchema(col.name(), HiveTypeConverter.convert(col.type()), ""))
-        .collect(Collectors.toList());
+            .map(col -> new FieldSchema(col.name(), HiveTypeConverter.convert(col.type()), ""))
+            .collect(Collectors.toList());
   }
 
   private long acquireLock() throws UnknownHostException, TException, InterruptedException {
     final LockComponent lockComponent = new LockComponent(LockType.EXCLUSIVE, LockLevel.TABLE, database);
     lockComponent.setTablename(tableName);
     final LockRequest lockRequest = new LockRequest(Lists.newArrayList(lockComponent),
-        System.getProperty("user.name"),
-        InetAddress.getLocalHost().getHostName());
+            System.getProperty("user.name"),
+            InetAddress.getLocalHost().getHostName());
     LockResponse lockResponse = metaClients.run(client -> client.lock(lockRequest));
     LockState state = lockResponse.getState();
     long lockId = lockResponse.getLockid();
@@ -359,12 +384,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     // timeout and do not have lock acquired
     if (timeout && !state.equals(LockState.ACQUIRED)) {
       throw new CommitFailedException("Timed out after %s ms waiting for lock on %s.%s",
-          duration, database, tableName);
+              duration, database, tableName);
     }
 
     if (!state.equals(LockState.ACQUIRED)) {
       throw new CommitFailedException("Could not acquire the lock on %s.%s, " +
-          "lock request ended in state %s", database, tableName, state);
+              "lock request ended in state %s", database, tableName, state);
     }
     return lockId;
   }
@@ -390,7 +415,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   static void validateTableIsIceberg(Table table, String fullName) {
     String tableType = table.getParameters().get(TABLE_TYPE_PROP);
     NoSuchIcebergTableException.check(tableType != null && tableType.equalsIgnoreCase(ICEBERG_TABLE_TYPE_VALUE),
-        "Not an iceberg table: %s (type=%s)", fullName, tableType);
+            "Not an iceberg table: %s (type=%s)", fullName, tableType);
   }
 
   /**

@@ -28,8 +28,10 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
+
 
 public class TestHiveCommits extends HiveTableBaseTest {
 
@@ -41,8 +43,8 @@ public class TestHiveCommits extends HiveTableBaseTest {
     TableMetadata metadataV1 = ops.current();
 
     table.updateSchema()
-        .addColumn("n", Types.IntegerType.get())
-        .commit();
+            .addColumn("n", Types.IntegerType.get())
+            .commit();
 
     ops.refresh();
 
@@ -57,6 +59,54 @@ public class TestHiveCommits extends HiveTableBaseTest {
 
     try {
       spyOps.commit(metadataV2, metadataV1);
+    } finally {
+      ops.doUnlock(lockId.getValue());
+    }
+    ops.refresh();
+    // the commit must succeed
+    Assert.assertEquals(1, ops.current().schema().columns().size());
+  }
+
+  @Test
+  public void testIgnoreCommitExceptions() throws TException, InterruptedException {
+    Table table = catalog.loadTable(TABLE_IDENTIFIER);
+    HiveTableOperations ops = (HiveTableOperations) ((HasTableOperations) table).operations();
+
+    TableMetadata metadataV1 = ops.current();
+
+    table.updateSchema()
+            .addColumn("n", Types.IntegerType.get())
+            .commit();
+
+    ops.refresh();
+
+    TableMetadata metadataV2 = ops.current();
+
+    Assert.assertEquals(2, ops.current().schema().columns().size());
+
+    HiveTableOperations spyOps = spy(ops);
+
+    ArgumentCaptor<Long> lockId = ArgumentCaptor.forClass(Long.class);
+    doThrow(new RuntimeException()).when(spyOps).doUnlock(lockId.capture());
+
+    ArgumentCaptor<org.apache.hadoop.hive.metastore.api.Table> tableArgumentCaptor =
+            ArgumentCaptor.forClass(org.apache.hadoop.hive.metastore.api.Table.class);
+    ArgumentCaptor<Boolean> booleanArgumentCaptor = ArgumentCaptor.forClass(Boolean.class);
+    // throw  TException when persistTable
+    doThrow(new TException("test")).when(spyOps).persistTable(tableArgumentCaptor.capture(),
+            booleanArgumentCaptor.capture());
+
+    ArgumentCaptor<String> pendingLocationArgumentCaptor =
+            ArgumentCaptor.forClass(String.class);
+    ArgumentCaptor<String> hiveLocationArgumentCaptor = ArgumentCaptor.forClass(String.class);
+    // but the location is same with hive
+    doReturn(true).when(spyOps).checkLocationSameWithHive(pendingLocationArgumentCaptor.capture(),
+            hiveLocationArgumentCaptor.capture());
+
+    try {
+      spyOps.commit(metadataV2, metadataV1);
+      org.apache.hadoop.hive.metastore.api.Table hiveTable = tableArgumentCaptor.getValue();
+      ops.persistTable(hiveTable, true);
     } finally {
       ops.doUnlock(lockId.getValue());
     }
