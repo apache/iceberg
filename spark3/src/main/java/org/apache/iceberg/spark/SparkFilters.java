@@ -48,6 +48,7 @@ import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.Or;
 import org.apache.spark.sql.sources.StringStartsWith;
 
+import static org.apache.iceberg.expressions.Expressions.alwaysFalse;
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
@@ -115,27 +116,44 @@ public class SparkFilters {
 
         case LT:
           LessThan lt = (LessThan) filter;
-          return lessThan(lt.attribute(), convertLiteral(lt.value()));
+          if (lt.value() != null) {
+            return lessThan(lt.attribute(), convertLiteral(lt.value()));
+          } else {
+            return alwaysFalse();
+          }
 
         case LT_EQ:
           LessThanOrEqual ltEq = (LessThanOrEqual) filter;
-          return lessThanOrEqual(ltEq.attribute(), convertLiteral(ltEq.value()));
+          if (ltEq.value() != null) {
+            return lessThanOrEqual(ltEq.attribute(), convertLiteral(ltEq.value()));
+          } else {
+            return alwaysFalse();
+          }
 
         case GT:
           GreaterThan gt = (GreaterThan) filter;
-          return greaterThan(gt.attribute(), convertLiteral(gt.value()));
+          if (gt.value() != null) {
+            return greaterThan(gt.attribute(), convertLiteral(gt.value()));
+          } else {
+            return alwaysFalse();
+          }
 
         case GT_EQ:
           GreaterThanOrEqual gtEq = (GreaterThanOrEqual) filter;
-          return greaterThanOrEqual(gtEq.attribute(), convertLiteral(gtEq.value()));
+          if (gtEq.value() != null) {
+            return greaterThanOrEqual(gtEq.attribute(), convertLiteral(gtEq.value()));
+          } else {
+            return alwaysFalse();
+          }
 
         case EQ: // used for both eq and null-safe-eq
           if (filter instanceof EqualTo) {
             EqualTo eq = (EqualTo) filter;
-            // comparison with null in normal equality is always null. this is probably a mistake.
-            Preconditions.checkNotNull(eq.value(),
-                "Expression is always false (eq is not null-safe): %s", filter);
-            return equal(eq.attribute(), convertLiteral(eq.value()));
+            if (eq.value() != null) {
+              return equal(eq.attribute(), convertLiteral(eq.value()));
+            } else {
+              return alwaysFalse();
+            }
           } else {
             EqualNullSafe eq = (EqualNullSafe) filter;
             if (eq.value() == null) {
