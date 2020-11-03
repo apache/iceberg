@@ -48,7 +48,6 @@ import org.apache.spark.sql.sources.Not;
 import org.apache.spark.sql.sources.Or;
 import org.apache.spark.sql.sources.StringStartsWith;
 
-import static org.apache.iceberg.expressions.Expressions.alwaysFalse;
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
@@ -95,7 +94,6 @@ public class SparkFilters {
     return expression;
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static Expression convert(Filter filter) {
     // avoid using a chain of if instanceof statements by mapping to the expression enum.
     Operation op = FILTERS.get(filter.getClass());
@@ -117,44 +115,27 @@ public class SparkFilters {
 
         case LT:
           LessThan lt = (LessThan) filter;
-          if (lt.value() != null) {
-            return lessThan(lt.attribute(), convertLiteral(lt.value()));
-          } else {
-            return alwaysFalse();
-          }
+          return lessThan(lt.attribute(), convertLiteral(lt.value()));
 
         case LT_EQ:
           LessThanOrEqual ltEq = (LessThanOrEqual) filter;
-          if (ltEq.value() != null) {
-            return lessThanOrEqual(ltEq.attribute(), convertLiteral(ltEq.value()));
-          } else {
-            return alwaysFalse();
-          }
+          return lessThanOrEqual(ltEq.attribute(), convertLiteral(ltEq.value()));
 
         case GT:
           GreaterThan gt = (GreaterThan) filter;
-          if (gt.value() != null) {
-            return greaterThan(gt.attribute(), convertLiteral(gt.value()));
-          } else {
-            return alwaysFalse();
-          }
+          return greaterThan(gt.attribute(), convertLiteral(gt.value()));
 
         case GT_EQ:
           GreaterThanOrEqual gtEq = (GreaterThanOrEqual) filter;
-          if (gtEq.value() != null) {
-            return greaterThanOrEqual(gtEq.attribute(), convertLiteral(gtEq.value()));
-          } else {
-            return alwaysFalse();
-          }
+          return greaterThanOrEqual(gtEq.attribute(), convertLiteral(gtEq.value()));
 
         case EQ: // used for both eq and null-safe-eq
           if (filter instanceof EqualTo) {
             EqualTo eq = (EqualTo) filter;
-            if (eq.value() != null) {
-              return equal(eq.attribute(), convertLiteral(eq.value()));
-            } else {
-              return alwaysFalse();
-            }
+            // comparison with null in normal equality is always null. this is probably a mistake.
+            Preconditions.checkNotNull(eq.value(),
+                "Expression is always false (eq is not null-safe): %s", filter);
+            return equal(eq.attribute(), convertLiteral(eq.value()));
           } else {
             EqualNullSafe eq = (EqualNullSafe) filter;
             if (eq.value() == null) {
