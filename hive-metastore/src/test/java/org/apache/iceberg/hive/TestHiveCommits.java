@@ -62,7 +62,9 @@ public class TestHiveCommits extends HiveTableBaseTest {
     } finally {
       ops.doUnlock(lockId.getValue());
     }
+
     ops.refresh();
+
     // the commit must succeed
     Assert.assertEquals(1, ops.current().schema().columns().size());
   }
@@ -110,9 +112,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
     } finally {
       ops.doUnlock(lockId.getValue());
     }
-
     ops.refresh();
-
     // the commit must succeed
     Assert.assertEquals(1, ops.current().schema().columns().size());
   }
