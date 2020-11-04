@@ -202,9 +202,8 @@ public class RewriteManifestsAction
         .createDataset(Lists.transform(manifests, ManifestFile::path), Encoders.STRING())
         .toDF("manifest");
 
-    String entriesMetadataTable = metadataTableName(MetadataTableType.ENTRIES);
-    Dataset<Row> manifestEntryDF = spark.read().format("iceberg")
-        .load(entriesMetadataTable)
+    Dataset<Row> manifestEntryDF = BaseSparkAction.loadMetadataTable(spark, table.name(), table().location(),
+        MetadataTableType.ENTRIES)
         .filter("status < 2") // select only live entries
         .selectExpr("input_file_name() as manifest", "snapshot_id", "sequence_number", "data_file");
 

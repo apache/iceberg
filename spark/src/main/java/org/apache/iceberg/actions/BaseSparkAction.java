@@ -24,11 +24,14 @@ import java.util.List;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.FlatMapFunction;
@@ -38,7 +41,43 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 
-abstract class BaseSparkAction<R> extends BaseAction<R> implements Action<R> {
+abstract class BaseSparkAction<R> implements Action<R> {
+
+  protected abstract Table table();
+
+  /**
+   * Returns all the path locations of all Manifest Lists for a given list of snapshots
+   * @param snapshots snapshots
+   * @return the paths of the Manifest Lists
+   */
+  private List<String> getManifestListPaths(Iterable<Snapshot> snapshots) {
+    List<String> manifestLists = Lists.newArrayList();
+    for (Snapshot snapshot : snapshots) {
+      String manifestListLocation = snapshot.manifestListLocation();
+      if (manifestListLocation != null) {
+        manifestLists.add(manifestListLocation);
+      }
+    }
+    return manifestLists;
+  }
+
+  /**
+   * Returns all Metadata file paths which may not be in the current metadata. Specifically
+   * this includes "version-hint" files as well as entries in metadata.previousFiles.
+   * @param ops TableOperations for the table we will be getting paths from
+   * @return a list of paths to metadata files
+   */
+  private List<String> getOtherMetadataFilePaths(TableOperations ops) {
+    List<String> otherMetadataFiles = Lists.newArrayList();
+    otherMetadataFiles.add(ops.metadataFileLocation("version-hint.text"));
+
+    TableMetadata metadata = ops.current();
+    otherMetadataFiles.add(metadata.metadataFileLocation());
+    for (TableMetadata.MetadataLogEntry previousMetadataFile : metadata.previousFiles()) {
+      otherMetadataFiles.add(previousMetadataFile.file());
+    }
+    return otherMetadataFiles;
+  }
 
   protected Dataset<Row> buildValidDataFileDF(SparkSession spark) {
     return buildValidDataFileDF(spark, table().name());
@@ -47,9 +86,9 @@ abstract class BaseSparkAction<R> extends BaseAction<R> implements Action<R> {
   protected Dataset<Row> buildValidDataFileDF(SparkSession spark, String tableName) {
     JavaSparkContext context = new JavaSparkContext(spark.sparkContext());
     Broadcast<FileIO> ioBroadcast = context.broadcast(SparkUtil.serializableFileIO(table()));
-    String allManifestsMetadataTable = metadataTableName(tableName, MetadataTableType.ALL_MANIFESTS);
 
-    Dataset<ManifestFileBean> allManifests = spark.read().format("iceberg").load(allManifestsMetadataTable)
+    Dataset<ManifestFileBean> allManifests = loadMetadataTable(spark, tableName, table().location(),
+        MetadataTableType.ALL_MANIFESTS)
         .selectExpr("path", "length", "partition_spec_id as partitionSpecId", "added_snapshot_id as addedSnapshotId")
         .dropDuplicates("path")
         .repartition(spark.sessionState().conf().numShufflePartitions()) // avoid adaptive execution combining tasks
@@ -59,8 +98,8 @@ abstract class BaseSparkAction<R> extends BaseAction<R> implements Action<R> {
   }
 
   protected Dataset<Row> buildManifestFileDF(SparkSession spark, String tableName) {
-    String allManifestsMetadataTable = metadataTableName(tableName, MetadataTableType.ALL_MANIFESTS);
-    return spark.read().format("iceberg").load(allManifestsMetadataTable).selectExpr("path as file_path");
+    return loadMetadataTable(spark, tableName, table().location(), MetadataTableType.ALL_MANIFESTS)
+        .selectExpr("path as file_path");
   }
 
   protected Dataset<Row> buildManifestListDF(SparkSession spark, Table table) {
@@ -84,6 +123,33 @@ abstract class BaseSparkAction<R> extends BaseAction<R> implements Action<R> {
     Dataset<Row> otherMetadataFileDF = buildOtherMetadataFileDF(spark, ops);
 
     return manifestDF.union(otherMetadataFileDF).union(manifestListDF);
+  }
+
+  protected static Dataset<Row> loadMetadataTable(SparkSession spark, String tableName, String tableLocation,
+                                                  MetadataTableType type) {
+    String metadataTableName = metadataTableName(tableName, tableLocation, type);
+    if (!metadataTableName.contains("/") && metadataTableName.split("\\.").length > 3) {
+      // This table has a three or more components and is not a file (catalog.db.table.meta), use the V2 read path
+      return spark.table(metadataTableName);
+    } else {
+      // This table is file based or has no catalog (db.tableName.meta) or (/some/path#meta), read via non-catalog path
+      return spark.read().format("iceberg").load(metadataTableName);
+    }
+  }
+
+  private static String metadataTableName(String tableName, String tableLocation, MetadataTableType type) {
+    if (tableName.contains("/")) {
+      return tableName + "#" + type;
+    } else if (tableName.startsWith("hadoop.")) {
+      // for HadoopCatalog tables, use the table location to load the metadata table
+      // because IcebergCatalog uses HiveCatalog when the table is identified by name
+      return tableLocation + "#" + type;
+    } else if (tableName.startsWith("hive.")) {
+      // HiveCatalog prepend a logical name which we need to drop for Spark 2.4
+      return tableName.replaceFirst("hive\\.", "") + "." + type;
+    } else {
+      return tableName + "." + type;
+    }
   }
 
   private static class ReadManifest implements FlatMapFunction<ManifestFileBean, String> {
