@@ -23,7 +23,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 
 /**
- * Event sent to listeners when a table scan is planned.
+ * Event sent to listeners when an incremental table scan is planned.
  */
 public final class IncrementalScanEvent {
   private final String tableName;
