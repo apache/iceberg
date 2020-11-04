@@ -59,6 +59,6 @@ When you evolve a partition spec, the old data written with an earlier spec rema
 ![Partition evolution diagram](img/partition-spec-evolution.png)
 *The data for 2008 is partitioned by month. Starting from 2009 the table is updated so that the data is instead partitioned by day. Both partitioning layouts are able to coexist in the same table.*
 
-Iceberg uses [hidden partitioning](../partitioning), so you don't *need* to write queries for a specific partition layout to be fast. Instead, you can write queries that select the data you need, and Iceberg automatically prunes out files that don't contain matching data.
+Iceberg uses [hidden partitioning](./partitioning.md), so you don't *need* to write queries for a specific partition layout to be fast. Instead, you can write queries that select the data you need, and Iceberg automatically prunes out files that don't contain matching data.
 
 Partition evolution is a metadata operation and does not eagerly rewrite files.

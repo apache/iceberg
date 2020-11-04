@@ -82,7 +82,7 @@ The following properties from the Hadoop configuration are used by the Hive Meta
 
 ### Catalogs
 
-[Spark catalogs](../spark#configuring-catalogs) are configured using Spark session properties.
+[Spark catalogs](./spark.md#configuring-catalogs) are configured using Spark session properties.
 
 A catalog is created and named by adding a property `spark.sql.catalog.(catalog-name)` with an implementation class for its value.
 

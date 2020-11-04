@@ -149,7 +149,7 @@ Table create commands support the most commonly used [flink create clauses](http
 
 * `PARTITION BY (column1, column2, ...)` to configure partitioning, apache flink does not yet support hidden partitioning.
 * `COMMENT 'table document'` to set a table description.
-* `WITH ('key'='value', ...)` to set [table configuration](../configuration) which will be stored in apache iceberg table properties.
+* `WITH ('key'='value', ...)` to set [table configuration](./configuration.md) which will be stored in apache iceberg table properties.
 
 Currently, it does not support computed column, primary key and watermark definition etc.
 
@@ -292,7 +292,7 @@ env.execute("Test Iceberg DataStream");
 
 ## Inspecting tables.
 
-Iceberg does not support inspecting table in flink sql now, we need to use [iceberg's Java API](../api) to read iceberg's meta data to get those table information.
+Iceberg does not support inspecting table in flink sql now, we need to use [iceberg's Java API](./api.md) to read iceberg's meta data to get those table information.
 
 ## Future improvement.
 
