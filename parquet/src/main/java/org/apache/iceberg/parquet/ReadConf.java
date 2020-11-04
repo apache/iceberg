@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
@@ -58,7 +59,8 @@ class ReadConf<T> {
   private final long totalValues;
   private final boolean reuseContainers;
   private final Integer batchSize;
-  private final long[] startRowPositions;
+
+  private long[] startRowPositions;
 
   // List of column chunk metadata for each row group
   private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetaDataForRowGroups;
@@ -89,8 +91,11 @@ class ReadConf<T> {
     this.shouldSkip = new boolean[rowGroups.size()];
 
     // Fetch all row groups starting positions to compute the row offsets of the filtered row groups
-    Map<Long, Long> offsetToStartPos = generateOffsetToStartPos();
-    this.startRowPositions = new long[rowGroups.size()];
+    Map<Long, Long> offsetToStartPos = null;
+    if (expectedSchema.findField(MetadataColumns.ROW_POSITION.fieldId()) != null) {
+      offsetToStartPos = generateOffsetToStartPos();
+      this.startRowPositions = new long[rowGroups.size()];
+    }
 
     ParquetMetricsRowGroupFilter statsFilter = null;
     ParquetDictionaryRowGroupFilter dictFilter = null;
@@ -102,7 +107,9 @@ class ReadConf<T> {
     long computedTotalValues = 0L;
     for (int i = 0; i < shouldSkip.length; i += 1) {
       BlockMetaData rowGroup = rowGroups.get(i);
-      startRowPositions[i] = offsetToStartPos.get(rowGroup.getStartingPos());
+      if (offsetToStartPos != null) {
+        startRowPositions[i] = offsetToStartPos.get(rowGroup.getStartingPos());
+      }
       boolean shouldRead = filter == null || (
           statsFilter.shouldRead(typeWithIds, rowGroup) &&
               dictFilter.shouldRead(typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup)));
