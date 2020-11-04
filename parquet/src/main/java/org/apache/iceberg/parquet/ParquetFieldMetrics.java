@@ -24,8 +24,9 @@ import org.apache.iceberg.FieldMetrics;
 
 /**
  * Iceberg internally tracked field level metrics, used by Parquet writer only.
- * Parquet keeps track of most metrics in its footer, and only NaN counter is actually tracked by writers. This
- * wrapper ensures that metrics not being updated by Parquet writers will not be incorrectly used, by throwing
+ * <p>
+ * Parquet keeps track of most metrics in its footer, and only NaN counter is actually tracked by writers.
+ * This wrapper ensures that metrics not being updated by Parquet writers will not be incorrectly used, by throwing
  * exceptions when they are accessed.
  */
 public class ParquetFieldMetrics extends FieldMetrics {

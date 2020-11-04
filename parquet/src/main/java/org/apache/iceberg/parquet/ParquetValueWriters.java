@@ -115,8 +115,8 @@ public class ParquetValueWriters {
     return new MapWriter<>(dl, rl, keyWriter, valueWriter);
   }
 
-  @SuppressWarnings("checkstyle:VisibilityModifier")
   public abstract static class PrimitiveWriter<T> implements ParquetValueWriter<T> {
+    @SuppressWarnings("checkstyle:VisibilityModifier")
     protected final ColumnWriter<T> column;
     private final List<TripleWriter<?>> children;
 

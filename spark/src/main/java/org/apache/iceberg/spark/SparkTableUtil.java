@@ -302,10 +302,10 @@ public class SparkTableUtil {
 
   /**
    * Returns the data files in a partition by listing the partition location.
-   *
+   * <p>
    * For Parquet and ORC partitions, this will read metrics from the file footer. For Avro partitions,
    * metrics are set to null.
-   *
+   * <p>
    * Note: certain metrics, like NaN counts, that are only supported by iceberg file writers but not file footers, will
    * not be populated.
    *
