@@ -177,6 +177,30 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
+    public <T> Boolean isNaN(BoundReference<T> ref) {
+      int id = ref.fieldId();
+
+      Long valueCount = valueCounts.get(id);
+      if (valueCount == null) {
+        // the column is not present and is all nulls
+        return ROWS_CANNOT_MATCH;
+      }
+
+      Statistics<?> colStats = stats.get(id);
+      if (colStats != null && valueCount - colStats.getNumNulls() == 0) {
+        // (num nulls == value count) => all values are null => no nan values
+        return ROWS_CANNOT_MATCH;
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notNaN(BoundReference<T> ref) {
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
 

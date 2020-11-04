@@ -46,9 +46,22 @@ public class BoundUnaryPredicate<T> extends BoundPredicate<T> {
         return value == null;
       case NOT_NULL:
         return value != null;
+      case IS_NAN:
+        return isNaN(value);
+      case NOT_NAN:
+        return !isNaN(value);
       default:
         throw new IllegalStateException("Invalid operation for BoundUnaryPredicate: " + op());
     }
+  }
+
+  private boolean isNaN(T value) {
+    if (value instanceof Double) {
+      return Double.isNaN((Double) value);
+    } else if (value instanceof Float) {
+      return Float.isNaN((Float) value);
+    }
+    return false;
   }
 
   @Override
@@ -58,6 +71,10 @@ public class BoundUnaryPredicate<T> extends BoundPredicate<T> {
         return "is_null(" + term() + ")";
       case NOT_NULL:
         return "not_null(" + term() + ")";
+      case IS_NAN:
+        return "is_nan(" + term() + ")";
+      case NOT_NAN:
+        return "not_nan(" + term() + ")";
       default:
         return "Invalid unary predicate: operation = " + op();
     }

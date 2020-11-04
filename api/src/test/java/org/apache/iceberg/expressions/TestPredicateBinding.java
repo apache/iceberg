@@ -35,11 +35,13 @@ import static org.apache.iceberg.expressions.Expression.Operation.EQ;
 import static org.apache.iceberg.expressions.Expression.Operation.GT;
 import static org.apache.iceberg.expressions.Expression.Operation.GT_EQ;
 import static org.apache.iceberg.expressions.Expression.Operation.IN;
+import static org.apache.iceberg.expressions.Expression.Operation.IS_NAN;
 import static org.apache.iceberg.expressions.Expression.Operation.IS_NULL;
 import static org.apache.iceberg.expressions.Expression.Operation.LT;
 import static org.apache.iceberg.expressions.Expression.Operation.LT_EQ;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_EQ;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_IN;
+import static org.apache.iceberg.expressions.Expression.Operation.NOT_NAN;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_NULL;
 import static org.apache.iceberg.expressions.Expressions.ref;
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -316,6 +318,68 @@ public class TestPredicateBinding {
     StructType required = StructType.of(required(22, "s", Types.StringType.get()));
     Assert.assertEquals("NotNull inclusive a required field should be alwaysTrue",
         Expressions.alwaysTrue(), unbound.bind(required));
+  }
+
+  @Test
+  public void testIsNaN() {
+    // double
+    StructType struct = StructType.of(optional(21, "d", Types.DoubleType.get()));
+
+    UnboundPredicate<?> unbound = new UnboundPredicate<>(IS_NAN, ref("d"));
+    Expression expr = unbound.bind(struct);
+    BoundPredicate<?> bound = assertAndUnwrap(expr);
+    Assert.assertEquals("Should use the same operation", IS_NAN, bound.op());
+    Assert.assertEquals("Should use the correct field", 21, bound.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound.isUnaryPredicate());
+
+    // float
+    struct = StructType.of(optional(21, "f", Types.FloatType.get()));
+
+    unbound = new UnboundPredicate<>(IS_NAN, ref("f"));
+    expr = unbound.bind(struct);
+    bound = assertAndUnwrap(expr);
+    Assert.assertEquals("Should use the same operation", IS_NAN, bound.op());
+    Assert.assertEquals("Should use the correct field", 21, bound.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound.isUnaryPredicate());
+
+    // string (non-compatible)
+    struct = StructType.of(optional(21, "s", Types.StringType.get()));
+
+    unbound = new UnboundPredicate<>(IS_NAN, ref("s"));
+    expr = unbound.bind(struct);
+    Assert.assertEquals("IsNaN with non-float/double field should be alwaysFalse",
+        Expressions.alwaysFalse(), expr);
+  }
+
+  @Test
+  public void testNotNaN() {
+    // double
+    StructType struct = StructType.of(optional(21, "d", Types.DoubleType.get()));
+
+    UnboundPredicate<?> unbound = new UnboundPredicate<>(NOT_NAN, ref("d"));
+    Expression expr = unbound.bind(struct);
+    BoundPredicate<?> bound = assertAndUnwrap(expr);
+    Assert.assertEquals("Should use the same operation", NOT_NAN, bound.op());
+    Assert.assertEquals("Should use the correct field", 21, bound.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound.isUnaryPredicate());
+
+    // float
+    struct = StructType.of(optional(21, "f", Types.FloatType.get()));
+
+    unbound = new UnboundPredicate<>(NOT_NAN, ref("f"));
+    expr = unbound.bind(struct);
+    bound = assertAndUnwrap(expr);
+    Assert.assertEquals("Should use the same operation", NOT_NAN, bound.op());
+    Assert.assertEquals("Should use the correct field", 21, bound.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound.isUnaryPredicate());
+
+    // string (non-compatible)
+    struct = StructType.of(optional(21, "s", Types.StringType.get()));
+
+    unbound = new UnboundPredicate<>(NOT_NAN, ref("s"));
+    expr = unbound.bind(struct);
+    Assert.assertEquals("NotNaN with non-float/double field should be alwaysTrue",
+        Expressions.alwaysTrue(), expr);
   }
 
   @Test

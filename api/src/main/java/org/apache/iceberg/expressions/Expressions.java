@@ -123,6 +123,22 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.NOT_NULL, expr);
   }
 
+  public static <T> UnboundPredicate<T> isNaN(String name) {
+    return new UnboundPredicate<>(Expression.Operation.IS_NAN, ref(name));
+  }
+
+  public static <T> UnboundPredicate<T> isNaN(UnboundTerm<T> expr) {
+    return new UnboundPredicate<>(Expression.Operation.IS_NAN, expr);
+  }
+
+  public static <T> UnboundPredicate<T> notNaN(String name) {
+    return new UnboundPredicate<>(Expression.Operation.NOT_NAN, ref(name));
+  }
+
+  public static <T> UnboundPredicate<T> notNaN(UnboundTerm<T> expr) {
+    return new UnboundPredicate<>(Expression.Operation.NOT_NAN, expr);
+  }
+
   public static <T> UnboundPredicate<T> lessThan(String name, T value) {
     return new UnboundPredicate<>(Expression.Operation.LT, ref(name), value);
   }
@@ -220,7 +236,8 @@ public class Expressions {
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name, Literal<T> lit) {
-    Preconditions.checkArgument(op != Operation.IS_NULL && op != Operation.NOT_NULL,
+    Preconditions.checkArgument(
+        op != Operation.IS_NULL && op != Operation.NOT_NULL && op != Operation.IS_NAN && op != Operation.NOT_NAN,
         "Cannot create %s predicate inclusive a value", op);
     return new UnboundPredicate<T>(op, ref(name), lit);
   }
@@ -230,7 +247,8 @@ public class Expressions {
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name) {
-    Preconditions.checkArgument(op == Operation.IS_NULL || op == Operation.NOT_NULL,
+    Preconditions.checkArgument(
+        op == Operation.IS_NULL || op == Operation.NOT_NULL || op == Operation.IS_NAN || op == Operation.NOT_NAN,
         "Cannot create %s predicate without a value", op);
     return new UnboundPredicate<>(op, ref(name));
   }

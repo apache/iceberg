@@ -75,6 +75,14 @@ public class ExpressionVisitors {
       return null;
     }
 
+    public <T> R isNaN(BoundReference<T> ref) {
+      return null;
+    }
+
+    public <T> R notNaN(BoundReference<T> ref) {
+      return null;
+    }
+
     public <T> R lt(BoundReference<T> ref, Literal<T> lit) {
       return null;
     }
@@ -143,6 +151,10 @@ public class ExpressionVisitors {
             return isNull((BoundReference<T>) pred.term());
           case NOT_NULL:
             return notNull((BoundReference<T>) pred.term());
+          case IS_NAN:
+            return isNaN((BoundReference<T>) pred.term());
+          case NOT_NAN:
+            return notNaN((BoundReference<T>) pred.term());
           default:
             throw new IllegalStateException("Invalid operation for BoundUnaryPredicate: " + pred.op());
         }
@@ -173,6 +185,14 @@ public class ExpressionVisitors {
     }
 
     public <T> R notNull(Bound<T> expr) {
+      return null;
+    }
+
+    public <T> R isNaN(Bound<T> expr) {
+      return null;
+    }
+
+    public <T> R notNaN(Bound<T> expr) {
       return null;
     }
 
@@ -241,6 +261,10 @@ public class ExpressionVisitors {
             return isNull(pred.term());
           case NOT_NULL:
             return notNull(pred.term());
+          case IS_NAN:
+            return isNaN(pred.term());
+          case NOT_NAN:
+            return notNaN(pred.term());
           default:
             throw new IllegalStateException("Invalid operation for BoundUnaryPredicate: " + pred.op());
         }

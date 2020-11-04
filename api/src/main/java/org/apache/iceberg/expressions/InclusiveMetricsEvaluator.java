@@ -76,6 +76,7 @@ public class InclusiveMetricsEvaluator {
   private class MetricsEvalVisitor extends BoundExpressionVisitor<Boolean> {
     private Map<Integer, Long> valueCounts = null;
     private Map<Integer, Long> nullCounts = null;
+    private Map<Integer, Long> nanCounts = null;
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
 
@@ -93,6 +94,7 @@ public class InclusiveMetricsEvaluator {
 
       this.valueCounts = file.valueCounts();
       this.nullCounts = file.nullValueCounts();
+      this.nanCounts = file.nanValueCounts();
       this.lowerBounds = file.lowerBounds();
       this.upperBounds = file.upperBounds();
 
@@ -145,6 +147,53 @@ public class InclusiveMetricsEvaluator {
 
       if (containsNullsOnly(id)) {
         return ROWS_CANNOT_MATCH;
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean isNaN(BoundReference<T> ref) {
+      Integer id = ref.fieldId();
+
+      if (nanCounts != null && nanCounts.containsKey(id) && nanCounts.get(id) == 0) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      // when there's no nanCounts information, but we already know the column only contains null,
+      // it's guaranteed that there's no NaN value
+      if (containsNullsOnly(id)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
+    public <T> Boolean notNaN(BoundReference<T> ref) {
+      Integer id = ref.fieldId();
+
+      if (nanCounts != null && nanCounts.containsKey(id) &&
+          valueCounts != null && valueCounts.containsKey(id)) {
+        if (nanCounts.get(id).equals(valueCounts.get(id))) {
+          return ROWS_CANNOT_MATCH;
+        }
+
+        return ROWS_MIGHT_MATCH;
+      }
+
+      // for v1 table, when NaN could still be upper/lower bound,
+      // if upper == lower == NaN and null count == 0, the column will only contain NaN
+      if (nullCounts != null && nullCounts.getOrDefault(id, -1L) == 0 &&
+          upperBounds != null && upperBounds.containsKey(id) &&
+          lowerBounds != null && upperBounds.get(id).equals(lowerBounds.get(id))) {
+        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+
+        if ((lower instanceof Double && Double.isNaN((Double) lower)) ||
+            (lower instanceof Float && Float.isNaN((Float) lower))) {
+          return ROWS_CANNOT_MATCH;
+        }
       }
 
       return ROWS_MIGHT_MATCH;

@@ -153,6 +153,30 @@ public class ResidualEvaluator implements Serializable {
     }
 
     @Override
+    public <T> Expression isNaN(BoundReference<T> ref) {
+      return isNaN(ref.eval(struct)) ? alwaysTrue() : alwaysFalse();
+    }
+
+    @Override
+    public <T> Expression notNaN(BoundReference<T> ref) {
+      return isNaN(ref.eval(struct)) ? alwaysFalse() : alwaysTrue();
+    }
+
+    private <T> boolean isNaN(T value) {
+      if (value == null) {
+        return false;
+      }
+
+      if (value instanceof Double) {
+        return Double.isNaN((Double) value);
+      } else if (value instanceof Float) {
+        return Float.isNaN((Float) value);
+      } else {
+        return false;
+      }
+    }
+
+    @Override
     public <T> Expression lt(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
       return (cmp.compare(ref.eval(struct), lit.value()) < 0) ? alwaysTrue() : alwaysFalse();

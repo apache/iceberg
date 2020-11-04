@@ -149,6 +149,16 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
+    public <T> Boolean isNaN(BoundReference<T> ref) {
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notNaN(BoundReference<T> ref) {
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
