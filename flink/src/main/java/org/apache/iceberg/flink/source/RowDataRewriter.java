@@ -83,9 +83,9 @@ public class RowDataRewriter {
         table.properties());
   }
 
-  public List<DataFile> rewriteDataForTasks(DataStream<CombinedScanTask> dataSet, int parallelism) {
+  public List<DataFile> rewriteDataForTasks(DataStream<CombinedScanTask> dataStream, int parallelism) {
     RewriteMap map = new RewriteMap(schema, nameMapping, io, caseSensitive, encryptionManager, taskWriterFactory);
-    DataStream<List<DataFile>> ds = dataSet.map(map).setParallelism(parallelism);
+    DataStream<List<DataFile>> ds = dataStream.map(map).setParallelism(parallelism);
     return Lists.newArrayList(DataStreamUtils.collect(ds)).stream().flatMap(Collection::stream)
         .collect(Collectors.toList());
   }

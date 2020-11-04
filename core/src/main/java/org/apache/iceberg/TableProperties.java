@@ -134,4 +134,10 @@ public class TableProperties {
 
   public static final String ENGINE_HIVE_ENABLED = "engine.hive.enabled";
   public static final boolean ENGINE_HIVE_ENABLED_DEFAULT = false;
+
+  public static final String REWRITER_DATA_FILE_INFER_PARALLELISM = "rewriter.data.file.infer.parallelism";
+  public static final boolean REWRITER_DATA_FILE_INFER_PARALLELISM_DEFAULT = true;
+  public static final String REWRITER_DATA_FILE_MAX_PARALLELISM = "rewriter.data.file.max.parallelism";
+  public static final int REWRITER_DATA_FILE_MAX_PARALLELISM_DEFAULT = 10;
+
 }

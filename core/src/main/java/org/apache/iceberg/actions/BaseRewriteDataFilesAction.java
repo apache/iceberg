@@ -268,6 +268,23 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     }
   }
 
+  protected int getParallelism(int parallelism, List<CombinedScanTask> combinedScanTasks) {
+    int newParallelism = parallelism;
+    boolean infer = PropertyUtil.propertyAsBoolean(
+        table.properties(),
+        TableProperties.REWRITER_DATA_FILE_INFER_PARALLELISM,
+        TableProperties.REWRITER_DATA_FILE_INFER_PARALLELISM_DEFAULT);
+    if (infer) {
+      int max = PropertyUtil.propertyAsInt(
+          table.properties(),
+          TableProperties.REWRITER_DATA_FILE_MAX_PARALLELISM,
+          TableProperties.REWRITER_DATA_FILE_MAX_PARALLELISM_DEFAULT);
+      int size = combinedScanTasks.size();
+      newParallelism = Math.min(max, size);
+    }
+    return newParallelism;
+  }
+
   protected abstract FileIO fileIO();
 
   protected abstract List<DataFile> rewriteDataForTasks(List<CombinedScanTask> combinedScanTask);
