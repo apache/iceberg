@@ -227,6 +227,15 @@ public class SortOrder implements Serializable {
       return addSortField(term, SortDirection.DESC, nullOrder);
     }
 
+    public Builder sortBy(String name, SortDirection direction, NullOrder nullOrder) {
+      return addSortField(Expressions.ref(name), direction, nullOrder);
+    }
+
+    public Builder sortBy(Term term, SortDirection direction, NullOrder nullOrder) {
+      return addSortField(term, direction, nullOrder);
+    }
+
+
     public Builder withOrderId(int newOrderId) {
       this.orderId = newOrderId;
       return this;

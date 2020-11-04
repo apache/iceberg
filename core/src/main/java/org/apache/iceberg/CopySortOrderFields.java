@@ -31,71 +31,43 @@ class CopySortOrderFields implements SortOrderVisitor<Void> {
 
   @Override
   public Void field(String sourceName, int sourceId, SortDirection direction, NullOrder nullOrder) {
-    if (direction == SortDirection.ASC) {
-      builder.asc(sourceName, nullOrder);
-    } else {
-      builder.desc(sourceName, nullOrder);
-    }
+    builder.sortBy(sourceName, direction, nullOrder);
     return null;
   }
 
   @Override
   public Void bucket(String sourceName, int sourceId, int numBuckets, SortDirection direction, NullOrder nullOrder) {
-    if (direction == SortDirection.ASC) {
-      builder.asc(Expressions.bucket(sourceName, numBuckets), nullOrder);
-    } else {
-      builder.desc(Expressions.bucket(sourceName, numBuckets), nullOrder);
-    }
+    builder.sortBy(Expressions.bucket(sourceName, numBuckets), direction, nullOrder);
     return null;
   }
 
   @Override
   public Void truncate(String sourceName, int sourceId, int width, SortDirection direction, NullOrder nullOrder) {
-    if (direction == SortDirection.ASC) {
-      builder.asc(Expressions.truncate(sourceName, width), nullOrder);
-    } else {
-      builder.desc(Expressions.truncate(sourceName, width), nullOrder);
-    }
+    builder.sortBy(Expressions.truncate(sourceName, width), direction, nullOrder);
     return null;
   }
 
   @Override
   public Void year(String sourceName, int sourceId, SortDirection direction, NullOrder nullOrder) {
-    if (direction == SortDirection.ASC) {
-      builder.asc(Expressions.year(sourceName), nullOrder);
-    } else {
-      builder.desc(Expressions.year(sourceName), nullOrder);
-    }
+    builder.sortBy(Expressions.year(sourceName), direction, nullOrder);
     return null;
   }
 
   @Override
   public Void month(String sourceName, int sourceId, SortDirection direction, NullOrder nullOrder) {
-    if (direction == SortDirection.ASC) {
-      builder.asc(Expressions.month(sourceName), nullOrder);
-    } else {
-      builder.desc(Expressions.month(sourceName), nullOrder);
-    }
+    builder.sortBy(Expressions.month(sourceName), direction, nullOrder);
     return null;
   }
 
   @Override
   public Void day(String sourceName, int sourceId, SortDirection direction, NullOrder nullOrder) {
-    if (direction == SortDirection.ASC) {
-      builder.asc(Expressions.day(sourceName), nullOrder);
-    } else {
-      builder.desc(Expressions.day(sourceName), nullOrder);
-    }
+    builder.sortBy(Expressions.day(sourceName), direction, nullOrder);
     return null;
   }
 
   @Override
   public Void hour(String sourceName, int sourceId, SortDirection direction, NullOrder nullOrder) {
-    if (direction == SortDirection.ASC) {
-      builder.asc(Expressions.hour(sourceName), nullOrder);
-    } else {
-      builder.desc(Expressions.hour(sourceName), nullOrder);
-    }
+    builder.sortBy(Expressions.hour(sourceName), direction, nullOrder);
     return null;
   }
 }
