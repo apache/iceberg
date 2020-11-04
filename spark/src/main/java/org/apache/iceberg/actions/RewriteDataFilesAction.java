@@ -36,6 +36,7 @@ public class RewriteDataFilesAction
     extends BaseRewriteDataFilesAction<RewriteDataFilesAction> {
 
   private final JavaSparkContext sparkContext;
+  private FileIO fileIO;
 
   RewriteDataFilesAction(SparkSession spark, Table table) {
     super(table);
@@ -49,7 +50,10 @@ public class RewriteDataFilesAction
 
   @Override
   protected FileIO fileIO() {
-    return SparkUtil.serializableFileIO(table());
+    if (this.fileIO == null) {
+      this.fileIO = SparkUtil.serializableFileIO(table());
+    }
+    return this.fileIO;
   }
 
   @Override

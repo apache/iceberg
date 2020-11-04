@@ -17,30 +17,31 @@
  * under the License.
  */
 
-package org.apache.iceberg.flink.sink;
+package org.apache.iceberg.flink.actions;
 
-import java.io.Serializable;
-import org.apache.iceberg.io.TaskWriter;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.iceberg.Table;
 
-/**
- * Factory to create {@link TaskWriter}
- *
- * @param <T> data type of record.
- */
-public interface TaskWriterFactory<T> extends Serializable {
+public class Actions {
 
-  /**
-   * Initialize the factory with a given taskId and attemptId.
-   *
-   * @param taskId    the identifier of task.
-   * @param attemptId the attempt id of this task.
-   */
-  void initialize(int taskId, int attemptId);
+  private StreamExecutionEnvironment env;
+  private Table table;
 
-  /**
-   * Initialize a {@link TaskWriter} with given task id and attempt id.
-   *
-   * @return a newly created task writer.
-   */
-  TaskWriter<T> create();
+  private Actions(StreamExecutionEnvironment env, Table table) {
+    this.env = env;
+    this.table = table;
+  }
+
+  public static Actions forTable(StreamExecutionEnvironment env, Table table) {
+    return new Actions(env, table);
+  }
+
+  public static Actions forTable(Table table) {
+    return new Actions(StreamExecutionEnvironment.getExecutionEnvironment(), table);
+  }
+
+  public RewriteDataFilesAction rewriteDataFiles() {
+    return new RewriteDataFilesAction(env, table);
+  }
+
 }
