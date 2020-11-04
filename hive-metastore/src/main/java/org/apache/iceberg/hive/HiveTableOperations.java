@@ -199,8 +199,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         throw new RuntimeException(String.format("Metastore operation failed for %s.%s", database, tableName), e);
       }
 
-      throw new RuntimeException(String.format("Metastore operation failed for %s.%s", database, tableName), e);
-
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new RuntimeException("Interrupted during commit", e);
