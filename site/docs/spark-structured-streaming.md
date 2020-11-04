@@ -72,13 +72,13 @@ documents how to configure the interval.
 
 ### Expire old snapshots
 
-Each micro-batch written to a table produces a new snapshot, which are tracked in table metadata until they are expired to remove the metadata and any data files that are no longer needed. Snapshots accumulate quickly with frequent commits, so it is highly recommended that tables written by streaming queries are [regularly maintained](../maintenance#expire-snapshots).
+Each micro-batch written to a table produces a new snapshot, which are tracked in table metadata until they are expired to remove the metadata and any data files that are no longer needed. Snapshots accumulate quickly with frequent commits, so it is highly recommended that tables written by streaming queries are [regularly maintained](./maintenance.md#expire-snapshots).
 
 ### Compacting data files
 
-The amount of data written in a micro batch is typically small, which can cause the table metadata to track lots of small files. [Compacting small files into larger files](../maintenance#compact-data-files) reduces the metadata needed by the table, and increases query efficiency.
+The amount of data written in a micro batch is typically small, which can cause the table metadata to track lots of small files. [Compacting small files into larger files](./maintenance.md#compact-data-files) reduces the metadata needed by the table, and increases query efficiency.
 
 ### Rewrite manifests
 
 To optimize write latency on streaming workload, Iceberg may write the new snapshot with a "fast" append that does not automatically compact manifests.
-This could lead lots of small manifest files. Manifests can be [rewritten to optimize queries and to compact](../maintenance#rewrite-manifests).
+This could lead lots of small manifest files. Manifests can be [rewritten to optimize queries and to compact](./maintenance.md#rewrite-manifests).
