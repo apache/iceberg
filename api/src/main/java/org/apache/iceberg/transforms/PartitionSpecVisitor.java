@@ -34,11 +34,11 @@ public interface PartitionSpecVisitor<T> {
     throw new UnsupportedOperationException("Identity transform is not supported");
   }
 
-  default T bucket(int fieldId, String sourceName, int sourceId, int width) {
-    return bucket(sourceName, sourceId, width);
+  default T bucket(int fieldId, String sourceName, int sourceId, int numBuckets) {
+    return bucket(sourceName, sourceId, numBuckets);
   }
 
-  default T bucket(String sourceName, int sourceId, int width) {
+  default T bucket(String sourceName, int sourceId, int numBuckets) {
     throw new UnsupportedOperationException("Bucket transform is not supported");
   }
 

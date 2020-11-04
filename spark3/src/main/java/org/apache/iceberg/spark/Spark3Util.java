@@ -211,8 +211,8 @@ public class Spark3Util {
           }
 
           @Override
-          public Transform bucket(String sourceName, int sourceId, int width) {
-            return Expressions.bucket(width, sourceName);
+          public Transform bucket(String sourceName, int sourceId, int numBuckets) {
+            return Expressions.bucket(numBuckets, sourceName);
           }
 
           @Override
