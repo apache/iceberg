@@ -28,14 +28,17 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BaseRewriteDataFilesAction;
 import org.apache.iceberg.flink.source.RowDataRewriter;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class RewriteDataFilesAction extends BaseRewriteDataFilesAction<RewriteDataFilesAction> {
 
   private StreamExecutionEnvironment env;
+  private int maxParallelism;
 
   public RewriteDataFilesAction(StreamExecutionEnvironment env, Table table) {
     super(table);
     this.env = env;
+    this.maxParallelism = env.getParallelism();
   }
 
   @Override
@@ -45,8 +48,8 @@ public class RewriteDataFilesAction extends BaseRewriteDataFilesAction<RewriteDa
 
   @Override
   protected List<DataFile> rewriteDataForTasks(List<CombinedScanTask> combinedScanTasks) {
-    int parallelism = env.getConfig().getParallelism();
-    parallelism = getParallelism(parallelism, combinedScanTasks);
+    int size = combinedScanTasks.size();
+    int parallelism = Math.min(size, maxParallelism);
     DataStream<CombinedScanTask> dataStream = env.fromCollection(combinedScanTasks);
     RowDataRewriter rowDataRewriter = new RowDataRewriter(table(), caseSensitive(), fileIO(), encryptionManager());
     List<DataFile> addedDataFiles = rowDataRewriter.rewriteDataForTasks(dataStream, parallelism);
@@ -56,5 +59,10 @@ public class RewriteDataFilesAction extends BaseRewriteDataFilesAction<RewriteDa
   @Override
   protected RewriteDataFilesAction self() {
     return this;
+  }
+
+  public void maxParallelism(int parallelism) {
+    Preconditions.checkArgument(parallelism > 0, "Invalid max parallelism %d", parallelism);
+    this.maxParallelism = parallelism;
   }
 }

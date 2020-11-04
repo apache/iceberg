@@ -58,9 +58,7 @@ public class RewriteDataFilesAction
 
   @Override
   protected List<DataFile> rewriteDataForTasks(List<CombinedScanTask> combinedScanTasks) {
-    int parallelism = sparkContext.defaultParallelism();
-    parallelism = getParallelism(parallelism, combinedScanTasks);
-    JavaRDD<CombinedScanTask> taskRDD = sparkContext.parallelize(combinedScanTasks, parallelism);
+    JavaRDD<CombinedScanTask> taskRDD = sparkContext.parallelize(combinedScanTasks, combinedScanTasks.size());
     Broadcast<FileIO> io = sparkContext.broadcast(fileIO());
     Broadcast<EncryptionManager> encryption = sparkContext.broadcast(encryptionManager());
     RowDataRewriter rowDataRewriter =
