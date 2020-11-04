@@ -20,12 +20,16 @@
 package org.apache.iceberg.flink;
 
 import java.io.Serializable;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
  * Serializable loader to load an Iceberg {@link Catalog}.
@@ -47,6 +51,10 @@ public interface CatalogLoader extends Serializable {
 
   static CatalogLoader hive(String name, Configuration hadoopConf, String uri, String warehouse, int clientPoolSize) {
     return new HiveCatalogLoader(name, hadoopConf, uri, warehouse, clientPoolSize);
+  }
+
+  static CatalogLoader custom(String name, Map<String, String> properties, Configuration hadoopConf, String impl) {
+    return new CustomCatalogLoader(name, properties, hadoopConf, impl);
   }
 
   class HadoopCatalogLoader implements CatalogLoader {
@@ -105,4 +113,37 @@ public interface CatalogLoader extends Serializable {
           .toString();
     }
   }
+
+  class CustomCatalogLoader implements CatalogLoader {
+
+    private final SerializableConfiguration hadoopConf;
+    private final Map<String, String> properties;
+    private final String name;
+    private final String impl;
+
+    private CustomCatalogLoader(
+        String name,
+        Map<String, String> properties,
+        Configuration conf,
+        String impl) {
+      this.hadoopConf = new SerializableConfiguration(conf);
+      this.properties = Maps.newHashMap(properties); // wrap into a hashmap for serialization
+      this.name = name;
+      this.impl = Preconditions.checkNotNull(impl, "Cannot initialize custom Catalog, impl class name is null");
+    }
+
+    @Override
+    public Catalog loadCatalog() {
+      return CatalogUtil.loadCatalog(impl, name, properties, hadoopConf.get());
+    }
+
+    @Override
+    public String toString() {
+      return MoreObjects.toStringHelper(this)
+          .add("name", name)
+          .add("impl", impl)
+          .toString();
+    }
+  }
+
 }

@@ -326,6 +326,19 @@ public interface Catalog {
   }
 
   /**
+   * Initialize a catalog given a custom name and a map of catalog properties.
+   * <p>
+   * A custom Catalog implementation must have a no-arg constructor.
+   * A compute engine like Spark or Flink will first initialize the catalog without any arguments,
+   * and then call this method to complete catalog initialization with properties passed into the engine.
+   *
+   * @param name a custom name for the catalog
+   * @param properties catalog properties
+   */
+  default void initialize(String name, Map<String, String> properties) {
+  }
+
+  /**
    * A builder used to create valid {@link Table tables} or start create/replace {@link Transaction transactions}.
    * <p>
    * Call {@link #buildTable(TableIdentifier, Schema)} to create a new builder.
