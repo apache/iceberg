@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import java.io.File;
 import java.io.IOException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
 import org.junit.Assert;
@@ -45,6 +46,8 @@ public class TestSortOrder {
   private static final Schema SCHEMA = new Schema(
       required(10, "id", Types.IntegerType.get()),
       required(11, "data", Types.StringType.get()),
+      required(40, "d", Types.DateType.get()),
+      required(41, "ts", Types.TimestampType.withZone()),
       optional(12, "s", Types.StructType.of(
           required(17, "id", Types.IntegerType.get()),
           optional(18, "b", Types.ListType.ofOptional(3, Types.StructType.of(
@@ -123,7 +126,7 @@ public class TestSortOrder {
     SortOrder actualOrder = table.sortOrder();
     Assert.assertEquals("Order ID must be fresh", TableMetadata.INITIAL_SORT_ORDER_ID, actualOrder.orderId());
     Assert.assertEquals("Order must have 2 fields", 2, actualOrder.fields().size());
-    Assert.assertEquals("Field id must be fresh", 5, actualOrder.fields().get(0).sourceId());
+    Assert.assertEquals("Field id must be fresh", 7, actualOrder.fields().get(0).sourceId());
     Assert.assertEquals("Field id must be fresh", 2, actualOrder.fields().get(1).sourceId());
   }
 
@@ -189,6 +192,71 @@ public class TestSortOrder {
   }
 
   @Test
+  public void testSatisfiesTruncateFieldOrder() {
+    SortOrder id = SortOrder.builderFor(SCHEMA).asc("data", NULLS_LAST).build();
+    SortOrder truncate4 = SortOrder.builderFor(SCHEMA).asc(Expressions.truncate("data", 4), NULLS_LAST).build();
+    SortOrder truncate2 = SortOrder.builderFor(SCHEMA).asc(Expressions.truncate("data", 2), NULLS_LAST).build();
+
+    Assert.assertTrue(id.satisfies(truncate2));
+    Assert.assertTrue(id.satisfies(truncate4));
+    Assert.assertFalse(truncate2.satisfies(id));
+    Assert.assertFalse(truncate4.satisfies(id));
+    Assert.assertTrue(truncate4.satisfies(truncate2));
+    Assert.assertFalse(truncate2.satisfies(truncate4));
+  }
+
+  @Test
+  public void testSatisfiesDateFieldOrder() {
+    SortOrder id = SortOrder.builderFor(SCHEMA).asc("d", NULLS_LAST).build();
+    SortOrder year = SortOrder.builderFor(SCHEMA).asc(Expressions.year("d"), NULLS_LAST).build();
+    SortOrder month = SortOrder.builderFor(SCHEMA).asc(Expressions.month("d"), NULLS_LAST).build();
+    SortOrder day = SortOrder.builderFor(SCHEMA).asc(Expressions.day("d"), NULLS_LAST).build();
+
+    Assert.assertTrue(id.satisfies(year));
+    Assert.assertTrue(id.satisfies(month));
+    Assert.assertTrue(id.satisfies(day));
+    Assert.assertFalse(year.satisfies(id));
+    Assert.assertFalse(month.satisfies(id));
+    Assert.assertFalse(day.satisfies(id));
+    Assert.assertTrue(day.satisfies(year));
+    Assert.assertTrue(day.satisfies(month));
+    Assert.assertTrue(month.satisfies(year));
+    Assert.assertFalse(month.satisfies(day));
+    Assert.assertFalse(year.satisfies(day));
+    Assert.assertFalse(year.satisfies(month));
+  }
+
+  @Test
+  public void testSatisfiesTimestampFieldOrder() {
+    SortOrder id = SortOrder.builderFor(SCHEMA).asc("ts", NULLS_LAST).build();
+    SortOrder year = SortOrder.builderFor(SCHEMA).asc(Expressions.year("ts"), NULLS_LAST).build();
+    SortOrder month = SortOrder.builderFor(SCHEMA).asc(Expressions.month("ts"), NULLS_LAST).build();
+    SortOrder day = SortOrder.builderFor(SCHEMA).asc(Expressions.day("ts"), NULLS_LAST).build();
+    SortOrder hour = SortOrder.builderFor(SCHEMA).asc(Expressions.hour("ts"), NULLS_LAST).build();
+
+    Assert.assertTrue(id.satisfies(year));
+    Assert.assertTrue(id.satisfies(month));
+    Assert.assertTrue(id.satisfies(day));
+    Assert.assertTrue(id.satisfies(hour));
+    Assert.assertFalse(year.satisfies(id));
+    Assert.assertFalse(month.satisfies(id));
+    Assert.assertFalse(day.satisfies(id));
+    Assert.assertFalse(hour.satisfies(id));
+    Assert.assertTrue(hour.satisfies(year));
+    Assert.assertTrue(hour.satisfies(month));
+    Assert.assertTrue(hour.satisfies(day));
+    Assert.assertTrue(day.satisfies(year));
+    Assert.assertTrue(day.satisfies(month));
+    Assert.assertFalse(day.satisfies(hour));
+    Assert.assertTrue(month.satisfies(year));
+    Assert.assertFalse(month.satisfies(day));
+    Assert.assertFalse(month.satisfies(hour));
+    Assert.assertFalse(year.satisfies(day));
+    Assert.assertFalse(year.satisfies(month));
+    Assert.assertFalse(year.satisfies(hour));
+  }
+
+  @Test
   public void testSameOrder() {
     SortOrder order1 = SortOrder.builderFor(SCHEMA)
         .withOrderId(9)
@@ -223,7 +291,7 @@ public class TestSortOrder {
     SortOrder actualOrder = table.sortOrder();
     Assert.assertEquals("Order ID must match", TableMetadata.INITIAL_SORT_ORDER_ID, actualOrder.orderId());
     Assert.assertEquals("Order must have 2 fields", 2, actualOrder.fields().size());
-    Assert.assertEquals("Field id must match", 5, actualOrder.fields().get(0).sourceId());
+    Assert.assertEquals("Field id must match", 7, actualOrder.fields().get(0).sourceId());
     Assert.assertEquals("Field id must match", 2, actualOrder.fields().get(1).sourceId());
   }
 

@@ -74,6 +74,26 @@ enum Timestamps implements Transform<Long, Integer> {
   }
 
   @Override
+  public boolean preservesOrder() {
+    return true;
+  }
+
+  @Override
+  public boolean satisfiesOrderOf(Transform<?, ?> other) {
+    if (this == other) {
+      return true;
+    }
+
+    if (other instanceof Timestamps) {
+      // test the granularity, in hours. hour(ts) => 1 hour, day(ts) => 24 hours, and hour satisfies the order of day
+      Timestamps otherTransform = (Timestamps) other;
+      return granularity.getDuration().toHours() <= otherTransform.granularity.getDuration().toHours();
+    }
+
+    return false;
+  }
+
+  @Override
   public UnboundPredicate<Integer> project(String fieldName, BoundPredicate<Long> pred) {
     if (pred.term() instanceof BoundTransform) {
       return ProjectionUtil.projectTransformPredicate(this, name, pred);

@@ -73,6 +73,22 @@ public class SortField implements Serializable {
     return nullOrder;
   }
 
+  /**
+   * Checks whether this field's order satisfies another field's order.
+   *
+   * @param other another sort field
+   * @return true if this order satisfies the given order
+   */
+  public boolean satisfies(SortField other) {
+    if (this == other) {
+      return true;
+    } else if (sourceId != other.sourceId || direction != other.direction || nullOrder != other.nullOrder) {
+      return false;
+    }
+
+    return transform.satisfiesOrderOf(other.transform);
+  }
+
   @Override
   public String toString() {
     return transform + "(" + sourceId + ") " + direction + " " + nullOrder;

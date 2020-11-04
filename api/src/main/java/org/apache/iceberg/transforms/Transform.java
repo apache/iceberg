@@ -59,6 +59,29 @@ public interface Transform<S, T> extends Serializable {
   Type getResultType(Type sourceType);
 
   /**
+   * Whether the transform preserves the order of values (is monotonic).
+   * <p>
+   * A transform preserves order for values when for any given a and b, if a &lt; b then apply(a) &lt;= apply(b).
+   *
+   * @return true if the transform preserves the order of values
+   */
+  default boolean preservesOrder() {
+    return false;
+  }
+
+  /**
+   * Whether ordering by this transform's result satisfies the ordering of another transform's result.
+   * <p>
+   * For example, sorting by day(ts) will produce an ordering that is also by month(ts) or year(ts). However, sorting
+   * by day(ts) will not satisfy the order of hour(ts) or identity(ts).
+   *
+   * @return true if ordering by this transform is equivalent to ordering by the other transform
+   */
+  default boolean satisfiesOrderOf(Transform<?, ?> other) {
+    return equals(other);
+  }
+
+  /**
    * Transforms a {@link BoundPredicate predicate} to an inclusive predicate on the partition
    * values produced by {@link #apply(Object)}.
    * <p>

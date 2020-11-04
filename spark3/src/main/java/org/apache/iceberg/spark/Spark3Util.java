@@ -211,8 +211,8 @@ public class Spark3Util {
           }
 
           @Override
-          public Transform bucket(String sourceName, int sourceId, int width) {
-            return Expressions.bucket(width, sourceName);
+          public Transform bucket(String sourceName, int sourceId, int numBuckets) {
+            return Expressions.bucket(numBuckets, sourceName);
           }
 
           @Override
@@ -238,6 +238,11 @@ public class Spark3Util {
           @Override
           public Transform hour(String sourceName, int sourceId) {
             return Expressions.hours(sourceName);
+          }
+
+          @Override
+          public Transform unknown(int fieldId, String sourceName, int sourceId, String transform) {
+            return Expressions.apply(transform, Expressions.column(sourceName));
           }
         });
 

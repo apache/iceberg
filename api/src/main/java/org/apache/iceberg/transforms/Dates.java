@@ -72,6 +72,26 @@ enum Dates implements Transform<Integer, Integer> {
   }
 
   @Override
+  public boolean preservesOrder() {
+    return true;
+  }
+
+  @Override
+  public boolean satisfiesOrderOf(Transform<?, ?> other) {
+    if (this == other) {
+      return true;
+    }
+
+    if (other instanceof Dates) {
+      // test the granularity, in days. day(ts) => 1 day, months(ts) => 30 days, and day satisfies the order of months
+      Dates otherTransform = (Dates) other;
+      return granularity.getDuration().toDays() <= otherTransform.granularity.getDuration().toDays();
+    }
+
+    return false;
+  }
+
+  @Override
   public UnboundPredicate<Integer> project(String fieldName, BoundPredicate<Integer> pred) {
     if (pred.term() instanceof BoundTransform) {
       return ProjectionUtil.projectTransformPredicate(this, name, pred);

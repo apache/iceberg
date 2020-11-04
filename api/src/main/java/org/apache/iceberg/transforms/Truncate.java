@@ -67,6 +67,11 @@ abstract class Truncate<T> implements Transform<T, T> {
     return sourceType;
   }
 
+  @Override
+  public boolean preservesOrder() {
+    return true;
+  }
+
   private static class TruncateInteger extends Truncate<Integer> {
     private final int width;
 
@@ -256,6 +261,18 @@ abstract class Truncate<T> implements Transform<T, T> {
     @Override
     public boolean canTransform(Type type) {
       return type.typeId() == Type.TypeID.STRING;
+    }
+
+    @Override
+    public boolean satisfiesOrderOf(Transform<?, ?> other) {
+      if (this == other) {
+        return true;
+      } else if (other instanceof TruncateString) {
+        TruncateString otherTransform = (TruncateString) other;
+        return width() >= otherTransform.width();
+      }
+
+      return false;
     }
 
     @Override
