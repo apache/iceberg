@@ -31,6 +31,7 @@ import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -53,6 +54,7 @@ abstract class BaseFile<F>
   private int[] fromProjectionPos;
   private Types.StructType partitionType;
 
+  private Long pos = null;
   private int partitionSpecId = -1;
   private FileContent content = FileContent.DATA;
   private String filePath = null;
@@ -91,7 +93,10 @@ abstract class BaseFile<F>
     }
 
     List<Types.NestedField> fields = schema.fields();
-    List<Types.NestedField> allFields = DataFile.getType(partitionType).fields();
+    List<Types.NestedField> allFields = Lists.newArrayList();
+    allFields.addAll(DataFile.getType(partitionType).fields());
+    allFields.add(MetadataColumns.ROW_POSITION);
+
     this.fromProjectionPos = new int[fields.size()];
     for (int i = 0; i < fromProjectionPos.length; i += 1) {
       boolean found = false;
@@ -149,6 +154,7 @@ abstract class BaseFile<F>
    * @param fullCopy whether to copy all fields or to drop column-level stats
    */
   BaseFile(BaseFile<F> toCopy, boolean fullCopy) {
+    this.pos = toCopy.pos;
     this.partitionSpecId = toCopy.partitionSpecId;
     this.content = toCopy.content;
     this.filePath = toCopy.filePath;
@@ -255,6 +261,9 @@ abstract class BaseFile<F>
       case 13:
         this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
         return;
+      case 14:
+        this.pos = (long) value;
+        return;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -301,6 +310,8 @@ abstract class BaseFile<F>
         return splitOffsets();
       case 13:
         return equalityFieldIds();
+      case 14:
+        return pos;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -314,6 +325,11 @@ abstract class BaseFile<F>
   @Override
   public int size() {
     return DataFile.getType(EMPTY_STRUCT_TYPE).fields().size();
+  }
+
+  @Override
+  public Long pos() {
+    return pos;
   }
 
   @Override

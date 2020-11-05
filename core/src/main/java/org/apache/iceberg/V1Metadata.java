@@ -365,6 +365,11 @@ class V1Metadata {
     }
 
     @Override
+    public Long pos() {
+      return null;
+    }
+
+    @Override
     public int specId() {
       return wrapped.specId();
     }

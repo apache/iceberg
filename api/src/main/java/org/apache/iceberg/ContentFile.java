@@ -30,6 +30,11 @@ import java.util.Map;
  */
 public interface ContentFile<F> {
   /**
+   * Returns the ordinal position of the file in a manifest, or null if it was not read from a manifest.
+   */
+  Long pos();
+
+  /**
    * Returns id of the partition spec used for partition metadata.
    */
   int specId();

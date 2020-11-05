@@ -21,6 +21,7 @@ package org.apache.iceberg.avro;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Supplier;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
@@ -30,7 +31,7 @@ import org.apache.avro.io.Decoder;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.data.avro.DecoderResolver;
 
-class GenericAvroReader<T> implements DatumReader<T> {
+class GenericAvroReader<T> implements DatumReader<T>, SupportsRowPosition {
 
   private final Schema readSchema;
   private ClassLoader loader = Thread.currentThread().getContextClassLoader();
@@ -54,6 +55,13 @@ class GenericAvroReader<T> implements DatumReader<T> {
 
   public void setClassLoader(ClassLoader newClassLoader) {
     this.loader = newClassLoader;
+  }
+
+  @Override
+  public void setRowPositionSupplier(Supplier<Long> posSupplier) {
+    if (reader instanceof SupportsRowPosition) {
+      ((SupportsRowPosition) reader).setRowPositionSupplier(posSupplier);
+    }
   }
 
   @Override
