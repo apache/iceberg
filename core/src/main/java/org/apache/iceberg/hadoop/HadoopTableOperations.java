@@ -62,15 +62,16 @@ public class HadoopTableOperations implements TableOperations {
 
   private final Configuration conf;
   private final Path location;
-  private HadoopFileIO defaultFileIo = null;
+  private final FileIO fileIO;
 
   private volatile TableMetadata currentMetadata = null;
   private volatile Integer version = null;
   private volatile boolean shouldRefresh = true;
 
-  protected HadoopTableOperations(Path location, Configuration conf) {
+  protected HadoopTableOperations(Path location, FileIO fileIO, Configuration conf) {
     this.conf = conf;
     this.location = location;
+    this.fileIO = fileIO;
   }
 
   @Override
@@ -173,10 +174,7 @@ public class HadoopTableOperations implements TableOperations {
 
   @Override
   public FileIO io() {
-    if (defaultFileIo == null) {
-      defaultFileIo = new HadoopFileIO(conf);
-    }
-    return defaultFileIo;
+    return fileIO;
   }
 
   @Override

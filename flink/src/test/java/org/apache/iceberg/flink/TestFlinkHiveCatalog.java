@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -43,10 +44,10 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
     Map<String, String> props = Maps.newHashMap();
     props.put("type", "iceberg");
     props.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hive");
-    props.put(FlinkCatalogFactory.HIVE_URI, FlinkCatalogTestBase.getURI(hiveConf));
+    props.put(CatalogProperties.HIVE_URI, FlinkCatalogTestBase.getURI(hiveConf));
 
     File warehouseDir = tempFolder.newFolder();
-    props.put(FlinkCatalogFactory.WAREHOUSE_LOCATION, "file://" + warehouseDir.getAbsolutePath());
+    props.put(CatalogProperties.WAREHOUSE_LOCATION, "file://" + warehouseDir.getAbsolutePath());
 
     checkSQLQuery(props, warehouseDir);
   }
@@ -69,7 +70,7 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
     Map<String, String> props = Maps.newHashMap();
     props.put("type", "iceberg");
     props.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hive");
-    props.put(FlinkCatalogFactory.HIVE_URI, FlinkCatalogTestBase.getURI(hiveConf));
+    props.put(CatalogProperties.HIVE_URI, FlinkCatalogTestBase.getURI(hiveConf));
     // Set the 'hive-conf-dir' instead of 'warehouse'
     props.put(FlinkCatalogFactory.HIVE_CONF_DIR, hiveConfDir.getAbsolutePath());
 

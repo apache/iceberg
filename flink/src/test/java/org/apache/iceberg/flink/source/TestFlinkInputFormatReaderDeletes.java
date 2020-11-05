@@ -24,6 +24,7 @@ import java.util.Map;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -105,12 +106,12 @@ public class TestFlinkInputFormatReaderDeletes extends DeleteReadTests {
   protected StructLikeSet rowSet(String name, Table testTable, String... columns) throws IOException {
     Schema projected = testTable.schema().select(columns);
     RowType rowType = FlinkSchemaUtil.convert(projected);
-    CatalogLoader hiveCatalogLoader = CatalogLoader.hive(catalog.name(),
-        hiveConf,
-        hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname),
-        hiveConf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname),
-        hiveConf.getInt("iceberg.hive.client-pool-size", 5)
-    );
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, hiveConf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname));
+    properties.put(CatalogProperties.HIVE_URI, hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname));
+    properties.put(CatalogProperties.HIVE_CLIENT_POOL_SIZE,
+        Integer.toString(hiveConf.getInt("iceberg.hive.client-pool-size", 5)));
+    CatalogLoader hiveCatalogLoader = CatalogLoader.hive(catalog.name(), hiveConf, properties);
     FlinkInputFormat inputFormat = FlinkSource.forRowData()
         .tableLoader(TableLoader.fromCatalog(hiveCatalogLoader, TableIdentifier.of("default", name)))
         .project(FlinkSchemaUtil.toSchema(rowType)).buildFormat();

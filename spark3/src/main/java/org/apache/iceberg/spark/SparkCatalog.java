@@ -109,13 +109,14 @@ public class SparkCatalog implements StagingTableCatalog, org.apache.spark.sql.c
     String catalogType = options.getOrDefault(ICEBERG_CATALOG_TYPE, ICEBERG_CATALOG_TYPE_HIVE);
     switch (catalogType.toLowerCase(Locale.ENGLISH)) {
       case ICEBERG_CATALOG_TYPE_HIVE:
-        int clientPoolSize = options.getInt("clients", 2);
-        String uri = options.get("uri");
+        int clientPoolSize = options.getInt(CatalogProperties.HIVE_CLIENT_POOL_SIZE,
+            CatalogProperties.HIVE_CLIENT_POOL_SIZE_DEFAULT);
+        String uri = options.get(CatalogProperties.HIVE_URI);
         return new HiveCatalog(name, uri, clientPoolSize, conf);
 
       case ICEBERG_CATALOG_TYPE_HADOOP:
-        String warehouseLocation = options.get("warehouse");
-        return new HadoopCatalog(name, conf, warehouseLocation);
+        String warehouseLocation = options.get(CatalogProperties.WAREHOUSE_LOCATION);
+        return new HadoopCatalog(name, conf, warehouseLocation, options.asCaseSensitiveMap());
 
       default:
         throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
