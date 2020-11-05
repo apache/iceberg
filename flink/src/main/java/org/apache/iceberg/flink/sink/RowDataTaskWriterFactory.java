@@ -46,7 +46,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
-import org.apache.iceberg.io.FileGroupWriter;
+import org.apache.iceberg.io.RollingFilesWriter;
 import org.apache.iceberg.io.WriterResult;
 import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.orc.ORC;
@@ -95,26 +95,26 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   }
 
   @Override
-  public FileGroupWriter<RowData> create() {
+  public RollingFilesWriter<RowData> create() {
     Preconditions.checkNotNull(outputFileFactory,
         "The outputFileFactory shouldn't be null if we have invoked the initialize().");
 
     if (spec.fields().isEmpty()) {
-      return new MixedUnpartitionedFileGroupWriter(format, appenderFactory, outputFileFactory, io, targetFileSizeBytes,
+      return new MixedUnpartitionedRollingFilesWriter(format, appenderFactory, outputFileFactory, io, targetFileSizeBytes,
           schema, flinkSchema, tableProperties);
     } else {
-      return new MixedPartitionedFileGroupWriter(spec, format, appenderFactory, outputFileFactory,
+      return new MixedPartitionedRollingFilesWriter(spec, format, appenderFactory, outputFileFactory,
           io, targetFileSizeBytes, schema, flinkSchema, tableProperties);
     }
   }
 
-  private abstract static class BaseMixedFileGroupWriter implements FileGroupWriter<RowData> {
+  private abstract static class BaseMixedRollingFilesWriter implements RollingFilesWriter<RowData> {
 
     abstract boolean supportDeletion();
 
-    abstract FileGroupWriter<RowData> dataTaskWriter();
+    abstract RollingFilesWriter<RowData> dataTaskWriter();
 
-    abstract FileGroupWriter<RowData> deleteTaskWriter();
+    abstract RollingFilesWriter<RowData> deleteTaskWriter();
 
     @Override
     public void write(RowData row) throws IOException {
@@ -165,28 +165,28 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     }
   }
 
-  private static class MixedUnpartitionedFileGroupWriter extends BaseMixedFileGroupWriter {
+  private static class MixedUnpartitionedRollingFilesWriter extends BaseMixedRollingFilesWriter {
     private final FileFormat format;
-    private final FileGroupWriter<RowData> dataFileGroupWriter;
-    private final FileGroupWriter<RowData> deleteFileGroupWriter;
+    private final RollingFilesWriter<RowData> dataRollingFilesWriter;
+    private final RollingFilesWriter<RowData> deleteRollingFilesWriter;
 
-    MixedUnpartitionedFileGroupWriter(FileFormat format, FileAppenderFactory<RowData> appenderFactory,
-                                      OutputFileFactory fileFactory, FileIO io, long targetFileSize, Schema schema,
-                                      RowType flinkSchema, Map<String, String> tableProperties) {
+    MixedUnpartitionedRollingFilesWriter(FileFormat format, FileAppenderFactory<RowData> appenderFactory,
+                                         OutputFileFactory fileFactory, FileIO io, long targetFileSize, Schema schema,
+                                         RowType flinkSchema, Map<String, String> tableProperties) {
       this.format = format;
 
-      this.dataFileGroupWriter = new UnpartitionedWriter<>(format, fileFactory, io,
+      this.dataRollingFilesWriter = new UnpartitionedWriter<>(format, fileFactory, io,
           targetFileSize, new DataFileWriterFactory<>(appenderFactory, PartitionSpec.unpartitioned()));
 
       // TODO: set the correct equality field ids.
       List<Integer> equalityIds = ImmutableList.of();
 
       if (supportDeletion()) {
-        this.deleteFileGroupWriter = new UnpartitionedWriter<>(format, fileFactory, io, targetFileSize,
+        this.deleteRollingFilesWriter = new UnpartitionedWriter<>(format, fileFactory, io, targetFileSize,
             new FlinkEqualityDeleterFactory(schema, flinkSchema, PartitionSpec.unpartitioned(), equalityIds,
                 tableProperties));
       } else {
-        this.deleteFileGroupWriter = null;
+        this.deleteRollingFilesWriter = null;
       }
     }
 
@@ -196,28 +196,28 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     }
 
     @Override
-    FileGroupWriter<RowData> dataTaskWriter() {
-      return dataFileGroupWriter;
+    RollingFilesWriter<RowData> dataTaskWriter() {
+      return dataRollingFilesWriter;
     }
 
     @Override
-    FileGroupWriter<RowData> deleteTaskWriter() {
-      return deleteFileGroupWriter;
+    RollingFilesWriter<RowData> deleteTaskWriter() {
+      return deleteRollingFilesWriter;
     }
   }
 
-  private static class MixedPartitionedFileGroupWriter extends BaseMixedFileGroupWriter {
+  private static class MixedPartitionedRollingFilesWriter extends BaseMixedRollingFilesWriter {
     private final FileFormat format;
-    private final FileGroupWriter<RowData> dataFileGroupWriter;
-    private final FileGroupWriter<RowData> deleteFileGroupWriter;
-    private final FileGroupWriter<PositionDelete<RowData>> posDelFileGroupWriter;
+    private final RollingFilesWriter<RowData> dataRollingFilesWriter;
+    private final RollingFilesWriter<RowData> deleteRollingFilesWriter;
+    private final RollingFilesWriter<PositionDelete<RowData>> posDelRollingFilesWriter;
 
-    MixedPartitionedFileGroupWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<RowData> appenderFactory,
-                                    OutputFileFactory fileFactory, FileIO io, long targetFileSize, Schema schema,
-                                    RowType flinkSchema, Map<String, String> tableProperties) {
+    MixedPartitionedRollingFilesWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<RowData> appenderFactory,
+                                       OutputFileFactory fileFactory, FileIO io, long targetFileSize, Schema schema,
+                                       RowType flinkSchema, Map<String, String> tableProperties) {
       this.format = format;
 
-      this.dataFileGroupWriter =
+      this.dataRollingFilesWriter =
           new RowDataPartitionedFanoutWriter<>(spec, format, fileFactory, io, targetFileSize, schema,
               flinkSchema, new DataFileWriterFactory<>(appenderFactory, spec));
 
@@ -225,15 +225,15 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       List<Integer> equalityIds = ImmutableList.of();
 
       if (supportDeletion()) {
-        this.deleteFileGroupWriter =
+        this.deleteRollingFilesWriter =
             new RowDataPartitionedFanoutWriter<>(spec, format, fileFactory, io, targetFileSize, schema,
                 flinkSchema, new FlinkEqualityDeleterFactory(schema, flinkSchema, spec, equalityIds, tableProperties));
-        this.posDelFileGroupWriter =
+        this.posDelRollingFilesWriter =
             new PosPartitionedFanoutWriter<>(spec, format, fileFactory, io, targetFileSize, schema,
                 flinkSchema, new FlinkPositionDeleteWriterFactory(schema, spec, tableProperties));
       } else {
-        this.deleteFileGroupWriter = null;
-        this.posDelFileGroupWriter = null;
+        this.deleteRollingFilesWriter = null;
+        this.posDelRollingFilesWriter = null;
       }
     }
 
@@ -266,13 +266,13 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     }
 
     @Override
-    FileGroupWriter<RowData> dataTaskWriter() {
-      return dataFileGroupWriter;
+    RollingFilesWriter<RowData> dataTaskWriter() {
+      return dataRollingFilesWriter;
     }
 
     @Override
-    FileGroupWriter<RowData> deleteTaskWriter() {
-      return deleteFileGroupWriter;
+    RollingFilesWriter<RowData> deleteTaskWriter() {
+      return deleteRollingFilesWriter;
     }
   }
 

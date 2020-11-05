@@ -20,36 +20,20 @@
 package org.apache.iceberg.io;
 
 import java.io.IOException;
-import org.apache.iceberg.ContentFileWriterFactory;
-import org.apache.iceberg.FileFormat;
 
-public class UnpartitionedWriter<ContentFileT, T> extends BaseRollingFilesWriter<ContentFileT, T> {
-
-  private final RollingFileWriter currentWriter;
-
-  public UnpartitionedWriter(FileFormat format, OutputFileFactory fileFactory, FileIO io, long targetFileSize,
-                             ContentFileWriterFactory<ContentFileT, T> writerFactory) {
-    super(format, fileFactory, io, targetFileSize, writerFactory);
-    currentWriter = new RollingFileWriter(null);
+public class PartitionFanoutTaskWriter<T> implements TaskWriter<T> {
+  @Override
+  public PartitionWriter<T> route(T row) {
+    return null;
   }
 
   @Override
-  public void write(T record) throws IOException {
-    currentWriter.add(record);
+  public void abort() throws IOException {
+
   }
 
   @Override
-  public CharSequence currentPath() throws IOException {
-    return currentWriter.currentPath();
-  }
-
-  @Override
-  public long currentPos() throws IOException {
-    return currentWriter.currentPos();
-  }
-
-  @Override
-  public void close() throws IOException {
-    currentWriter.close();
+  public WriterResult complete() throws IOException {
+    return null;
   }
 }

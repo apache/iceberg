@@ -17,30 +17,15 @@
  * under the License.
  */
 
-package org.apache.iceberg.flink.sink;
+package org.apache.iceberg.io;
 
-import java.io.Serializable;
-import org.apache.iceberg.io.RollingFilesWriter;
+import java.io.IOException;
 
-/**
- * Factory to create {@link RollingFilesWriter}
- *
- * @param <T> data type of record.
- */
-public interface TaskWriterFactory<T> extends Serializable {
+public interface TaskWriter<T> {
 
-  /**
-   * Initialize the factory with a given taskId and attemptId.
-   *
-   * @param taskId    the identifier of task.
-   * @param attemptId the attempt id of this task.
-   */
-  void initialize(int taskId, int attemptId);
+  PartitionWriter<T> route(T row);
 
-  /**
-   * Initialize a {@link RollingFilesWriter} with given task id and attempt id.
-   *
-   * @return a newly created task writer.
-   */
-  RollingFilesWriter<T> create();
+  void abort() throws IOException;
+
+  WriterResult complete() throws IOException;
 }

@@ -37,7 +37,7 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFileFactory;
-import org.apache.iceberg.io.FileGroupWriter;
+import org.apache.iceberg.io.RollingFilesWriter;
 import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -103,7 +103,7 @@ public class RowDataRewriter implements Serializable {
     OutputFileFactory fileFactory = new OutputFileFactory(
         spec, format, locations, io.value(), encryptionManager.value(), partitionId, taskId);
 
-    FileGroupWriter<InternalRow> writer;
+    RollingFilesWriter<InternalRow> writer;
     if (spec.fields().isEmpty()) {
       writer = new UnpartitionedWriter<>(format, fileFactory, io.value(), Long.MAX_VALUE,
           new DataFileWriterFactory<>(appenderFactory, spec));

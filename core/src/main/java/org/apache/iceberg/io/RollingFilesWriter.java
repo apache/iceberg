@@ -27,7 +27,7 @@ import java.io.IOException;
  *
  * @param <T> to indicate the record data type.
  */
-public interface FileGroupWriter<T> extends Closeable {
+public interface RollingFilesWriter<T> extends Closeable {
 
   /**
    * Write the row into the data files.
