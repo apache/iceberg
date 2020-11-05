@@ -103,6 +103,9 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     filesMatch(Lists.newArrayList("C", "D", "E"), appendsBetweenScan(2, 5));
     Assert.assertTrue(listener1.event().fromSnapshotId() == 2);
     Assert.assertTrue(listener1.event().toSnapshotId() == 5);
+    Assert.assertEquals(table.schema(), listener1.event().projection());
+    Assert.assertEquals(Expressions.alwaysTrue(), listener1.event().filter());
+    Assert.assertEquals("test", listener1.event().tableName());
   }
 
   @Test

@@ -70,7 +70,6 @@ class IncrementalDataTableScan extends DataTableScan {
 
   @Override
   public CloseableIterable<FileScanTask> planFiles() {
-    // TODO publish an incremental appends scan event
     List<Snapshot> snapshots = snapshotsWithin(table(),
         context().fromSnapshotId(), context().toSnapshotId());
     Set<Long> snapshotIds = Sets.newHashSet(Iterables.transform(snapshots, Snapshot::snapshotId));
