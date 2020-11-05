@@ -109,30 +109,21 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
 
   private abstract static class BaseMixedTaskWriter implements TaskWriter<RowData> {
 
-    abstract boolean supportDeletion();
+    protected abstract TaskWriter<RowData> dataTaskWriter();
 
-    abstract TaskWriter<RowData> dataTaskWriter();
-
-    abstract TaskWriter<RowData> deleteTaskWriter();
+    protected abstract TaskWriter<RowData> deleteTaskWriter();
 
     @Override
     public void write(RowData row) throws IOException {
       switch (row.getRowKind()) {
-
         case INSERT:
         case UPDATE_AFTER:
           dataTaskWriter().write(row);
           break;
-
         case UPDATE_BEFORE:
         case DELETE:
-          if (supportDeletion()) {
-            deleteTaskWriter().write(row);
-          } else {
-            throw new UnsupportedOperationException("Couldn't accept deletion in task writer.");
-          }
+          deleteTaskWriter().write(row);
           break;
-
         default:
           throw new UnsupportedOperationException("Unrecognized row kind: " + row.getRowKind());
       }
@@ -141,80 +132,57 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     @Override
     public void abort() throws IOException {
       dataTaskWriter().abort();
-      if (supportDeletion()) {
-        deleteTaskWriter().abort();
-      }
+      deleteTaskWriter().abort();
     }
 
     @Override
     public TaskWriterResult complete() throws IOException {
-      if (supportDeletion()) {
-        return TaskWriterResult.concat(dataTaskWriter().complete(), deleteTaskWriter().complete());
-      } else {
-        return dataTaskWriter().complete();
-      }
+      return TaskWriterResult.concat(dataTaskWriter().complete(), deleteTaskWriter().complete());
     }
 
     @Override
     public void close() throws IOException {
       dataTaskWriter().close();
-      if (supportDeletion()) {
-        deleteTaskWriter().close();
-      }
+      deleteTaskWriter().close();
     }
   }
 
   private static class MixedUnpartitionedTaskWriter extends BaseMixedTaskWriter {
-    private final FileFormat format;
     private final TaskWriter<RowData> dataTaskWriter;
     private final TaskWriter<RowData> deleteTaskWriter;
 
     MixedUnpartitionedTaskWriter(FileFormat format, FileAppenderFactory<RowData> appenderFactory,
                                  OutputFileFactory fileFactory, FileIO io, long targetFileSize, Schema schema,
                                  RowType flinkSchema, Map<String, String> tableProperties) {
-      this.format = format;
-
       this.dataTaskWriter = new UnpartitionedWriter<>(format, fileFactory, io,
           targetFileSize, new DataFileWriterFactory<>(appenderFactory, PartitionSpec.unpartitioned()));
 
       // TODO: set the correct equality field ids.
       List<Integer> equalityIds = ImmutableList.of();
 
-      if (supportDeletion()) {
-        this.deleteTaskWriter = new UnpartitionedWriter<>(format, fileFactory, io, targetFileSize,
-            new FlinkEqualityDeleterFactory(schema, flinkSchema, PartitionSpec.unpartitioned(), equalityIds,
-                tableProperties));
-      } else {
-        this.deleteTaskWriter = null;
-      }
+      this.deleteTaskWriter = new UnpartitionedWriter<>(format, fileFactory, io, targetFileSize,
+          new FlinkEqualityDeleterFactory(schema, flinkSchema, PartitionSpec.unpartitioned(), equalityIds,
+              tableProperties));
     }
 
     @Override
-    boolean supportDeletion() {
-      return FileFormat.PARQUET.equals(format) || FileFormat.AVRO.equals(format);
-    }
-
-    @Override
-    TaskWriter<RowData> dataTaskWriter() {
+    protected TaskWriter<RowData> dataTaskWriter() {
       return dataTaskWriter;
     }
 
     @Override
-    TaskWriter<RowData> deleteTaskWriter() {
+    protected TaskWriter<RowData> deleteTaskWriter() {
       return deleteTaskWriter;
     }
   }
 
   private static class MixedPartitionedTaskWriter extends BaseMixedTaskWriter {
-    private final FileFormat format;
     private final TaskWriter<RowData> dataTaskWriter;
     private final TaskWriter<RowData> deleteTaskWriter;
 
     MixedPartitionedTaskWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<RowData> appenderFactory,
                                OutputFileFactory fileFactory, FileIO io, long targetFileSize, Schema schema,
                                RowType flinkSchema, Map<String, String> tableProperties) {
-      this.format = format;
-
       this.dataTaskWriter =
           new RowDataPartitionedFanoutWriter<>(spec, format, fileFactory, io, targetFileSize, schema,
               flinkSchema, new DataFileWriterFactory<>(appenderFactory, spec));
@@ -222,27 +190,19 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       // TODO: set the correct equality field ids.
       List<Integer> equalityIds = ImmutableList.of();
 
-      if (supportDeletion()) {
-        this.deleteTaskWriter =
-            new RowDataPartitionedFanoutWriter<>(spec, format, fileFactory, io, targetFileSize, schema,
-                flinkSchema, new FlinkEqualityDeleterFactory(schema, flinkSchema, spec, equalityIds, tableProperties));
-      } else {
-        this.deleteTaskWriter = null;
-      }
+      this.deleteTaskWriter =
+          new RowDataPartitionedFanoutWriter<>(spec, format, fileFactory, io, targetFileSize, schema,
+              flinkSchema, new FlinkEqualityDeleterFactory(schema, flinkSchema, spec, equalityIds, tableProperties));
+
     }
 
     @Override
-    boolean supportDeletion() {
-      return FileFormat.PARQUET.equals(format) || FileFormat.AVRO.equals(format);
-    }
-
-    @Override
-    TaskWriter<RowData> dataTaskWriter() {
+    protected TaskWriter<RowData> dataTaskWriter() {
       return dataTaskWriter;
     }
 
     @Override
-    TaskWriter<RowData> deleteTaskWriter() {
+    protected TaskWriter<RowData> deleteTaskWriter() {
       return deleteTaskWriter;
     }
   }

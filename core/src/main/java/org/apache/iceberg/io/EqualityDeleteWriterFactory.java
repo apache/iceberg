@@ -19,32 +19,15 @@
 
 package org.apache.iceberg.io;
 
-import java.io.Closeable;
-import java.io.IOException;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.deletes.EqualityDeleteWriter;
 
 /**
- * The writer interface could accept records and provide the generated data files.
+ * Factory to create a new {@link EqualityDeleteWriter} to write equality deletions in row-level.
  *
- * @param <T> to indicate the record data type.
+ * @param <T> data type of the rows to delete.
  */
-public interface TaskWriter<T> extends Closeable {
+public interface EqualityDeleteWriterFactory<T> {
 
-  /**
-   * Write the row into the data files.
-   */
-  void write(T row) throws IOException;
-
-  /**
-   * Close the writer and delete the completed files if possible when aborting.
-   *
-   * @throws IOException if any IO error happen.
-   */
-  void abort() throws IOException;
-
-  /**
-   * Close the writer and get the completed data files.
-   *
-   * @return the completed data files of this task writer.
-   */
-  TaskWriterResult complete() throws IOException;
+  EqualityDeleteWriter<T> newEqualityDeleteWriter(OutputFile outputFile, FileFormat format);
 }

@@ -54,7 +54,7 @@ abstract class PartitionedFanoutWriter<ContentFileT, T> extends BaseTaskWriter<C
     if (writer == null) {
       // NOTICE: we need to copy a new partition key here, in case of messing up the keys in writers.
       PartitionKey copiedKey = partitionKey.copy();
-      writer = new RollingFileWriter(copiedKey);
+      writer = new RollingFileWriter(partitionKey);
       writers.put(copiedKey, writer);
     }
 

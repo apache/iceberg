@@ -24,15 +24,27 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class TaskWriterResult {
+  private static final TaskWriterResult EMPTY = new TaskWriterResult(ImmutableList.of(), ImmutableList.of());
+
   private DataFile[] dataFiles;
   private DeleteFile[] deleteFiles;
 
-  private TaskWriterResult(List<DataFile> dataFiles, List<DeleteFile> deleteFiles) {
+  TaskWriterResult(DataFile[] dataFiles, DeleteFile[] deleteFiles) {
+    this.dataFiles = dataFiles;
+    this.deleteFiles = deleteFiles;
+  }
+
+  TaskWriterResult(List<DataFile> dataFiles, List<DeleteFile> deleteFiles) {
     this.dataFiles = dataFiles.toArray(new DataFile[0]);
     this.deleteFiles = deleteFiles.toArray(new DeleteFile[0]);
+  }
+
+  static TaskWriterResult empty() {
+    return EMPTY;
   }
 
   public DataFile[] dataFiles() {
@@ -49,11 +61,21 @@ public class TaskWriterResult {
 
   public static TaskWriterResult concat(TaskWriterResult result0, TaskWriterResult result1) {
     Builder builder = new Builder();
+    for (DataFile dataFile : result0.dataFiles) {
+      builder.add(dataFile);
+    }
 
-    builder.addAll(result0.dataFiles);
-    builder.addAll(result0.deleteFiles);
-    builder.addAll(result1.dataFiles);
-    builder.addAll(result1.deleteFiles);
+    for (DataFile dataFile : result1.dataFiles) {
+      builder.add(dataFile);
+    }
+
+    for (DeleteFile deleteFile : result0.deleteFiles) {
+      builder.add(deleteFile);
+    }
+
+    for (DeleteFile deleteFile : result1.deleteFiles) {
+      builder.add(deleteFile);
+    }
 
     return builder.build();
   }
@@ -65,12 +87,6 @@ public class TaskWriterResult {
     private Builder() {
       this.dataFiles = Lists.newArrayList();
       this.deleteFiles = Lists.newArrayList();
-    }
-
-    public <T> void addAll(ContentFile<T>... files) {
-      for (ContentFile<T> file : files) {
-        add(file);
-      }
     }
 
     public <T> void add(ContentFile<T> contentFile) {
@@ -86,7 +102,7 @@ public class TaskWriterResult {
           break;
 
         default:
-          throw new UnsupportedOperationException("Unknown file content: " + contentFile.content());
+          throw new UnsupportedOperationException("Unknown file: " + contentFile.content());
       }
     }
 
