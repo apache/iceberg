@@ -24,17 +24,34 @@ import java.util.Map;
 import org.apache.iceberg.ContentFileWriterFactory;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
-import org.apache.iceberg.io.BaseTaskWriter;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.io.RollingContentFileWriter;
+import org.apache.iceberg.io.TaskWriter;
+import org.apache.iceberg.io.TaskWriterResult;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-abstract class PartitionedFanoutWriter<ContentFileT, T> extends BaseTaskWriter<ContentFileT, T> {
-  private final Map<PartitionKey, RollingFileWriter> writers = Maps.newHashMap();
+abstract class PartitionedFanoutWriter<ContentFileT, T> implements TaskWriter<T> {
+
+  private static final Logger LOG = LoggerFactory.getLogger(PartitionedFanoutWriter.class);
+
+  private final FileFormat format;
+  private final OutputFileFactory fileFactory;
+  private final FileIO io;
+  private final long targetFileSize;
+  private final ContentFileWriterFactory<ContentFileT, T> writerFactory;
+
+  private final Map<PartitionKey, RollingContentFileWriter<ContentFileT, T>> writers = Maps.newHashMap();
 
   PartitionedFanoutWriter(FileFormat format, OutputFileFactory fileFactory, FileIO io, long targetFileSize,
                           ContentFileWriterFactory<ContentFileT, T> writerFactory) {
-    super(format, fileFactory, io, targetFileSize, writerFactory);
+    this.format = format;
+    this.fileFactory = fileFactory;
+    this.io = io;
+    this.targetFileSize = targetFileSize;
+    this.writerFactory = writerFactory;
   }
 
   /**
@@ -50,11 +67,11 @@ abstract class PartitionedFanoutWriter<ContentFileT, T> extends BaseTaskWriter<C
   public void write(T row) throws IOException {
     PartitionKey partitionKey = partition(row);
 
-    RollingFileWriter writer = writers.get(partitionKey);
+    RollingContentFileWriter<ContentFileT, T> writer = writers.get(partitionKey);
     if (writer == null) {
       // NOTICE: we need to copy a new partition key here, in case of messing up the keys in writers.
       PartitionKey copiedKey = partitionKey.copy();
-      writer = new RollingFileWriter(partitionKey);
+      writer = new RollingContentFileWriter<>(copiedKey, format, fileFactory, io, targetFileSize, writerFactory);
       writers.put(copiedKey, writer);
     }
 
@@ -69,5 +86,29 @@ abstract class PartitionedFanoutWriter<ContentFileT, T> extends BaseTaskWriter<C
       }
       writers.clear();
     }
+  }
+
+  @Override
+  public void abort() {
+    for (RollingContentFileWriter<ContentFileT, T> writer : writers.values()) {
+      try {
+        writer.abort();
+      } catch (IOException e) {
+        LOG.warn("Failed to abort the writer {} because: ", writer, e);
+      }
+    }
+    writers.clear();
+  }
+
+  @Override
+  public TaskWriterResult complete() throws IOException {
+    TaskWriterResult.Builder builder = TaskWriterResult.builder();
+
+    for (RollingContentFileWriter<ContentFileT, T> writer : writers.values()) {
+      builder.add(writer.complete());
+    }
+    writers.clear();
+
+    return builder.build();
   }
 }

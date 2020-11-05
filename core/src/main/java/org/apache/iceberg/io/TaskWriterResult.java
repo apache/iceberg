@@ -19,7 +19,9 @@
 
 package org.apache.iceberg.io;
 
+import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -55,6 +57,31 @@ public class TaskWriterResult {
     return deleteFiles;
   }
 
+  public Iterable<ContentFile<?>> contentFiles() {
+    return () -> new Iterator<ContentFile<?>>() {
+      private int currentIndex = 0;
+
+      @Override
+      public boolean hasNext() {
+        return currentIndex < dataFiles.length + deleteFiles.length;
+      }
+
+      @Override
+      public ContentFile<?> next() {
+        ContentFile<?> contentFile;
+        if (currentIndex < dataFiles.length) {
+          contentFile = dataFiles[currentIndex];
+        } else if (currentIndex < dataFiles.length + deleteFiles.length) {
+          contentFile = deleteFiles[currentIndex - dataFiles.length];
+        } else {
+          throw new NoSuchElementException();
+        }
+        currentIndex += 1;
+        return contentFile;
+      }
+    };
+  }
+
   public static Builder builder() {
     return new Builder();
   }
@@ -68,7 +95,17 @@ public class TaskWriterResult {
       this.deleteFiles = Lists.newArrayList();
     }
 
-    public <T> void add(ContentFile<T> contentFile) {
+    public void add(TaskWriterResult result) {
+      addAll(result.contentFiles());
+    }
+
+    public void addAll(Iterable<ContentFile<?>> iterable) {
+      for (ContentFile<?> contentFile : iterable) {
+        add(contentFile);
+      }
+    }
+
+    public void add(ContentFile<?> contentFile) {
       Preconditions.checkNotNull(contentFile, "Content file shouldn't be null.");
       switch (contentFile.content()) {
         case DATA:

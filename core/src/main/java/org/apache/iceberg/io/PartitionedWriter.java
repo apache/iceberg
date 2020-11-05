@@ -26,20 +26,33 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public abstract class PartitionedWriter<ContentFileT, T> extends BaseTaskWriter<ContentFileT, T> {
+public abstract class PartitionedWriter<ContentFileT, T> implements TaskWriter<T> {
   private static final Logger LOG = LoggerFactory.getLogger(PartitionedWriter.class);
+
+  private final FileFormat format;
+  private final OutputFileFactory fileFactory;
+  private final FileIO io;
+  private final long targetFileSize;
+  private final ContentFileWriterFactory<ContentFileT, T> writerFactory;
+  private final TaskWriterResult.Builder resultBuilder;
 
   private final Set<PartitionKey> completedPartitions = Sets.newHashSet();
 
   private PartitionKey currentKey = null;
-  private RollingFileWriter currentWriter = null;
+  private RollingContentFileWriter<ContentFileT, T> currentWriter = null;
 
   public PartitionedWriter(FileFormat format, OutputFileFactory fileFactory, FileIO io, long targetFileSize,
                            ContentFileWriterFactory<ContentFileT, T> writerFactory) {
-    super(format, fileFactory, io, targetFileSize, writerFactory);
+    this.format = format;
+    this.fileFactory = fileFactory;
+    this.io = io;
+    this.targetFileSize = targetFileSize;
+    this.writerFactory = writerFactory;
+    this.resultBuilder = TaskWriterResult.builder();
   }
 
   /**
@@ -58,7 +71,7 @@ public abstract class PartitionedWriter<ContentFileT, T> extends BaseTaskWriter<
     if (!key.equals(currentKey)) {
       if (currentKey != null) {
         // if the key is null, there was no previous current key and current writer.
-        currentWriter.close();
+        resultBuilder.add(currentWriter.complete());
         completedPartitions.add(currentKey);
       }
 
@@ -70,7 +83,8 @@ public abstract class PartitionedWriter<ContentFileT, T> extends BaseTaskWriter<
       }
 
       currentKey = key.copy();
-      currentWriter = new RollingFileWriter(currentKey);
+      currentWriter = new RollingContentFileWriter<>(currentKey, format,
+          fileFactory, io, targetFileSize, writerFactory);
     }
 
     currentWriter.add(row);
@@ -81,5 +95,29 @@ public abstract class PartitionedWriter<ContentFileT, T> extends BaseTaskWriter<
     if (currentWriter != null) {
       currentWriter.close();
     }
+  }
+
+  @Override
+  public void abort() throws IOException {
+    if (currentWriter != null) {
+      // Called complete() rather abort() to get all the completed files.
+      resultBuilder.add(currentWriter.complete());
+      currentWriter = null;
+    }
+
+    Tasks.foreach(resultBuilder.build().contentFiles())
+        .throwFailureWhenFinished()
+        .noRetry()
+        .run(file -> io.deleteFile(file.path().toString()));
+  }
+
+  @Override
+  public TaskWriterResult complete() throws IOException {
+    if (currentWriter != null) {
+      resultBuilder.add(currentWriter.complete());
+      currentWriter = null;
+    }
+
+    return resultBuilder.build();
   }
 }

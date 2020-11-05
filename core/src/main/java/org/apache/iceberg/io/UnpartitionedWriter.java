@@ -23,19 +23,29 @@ import java.io.IOException;
 import org.apache.iceberg.ContentFileWriterFactory;
 import org.apache.iceberg.FileFormat;
 
-public class UnpartitionedWriter<ContentFileT, T> extends BaseTaskWriter<ContentFileT, T> {
+public class UnpartitionedWriter<ContentFileT, T> implements TaskWriter<T> {
 
-  private final RollingFileWriter currentWriter;
+  private final RollingContentFileWriter<ContentFileT, T> currentWriter;
 
   public UnpartitionedWriter(FileFormat format, OutputFileFactory fileFactory, FileIO io, long targetFileSize,
                              ContentFileWriterFactory<ContentFileT, T> writerFactory) {
-    super(format, fileFactory, io, targetFileSize, writerFactory);
-    currentWriter = new RollingFileWriter(null);
+    currentWriter = new RollingContentFileWriter<>(null, format, fileFactory, io,
+        targetFileSize, writerFactory);
   }
 
   @Override
   public void write(T record) throws IOException {
     currentWriter.add(record);
+  }
+
+  @Override
+  public void abort() throws IOException {
+    currentWriter.abort();
+  }
+
+  @Override
+  public TaskWriterResult complete() throws IOException {
+    return currentWriter.complete();
   }
 
   @Override
