@@ -87,6 +87,17 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
    * @param name The catalog name
    * @param conf The Hadoop configuration
    * @param warehouseLocation The location used as warehouse directory
+   */
+  public HadoopCatalog(String name, Configuration conf, String warehouseLocation) {
+    this(name, conf, warehouseLocation, Maps.newHashMap());
+  }
+
+  /**
+   * The all-arg constructor of the HadoopCatalog.
+   *
+   * @param name The catalog name
+   * @param conf The Hadoop configuration
+   * @param warehouseLocation The location used as warehouse directory
    * @param properties catalog properties
    */
   public HadoopCatalog(String name, Configuration conf, String warehouseLocation, Map<String, String> properties) {
@@ -100,17 +111,6 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
     String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
     this.fileIO = fileIOImpl == null ? new HadoopFileIO(conf) : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
-  }
-
-  /**
-   * The constructor of the HadoopCatalog. It uses an empty catalog properties map.
-   *
-   * @param name The catalog name
-   * @param conf The Hadoop configuration
-   * @param warehouseLocation The location used as warehouse directory
-   */
-  public HadoopCatalog(String name, Configuration conf, String warehouseLocation) {
-    this(name, conf, warehouseLocation, Maps.newHashMap());
   }
 
   /**
@@ -131,7 +131,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
    * @param conf The Hadoop configuration
    */
   public HadoopCatalog(Configuration conf) {
-    this("hadoop", conf, conf.get("fs.defaultFS") + "/" + ICEBERG_HADOOP_WAREHOUSE_BASE, Maps.newHashMap());
+    this("hadoop", conf, conf.get("fs.defaultFS") + "/" + ICEBERG_HADOOP_WAREHOUSE_BASE);
   }
 
   @Override
