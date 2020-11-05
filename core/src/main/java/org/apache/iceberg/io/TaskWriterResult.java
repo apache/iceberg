@@ -59,27 +59,6 @@ public class TaskWriterResult {
     return new Builder();
   }
 
-  public static TaskWriterResult concat(TaskWriterResult result0, TaskWriterResult result1) {
-    Builder builder = new Builder();
-    for (DataFile dataFile : result0.dataFiles) {
-      builder.add(dataFile);
-    }
-
-    for (DataFile dataFile : result1.dataFiles) {
-      builder.add(dataFile);
-    }
-
-    for (DeleteFile deleteFile : result0.deleteFiles) {
-      builder.add(deleteFile);
-    }
-
-    for (DeleteFile deleteFile : result1.deleteFiles) {
-      builder.add(deleteFile);
-    }
-
-    return builder.build();
-  }
-
   public static class Builder {
     private final List<DataFile> dataFiles;
     private final List<DeleteFile> deleteFiles;

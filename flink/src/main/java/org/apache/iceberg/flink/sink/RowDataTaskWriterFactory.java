@@ -22,11 +22,10 @@ package org.apache.iceberg.flink.sink;
 import java.io.IOException;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
-import java.util.List;
 import java.util.Map;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
-import org.apache.iceberg.ContentFileWriterFactory;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFileWriterFactory;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
@@ -46,12 +45,10 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.TaskWriter;
-import org.apache.iceberg.io.TaskWriterResult;
 import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final Schema schema;
@@ -62,7 +59,6 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final EncryptionManager encryptionManager;
   private final long targetFileSizeBytes;
   private final FileFormat format;
-  private final Map<String, String> tableProperties;
   private final FileAppenderFactory<RowData> appenderFactory;
 
   private transient OutputFileFactory outputFileFactory;
@@ -84,7 +80,6 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.encryptionManager = encryptionManager;
     this.targetFileSizeBytes = targetFileSizeBytes;
     this.format = format;
-    this.tableProperties = tableProperties;
     this.appenderFactory = new FlinkFileAppenderFactory(schema, flinkSchema, tableProperties);
   }
 
@@ -99,124 +94,23 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
         "The outputFileFactory shouldn't be null if we have invoked the initialize().");
 
     if (spec.fields().isEmpty()) {
-      return new MixedUnpartitionedTaskWriter(format, appenderFactory, outputFileFactory, io, targetFileSizeBytes,
-          schema, flinkSchema, tableProperties);
+      return new UnpartitionedWriter<>(format, outputFileFactory, io,
+          targetFileSizeBytes, new DataFileWriterFactory<>(appenderFactory, spec));
     } else {
-      return new MixedPartitionedTaskWriter(spec, format, appenderFactory, outputFileFactory,
-          io, targetFileSizeBytes, schema, flinkSchema, tableProperties);
+      return new RowDataPartitionedFanoutWriter(spec, format, appenderFactory, outputFileFactory,
+          io, targetFileSizeBytes, schema, flinkSchema);
     }
   }
 
-  private abstract static class BaseMixedTaskWriter implements TaskWriter<RowData> {
-
-    protected abstract TaskWriter<RowData> dataTaskWriter();
-
-    protected abstract TaskWriter<RowData> deleteTaskWriter();
-
-    @Override
-    public void write(RowData row) throws IOException {
-      switch (row.getRowKind()) {
-        case INSERT:
-        case UPDATE_AFTER:
-          dataTaskWriter().write(row);
-          break;
-        case UPDATE_BEFORE:
-        case DELETE:
-          deleteTaskWriter().write(row);
-          break;
-        default:
-          throw new UnsupportedOperationException("Unrecognized row kind: " + row.getRowKind());
-      }
-    }
-
-    @Override
-    public void abort() throws IOException {
-      dataTaskWriter().abort();
-      deleteTaskWriter().abort();
-    }
-
-    @Override
-    public TaskWriterResult complete() throws IOException {
-      return TaskWriterResult.concat(dataTaskWriter().complete(), deleteTaskWriter().complete());
-    }
-
-    @Override
-    public void close() throws IOException {
-      dataTaskWriter().close();
-      deleteTaskWriter().close();
-    }
-  }
-
-  private static class MixedUnpartitionedTaskWriter extends BaseMixedTaskWriter {
-    private final TaskWriter<RowData> dataTaskWriter;
-    private final TaskWriter<RowData> deleteTaskWriter;
-
-    MixedUnpartitionedTaskWriter(FileFormat format, FileAppenderFactory<RowData> appenderFactory,
-                                 OutputFileFactory fileFactory, FileIO io, long targetFileSize, Schema schema,
-                                 RowType flinkSchema, Map<String, String> tableProperties) {
-      this.dataTaskWriter = new UnpartitionedWriter<>(format, fileFactory, io,
-          targetFileSize, new DataFileWriterFactory<>(appenderFactory, PartitionSpec.unpartitioned()));
-
-      // TODO: set the correct equality field ids.
-      List<Integer> equalityIds = ImmutableList.of();
-
-      this.deleteTaskWriter = new UnpartitionedWriter<>(format, fileFactory, io, targetFileSize,
-          new FlinkEqualityDeleterFactory(schema, flinkSchema, PartitionSpec.unpartitioned(), equalityIds,
-              tableProperties));
-    }
-
-    @Override
-    protected TaskWriter<RowData> dataTaskWriter() {
-      return dataTaskWriter;
-    }
-
-    @Override
-    protected TaskWriter<RowData> deleteTaskWriter() {
-      return deleteTaskWriter;
-    }
-  }
-
-  private static class MixedPartitionedTaskWriter extends BaseMixedTaskWriter {
-    private final TaskWriter<RowData> dataTaskWriter;
-    private final TaskWriter<RowData> deleteTaskWriter;
-
-    MixedPartitionedTaskWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<RowData> appenderFactory,
-                               OutputFileFactory fileFactory, FileIO io, long targetFileSize, Schema schema,
-                               RowType flinkSchema, Map<String, String> tableProperties) {
-      this.dataTaskWriter =
-          new RowDataPartitionedFanoutWriter<>(spec, format, fileFactory, io, targetFileSize, schema,
-              flinkSchema, new DataFileWriterFactory<>(appenderFactory, spec));
-
-      // TODO: set the correct equality field ids.
-      List<Integer> equalityIds = ImmutableList.of();
-
-      this.deleteTaskWriter =
-          new RowDataPartitionedFanoutWriter<>(spec, format, fileFactory, io, targetFileSize, schema,
-              flinkSchema, new FlinkEqualityDeleterFactory(schema, flinkSchema, spec, equalityIds, tableProperties));
-
-    }
-
-    @Override
-    protected TaskWriter<RowData> dataTaskWriter() {
-      return dataTaskWriter;
-    }
-
-    @Override
-    protected TaskWriter<RowData> deleteTaskWriter() {
-      return deleteTaskWriter;
-    }
-  }
-
-  private static class RowDataPartitionedFanoutWriter<ContentFileT>
-      extends PartitionedFanoutWriter<ContentFileT, RowData> {
+  private static class RowDataPartitionedFanoutWriter extends PartitionedFanoutWriter<DataFile, RowData> {
 
     private final PartitionKey partitionKey;
     private final RowDataWrapper rowDataWrapper;
 
-    RowDataPartitionedFanoutWriter(PartitionSpec spec, FileFormat format, OutputFileFactory fileFactory, FileIO io,
-                                   long targetFileSize, Schema schema, RowType flinkSchema,
-                                   ContentFileWriterFactory<ContentFileT, RowData> contentFileWriter) {
-      super(format, fileFactory, io, targetFileSize, contentFileWriter);
+    RowDataPartitionedFanoutWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<RowData> appenderFactory,
+                                   OutputFileFactory fileFactory, FileIO io, long targetFileSize, Schema schema,
+                                   RowType flinkSchema) {
+      super(format, fileFactory, io, targetFileSize, new DataFileWriterFactory<>(appenderFactory, spec));
       this.partitionKey = new PartitionKey(spec, schema);
       this.rowDataWrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
     }
