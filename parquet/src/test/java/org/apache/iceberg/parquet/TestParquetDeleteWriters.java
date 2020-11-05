@@ -139,7 +139,7 @@ public class TestParquetDeleteWriters {
       }
     }
 
-    DeleteFile metadata = deleteWriter.toContentFile();
+    DeleteFile metadata = deleteWriter.toDeleteFile();
     Assert.assertEquals("Format should be Parquet", FileFormat.PARQUET, metadata.format());
     Assert.assertEquals("Should be position deletes", FileContent.POSITION_DELETES, metadata.content());
     Assert.assertEquals("Record count should be correct", records.size(), metadata.recordCount());
@@ -186,7 +186,7 @@ public class TestParquetDeleteWriters {
       }
     }
 
-    DeleteFile metadata = deleteWriter.toContentFile();
+    DeleteFile metadata = deleteWriter.toDeleteFile();
     Assert.assertEquals("Format should be Parquet", FileFormat.PARQUET, metadata.format());
     Assert.assertEquals("Should be position deletes", FileContent.POSITION_DELETES, metadata.content());
     Assert.assertEquals("Record count should be correct", records.size(), metadata.recordCount());

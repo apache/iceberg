@@ -19,14 +19,13 @@
 
 package org.apache.iceberg.deletes;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Set;
-import org.apache.iceberg.ContentFileWriter;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileMetadata;
-import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
@@ -34,7 +33,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.CharSequenceSet;
 
-public class PositionDeleteWriter<T> implements ContentFileWriter<DeleteFile, PositionDelete<T>> {
+public class PositionDeleteWriter<T> implements Closeable {
   private final FileAppender<StructLike> appender;
   private final FileFormat format;
   private final String location;
@@ -86,24 +85,8 @@ public class PositionDeleteWriter<T> implements ContentFileWriter<DeleteFile, Po
     return pathSet;
   }
 
-  @Override
-  public DeleteFile toContentFile() {
+  public DeleteFile toDeleteFile() {
     Preconditions.checkState(deleteFile != null, "Cannot create delete file from unclosed writer");
     return deleteFile;
-  }
-
-  @Override
-  public void write(PositionDelete<T> record) {
-    delete(record.path(), record.pos(), record.row());
-  }
-
-  @Override
-  public Metrics metrics() {
-    return appender.metrics();
-  }
-
-  @Override
-  public long length() {
-    return appender.length();
   }
 }

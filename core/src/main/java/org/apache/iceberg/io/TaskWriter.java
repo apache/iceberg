@@ -27,7 +27,7 @@ import java.io.IOException;
  *
  * @param <T> to indicate the record data type.
  */
-public interface FileGroupWriter<T> extends Closeable {
+public interface TaskWriter<T> extends Closeable {
 
   /**
    * Write the row into the data files.
@@ -42,19 +42,9 @@ public interface FileGroupWriter<T> extends Closeable {
   void abort() throws IOException;
 
   /**
-   * Get the path of current opening file.
-   */
-  CharSequence currentPath() throws IOException;
-
-  /**
-   * Get the row number (starts from 0) of current opening file.
-   */
-  long currentPos() throws IOException;
-
-  /**
    * Close the writer and get the completed data/delete files.
    *
    * @return the completed data files of this task writer.
    */
-  WriterResult complete() throws IOException;
+  TaskWriterResult complete() throws IOException;
 }

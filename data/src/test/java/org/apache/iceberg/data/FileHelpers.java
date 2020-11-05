@@ -64,7 +64,7 @@ public class FileHelpers {
       }
     }
 
-    return Pair.of(writer.toContentFile(), writer.referencedDataFiles());
+    return Pair.of(writer.toDeleteFile(), writer.referencedDataFiles());
   }
 
   public static DeleteFile writeDeleteFile(Table table, OutputFile out, List<Record> deletes, Schema deleteRowSchema)

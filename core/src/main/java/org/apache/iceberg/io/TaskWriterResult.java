@@ -28,11 +28,11 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-public class WriterResult {
+public class TaskWriterResult {
   private DataFile[] dataFiles;
   private DeleteFile[] deleteFiles;
 
-  private WriterResult(List<DataFile> dataFiles, List<DeleteFile> deleteFiles) {
+  private TaskWriterResult(List<DataFile> dataFiles, List<DeleteFile> deleteFiles) {
     this.dataFiles = dataFiles.toArray(new DataFile[0]);
     this.deleteFiles = deleteFiles.toArray(new DeleteFile[0]);
   }
@@ -74,7 +74,7 @@ public class WriterResult {
     return new Builder();
   }
 
-  public static WriterResult concat(WriterResult result0, WriterResult result1) {
+  public static TaskWriterResult concat(TaskWriterResult result0, TaskWriterResult result1) {
     Builder builder = new Builder();
 
     builder.addAll(result0.dataFiles);
@@ -94,19 +94,13 @@ public class WriterResult {
       this.deleteFiles = Lists.newArrayList();
     }
 
-    public void addAll(Iterable<ContentFile<?>> iterable) {
-      for (ContentFile<?> file : iterable) {
+    public <T> void addAll(ContentFile<T>... files) {
+      for (ContentFile<T> file : files) {
         add(file);
       }
     }
 
-    public void addAll(ContentFile<?>... files) {
-      for (ContentFile<?> file : files) {
-        add(file);
-      }
-    }
-
-    public void add(ContentFile<?> contentFile) {
+    public <T> void add(ContentFile<T> contentFile) {
       Preconditions.checkNotNull(contentFile, "Content file shouldn't be null.");
       switch (contentFile.content()) {
         case DATA:
@@ -123,8 +117,8 @@ public class WriterResult {
       }
     }
 
-    public WriterResult build() {
-      return new WriterResult(dataFiles, deleteFiles);
+    public TaskWriterResult build() {
+      return new TaskWriterResult(dataFiles, deleteFiles);
     }
   }
 }

@@ -26,7 +26,7 @@ import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.io.FileGroupWriter;
+import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
@@ -37,7 +37,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
   private final String fullTableName;
   private final TaskWriterFactory<T> taskWriterFactory;
 
-  private transient FileGroupWriter<T> writer;
+  private transient TaskWriter<T> writer;
   private transient int subTaskId;
   private transient int attemptId;
 
