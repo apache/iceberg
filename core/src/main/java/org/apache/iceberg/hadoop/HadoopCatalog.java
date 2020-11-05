@@ -103,13 +103,24 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   }
 
   /**
+   * The constructor of the HadoopCatalog. It uses an empty catalog properties map.
+   *
+   * @param name The catalog name
+   * @param conf The Hadoop configuration
+   * @param warehouseLocation The location used as warehouse directory
+   */
+  public HadoopCatalog(String name, Configuration conf, String warehouseLocation) {
+    this(name, conf, warehouseLocation, Maps.newHashMap());
+  }
+
+  /**
    * The constructor of the HadoopCatalog. It uses the passed location as its warehouse directory.
    *
    * @param conf The Hadoop configuration
    * @param warehouseLocation The location used as warehouse directory
    */
   public HadoopCatalog(Configuration conf, String warehouseLocation) {
-    this("hadoop", conf, warehouseLocation, Maps.newHashMap());
+    this("hadoop", conf, warehouseLocation);
   }
 
   /**

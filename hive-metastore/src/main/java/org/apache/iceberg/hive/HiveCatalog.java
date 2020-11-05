@@ -77,7 +77,11 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   }
 
   public HiveCatalog(String name, String uri, int clientPoolSize, Configuration conf) {
-    this(name, uri, null, clientPoolSize, conf, Maps.newHashMap());
+    this(name, uri, null, clientPoolSize, conf);
+  }
+
+  public HiveCatalog(String name, String uri, String warehouse, int clientPoolSize, Configuration conf) {
+    this(name, uri, warehouse, clientPoolSize, conf, Maps.newHashMap());
   }
 
   public HiveCatalog(
