@@ -23,7 +23,7 @@ import java.io.IOException;
 import org.apache.iceberg.ContentFileWriterFactory;
 import org.apache.iceberg.FileFormat;
 
-public class UnpartitionedWriter<ContentFileT, T> extends BaseRollingFilesWriter<ContentFileT, T> {
+public class UnpartitionedWriter<ContentFileT, T> extends BaseFileGroupWriter<ContentFileT, T> {
 
   private final RollingFileWriter currentWriter;
 

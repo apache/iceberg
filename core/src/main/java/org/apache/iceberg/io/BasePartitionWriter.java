@@ -24,7 +24,6 @@ import java.util.List;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.PositionDelete;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.StructLikeMap;
@@ -32,9 +31,9 @@ import org.apache.iceberg.util.StructProjection;
 
 public abstract class BasePartitionWriter<T> implements PartitionWriter<T> {
 
-  private final RollingFilesWriter<T> dataWriter;
-  private final RollingFilesWriter<T> equalityDeleteWriter;
-  private final RollingFilesWriter<PositionDelete<T>> positionDeleteWriter;
+  private final FileGroupWriter<T> dataWriter;
+  private final FileGroupWriter<T> equalityDeleteWriter;
+  private final FileGroupWriter<PositionDelete<T>> positionDeleteWriter;
   private final StructProjection projectRow;
   private final PositionDelete<T> positionDelete = new PositionDelete<>();
   private final StructLikeMap<FilePos> insertedRowMap;
@@ -61,32 +60,20 @@ public abstract class BasePartitionWriter<T> implements PartitionWriter<T> {
     }
   }
 
-  public BasePartitionWriter(RollingFilesWriter<T> dataWriter) {
+  public BasePartitionWriter(FileGroupWriter<T> dataWriter) {
     this(dataWriter, null);
   }
 
-  public BasePartitionWriter(RollingFilesWriter<T> dataWriter,
-                             RollingFilesWriter<PositionDelete<T>> positionDeleteWriter) {
+  public BasePartitionWriter(FileGroupWriter<T> dataWriter,
+                             FileGroupWriter<PositionDelete<T>> positionDeleteWriter) {
     this(dataWriter, positionDeleteWriter, null, null, null);
   }
 
-  public BasePartitionWriter(RollingFilesWriter<T> dataWriter,
-                             RollingFilesWriter<PositionDelete<T>> positionDeleteWriter,
-                             RollingFilesWriter<T> equalityDeleteWriter,
+  public BasePartitionWriter(FileGroupWriter<T> dataWriter,
+                             FileGroupWriter<PositionDelete<T>> positionDeleteWriter,
+                             FileGroupWriter<T> equalityDeleteWriter,
                              Schema tableSchema,
                              List<Integer> equalityFieldIds) {
-    Preconditions.checkNotNull(dataWriter, "Data writer should always not be null.");
-    if (positionDeleteWriter == null) {
-      // Only accept INSERT records.
-      Preconditions.checkArgument(equalityDeleteWriter == null);
-    }
-
-    if (equalityDeleteWriter != null) {
-      // Only accept equality delete records.
-      Preconditions.checkNotNull(positionDeleteWriter,
-          "Position delete writer shouldn't be null when writing equality deletions.");
-    }
-
     this.dataWriter = dataWriter;
     this.positionDeleteWriter = positionDeleteWriter;
     this.equalityDeleteWriter = equalityDeleteWriter;

@@ -24,12 +24,12 @@ import java.util.Map;
 import org.apache.iceberg.ContentFileWriterFactory;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
-import org.apache.iceberg.io.BaseRollingFilesWriter;
+import org.apache.iceberg.io.BaseFileGroupWriter;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-abstract class PartitionedFanoutWriter<ContentFileT, T> extends BaseRollingFilesWriter<ContentFileT, T> {
+abstract class PartitionedFanoutWriter<ContentFileT, T> extends BaseFileGroupWriter<ContentFileT, T> {
   private final Map<PartitionKey, RollingFileWriter> writers = Maps.newHashMap();
 
   PartitionedFanoutWriter(FileFormat format, OutputFileFactory fileFactory, FileIO io, long targetFileSize,

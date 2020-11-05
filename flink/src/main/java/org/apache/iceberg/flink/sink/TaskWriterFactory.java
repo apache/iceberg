@@ -20,10 +20,10 @@
 package org.apache.iceberg.flink.sink;
 
 import java.io.Serializable;
-import org.apache.iceberg.io.RollingFilesWriter;
+import org.apache.iceberg.io.FileGroupWriter;
 
 /**
- * Factory to create {@link RollingFilesWriter}
+ * Factory to create {@link FileGroupWriter}
  *
  * @param <T> data type of record.
  */
@@ -38,9 +38,9 @@ public interface TaskWriterFactory<T> extends Serializable {
   void initialize(int taskId, int attemptId);
 
   /**
-   * Initialize a {@link RollingFilesWriter} with given task id and attempt id.
+   * Initialize a {@link FileGroupWriter} with given task id and attempt id.
    *
    * @return a newly created task writer.
    */
-  RollingFilesWriter<T> create();
+  FileGroupWriter<T> create();
 }

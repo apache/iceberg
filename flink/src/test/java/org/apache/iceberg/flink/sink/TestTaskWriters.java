@@ -37,7 +37,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.data.RandomRowData;
-import org.apache.iceberg.io.RollingFilesWriter;
+import org.apache.iceberg.io.FileGroupWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
@@ -91,16 +91,16 @@ public class TestTaskWriters {
 
   @Test
   public void testWriteZeroRecord() throws IOException {
-    try (RollingFilesWriter<RowData> rollingFilesWriter = createTaskWriter(TARGET_FILE_SIZE)) {
-      rollingFilesWriter.close();
+    try (FileGroupWriter<RowData> fileGroupWriter = createTaskWriter(TARGET_FILE_SIZE)) {
+      fileGroupWriter.close();
 
-      DataFile[] dataFiles = rollingFilesWriter.complete().dataFiles();
+      DataFile[] dataFiles = fileGroupWriter.complete().dataFiles();
       Assert.assertNotNull(dataFiles);
       Assert.assertEquals(0, dataFiles.length);
 
       // Close again.
-      rollingFilesWriter.close();
-      dataFiles = rollingFilesWriter.complete().dataFiles();
+      fileGroupWriter.close();
+      dataFiles = fileGroupWriter.complete().dataFiles();
       Assert.assertNotNull(dataFiles);
       Assert.assertEquals(0, dataFiles.length);
     }
@@ -108,14 +108,14 @@ public class TestTaskWriters {
 
   @Test
   public void testCloseTwice() throws IOException {
-    try (RollingFilesWriter<RowData> rollingFilesWriter = createTaskWriter(TARGET_FILE_SIZE)) {
-      rollingFilesWriter.write(SimpleDataUtil.createRowData(1, "hello"));
-      rollingFilesWriter.write(SimpleDataUtil.createRowData(2, "world"));
-      rollingFilesWriter.close(); // The first close
-      rollingFilesWriter.close(); // The second close
+    try (FileGroupWriter<RowData> fileGroupWriter = createTaskWriter(TARGET_FILE_SIZE)) {
+      fileGroupWriter.write(SimpleDataUtil.createRowData(1, "hello"));
+      fileGroupWriter.write(SimpleDataUtil.createRowData(2, "world"));
+      fileGroupWriter.close(); // The first close
+      fileGroupWriter.close(); // The second close
 
       int expectedFiles = partitioned ? 2 : 1;
-      DataFile[] dataFiles = rollingFilesWriter.complete().dataFiles();
+      DataFile[] dataFiles = fileGroupWriter.complete().dataFiles();
       Assert.assertEquals(expectedFiles, dataFiles.length);
 
       FileSystem fs = FileSystem.get(CONF);
@@ -127,12 +127,12 @@ public class TestTaskWriters {
 
   @Test
   public void testAbort() throws IOException {
-    try (RollingFilesWriter<RowData> rollingFilesWriter = createTaskWriter(TARGET_FILE_SIZE)) {
-      rollingFilesWriter.write(SimpleDataUtil.createRowData(1, "hello"));
-      rollingFilesWriter.write(SimpleDataUtil.createRowData(2, "world"));
+    try (FileGroupWriter<RowData> fileGroupWriter = createTaskWriter(TARGET_FILE_SIZE)) {
+      fileGroupWriter.write(SimpleDataUtil.createRowData(1, "hello"));
+      fileGroupWriter.write(SimpleDataUtil.createRowData(2, "world"));
 
-      rollingFilesWriter.abort();
-      DataFile[] dataFiles = rollingFilesWriter.complete().dataFiles();
+      fileGroupWriter.abort();
+      DataFile[] dataFiles = fileGroupWriter.complete().dataFiles();
 
       int expectedFiles = partitioned ? 2 : 1;
       Assert.assertEquals(expectedFiles, dataFiles.length);
@@ -146,17 +146,17 @@ public class TestTaskWriters {
 
   @Test
   public void testCompleteFiles() throws IOException {
-    try (RollingFilesWriter<RowData> rollingFilesWriter = createTaskWriter(TARGET_FILE_SIZE)) {
-      rollingFilesWriter.write(SimpleDataUtil.createRowData(1, "a"));
-      rollingFilesWriter.write(SimpleDataUtil.createRowData(2, "b"));
-      rollingFilesWriter.write(SimpleDataUtil.createRowData(3, "c"));
-      rollingFilesWriter.write(SimpleDataUtil.createRowData(4, "d"));
+    try (FileGroupWriter<RowData> fileGroupWriter = createTaskWriter(TARGET_FILE_SIZE)) {
+      fileGroupWriter.write(SimpleDataUtil.createRowData(1, "a"));
+      fileGroupWriter.write(SimpleDataUtil.createRowData(2, "b"));
+      fileGroupWriter.write(SimpleDataUtil.createRowData(3, "c"));
+      fileGroupWriter.write(SimpleDataUtil.createRowData(4, "d"));
 
-      DataFile[] dataFiles = rollingFilesWriter.complete().dataFiles();
+      DataFile[] dataFiles = fileGroupWriter.complete().dataFiles();
       int expectedFiles = partitioned ? 4 : 1;
       Assert.assertEquals(expectedFiles, dataFiles.length);
 
-      dataFiles = rollingFilesWriter.complete().dataFiles();
+      dataFiles = fileGroupWriter.complete().dataFiles();
       Assert.assertEquals(expectedFiles, dataFiles.length);
 
       FileSystem fs = FileSystem.get(CONF);
@@ -186,7 +186,7 @@ public class TestTaskWriters {
     if (format == FileFormat.ORC) {
       return;
     }
-    try (RollingFilesWriter<RowData> rollingFilesWriter = createTaskWriter(4)) {
+    try (FileGroupWriter<RowData> fileGroupWriter = createTaskWriter(4)) {
       List<RowData> rows = Lists.newArrayListWithCapacity(8000);
       List<Record> records = Lists.newArrayListWithCapacity(8000);
       for (int i = 0; i < 2000; i++) {
@@ -197,10 +197,10 @@ public class TestTaskWriters {
       }
 
       for (RowData row : rows) {
-        rollingFilesWriter.write(row);
+        fileGroupWriter.write(row);
       }
 
-      DataFile[] dataFiles = rollingFilesWriter.complete().dataFiles();
+      DataFile[] dataFiles = fileGroupWriter.complete().dataFiles();
       Assert.assertEquals(8, dataFiles.length);
 
       AppendFiles appendFiles = table.newAppend();
@@ -216,14 +216,14 @@ public class TestTaskWriters {
 
   @Test
   public void testRandomData() throws IOException {
-    try (RollingFilesWriter<RowData> rollingFilesWriter = createTaskWriter(TARGET_FILE_SIZE)) {
+    try (FileGroupWriter<RowData> fileGroupWriter = createTaskWriter(TARGET_FILE_SIZE)) {
       Iterable<RowData> rows = RandomRowData.generate(SimpleDataUtil.SCHEMA, 100, 1996);
       for (RowData row : rows) {
-        rollingFilesWriter.write(row);
+        fileGroupWriter.write(row);
       }
 
-      rollingFilesWriter.close();
-      DataFile[] dataFiles = rollingFilesWriter.complete().dataFiles();
+      fileGroupWriter.close();
+      DataFile[] dataFiles = fileGroupWriter.complete().dataFiles();
       AppendFiles appendFiles = table.newAppend();
       for (DataFile dataFile : dataFiles) {
         appendFiles.appendFile(dataFile);
@@ -235,7 +235,7 @@ public class TestTaskWriters {
     }
   }
 
-  private RollingFilesWriter<RowData> createTaskWriter(long targetFileSize) {
+  private FileGroupWriter<RowData> createTaskWriter(long targetFileSize) {
     TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(table.schema(),
         (RowType) SimpleDataUtil.FLINK_SCHEMA.toRowDataType().getLogicalType(), table.spec(),
         table.locationProvider(), table.io(), table.encryption(),

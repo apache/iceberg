@@ -30,7 +30,7 @@ import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.util.Tasks;
 
-public abstract class BaseRollingFilesWriter<ContentFileT, T> implements RollingFilesWriter<T> {
+public abstract class BaseFileGroupWriter<ContentFileT, T> implements FileGroupWriter<T> {
   private final WriterResult.Builder builder;
   private final FileFormat format;
   private final OutputFileFactory fileFactory;
@@ -38,9 +38,8 @@ public abstract class BaseRollingFilesWriter<ContentFileT, T> implements Rolling
   private final long targetFileSize;
   private final ContentFileWriterFactory<ContentFileT, T> writerFactory;
 
-  protected BaseRollingFilesWriter(FileFormat format, OutputFileFactory fileFactory,
-                                   FileIO io, long targetFileSize,
-                                   ContentFileWriterFactory<ContentFileT, T> writerFactory) {
+  protected BaseFileGroupWriter(FileFormat format, OutputFileFactory fileFactory, FileIO io, long targetFileSize,
+                                ContentFileWriterFactory<ContentFileT, T> writerFactory) {
     this.builder = WriterResult.builder();
     this.format = format;
     this.fileFactory = fileFactory;
