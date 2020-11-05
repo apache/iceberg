@@ -385,6 +385,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     return config;
   }
 
+  @Override
   public void initialize(String inputName, Map<String, String> options) {
     this.name = inputName;
     init(options.getOrDefault(NessieClient.CONF_NESSIE_REF, config.get(NessieClient.CONF_NESSIE_REF)),
