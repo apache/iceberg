@@ -26,7 +26,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.util.StructLikeMap;
+import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
 
 public abstract class BasePartitionWriter<T> implements PartitionWriter<T> {
@@ -35,30 +35,10 @@ public abstract class BasePartitionWriter<T> implements PartitionWriter<T> {
   private final FileGroupWriter<T> equalityDeleteWriter;
   private final FileGroupWriter<PositionDelete<T>> positionDeleteWriter;
   private final StructProjection projectRow;
+  private final Schema deleteSchema;
+  private final List<Integer> equalityFieldIds;
   private final PositionDelete<T> positionDelete = new PositionDelete<>();
-  private final StructLikeMap<FilePos> insertedRowMap;
-
-  private static class FilePos {
-    private final CharSequence path;
-    private final long pos;
-
-    private FilePos(CharSequence path, long pos) {
-      this.path = path;
-      this.pos = pos;
-    }
-
-    private static FilePos create(CharSequence path, long pos) {
-      return new FilePos(path, pos);
-    }
-
-    private CharSequence path() {
-      return path;
-    }
-
-    private long pos() {
-      return pos;
-    }
-  }
+  private final StructLikeSet insertedDataSet;
 
   public BasePartitionWriter(FileGroupWriter<T> dataWriter) {
     this(dataWriter, null);
@@ -72,27 +52,27 @@ public abstract class BasePartitionWriter<T> implements PartitionWriter<T> {
   public BasePartitionWriter(FileGroupWriter<T> dataWriter,
                              FileGroupWriter<PositionDelete<T>> positionDeleteWriter,
                              FileGroupWriter<T> equalityDeleteWriter,
-                             Schema tableSchema,
+                             Schema writeSchema,
                              List<Integer> equalityFieldIds) {
     this.dataWriter = dataWriter;
     this.positionDeleteWriter = positionDeleteWriter;
     this.equalityDeleteWriter = equalityDeleteWriter;
-
-    Schema deleteSchema = TypeUtil.select(tableSchema, Sets.newHashSet(equalityFieldIds));
-    this.projectRow = StructProjection.create(tableSchema, deleteSchema);
-    this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
+    this.deleteSchema = TypeUtil.select(writeSchema, Sets.newHashSet(equalityFieldIds));
+    this.equalityFieldIds = equalityFieldIds;
+    this.projectRow = StructProjection.create(writeSchema, deleteSchema);
+    this.insertedDataSet = StructLikeSet.create(deleteSchema.asStruct());
   }
 
   protected abstract StructLike asStructLike(T record);
 
   @Override
   public void append(T row) throws IOException {
-    if (allowEqualityDelete()) {
-      FilePos filePos = FilePos.create(dataWriter.currentPath(), dataWriter.currentPos());
-      insertedRowMap.put(projectRow.wrap(asStructLike(row)), filePos);
-    }
-
     this.dataWriter.write(row);
+
+    if (allowEqualityDelete()) {
+      // TODO Put the <row, <file, offset>> into the insert data MAP, rather than SET.
+      insertedDataSet.add(projectRow.wrap(asStructLike(row)));
+    }
   }
 
   @Override
@@ -101,14 +81,11 @@ public abstract class BasePartitionWriter<T> implements PartitionWriter<T> {
       throw new UnsupportedOperationException("Couldn't accept equality deletions.");
     }
 
-    FilePos existingFilePos = insertedRowMap.get(projectRow.wrap(asStructLike(deleteRow)));
-
-    if (existingFilePos == null) {
-      // Delete the row which has been written before this writer.
+    if (!insertedDataSet.contains(projectRow.wrap(asStructLike(deleteRow)))) {
       this.equalityDeleteWriter.write(deleteRow);
     } else {
-      // Delete the row which was written in current writer.
-      this.positionDeleteWriter.write(positionDelete.set(existingFilePos.path(), existingFilePos.pos(), deleteRow));
+      // TODO Get the correct path and pos from insert data MAP rather than SET.
+      this.positionDeleteWriter.write(positionDelete.set(dataWriter.currentPath(), dataWriter.currentPos(), deleteRow));
     }
   }
 

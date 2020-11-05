@@ -24,6 +24,7 @@ import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.ContentFileWriterFactory;
@@ -53,6 +54,7 @@ import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final Schema schema;
@@ -67,6 +69,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final FileAppenderFactory<RowData> appenderFactory;
 
   private transient OutputFileFactory outputFileFactory;
+  private transient Set<RowData> eqDeleteCache;
 
   public RowDataTaskWriterFactory(Schema schema,
                                   RowType flinkSchema,
@@ -92,6 +95,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   @Override
   public void initialize(int taskId, int attemptId) {
     this.outputFileFactory = new OutputFileFactory(spec, format, locations, io, encryptionManager, taskId, attemptId);
+    this.eqDeleteCache = Sets.newHashSet();
   }
 
   @Override

@@ -27,10 +27,6 @@ public interface PartitionWriter<T> {
 
   void delete(T deleteRow) throws IOException;
 
-  default void delete(CharSequence path, long pos) throws IOException {
-    delete(path, pos, null);
-  }
-
   void delete(CharSequence path, long pos, T row) throws IOException;
 
   void abort() throws IOException;
