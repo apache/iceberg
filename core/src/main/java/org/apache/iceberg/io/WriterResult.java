@@ -29,23 +29,23 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-public class TaskWriterResult {
-  private static final TaskWriterResult EMPTY = new TaskWriterResult(ImmutableList.of(), ImmutableList.of());
+public class WriterResult {
+  private static final WriterResult EMPTY = new WriterResult(ImmutableList.of(), ImmutableList.of());
 
   private DataFile[] dataFiles;
   private DeleteFile[] deleteFiles;
 
-  TaskWriterResult(DataFile[] dataFiles, DeleteFile[] deleteFiles) {
+  WriterResult(DataFile[] dataFiles, DeleteFile[] deleteFiles) {
     this.dataFiles = dataFiles;
     this.deleteFiles = deleteFiles;
   }
 
-  TaskWriterResult(List<DataFile> dataFiles, List<DeleteFile> deleteFiles) {
+  WriterResult(List<DataFile> dataFiles, List<DeleteFile> deleteFiles) {
     this.dataFiles = dataFiles.toArray(new DataFile[0]);
     this.deleteFiles = deleteFiles.toArray(new DeleteFile[0]);
   }
 
-  static TaskWriterResult empty() {
+  static WriterResult empty() {
     return EMPTY;
   }
 
@@ -95,7 +95,7 @@ public class TaskWriterResult {
       this.deleteFiles = Lists.newArrayList();
     }
 
-    public void add(TaskWriterResult result) {
+    public void add(WriterResult result) {
       addAll(result.contentFiles());
     }
 
@@ -122,8 +122,8 @@ public class TaskWriterResult {
       }
     }
 
-    public TaskWriterResult build() {
-      return new TaskWriterResult(dataFiles, deleteFiles);
+    public WriterResult build() {
+      return new WriterResult(dataFiles, deleteFiles);
     }
   }
 }

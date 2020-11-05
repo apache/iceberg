@@ -35,7 +35,7 @@ public class UnpartitionedWriter<ContentFileT, T> implements TaskWriter<T> {
 
   @Override
   public void write(T record) throws IOException {
-    currentWriter.add(record);
+    currentWriter.write(record);
   }
 
   @Override
@@ -44,7 +44,7 @@ public class UnpartitionedWriter<ContentFileT, T> implements TaskWriter<T> {
   }
 
   @Override
-  public TaskWriterResult complete() throws IOException {
+  public WriterResult complete() throws IOException {
     return currentWriter.complete();
   }
 

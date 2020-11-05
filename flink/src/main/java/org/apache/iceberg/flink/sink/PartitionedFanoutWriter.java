@@ -28,7 +28,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.RollingContentFileWriter;
 import org.apache.iceberg.io.TaskWriter;
-import org.apache.iceberg.io.TaskWriterResult;
+import org.apache.iceberg.io.WriterResult;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,7 +75,7 @@ abstract class PartitionedFanoutWriter<ContentFileT, T> implements TaskWriter<T>
       writers.put(copiedKey, writer);
     }
 
-    writer.add(row);
+    writer.write(row);
   }
 
   @Override
@@ -101,8 +101,8 @@ abstract class PartitionedFanoutWriter<ContentFileT, T> implements TaskWriter<T>
   }
 
   @Override
-  public TaskWriterResult complete() throws IOException {
-    TaskWriterResult.Builder builder = TaskWriterResult.builder();
+  public WriterResult complete() throws IOException {
+    WriterResult.Builder builder = WriterResult.builder();
 
     for (RollingContentFileWriter<ContentFileT, T> writer : writers.values()) {
       builder.add(writer.complete());

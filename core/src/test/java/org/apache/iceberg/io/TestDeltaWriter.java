@@ -19,32 +19,12 @@
 
 package org.apache.iceberg.io;
 
-import java.io.Closeable;
-import java.io.IOException;
+import org.junit.Test;
 
-/**
- * The writer interface could accept records and provide the generated data files.
- *
- * @param <T> to indicate the record data type.
- */
-public interface TaskWriter<T> extends Closeable {
+public class TestDeltaWriter {
 
-  /**
-   * Write the row into the data files.
-   */
-  void write(T row) throws IOException;
+  @Test
+  public void test() {
 
-  /**
-   * Close the writer and delete the completed files if possible when aborting.
-   *
-   * @throws IOException if any IO error happen.
-   */
-  void abort() throws IOException;
-
-  /**
-   * Close the writer and get the completed data files.
-   *
-   * @return the completed data files of this task writer.
-   */
-  WriterResult complete() throws IOException;
+  }
 }

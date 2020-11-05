@@ -23,28 +23,40 @@ import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * The writer interface could accept records and provide the generated data files.
- *
- * @param <T> to indicate the record data type.
+ * The write interface could accept INSERT, POS-DELETION, EQUALITY-DELETION. It usually write those operations
+ * in a given partition or bucket.
  */
-public interface TaskWriter<T> extends Closeable {
+public interface DeltaWriter<T> extends Closeable {
 
   /**
-   * Write the row into the data files.
+   * Write the insert record.
    */
-  void write(T row) throws IOException;
+  void writeRow(T row) throws IOException;
 
   /**
-   * Close the writer and delete the completed files if possible when aborting.
-   *
-   * @throws IOException if any IO error happen.
+   * Write the equality delete record.
+   */
+  void writeEqualityDelete(T equalityDelete) throws IOException;
+
+  /**
+   * Write the deletion with file path and position into underlying system.
+   */
+  default void writePosDelete(CharSequence path, long offset) throws IOException {
+    writePosDelete(path, offset, null);
+  }
+
+  /**
+   * Write the deletion with file path, position and original row into underlying system.
+   */
+  void writePosDelete(CharSequence path, long offset, T row) throws IOException;
+
+  /**
+   * Abort the writer to clean all generated files.
    */
   void abort() throws IOException;
 
   /**
-   * Close the writer and get the completed data files.
-   *
-   * @return the completed data files of this task writer.
+   * Close the writer and get all the completed data files and delete files.
    */
   WriterResult complete() throws IOException;
 }

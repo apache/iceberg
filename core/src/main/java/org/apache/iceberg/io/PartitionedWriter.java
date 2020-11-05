@@ -38,7 +38,7 @@ public abstract class PartitionedWriter<ContentFileT, T> implements TaskWriter<T
   private final FileIO io;
   private final long targetFileSize;
   private final ContentFileWriterFactory<ContentFileT, T> writerFactory;
-  private final TaskWriterResult.Builder resultBuilder;
+  private final WriterResult.Builder resultBuilder;
 
   private final Set<PartitionKey> completedPartitions = Sets.newHashSet();
 
@@ -52,7 +52,7 @@ public abstract class PartitionedWriter<ContentFileT, T> implements TaskWriter<T
     this.io = io;
     this.targetFileSize = targetFileSize;
     this.writerFactory = writerFactory;
-    this.resultBuilder = TaskWriterResult.builder();
+    this.resultBuilder = WriterResult.builder();
   }
 
   /**
@@ -87,7 +87,7 @@ public abstract class PartitionedWriter<ContentFileT, T> implements TaskWriter<T
           fileFactory, io, targetFileSize, writerFactory);
     }
 
-    currentWriter.add(row);
+    currentWriter.write(row);
   }
 
   @Override
@@ -112,7 +112,7 @@ public abstract class PartitionedWriter<ContentFileT, T> implements TaskWriter<T
   }
 
   @Override
-  public TaskWriterResult complete() throws IOException {
+  public WriterResult complete() throws IOException {
     if (currentWriter != null) {
       resultBuilder.add(currentWriter.complete());
       currentWriter = null;

@@ -41,7 +41,7 @@ public class RollingContentFileWriter<ContentFileT, T> implements Closeable {
   private final long targetFileSize;
   private final ContentFileWriterFactory<ContentFileT, T> writerFactory;
 
-  private final TaskWriterResult.Builder resultBuilder;
+  private final WriterResult.Builder resultBuilder;
 
   private EncryptedOutputFile currentFile = null;
   private ContentFileWriter<ContentFileT, T> currentFileWriter = null;
@@ -57,12 +57,20 @@ public class RollingContentFileWriter<ContentFileT, T> implements Closeable {
     this.targetFileSize = targetFileSize;
     this.writerFactory = writerFactory;
 
-    this.resultBuilder = TaskWriterResult.builder();
+    this.resultBuilder = WriterResult.builder();
 
     openCurrent();
   }
 
-  public void add(T record) throws IOException {
+  public CharSequence currentPath() {
+    return currentFile.encryptingOutputFile().location();
+  }
+
+  public long currentPos() {
+    return currentRows;
+  }
+
+  public void write(T record) throws IOException {
     this.currentFileWriter.write(record);
     this.currentRows++;
 
@@ -75,7 +83,7 @@ public class RollingContentFileWriter<ContentFileT, T> implements Closeable {
   public void abort() throws IOException {
     close();
 
-    TaskWriterResult result = resultBuilder.build();
+    WriterResult result = resultBuilder.build();
 
     Tasks.foreach(result.contentFiles())
         .throwFailureWhenFinished()
@@ -83,7 +91,7 @@ public class RollingContentFileWriter<ContentFileT, T> implements Closeable {
         .run(file -> io.deleteFile(file.path().toString()));
   }
 
-  public TaskWriterResult complete() throws IOException {
+  public WriterResult complete() throws IOException {
     close();
 
     return resultBuilder.build();
