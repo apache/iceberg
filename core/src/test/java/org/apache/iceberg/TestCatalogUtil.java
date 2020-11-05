@@ -27,6 +27,10 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -81,6 +85,41 @@ public class TestCatalogUtil {
         IllegalArgumentException.class,
         "does not implement Catalog",
         () -> CatalogUtil.loadCatalog(TestCatalogNoInterface.class.getName(), name, options, hadoopConf));
+  }
+
+
+  @Test
+  public void loadCustomFileIO_noArg() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("key", "val");
+    FileIO fileIO = CatalogUtil.loadFileIO(TestFileIONoArg.class.getName(), properties, null);
+    Assert.assertTrue(fileIO instanceof TestFileIONoArg);
+    Assert.assertEquals(properties, ((TestFileIONoArg) fileIO).map);
+  }
+
+  @Test
+  public void loadCustomFileIO_configurable() {
+    Configuration configuration = new Configuration();
+    configuration.set("key", "val");
+    FileIO fileIO = CatalogUtil.loadFileIO(TestFileIOConfigurable.class.getName(), Maps.newHashMap(), configuration);
+    Assert.assertTrue(fileIO instanceof TestFileIOConfigurable);
+    Assert.assertEquals(configuration, ((TestFileIOConfigurable) fileIO).configuration);
+  }
+
+  @Test
+  public void loadCustomFileIO_badArg() {
+    AssertHelpers.assertThrows("cannot find constructor",
+        IllegalArgumentException.class,
+        "missing no-arg constructor",
+        () -> CatalogUtil.loadFileIO(TestFileIOBadArg.class.getName(), Maps.newHashMap(), null));
+  }
+
+  @Test
+  public void loadCustomFileIO_badClass() {
+    AssertHelpers.assertThrows("cannot cast",
+        IllegalArgumentException.class,
+        "does not implement FileIO",
+        () -> CatalogUtil.loadFileIO(TestFileIONotImpl.class.getName(), Maps.newHashMap(), null));
   }
 
   public static class TestCatalog extends BaseMetastoreCatalog {
@@ -211,6 +250,108 @@ public class TestCatalogUtil {
 
   public static class TestCatalogNoInterface {
     public TestCatalogNoInterface() {
+    }
+  }
+
+  public static class TestFileIOConfigurable implements FileIO, Configurable {
+
+    private Configuration configuration;
+
+    public TestFileIOConfigurable() {
+    }
+
+    @Override
+    public void setConf(Configuration conf) {
+      this.configuration = conf;
+    }
+
+    @Override
+    public Configuration getConf() {
+      return configuration;
+    }
+
+    @Override
+    public InputFile newInputFile(String path) {
+      return null;
+    }
+
+    @Override
+    public OutputFile newOutputFile(String path) {
+      return null;
+    }
+
+    @Override
+    public void deleteFile(String path) {
+
+    }
+
+    public Configuration getConfiguration() {
+      return configuration;
+    }
+  }
+
+  public static class TestFileIONoArg implements FileIO {
+
+    private Map<String, String> map;
+
+    public TestFileIONoArg() {
+    }
+
+    @Override
+    public InputFile newInputFile(String path) {
+      return null;
+    }
+
+    @Override
+    public OutputFile newOutputFile(String path) {
+      return null;
+    }
+
+    @Override
+    public void deleteFile(String path) {
+
+    }
+
+    public Map<String, String> getMap() {
+      return map;
+    }
+
+    @Override
+    public void initialize(Map<String, String> properties) {
+      map = properties;
+    }
+  }
+
+  public static class TestFileIOBadArg implements FileIO {
+
+    private final String arg;
+
+    public TestFileIOBadArg(String arg) {
+      this.arg = arg;
+    }
+
+    @Override
+    public InputFile newInputFile(String path) {
+      return null;
+    }
+
+    @Override
+    public OutputFile newOutputFile(String path) {
+      return null;
+    }
+
+    @Override
+    public void deleteFile(String path) {
+
+    }
+
+    public String getArg() {
+      return arg;
+    }
+  }
+
+  public static class TestFileIONotImpl {
+    public TestFileIONotImpl() {
     }
   }
 }

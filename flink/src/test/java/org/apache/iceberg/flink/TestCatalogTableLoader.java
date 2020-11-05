@@ -25,12 +25,15 @@ import java.io.File;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.util.Map;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -62,13 +65,15 @@ public class TestCatalogTableLoader extends FlinkTestBase {
 
   @Test
   public void testHadoopCatalogLoader() throws IOException, ClassNotFoundException {
-    CatalogLoader loader = CatalogLoader.hadoop("my_catalog", hiveConf, "file:" + warehouse);
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, "file:" + warehouse);
+    CatalogLoader loader = CatalogLoader.hadoop("my_catalog", hiveConf, properties);
     validateCatalogLoader(loader);
   }
 
   @Test
   public void testHiveCatalogLoader() throws IOException, ClassNotFoundException {
-    CatalogLoader loader = CatalogLoader.hive("my_catalog", hiveConf, null, null, 2);
+    CatalogLoader loader = CatalogLoader.hive("my_catalog", hiveConf, Maps.newHashMap());
     validateCatalogLoader(loader);
   }
 
@@ -81,7 +86,7 @@ public class TestCatalogTableLoader extends FlinkTestBase {
 
   @Test
   public void testHiveCatalogTableLoader() throws IOException, ClassNotFoundException {
-    CatalogLoader catalogLoader = CatalogLoader.hive("my_catalog", hiveConf, null, null, 2);
+    CatalogLoader catalogLoader = CatalogLoader.hive("my_catalog", hiveConf, Maps.newHashMap());
     validateTableLoader(TableLoader.fromCatalog(catalogLoader, IDENTIFIER));
   }
 

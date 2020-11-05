@@ -196,7 +196,7 @@ public class HadoopTables implements Tables, Configurable {
     if (location.contains(METADATA_JSON)) {
       return new StaticTableOperations(location, new HadoopFileIO(conf));
     } else {
-      return new HadoopTableOperations(new Path(location), conf);
+      return new HadoopTableOperations(new Path(location), new HadoopFileIO(conf), conf);
     }
   }
 

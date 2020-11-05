@@ -168,4 +168,48 @@ public class CatalogUtil {
     catalog.initialize(catalogName, properties);
     return catalog;
   }
+
+  /**
+   * Load a custom {@link FileIO} implementation.
+   * <p>
+   * The implementation must have a no-arg constructor.
+   * If the class implements {@link Configurable},
+   * a Hadoop config will be passed using {@link Configurable#setConf(Configuration)}.
+   * {@link FileIO#initialize(Map properties)} is called to complete the initialization.
+   *
+   * @param impl full class name of a custom FileIO implementation
+   * @param hadoopConf hadoop configuration
+   * @return FileIO class
+   * @throws IllegalArgumentException if class path not found or
+   *  right constructor not found or
+   *  the loaded class cannot be casted to the given interface type
+   */
+  public static FileIO loadFileIO(
+      String impl,
+      Map<String, String> properties,
+      Configuration hadoopConf) {
+    LOG.info("Loading custom FileIO implementation: {}", impl);
+    DynConstructors.Ctor<FileIO> ctor;
+    try {
+      ctor = DynConstructors.builder(FileIO.class).impl(impl).buildChecked();
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(String.format(
+          "Cannot initialize FileIO, missing no-arg constructor: %s", impl), e);
+    }
+
+    FileIO fileIO;
+    try {
+      fileIO = ctor.newInstance();
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+          String.format("Cannot initialize FileIO, %s does not implement FileIO.", impl), e);
+    }
+
+    if (fileIO instanceof Configurable) {
+      ((Configurable) fileIO).setConf(hadoopConf);
+    }
+
+    fileIO.initialize(properties);
+    return fileIO;
+  }
 }
