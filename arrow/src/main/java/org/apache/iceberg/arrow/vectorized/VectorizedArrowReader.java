@@ -92,7 +92,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
   private enum ReadType {
     FIXED_LENGTH_DECIMAL,
-    INT_LONG_BACKED_DECIMAL,
+    INT_BACKED_DECIMAL,
+    LONG_BACKED_DECIMAL,
     VARCHAR,
     VARBINARY,
     FIXED_WIDTH_BINARY,
@@ -130,8 +131,11 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           case FIXED_LENGTH_DECIMAL:
             vectorizedColumnIterator.nextBatchFixedLengthDecimal(vec, typeWidth, nullabilityHolder);
             break;
-          case INT_LONG_BACKED_DECIMAL:
-            vectorizedColumnIterator.nextBatchIntLongBackedDecimal(vec, typeWidth, nullabilityHolder);
+          case INT_BACKED_DECIMAL:
+            vectorizedColumnIterator.nextBatchIntBackedDecimal(vec, nullabilityHolder);
+            break;
+          case LONG_BACKED_DECIMAL:
+            vectorizedColumnIterator.nextBatchLongBackedDecimal(vec, nullabilityHolder);
             break;
           case VARBINARY:
             vectorizedColumnIterator.nextBatchVarWidthType(vec, nullabilityHolder);
@@ -237,11 +241,11 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
                 this.typeWidth = primitive.getTypeLength();
                 break;
               case INT64:
-                this.readType = ReadType.INT_LONG_BACKED_DECIMAL;
+                this.readType = ReadType.LONG_BACKED_DECIMAL;
                 this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
                 break;
               case INT32:
-                this.readType = ReadType.INT_LONG_BACKED_DECIMAL;
+                this.readType = ReadType.INT_BACKED_DECIMAL;
                 this.typeWidth = (int) IntVector.TYPE_WIDTH;
                 break;
               default:
