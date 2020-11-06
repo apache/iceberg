@@ -68,7 +68,7 @@ public class S3OutputStreamTest {
     try (S3OutputStream stream = new S3OutputStream(s3, uri)) {
       for (int i = 0; i < size; i++) {
         stream.write(expected[i]);
-        assertEquals(i+1, stream.getPos());
+        assertEquals(i + 1, stream.getPos());
       }
     }
 
@@ -93,7 +93,7 @@ public class S3OutputStreamTest {
     assertArrayEquals(expected, actual);
   }
 
-  private byte[] readS3Data(S3URI uri) throws IOException {
+  private byte[] readS3Data(S3URI uri) {
     ResponseBytes<GetObjectResponse> data =
         s3.getObject(GetObjectRequest.builder().bucket(uri.bucket()).key(uri.key()).build(),
         ResponseTransformer.toBytes());
