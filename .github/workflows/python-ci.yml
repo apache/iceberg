@@ -33,12 +33,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-      with:
-        fetch-depth: 0
+    - run: git fetch origin ${{ github.base_ref }}
     - name: Check if python changed
       id: changes
-      run: |
-        git diff HEAD master --quiet -- python || echo "::set-output name=python_changed::true"
+      run: git diff HEAD ${{ github.base_ref }} --quiet -- python || echo "::set-output name=python_changed::true"
     - uses: actions/setup-python@v2
       if: needs.changes.outputs.python_changed == 'true'
       with:
