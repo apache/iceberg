@@ -56,7 +56,9 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
 
   override def visitExpression(ctx: ExpressionContext): Expression = {
     // reconstruct the SQL string and parse it using the main Spark parser
-    // while we can avoid having the logic to build Spark expressions, we still have to parse them
+    // while we can avoid the logic to build Spark expressions, we still have to parse them
+    // we cannot call ctx.getText directly since it will not render spaces correctly
+    // that's why we need to recurse down the tree in reconstructSqlString
     val sqlString = reconstructSqlString(ctx)
     delegate.parseExpression(sqlString)
   }

@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.extensions;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
+import java.time.Instant;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.expressions.Expression;
@@ -114,7 +115,7 @@ public class TestCallStatementParser {
 
     Assert.assertEquals(1, call.args().size());
 
-    checkArg(call, 0, Timestamp.valueOf("2020-01-01 00:00:00"), DataTypes.TimestampType);
+    checkArg(call, 0, Timestamp.from(Instant.parse("2020-01-01 00:00:00")), DataTypes.TimestampType);
   }
 
   @Test
