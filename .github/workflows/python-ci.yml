@@ -27,10 +27,13 @@ on: [push, pull_request]
 jobs:
   detect_changes:
     runs-on: ubuntu-latest
+    outputs:
+      python_changed: ${{ steps.check.outputs.python_changed }}
     steps:
     - uses: actions/checkout@v2
     - run: git fetch origin ${{ github.base_ref }}
-    - run: git diff HEAD origin/${{ github.base_ref }} --quiet -- python || echo "::set-output name=python_changed::true"
+    - id: check
+      run: git diff HEAD origin/${{ github.base_ref }} --quiet -- python || echo "::set-output name=python_changed::true"
 
   tox:
     runs-on: ubuntu-latest
