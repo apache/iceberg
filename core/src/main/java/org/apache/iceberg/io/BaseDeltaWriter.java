@@ -27,6 +27,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
@@ -35,7 +36,7 @@ import org.apache.iceberg.util.StructProjection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public abstract class BaseDeltaWriter<T> implements DeltaWriter<T> {
+public class BaseDeltaWriter<T> implements DeltaWriter<T> {
   private static final Logger LOG = LoggerFactory.getLogger(BaseDeltaWriter.class);
 
   private final RollingContentFileWriter<DataFile, T> dataWriter;
@@ -49,21 +50,21 @@ public abstract class BaseDeltaWriter<T> implements DeltaWriter<T> {
   // Function to convert the generic data to a StructLike.
   private final Function<T, StructLike> structLikeFun;
 
-  BaseDeltaWriter(RollingContentFileWriter<DataFile, T> dataWriter) {
+  public BaseDeltaWriter(RollingContentFileWriter<DataFile, T> dataWriter) {
     this(dataWriter, null);
   }
 
-  BaseDeltaWriter(RollingContentFileWriter<DataFile, T> dataWriter,
-                  RollingContentFileWriter<DeleteFile, PositionDelete<T>> posDeleteWriter) {
+  public BaseDeltaWriter(RollingContentFileWriter<DataFile, T> dataWriter,
+                         RollingContentFileWriter<DeleteFile, PositionDelete<T>> posDeleteWriter) {
     this(dataWriter, posDeleteWriter, null, null, null, null);
   }
 
-  BaseDeltaWriter(RollingContentFileWriter<DataFile, T> dataWriter,
-                  RollingContentFileWriter<DeleteFile, PositionDelete<T>> posDeleteWriter,
-                  RollingContentFileWriter<DeleteFile, T> equalityDeleteWriter,
-                  Schema tableSchema,
-                  List<Integer> equalityFieldIds,
-                  Function<T, StructLike> structLikeFun) {
+  public BaseDeltaWriter(RollingContentFileWriter<DataFile, T> dataWriter,
+                         RollingContentFileWriter<DeleteFile, PositionDelete<T>> posDeleteWriter,
+                         RollingContentFileWriter<DeleteFile, T> equalityDeleteWriter,
+                         Schema tableSchema,
+                         List<Integer> equalityFieldIds,
+                         Function<T, StructLike> structLikeFun) {
 
     Preconditions.checkNotNull(dataWriter, "Data writer should always not be null.");
 
@@ -105,7 +106,10 @@ public abstract class BaseDeltaWriter<T> implements DeltaWriter<T> {
   public void writeRow(T row) throws IOException {
     if (enableEqualityDelete()) {
       FilePos filePos = FilePos.create(dataWriter.currentPath(), dataWriter.currentPos());
-      insertedRowMap.put(projectionRow.wrap(structLikeFun.apply(row)), filePos);
+
+      LOG.info("writeRow: {} -- filePos: {}", row, filePos);
+
+      insertedRowMap.put(structLikeFun.apply(row), filePos);
     }
 
     dataWriter.write(row);
@@ -117,10 +121,12 @@ public abstract class BaseDeltaWriter<T> implements DeltaWriter<T> {
       throw new UnsupportedOperationException("Could not accept equality deletion.");
     }
 
-    FilePos existing = insertedRowMap.get(projectionRow.wrap(structLikeFun.apply(equalityDelete)));
+    FilePos existing = insertedRowMap.get(structLikeFun.apply(equalityDelete));
+
+    LOG.info("writeEqualityDelete: {}, existing: {}", equalityDelete, existing);
 
     if (existing == null) {
-      // Delete the row which did not written by this delta writer.
+      // Delete the row which have been written by other completed delta writer.
       equalityDeleteWriter.write(equalityDelete);
     } else {
       // Delete the row which was written in current delta writer.
@@ -138,7 +144,7 @@ public abstract class BaseDeltaWriter<T> implements DeltaWriter<T> {
   }
 
   @Override
-  public void abort() throws IOException {
+  public void abort() {
     if (dataWriter != null) {
       try {
         dataWriter.abort();
@@ -153,6 +159,7 @@ public abstract class BaseDeltaWriter<T> implements DeltaWriter<T> {
       } catch (IOException e) {
         LOG.warn("Failed to abort the equality-delete writer {} because: ", equalityDeleteWriter, e);
       }
+      insertedRowMap.clear();
     }
 
     if (posDeleteWriter != null) {
@@ -174,6 +181,7 @@ public abstract class BaseDeltaWriter<T> implements DeltaWriter<T> {
 
     if (equalityDeleteWriter != null) {
       builder.add(equalityDeleteWriter.complete());
+      insertedRowMap.clear();
     }
 
     if (posDeleteWriter != null) {
@@ -191,6 +199,7 @@ public abstract class BaseDeltaWriter<T> implements DeltaWriter<T> {
 
     if (equalityDeleteWriter != null) {
       equalityDeleteWriter.close();
+      insertedRowMap.clear();
     }
 
     if (posDeleteWriter != null) {
@@ -225,6 +234,14 @@ public abstract class BaseDeltaWriter<T> implements DeltaWriter<T> {
 
     private long pos() {
       return pos;
+    }
+
+    @Override
+    public String toString() {
+      return MoreObjects.toStringHelper(this)
+          .add("path", path)
+          .add("pos", pos)
+          .toString();
     }
   }
 }

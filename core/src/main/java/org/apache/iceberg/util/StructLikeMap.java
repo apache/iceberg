@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.util;
 
+import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -27,7 +28,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 
-public class StructLikeMap<T> implements Map<StructLike, T> {
+public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<StructLike, T> {
 
   public static <T> StructLikeMap<T> create(Types.StructType type) {
     return new StructLikeMap<>(type);

@@ -17,12 +17,20 @@
  * under the License.
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.io;
 
+import org.apache.iceberg.ContentFileWriter;
+import org.apache.iceberg.ContentFileWriterFactory;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFileWriter;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionKey;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.io.FileAppenderFactory;
 
+/**
+ * TODO: This factory would be removed once we've replaced by using {@link DeltaWriterFactory} in the upper layer.
+ */
 public class DataFileWriterFactory<D> implements ContentFileWriterFactory<DataFile, D> {
   private final FileAppenderFactory<D> appenderFactory;
   private final PartitionSpec spec;

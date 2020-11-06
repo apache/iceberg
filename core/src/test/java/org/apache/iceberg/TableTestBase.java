@@ -50,7 +50,7 @@ public class TableTestBase {
   );
 
   // Partition spec used to create tables
-  static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
+  public static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
       .bucket("data", 16)
       .build();
 
