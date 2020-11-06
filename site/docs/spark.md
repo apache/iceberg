@@ -89,6 +89,16 @@ Spark's built-in catalog supports existing v1 and v2 tables tracked in a Hive Me
 
 This configuration can use same Hive Metastore for both Iceberg and non-Iceberg tables.
 
+### Loading a custom catalog
+
+Spark supports loading a custom Iceberg `Catalog` implementation by specifying the `catalog-impl` property.
+When `catalog-impl` is set, the value of `type` is ignored. Here is an example:
+
+```plain
+spark.sql.catalog.custom_prod = org.apache.iceberg.spark.SparkCatalog
+spark.sql.catalog.custom_prod.catalog-impl = com.my.custom.CatalogImpl
+spark.sql.catalog.custom_prod.my-additional-catalog-config = my-value
+```
 
 ## DDL commands
 
