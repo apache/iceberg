@@ -31,10 +31,8 @@ public class RandomUtil {
   private RandomUtil() {
   }
 
-  private static final Random NEGATIVE_VALUES = new Random();
-
-  private static boolean negate() {
-    return NEGATIVE_VALUES.nextInt(2) == 1;
+  private static boolean negate(int num) {
+    return num % 2 == 1;
   }
 
   @SuppressWarnings("RandomModInteger")
@@ -55,7 +53,7 @@ public class RandomUtil {
           case 3:
             return 0;
           default:
-            return negate() ? -1 * random.nextInt() : random.nextInt();
+            return negate(choice) ? -1 * random.nextInt() : random.nextInt();
         }
 
       case LONG:
@@ -67,7 +65,7 @@ public class RandomUtil {
           case 3:
             return 0L;
           default:
-            return negate() ? -1L * random.nextLong() : random.nextLong();
+            return negate(choice) ? -1L * random.nextLong() : random.nextLong();
         }
 
       case FLOAT:
@@ -89,7 +87,7 @@ public class RandomUtil {
           case 8:
             return Float.NaN;
           default:
-            return negate() ? -1.0F * random.nextFloat() : random.nextFloat();
+            return negate(choice) ? -1.0F * random.nextFloat() : random.nextFloat();
         }
 
       case DOUBLE:
@@ -111,7 +109,7 @@ public class RandomUtil {
           case 8:
             return Double.NaN;
           default:
-            return negate() ? -1.0D * random.nextDouble() : random.nextDouble();
+            return negate(choice) ? -1.0D * random.nextDouble() : random.nextDouble();
         }
 
       case DATE:
@@ -147,7 +145,7 @@ public class RandomUtil {
         Types.DecimalType type = (Types.DecimalType) primitive;
         BigInteger unscaled = randomUnscaled(type.precision(), random);
         BigDecimal bigDecimal = new BigDecimal(unscaled, type.scale());
-        return negate() ? bigDecimal.negate() : bigDecimal;
+        return negate(choice) ? bigDecimal.negate() : bigDecimal;
 
       default:
         throw new IllegalArgumentException(
@@ -157,21 +155,20 @@ public class RandomUtil {
 
   public static Object generateDictionaryEncodablePrimitive(Type.PrimitiveType primitive, Random random) {
     int value = random.nextInt(3);
-    boolean negate = random.nextInt(2) == 1;
     switch (primitive.typeId()) {
       case BOOLEAN:
         return true; // doesn't really matter for booleans since they are not dictionary encoded
       case INTEGER:
       case DATE:
-        return  negate ? -1 * value : value;
+        return  negate(value) ? -1 * value : value;
       case FLOAT:
-        return negate ? -1.0F * (float) value : (float) value;
+        return negate(value) ? -1.0F * (float) value : (float) value;
       case DOUBLE:
-        return negate ? -1.0D * (double) value : (double) value;
+        return negate(value) ? -1.0D * (double) value : (double) value;
       case LONG:
       case TIME:
       case TIMESTAMP:
-        return negate ? -1L * (long) value : (long) value;
+        return negate(value) ? -1L * (long) value : (long) value;
       case STRING:
         return String.valueOf(value);
       case FIXED:
@@ -186,7 +183,7 @@ public class RandomUtil {
         Types.DecimalType type = (Types.DecimalType) primitive;
         BigInteger unscaled = new BigInteger(String.valueOf(value + 1));
         BigDecimal bd = new BigDecimal(unscaled, type.scale());
-        return negate ? bd.negate() : bd;
+        return negate(value) ? bd.negate() : bd;
       default:
         throw new IllegalArgumentException(
             "Cannot generate random value for unknown type: " + primitive);
