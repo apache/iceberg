@@ -61,7 +61,7 @@ class S3URI {
     ValidationException.check(schemeSplit.length == 2, "Invalid S3 URI: %s", location);
 
     String scheme = schemeSplit[0];
-    ValidationException.check(VALID_SCHEMES.contains(scheme.toLowerCase()), "Invalid scheme: ", scheme);
+    ValidationException.check(VALID_SCHEMES.contains(scheme.toLowerCase()), "Invalid scheme: %s", scheme);
 
     String [] authoritySplit = schemeSplit[1].split(PATH_DELIM, 2);
     ValidationException.check(authoritySplit.length == 2, "Invalid S3 URI: %s", location);
