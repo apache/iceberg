@@ -88,6 +88,11 @@ public class SparkDataFile implements DataFile {
   }
 
   @Override
+  public Long pos() {
+    return null;
+  }
+
+  @Override
   public int specId() {
     return -1;
   }
