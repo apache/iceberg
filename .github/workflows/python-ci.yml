@@ -30,8 +30,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - run: git fetch origin ${{ github.base_ref }}
-    - id: detect_changes
-      run: git diff HEAD origin/${{ github.base_ref }} --quiet -- python || echo "::set-output name=python_changed::true"
+    - run: git diff HEAD origin/${{ github.base_ref }} --quiet -- python || echo "::set-output name=python_changed::true"
 
   tox:
     runs-on: ubuntu-latest
