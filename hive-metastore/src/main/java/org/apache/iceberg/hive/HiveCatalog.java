@@ -36,6 +36,7 @@ import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.UnknownDBException;
 import org.apache.iceberg.BaseMetastoreCatalog;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -45,6 +46,8 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -61,6 +64,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   private final HiveClientPool clients;
   private final Configuration conf;
   private final StackTraceElement[] createStack;
+  private final FileIO fileIO;
   private boolean closed;
 
   public HiveCatalog(Configuration conf) {
@@ -69,9 +73,24 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     this.conf = conf;
     this.createStack = Thread.currentThread().getStackTrace();
     this.closed = false;
+    this.fileIO = new HadoopFileIO(conf);
   }
 
   public HiveCatalog(String name, String uri, int clientPoolSize, Configuration conf) {
+    this(name, uri, null, clientPoolSize, conf);
+  }
+
+  public HiveCatalog(String name, String uri, String warehouse, int clientPoolSize, Configuration conf) {
+    this(name, uri, warehouse, clientPoolSize, conf, Maps.newHashMap());
+  }
+
+  public HiveCatalog(
+      String name,
+      String uri,
+      String warehouse,
+      int clientPoolSize,
+      Configuration conf,
+      Map<String, String> properties) {
     this.name = name;
     this.conf = new Configuration(conf);
     // before building the client pool, overwrite the configuration's URIs if the argument is non-null
@@ -79,9 +98,16 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
       this.conf.set(HiveConf.ConfVars.METASTOREURIS.varname, uri);
     }
 
+    if (warehouse != null) {
+      this.conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, warehouse);
+    }
+
     this.clients = new HiveClientPool(clientPoolSize, this.conf);
     this.createStack = Thread.currentThread().getStackTrace();
     this.closed = false;
+
+    String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
+    this.fileIO = fileIOImpl == null ? new HadoopFileIO(conf) : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
   }
 
   @Override
@@ -395,7 +421,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   public TableOperations newTableOps(TableIdentifier tableIdentifier) {
     String dbName = tableIdentifier.namespace().level(0);
     String tableName = tableIdentifier.name();
-    return new HiveTableOperations(conf, clients, name, dbName, tableName);
+    return new HiveTableOperations(conf, clients, fileIO, name, dbName, tableName);
   }
 
   @Override
@@ -422,15 +448,18 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     }
 
     // Otherwise stick to the {WAREHOUSE_DIR}/{DB_NAME}.db/{TABLE_NAME} path
-    String warehouseLocation = conf.get("hive.metastore.warehouse.dir");
-    Preconditions.checkNotNull(
-        warehouseLocation,
-        "Warehouse location is not set: hive.metastore.warehouse.dir=null");
+    String warehouseLocation = getWarehouseLocation();
     return String.format(
         "%s/%s.db/%s",
         warehouseLocation,
         tableIdentifier.namespace().levels()[0],
         tableIdentifier.name());
+  }
+
+  private String getWarehouseLocation() {
+    String warehouseLocation = conf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname);
+    Preconditions.checkNotNull(warehouseLocation, "Warehouse location is not set: hive.metastore.warehouse.dir=null");
+    return warehouseLocation;
   }
 
   private Map<String, String> convertToMetadata(Database database) {
@@ -447,17 +476,15 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   }
 
   Database convertToDatabase(Namespace namespace, Map<String, String> meta) {
-    String warehouseLocation = conf.get("hive.metastore.warehouse.dir");
-
     if (!isValidateNamespace(namespace)) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
-    Database database  = new Database();
+    Database database = new Database();
     Map<String, String> parameter = Maps.newHashMap();
 
     database.setName(namespace.level(0));
-    database.setLocationUri(new Path(warehouseLocation, namespace.level(0)).toString() + ".db");
+    database.setLocationUri(new Path(getWarehouseLocation(), namespace.level(0)).toString() + ".db");
 
     meta.forEach((key, value) -> {
       if (key.equals("comment")) {

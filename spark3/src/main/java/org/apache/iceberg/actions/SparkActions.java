@@ -17,9 +17,13 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.actions;
+package org.apache.iceberg.actions;
 
-import org.apache.iceberg.actions.TestExpireSnapshotsAction;
+import org.apache.iceberg.Table;
+import org.apache.spark.sql.SparkSession;
 
-public class TestExpireSnapshotsAction3 extends TestExpireSnapshotsAction {
+class SparkActions extends Actions {
+  protected SparkActions(SparkSession spark, Table table) {
+    super(spark, table);
+  }
 }

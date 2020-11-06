@@ -91,6 +91,7 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
 
   @Before
   public void before() {
+    super.before();
     sql("CREATE DATABASE %s", flinkDatabase);
     sql("USE CATALOG %s", catalogName);
     sql("USE %s", DATABASE);
@@ -102,6 +103,7 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
   public void clean() {
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME);
     sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
+    super.clean();
   }
 
   @Test

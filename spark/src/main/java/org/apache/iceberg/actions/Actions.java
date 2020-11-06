@@ -20,24 +20,45 @@
 package org.apache.iceberg.actions;
 
 import org.apache.iceberg.Table;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.spark.sql.SparkSession;
 
 public class Actions {
 
+  /*
+  We load the actual implementation of Actions via reflection to allow for differences
+  between the major Spark APIs while still defining the API in this class.
+  */
+  private static final String IMPL_NAME = "SparkActions";
+  private static DynConstructors.Ctor<Actions> implConstructor;
+
+  private static DynConstructors.Ctor<Actions> actionConstructor() {
+    if (implConstructor == null) {
+      String className = Actions.class.getPackage().getName() + "." + IMPL_NAME;
+      try {
+        implConstructor =
+            DynConstructors.builder().hiddenImpl(className, SparkSession.class, Table.class).buildChecked();
+      } catch (NoSuchMethodException e) {
+        throw new IllegalArgumentException("Cannot find appropriate Actions implementation on the classpath.", e);
+      }
+    }
+    return implConstructor;
+  }
+
   private SparkSession spark;
   private Table table;
 
-  private Actions(SparkSession spark, Table table) {
+  protected Actions(SparkSession spark, Table table) {
     this.spark = spark;
     this.table = table;
   }
 
   public static Actions forTable(SparkSession spark, Table table) {
-    return new Actions(spark, table);
+    return actionConstructor().newInstance(spark, table);
   }
 
   public static Actions forTable(Table table) {
-    return new Actions(SparkSession.active(), table);
+    return forTable(SparkSession.active(), table);
   }
 
   public RemoveOrphanFilesAction removeOrphanFiles() {
@@ -55,4 +76,13 @@ public class Actions {
   public ExpireSnapshotsAction expireSnapshots() {
     return new ExpireSnapshotsAction(spark, table);
   }
+
+  protected SparkSession spark() {
+    return spark;
+  }
+
+  protected Table table() {
+    return table;
+  }
+
 }

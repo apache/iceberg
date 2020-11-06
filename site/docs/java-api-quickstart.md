@@ -19,7 +19,7 @@
 
 ## Create a table
 
-Tables are created using either a [`Catalog`](/javadoc/master/index.html?org/apache/iceberg/catalog/Catalog.html) or an implementation of the [`Tables`](/javadoc/master/index.html?org/apache/iceberg/Tables.html) interface.
+Tables are created using either a [`Catalog`](./javadoc/master/index.html?org/apache/iceberg/catalog/Catalog.html) or an implementation of the [`Tables`](./javadoc/master/index.html?org/apache/iceberg/Tables.html) interface.
 
 ### Using a Hive catalog
 
@@ -108,9 +108,9 @@ Spark uses both `HiveCatalog` and `HadoopTables` to load tables. Hive is used wh
 
 To read and write to tables from Spark see:
 
-* [Reading a table in Spark](../spark#reading-an-iceberg-table)
-* [Appending to a table in Spark](../spark#appending-data)
-* [Overwriting data in a table in Spark](../spark#overwriting-data)
+* [Reading a table in Spark](./spark.md#reading-an-iceberg-table)
+* [Appending to a table in Spark](./spark.md#appending-data)
+* [Overwriting data in a table in Spark](./spark.md#overwriting-data)
 
 
 ## Schemas
@@ -175,4 +175,4 @@ PartitionSpec spec = PartitionSpec.builderFor(schema)
       .build();
 ```
 
-For more information on the different partition transforms that Iceberg offers, visit [this page](../spec#partitioning).
+For more information on the different partition transforms that Iceberg offers, visit [this page](./spec.md#partitioning).

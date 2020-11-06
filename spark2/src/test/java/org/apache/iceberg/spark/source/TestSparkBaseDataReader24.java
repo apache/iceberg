@@ -17,9 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.actions;
+package org.apache.iceberg.spark.source;
 
-import org.apache.iceberg.actions.TestRewriteDataFilesAction;
-
-public class TestRewriteDataFilesAction3 extends TestRewriteDataFilesAction {
+public class TestSparkBaseDataReader24 extends TestSparkBaseDataReader {
 }

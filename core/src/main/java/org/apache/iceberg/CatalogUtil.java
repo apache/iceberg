@@ -22,9 +22,14 @@ package org.apache.iceberg;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
+import org.apache.hadoop.conf.Configurable;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -116,5 +121,95 @@ public class CatalogUtil {
             throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest.path());
           }
         });
+  }
+
+  /**
+   * Load a custom catalog implementation.
+   * <p>
+   * The catalog must have a no-arg constructor.
+   * If the class implements {@link Configurable},
+   * a Hadoop config will be passed using {@link Configurable#setConf(Configuration)}.
+   * {@link Catalog#initialize(String catalogName, Map options)} is called to complete the initialization.
+   *
+   * @param impl catalog implementation full class name
+   * @param catalogName catalog name
+   * @param properties catalog properties
+   * @param hadoopConf hadoop configuration if needed
+   * @return initialized catalog object
+   * @throws IllegalArgumentException if no-arg constructor not found or error during initialization
+   */
+  public static Catalog loadCatalog(
+      String impl,
+      String catalogName,
+      Map<String, String> properties,
+      Configuration hadoopConf) {
+    Preconditions.checkNotNull(impl, "Cannot initialize custom Catalog, impl class name is null");
+    DynConstructors.Ctor<Catalog> ctor;
+    try {
+      ctor = DynConstructors.builder(Catalog.class).impl(impl).buildChecked();
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(String.format(
+          "Cannot initialize Catalog, missing no-arg constructor: %s", impl), e);
+    }
+
+    Catalog catalog;
+    try {
+      catalog = ctor.newInstance();
+
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+          String.format("Cannot initialize Catalog, %s does not implement Catalog.", impl), e);
+    }
+
+    if (catalog instanceof Configurable) {
+      ((Configurable) catalog).setConf(hadoopConf);
+    }
+
+    catalog.initialize(catalogName, properties);
+    return catalog;
+  }
+
+  /**
+   * Load a custom {@link FileIO} implementation.
+   * <p>
+   * The implementation must have a no-arg constructor.
+   * If the class implements {@link Configurable},
+   * a Hadoop config will be passed using {@link Configurable#setConf(Configuration)}.
+   * {@link FileIO#initialize(Map properties)} is called to complete the initialization.
+   *
+   * @param impl full class name of a custom FileIO implementation
+   * @param hadoopConf hadoop configuration
+   * @return FileIO class
+   * @throws IllegalArgumentException if class path not found or
+   *  right constructor not found or
+   *  the loaded class cannot be casted to the given interface type
+   */
+  public static FileIO loadFileIO(
+      String impl,
+      Map<String, String> properties,
+      Configuration hadoopConf) {
+    LOG.info("Loading custom FileIO implementation: {}", impl);
+    DynConstructors.Ctor<FileIO> ctor;
+    try {
+      ctor = DynConstructors.builder(FileIO.class).impl(impl).buildChecked();
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(String.format(
+          "Cannot initialize FileIO, missing no-arg constructor: %s", impl), e);
+    }
+
+    FileIO fileIO;
+    try {
+      fileIO = ctor.newInstance();
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+          String.format("Cannot initialize FileIO, %s does not implement FileIO.", impl), e);
+    }
+
+    if (fileIO instanceof Configurable) {
+      ((Configurable) fileIO).setConf(hadoopConf);
+    }
+
+    fileIO.initialize(properties);
+    return fileIO;
   }
 }

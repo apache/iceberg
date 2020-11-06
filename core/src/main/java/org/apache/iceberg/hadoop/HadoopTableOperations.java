@@ -62,15 +62,16 @@ public class HadoopTableOperations implements TableOperations {
 
   private final Configuration conf;
   private final Path location;
-  private HadoopFileIO defaultFileIo = null;
+  private final FileIO fileIO;
 
   private volatile TableMetadata currentMetadata = null;
   private volatile Integer version = null;
   private volatile boolean shouldRefresh = true;
 
-  protected HadoopTableOperations(Path location, Configuration conf) {
+  protected HadoopTableOperations(Path location, FileIO fileIO, Configuration conf) {
     this.conf = conf;
     this.location = location;
+    this.fileIO = fileIO;
   }
 
   @Override
@@ -173,10 +174,7 @@ public class HadoopTableOperations implements TableOperations {
 
   @Override
   public FileIO io() {
-    if (defaultFileIo == null) {
-      defaultFileIo = new HadoopFileIO(conf);
-    }
-    return defaultFileIo;
+    return fileIO;
   }
 
   @Override
@@ -294,10 +292,19 @@ public class HadoopTableOperations implements TableOperations {
     Path versionHintFile = versionHintFile();
     FileSystem fs = getFileSystem(versionHintFile, conf);
 
-    try (FSDataOutputStream out = fs.create(versionHintFile, true /* overwrite */)) {
-      out.write(String.valueOf(versionToWrite).getBytes(StandardCharsets.UTF_8));
+    try {
+      Path tempVersionHintFile = metadataPath(UUID.randomUUID().toString() + "-version-hint.temp");
+      writeVersionToPath(fs, tempVersionHintFile, versionToWrite);
+      fs.delete(versionHintFile, false /* recursive delete */);
+      fs.rename(tempVersionHintFile, versionHintFile);
     } catch (IOException e) {
       LOG.warn("Failed to update version hint", e);
+    }
+  }
+
+  private void writeVersionToPath(FileSystem fs, Path path, int versionToWrite) throws IOException {
+    try (FSDataOutputStream out = fs.create(path, false /* overwrite */)) {
+      out.write(String.valueOf(versionToWrite).getBytes(StandardCharsets.UTF_8));
     }
   }
 

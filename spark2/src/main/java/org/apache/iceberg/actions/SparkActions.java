@@ -17,12 +17,13 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.actions;
+package org.apache.iceberg.actions;
 
-import org.apache.iceberg.actions.TestRewriteManifestsAction;
+import org.apache.iceberg.Table;
+import org.apache.spark.sql.SparkSession;
 
-public class TestRewriteManifestsAction3 extends TestRewriteManifestsAction {
-  public TestRewriteManifestsAction3(String snapshotIdInheritanceEnabled) {
-    super(snapshotIdInheritanceEnabled);
+class SparkActions extends Actions {
+  protected SparkActions(SparkSession spark, Table table) {
+    super(spark, table);
   }
 }

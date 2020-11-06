@@ -27,21 +27,44 @@ import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.SerDeStats;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.io.Writable;
-import org.apache.iceberg.Table;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.mr.Catalogs;
+import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.mr.mapred.Container;
 
 public class HiveIcebergSerDe extends AbstractSerDe {
-
   private ObjectInspector inspector;
 
   @Override
   public void initialize(@Nullable Configuration configuration, Properties serDeProperties) throws SerDeException {
-    Table table = Catalogs.loadTable(configuration, serDeProperties);
+    // HiveIcebergSerDe.initialize is called multiple places in Hive code:
+    // - When we are trying to create a table - HiveDDL data is stored at the serDeProperties, but no Iceberg table
+    // is created yet.
+    // - When we are compiling the Hive query on HiveServer2 side - We only have table information (location/name),
+    // and we have to read the schema using the table data. This is called multiple times so there is room for
+    // optimizing here.
+    // - When we are executing the Hive query in the execution engine - We do not want to load the table data on every
+    // executor, but serDeProperties are populated by HiveIcebergStorageHandler.configureInputJobProperties() and
+    // the resulting properties are serialized and distributed to the executors
+
+    Schema tableSchema;
+    if (configuration.get(InputFormatConfig.TABLE_SCHEMA) != null) {
+      tableSchema = SchemaParser.fromJson(configuration.get(InputFormatConfig.TABLE_SCHEMA));
+    } else if (serDeProperties.get(InputFormatConfig.TABLE_SCHEMA) != null) {
+      tableSchema = SchemaParser.fromJson((String) serDeProperties.get(InputFormatConfig.TABLE_SCHEMA));
+    } else {
+      try {
+        tableSchema = Catalogs.loadTable(configuration, serDeProperties).schema();
+      } catch (NoSuchTableException nte) {
+        throw new SerDeException("Please provide an existing table or a valid schema", nte);
+      }
+    }
 
     try {
-      this.inspector = IcebergObjectInspector.create(table.schema());
+      this.inspector = IcebergObjectInspector.create(tableSchema);
     } catch (Exception e) {
       throw new SerDeException(e);
     }

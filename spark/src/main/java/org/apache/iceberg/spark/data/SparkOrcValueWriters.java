@@ -185,7 +185,7 @@ class SparkOrcValueWriters {
       TimestampColumnVector cv = (TimestampColumnVector) output;
       long micros = data.getLong(column); // it could be negative.
       cv.time[rowId] = Math.floorDiv(micros, 1_000); // millis
-      cv.nanos[rowId] = (int) (Math.floorMod(micros, 1_000_000)) * 1_000; // nanos
+      cv.nanos[rowId] = (int) Math.floorMod(micros, 1_000_000) * 1_000; // nanos
     }
   }
 

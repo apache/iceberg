@@ -197,19 +197,12 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
     }
   }
 
-  private void validate(TableMetadata base) {
+  @Override
+  protected void validate(TableMetadata base) {
     validateCurrentSnapshot(base, requiredCurrentSnapshotId);
     validateNonAncestor(base, targetSnapshotId);
     validateReplacedPartitions(base, overwriteParentId, replacedPartitions);
     WapUtil.validateWapPublish(base, targetSnapshotId);
-  }
-
-  @Override
-  public List<ManifestFile> apply(TableMetadata base) {
-    // this apply method is called by SnapshotProducer, which refreshes the current table state
-    // because the state may have changed in that refresh, the validations must be done here
-    validate(base);
-    return super.apply(base);
   }
 
   @Override
@@ -242,7 +235,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
   }
 
   private static void validateCurrentSnapshot(TableMetadata meta, Long requiredSnapshotId) {
-    if (requiredSnapshotId != null) {
+    if (requiredSnapshotId != null && meta.currentSnapshot() != null) {
       ValidationException.check(meta.currentSnapshot().snapshotId() == requiredSnapshotId,
           "Cannot fast-forward to non-append snapshot; current has changed: current=%s != required=%s",
           meta.currentSnapshot().snapshotId(), requiredSnapshotId);
@@ -262,7 +255,7 @@ public class SnapshotManager extends MergingSnapshotProducer<ManageSnapshots> im
 
   private static void validateReplacedPartitions(TableMetadata meta, Long parentId,
                                                  PartitionSet replacedPartitions) {
-    if (replacedPartitions != null) {
+    if (replacedPartitions != null && meta.currentSnapshot() != null) {
       ValidationException.check(parentId == null || isCurrentAncestor(meta, parentId),
           "Cannot cherry-pick overwrite, based on non-ancestor of the current state: %s", parentId);
       List<DataFile> newFiles = SnapshotUtil.newFiles(parentId, meta.currentSnapshot().snapshotId(), meta::snapshot);

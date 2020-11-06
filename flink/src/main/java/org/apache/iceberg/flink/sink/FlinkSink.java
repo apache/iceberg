@@ -36,7 +36,6 @@ import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
@@ -109,10 +108,10 @@ public class FlinkSink {
   public static class Builder {
     private DataStream<RowData> rowDataInput = null;
     private TableLoader tableLoader;
-    private Configuration hadoopConf;
     private Table table;
     private TableSchema tableSchema;
     private boolean overwrite = false;
+    private Integer writeParallelism = null;
 
     private Builder() {
     }
@@ -148,11 +147,6 @@ public class FlinkSink {
       return this;
     }
 
-    public Builder hadoopConf(Configuration newHadoopConf) {
-      this.hadoopConf = newHadoopConf;
-      return this;
-    }
-
     public Builder tableSchema(TableSchema newTableSchema) {
       this.tableSchema = newTableSchema;
       return this;
@@ -163,15 +157,25 @@ public class FlinkSink {
       return this;
     }
 
+    /**
+     * Configuring the write parallel number for iceberg stream writer.
+     *
+     * @param newWriteParallelism the number of parallel iceberg stream writer.
+     * @return {@link Builder} to connect the iceberg table.
+     */
+    public Builder writeParallelism(int newWriteParallelism) {
+      this.writeParallelism = newWriteParallelism;
+      return this;
+    }
+
     @SuppressWarnings("unchecked")
     public DataStreamSink<RowData> build() {
       Preconditions.checkArgument(rowDataInput != null,
           "Please use forRowData() to initialize the input DataStream.");
       Preconditions.checkNotNull(tableLoader, "Table loader shouldn't be null");
-      Preconditions.checkNotNull(hadoopConf, "Hadoop configuration shouldn't be null");
 
       if (table == null) {
-        tableLoader.open(hadoopConf);
+        tableLoader.open();
         try (TableLoader loader = tableLoader) {
           this.table = loader.loadTable();
         } catch (IOException e) {
@@ -180,17 +184,19 @@ public class FlinkSink {
       }
 
       IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, tableSchema);
-      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, hadoopConf, overwrite);
+      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
+
+      this.writeParallelism = writeParallelism == null ? rowDataInput.getParallelism() : writeParallelism;
 
       DataStream<Void> returnStream = rowDataInput
           .transform(ICEBERG_STREAM_WRITER_NAME, TypeInformation.of(DataFile.class), streamWriter)
-          .setParallelism(rowDataInput.getParallelism())
+          .setParallelism(writeParallelism)
           .transform(ICEBERG_FILES_COMMITTER_NAME, Types.VOID, filesCommitter)
           .setParallelism(1)
           .setMaxParallelism(1);
 
       return returnStream.addSink(new DiscardingSink())
-          .name(String.format("IcebergSink %s", table.toString()))
+          .name(String.format("IcebergSink %s", table.name()))
           .setParallelism(1);
     }
   }
@@ -220,7 +226,7 @@ public class FlinkSink {
     TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(table.schema(), flinkSchema,
         table.spec(), table.locationProvider(), table.io(), table.encryption(), targetFileSize, fileFormat, props);
 
-    return new IcebergStreamWriter<>(table.toString(), taskWriterFactory);
+    return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
   }
 
   private static FileFormat getFileFormat(Map<String, String> properties) {

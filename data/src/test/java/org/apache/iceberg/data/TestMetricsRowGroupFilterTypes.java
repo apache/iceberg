@@ -249,13 +249,8 @@ public class TestMetricsRowGroupFilterTypes {
         { "orc", "double", 2.11d, 1.97d },
         { "orc", "date", "2018-06-29", "2018-05-03" },
         { "orc", "time", "10:02:34.000000", "10:02:34.000001" },
-        // Temporarily disable filters on Timestamp columns due to ORC-611.
-        // ORC-611 is closed with fix versions of ORC 1.6.4 and 1.7.0, but
-        // testing on 1.6.4 still lead to failures and 1.7.0 is not published.
-        //
-        // See also HIVE-23036, which is still open.
-        // { "orc", "timestamp", "2018-06-29T10:02:34.000000", "2018-06-29T15:02:34.000000" },
-        // { "orc", "timestamptz", "2018-06-29T10:02:34.000000+00:00", "2018-06-29T10:02:34.000000-07:00" },
+        { "orc", "timestamp", "2018-06-29T10:02:34.000000", "2018-06-29T15:02:34.000000" },
+        { "orc", "timestamptz", "2018-06-29T10:02:34.000000+00:00", "2018-06-29T10:02:34.000000-07:00" },
         { "orc", "string", "tapir", "monthly" },
         // uuid, fixed and binary types not supported yet
         // { "orc", "uuid", uuid, UUID.randomUUID() },

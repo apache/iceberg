@@ -17,9 +17,31 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.actions;
+package org.apache.iceberg.flink.actions;
 
-import org.apache.iceberg.actions.TestRemoveOrphanFilesAction;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.iceberg.Table;
 
-public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
+public class Actions {
+
+  private StreamExecutionEnvironment env;
+  private Table table;
+
+  private Actions(StreamExecutionEnvironment env, Table table) {
+    this.env = env;
+    this.table = table;
+  }
+
+  public static Actions forTable(StreamExecutionEnvironment env, Table table) {
+    return new Actions(env, table);
+  }
+
+  public static Actions forTable(Table table) {
+    return new Actions(StreamExecutionEnvironment.getExecutionEnvironment(), table);
+  }
+
+  public RewriteDataFilesAction rewriteDataFiles() {
+    return new RewriteDataFilesAction(env, table);
+  }
+
 }

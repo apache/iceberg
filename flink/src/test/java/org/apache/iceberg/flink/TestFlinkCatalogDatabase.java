@@ -41,9 +41,11 @@ public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
   }
 
   @After
+  @Override
   public void clean() {
     sql("DROP TABLE IF EXISTS %s.tl", flinkDatabase);
     sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
+    super.clean();
   }
 
   @Test

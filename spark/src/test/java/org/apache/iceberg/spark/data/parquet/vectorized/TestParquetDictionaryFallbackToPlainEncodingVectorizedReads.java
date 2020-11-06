@@ -27,6 +27,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.base.Function;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.data.RandomData;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -40,9 +42,11 @@ public class TestParquetDictionaryFallbackToPlainEncodingVectorizedReads extends
   }
 
   @Override
-  Iterable<GenericData.Record> generateData(Schema schema, int numRecords, long seed, float nullPercentage) {
+  Iterable<GenericData.Record> generateData(Schema schema, int numRecords, long seed, float nullPercentage,
+                                            Function<GenericData.Record, GenericData.Record> transform) {
     // TODO: take into account nullPercentage when generating fallback encoding data
-    return RandomData.generateFallbackData(schema, numRecords, seed, numRecords / 20);
+    Iterable data = RandomData.generateFallbackData(schema, numRecords, seed, numRecords / 20);
+    return transform == IDENTITY ? data : Iterables.transform(data, transform);
   }
 
   @Override

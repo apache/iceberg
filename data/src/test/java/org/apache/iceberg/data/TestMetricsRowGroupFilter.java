@@ -22,6 +22,7 @@ package org.apache.iceberg.data;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData.Record;
@@ -62,6 +63,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -138,14 +140,15 @@ public class TestMetricsRowGroupFilter {
     TOO_LONG_FOR_STATS_PARQUET = sb.toString();
   }
 
-  private static final File orcFile = new File("/tmp/stats-row-group-filter-test.orc");
-
-  private static final File parquetFile = new File("/tmp/stats-row-group-filter-test.parquet");
-  private static MessageType parquetSchema = null;
-  private static BlockMetaData rowGroupMetadata = null;
-
   private static final int INT_MIN_VALUE = 30;
   private static final int INT_MAX_VALUE = 79;
+
+  private File orcFile = null;
+  private MessageType parquetSchema = null;
+  private BlockMetaData rowGroupMetadata = null;
+
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
 
   @Before
   public void createInputFile() throws IOException {
@@ -162,9 +165,8 @@ public class TestMetricsRowGroupFilter {
   }
 
   public void createOrcInputFile() throws IOException {
-    if (orcFile.exists()) {
-      Assert.assertTrue(orcFile.delete());
-    }
+    this.orcFile = temp.newFile();
+    Assert.assertTrue(orcFile.delete());
 
     OutputFile outFile = Files.localOutput(orcFile);
     try (FileAppender<GenericRecord> appender = ORC.write(outFile)
@@ -201,9 +203,8 @@ public class TestMetricsRowGroupFilter {
   }
 
   private void createParquetInputFile() throws IOException {
-    if (parquetFile.exists()) {
-      Assert.assertTrue(parquetFile.delete());
-    }
+    File parquetFile = temp.newFile();
+    Assert.assertTrue(parquetFile.delete());
 
     // build struct field schema
     org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(_structFieldType);
@@ -246,12 +247,8 @@ public class TestMetricsRowGroupFilter {
   public void testAllNulls() {
     boolean shouldRead;
 
-    // ORC-623: ORC does not skip a row group for a notNull predicate on a column with all nulls
-    // boolean shouldRead = shouldRead(notNull("all_nulls"));
-    if (format != FileFormat.ORC) {
-      shouldRead = shouldRead(notNull("all_nulls"));
-      Assert.assertFalse("Should skip: no non-null value in all null column", shouldRead);
-    }
+    shouldRead = shouldRead(notNull("all_nulls"));
+    Assert.assertFalse("Should skip: no non-null value in all null column", shouldRead);
 
     shouldRead = shouldRead(notNull("some_nulls"));
     Assert.assertTrue("Should read: column with some nulls contains a non-null value", shouldRead);
@@ -752,6 +749,22 @@ public class TestMetricsRowGroupFilter {
   public void testSomeNullsNotEq() {
     boolean shouldRead = shouldRead(notEqual("some_nulls", "some"));
     Assert.assertTrue("Should read: notEqual on some nulls column", shouldRead);
+  }
+
+  @Test
+  public void testInLimitParquet() {
+    Assume.assumeTrue(format == FileFormat.PARQUET);
+
+    boolean shouldRead = shouldRead(in("id", 1, 2));
+    Assert.assertFalse("Should not read if IN is evaluated", shouldRead);
+
+    List<Integer> ids = Lists.newArrayListWithExpectedSize(400);
+    for (int id = -400; id <= 0; id++) {
+      ids.add(id);
+    }
+
+    shouldRead = shouldRead(in("id", ids));
+    Assert.assertTrue("Should read if IN is not evaluated", shouldRead);
   }
 
   private boolean shouldRead(Expression expression) {

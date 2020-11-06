@@ -84,6 +84,7 @@ abstract class BaseDataReader<T> implements Closeable {
         this.currentIterator.close();
         this.currentIterator = open(tasks.next());
       } else {
+        this.currentIterator.close();
         return false;
       }
     }

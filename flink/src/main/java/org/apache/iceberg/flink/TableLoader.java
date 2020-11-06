@@ -27,6 +27,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
@@ -36,7 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
  */
 public interface TableLoader extends Closeable, Serializable {
 
-  void open(Configuration configuration);
+  void open();
 
   Table loadTable();
 
@@ -45,7 +46,11 @@ public interface TableLoader extends Closeable, Serializable {
   }
 
   static TableLoader fromHadoopTable(String location) {
-    return new HadoopTableLoader(location);
+    return fromHadoopTable(location, FlinkCatalogFactory.clusterHadoopConf());
+  }
+
+  static TableLoader fromHadoopTable(String location, Configuration hadoopConf) {
+    return new HadoopTableLoader(location, hadoopConf);
   }
 
   class HadoopTableLoader implements TableLoader {
@@ -53,15 +58,18 @@ public interface TableLoader extends Closeable, Serializable {
     private static final long serialVersionUID = 1L;
 
     private final String location;
+    private final SerializableConfiguration hadoopConf;
+
     private transient HadoopTables tables;
 
-    private HadoopTableLoader(String location) {
+    private HadoopTableLoader(String location, Configuration conf) {
       this.location = location;
+      this.hadoopConf = new SerializableConfiguration(conf);
     }
 
     @Override
-    public void open(Configuration configuration) {
-      tables = new HadoopTables(configuration);
+    public void open() {
+      tables = new HadoopTables(hadoopConf.get());
     }
 
     @Override
@@ -96,8 +104,8 @@ public interface TableLoader extends Closeable, Serializable {
     }
 
     @Override
-    public void open(Configuration configuration) {
-      catalog = catalogLoader.loadCatalog(configuration);
+    public void open() {
+      catalog = catalogLoader.loadCatalog();
     }
 
     @Override

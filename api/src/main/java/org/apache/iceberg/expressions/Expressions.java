@@ -263,4 +263,16 @@ public class Expressions {
   public static <T> NamedReference<T> ref(String name) {
     return new NamedReference<>(name);
   }
+
+  /**
+   * Constructs a transform expression for a given column.
+   *
+   * @param name a column name
+   * @param transform a transform function
+   * @param <T> the Java type of this term
+   * @return an unbound transform expression
+   */
+  public static <T> UnboundTerm<T> transform(String name, Transform<?, T> transform) {
+    return new UnboundTransform<>(ref(name), transform);
+  }
 }

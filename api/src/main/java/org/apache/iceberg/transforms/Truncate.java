@@ -30,12 +30,16 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.UnicodeUtil;
 
 abstract class Truncate<T> implements Transform<T, T> {
   @SuppressWarnings("unchecked")
   static <T> Truncate<T> get(Type type, int width) {
+    Preconditions.checkArgument(width > 0,
+        "Invalid truncate width: %s (must be > 0)", width);
+
     switch (type.typeId()) {
       case INTEGER:
         return (Truncate<T>) new TruncateInteger(width);
@@ -61,6 +65,11 @@ abstract class Truncate<T> implements Transform<T, T> {
   @Override
   public Type getResultType(Type sourceType) {
     return sourceType;
+  }
+
+  @Override
+  public boolean preservesOrder() {
+    return true;
   }
 
   private static class TruncateInteger extends Truncate<Integer> {
@@ -252,6 +261,18 @@ abstract class Truncate<T> implements Transform<T, T> {
     @Override
     public boolean canTransform(Type type) {
       return type.typeId() == Type.TypeID.STRING;
+    }
+
+    @Override
+    public boolean satisfiesOrderOf(Transform<?, ?> other) {
+      if (this == other) {
+        return true;
+      } else if (other instanceof TruncateString) {
+        TruncateString otherTransform = (TruncateString) other;
+        return width() >= otherTransform.width();
+      }
+
+      return false;
     }
 
     @Override

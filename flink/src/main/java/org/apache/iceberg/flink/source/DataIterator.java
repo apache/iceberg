@@ -21,26 +21,21 @@ package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
-import org.apache.avro.generic.GenericData;
-import org.apache.avro.util.Utf8;
-import org.apache.flink.table.data.DecimalData;
-import org.apache.flink.table.data.StringData;
-import org.apache.flink.table.data.TimestampData;
+import java.util.Map;
+import java.util.stream.Stream;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.encryption.EncryptedFiles;
+import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.ByteBuffers;
-import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
  * Base class of Flink iterators.
@@ -50,23 +45,38 @@ import org.apache.iceberg.util.DateTimeUtil;
 abstract class DataIterator<T> implements CloseableIterator<T> {
 
   private Iterator<FileScanTask> tasks;
-  private final FileIO io;
-  private final EncryptionManager encryption;
+  private final Map<String, InputFile> inputFiles;
 
   private CloseableIterator<T> currentIterator;
 
   DataIterator(CombinedScanTask task, FileIO io, EncryptionManager encryption) {
     this.tasks = task.files().iterator();
-    this.io = io;
-    this.encryption = encryption;
+
+    Map<String, ByteBuffer> keyMetadata = Maps.newHashMap();
+    task.files().stream()
+        .flatMap(fileScanTask -> Stream.concat(Stream.of(fileScanTask.file()), fileScanTask.deletes().stream()))
+        .forEach(file -> keyMetadata.put(file.path().toString(), file.keyMetadata()));
+    Stream<EncryptedInputFile> encrypted = keyMetadata.entrySet().stream()
+        .map(entry -> EncryptedFiles.encryptedInput(io.newInputFile(entry.getKey()), entry.getValue()));
+
+    // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
+    Iterable<InputFile> decryptedFiles = encryption.decrypt(encrypted::iterator);
+
+    ImmutableMap.Builder<String, InputFile> inputFileBuilder = ImmutableMap.builder();
+    decryptedFiles.forEach(decrypted -> inputFileBuilder.put(decrypted.location(), decrypted));
+    this.inputFiles = inputFileBuilder.build();
+
     this.currentIterator = CloseableIterator.empty();
   }
 
   InputFile getInputFile(FileScanTask task) {
     Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
-    return encryption.decrypt(EncryptedFiles.encryptedInput(
-        io.newInputFile(task.file().path().toString()),
-        task.file().keyMetadata()));
+
+    return inputFiles.get(task.file().path().toString());
+  }
+
+  InputFile getInputFile(String location) {
+    return inputFiles.get(location);
   }
 
   @Override
@@ -103,38 +113,5 @@ abstract class DataIterator<T> implements CloseableIterator<T> {
     // close the current iterator
     currentIterator.close();
     tasks = null;
-  }
-
-  static Object convertConstant(Type type, Object value) {
-    if (value == null) {
-      return null;
-    }
-
-    switch (type.typeId()) {
-      case DECIMAL: // DecimalData
-        Types.DecimalType decimal = (Types.DecimalType) type;
-        return DecimalData.fromBigDecimal((BigDecimal) value, decimal.precision(), decimal.scale());
-      case STRING: // StringData
-        if (value instanceof Utf8) {
-          Utf8 utf8 = (Utf8) value;
-          return StringData.fromBytes(utf8.getBytes(), 0, utf8.getByteLength());
-        }
-        return StringData.fromString(value.toString());
-      case FIXED: // byte[]
-        if (value instanceof byte[]) {
-          return value;
-        } else if (value instanceof GenericData.Fixed) {
-          return ((GenericData.Fixed) value).bytes();
-        }
-        return ByteBuffers.toByteArray((ByteBuffer) value);
-      case BINARY: // byte[]
-        return ByteBuffers.toByteArray((ByteBuffer) value);
-      case TIME: // int mills instead of long
-        return (int) ((Long) value / 1000);
-      case TIMESTAMP: // TimestampData
-        return TimestampData.fromLocalDateTime(DateTimeUtil.timestampFromMicros((Long) value));
-      default:
-    }
-    return value;
   }
 }

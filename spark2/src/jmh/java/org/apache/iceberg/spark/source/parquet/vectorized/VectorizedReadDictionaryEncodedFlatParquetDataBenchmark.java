@@ -43,7 +43,7 @@ import static org.apache.spark.sql.functions.when;
  * <p>
  * To run the benchmark:
  * <code>
- * ./gradlew :iceberg-spark:jmh -PjmhIncludeRegex=VectorizedReadDictionaryEncodedFlatParquetDataBenchmark
+ * ./gradlew :iceberg-spark2:jmh -PjmhIncludeRegex=VectorizedReadDictionaryEncodedFlatParquetDataBenchmark
  * -PjmhOutputPath=benchmark/results.txt
  * </code>
  */

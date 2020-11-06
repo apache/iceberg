@@ -46,7 +46,7 @@ import static org.apache.spark.sql.functions.struct;
  *
  * To run this benchmark:
  * <code>
- *   ./gradlew :iceberg-spark:jmh
+ *   ./gradlew :iceberg-spark2:jmh
  *       -PjmhIncludeRegex=IcebergSourceNestedParquetDataFilterBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-nested-parquet-data-filter-benchmark-result.txt
  * </code>
