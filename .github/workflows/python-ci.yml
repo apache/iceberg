@@ -25,12 +25,18 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        tox_env: [py36, py37, py38]
+        python: [3.6, 3.7, 3.8]
 
     steps:
     - uses: actions/checkout@v2
-    - uses: fedora-python/tox-github-action@master
-      working-directory: ./python
+    - uses: actions/setup-python@v2
       with:
-        tox_env: ${{ matrix.tox_env }}
+        python-version: ${{ matrix.python }}
+    - name: dependencies
+      working-directory: ./python
+      run: |
+        pip install -e .[dev]
+        pip install -U tox-gh-actions
+    - run: tox
+      working-directory: ./python
 
