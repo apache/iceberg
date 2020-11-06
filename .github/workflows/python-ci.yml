@@ -30,6 +30,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - uses: fedora-python/tox-github-action@master
+      working-directory: ./python
       with:
         tox_env: ${{ matrix.tox_env }}
 
