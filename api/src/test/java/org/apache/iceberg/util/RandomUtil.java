@@ -160,7 +160,7 @@ public class RandomUtil {
         return true; // doesn't really matter for booleans since they are not dictionary encoded
       case INTEGER:
       case DATE:
-        return  negate(value) ? -1 * value : value;
+        return negate(value) ? -1 * value : value;
       case FLOAT:
         return negate(value) ? -1.0F * (float) value : (float) value;
       case DOUBLE:
@@ -168,7 +168,7 @@ public class RandomUtil {
       case LONG:
       case TIME:
       case TIMESTAMP:
-        return negate(value) ? -1L * (long) value : (long) value;
+        return (long) value;
       case STRING:
         return String.valueOf(value);
       case FIXED:
