@@ -29,10 +29,10 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.StructLikeMap;
-import org.apache.iceberg.util.StructProjection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,8 +44,7 @@ public class BaseDeltaWriter<T> implements DeltaWriter<T> {
   private final RollingContentFileWriter<DeleteFile, PositionDelete<T>> posDeleteWriter;
 
   private final PositionDelete<T> positionDelete = new PositionDelete<>();
-  private final StructProjection projectionRow;
-  private final StructLikeMap<FilePos> insertedRowMap;
+  private final StructLikeMap<List<FilePos>> insertedRowMap;
 
   // Function to convert the generic data to a StructLike.
   private final Function<T, StructLike> structLikeFun;
@@ -88,11 +87,9 @@ public class BaseDeltaWriter<T> implements DeltaWriter<T> {
       Preconditions.checkNotNull(structLikeFun, "StructLike function shouldn't be null");
 
       Schema deleteSchema = TypeUtil.select(tableSchema, Sets.newHashSet(equalityFieldIds));
-      this.projectionRow = StructProjection.create(tableSchema, deleteSchema);
       this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
       this.structLikeFun = structLikeFun;
     } else {
-      this.projectionRow = null;
       this.insertedRowMap = null;
       this.structLikeFun = null;
     }
@@ -106,10 +103,14 @@ public class BaseDeltaWriter<T> implements DeltaWriter<T> {
   public void writeRow(T row) throws IOException {
     if (enableEqualityDelete()) {
       FilePos filePos = FilePos.create(dataWriter.currentPath(), dataWriter.currentPos());
-
-      LOG.info("writeRow: {} -- filePos: {}", row, filePos);
-
-      insertedRowMap.put(structLikeFun.apply(row), filePos);
+      insertedRowMap.compute(structLikeFun.apply(row), (k, v) -> {
+        if (v == null) {
+          return Lists.newArrayList(filePos);
+        } else {
+          v.add(filePos);
+          return v;
+        }
+      });
     }
 
     dataWriter.write(row);
@@ -121,16 +122,16 @@ public class BaseDeltaWriter<T> implements DeltaWriter<T> {
       throw new UnsupportedOperationException("Could not accept equality deletion.");
     }
 
-    FilePos existing = insertedRowMap.get(structLikeFun.apply(equalityDelete));
-
-    LOG.info("writeEqualityDelete: {}, existing: {}", equalityDelete, existing);
+    List<FilePos> existing = insertedRowMap.get(structLikeFun.apply(equalityDelete));
 
     if (existing == null) {
       // Delete the row which have been written by other completed delta writer.
       equalityDeleteWriter.write(equalityDelete);
     } else {
-      // Delete the row which was written in current delta writer.
-      posDeleteWriter.write(positionDelete.set(existing.path(), existing.pos(), equalityDelete));
+      // Delete the rows which was written in current delta writer.
+      for (FilePos filePos : existing) {
+        posDeleteWriter.write(positionDelete.set(filePos.path(), filePos.pos(), null));
+      }
     }
   }
 

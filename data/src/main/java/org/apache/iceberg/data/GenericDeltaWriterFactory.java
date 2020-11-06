@@ -97,7 +97,8 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
         "Equality field id list shouldn't be null or emtpy.");
 
     RollingContentFileWriter<DeleteFile, Record> eqDeleteWriter = new RollingContentFileWriter<>(partitionKey,
-        format, fileFactory, io, targetFileSize, createEqualityDeleteWriterFactory(ctxt.equalityFieldIds()));
+        format, fileFactory, io, targetFileSize,
+        createEqualityDeleteWriterFactory(ctxt.equalityFieldIds(), ctxt.rowSchema()));
 
 
     return new BaseDeltaWriter<>(dataWriter, posDeleteWriter, eqDeleteWriter, schema, ctxt.equalityFieldIds(),
@@ -124,7 +125,7 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
 
   @Override
   public ContentFileWriterFactory<DeleteFile, Record> createEqualityDeleteWriterFactory(
-      List<Integer> equalityFieldIds) {
+      List<Integer> equalityFieldIds, Schema rowSchema) {
     return (partitionKey, outputFile, fileFormat) -> {
 
       MetricsConfig metricsConfig = MetricsConfig.fromProperties(tableProperties);
@@ -136,7 +137,7 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
                 .withPartition(partitionKey)
                 .overwrite()
                 .setAll(tableProperties)
-                .rowSchema(schema)
+                .rowSchema(rowSchema)
                 .withSpec(spec)
                 .withKeyMetadata(outputFile.keyMetadata())
                 .equalityFieldIds(equalityFieldIds)
@@ -149,7 +150,7 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
                 .overwrite()
                 .setAll(tableProperties)
                 .metricsConfig(metricsConfig)
-                .rowSchema(schema)
+                .rowSchema(rowSchema)
                 .withSpec(spec)
                 .withKeyMetadata(outputFile.keyMetadata())
                 .equalityFieldIds(equalityFieldIds)
@@ -179,7 +180,7 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
                 .withPartition(partitionKey)
                 .overwrite()
                 .setAll(tableProperties)
-                .rowSchema(schema) // TODO: it should be optional.
+                .rowSchema(schema) // it's a nullable field.
                 .withSpec(spec)
                 .withKeyMetadata(outputFile.keyMetadata())
                 .buildPositionWriter();
@@ -191,7 +192,7 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
                 .overwrite()
                 .setAll(tableProperties)
                 .metricsConfig(metricsConfig)
-                .rowSchema(schema)
+                .rowSchema(schema) // it's a nullable field.
                 .withSpec(spec)
                 .withKeyMetadata(outputFile.keyMetadata())
                 .buildPositionWriter();

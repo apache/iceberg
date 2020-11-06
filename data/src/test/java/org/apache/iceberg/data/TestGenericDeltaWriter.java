@@ -157,6 +157,65 @@ public class TestGenericDeltaWriter extends TableTestBase {
     assertTableRecords(ImmutableSet.of());
   }
 
+  @Test
+  public void testUpsertSameRow() throws IOException {
+    DeltaWriterFactory<Record> writerFactory = createDeltaWriterFactory();
+    List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
+    DeltaWriterFactory.Context ctxt = DeltaWriterFactory.Context.builder()
+        .allowEqualityDelete(true)
+        .equalityFieldIds(equalityFieldIds)
+        .rowSchema(SCHEMA)
+        .build();
+    DeltaWriter<Record> deltaWriter = writerFactory.createDeltaWriter(null, ctxt);
+
+    GenericRecord record = GenericRecord.create(SCHEMA);
+    Record record1 = record.copy("id", 1, "data", "aaa");
+    Record record2 = record.copy("id", 1, "data", "bbb");
+    Record record3 = record.copy("id", 1, "data", "ccc");
+    Record record4 = record.copy("id", 1, "data", "ddd");
+    Record record5 = record.copy("id", 1, "data", "eee");
+    Record record6 = record.copy("id", 1, "data", "fff");
+    Record record7 = record.copy("id", 1, "data", "ggg");
+
+    deltaWriter.writeRow(record1);
+    deltaWriter.writeRow(record2);
+
+    // Commit the transaction.
+    WriterResult result = deltaWriter.complete();
+    Assert.assertEquals(result.dataFiles().length, 1);
+    Assert.assertEquals(result.deleteFiles().length, 0);
+    commitTransaction(result);
+
+    assertTableRecords(ImmutableSet.of(record1, record2));
+
+    deltaWriter = writerFactory.createDeltaWriter(null, ctxt);
+
+    // UPSERT (1, "ccc")
+    deltaWriter.writeEqualityDelete(record3);
+    deltaWriter.writeRow(record3);
+
+    // INSERT (1, "ddd")
+    // INSERT (1, "eee")
+    deltaWriter.writeRow(record4);
+    deltaWriter.writeRow(record5);
+
+    // UPSERT (1, "fff")
+    deltaWriter.writeEqualityDelete(record6);
+    deltaWriter.writeRow(record6);
+
+    // INSERT (1, "ggg")
+    deltaWriter.writeRow(record7);
+
+    // Commit the transaction.
+    result = deltaWriter.complete();
+    Assert.assertEquals(1, result.dataFiles().length);
+    // One pos-delete file, and one equality-delete file.
+    Assert.assertEquals(2, result.deleteFiles().length);
+    commitTransaction(result);
+
+    assertTableRecords(ImmutableSet.of(record6, record7));
+  }
+
   private void assertTableRecords(Set<Record> expectedRecords) {
     StructLikeSet expectedSet = StructLikeSet.create(SCHEMA.asStruct());
     expectedSet.addAll(expectedRecords);

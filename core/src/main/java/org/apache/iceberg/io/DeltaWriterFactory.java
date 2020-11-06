@@ -24,6 +24,7 @@ import org.apache.iceberg.ContentFileWriterFactory;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.PartitionKey;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
@@ -35,7 +36,8 @@ public interface DeltaWriterFactory<T> {
 
   ContentFileWriterFactory<DataFile, T> createDataFileWriterFactory();
 
-  ContentFileWriterFactory<DeleteFile, T> createEqualityDeleteWriterFactory(List<Integer> equalityFieldIds);
+  ContentFileWriterFactory<DeleteFile, T> createEqualityDeleteWriterFactory(List<Integer> equalityFieldIds,
+                                                                            Schema rowSchema);
 
   ContentFileWriterFactory<DeleteFile, PositionDelete<T>> createPosDeleteWriterFactory();
 
@@ -43,11 +45,14 @@ public interface DeltaWriterFactory<T> {
     private final boolean allowPosDelete;
     private final boolean allowEqualityDelete;
     private final List<Integer> equalityFieldIds;
+    private final Schema rowSchema;
 
-    private Context(boolean allowPosDelete, boolean allowEqualityDelete, List<Integer> equalityFieldIds) {
+    private Context(boolean allowPosDelete, boolean allowEqualityDelete, List<Integer> equalityFieldIds,
+                    Schema rowSchema) {
       this.allowPosDelete = allowPosDelete;
       this.allowEqualityDelete = allowEqualityDelete;
       this.equalityFieldIds = equalityFieldIds;
+      this.rowSchema = rowSchema;
     }
 
     public boolean allowPosDelete() {
@@ -62,6 +67,10 @@ public interface DeltaWriterFactory<T> {
       return equalityFieldIds;
     }
 
+    public Schema rowSchema() {
+      return rowSchema;
+    }
+
     public static Builder builder() {
       return new Builder();
     }
@@ -70,6 +79,7 @@ public interface DeltaWriterFactory<T> {
       private boolean allowPosDelete = false;
       private boolean allowEqualityDelete = false;
       private List<Integer> equalityFieldIds = ImmutableList.of();
+      private Schema rowSchema;
 
       public Builder allowPosDelete(boolean enable) {
         this.allowPosDelete = enable;
@@ -86,8 +96,13 @@ public interface DeltaWriterFactory<T> {
         return this;
       }
 
+      public Builder rowSchema(Schema newRowSchema) {
+        this.rowSchema = newRowSchema;
+        return this;
+      }
+
       public Context build() {
-        return new Context(allowPosDelete, allowEqualityDelete, equalityFieldIds);
+        return new Context(allowPosDelete, allowEqualityDelete, equalityFieldIds, rowSchema);
       }
     }
   }
