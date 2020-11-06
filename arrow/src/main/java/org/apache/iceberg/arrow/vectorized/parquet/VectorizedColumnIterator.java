@@ -129,16 +129,30 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     }
   }
 
-  public void nextBatchIntLongBackedDecimal(
+  public void nextBatchIntBackedDecimal(
       FieldVector fieldVector,
-      int typeWidth,
       NullabilityHolder nullabilityHolder) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
       advance();
       int rowsInThisBatch =
-          vectorizedPageIterator.nextBatchIntLongBackedDecimal(fieldVector, batchSize - rowsReadSoFar,
-              rowsReadSoFar, typeWidth, nullabilityHolder);
+          vectorizedPageIterator.nextBatchIntBackedDecimal(fieldVector, batchSize - rowsReadSoFar,
+              rowsReadSoFar, nullabilityHolder);
+      rowsReadSoFar += rowsInThisBatch;
+      this.triplesRead += rowsInThisBatch;
+      fieldVector.setValueCount(rowsReadSoFar);
+    }
+  }
+
+  public void nextBatchLongBackedDecimal(
+          FieldVector fieldVector,
+          NullabilityHolder nullabilityHolder) {
+    int rowsReadSoFar = 0;
+    while (rowsReadSoFar < batchSize && hasNext()) {
+      advance();
+      int rowsInThisBatch =
+              vectorizedPageIterator.nextBatchLongBackedDecimal(fieldVector, batchSize - rowsReadSoFar,
+                      rowsReadSoFar, nullabilityHolder);
       rowsReadSoFar += rowsInThisBatch;
       this.triplesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);

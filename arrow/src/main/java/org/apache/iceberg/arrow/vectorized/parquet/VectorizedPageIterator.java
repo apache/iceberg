@@ -274,31 +274,58 @@ public class VectorizedPageIterator extends BasePageIterator {
    * Method for reading a batch of decimals backed by INT32 and INT64 parquet data types. Since Arrow stores all
    * decimals in 16 bytes, byte arrays are appropriately padded before being written to Arrow data buffers.
    */
-  public int nextBatchIntLongBackedDecimal(
+  public int nextBatchIntBackedDecimal(
       final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
-      final int typeWidth, NullabilityHolder nullabilityHolder) {
+      NullabilityHolder nullabilityHolder) {
     final int actualBatchSize = getActualBatchSize(expectedBatchSize);
     if (actualBatchSize <= 0) {
       return 0;
     }
     if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
       vectorizedDefinitionLevelReader
-          .readBatchOfDictionaryEncodedIntLongBackedDecimals(
+          .readBatchOfDictionaryEncodedIntBackedDecimals(
               vector,
               numValsInVector,
-              typeWidth,
               actualBatchSize,
               nullabilityHolder,
               dictionaryEncodedValuesReader,
               dictionary);
     } else {
-      vectorizedDefinitionLevelReader.readBatchOfIntLongBackedDecimals(
+      vectorizedDefinitionLevelReader.readBatchOfIntBackedDecimals(
           vector,
           numValsInVector,
-          typeWidth,
           actualBatchSize,
           nullabilityHolder,
           plainValuesReader);
+    }
+    triplesRead += actualBatchSize;
+    this.hasNext = triplesRead < triplesCount;
+    return actualBatchSize;
+  }
+
+  public int nextBatchLongBackedDecimal(
+          final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
+          NullabilityHolder nullabilityHolder) {
+    final int actualBatchSize = getActualBatchSize(expectedBatchSize);
+    if (actualBatchSize <= 0) {
+      return 0;
+    }
+    if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
+      vectorizedDefinitionLevelReader
+              .readBatchOfDictionaryEncodedLongBackedDecimals(
+                      vector,
+                      numValsInVector,
+                      actualBatchSize,
+                      nullabilityHolder,
+                      dictionaryEncodedValuesReader,
+                      dictionary);
+    } else {
+      vectorizedDefinitionLevelReader.readBatchOfLongBackedDecimals(
+              vector,
+              numValsInVector,
+              actualBatchSize,
+              nullabilityHolder,
+              plainValuesReader);
     }
     triplesRead += actualBatchSize;
     this.hasNext = triplesRead < triplesCount;
