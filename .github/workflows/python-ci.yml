@@ -34,20 +34,21 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - run: git fetch origin ${{ github.base_ref }}
-    - name: Check if python changed
-      id: changes
+    - id: detect_changes
       run: git diff HEAD origin/${{ github.base_ref }} --quiet -- python || echo "::set-output name=python_changed::true"
     - uses: actions/setup-python@v2
+      needs: detect_changes
       if: needs.changes.outputs.python_changed == 'true'
       with:
         python-version: ${{ matrix.python }}
-    - name: dependencies
+    - needs: detect_changes
       if: needs.changes.outputs.python_changed == 'true'
       working-directory: ./python
       run: |
         pip install -e .[dev]
         pip install -U tox-gh-actions
-    - run: tox
+    - needs: detect_changes
       if: needs.changes.outputs.python_changed == 'true'
       working-directory: ./python
+      run: tox
 
