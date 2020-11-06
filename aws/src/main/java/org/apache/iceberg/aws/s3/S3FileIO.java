@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.aws.s3;
 
-import java.io.Serializable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
