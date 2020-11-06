@@ -271,6 +271,7 @@ public class ManifestReader<F extends ContentFile<F>>
   private static boolean requireStatsProjection(Expression rowFilter, Collection<String> columns) {
     // Make sure we have all stats columns for metrics evaluator
     return rowFilter != Expressions.alwaysTrue() &&
+        columns != null &&
         !columns.containsAll(ManifestReader.ALL_COLUMNS) &&
         !columns.containsAll(STATS_COLUMNS);
   }
@@ -279,6 +280,7 @@ public class ManifestReader<F extends ContentFile<F>>
     // Make sure we only drop all stats if we had projected all stats
     // We do not drop stats even if we had partially added some stats columns
     return rowFilter != Expressions.alwaysTrue() &&
+        columns != null &&
         !columns.containsAll(ManifestReader.ALL_COLUMNS) &&
         Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS).isEmpty();
   }
