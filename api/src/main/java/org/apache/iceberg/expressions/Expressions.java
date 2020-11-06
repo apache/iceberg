@@ -120,7 +120,7 @@ public class Expressions {
   }
 
   public static <T> UnboundPredicate<T> notNull(UnboundTerm<T> expr) {
-    return new UnboundPredicate<>(Expression.Operation.IS_NULL, expr);
+    return new UnboundPredicate<>(Expression.Operation.NOT_NULL, expr);
   }
 
   public static <T> UnboundPredicate<T> lessThan(String name, T value) {
