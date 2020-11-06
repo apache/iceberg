@@ -117,9 +117,10 @@ public class TestGenericDeltaWriter extends TableTestBase {
   public void testWriteEqualityDelete() throws IOException {
     DeltaWriterFactory<Record> writerFactory = createDeltaWriterFactory();
 
+    List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
     DeltaWriterFactory.Context ctxt = DeltaWriterFactory.Context.builder()
         .allowEqualityDelete(true)
-        .equalityFieldIds(ImmutableList.of(3)) /* Field id for 'id' is 3 */
+        .equalityFieldIds(equalityFieldIds)
         .build();
 
     // TODO More unit tests to test the partitioned case.
