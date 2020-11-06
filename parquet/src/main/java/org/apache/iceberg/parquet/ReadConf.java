@@ -59,8 +59,7 @@ class ReadConf<T> {
   private final long totalValues;
   private final boolean reuseContainers;
   private final Integer batchSize;
-
-  private long[] startRowPositions;
+  private final long[] startRowPositions;
 
   // List of column chunk metadata for each row group
   private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetaDataForRowGroups;
@@ -89,13 +88,10 @@ class ReadConf<T> {
 
     this.rowGroups = reader.getRowGroups();
     this.shouldSkip = new boolean[rowGroups.size()];
+    this.startRowPositions = new long[rowGroups.size()];
 
     // Fetch all row groups starting positions to compute the row offsets of the filtered row groups
-    Map<Long, Long> offsetToStartPos = null;
-    if (expectedSchema.findField(MetadataColumns.ROW_POSITION.fieldId()) != null) {
-      offsetToStartPos = generateOffsetToStartPos();
-      this.startRowPositions = new long[rowGroups.size()];
-    }
+    Map<Long, Long> offsetToStartPos = generateOffsetToStartPos(expectedSchema);
 
     ParquetMetricsRowGroupFilter statsFilter = null;
     ParquetDictionaryRowGroupFilter dictFilter = null;
@@ -107,9 +103,7 @@ class ReadConf<T> {
     long computedTotalValues = 0L;
     for (int i = 0; i < shouldSkip.length; i += 1) {
       BlockMetaData rowGroup = rowGroups.get(i);
-      if (offsetToStartPos != null) {
-        startRowPositions[i] = offsetToStartPos.get(rowGroup.getStartingPos());
-      }
+      startRowPositions[i] = offsetToStartPos == null ? 0 : offsetToStartPos.get(rowGroup.getStartingPos());
       boolean shouldRead = filter == null || (
           statsFilter.shouldRead(typeWithIds, rowGroup) &&
               dictFilter.shouldRead(typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup)));
@@ -173,7 +167,11 @@ class ReadConf<T> {
     return shouldSkip;
   }
 
-  private Map<Long, Long> generateOffsetToStartPos() {
+  private Map<Long, Long> generateOffsetToStartPos(Schema schema) {
+    if (schema.findField(MetadataColumns.ROW_POSITION.fieldId()) == null) {
+      return null;
+    }
+
     try (ParquetFileReader fileReader = newReader(file, ParquetReadOptions.builder().build())) {
       Map<Long, Long> offsetToStartPos = new HashMap<>();
 

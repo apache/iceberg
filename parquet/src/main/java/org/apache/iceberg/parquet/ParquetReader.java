@@ -135,9 +135,11 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
         throw new RuntimeIOException(e);
       }
 
-      model.setPageSource(pages, rowGroupsStartRowPos == null ? 0 : rowGroupsStartRowPos[nextRowGroup]);
+      long rowPosition = rowGroupsStartRowPos[nextRowGroup];
       nextRowGroupStart += pages.getRowCount();
       nextRowGroup += 1;
+
+      model.setPageSource(pages, rowPosition);
     }
 
     @Override
