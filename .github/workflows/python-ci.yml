@@ -20,6 +20,10 @@
 name: "Python CI"
 on: [push, pull_request]
 
+# change detection is based on two references:
+# https://github.community/t/run-job-only-if-folder-changed/118292/2
+# https://carlosbecker.com/posts/git-changed/
+
 jobs:
   tox:
     runs-on: ubuntu-latest
@@ -29,14 +33,21 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: Check if python changed
+      id: changes
+      run: |
+        git diff HEAD master --quiet -- python || echo "::set-output name=python_changed::true"
     - uses: actions/setup-python@v2
+      if: needs.changes.outputs.python_changed == 'true'
       with:
         python-version: ${{ matrix.python }}
     - name: dependencies
+      if: needs.changes.outputs.python_changed == 'true'
       working-directory: ./python
       run: |
         pip install -e .[dev]
         pip install -U tox-gh-actions
     - run: tox
+      if: needs.changes.outputs.python_changed == 'true'
       working-directory: ./python
 
