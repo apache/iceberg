@@ -19,29 +19,85 @@
 
 package org.apache.iceberg.aws.s3;
 
-import java.net.URI;
+import java.util.Set;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
-public class S3URI {
-  private final URI uri;
+/**
+ * This class represents a fully qualified location in S3 for input/output
+ * operations expressed as as URI.  This implementation is provided to
+ * ensure compatibility with Hadoop Path implementations that may introduce
+ * encoding issues with native URI implementation.
+ *
+ * Note: Path-style access is deprecated and not supported by this
+ * implementation.
+ */
+class S3URI {
+  private static final String SCHEME_DELIM = "://";
+  private static final String PATH_DELIM = "/";
+  private static final String QUERY_DELIM = "\\?";
+  private static final String FRAGMENT_DELIM = "#";
+  private static final Set<String> VALID_SCHEMES = ImmutableSet.of("https", "s3", "s3a", "s3n");
 
-  public S3URI(URI uri) {
-    this.uri = uri;
+  private final String location;
+  private final String bucket;
+  private final String key;
+
+  /**
+   * Creates a new S3URI based on the bucket and key parsed from the location as defined in:
+   * https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingBucket.html#access-bucket-intro
+   *
+   * Supported access styles are Virtual Hosted addresses and s3://... URIs with additional
+   * 's3n' and 's3a' schemes supported for backwards compatibility.
+   *
+   * @param location fully qualified URI
+   */
+  S3URI(String location) {
+    Preconditions.checkNotNull(location, "Location cannot be null.");
+
+    this.location = location;
+    String [] schemeSplit = location.split(SCHEME_DELIM);
+    ValidationException.check(schemeSplit.length == 2, "Invalid S3 URI: %s", location);
+
+    String scheme = schemeSplit[0];
+    ValidationException.check(VALID_SCHEMES.contains(scheme.toLowerCase()), "Invalid scheme: ", scheme);
+
+    String [] authoritySplit = schemeSplit[1].split(PATH_DELIM, 2);
+    ValidationException.check(authoritySplit.length == 2, "Invalid S3 URI: %s", location);
+    ValidationException.check(!authoritySplit[1].trim().isEmpty(), "Invalid S3 key: %s", location);
+    this.bucket = authoritySplit[0];
+
+    // Strip query and fragment if they exist
+    String path = authoritySplit[1];
+    path = path.split(QUERY_DELIM)[0];
+    path = path.split(FRAGMENT_DELIM)[0];
+    this.key = path;
   }
 
-  public S3URI(String uri) {
-    this(URI.create(uri));
-  }
-
+  /**
+   * @return S3 bucket
+   */
   public String bucket() {
-    return uri.getAuthority();
+    return bucket;
   }
 
+  /**
+   * @return S3 key
+   */
   public String key() {
-    return uri.getPath().startsWith("/") ? uri.getPath().replaceFirst("/", "") : uri.getPath();
+    return key;
+  }
+
+  /*
+   * @return original, unmodified location
+   */
+  public String location() {
+    return location;
   }
 
   @Override
   public String toString() {
-    return uri.toString();
+    return location;
   }
 }

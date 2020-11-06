@@ -32,7 +32,7 @@ import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 
-public class S3InputStream extends SeekableInputStream {
+class S3InputStream extends SeekableInputStream {
   private static final Logger LOG = LoggerFactory.getLogger(S3InputStream.class);
 
   private final StackTraceElement[] createStack;
@@ -46,7 +46,7 @@ public class S3InputStream extends SeekableInputStream {
 
   private int skipSize = 1024 * 1024;
 
-  public S3InputStream(S3Client s3, S3URI location) {
+  S3InputStream(S3Client s3, S3URI location) {
     this.s3 = s3;
     this.location = location;
 

@@ -25,26 +25,26 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
-public abstract class BaseS3File {
+abstract class BaseS3File {
   private final S3Client client;
-  private final S3URI location;
+  private final S3URI uri;
   private HeadObjectResponse metadata;
 
-  public BaseS3File(S3Client client, S3URI location) {
+  BaseS3File(S3Client client, S3URI uri) {
     this.client = client;
-    this.location = location;
+    this.uri = uri;
   }
 
   public String location() {
-    return location.toString();
+    return uri.location();
   }
 
-  public S3Client getClient() {
+  S3Client client() {
     return client;
   }
 
-  public S3URI getLocation() {
-    return location;
+  S3URI uri() {
+    return uri;
   }
 
   /**
@@ -66,9 +66,9 @@ public abstract class BaseS3File {
 
   protected HeadObjectResponse getObjectMetadata() throws S3Exception {
     if (metadata == null) {
-      metadata = getClient().headObject(HeadObjectRequest.builder()
-          .bucket(getLocation().bucket())
-          .key(getLocation().key())
+      metadata = client().headObject(HeadObjectRequest.builder()
+          .bucket(uri().bucket())
+          .key(uri().key())
           .build());
     }
 
@@ -77,7 +77,7 @@ public abstract class BaseS3File {
 
   @Override
   public String toString() {
-    return location.toString();
+    return uri.toString();
   }
 
 }

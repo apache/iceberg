@@ -24,8 +24,8 @@ import org.apache.iceberg.io.SeekableInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 
 public class S3InputFile extends BaseS3File implements InputFile {
-  public S3InputFile(S3Client client, S3URI location) {
-    super(client, location);
+  public S3InputFile(S3Client client, S3URI uri) {
+    super(client, uri);
   }
 
   /**
@@ -40,7 +40,7 @@ public class S3InputFile extends BaseS3File implements InputFile {
 
   @Override
   public SeekableInputStream newStream() {
-    return new S3InputStream(getClient(), getLocation());
+    return new S3InputStream(client(), uri());
   }
 
 }

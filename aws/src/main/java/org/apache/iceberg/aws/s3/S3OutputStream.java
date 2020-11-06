@@ -33,7 +33,7 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
-public class S3OutputStream extends PositionOutputStream {
+class S3OutputStream extends PositionOutputStream {
   private static final Logger LOG = LoggerFactory.getLogger(S3OutputStream.class);
 
   private final StackTraceElement[] createStack;
@@ -46,7 +46,7 @@ public class S3OutputStream extends PositionOutputStream {
 
   private boolean closed = false;
 
-  public S3OutputStream(S3Client s3, S3URI location) throws IOException {
+  S3OutputStream(S3Client s3, S3URI location) throws IOException {
     this.s3 = s3;
     this.location = location;
 

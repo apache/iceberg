@@ -28,8 +28,8 @@ import org.apache.iceberg.io.PositionOutputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 
 public class S3OutputFile extends BaseS3File implements OutputFile {
-  public S3OutputFile(S3Client client, S3URI location) {
-    super(client, location);
+  public S3OutputFile(S3Client client, S3URI uri) {
+    super(client, uri);
   }
 
   /**
@@ -43,21 +43,21 @@ public class S3OutputFile extends BaseS3File implements OutputFile {
     if (!exists()) {
       return createOrOverwrite();
     } else {
-      throw new AlreadyExistsException("Location already exists: %s", getLocation());
+      throw new AlreadyExistsException("Location already exists: %s", uri());
     }
   }
 
   @Override
   public PositionOutputStream createOrOverwrite() {
     try {
-      return new S3OutputStream(getClient(), getLocation());
+      return new S3OutputStream(client(), uri());
     } catch (IOException e) {
-      throw new UncheckedIOException("Filed to create output stream for location: " + getLocation(), e);
+      throw new UncheckedIOException("Filed to create output stream for location: " + uri(), e);
     }
   }
 
   @Override
   public InputFile toInputFile() {
-    return new S3InputFile(getClient(), getLocation());
+    return new S3InputFile(client(), uri());
   }
 }

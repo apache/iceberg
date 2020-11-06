@@ -61,11 +61,31 @@ public class S3OutputStreamTest {
   @Test
   public void testWrite() throws IOException {
     S3URI uri = new S3URI("s3://bucket/path/to/out.dat");
+    int size = 5 * 1024 * 1024;
+    byte [] expected =  new byte[size];
+    random.nextBytes(expected);
+
+    try (S3OutputStream stream = new S3OutputStream(s3, uri)) {
+      for (int i = 0; i < size; i++) {
+        stream.write(expected[i]);
+        assertEquals(i+1, stream.getPos());
+      }
+    }
+
+    byte [] actual = readS3Data(uri);
+
+    assertArrayEquals(expected, actual);
+  }
+
+  @Test
+  public void testWriteArray() throws IOException {
+    S3URI uri = new S3URI("s3://bucket/path/to/array-out.dat");
     byte [] expected =  new byte[5 * 1024 * 1024];
     random.nextBytes(expected);
 
     try (S3OutputStream stream = new S3OutputStream(s3, uri)) {
       stream.write(expected);
+      assertEquals(expected.length, stream.getPos());
     }
 
     byte [] actual = readS3Data(uri);
