@@ -25,30 +25,31 @@ on: [push, pull_request]
 # https://carlosbecker.com/posts/git-changed/
 
 jobs:
+  detect_changes:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - run: git fetch origin ${{ github.base_ref }}
+    - id: detect_changes
+      run: git diff HEAD origin/${{ github.base_ref }} --quiet -- python || echo "::set-output name=python_changed::true"
+
   tox:
     runs-on: ubuntu-latest
+    needs: detect_changes
+    if: needs.changes.outputs.python_changed == 'true'
     strategy:
       matrix:
         python: [3.6, 3.7, 3.8]
 
     steps:
     - uses: actions/checkout@v2
-    - run: git fetch origin ${{ github.base_ref }}
-    - id: detect_changes
-      run: git diff HEAD origin/${{ github.base_ref }} --quiet -- python || echo "::set-output name=python_changed::true"
     - uses: actions/setup-python@v2
-      needs: detect_changes
-      if: needs.changes.outputs.python_changed == 'true'
       with:
         python-version: ${{ matrix.python }}
-    - needs: detect_changes
-      if: needs.changes.outputs.python_changed == 'true'
-      working-directory: ./python
+    - working-directory: ./python
       run: |
         pip install -e .[dev]
         pip install -U tox-gh-actions
-    - needs: detect_changes
-      if: needs.changes.outputs.python_changed == 'true'
-      working-directory: ./python
+    - working-directory: ./python
       run: tox
 
