@@ -110,12 +110,12 @@ public class TestCallStatementParser {
 
   @Test
   public void testCallWithTimestampArg() throws ParseException {
-    CallStatement call = (CallStatement) parser.parsePlan("CALL cat.system.func(TIMESTAMP '2020-01-01 00:00:00')");
+    CallStatement call = (CallStatement) parser.parsePlan("CALL cat.system.func(TIMESTAMP '2017-02-03T10:37:30.00Z')");
     Assert.assertEquals(ImmutableList.of("cat", "system", "func"), JavaConverters.seqAsJavaList(call.name()));
 
     Assert.assertEquals(1, call.args().size());
 
-    checkArg(call, 0, Timestamp.from(Instant.parse("2020-01-01 00:00:00")), DataTypes.TimestampType);
+    checkArg(call, 0, Timestamp.from(Instant.parse("2017-02-03T10:37:30.00Z")), DataTypes.TimestampType);
   }
 
   @Test
