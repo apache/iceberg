@@ -248,6 +248,8 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 This product includes code from Presto.
 
 * Retry wait and jitter logic in Tasks.java
+* S3FileIO logic derived from PrestoS3FileSystem.java in S3InputStream.java
+  and S3OutputStream.java
 * SQL grammar rules for parsing CALL statements in IcebergSqlExtensions.g4
 
 Copyright: 2016 Facebook and contributors
