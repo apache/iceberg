@@ -21,9 +21,12 @@ package org.apache.iceberg;
 
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.DedupingIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.ThreadPools;
+
+import java.util.Map;
 
 public class DataTableScan extends BaseTableScan {
   static final ImmutableList<String> SCAN_COLUMNS = ImmutableList.of(
@@ -36,6 +39,7 @@ public class DataTableScan extends BaseTableScan {
       .build();
   static final boolean PLAN_SCANS_WITH_WORKER_POOL =
       SystemProperties.getBoolean(SystemProperties.SCAN_THREAD_POOL_ENABLED, true);
+  public static final String DEDUPE_FILES_OPTION = "dedupe_files";
 
   public DataTableScan(TableOperations ops, Table table) {
     super(ops, table, table.schema());
@@ -86,7 +90,18 @@ public class DataTableScan extends BaseTableScan {
       manifestGroup = manifestGroup.planWith(ThreadPools.getWorkerPool());
     }
 
-    return manifestGroup.planFiles();
+    CloseableIterable<FileScanTask> fileScanTasks = manifestGroup.planFiles();
+    return maybeDedupeFiles(fileScanTasks);
+  }
+
+  protected CloseableIterable<FileScanTask> maybeDedupeFiles(CloseableIterable<FileScanTask> fileScanTasks) {
+    boolean handleDuplicateFiles = tableOps().current().propertyAsBoolean(
+        TableProperties.DEDUPE_DUPLICATE_FILES_IN_SCAN, TableProperties.DEDUPE_DUPLICATE_FILES_IN_SCAN_DEFAULT);
+    if (handleDuplicateFiles) {
+      return new DedupingIterable<>(fileScanTasks, f -> f.file().path());
+    } else {
+      return fileScanTasks;
+    }
   }
 
   @Override

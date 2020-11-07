@@ -45,6 +45,9 @@ public class TableProperties {
   public static final String MANIFEST_MERGE_ENABLED = "commit.manifest-merge.enabled";
   public static final boolean MANIFEST_MERGE_ENABLED_DEFAULT = true;
 
+  public static final String DEDUPE_DUPLICATE_FILES_IN_SCAN = "scan.manifest.dedupe-duplicate-files";
+  public static final boolean DEDUPE_DUPLICATE_FILES_IN_SCAN_DEFAULT = false;
+
   public static final String DEFAULT_FILE_FORMAT = "write.format.default";
   public static final String DEFAULT_FILE_FORMAT_DEFAULT = "parquet";
 
