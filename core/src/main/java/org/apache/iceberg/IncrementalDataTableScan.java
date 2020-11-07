@@ -22,7 +22,6 @@ package org.apache.iceberg;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.DedupingIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;

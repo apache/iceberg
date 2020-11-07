@@ -22,17 +22,15 @@ package org.apache.iceberg.io;
 import java.io.IOException;
 import java.util.function.Function;
 
-/**
- * @param <T> iterable object type
- * @param <O> key for deduping
- */
 public class DedupingIterable<T, O> implements CloseableIterable<T> {
   private final CloseableIterable<T> iterable;
   private final Function<T, O> getKey;
+
   public DedupingIterable(CloseableIterable<T> iterable, Function<T, O> getKey) {
     this.iterable = iterable;
     this.getKey = getKey;
   }
+
   @Override
   public CloseableIterator<T> iterator() {
     return new DedupingIterator<T, O>(iterable.iterator(), getKey);

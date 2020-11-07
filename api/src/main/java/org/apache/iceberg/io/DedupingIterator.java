@@ -26,15 +26,15 @@ import java.util.function.Function;
 
 /**
  * Warning: This class is not thread safe
- * @param <T> object type of the iterable
- * @param <O> object type of the key for deduping
+ * @param <T> type of the iterable
+ * @param <O> type of the key for deduping
  */
 public class DedupingIterator<T, O> implements CloseableIterator<T> {
   private final CloseableIterator<T> iterator;
   private final Function<T, O> getKey;
   private final Set<O> seen;
   private T buffer;
-  private long start;
+
   public DedupingIterator(CloseableIterator<T> iterator, Function<T, O> getKey) {
     this.iterator = iterator;
     this.getKey = getKey;
@@ -71,7 +71,6 @@ public class DedupingIterator<T, O> implements CloseableIterator<T> {
       O key = getKey.apply(next);
       seen.add(key);
       output = next;
-      start = System.currentTimeMillis();
     } else {
       output = buffer;
       buffer = null;
