@@ -18,12 +18,13 @@ org.apache.arrow:arrow-vector = 1.0.0
 org.apache.arrow:arrow-memory-netty = 1.0.0
 com.github.stephenc.findbugs:findbugs-annotations = 1.3.9-1
 software.amazon.awssdk:s3 = 2.15.7
+org.scala-lang:scala-library = 2.12.10
 
 # test deps
 junit:junit = 4.12
 org.mockito:mockito-core = 1.10.19
 org.apache.hive:hive-exec = 2.3.7
-com.adobe.testing:s3mock-junit4 = 2.1.28
 org.apache.hive:hive-service = 2.3.7
 org.apache.tez:tez-dag = 0.8.4
 org.apache.tez:tez-mapreduce = 0.8.4
+com.adobe.testing:s3mock-junit4 = 2.1.28

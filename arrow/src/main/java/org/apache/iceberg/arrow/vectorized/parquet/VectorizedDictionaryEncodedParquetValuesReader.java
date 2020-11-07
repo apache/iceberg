@@ -286,8 +286,8 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
         case RLE:
           for (int i = 0; i < num; i++) {
             byte[] decimalBytes = dict.decodeToBinary(currentValue).getBytesUnsafe();
-            byte[] vectorBytes = new byte[DecimalVector.TYPE_WIDTH];
-            System.arraycopy(decimalBytes, 0, vectorBytes, DecimalVector.TYPE_WIDTH - typeWidth, typeWidth);
+            byte[] vectorBytes = new byte[typeWidth];
+            System.arraycopy(decimalBytes, 0, vectorBytes, 0, typeWidth);
             ((DecimalVector) vector).setBigEndian(idx, vectorBytes);
             nullabilityHolder.setNotNull(idx);
             idx++;
@@ -296,8 +296,8 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
         case PACKED:
           for (int i = 0; i < num; i++) {
             byte[] decimalBytes = dict.decodeToBinary(packedValuesBuffer[packedValuesBufferIdx++]).getBytesUnsafe();
-            byte[] vectorBytes = new byte[DecimalVector.TYPE_WIDTH];
-            System.arraycopy(decimalBytes, 0, vectorBytes, DecimalVector.TYPE_WIDTH - typeWidth, typeWidth);
+            byte[] vectorBytes = new byte[typeWidth];
+            System.arraycopy(decimalBytes, 0, vectorBytes, 0, typeWidth);
             ((DecimalVector) vector).setBigEndian(idx, vectorBytes);
             nullabilityHolder.setNotNull(idx);
             idx++;
@@ -343,7 +343,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     }
   }
 
-  void readBatchOfDictionaryEncodedIntLongBackedDecimals(FieldVector vector, int typeWidth, int startOffset,
+  void readBatchOfDictionaryEncodedIntBackedDecimals(FieldVector vector, int startOffset,
                                                          int numValuesToRead, Dictionary dict,
                                                          NullabilityHolder nullabilityHolder) {
     int left = numValuesToRead;
@@ -358,7 +358,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
           for (int i = 0; i < num; i++) {
             ((DecimalVector) vector).set(
                 idx,
-                typeWidth == Integer.BYTES ? dict.decodeToInt(currentValue) : dict.decodeToLong(currentValue));
+                dict.decodeToInt(currentValue));
             nullabilityHolder.setNotNull(idx);
             idx++;
           }
@@ -366,10 +366,41 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
         case PACKED:
           for (int i = 0; i < num; i++) {
             ((DecimalVector) vector).set(
-                idx,
-                typeWidth == Integer.BYTES ?
-                    dict.decodeToInt(packedValuesBuffer[packedValuesBufferIdx++])
-                    : dict.decodeToLong(packedValuesBuffer[packedValuesBufferIdx++]));
+                idx, dict.decodeToInt(packedValuesBuffer[packedValuesBufferIdx++]));
+            nullabilityHolder.setNotNull(idx);
+            idx++;
+          }
+          break;
+      }
+      left -= num;
+      currentCount -= num;
+    }
+  }
+
+  void readBatchOfDictionaryEncodedLongBackedDecimals(FieldVector vector, int startOffset,
+                                                     int numValuesToRead, Dictionary dict,
+                                                     NullabilityHolder nullabilityHolder) {
+    int left = numValuesToRead;
+    int idx = startOffset;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int num = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          for (int i = 0; i < num; i++) {
+            ((DecimalVector) vector).set(
+                    idx,
+                    dict.decodeToLong(currentValue));
+            nullabilityHolder.setNotNull(idx);
+            idx++;
+          }
+          break;
+        case PACKED:
+          for (int i = 0; i < num; i++) {
+            ((DecimalVector) vector).set(
+                    idx, dict.decodeToLong(packedValuesBuffer[packedValuesBufferIdx++]));
             nullabilityHolder.setNotNull(idx);
             idx++;
           }

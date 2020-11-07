@@ -20,7 +20,9 @@
 It's possible to read an iceberg table either from an hdfs path or from a hive table. It's also possible to use a custom metastore in place of hive. The steps to do that are as follows.
 
 - [Custom TableOperations](#custom-table-operations-implementation)
-- [Custom Catalog](#custom-table-implementation)
+- [Custom Catalog](#custom-catalog-implementation)
+- [Custom FileIO](#custom-file-io-implementation)
+- [Custom LocationProvider](#custom-location-provider-implementation)
 - [Custom IcebergSource](#custom-icebergsource)
 
 ### Custom table operations implementation
@@ -76,7 +78,10 @@ class CustomTableOperations extends BaseMetastoreTableOperations {
 }
 ```
 
-### Custom table implementation
+A `TableOperations` instance is usually obtained by calling `Catalog.newTableOps(TableIdentifier)`.
+See the next section about implementing and loading a custom catalog.
+
+### Custom catalog implementation
 Extend `BaseMetastoreCatalog` to provide default warehouse locations and instantiate `CustomTableOperations`
 
 Example:
@@ -84,6 +89,11 @@ Example:
 public class CustomCatalog extends BaseMetastoreCatalog {
 
   private Configuration configuration;
+
+  // must have a no-arg constructor to be dynamically loaded
+  // initialize(String name, Map<String, String> properties) will be called to complete initialization
+  public CustomCatalog() {
+  }
 
   public CustomCatalog(Configuration configuration) {
     this.configuration = configuration;
@@ -127,8 +137,111 @@ public class CustomCatalog extends BaseMetastoreCatalog {
     // Example service to rename table
     CustomService.renameTable(from.namepsace().level(0), from.name(), to.name());
   }
+
+  // implement this method to read catalog name and properties during initialization
+  public void initialize(String name, Map<String, String> properties) {
+  }
 }
 ```
+
+Catalog implementations can be dynamically loaded in most compute engines.
+For Spark and Flink, you can specify the `catalog-impl` catalog property to load it.
+Read the [Configuration](../configuration/#catalog-properties) section for more details.
+For MapReduce, implement `org.apache.iceberg.mr.CatalogLoader` and set Hadoop property `iceberg.mr.catalog.loader.class` to load it.
+If your catalog must read Hadoop configuration to access certain environment properties, make your catalog implement `org.apache.hadoop.conf.Configurable`.
+
+### Custom file IO implementation
+
+Extend `FileIO` and provide implementation to read and write data files
+
+Example:
+```java
+public class CustomFileIO implements FileIO {
+
+  // must have a no-arg constructor to be dynamically loaded
+  // initialize(Map<String, String> properties) will be called to complete initialization
+  public CustomFileIO() {
+  }
+
+  @Override
+  public InputFile newInputFile(String s) {
+    // you also need to implement the InputFile interface for a custom input file
+    return new CustomInputFile(s);
+  }
+
+  @Override
+  public OutputFile newOutputFile(String s) {
+    // you also need to implement the OutputFile interface for a custom output file
+    return new CustomOutputFile(s);
+  }
+
+  @Override
+  public void deleteFile(String path) {
+    Path toDelete = new Path(path);
+    FileSystem fs = Util.getFs(toDelete);
+    try {
+        fs.delete(toDelete, false /* not recursive */);
+    } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to delete file: %s", path);
+    }
+  }
+
+  // implement this method to read catalog properties during initialization
+  public void initialize(Map<String, String> properties) {
+  }
+}
+```
+
+If you are already implementing your own catalog, you can implement `TableOperations.io()` to use your custom `FileIO`.
+In addition, custom `FileIO` implementations can also be dynamically loaded in `HadoopCatalog` and `HiveCatalog` by specifying the `io-impl` catalog property.
+Read the [Configuration](../configuration/#catalog-properties) section for more details.
+If your `FileIO` must read Hadoop configuration to access certain environment properties, make your `FileIO` implement `org.apache.hadoop.conf.Configurable`.
+
+### Custom location provider implementation
+
+Extend `LocationProvider` and provide implementation to determine the file path to write data
+
+Example:
+```java
+public class CustomLocationProvider implements LocationProvider {
+
+  private String tableLocation;
+
+  // must have a 2-arg constructor like this, or a no-arg constructor
+  public CustomLocationProvider(String tableLocation, Map<String, String> properties) {
+    this.tableLocation = tableLocation;
+  }
+
+  @Override
+  public String newDataLocation(String filename) {
+    // can use any custom method to generate a file path given a file name
+    return String.format("%s/%s/%s", tableLocation, UUID.randomUUID().toString(), filename);
+  }
+
+  @Override
+  public String newDataLocation(PartitionSpec spec, StructLike partitionData, String filename) {
+    // can use any custom method to generate a file path given a partition info and file name
+    return newDataLocation(filename);
+  }
+}
+```
+
+If you are already implementing your own catalog, you can override `TableOperations.locationProvider()` to use your custom default `LocationProvider`.
+To use a different custom location provider for a specific table, specify the implementation when creating the table using table property `write.location-provider.impl`
+
+Example:
+```sql
+CREATE TABLE hive.default.my_table (
+  id bigint,
+  data string,
+  category string)
+USING iceberg
+OPTIONS (
+  'write.location-provider.impl'='com.my.CustomLocationProvider'
+)
+PARTITIONED BY (category);
+```
+
 ### Custom IcebergSource
 Extend `IcebergSource` and provide implementation to read from `CustomCatalog`
 
