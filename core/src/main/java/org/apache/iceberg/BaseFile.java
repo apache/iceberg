@@ -54,7 +54,7 @@ abstract class BaseFile<F>
   private int[] fromProjectionPos;
   private Types.StructType partitionType;
 
-  private Long pos = null;
+  private Long fileOrdinal = null;
   private int partitionSpecId = -1;
   private FileContent content = FileContent.DATA;
   private String filePath = null;
@@ -154,7 +154,7 @@ abstract class BaseFile<F>
    * @param fullCopy whether to copy all fields or to drop column-level stats
    */
   BaseFile(BaseFile<F> toCopy, boolean fullCopy) {
-    this.pos = toCopy.pos;
+    this.fileOrdinal = toCopy.fileOrdinal;
     this.partitionSpecId = toCopy.partitionSpecId;
     this.content = toCopy.content;
     this.filePath = toCopy.filePath;
@@ -262,7 +262,7 @@ abstract class BaseFile<F>
         this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
         return;
       case 14:
-        this.pos = (long) value;
+        this.fileOrdinal = (long) value;
         return;
       default:
         // ignore the object, it must be from a newer version of the format
@@ -329,7 +329,7 @@ abstract class BaseFile<F>
 
   @Override
   public Long pos() {
-    return pos;
+    return fileOrdinal;
   }
 
   @Override
