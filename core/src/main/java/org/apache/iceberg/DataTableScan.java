@@ -37,7 +37,6 @@ public class DataTableScan extends BaseTableScan {
       .build();
   static final boolean PLAN_SCANS_WITH_WORKER_POOL =
       SystemProperties.getBoolean(SystemProperties.SCAN_THREAD_POOL_ENABLED, true);
-  public static final String DEDUPE_FILES_OPTION = "dedupe_files";
 
   public DataTableScan(TableOperations ops, Table table) {
     super(ops, table, table.schema());

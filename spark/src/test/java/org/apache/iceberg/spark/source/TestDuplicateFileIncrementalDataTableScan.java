@@ -19,32 +19,18 @@
 
 package org.apache.iceberg.spark.source;
 
-import org.apache.avro.generic.GenericData.Record;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.*;
-import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.spark.data.AvroDataTest;
-import org.apache.iceberg.spark.data.RandomData;
-import org.apache.iceberg.spark.data.TestHelpers;
-import org.apache.iceberg.util.Pair;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SparkSession;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
-
-import static org.apache.iceberg.Files.localOutput;
+import org.apache.avro.generic.GenericData.Record;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.spark.data.RandomData;
+import org.apache.iceberg.util.Pair;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
 
 public abstract class TestDuplicateFileIncrementalDataTableScan extends TestDuplicateFileDataTableScan {
   private static final Configuration CONF = new Configuration();
@@ -66,7 +52,7 @@ public abstract class TestDuplicateFileIncrementalDataTableScan extends TestDupl
    * S0: ignored and provides the start snapshot id
    * S1: holds 2 of the same file
    * S2: holds 1 of the files from S1. is the end snapshot
-   * S3: ignored but added in case an optimization switches to fromSnapshot when currentSnapshot is the end-snapshot-id
+   * S3: ignored but added in case an optimization switches to appendsAfter when currentSnapshot is the end-snapshot-id
    */
   @Override
   protected Optional<Pair<Long, Long>> write(Table table, File dataFolder, List<Record> expected) throws IOException {

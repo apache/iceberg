@@ -19,9 +19,20 @@
 
 package org.apache.iceberg.spark.source;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.*;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
@@ -38,11 +49,6 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
 
 import static org.apache.iceberg.Files.localOutput;
 
@@ -129,8 +135,6 @@ public abstract class TestDuplicateFileDataTableScan extends AvroDataTest {
     // first verify that the files are normally read multiple times
     List<Row> rows = read(table.location(), startEndSnapshot).collectAsList();
     Assert.assertEquals("Should contain 300 rows", 300, rows.size());
-
-
 
     // then verify that the files are deduplicated with the property is set
     table
