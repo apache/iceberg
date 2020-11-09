@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import java.util.stream.IntStream;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.data.TimeConversions;
@@ -132,14 +133,11 @@ public class TestStringLiteralConversions {
   public void testStringToDecimalLiteral() {
     BigDecimal expected = new BigDecimal("34.560");
     Literal<CharSequence> decimalStr = Literal.of("34.560");
-    Literal<BigDecimal> decimal = decimalStr.to(Types.DecimalType.of(9, 3));
 
-    Assert.assertEquals("Decimal should have scale 3", 3, decimal.value().scale());
-    Assert.assertEquals("Decimal should match", expected, decimal.value());
-
-    Assert.assertNull("Wrong scale in conversion should return null",
-        decimalStr.to(Types.DecimalType.of(9, 2)));
-    Assert.assertNull("Wrong scale in conversion should return null",
-        decimalStr.to(Types.DecimalType.of(9, 4)));
+    IntStream.range(0, 10).forEach(scale -> {
+      Literal<BigDecimal> decimal = decimalStr.to(Types.DecimalType.of(9, scale));
+      Assert.assertEquals("Decimal should have scale 3", 3, decimal.value().scale());
+      Assert.assertEquals("Decimal should match", expected, decimal.value());
+    });
   }
 }
