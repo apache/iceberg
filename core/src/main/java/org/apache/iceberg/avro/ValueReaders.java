@@ -618,7 +618,7 @@ public class ValueReaders {
 
     @Override
     public void setRowPositionSupplier(Supplier<Long> posSupplier) {
-      if (posField > 0) {
+      if (posField >= 0) {
         long startingPos = posSupplier.get();
         this.readers[posField] = new PositionReader(startingPos);
         for (ValueReader<?> reader : readers) {
