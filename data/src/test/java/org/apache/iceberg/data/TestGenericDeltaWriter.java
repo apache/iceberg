@@ -52,16 +52,17 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public class TestGenericDeltaWriter extends TableTestBase {
 
+  private static final int FORMAT_VERSION_V2 = 2;
   private static final String TABLE_NAME = "delta_table";
 
   @Rule
   public final TemporaryFolder tempFolder = new TemporaryFolder();
 
-  @Parameterized.Parameters(name = "formatVersion = {0}, format = {1}, partitioned = {2}")
+  @Parameterized.Parameters(name = "format = {0}, partitioned = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-        {2, "avro", false},
-        {2, "parquet", false},
+        {"avro", false},
+        {"parquet", false},
     };
   }
 
@@ -69,8 +70,8 @@ public class TestGenericDeltaWriter extends TableTestBase {
   private final boolean partitioned;
   private Table table;
 
-  public TestGenericDeltaWriter(int formatVersion, String format, boolean partitioned) {
-    super(formatVersion);
+  public TestGenericDeltaWriter(String format, boolean partitioned) {
+    super(FORMAT_VERSION_V2);
     this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
     this.partitioned = partitioned;
   }
@@ -156,6 +157,55 @@ public class TestGenericDeltaWriter extends TableTestBase {
     commitTransaction(result);
 
     assertTableRecords(ImmutableSet.of());
+  }
+
+  @Test
+  public void testPositionDelete() throws IOException {
+    DeltaWriterFactory<Record> writerFactory = createDeltaWriterFactory();
+    DeltaWriterFactory.Context ctxt = DeltaWriterFactory.Context.builder()
+        .allowPosDelete(true)
+        .build();
+
+    DeltaWriter<Record> deltaWriter = writerFactory.createDeltaWriter(null, ctxt);
+
+    GenericRecord record = GenericRecord.create(SCHEMA);
+    Record record1 = record.copy("id", 1, "data", "aaa");
+    Record record2 = record.copy("id", 1, "data", "bbb");
+    Record record3 = record.copy("id", 1, "data", "ccc");
+
+    // Write two records.
+    deltaWriter.writeRow(record1);
+    deltaWriter.writeRow(record2);
+
+    WriterResult result = deltaWriter.complete();
+    Assert.assertEquals(result.dataFiles().length, 1);
+    Assert.assertEquals(result.deleteFiles().length, 0);
+    commitTransaction(result);
+
+    CharSequence dataFilePath = result.dataFiles()[0].path();
+
+    // Delete the second record.
+    deltaWriter = writerFactory.createDeltaWriter(null, ctxt);
+    deltaWriter.writePosDelete(dataFilePath, 1);
+
+    result = deltaWriter.complete();
+    Assert.assertEquals(result.dataFiles().length, 0);
+    Assert.assertEquals(result.deleteFiles().length, 1);
+    commitTransaction(result);
+
+    assertTableRecords(ImmutableSet.of(record1));
+
+    // Delete the first record.
+    deltaWriter = writerFactory.createDeltaWriter(null, ctxt);
+    deltaWriter.writePosDelete(dataFilePath, 0);
+    deltaWriter.writeRow(record3);
+
+    result = deltaWriter.complete();
+    Assert.assertEquals(result.dataFiles().length, 1);
+    Assert.assertEquals(result.deleteFiles().length, 1);
+    commitTransaction(result);
+
+    assertTableRecords(ImmutableSet.of(record3));
   }
 
   @Test
