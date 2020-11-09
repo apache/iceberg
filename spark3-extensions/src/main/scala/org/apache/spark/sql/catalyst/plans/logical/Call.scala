@@ -17,18 +17,12 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.extensions
+package org.apache.spark.sql.catalyst.plans.logical
 
-import org.apache.spark.sql.SparkSessionExtensions
-import org.apache.spark.sql.catalyst.analysis.ResolveProcedures
-import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
-import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Strategy
+import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression}
+import org.apache.spark.sql.connector.catalog.Procedure
+import scala.collection.Seq
 
-class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
-
-  override def apply(extensions: SparkSessionExtensions): Unit = {
-    extensions.injectParser { case (_, parser) => new IcebergSparkSqlExtensionsParser(parser) }
-    extensions.injectResolutionRule { _ => ResolveProcedures }
-    extensions.injectPlannerStrategy { _ => ExtendedDataSourceV2Strategy }
-  }
+case class Call(procedure: Procedure, args: Seq[Expression]) extends Command {
+  override def output: Seq[Attribute] = procedure.outputType.toAttributes
 }

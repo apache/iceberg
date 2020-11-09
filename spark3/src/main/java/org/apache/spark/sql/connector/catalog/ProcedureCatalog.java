@@ -17,18 +17,10 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.extensions
+package org.apache.spark.sql.connector.catalog;
 
-import org.apache.spark.sql.SparkSessionExtensions
-import org.apache.spark.sql.catalyst.analysis.ResolveProcedures
-import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
-import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Strategy
+import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 
-class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
-
-  override def apply(extensions: SparkSessionExtensions): Unit = {
-    extensions.injectParser { case (_, parser) => new IcebergSparkSqlExtensionsParser(parser) }
-    extensions.injectResolutionRule { _ => ResolveProcedures }
-    extensions.injectPlannerStrategy { _ => ExtendedDataSourceV2Strategy }
-  }
+public interface ProcedureCatalog extends CatalogPlugin {
+  Procedure loadProcedure(Identifier ident) throws NoSuchProcedureException;
 }

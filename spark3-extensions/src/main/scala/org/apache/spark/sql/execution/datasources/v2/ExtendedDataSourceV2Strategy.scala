@@ -20,14 +20,21 @@
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.{AnalysisException, Strategy}
-import org.apache.spark.sql.catalyst.plans.logical.{CallStatement, LogicalPlan}
+import org.apache.spark.sql.catalyst.CatalystTypeConverters
+import org.apache.spark.sql.catalyst.expressions.{Expression, Literal}
+import org.apache.spark.sql.catalyst.plans.logical.{Call, LogicalPlan}
 import org.apache.spark.sql.execution.SparkPlan
 
 object ExtendedDataSourceV2Strategy extends Strategy {
 
   override def apply(plan: LogicalPlan): Seq[SparkPlan] = plan match {
-    case _: CallStatement =>
-      throw new AnalysisException("CALL statements are not currently supported")
+    case c @ Call(procedure, args) =>
+      CallExec(c.output, procedure.methodHandle, args.map(toScalaValue)) :: Nil
     case _ => Nil
+  }
+
+  private def toScalaValue(expr: Expression): Any = expr match {
+    case l: Literal => CatalystTypeConverters.convertToScala(l.value, l.dataType)
+    case _ => throw new AnalysisException(s"Cannot convert '$expr' to a Scala literal value")
   }
 }
