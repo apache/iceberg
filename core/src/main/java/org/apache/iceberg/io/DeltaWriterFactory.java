@@ -26,6 +26,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public interface DeltaWriterFactory<T> {
@@ -102,6 +103,16 @@ public interface DeltaWriterFactory<T> {
       }
 
       public Context build() {
+        if (allowEqualityDelete) {
+          Preconditions.checkNotNull(equalityFieldIds, "Equality field ids shouldn't be null for equality deletes");
+          Preconditions.checkNotNull(rowSchema, "Row schema shouldn't be null for equality deletes");
+
+          for (Integer fieldId : equalityFieldIds) {
+            Preconditions.checkNotNull(rowSchema.findField(fieldId),
+                "Missing field id %s in provided row schema: %s", fieldId, rowSchema);
+          }
+        }
+
         return new Context(allowPosDelete, allowEqualityDelete, equalityFieldIds, rowSchema);
       }
     }

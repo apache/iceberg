@@ -121,6 +121,7 @@ public class TestGenericDeltaWriter extends TableTestBase {
     DeltaWriterFactory.Context ctxt = DeltaWriterFactory.Context.builder()
         .allowEqualityDelete(true)
         .equalityFieldIds(equalityFieldIds)
+        .rowSchema(table.schema())
         .build();
 
     // TODO More unit tests to test the partitioned case.
@@ -164,7 +165,7 @@ public class TestGenericDeltaWriter extends TableTestBase {
     DeltaWriterFactory.Context ctxt = DeltaWriterFactory.Context.builder()
         .allowEqualityDelete(true)
         .equalityFieldIds(equalityFieldIds)
-        .rowSchema(SCHEMA)
+        .rowSchema(table.schema().select("id"))
         .build();
     DeltaWriter<Record> deltaWriter = writerFactory.createDeltaWriter(null, ctxt);
 

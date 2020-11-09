@@ -361,7 +361,7 @@ public class Parquet {
     }
 
     public <T> EqualityDeleteWriter<T> buildEqualityWriter() throws IOException {
-      Preconditions.checkState(rowSchema != null, "Cannot create equality delete file without a schema`");
+      Preconditions.checkState(rowSchema != null, "Cannot create equality delete file without a schema");
       Preconditions.checkState(equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
       Preconditions.checkState(createWriterFunc != null,
           "Cannot create equality delete file unless createWriterFunc is set");
