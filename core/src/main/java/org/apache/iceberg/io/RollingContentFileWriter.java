@@ -126,6 +126,7 @@ public class RollingContentFileWriter<ContentFileT, T> implements Closeable {
   private void closeCurrent() throws IOException {
     if (currentFileWriter != null) {
       currentFileWriter.close();
+
       ContentFileT contentFile = currentFileWriter.toContentFile();
       Metrics metrics = currentFileWriter.metrics();
       this.currentFileWriter = null;

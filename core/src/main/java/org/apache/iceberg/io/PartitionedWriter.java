@@ -99,9 +99,15 @@ public abstract class PartitionedWriter<ContentFileT, T> implements TaskWriter<T
 
   @Override
   public void abort() throws IOException {
+    close();
+
     if (currentWriter != null) {
-      // Called complete() rather abort() to get all the completed files.
-      resultBuilder.add(currentWriter.complete());
+      try {
+        currentWriter.abort();
+      } catch (IOException e) {
+        LOG.warn("Failed to abort the current writer: {} because: ", currentWriter, e);
+      }
+
       currentWriter = null;
     }
 
@@ -113,6 +119,8 @@ public abstract class PartitionedWriter<ContentFileT, T> implements TaskWriter<T
 
   @Override
   public WriterResult complete() throws IOException {
+    close();
+
     if (currentWriter != null) {
       resultBuilder.add(currentWriter.complete());
       currentWriter = null;

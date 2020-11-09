@@ -30,12 +30,8 @@ import org.apache.iceberg.io.RollingContentFileWriter;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriterResult;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 abstract class PartitionedFanoutWriter<ContentFileT, T> implements TaskWriter<T> {
-
-  private static final Logger LOG = LoggerFactory.getLogger(PartitionedFanoutWriter.class);
 
   private final FileFormat format;
   private final OutputFileFactory fileFactory;
@@ -81,33 +77,29 @@ abstract class PartitionedFanoutWriter<ContentFileT, T> implements TaskWriter<T>
   @Override
   public void close() throws IOException {
     if (!writers.isEmpty()) {
-      for (PartitionKey key : writers.keySet()) {
-        writers.get(key).close();
+      for (RollingContentFileWriter<ContentFileT, T> writer : writers.values()) {
+        writer.close();
       }
-      writers.clear();
     }
   }
 
   @Override
-  public void abort() {
+  public void abort() throws IOException {
+    close();
+
     for (RollingContentFileWriter<ContentFileT, T> writer : writers.values()) {
-      try {
-        writer.abort();
-      } catch (IOException e) {
-        LOG.warn("Failed to abort the writer {} because: ", writer, e);
-      }
+      writer.abort();
     }
-    writers.clear();
   }
 
   @Override
   public WriterResult complete() throws IOException {
-    WriterResult.Builder builder = WriterResult.builder();
+    close();
 
+    WriterResult.Builder builder = WriterResult.builder();
     for (RollingContentFileWriter<ContentFileT, T> writer : writers.values()) {
       builder.add(writer.complete());
     }
-    writers.clear();
 
     return builder.build();
   }
