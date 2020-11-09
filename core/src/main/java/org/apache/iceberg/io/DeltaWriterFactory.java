@@ -40,7 +40,7 @@ public interface DeltaWriterFactory<T> {
   ContentFileWriterFactory<DeleteFile, T> createEqualityDeleteWriterFactory(List<Integer> equalityFieldIds,
                                                                             Schema rowSchema);
 
-  ContentFileWriterFactory<DeleteFile, PositionDelete<T>> createPosDeleteWriterFactory();
+  ContentFileWriterFactory<DeleteFile, PositionDelete<T>> createPosDeleteWriterFactory(Schema rowSchema);
 
   class Context {
     private final boolean allowPosDelete;

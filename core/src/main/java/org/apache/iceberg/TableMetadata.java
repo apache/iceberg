@@ -82,12 +82,12 @@ public class TableMetadata implements Serializable {
     return newTableMetadata(schema, spec, SortOrder.unsorted(), location, properties, DEFAULT_TABLE_FORMAT_VERSION);
   }
 
-  static TableMetadata newTableMetadata(Schema schema,
-                                        PartitionSpec spec,
-                                        SortOrder sortOrder,
-                                        String location,
-                                        Map<String, String> properties,
-                                        int formatVersion) {
+  public static TableMetadata newTableMetadata(Schema schema,
+                                               PartitionSpec spec,
+                                               SortOrder sortOrder,
+                                               String location,
+                                               Map<String, String> properties,
+                                               int formatVersion) {
     // reassign all column ids to ensure consistency
     AtomicInteger lastColumnId = new AtomicInteger(0);
     Schema freshSchema = TypeUtil.assignFreshIds(schema, lastColumnId::incrementAndGet);

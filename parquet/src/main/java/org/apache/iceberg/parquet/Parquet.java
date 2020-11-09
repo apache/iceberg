@@ -32,7 +32,6 @@ import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -41,6 +40,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.deletes.DeletesUtil;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
@@ -58,7 +58,6 @@ import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.parquet.HadoopReadOptions;
 import org.apache.parquet.ParquetReadOptions;
@@ -272,6 +271,28 @@ public class Parquet {
     return new DeleteWriteBuilder(file);
   }
 
+  public interface PositionAccessor<FILE, POS> {
+
+    FILE accessFilePath(CharSequence path);
+
+    POS accessPos(long pos);
+  }
+
+  private static class IdentityPositionAccessor implements Parquet.PositionAccessor<CharSequence, Long> {
+
+    static final IdentityPositionAccessor INSTANCE = new IdentityPositionAccessor();
+
+    @Override
+    public CharSequence accessFilePath(CharSequence path) {
+      return path;
+    }
+
+    @Override
+    public Long accessPos(long pos) {
+      return pos;
+    }
+  }
+
   public static class DeleteWriteBuilder {
     private final WriteBuilder appenderBuilder;
     private final String location;
@@ -379,41 +400,35 @@ public class Parquet {
           appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata, equalityFieldIds);
     }
 
-
-    public <T> PositionDeleteWriter<T> buildPositionWriter() throws IOException {
+    public <T> PositionDeleteWriter<T> buildPositionWriter(PositionAccessor<?, ?> positionAccessor) throws IOException {
       Preconditions.checkState(equalityFieldIds == null, "Cannot create position delete file using delete field ids");
 
       meta("delete-type", "position");
 
-      if (rowSchema != null && createWriterFunc != null) {
-        // the appender uses the row schema wrapped with position fields
-        appenderBuilder.schema(new org.apache.iceberg.Schema(
-            MetadataColumns.DELETE_FILE_PATH,
-            MetadataColumns.DELETE_FILE_POS,
-            NestedField.optional(
-                MetadataColumns.DELETE_FILE_ROW_FIELD_ID, "row", rowSchema.asStruct(),
-                MetadataColumns.DELETE_FILE_ROW_DOC)));
+      appenderBuilder.schema(DeletesUtil.posDeleteSchema(rowSchema));
 
+      if (createWriterFunc != null) {
         appenderBuilder.createWriterFunc(parquetSchema -> {
           ParquetValueWriter<?> writer = createWriterFunc.apply(parquetSchema);
           if (writer instanceof StructWriter) {
-            return new PositionDeleteStructWriter<T>((StructWriter<?>) writer);
+            return new PositionDeleteStructWriter<T>((StructWriter<?>) writer, positionAccessor);
           } else {
             throw new UnsupportedOperationException("Cannot wrap writer for position deletes: " + writer.getClass());
           }
         });
 
       } else {
-        appenderBuilder.schema(new org.apache.iceberg.Schema(
-            MetadataColumns.DELETE_FILE_PATH,
-            MetadataColumns.DELETE_FILE_POS));
-
         appenderBuilder.createWriterFunc(parquetSchema ->
-            new PositionDeleteStructWriter<T>((StructWriter<?>) GenericParquetWriter.buildWriter(parquetSchema)));
+            new PositionDeleteStructWriter<T>((StructWriter<?>) GenericParquetWriter.buildWriter(parquetSchema),
+                positionAccessor));
       }
 
       return new PositionDeleteWriter<>(
           appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata);
+    }
+
+    public <T> PositionDeleteWriter<T> buildPositionWriter() throws IOException {
+      return buildPositionWriter(IdentityPositionAccessor.INSTANCE);
     }
   }
 

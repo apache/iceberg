@@ -38,11 +38,11 @@ import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Encoder;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.deletes.DeletesUtil;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -53,7 +53,6 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.ArrayUtil;
 
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
@@ -300,23 +299,12 @@ public class Avro {
 
       meta("delete-type", "position");
 
-      if (rowSchema != null && createWriterFunc != null) {
-        // the appender uses the row schema wrapped with position fields
-        appenderBuilder.schema(new org.apache.iceberg.Schema(
-            MetadataColumns.DELETE_FILE_PATH,
-            MetadataColumns.DELETE_FILE_POS,
-            NestedField.optional(
-                MetadataColumns.DELETE_FILE_ROW_FIELD_ID, "row", rowSchema.asStruct(),
-                MetadataColumns.DELETE_FILE_ROW_DOC)));
+      appenderBuilder.schema(DeletesUtil.posDeleteSchema(rowSchema));
 
+      if (createWriterFunc != null) {
         appenderBuilder.createWriterFunc(
             avroSchema -> new PositionAndRowDatumWriter<>(createWriterFunc.apply(avroSchema)));
-
       } else {
-        appenderBuilder.schema(new org.apache.iceberg.Schema(
-            MetadataColumns.DELETE_FILE_PATH,
-            MetadataColumns.DELETE_FILE_POS));
-
         appenderBuilder.createWriterFunc(ignored -> new PositionDatumWriter());
       }
 

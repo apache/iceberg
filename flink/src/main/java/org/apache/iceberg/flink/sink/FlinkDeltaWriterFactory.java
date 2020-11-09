@@ -17,12 +17,17 @@
  * under the License.
  */
 
-package org.apache.iceberg.data;
+package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import org.apache.avro.io.DatumWriter;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.ContentFileWriterFactory;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFileWriter;
@@ -33,9 +38,13 @@ import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.avro.DataWriter;
-import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.deletes.DeletesUtil;
 import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.RowDataWrapper;
+import org.apache.iceberg.flink.data.FlinkAvroWriter;
+import org.apache.iceberg.flink.data.FlinkOrcWriter;
+import org.apache.iceberg.flink.data.FlinkParquetWriters;
 import org.apache.iceberg.io.BaseDeltaWriter;
 import org.apache.iceberg.io.DeltaWriter;
 import org.apache.iceberg.io.DeltaWriterFactory;
@@ -44,28 +53,32 @@ import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.RollingContentFileWriter;
+import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
+public class FlinkDeltaWriterFactory implements DeltaWriterFactory<RowData> {
 
   private final Schema schema;
+  private final RowType flinkSchema;
   private final PartitionSpec spec;
   private final FileFormat format;
   private final OutputFileFactory fileFactory;
   private final FileIO io;
   private final long targetFileSize;
   private final Map<String, String> tableProperties;
-  private final FileAppenderFactory<Record> appenderFactory;
+  private final FileAppenderFactory<RowData> appenderFactory;
 
-  public GenericDeltaWriterFactory(Schema schema,
-                                   PartitionSpec spec,
-                                   FileFormat format,
-                                   OutputFileFactory fileFactory,
-                                   FileIO io,
-                                   long targetFileSize,
-                                   Map<String, String> tableProperties) {
+  public FlinkDeltaWriterFactory(Schema schema,
+                                 RowType flinkSchema,
+                                 PartitionSpec spec,
+                                 FileFormat format,
+                                 OutputFileFactory fileFactory,
+                                 FileIO io,
+                                 long targetFileSize,
+                                 Map<String, String> tableProperties) {
     this.schema = schema;
+    this.flinkSchema = flinkSchema;
     this.spec = spec;
     this.format = format;
     this.fileFactory = fileFactory;
@@ -76,15 +89,15 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
   }
 
   @Override
-  public DeltaWriter<Record> createDeltaWriter(PartitionKey partitionKey, Context ctxt) {
-    RollingContentFileWriter<DataFile, Record> dataWriter = new RollingContentFileWriter<>(partitionKey,
+  public DeltaWriter<RowData> createDeltaWriter(PartitionKey partitionKey, Context ctxt) {
+    RollingContentFileWriter<DataFile, RowData> dataWriter = new RollingContentFileWriter<>(partitionKey,
         format, fileFactory, io, targetFileSize, createDataFileWriterFactory());
 
     if (!ctxt.allowPosDelete() && !ctxt.allowEqualityDelete()) {
       return new BaseDeltaWriter<>(dataWriter);
     }
 
-    RollingContentFileWriter<DeleteFile, PositionDelete<Record>> posDeleteWriter =
+    RollingContentFileWriter<DeleteFile, PositionDelete<RowData>> posDeleteWriter =
         new RollingContentFileWriter<>(partitionKey,
             format, fileFactory, io, targetFileSize, createPosDeleteWriterFactory(ctxt.rowSchema()));
 
@@ -96,24 +109,62 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
     Preconditions.checkState(ctxt.equalityFieldIds() != null && !ctxt.equalityFieldIds().isEmpty(),
         "Equality field id list shouldn't be null or emtpy.");
 
-    RollingContentFileWriter<DeleteFile, Record> eqDeleteWriter = new RollingContentFileWriter<>(partitionKey,
+    RollingContentFileWriter<DeleteFile, RowData> eqDeleteWriter = new RollingContentFileWriter<>(partitionKey,
         format, fileFactory, io, targetFileSize,
         createEqualityDeleteWriterFactory(ctxt.equalityFieldIds(), ctxt.rowSchema()));
 
+    // Define flink's as struct like function.
+    RowDataWrapper asStructLike = new RowDataWrapper(flinkSchema, schema.asStruct());
 
     return new BaseDeltaWriter<>(dataWriter, posDeleteWriter, eqDeleteWriter, schema, ctxt.equalityFieldIds(),
-        t -> t);
+        asStructLike::wrap);
   }
 
   @Override
-  public FileAppenderFactory<Record> createFileAppenderFactory() {
-    return new GenericAppenderFactory(schema);
+  public FileAppenderFactory<RowData> createFileAppenderFactory() {
+    return (outputFile, fileFormat) -> {
+      MetricsConfig metricsConfig = MetricsConfig.fromProperties(tableProperties);
+      try {
+        switch (format) {
+          case AVRO:
+            return Avro.write(outputFile)
+                .createWriterFunc(ignore -> new FlinkAvroWriter(flinkSchema))
+                .setAll(tableProperties)
+                .schema(schema)
+                .overwrite()
+                .build();
+
+          case ORC:
+            return ORC.write(outputFile)
+                .createWriterFunc((iSchema, typDesc) -> FlinkOrcWriter.buildWriter(flinkSchema, iSchema))
+                .setAll(tableProperties)
+                .schema(schema)
+                .overwrite()
+                .build();
+
+          case PARQUET:
+            return Parquet.write(outputFile)
+                .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(flinkSchema, msgType))
+                .setAll(tableProperties)
+                .metricsConfig(metricsConfig)
+                .schema(schema)
+                .overwrite()
+                .build();
+
+          default:
+            throw new UnsupportedOperationException("Cannot write unknown file format: " + format);
+        }
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+    };
   }
 
   @Override
-  public ContentFileWriterFactory<DataFile, Record> createDataFileWriterFactory() {
+  public ContentFileWriterFactory<DataFile, RowData> createDataFileWriterFactory() {
+    // TODO Move this to its default function ???
     return (partitionKey, outputFile, fileFormat) -> {
-      FileAppender<Record> appender = appenderFactory.newAppender(outputFile.encryptingOutputFile(), format);
+      FileAppender<RowData> appender = appenderFactory.newAppender(outputFile.encryptingOutputFile(), format);
 
       return new DataFileWriter<>(appender,
           format,
@@ -124,8 +175,11 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
   }
 
   @Override
-  public ContentFileWriterFactory<DeleteFile, Record> createEqualityDeleteWriterFactory(
-      List<Integer> equalityFieldIds, Schema rowSchema) {
+  public ContentFileWriterFactory<DeleteFile, RowData> createEqualityDeleteWriterFactory(List<Integer> equalityFieldIds,
+                                                                                         Schema rowSchema) {
+    Preconditions.checkNotNull(rowSchema, "Row schema shouldn't be null for equality deletes.");
+    RowType flinkRowSchema = FlinkSchemaUtil.convert(rowSchema);
+
     return (partitionKey, outputFile, fileFormat) -> {
 
       MetricsConfig metricsConfig = MetricsConfig.fromProperties(tableProperties);
@@ -133,7 +187,7 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
         switch (fileFormat) {
           case AVRO:
             return Avro.writeDeletes(outputFile.encryptingOutputFile())
-                .createWriterFunc(DataWriter::create)
+                .createWriterFunc(ignore -> new FlinkAvroWriter(flinkRowSchema))
                 .withPartition(partitionKey)
                 .overwrite()
                 .setAll(tableProperties)
@@ -145,7 +199,7 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
 
           case PARQUET:
             return Parquet.writeDeletes(outputFile.encryptingOutputFile())
-                .createWriterFunc(GenericParquetWriter::buildWriter)
+                .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(flinkRowSchema, msgType))
                 .withPartition(partitionKey)
                 .overwrite()
                 .setAll(tableProperties)
@@ -169,14 +223,18 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
   }
 
   @Override
-  public ContentFileWriterFactory<DeleteFile, PositionDelete<Record>> createPosDeleteWriterFactory(Schema rowSchema) {
+  public ContentFileWriterFactory<DeleteFile, PositionDelete<RowData>> createPosDeleteWriterFactory(Schema rowSchema) {
+
     return (partitionKey, outputFile, fileFormat) -> {
       MetricsConfig metricsConfig = MetricsConfig.fromProperties(tableProperties);
       try {
         switch (fileFormat) {
           case AVRO:
+            // Produce the positional delete schema that writer will use for the file.
+            Function<org.apache.avro.Schema, DatumWriter<?>> writeFunc =
+                rowSchema == null ? null : ignore -> new FlinkAvroWriter(FlinkSchemaUtil.convert(rowSchema));
             return Avro.writeDeletes(outputFile.encryptingOutputFile())
-                .createWriterFunc(DataWriter::create)
+                .createWriterFunc(writeFunc)
                 .withPartition(partitionKey)
                 .overwrite()
                 .setAll(tableProperties)
@@ -186,8 +244,9 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
                 .buildPositionWriter();
 
           case PARQUET:
+            RowType flinkParquetRowType = FlinkSchemaUtil.convert(DeletesUtil.posDeleteSchema(rowSchema));
             return Parquet.writeDeletes(outputFile.encryptingOutputFile())
-                .createWriterFunc(GenericParquetWriter::buildWriter)
+                .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(flinkParquetRowType, msgType))
                 .withPartition(partitionKey)
                 .overwrite()
                 .setAll(tableProperties)
@@ -195,7 +254,7 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
                 .rowSchema(rowSchema) // it's a nullable field.
                 .withSpec(spec)
                 .withKeyMetadata(outputFile.keyMetadata())
-                .buildPositionWriter();
+                .buildPositionWriter(RowDataPositionAccessor.INSTANCE);
 
           case ORC:
             throw new UnsupportedOperationException("Orc file format does not support writing positional delete.");
@@ -207,5 +266,19 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
         throw new UncheckedIOException(e);
       }
     };
+  }
+
+  private static class RowDataPositionAccessor implements Parquet.PositionAccessor<StringData, Long> {
+    private static final RowDataPositionAccessor INSTANCE = new RowDataPositionAccessor();
+
+    @Override
+    public StringData accessFilePath(CharSequence path) {
+      return StringData.fromString(path.toString());
+    }
+
+    @Override
+    public Long accessPos(long pos) {
+      return pos;
+    }
   }
 }

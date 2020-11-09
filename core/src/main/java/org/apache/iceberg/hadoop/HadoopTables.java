@@ -141,7 +141,8 @@ public class HadoopTables implements Tables, Configurable {
     Map<String, String> tableProps = properties == null ? ImmutableMap.of() : properties;
     PartitionSpec partitionSpec = spec == null ? PartitionSpec.unpartitioned() : spec;
     SortOrder sortOrder = order == null ? SortOrder.unsorted() : order;
-    TableMetadata metadata = TableMetadata.newTableMetadata(schema, partitionSpec, sortOrder, location, tableProps);
+    // TODO: add API to support write format v2.
+    TableMetadata metadata = TableMetadata.newTableMetadata(schema, partitionSpec, sortOrder, location, tableProps, 2);
     ops.commit(null, metadata);
 
     return new BaseTable(ops, location);
