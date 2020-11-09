@@ -26,8 +26,10 @@ import com.dremio.nessie.model.Contents;
 import com.dremio.nessie.model.ContentsKey;
 import com.dremio.nessie.model.IcebergTable;
 import com.dremio.nessie.model.ImmutableIcebergTable;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -132,20 +134,18 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
    *   This is hacky but gets the job done until we can have a more complete commit/audit log.
    * </p>
    */
-  private static String applicationId() {
-
-    try {
-      if (sparkConfMethod == null) {
-        sparkEnvMethod = DynFields.builder().impl("org.apache.spark.SparkEnv", "get").buildStatic();
-        sparkConfMethod = DynFields.builder().impl("org.apache.spark.SparkEnv", "conf").build();
-        appIdMethod = DynFields.builder().impl("org.apache.spark.SparkConf", "getAppId").build();
+  private String applicationId() {
+    String appId = null;
+    TableMetadata current = current();
+    if (current != null) {
+      Snapshot snapshot = current.currentSnapshot();
+      if (snapshot != null) {
+        Map<String, String> summary = snapshot.summary();
+        appId = summary.get("spark.app.id");
       }
-      Object sparkEnv = sparkEnvMethod.get();
-      Object sparkConf = sparkConfMethod.bind(sparkEnv).get();
-      return "\nspark.app.id= " + appIdMethod.bind(sparkConf).get();
-    } catch (Exception e) {
-      return "";
+
     }
+    return appId == null ? "" : ("\nspark.app.id= " + appId);
   }
 
 }
