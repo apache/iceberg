@@ -301,7 +301,7 @@ public class Avro {
 
       appenderBuilder.schema(DeletesUtil.posDeleteSchema(rowSchema));
 
-      if (createWriterFunc != null) {
+      if (rowSchema != null && createWriterFunc != null) {
         appenderBuilder.createWriterFunc(
             avroSchema -> new PositionAndRowDatumWriter<>(createWriterFunc.apply(avroSchema)));
       } else {

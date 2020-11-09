@@ -25,19 +25,15 @@ import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
-import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.data.FlinkAvroWriter;
 import org.apache.iceberg.flink.data.FlinkOrcWriter;
 import org.apache.iceberg.flink.data.FlinkParquetWriters;
-import org.apache.iceberg.io.DataFileWriterFactory;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
@@ -45,7 +41,6 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.TaskWriter;
-import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -59,7 +54,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final EncryptionManager encryptionManager;
   private final long targetFileSizeBytes;
   private final FileFormat format;
-  private final FileAppenderFactory<RowData> appenderFactory;
+  private final Map<String, String> tableProperties;
 
   private transient OutputFileFactory outputFileFactory;
 
@@ -80,7 +75,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.encryptionManager = encryptionManager;
     this.targetFileSizeBytes = targetFileSizeBytes;
     this.format = format;
-    this.appenderFactory = new FlinkFileAppenderFactory(schema, flinkSchema, tableProperties);
+    this.tableProperties = tableProperties;
   }
 
   @Override
@@ -93,35 +88,11 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     Preconditions.checkNotNull(outputFileFactory,
         "The outputFileFactory shouldn't be null if we have invoked the initialize().");
 
-    if (spec.fields().isEmpty()) {
-      return new UnpartitionedWriter<>(format, outputFileFactory, io,
-          targetFileSizeBytes, new DataFileWriterFactory<>(appenderFactory, spec));
-    } else {
-      return new RowDataPartitionedFanoutWriter(spec, format, appenderFactory, outputFileFactory,
-          io, targetFileSizeBytes, schema, flinkSchema);
-    }
+    return new RowDataTaskWriter(schema, flinkSchema, spec, format, outputFileFactory, io, targetFileSizeBytes,
+        tableProperties);
   }
 
-  private static class RowDataPartitionedFanoutWriter extends PartitionedFanoutWriter<DataFile, RowData> {
-
-    private final PartitionKey partitionKey;
-    private final RowDataWrapper rowDataWrapper;
-
-    RowDataPartitionedFanoutWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<RowData> appenderFactory,
-                                   OutputFileFactory fileFactory, FileIO io, long targetFileSize, Schema schema,
-                                   RowType flinkSchema) {
-      super(format, fileFactory, io, targetFileSize, new DataFileWriterFactory<>(appenderFactory, spec));
-      this.partitionKey = new PartitionKey(spec, schema);
-      this.rowDataWrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
-    }
-
-    @Override
-    protected PartitionKey partition(RowData row) {
-      partitionKey.partition(rowDataWrapper.wrap(row));
-      return partitionKey;
-    }
-  }
-
+  // TODO we should clear this class once we changed to use the FlinkDeltaWriterFactory#createFileAppenderFactory().
   public static class FlinkFileAppenderFactory implements FileAppenderFactory<RowData>, Serializable {
     private final Schema schema;
     private final RowType flinkSchema;
