@@ -86,6 +86,10 @@ public abstract class IcebergTimestampObjectInspectorHive3 extends AbstractPrimi
       Timestamp copy = new Timestamp(ts);
       copy.setNanos(ts.getNanos());
       return copy;
+    } else if (o instanceof OffsetDateTime) {
+      return OffsetDateTime.of(((OffsetDateTime) o).toLocalDateTime(), ((OffsetDateTime) o).getOffset());
+    } else if (o instanceof LocalDateTime) {
+      return LocalDateTime.of(((LocalDateTime) o).toLocalDate(), ((LocalDateTime) o).toLocalTime());
     } else {
       return o;
     }

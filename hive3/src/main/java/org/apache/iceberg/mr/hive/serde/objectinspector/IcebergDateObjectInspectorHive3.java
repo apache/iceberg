@@ -62,6 +62,8 @@ public final class IcebergDateObjectInspectorHive3 extends AbstractPrimitiveJava
 
     if (o instanceof Date) {
       return new Date((Date) o);
+    } else if (o instanceof LocalDate) {
+      return LocalDate.of(((LocalDate) o).getYear(), ((LocalDate) o).getMonth(), ((LocalDate) o).getDayOfMonth());
     } else {
       return o;
     }

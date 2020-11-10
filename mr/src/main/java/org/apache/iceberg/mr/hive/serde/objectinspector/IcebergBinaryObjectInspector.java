@@ -76,6 +76,10 @@ public abstract class IcebergBinaryObjectInspector extends AbstractPrimitiveJava
     if (o instanceof byte[]) {
       byte[] bytes = (byte[]) o;
       return Arrays.copyOf(bytes, bytes.length);
+    } else if (o instanceof ByteBuffer) {
+      ByteBuffer copy = ByteBuffer.wrap(((ByteBuffer) o).array(), ((ByteBuffer) o).arrayOffset(),
+              ((ByteBuffer) o).limit());
+      return copy;
     } else {
       return o;
     }
