@@ -252,13 +252,13 @@ public class TestNessieTable extends BaseTestIceberg {
     Assert.assertTrue(catalog.dropTable(TABLE_IDENTIFIER));
     Assert.assertFalse(catalog.tableExists(TABLE_IDENTIFIER));
 
-    Assert.assertFalse(new File(location1).exists());
-    Assert.assertFalse(new File(location2).exists());
-    Assert.assertFalse(new File(manifestListLocation).exists());
+    Assert.assertTrue(new File(location1).exists());
+    Assert.assertTrue(new File(location2).exists());
+    Assert.assertTrue(new File(manifestListLocation).exists());
     for (ManifestFile manifest : manifests) {
-      Assert.assertFalse(new File(manifest.path().replace("file:", "")).exists());
+      Assert.assertTrue(new File(manifest.path().replace("file:", "")).exists());
     }
-    Assert.assertFalse(new File(
+    Assert.assertTrue(new File(
         ((HasTableOperations) table).operations()
                                   .current()
                                   .metadataFileLocation()

@@ -68,10 +68,6 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
 
   @Override
   protected void doRefresh() {
-    // break reference with parent (to avoid cross-over refresh)
-    // TODO, confirm this is correct behavior.
-    // reference = reference.copy();
-
     reference.refresh();
     String metadataLocation = null;
     try {
@@ -95,6 +91,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
 
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
 
+    boolean threw = true;
     try {
       IcebergTable newTable = ImmutableIcebergTable.builder().metadataLocation(newMetadataLocation).build();
       client.getContentsApi().setContents(key,
@@ -102,18 +99,18 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
                                           reference.getHash(),
                                           String.format("iceberg commit%s", applicationId()),
                                           newTable);
+      threw = false;
     } catch (NessieConflictException ex) {
-      io().deleteFile(newMetadataLocation);
       String fixMsg = reference.isBranch() ?
           String.format("Update the reference %s and try again", reference.getName()) :
           String.format("Can't commit to the tag %s", reference.getName());
       throw new CommitFailedException(ex, "Commit failed: Reference hash is out of date. %s", fixMsg);
     } catch (NessieNotFoundException ex) {
-      io().deleteFile(newMetadataLocation);
       throw new RuntimeException(String.format("Commit failed: Reference %s does not exist", reference.getName()), ex);
-    } catch (Throwable e) {
-      io().deleteFile(newMetadataLocation);
-      throw new RuntimeException("Unexpected commit exception", e);
+    } finally {
+      if (threw) {
+        io().deleteFile(newMetadataLocation);
+      }
     }
   }
 

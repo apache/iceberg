@@ -43,11 +43,11 @@ public class TestCatalogBranch extends BaseTestIceberg {
     Table bar = createTable(foobar, 1); // table 1
     createTable(foobaz, 1); // table 2
     catalog.refresh();
-    createBranch("test", catalog.getHash());
+    createBranch("test", catalog.currentHash());
 
     hadoopConfig.set(NessieClient.CONF_NESSIE_REF, "test");
 
-    NessieCatalog newCatalog = NessieCatalog.builder(hadoopConfig).build();
+    NessieCatalog newCatalog = initCatalog("test");
     String initialMetadataLocation = getContent(newCatalog, foobar);
     Assert.assertEquals(initialMetadataLocation, getContent(catalog, foobar));
     Assert.assertEquals(getContent(newCatalog, foobaz), getContent(catalog, foobaz));
@@ -70,7 +70,7 @@ public class TestCatalogBranch extends BaseTestIceberg {
     Assert.assertEquals(initialMetadataLocation, getContent(catalog, foobaz));
 
     String mainHash = tree.getReferenceByName("main").getHash();
-    tree.assignBranch("main", mainHash, Branch.of("main", newCatalog.getHash()));
+    tree.assignBranch("main", mainHash, Branch.of("main", newCatalog.currentHash()));
     Assert.assertEquals(getContent(newCatalog, foobar),
                             getContent(catalog, foobar));
     Assert.assertEquals(getContent(newCatalog, foobaz),
@@ -78,7 +78,7 @@ public class TestCatalogBranch extends BaseTestIceberg {
     catalog.dropTable(foobar);
     catalog.dropTable(foobaz);
     newCatalog.refresh();
-    catalog.getTreeApi().deleteBranch("test", newCatalog.getHash());
+    catalog.getTreeApi().deleteBranch("test", newCatalog.currentHash());
   }
 
 }

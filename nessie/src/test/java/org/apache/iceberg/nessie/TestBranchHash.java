@@ -42,11 +42,11 @@ public class TestBranchHash extends BaseTestIceberg {
 
     Table bar = createTable(foobar, 1); // table 1
     catalog.refresh();
-    createBranch("test", catalog.getHash());
+    createBranch("test", catalog.currentHash());
 
     hadoopConfig.set(NessieClient.CONF_NESSIE_REF, "test");
 
-    NessieCatalog newCatalog = NessieCatalog.builder(hadoopConfig).build();
+    NessieCatalog newCatalog = initCatalog("test");
     String initialMetadataLocation = getContent(newCatalog, foobar);
     Assert.assertEquals(initialMetadataLocation, getContent(catalog, foobar));
 
@@ -61,10 +61,10 @@ public class TestBranchHash extends BaseTestIceberg {
 
     String mainHash = tree.getReferenceByName(BRANCH).getHash();
     // catalog created with ref and no hash points to same catalog as above
-    NessieCatalog refCatalog = NessieCatalog.builder(hadoopConfig).setRef("test").build();
+    NessieCatalog refCatalog = initCatalog("test");
     Assert.assertEquals(getContent(newCatalog, foobar), getContent(refCatalog, foobar));
     // catalog created with ref and hash points to
-    NessieCatalog refHashCatalog = NessieCatalog.builder(hadoopConfig).setRef(mainHash).build();
+    NessieCatalog refHashCatalog = initCatalog(mainHash);
     Assert.assertEquals(getContent(catalog, foobar), getContent(refHashCatalog, foobar));
 
     // asking for table@branch gives expected regardless of catalog

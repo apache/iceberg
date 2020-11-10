@@ -36,6 +36,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.StructType;
@@ -104,7 +105,14 @@ public abstract class BaseTestIceberg {
     hadoopConfig.set(NessieClient.CONF_NESSIE_REF, branch);
     hadoopConfig.set(NessieClient.CONF_NESSIE_AUTH_TYPE, "NONE");
     hadoopConfig.set("nessie.warehouse.dir", tempDir.toURI().toString());
-    catalog = NessieCatalog.builder(hadoopConfig).build();
+    catalog = initCatalog(branch);
+  }
+
+  NessieCatalog initCatalog(String ref) {
+    NessieCatalog newCatalog = new NessieCatalog();
+    newCatalog.setConf(hadoopConfig);
+    newCatalog.initialize(null, ImmutableMap.of(NessieClient.CONF_NESSIE_REF, ref));
+    return newCatalog;
   }
 
   protected Table createTable(TableIdentifier tableIdentifier, int count) {

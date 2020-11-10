@@ -23,6 +23,7 @@ import com.dremio.nessie.client.NessieClient;
 import java.time.Instant;
 import java.util.Map;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class ParsedTableIdentifier {
 
@@ -51,7 +52,12 @@ public class ParsedTableIdentifier {
     return reference;
   }
 
-
+  /**
+   * Convert dataset read/write options to a table and ref/hash.
+   */
+  public static ParsedTableIdentifier getParsedTableIdentifier(TableIdentifier path) {
+    return getParsedTableIdentifier(path, ImmutableMap.of());
+  }
   /**
    * Convert dataset read/write options to a table and ref/hash.
    */

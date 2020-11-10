@@ -46,9 +46,9 @@ public class TestDefaultCatalogBranch extends BaseTestIceberg {
     createTable(foobaz, 1); // table 2
 
     catalog.refresh();
-    tree.createReference(Branch.of("FORWARD", catalog.getHash()));
+    tree.createReference(Branch.of("FORWARD", catalog.currentHash()));
     hadoopConfig.set(NessieClient.CONF_NESSIE_REF, "FORWARD");
-    NessieCatalog forwardCatalog = NessieCatalog.builder(hadoopConfig).build();
+    NessieCatalog forwardCatalog = initCatalog("FORWARD");
     forwardCatalog.loadTable(foobaz).updateSchema().addColumn("id1", Types.LongType.get()).commit();
     forwardCatalog.loadTable(foobar).updateSchema().addColumn("id1", Types.LongType.get()).commit();
     Assert.assertNotEquals(getContent(forwardCatalog, foobar),
@@ -62,7 +62,7 @@ public class TestDefaultCatalogBranch extends BaseTestIceberg {
     forwardCatalog.refresh();
     tree.assignBranch("main",
         tree.getReferenceByName("main").getHash(),
-        Branch.of("main", forwardCatalog.getHash()));
+        Branch.of("main", forwardCatalog.currentHash()));
 
     catalog.refresh();
 
