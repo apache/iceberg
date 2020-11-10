@@ -50,6 +50,19 @@ You should now be able to issue Hive SQL `SELECT` queries using the above table 
 SELECT * from table_a;
 ```
 
+#### Using Hive Catalog
+Iceberg tables created using `HiveCatalog` are automatically registered with Hive. 
+
+##### Create an Iceberg table
+The first step is to create an Iceberg table using the Spark/Java/Python API and `HiveCatalog`. For the purposes of this documentation we will assume that the table is called `table_b` and that the table location is `s3://some_path/table_b`.
+TODO: what do we need to set up when we create this table programatically for everything to be registered correctly for read usage in Hive?
+
+#### Query the Iceberg table via Hive
+You should now be able to issue Hive SQL `SELECT` queries using the above table and see the results returned from the underlying Iceberg table. Both the Map Reduce and Tez query execution engines are supported.
+```sql
+SELECT * from table_b;
+```
+
 ### Features
 
 #### Predicate pushdown
