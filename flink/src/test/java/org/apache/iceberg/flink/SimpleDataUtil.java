@@ -115,14 +115,18 @@ public class SimpleDataUtil {
         .build();
   }
 
-  public static void assertTableRows(String tablePath, List<RowData> expected) throws IOException {
+  public static void assertTableRows(Table table, List<RowData> expected) throws IOException {
     List<Record> expectedRecords = Lists.newArrayList();
     for (RowData row : expected) {
       Integer id = row.isNullAt(0) ? null : row.getInt(0);
       String data = row.isNullAt(1) ? null : row.getString(1).toString();
       expectedRecords.add(createRecord(id, data));
     }
-    assertTableRecords(tablePath, expectedRecords);
+    assertTableRecords(table, expectedRecords);
+  }
+
+  public static void assertTableRows(String tablePath, List<RowData> expected) throws IOException {
+    assertTableRows(new HadoopTables().load(tablePath), expected);
   }
 
   public static void assertTableRecords(Table table, List<Record> expected) throws IOException {

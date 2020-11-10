@@ -122,16 +122,17 @@ public class TestFlinkManifest {
     OutputFile outputFile = factory.create(checkpointId);
 
     List<DataFile> expectedDataFiles = generateDataFiles(10);
-    ManifestFile expected = FlinkManifestUtil.writeDataFiles(outputFile, table.spec(), expectedDataFiles);
+    ManifestFile dataManifest = FlinkManifestUtil.writeDataFiles(outputFile, table.spec(), expectedDataFiles);
+    DeltaManifests expected = new DeltaManifests(dataManifest, null);
 
     byte[] versionedSerializeData =
-        SimpleVersionedSerialization.writeVersionAndSerialize(FlinkManifestSerializer.INSTANCE, expected);
-    ManifestFile actual = SimpleVersionedSerialization
-        .readVersionAndDeSerialize(FlinkManifestSerializer.INSTANCE, versionedSerializeData);
-    checkManifestFile(expected, actual);
+        SimpleVersionedSerialization.writeVersionAndSerialize(DeltaManifestsSerializer.INSTANCE, expected);
+    DeltaManifests actual = SimpleVersionedSerialization
+        .readVersionAndDeSerialize(DeltaManifestsSerializer.INSTANCE, versionedSerializeData);
+    checkManifestFile(expected.dataManifest(), actual.dataManifest());
 
     byte[] versionedSerializeData2 =
-        SimpleVersionedSerialization.writeVersionAndSerialize(FlinkManifestSerializer.INSTANCE, actual);
+        SimpleVersionedSerialization.writeVersionAndSerialize(DeltaManifestsSerializer.INSTANCE, actual);
     Assert.assertArrayEquals(versionedSerializeData, versionedSerializeData2);
   }
 

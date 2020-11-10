@@ -38,18 +38,20 @@ import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
-import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ReplacePartitions;
+import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.WriterResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
@@ -58,7 +60,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 class IcebergFilesCommitter extends AbstractStreamOperator<Void>
-    implements OneInputStreamOperator<DataFile, Void>, BoundedOneInput {
+    implements OneInputStreamOperator<WriterResult, Void>, BoundedOneInput {
 
   private static final long serialVersionUID = 1L;
   private static final long INITIAL_CHECKPOINT_ID = -1L;
@@ -85,9 +87,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // iceberg table when the next checkpoint happen.
   private final NavigableMap<Long, byte[]> dataFilesPerCheckpoint = Maps.newTreeMap();
 
-  // The data files cache for current checkpoint. Once the snapshot barrier received, it will be flushed to the
-  // 'dataFilesPerCheckpoint'.
-  private final List<DataFile> dataFilesOfCurrentCheckpoint = Lists.newArrayList();
+  // The completed files cache for current checkpoint. Once the snapshot barrier received, it will be flushed to the
+  // 'writerResultsOfCurrentCkpt'.
+  private List<WriterResult> writerResultsOfCurrentCkpt = Lists.newArrayList();
 
   // It will have an unique identifier for one job.
   private transient String flinkJobId;
@@ -165,7 +167,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     jobIdState.add(flinkJobId);
 
     // Clear the local buffer for current checkpoint.
-    dataFilesOfCurrentCheckpoint.clear();
+    writerResultsOfCurrentCkpt.clear();
   }
 
   @Override
@@ -184,36 +186,37 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     }
   }
 
-  private void commitUpToCheckpoint(NavigableMap<Long, byte[]> manifestsMap,
+  private void commitUpToCheckpoint(NavigableMap<Long, byte[]> deltaManifestsMap,
                                     String newFlinkJobId,
                                     long checkpointId) throws IOException {
-    NavigableMap<Long, byte[]> pendingManifestMap = manifestsMap.headMap(checkpointId, true);
+    NavigableMap<Long, byte[]> pendingMap = deltaManifestsMap.headMap(checkpointId, true);
 
-    List<ManifestFile> manifestFiles = Lists.newArrayList();
-    List<DataFile> pendingDataFiles = Lists.newArrayList();
-    for (byte[] manifestData : pendingManifestMap.values()) {
-      if (Arrays.equals(EMPTY_MANIFEST_DATA, manifestData)) {
+    List<DeltaManifests> deltaManifestsList = Lists.newArrayList();
+    WriterResult.Builder resultBuilder = WriterResult.builder();
+    for (byte[] serializedData : pendingMap.values()) {
+      if (Arrays.equals(EMPTY_MANIFEST_DATA, serializedData)) {
         // Skip the empty flink manifest.
         continue;
       }
 
-      ManifestFile manifestFile =
-          SimpleVersionedSerialization.readVersionAndDeSerialize(FlinkManifestSerializer.INSTANCE, manifestData);
+      DeltaManifests deltaManifests =
+          SimpleVersionedSerialization.readVersionAndDeSerialize(DeltaManifestsSerializer.INSTANCE, serializedData);
 
-      manifestFiles.add(manifestFile);
-      pendingDataFiles.addAll(FlinkManifestUtil.readDataFiles(manifestFile, table.io()));
+      deltaManifestsList.add(deltaManifests);
+      resultBuilder.add(FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io()));
     }
 
+    WriterResult result = resultBuilder.build();
     if (replacePartitions) {
-      replacePartitions(pendingDataFiles, newFlinkJobId, checkpointId);
+      commitOverwriteTxn(result, newFlinkJobId, checkpointId);
     } else {
-      append(pendingDataFiles, newFlinkJobId, checkpointId);
+      commitRowDeltaTxn(result, newFlinkJobId, checkpointId);
     }
 
-    pendingManifestMap.clear();
+    pendingMap.clear();
 
     // Delete the committed manifests and clear the committed data files from dataFilesPerCheckpoint.
-    for (ManifestFile manifestFile : manifestFiles) {
+    for (ManifestFile manifestFile : Iterables.concat(deltaManifestsList)) {
       try {
         table.io().deleteFile(manifestFile.path());
       } catch (Exception e) {
@@ -222,6 +225,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
             .add("flinkJobId", newFlinkJobId)
             .add("checkpointId", checkpointId)
             .add("manifestPath", manifestFile.path())
+            .add("content", manifestFile.content())
             .toString();
         LOG.warn("The iceberg transaction has been committed, but we failed to clean the temporary flink manifests: {}",
             details, e);
@@ -229,11 +233,14 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     }
   }
 
-  private void replacePartitions(List<DataFile> dataFiles, String newFlinkJobId, long checkpointId) {
+  private void commitOverwriteTxn(WriterResult result, String newFlinkJobId, long checkpointId) {
+    Preconditions.checkState(result.deleteFiles() == null || result.deleteFiles().length == 0,
+        "Could not overwrite partitions with delete files.");
+
     ReplacePartitions dynamicOverwrite = table.newReplacePartitions();
 
     int numFiles = 0;
-    for (DataFile file : dataFiles) {
+    for (DataFile file : result.dataFiles()) {
       numFiles += 1;
       dynamicOverwrite.addFile(file);
     }
@@ -241,16 +248,26 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     commitOperation(dynamicOverwrite, numFiles, "dynamic partition overwrite", newFlinkJobId, checkpointId);
   }
 
-  private void append(List<DataFile> dataFiles, String newFlinkJobId, long checkpointId) {
-    AppendFiles appendFiles = table.newAppend();
+  private void commitRowDeltaTxn(WriterResult result, String newFlinkJobId, long checkpointId) {
+    RowDelta rowDelta = table.newRowDelta();
 
     int numFiles = 0;
-    for (DataFile file : dataFiles) {
-      numFiles += 1;
-      appendFiles.appendFile(file);
+
+    if (result.dataFiles() != null && result.dataFiles().length > 0) {
+      for (DataFile file : result.dataFiles()) {
+        numFiles += 1;
+        rowDelta.addRows(file);
+      }
     }
 
-    commitOperation(appendFiles, numFiles, "append", newFlinkJobId, checkpointId);
+    if (result.deleteFiles() != null && result.deleteFiles().length > 0) {
+      for (DeleteFile file : result.deleteFiles()) {
+        numFiles += 1;
+        rowDelta.addDeletes(file);
+      }
+    }
+
+    commitOperation(rowDelta, numFiles, "rowDelta", newFlinkJobId, checkpointId);
   }
 
   private void commitOperation(SnapshotUpdate<?> operation, int numFiles, String description,
@@ -266,8 +283,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   }
 
   @Override
-  public void processElement(StreamRecord<DataFile> element) {
-    this.dataFilesOfCurrentCheckpoint.add(element.getValue());
+  public void processElement(StreamRecord<WriterResult> element) {
+    this.writerResultsOfCurrentCkpt.add(element.getValue());
   }
 
   @Override
@@ -275,7 +292,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     // Flush the buffered data files into 'dataFilesPerCheckpoint' firstly.
     long currentCheckpointId = Long.MAX_VALUE;
     dataFilesPerCheckpoint.put(currentCheckpointId, writeToManifest(currentCheckpointId));
-    dataFilesOfCurrentCheckpoint.clear();
+    writerResultsOfCurrentCkpt.clear();
 
     commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, currentCheckpointId);
   }
@@ -284,14 +301,19 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
    * Write all the complete data files to a newly created manifest file and return the manifest's avro serialized bytes.
    */
   private byte[] writeToManifest(long checkpointId) throws IOException {
-    if (dataFilesOfCurrentCheckpoint.isEmpty()) {
+    if (writerResultsOfCurrentCkpt.isEmpty()) {
       return EMPTY_MANIFEST_DATA;
     }
 
-    OutputFile manifestOutputFile = manifestOutputFileFactory.create(checkpointId);
-    ManifestFile manifestFile =
-        FlinkManifestUtil.writeDataFiles(manifestOutputFile, table.spec(), dataFilesOfCurrentCheckpoint);
-    return SimpleVersionedSerialization.writeVersionAndSerialize(FlinkManifestSerializer.INSTANCE, manifestFile);
+    WriterResult.Builder builder = WriterResult.builder();
+    for (WriterResult writerResult : writerResultsOfCurrentCkpt) {
+      builder.add(writerResult);
+    }
+
+    DeltaManifests deltaManifests = FlinkManifestUtil.writeCompletedFiles(builder.build(),
+        () -> manifestOutputFileFactory.create(checkpointId), table.spec());
+
+    return SimpleVersionedSerialization.writeVersionAndSerialize(DeltaManifestsSerializer.INSTANCE, deltaManifests);
   }
 
   @Override

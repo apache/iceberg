@@ -25,12 +25,12 @@ import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.io.TaskWriter;
+import org.apache.iceberg.io.WriterResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
-    implements OneInputStreamOperator<T, DataFile>, BoundedOneInput {
+class IcebergStreamWriter<T> extends AbstractStreamOperator<WriterResult>
+    implements OneInputStreamOperator<T, WriterResult>, BoundedOneInput {
 
   private static final long serialVersionUID = 1L;
 
@@ -62,9 +62,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
   @Override
   public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
     // close all open files and emit files to downstream committer operator
-    for (DataFile dataFile : writer.complete().dataFiles()) {
-      emit(dataFile);
-    }
+    emit(writer.complete());
 
     this.writer = taskWriterFactory.create();
   }
@@ -87,9 +85,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
   public void endInput() throws IOException {
     // For bounded stream, it may don't enable the checkpoint mechanism so we'd better to emit the remaining
     // data files to downstream before closing the writer so that we won't miss any of them.
-    for (DataFile dataFile : writer.complete().dataFiles()) {
-      emit(dataFile);
-    }
+    emit(writer.complete());
   }
 
   @Override
@@ -101,7 +97,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
         .toString();
   }
 
-  private void emit(DataFile dataFile) {
-    output.collect(new StreamRecord<>(dataFile));
+  private void emit(WriterResult writerResult) {
+    output.collect(new StreamRecord<>(writerResult));
   }
 }

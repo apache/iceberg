@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.api.DataTypes;
@@ -47,6 +49,7 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.WriterResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -101,7 +104,7 @@ public class TestIcebergStreamWriter {
   @Test
   public void testWritingTable() throws Exception {
     long checkpointId = 1L;
-    try (OneInputStreamOperatorTestHarness<RowData, DataFile> testHarness = createIcebergStreamWriter()) {
+    try (OneInputStreamOperatorTestHarness<RowData, WriterResult> testHarness = createIcebergStreamWriter()) {
       // The first checkpoint
       testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), 1);
       testHarness.processElement(SimpleDataUtil.createRowData(2, "world"), 1);
@@ -109,7 +112,7 @@ public class TestIcebergStreamWriter {
 
       testHarness.prepareSnapshotPreBarrier(checkpointId);
       long expectedDataFiles = partitioned ? 2 : 1;
-      Assert.assertEquals(expectedDataFiles, testHarness.extractOutputValues().size());
+      Assert.assertEquals(expectedDataFiles, extractDataFiles(testHarness).size());
 
       checkpointId = checkpointId + 1;
 
@@ -119,11 +122,11 @@ public class TestIcebergStreamWriter {
 
       testHarness.prepareSnapshotPreBarrier(checkpointId);
       expectedDataFiles = partitioned ? 4 : 2;
-      Assert.assertEquals(expectedDataFiles, testHarness.extractOutputValues().size());
+      Assert.assertEquals(expectedDataFiles, extractDataFiles(testHarness).size());
 
       // Commit the iceberg transaction.
       AppendFiles appendFiles = table.newAppend();
-      testHarness.extractOutputValues().forEach(appendFiles::appendFile);
+      extractDataFiles(testHarness).forEach(appendFiles::appendFile);
       appendFiles.commit();
 
       // Assert the table records.
@@ -141,34 +144,34 @@ public class TestIcebergStreamWriter {
   public void testSnapshotTwice() throws Exception {
     long checkpointId = 1;
     long timestamp = 1;
-    try (OneInputStreamOperatorTestHarness<RowData, DataFile> testHarness = createIcebergStreamWriter()) {
+    try (OneInputStreamOperatorTestHarness<RowData, WriterResult> testHarness = createIcebergStreamWriter()) {
       testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), timestamp++);
       testHarness.processElement(SimpleDataUtil.createRowData(2, "world"), timestamp);
 
       testHarness.prepareSnapshotPreBarrier(checkpointId++);
       long expectedDataFiles = partitioned ? 2 : 1;
-      Assert.assertEquals(expectedDataFiles, testHarness.extractOutputValues().size());
+      Assert.assertEquals(expectedDataFiles, extractDataFiles(testHarness).size());
 
       // snapshot again immediately.
       for (int i = 0; i < 5; i++) {
         testHarness.prepareSnapshotPreBarrier(checkpointId++);
-        Assert.assertEquals(expectedDataFiles, testHarness.extractOutputValues().size());
+        Assert.assertEquals(expectedDataFiles, extractDataFiles(testHarness).size());
       }
     }
   }
 
   @Test
   public void testTableWithoutSnapshot() throws Exception {
-    try (OneInputStreamOperatorTestHarness<RowData, DataFile> testHarness = createIcebergStreamWriter()) {
-      Assert.assertEquals(0, testHarness.extractOutputValues().size());
+    try (OneInputStreamOperatorTestHarness<RowData, WriterResult> testHarness = createIcebergStreamWriter()) {
+      Assert.assertEquals(0, extractDataFiles(testHarness).size());
     }
     // Even if we closed the iceberg stream writer, there's no orphan data file.
     Assert.assertEquals(0, scanDataFiles().size());
 
-    try (OneInputStreamOperatorTestHarness<RowData, DataFile> testHarness = createIcebergStreamWriter()) {
+    try (OneInputStreamOperatorTestHarness<RowData, WriterResult> testHarness = createIcebergStreamWriter()) {
       testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), 1);
       // Still not emit the data file yet, because there is no checkpoint.
-      Assert.assertEquals(0, testHarness.extractOutputValues().size());
+      Assert.assertEquals(0, extractDataFiles(testHarness).size());
     }
     // Once we closed the iceberg stream writer, there will left an orphan data file.
     Assert.assertEquals(1, scanDataFiles().size());
@@ -197,7 +200,7 @@ public class TestIcebergStreamWriter {
 
   @Test
   public void testBoundedStreamCloseWithEmittingDataFiles() throws Exception {
-    try (OneInputStreamOperatorTestHarness<RowData, DataFile> testHarness = createIcebergStreamWriter()) {
+    try (OneInputStreamOperatorTestHarness<RowData, WriterResult> testHarness = createIcebergStreamWriter()) {
       testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), 1);
       testHarness.processElement(SimpleDataUtil.createRowData(2, "world"), 2);
 
@@ -205,11 +208,11 @@ public class TestIcebergStreamWriter {
       ((BoundedOneInput) testHarness.getOneInputOperator()).endInput();
 
       long expectedDataFiles = partitioned ? 2 : 1;
-      Assert.assertEquals(expectedDataFiles, testHarness.extractOutputValues().size());
+      Assert.assertEquals(expectedDataFiles, extractDataFiles(testHarness).size());
 
       // invoke endInput again.
       ((BoundedOneInput) testHarness.getOneInputOperator()).endInput();
-      Assert.assertEquals(expectedDataFiles * 2, testHarness.extractOutputValues().size());
+      Assert.assertEquals(expectedDataFiles * 2, extractDataFiles(testHarness).size());
     }
   }
 
@@ -233,23 +236,23 @@ public class TestIcebergStreamWriter {
       }
     }
 
-    try (OneInputStreamOperatorTestHarness<RowData, DataFile> testHarness = createIcebergStreamWriter()) {
+    try (OneInputStreamOperatorTestHarness<RowData, WriterResult> testHarness = createIcebergStreamWriter()) {
       for (RowData row : rows) {
         testHarness.processElement(row, 1);
       }
 
       // snapshot the operator.
       testHarness.prepareSnapshotPreBarrier(1);
-      Assert.assertEquals(8, testHarness.extractOutputValues().size());
+      Assert.assertEquals(8, extractDataFiles(testHarness).size());
 
       // Assert that the data file have the expected records.
-      for (DataFile serDataFile : testHarness.extractOutputValues()) {
+      for (DataFile serDataFile : extractDataFiles(testHarness)) {
         Assert.assertEquals(1000, serDataFile.recordCount());
       }
 
       // Commit the iceberg transaction.
       AppendFiles appendFiles = table.newAppend();
-      testHarness.extractOutputValues().forEach(appendFiles::appendFile);
+      extractDataFiles(testHarness).forEach(appendFiles::appendFile);
       appendFiles.commit();
     }
 
@@ -294,31 +297,36 @@ public class TestIcebergStreamWriter {
         record.copy(ImmutableMap.of("tinyint", 3, "smallint", 32767, "int", 103))
     );
 
-    try (OneInputStreamOperatorTestHarness<RowData, DataFile> testHarness = createIcebergStreamWriter(icebergTable,
+    try (OneInputStreamOperatorTestHarness<RowData, WriterResult> testHarness = createIcebergStreamWriter(icebergTable,
         flinkSchema)) {
       for (RowData row : rows) {
         testHarness.processElement(row, 1);
       }
       testHarness.prepareSnapshotPreBarrier(1);
-      Assert.assertEquals(partitioned ? 3 : 1, testHarness.extractOutputValues().size());
+      Assert.assertEquals(partitioned ? 3 : 1, extractDataFiles(testHarness).size());
 
       // Commit the iceberg transaction.
       AppendFiles appendFiles = icebergTable.newAppend();
-      testHarness.extractOutputValues().forEach(appendFiles::appendFile);
+      extractDataFiles(testHarness).forEach(appendFiles::appendFile);
       appendFiles.commit();
     }
 
     SimpleDataUtil.assertTableRecords(location, expected);
   }
 
-  private OneInputStreamOperatorTestHarness<RowData, DataFile> createIcebergStreamWriter() throws Exception {
+  private List<DataFile> extractDataFiles(OneInputStreamOperatorTestHarness<RowData, WriterResult> harness) {
+    return harness.extractOutputValues().stream()
+        .map(WriterResult::dataFiles).flatMap(Stream::of).collect(Collectors.toList());
+  }
+
+  private OneInputStreamOperatorTestHarness<RowData, WriterResult> createIcebergStreamWriter() throws Exception {
     return createIcebergStreamWriter(table, SimpleDataUtil.FLINK_SCHEMA);
   }
 
-  private OneInputStreamOperatorTestHarness<RowData, DataFile> createIcebergStreamWriter(
+  private OneInputStreamOperatorTestHarness<RowData, WriterResult> createIcebergStreamWriter(
       Table icebergTable, TableSchema flinkSchema) throws Exception {
     IcebergStreamWriter<RowData> streamWriter = FlinkSink.createStreamWriter(icebergTable, flinkSchema, null);
-    OneInputStreamOperatorTestHarness<RowData, DataFile> harness = new OneInputStreamOperatorTestHarness<>(
+    OneInputStreamOperatorTestHarness<RowData, WriterResult> harness = new OneInputStreamOperatorTestHarness<>(
         streamWriter, 1, 1, 0);
 
     harness.setup();

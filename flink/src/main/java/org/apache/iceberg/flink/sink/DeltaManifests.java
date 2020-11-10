@@ -19,30 +19,42 @@
 
 package org.apache.iceberg.flink.sink;
 
-import java.io.IOException;
-import org.apache.flink.core.io.SimpleVersionedSerializer;
+import java.util.Iterator;
+import java.util.List;
 import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.ManifestFiles;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.jetbrains.annotations.NotNull;
 
-class FlinkManifestSerializer implements SimpleVersionedSerializer<ManifestFile> {
-  private static final int VERSION_NUM = 1;
-  static final FlinkManifestSerializer INSTANCE = new FlinkManifestSerializer();
+class DeltaManifests implements Iterable<ManifestFile> {
 
-  @Override
-  public int getVersion() {
-    return VERSION_NUM;
+  private final ManifestFile dataManifest;
+  private final ManifestFile deleteManifest;
+
+  DeltaManifests(ManifestFile dataManifest, ManifestFile deleteManifest) {
+    this.dataManifest = dataManifest;
+    this.deleteManifest = deleteManifest;
   }
 
-  @Override
-  public byte[] serialize(ManifestFile manifestFile) throws IOException {
-    Preconditions.checkNotNull(manifestFile, "ManifestFile to be serialized should not be null");
-
-    return ManifestFiles.encode(manifestFile);
+  ManifestFile dataManifest() {
+    return dataManifest;
   }
 
+  ManifestFile deleteManifest() {
+    return deleteManifest;
+  }
+
+  @NotNull
   @Override
-  public ManifestFile deserialize(int version, byte[] serialized) throws IOException {
-    return ManifestFiles.decode(serialized);
+  public Iterator<ManifestFile> iterator() {
+    List<ManifestFile> manifests = Lists.newArrayListWithCapacity(2);
+    if (dataManifest != null) {
+      manifests.add(dataManifest);
+    }
+
+    if (deleteManifest != null) {
+      manifests.add(deleteManifest);
+    }
+
+    return manifests.iterator();
   }
 }

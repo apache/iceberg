@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.io;
 
+import java.io.Serializable;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -26,11 +27,11 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-public class WriterResult {
-  private static final WriterResult EMPTY = new WriterResult(ImmutableList.of(), ImmutableList.of());
+public class WriterResult implements Serializable {
+  private static final DataFile[] EMPTY_DATA_FILES = new DataFile[0];
+  private static final DeleteFile[] EMPTY_DELETE_FILES = new DeleteFile[0];
 
   private DataFile[] dataFiles;
   private DeleteFile[] deleteFiles;
@@ -43,10 +44,6 @@ public class WriterResult {
   WriterResult(List<DataFile> dataFiles, List<DeleteFile> deleteFiles) {
     this.dataFiles = dataFiles.toArray(new DataFile[0]);
     this.deleteFiles = deleteFiles.toArray(new DeleteFile[0]);
-  }
-
-  static WriterResult empty() {
-    return EMPTY;
   }
 
   public DataFile[] dataFiles() {
@@ -80,6 +77,14 @@ public class WriterResult {
         return contentFile;
       }
     };
+  }
+
+  public static WriterResult create(DataFile dataFile) {
+    return new WriterResult(new DataFile[] {dataFile}, EMPTY_DELETE_FILES);
+  }
+
+  public static WriterResult create(DeleteFile deleteFile) {
+    return new WriterResult(EMPTY_DATA_FILES, new DeleteFile[] {deleteFile});
   }
 
   public static Builder builder() {
