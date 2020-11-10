@@ -178,40 +178,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   }
 
   @Test
-  public void testDecimalTableWithPredicateLiterals() throws IOException {
-    shell.setHiveSessionValue("hive.vectorized.execution.enabled", "false");
-    Schema schema = new Schema(required(1, "decimal_field", Types.DecimalType.of(7, 2)));
-    List<Record> records = TestHelper.RecordsBuilder.newInstance(schema)
-            .add(BigDecimal.valueOf(8500, 2)) // 85.00
-            .add(BigDecimal.valueOf(100.56))
-            .add(BigDecimal.valueOf(100.57))
-            .build();
-    createTable("dec_test", schema, records);
-
-    // Use integer literal in predicate
-    List<Object[]> rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field >= 85");
-    Assert.assertEquals(3, rows.size());
-    Assert.assertArrayEquals(new Object[] {"85.00"}, rows.get(0));
-    Assert.assertArrayEquals(new Object[] {"100.56"}, rows.get(1));
-    Assert.assertArrayEquals(new Object[] {"100.57"}, rows.get(2));
-
-    // Use decimal literal in predicate with smaller scale than schema type definition
-    rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field > 99.1");
-    Assert.assertEquals(2, rows.size());
-    Assert.assertArrayEquals(new Object[] {"100.56"}, rows.get(0));
-    Assert.assertArrayEquals(new Object[] {"100.57"}, rows.get(1));
-
-    // Use decimal literal in predicate with higher scale than schema type definition
-    rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field > 100.565");
-    Assert.assertEquals(1, rows.size());
-    Assert.assertArrayEquals(new Object[] {"100.57"}, rows.get(0));
-
-    // Use decimal literal in predicate with the same scale as schema type definition
-    rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field > 640.34");
-    Assert.assertEquals(0, rows.size());
-  }
-
-  @Test
   public void testScanTable() throws IOException {
     createTable("customers", CUSTOMER_SCHEMA, CUSTOMER_RECORDS);
 
@@ -246,6 +212,39 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Assert.assertArrayEquals(new Object[] {0L, "Alice", 100L, 11.11d}, rows.get(0));
     Assert.assertArrayEquals(new Object[] {0L, "Alice", 101L, 22.22d}, rows.get(1));
     Assert.assertArrayEquals(new Object[] {1L, "Bob", 102L, 33.33d}, rows.get(2));
+  }
+
+  @Test
+  public void testDecimalTableWithPredicateLiterals() throws IOException {
+    Schema schema = new Schema(required(1, "decimal_field", Types.DecimalType.of(7, 2)));
+    List<Record> records = TestHelper.RecordsBuilder.newInstance(schema)
+            .add(new BigDecimal("85.00"))
+            .add(new BigDecimal("100.56"))
+            .add(new BigDecimal("100.57"))
+            .build();
+    createTable("dec_test", schema, records);
+
+    // Use integer literal in predicate
+    List<Object[]> rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field >= 85");
+    Assert.assertEquals(3, rows.size());
+    Assert.assertArrayEquals(new Object[] {"85.00"}, rows.get(0));
+    Assert.assertArrayEquals(new Object[] {"100.56"}, rows.get(1));
+    Assert.assertArrayEquals(new Object[] {"100.57"}, rows.get(2));
+
+    // Use decimal literal in predicate with smaller scale than schema type definition
+    rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field > 99.1");
+    Assert.assertEquals(2, rows.size());
+    Assert.assertArrayEquals(new Object[] {"100.56"}, rows.get(0));
+    Assert.assertArrayEquals(new Object[] {"100.57"}, rows.get(1));
+
+    // Use decimal literal in predicate with higher scale than schema type definition
+    rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field > 100.565");
+    Assert.assertEquals(1, rows.size());
+    Assert.assertArrayEquals(new Object[] {"100.57"}, rows.get(0));
+
+    // Use decimal literal in predicate with the same scale as schema type definition
+    rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field > 640.34");
+    Assert.assertEquals(0, rows.size());
   }
 
   @Test

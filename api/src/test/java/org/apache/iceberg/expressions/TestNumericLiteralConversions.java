@@ -156,9 +156,9 @@ public class TestNumericLiteralConversions {
 
     IntStream.range(0, 10).forEach(scale -> {
       Assert.assertSame("Should return identical object",
-              lit, lit.to(Types.DecimalType.of(9, scale)));
+          lit, lit.to(Types.DecimalType.of(9, scale)));
       Assert.assertSame("Should return identical object",
-              lit, lit.to(Types.DecimalType.of(11, scale)));
+          lit, lit.to(Types.DecimalType.of(11, scale)));
     });
   }
 
