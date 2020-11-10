@@ -42,7 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.Tasks;
 
-public class RowDataTaskWriter implements TaskWriter<RowData> {
+class RowDataTaskWriter implements TaskWriter<RowData> {
 
   private final PartitionSpec spec;
   private final FlinkDeltaWriterFactory deltaWriterFactory;
@@ -60,9 +60,10 @@ public class RowDataTaskWriter implements TaskWriter<RowData> {
                     FileIO io,
                     long targetFileSize,
                     Map<String, String> tableProperties) {
-    this.spec = spec;
     this.deltaWriterFactory = new FlinkDeltaWriterFactory(schema, flinkSchema, spec,
         format, fileFactory, io, targetFileSize, tableProperties);
+
+    this.spec = spec;
     this.partitionKey = new PartitionKey(spec, schema);
     this.rowDataWrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
 

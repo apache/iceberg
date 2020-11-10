@@ -43,7 +43,6 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.data.FlinkAvroWriter;
-import org.apache.iceberg.flink.data.FlinkOrcWriter;
 import org.apache.iceberg.flink.data.FlinkParquetWriters;
 import org.apache.iceberg.io.BaseDeltaWriter;
 import org.apache.iceberg.io.DeltaWriter;
@@ -53,7 +52,6 @@ import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.RollingContentFileWriter;
-import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -122,42 +120,7 @@ public class FlinkDeltaWriterFactory implements DeltaWriterFactory<RowData> {
 
   @Override
   public FileAppenderFactory<RowData> createFileAppenderFactory() {
-    return (outputFile, fileFormat) -> {
-      MetricsConfig metricsConfig = MetricsConfig.fromProperties(tableProperties);
-      try {
-        switch (format) {
-          case AVRO:
-            return Avro.write(outputFile)
-                .createWriterFunc(ignore -> new FlinkAvroWriter(flinkSchema))
-                .setAll(tableProperties)
-                .schema(schema)
-                .overwrite()
-                .build();
-
-          case ORC:
-            return ORC.write(outputFile)
-                .createWriterFunc((iSchema, typDesc) -> FlinkOrcWriter.buildWriter(flinkSchema, iSchema))
-                .setAll(tableProperties)
-                .schema(schema)
-                .overwrite()
-                .build();
-
-          case PARQUET:
-            return Parquet.write(outputFile)
-                .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(flinkSchema, msgType))
-                .setAll(tableProperties)
-                .metricsConfig(metricsConfig)
-                .schema(schema)
-                .overwrite()
-                .build();
-
-          default:
-            throw new UnsupportedOperationException("Cannot write unknown file format: " + format);
-        }
-      } catch (IOException e) {
-        throw new UncheckedIOException(e);
-      }
-    };
+    return new FlinkFileAppenderFactory(schema, flinkSchema, tableProperties);
   }
 
   @Override
