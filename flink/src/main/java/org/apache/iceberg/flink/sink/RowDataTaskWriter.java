@@ -36,7 +36,6 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriterResult;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
@@ -59,7 +58,8 @@ class RowDataTaskWriter implements TaskWriter<RowData> {
                     OutputFileFactory fileFactory,
                     FileIO io,
                     long targetFileSize,
-                    Map<String, String> tableProperties) {
+                    Map<String, String> tableProperties,
+                    List<Integer> equalityFieldIds) {
     this.deltaWriterFactory = new FlinkDeltaWriterFactory(schema, flinkSchema, spec,
         format, fileFactory, io, targetFileSize, tableProperties);
 
@@ -69,13 +69,15 @@ class RowDataTaskWriter implements TaskWriter<RowData> {
 
     this.deltaWriterMap = Maps.newHashMap();
 
-    // TODO make it to be a valuable equality field ids.
-    List<Integer> equalityFieldIds = Lists.newArrayList();
-    this.ctxt = DeltaWriterFactory.Context.builder()
-        //.allowEqualityDelete(true)  TODO enable this switch???
-        //.equalityFieldIds(equalityFieldIds)
-        .rowSchema(TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds)))
-        .build();
+    if (equalityFieldIds != null && equalityFieldIds.size() > 0) {
+      this.ctxt = DeltaWriterFactory.Context.builder()
+          .allowEqualityDelete(true)
+          .equalityFieldIds(equalityFieldIds)
+          .rowSchema(TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds)))
+          .build();
+    } else {
+      this.ctxt = DeltaWriterFactory.Context.builder().build();
+    }
   }
 
   @Override

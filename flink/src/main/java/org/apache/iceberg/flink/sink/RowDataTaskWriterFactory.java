@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.flink.sink;
 
+import java.util.List;
 import java.util.Map;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
@@ -42,6 +43,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final long targetFileSizeBytes;
   private final FileFormat format;
   private final Map<String, String> tableProperties;
+  private final List<Integer> equalityFieldIds;
 
   private transient OutputFileFactory outputFileFactory;
 
@@ -53,7 +55,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
                                   EncryptionManager encryptionManager,
                                   long targetFileSizeBytes,
                                   FileFormat format,
-                                  Map<String, String> tableProperties) {
+                                  Map<String, String> tableProperties,
+                                  List<Integer> equalityFieldIds) {
     this.schema = schema;
     this.flinkSchema = flinkSchema;
     this.spec = spec;
@@ -63,6 +66,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.targetFileSizeBytes = targetFileSizeBytes;
     this.format = format;
     this.tableProperties = tableProperties;
+    this.equalityFieldIds = equalityFieldIds;
   }
 
   @Override
@@ -76,6 +80,6 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
         "The outputFileFactory shouldn't be null if we have invoked the initialize().");
 
     return new RowDataTaskWriter(schema, flinkSchema, spec, format, outputFileFactory, io, targetFileSizeBytes,
-        tableProperties);
+        tableProperties, equalityFieldIds);
   }
 }
