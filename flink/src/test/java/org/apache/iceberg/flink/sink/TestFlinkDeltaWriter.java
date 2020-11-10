@@ -29,21 +29,22 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.TestTables;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
-import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.data.RandomRowData;
 import org.apache.iceberg.io.DeltaWriter;
 import org.apache.iceberg.io.DeltaWriterFactory;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.WriterResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -57,11 +58,12 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.flink.SimpleDataUtil.ROW_TYPE;
-import static org.apache.iceberg.flink.SimpleDataUtil.SCHEMA;
 import static org.apache.iceberg.flink.SimpleDataUtil.createRowData;
 
 @RunWith(Parameterized.class)
-public class TestFlinkDeltaWriter {
+public class TestFlinkDeltaWriter extends TableTestBase {
+  private static final String TABLE_NAME = "flink_delta_table";
+  private static final int FORMAT_V2 = 2;
 
   @Rule
   public final TemporaryFolder tempFolder = new TemporaryFolder();
@@ -79,6 +81,7 @@ public class TestFlinkDeltaWriter {
   private Table table;
 
   public TestFlinkDeltaWriter(String format, boolean partitioned) {
+    super(FORMAT_V2);
     this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
     this.partitioned = partitioned;
   }
@@ -88,7 +91,11 @@ public class TestFlinkDeltaWriter {
     File tableDir = tempFolder.newFolder();
     Assert.assertTrue(tableDir.delete());
 
-    this.table = SimpleDataUtil.createTable(tableDir.getAbsolutePath(), ImmutableMap.of(), partitioned);
+    if (partitioned) {
+      this.table = TestTables.create(tableDir, TABLE_NAME, SCHEMA, SPEC, formatVersion);
+    } else {
+      this.table = TestTables.create(tableDir, TABLE_NAME, SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
+    }
   }
 
   @Test
