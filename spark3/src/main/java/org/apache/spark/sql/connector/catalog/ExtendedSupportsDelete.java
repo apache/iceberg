@@ -17,14 +17,13 @@
  * under the License.
  */
 
-package org.apache.spark.sql.connector.write;
+package org.apache.spark.sql.connector.catalog;
 
-import org.apache.spark.sql.connector.read.Scan;
+import org.apache.spark.sql.sources.Filter;
 
-// TODO: how to represent merge-on-read?
-// Option 1: Introduce DeltaBatchWrite that should be returned for merge-on-read only, use BatchWrite for copy-on-write
-// Option 2: Introduce DeltaBatchWrite with keepUnchanged flag and use that flag to do copy-on-write/merge-on-read
-public interface RowLevelOperationsBuilder {
-  Scan buildScan();
-  BatchWrite buildBatchWrite();
+// this should be part of SupportsDelete when merged upstream
+public interface ExtendedSupportsDelete extends SupportsDelete {
+  default boolean canDeleteWhere(Filter[] filters) {
+    return true;
+  }
 }

@@ -22,7 +22,7 @@ package org.apache.spark.sql.catalyst.plans.logical
 import org.apache.spark.sql.catalyst.analysis.NamedRelation
 import org.apache.spark.sql.connector.write.BatchWrite
 
-case class OverwriteFiles(
+case class ReplaceData(
     table: NamedRelation,
     write: BatchWrite,
     query: LogicalPlan) extends V2WriteCommand

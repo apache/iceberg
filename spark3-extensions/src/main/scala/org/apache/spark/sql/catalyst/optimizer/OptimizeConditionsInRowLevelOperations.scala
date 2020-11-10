@@ -25,7 +25,9 @@ import org.apache.spark.sql.catalyst.plans.logical.{DeleteFromTable, Filter, Loc
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
 
-// a temp solution until we move the rewrite of row level ops after operator optimization rules
+// we have to optimize expressions used in delete/update before we can rewrite row-level operations
+// otherwise, we will have to deal with redundant casts and will not detect noop deletes
+// it is a temp solution since we cannot inject rewrite of row-level ops after operator optimizations
 object OptimizeConditionsInRowLevelOperations extends Rule[LogicalPlan] {
   override def apply(plan: LogicalPlan): LogicalPlan = plan transform {
     // TODO: fix this?

@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -31,26 +32,28 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.connector.catalog.SupportsMetadataOnlyDeletes;
+import org.apache.spark.sql.connector.catalog.ExtendedSupportsDelete;
+import org.apache.spark.sql.connector.catalog.SupportsMerge;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
-import org.apache.spark.sql.connector.catalog.SupportsRowLevelOperations;
 import org.apache.spark.sql.connector.catalog.SupportsWrite;
 import org.apache.spark.sql.connector.catalog.TableCapability;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
-import org.apache.spark.sql.connector.write.RowLevelOperationsBuilder;
+import org.apache.spark.sql.connector.write.MergeBuilder;
 import org.apache.spark.sql.connector.write.WriteBuilder;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-import static org.apache.iceberg.TableProperties.ROW_LEVEL_OPS_MODE;
-import static org.apache.iceberg.TableProperties.ROW_LEVEL_OPS_MODE_DEFAULT;
+import static org.apache.iceberg.TableProperties.WRITE_ROW_LEVEL_MODE;
+import static org.apache.iceberg.TableProperties.WRITE_ROW_LEVEL_MODE_DEFAULT;
 
 public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
-    SupportsRead, SupportsWrite, SupportsMetadataOnlyDeletes, SupportsRowLevelOperations {
+    SupportsRead, SupportsWrite, ExtendedSupportsDelete, SupportsMerge {
 
   private static final Set<String> RESERVED_PROPERTIES = Sets.newHashSet("provider", "format", "current-snapshot-id");
   private static final Set<TableCapability> CAPABILITIES = ImmutableSet.of(
@@ -161,21 +164,36 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   }
 
   @Override
-  public RowLevelOperationsBuilder newRowLevelOperationsBuilder(LogicalWriteInfo info) {
-    String mode = icebergTable.properties().getOrDefault(ROW_LEVEL_OPS_MODE, ROW_LEVEL_OPS_MODE_DEFAULT);
+  public MergeBuilder newMergeBuilder(LogicalWriteInfo info) {
+    String mode = icebergTable.properties().getOrDefault(WRITE_ROW_LEVEL_MODE, WRITE_ROW_LEVEL_MODE_DEFAULT);
     ValidationException.check(mode.equals("copy-on-write"), "Unsupported row operations mode: %s", mode);
-    return new SparkRowLevelOperationsBuilder(sparkSession(), icebergTable, info);
+    return new SparkMergeBuilder(sparkSession(), icebergTable, info);
   }
 
   @Override
-  public boolean canDeleteUsingMetadataWhere(Filter[] filters) {
+  public boolean canDeleteWhere(Filter[] filters) {
+    // TODO: multiple partition specs
+    Set<Integer> partitionFieldSourceIds = PartitionUtil.sourceFieldIds(table().spec());
+    Schema schema = table().schema();
+
     for (Filter filter : filters) {
-      Expression converted = SparkFilters.convert(filter);
-      if (converted == null) {
+      // return false if we have a predicate on a non-partition column or if we cannot translate the filter
+      if (isDataFilter(filter, schema, partitionFieldSourceIds) || SparkFilters.convert(filter) == null) {
         return false;
       }
     }
+
     return true;
+  }
+
+  private boolean isDataFilter(Filter filter, Schema schema, Set<Integer> partitionFieldSourceIds) {
+    // TODO: handle dots correctly via v2references
+    Set<String> filterRefs = Sets.newHashSet(filter.references());
+    return filterRefs.stream().anyMatch(ref -> {
+      Types.NestedField field = schema.findField(ref);
+      ValidationException.check(field != null, "Cannot find field %s in schema", ref);
+      return !partitionFieldSourceIds.contains(field.fieldId());
+    });
   }
 
   @Override

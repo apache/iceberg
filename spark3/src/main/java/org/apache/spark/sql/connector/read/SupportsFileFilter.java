@@ -17,11 +17,10 @@
  * under the License.
  */
 
-package org.apache.spark.sql.connector.catalog;
+package org.apache.spark.sql.connector.read;
 
-import org.apache.spark.sql.sources.Filter;
+import java.util.Set;
 
-// TODO: any better ideas? make it generic as SupportsDeleteUsingFilters and merge it into SupportsDelete upstream?
-public interface SupportsMetadataOnlyDeletes extends SupportsDelete {
-  boolean canDeleteUsingMetadataWhere(Filter[] filters);
+public interface SupportsFileFilter extends Scan {
+  void filterFiles(Set<String> locations);
 }

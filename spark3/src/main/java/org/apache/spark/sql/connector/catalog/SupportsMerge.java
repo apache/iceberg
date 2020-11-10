@@ -20,8 +20,8 @@
 package org.apache.spark.sql.connector.catalog;
 
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
-import org.apache.spark.sql.connector.write.RowLevelOperationsBuilder;
+import org.apache.spark.sql.connector.write.MergeBuilder;
 
-public interface SupportsRowLevelOperations extends Table {
-  RowLevelOperationsBuilder newRowLevelOperationsBuilder(LogicalWriteInfo info);
+public interface SupportsMerge extends Table {
+  MergeBuilder newMergeBuilder(LogicalWriteInfo info);
 }

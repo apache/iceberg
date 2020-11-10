@@ -17,10 +17,8 @@
  * under the License.
  */
 
-package org.apache.spark.sql.connector.write;
+package org.apache.iceberg;
 
-import java.util.Set;
-
-public interface SupportsWriteFileFilter extends BatchWrite {
-  void filterFiles(Set<String> locations);
+public enum IsolationLevel {
+  SERIALIZABLE, SNAPSHOT
 }

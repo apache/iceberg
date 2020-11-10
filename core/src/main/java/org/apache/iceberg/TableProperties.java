@@ -135,9 +135,9 @@ public class TableProperties {
   public static final String ENGINE_HIVE_ENABLED = "engine.hive.enabled";
   public static final boolean ENGINE_HIVE_ENABLED_DEFAULT = false;
 
-  public static final String ROW_LEVEL_OPS_ISOLATION_LEVEL = "row-level-ops.isolation-level";
-  public static final String ROW_LEVEL_OPS_ISOLATION_LEVEL_DEFAULT = "serializable";
+  public static final String WRITE_ISOLATION_LEVEL = "write.isolation-level";
+  public static final String WRITE_ISOLATION_LEVEL_DEFAULT = "serializable";
 
-  public static final String ROW_LEVEL_OPS_MODE = "row-level-ops.mode";
-  public static final String ROW_LEVEL_OPS_MODE_DEFAULT = "copy-on-write";
+  public static final String WRITE_ROW_LEVEL_MODE = "write.row-level.mode";
+  public static final String WRITE_ROW_LEVEL_MODE_DEFAULT = "copy-on-write";
 }

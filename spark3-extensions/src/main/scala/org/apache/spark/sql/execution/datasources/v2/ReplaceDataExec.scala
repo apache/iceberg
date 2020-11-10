@@ -19,39 +19,23 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
-import collection.JavaConverters._
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.connector.read.SupportsReadFileFilter
-import org.apache.spark.sql.connector.write.{BatchWrite, SupportsWriteFileFilter}
+import org.apache.spark.sql.connector.write.BatchWrite
 import org.apache.spark.sql.execution.SparkPlan
 
-case class OverwriteFilesExec(batchWrite: BatchWrite, queryExec: SparkPlan) extends V2TableWriteExec {
+case class ReplaceDataExec(batchWrite: BatchWrite, queryExec: SparkPlan) extends V2TableWriteExec {
 
   // override child so that we can properly plan queryExec without executing the file filter
   override def child: SparkPlan = queryExec
 
   // TODO: doPrepare is NOT invoked by V2TableWriteExec
-  // TODO: it should be ok if at least reader or writer supports dynamic file filter
   override lazy val query: SparkPlan = {
-    batchWrite match {
-      case w: SupportsWriteFileFilter =>
-        val dynamicFileFilters = queryExec.collect { case s: DynamicFileFilterExec => s }
-        require(dynamicFileFilters.size <= 1, "must be at most one scan with dynamic filter")
+    val dynamicFileFilters = queryExec.collect { case s: DynamicFileFilterExec => s }
+    require(dynamicFileFilters.size <= 1, "must be at most one dynamic filter")
 
-        if (dynamicFileFilters.nonEmpty) {
-          val dynamicFileFilter = dynamicFileFilters.head
-          val scanExec = dynamicFileFilter.scanExec
-          val fileFilterExec = dynamicFileFilter.fileFilterExec
-          scanExec.scan match {
-            case s: SupportsReadFileFilter =>
-              val matchedFileLocations = fileFilterExec.executeCollect().map(_.getString(0))
-              val matchedFileLocationsSet = matchedFileLocations.toSet.asJava
-              w.filterFiles(matchedFileLocationsSet)
-              s.filterFiles(matchedFileLocationsSet)
-            case _ => // do nothing
-          }
-        }
-      case _ =>
+    if (dynamicFileFilters.nonEmpty) {
+      val dynamicFileFilter = dynamicFileFilters.head
+      dynamicFileFilter.prepare()
     }
 
     queryExec

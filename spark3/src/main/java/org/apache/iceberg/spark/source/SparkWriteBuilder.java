@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Locale;
+import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -55,6 +56,8 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   private boolean overwriteDynamic = false;
   private boolean overwriteByFilter = false;
   private Expression overwriteExpr = null;
+  private boolean overwriteFiles = false;
+  private IsolationLevel isolationLevel;
 
   // lazy variables
   private JavaSparkContext lazySparkContext = null;
@@ -76,15 +79,25 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     return lazySparkContext;
   }
 
+  public WriteBuilder overwriteFiles(IsolationLevel writeIsolationLevel) {
+    Preconditions.checkState(!overwriteByFilter, "Cannot overwrite individual files and by filter");
+    Preconditions.checkState(!overwriteDynamic, "Cannot overwrite individual files and dynamically");
+    this.overwriteFiles = true;
+    this.isolationLevel = writeIsolationLevel;
+    return this;
+  }
+
   @Override
   public WriteBuilder overwriteDynamicPartitions() {
     Preconditions.checkState(!overwriteByFilter, "Cannot overwrite dynamically and by filter: %s", overwriteExpr);
+    Preconditions.checkState(!overwriteFiles, "Cannot overwrite individual files and dynamically");
     this.overwriteDynamic = true;
     return this;
   }
 
   @Override
   public WriteBuilder overwrite(Filter[] filters) {
+    Preconditions.checkState(!overwriteFiles, "Cannot overwrite individual files and using filters");
     this.overwriteExpr = SparkFilters.convert(filters);
     if (overwriteExpr == Expressions.alwaysTrue() && "dynamic".equals(overwriteMode)) {
       // use the write option to override truncating the table. use dynamic overwrite instead.
@@ -113,19 +126,25 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     Broadcast<FileIO> io = lazySparkContext().broadcast(SparkUtil.serializableFileIO(table));
     Broadcast<EncryptionManager> encryptionManager = lazySparkContext().broadcast(table.encryption());
 
+    // TODO: should we create SparkWriteContext like we have TableScanContext?
+
+    if (overwriteFiles) {
+      return new OverwriteFilesBatchWrite(
+          table, io, encryptionManager, options, appId, wapId, writeSchema, dsSchema, isolationLevel);
+    }
+
     if (overwriteByFilter) {
       return new OverwriteByFilterBatchWrite(
-          table, io, encryptionManager, options, appId, wapId,
-          writeSchema, dsSchema, overwriteExpr);
-    } else if (overwriteDynamic) {
-      return new OverwriteDynamicBatchWrite(
-          table, io, encryptionManager, options, appId, wapId,
-          writeSchema, dsSchema);
-    } else {
-      return new AppendBatchWrite(
-          table, io, encryptionManager, options, appId, wapId,
-          writeSchema, dsSchema);
+          table, io, encryptionManager, options, appId, wapId, writeSchema, dsSchema, overwriteExpr);
     }
+
+    if (overwriteDynamic) {
+      return new OverwriteDynamicBatchWrite(
+          table, io, encryptionManager, options, appId, wapId, writeSchema, dsSchema);
+    }
+
+    return new AppendBatchWrite(
+        table, io, encryptionManager, options, appId, wapId, writeSchema, dsSchema);
   }
 
   @Override

@@ -20,14 +20,14 @@
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.AnalysisException
-import org.apache.spark.sql.connector.catalog.{SupportsRowLevelOperations, Table}
+import org.apache.spark.sql.connector.catalog.{SupportsMerge, Table}
 
 // must be merged with DataSourceV2Implicits in Spark
 object ExtendedDataSourceV2Implicits {
   implicit class TableHelper(table: Table) {
-    def asRowLevelModifiable: SupportsRowLevelOperations = {
+    def asMergeable: SupportsMerge = {
       table match {
-        case support: SupportsRowLevelOperations =>
+        case support: SupportsMerge =>
           support
         case _ =>
           throw new AnalysisException(s"Table does not support row level operations: ${table.name}")

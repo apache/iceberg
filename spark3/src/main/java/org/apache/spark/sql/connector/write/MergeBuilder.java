@@ -17,10 +17,11 @@
  * under the License.
  */
 
-package org.apache.spark.sql.connector.read;
+package org.apache.spark.sql.connector.write;
 
-import java.util.Set;
+import org.apache.spark.sql.connector.read.ScanBuilder;
 
-public interface SupportsReadFileFilter extends Scan {
-  void filterFiles(Set<String> locations);
+public interface MergeBuilder {
+  ScanBuilder asScanBuilder();
+  WriteBuilder asWriteBuilder();
 }

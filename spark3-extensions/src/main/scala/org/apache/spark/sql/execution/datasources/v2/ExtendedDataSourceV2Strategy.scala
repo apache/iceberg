@@ -20,7 +20,7 @@
 package org.apache.spark.sql.execution.datasources.v2
 
 import org.apache.spark.sql.{AnalysisException, Strategy}
-import org.apache.spark.sql.catalyst.plans.logical.{CallStatement, DynamicFileFilter, LogicalPlan, OverwriteFiles}
+import org.apache.spark.sql.catalyst.plans.logical.{CallStatement, DynamicFileFilter, LogicalPlan, ReplaceData}
 import org.apache.spark.sql.execution.{ProjectExec, SparkPlan}
 
 object ExtendedDataSourceV2Strategy extends Strategy {
@@ -29,6 +29,7 @@ object ExtendedDataSourceV2Strategy extends Strategy {
     case _: CallStatement =>
       throw new AnalysisException("CALL statements are not currently supported")
     case DynamicFileFilter(scanRelation, fileFilterPlan) =>
+      // we don't use planLater here as we need ExtendedBatchScanExec, not BatchScanExec
       val scanExec = ExtendedBatchScanExec(scanRelation.output, scanRelation.scan)
       val dynamicFileFilter = DynamicFileFilterExec(scanExec, planLater(fileFilterPlan))
       if (scanExec.supportsColumnar) {
@@ -37,8 +38,8 @@ object ExtendedDataSourceV2Strategy extends Strategy {
         // add a projection to ensure we have UnsafeRows required by some operations
         ProjectExec(scanRelation.output, dynamicFileFilter) :: Nil
       }
-    case OverwriteFiles(_, batchWrite, query) =>
-      OverwriteFilesExec(batchWrite, planLater(query)) :: Nil
+    case ReplaceData(_, batchWrite, query) =>
+      ReplaceDataExec(batchWrite, planLater(query)) :: Nil
     case _ => Nil
   }
 }

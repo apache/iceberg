@@ -19,10 +19,12 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import collection.JavaConverters._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.plans.physical
+import org.apache.spark.sql.connector.read.SupportsFileFilter
 import org.apache.spark.sql.execution.{BinaryExecNode, SparkPlan}
 import org.apache.spark.sql.vectorized.ColumnarBatch
 
@@ -36,4 +38,14 @@ case class DynamicFileFilterExec(scanExec: ExtendedBatchScanExec, fileFilterExec
 
   override protected def doExecute(): RDD[InternalRow] = scanExec.execute()
   override protected def doExecuteColumnar(): RDD[ColumnarBatch] = scanExec.executeColumnar()
+
+  override protected def doPrepare(): Unit = {
+    scanExec.scan match {
+      case s: SupportsFileFilter =>
+        val rows = fileFilterExec.executeCollect()
+        val matchedFileLocations = rows.map(_.getString(0))
+        s.filterFiles(matchedFileLocations.toSet.asJava)
+      case _ => // do nothing
+    }
+  }
 }

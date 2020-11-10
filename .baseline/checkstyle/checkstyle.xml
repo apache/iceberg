@@ -96,6 +96,7 @@
                 org.apache.iceberg.NullOrder.*,
                 org.apache.iceberg.SortDirection.*,
                 org.apache.iceberg.types.Type.*,
+                org.apache.iceberg.IsolationLevel.*,
                 org.junit.Assert.*,
                 org.apache.spark.sql.functions.*"/>
         </module>

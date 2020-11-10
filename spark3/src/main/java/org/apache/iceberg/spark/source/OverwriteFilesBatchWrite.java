@@ -20,54 +20,71 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.broadcast.Broadcast;
-import org.apache.spark.sql.connector.write.SupportsWriteFileFilter;
+import org.apache.spark.sql.connector.read.Scan;
+import org.apache.spark.sql.connector.write.RequiresScan;
 import org.apache.spark.sql.connector.write.WriterCommitMessage;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-class OverwriteFilesBatchWrite extends BaseBatchWrite implements SupportsWriteFileFilter {
+import static org.apache.iceberg.IsolationLevel.SERIALIZABLE;
+import static org.apache.iceberg.IsolationLevel.SNAPSHOT;
 
-  private List<DataFile> overwrittenFiles;
-  private final Long readSnapshotId;
-  private final Expression conflictDetectionFilter;
+class OverwriteFilesBatchWrite extends BaseBatchWrite implements RequiresScan {
 
-  OverwriteFilesBatchWrite(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryption,
-                           CaseInsensitiveStringMap options, String appId, String wapId,
-                           Schema writeSchema, StructType dsSchema, List<DataFile> overwrittenFiles) {
-    this(table, io, encryption, options, appId, wapId, writeSchema, dsSchema, overwrittenFiles, null, null);
-  }
+  private final IsolationLevel isolationLevel;
+  private SparkBatchScan scan;
 
   OverwriteFilesBatchWrite(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryption,
                            CaseInsensitiveStringMap options, String applicationId, String wapId,
-                           Schema writeSchema, StructType dsSchema, List<DataFile> overwrittenFiles,
-                           Long readSnapshotId, Expression conflictDetectionFilter) {
+                           Schema writeSchema, StructType dsSchema, IsolationLevel isolationLevel) {
     super(table, io, encryption, options, applicationId, wapId, writeSchema, dsSchema);
-    this.overwrittenFiles = overwrittenFiles;
-    this.readSnapshotId = readSnapshotId;
-    this.conflictDetectionFilter = conflictDetectionFilter;
+    this.isolationLevel = isolationLevel;
   }
 
   @Override
-  public void filterFiles(Set<String> locations) {
-    overwrittenFiles = overwrittenFiles.stream()
-        .filter(file -> locations.contains(file.path().toString()))
-        .collect(Collectors.toList());
+  public void withScan(Scan newScan) {
+    Preconditions.checkArgument(newScan instanceof SparkBatchScan, "%s is not SparkBatchScan", newScan);
+    this.scan = (SparkBatchScan) newScan;
+  }
+
+  private List<DataFile> overwrittenFiles() {
+    return scan.files().stream().map(FileScanTask::file).collect(Collectors.toList());
+  }
+
+  private Expression conflictDetectionFilter() {
+    List<Expression> scanFilterExpressions = scan.filterExpressions();
+
+    Expression filter = Expressions.alwaysTrue();
+
+    if (scanFilterExpressions == null) {
+      return filter;
+    }
+
+    for (Expression expr : scanFilterExpressions) {
+      filter = Expressions.and(filter, expr);
+    }
+
+    return filter;
   }
 
   @Override
   public void commit(WriterCommitMessage[] messages) {
     OverwriteFiles overwriteFiles = table().newOverwrite();
 
+    List<DataFile> overwrittenFiles = overwrittenFiles();
     int numOverwrittenFiles = overwrittenFiles.size();
     for (DataFile overwrittenFile : overwrittenFiles) {
       overwriteFiles.deleteFile(overwrittenFile);
@@ -79,17 +96,26 @@ class OverwriteFilesBatchWrite extends BaseBatchWrite implements SupportsWriteFi
       overwriteFiles.addFile(file);
     }
 
-    if (readSnapshotId != null) {
-      overwriteFiles.validateFromSnapshot(readSnapshotId);
-    }
+    if (isolationLevel == SERIALIZABLE) {
+      Long scanSnapshotId = scan.snapshotId();
+      if (scanSnapshotId != null) {
+        overwriteFiles.validateFromSnapshot(scanSnapshotId);
+      }
 
-    if (conflictDetectionFilter != null) {
+      Expression conflictDetectionFilter = conflictDetectionFilter();
       overwriteFiles.validateNoConflictingAppends(conflictDetectionFilter);
-    }
 
-    String commitMsg = String.format(
-        "overwrite of %d data files with %d new data files, readSnapshotId: %d, conflictDetectionFilter: %s",
-        numOverwrittenFiles, numAddedFiles, readSnapshotId, conflictDetectionFilter);
-    commitOperation(overwriteFiles, commitMsg);
+      String commitMsg = String.format(
+          "overwrite of %d data files with %d new data files, scanSnapshotId: %d, conflictDetectionFilter: %s",
+          numOverwrittenFiles, numAddedFiles, scanSnapshotId, conflictDetectionFilter);
+      commitOperation(overwriteFiles, commitMsg);
+    } else if (isolationLevel == SNAPSHOT) {
+      String commitMsg = String.format(
+          "overwrite of %d data files with %d new data files",
+          numOverwrittenFiles, numAddedFiles);
+      commitOperation(overwriteFiles, commitMsg);
+    } else {
+      throw new IllegalArgumentException("Unsupported isolation level: " + isolationLevel);
+    }
   }
 }

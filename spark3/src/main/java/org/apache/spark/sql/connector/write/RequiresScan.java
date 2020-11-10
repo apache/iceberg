@@ -19,9 +19,8 @@
 
 package org.apache.spark.sql.connector.write;
 
-import org.apache.spark.sql.sources.Filter;
+import org.apache.spark.sql.connector.read.Scan;
 
-public interface SupportsPushDownRowLevelFilters extends RowLevelOperationsBuilder {
-  void pushFilters(Filter[] filters);
-  Filter[] pushedFilters();
+public interface RequiresScan extends BatchWrite {
+  void withScan(Scan scan);
 }

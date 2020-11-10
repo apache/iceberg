@@ -22,7 +22,9 @@ package org.apache.iceberg.util;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
@@ -56,5 +58,11 @@ public class PartitionUtil {
       }
     }
     return idToConstant;
+  }
+
+  public static Set<Integer> sourceFieldIds(PartitionSpec spec) {
+    return spec.fields().stream()
+        .map(PartitionField::sourceId)
+        .collect(Collectors.toSet());
   }
 }

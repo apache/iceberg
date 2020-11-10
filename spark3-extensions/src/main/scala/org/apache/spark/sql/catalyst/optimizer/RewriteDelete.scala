@@ -20,22 +20,23 @@
 package org.apache.spark.sql.catalyst.optimizer
 
 import java.util.UUID
+import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{sources, AnalysisException}
-import org.apache.spark.sql.catalyst.analysis.Resolver
 import org.apache.spark.sql.catalyst.expressions.{Alias, Attribute, AttributeReference, EqualNullSafe, Expression, InputFileName, Literal, Not, PredicateHelper, SubqueryExpression}
 import org.apache.spark.sql.catalyst.expressions.Literal.FalseLiteral
-import org.apache.spark.sql.catalyst.plans.logical.{Aggregate, DeleteFromTable, DynamicFileFilter, Filter, LocalRelation, LogicalPlan, OverwriteFiles, Project}
+import org.apache.spark.sql.catalyst.plans.logical.{Aggregate, DeleteFromTable, DynamicFileFilter, Filter, LocalRelation, LogicalPlan, Project, ReplaceData}
 import org.apache.spark.sql.catalyst.rules.Rule
-import org.apache.spark.sql.connector.catalog.{SupportsMetadataOnlyDeletes, Table}
-import org.apache.spark.sql.connector.write.{LogicalWriteInfo, LogicalWriteInfoImpl, RowLevelOperationsBuilder, SupportsPushDownRowLevelFilters}
+import org.apache.spark.sql.connector.catalog.{ExtendedSupportsDelete, Table}
+import org.apache.spark.sql.connector.read.{Scan, ScanBuilder, SupportsFileFilter}
+import org.apache.spark.sql.connector.write.{LogicalWriteInfo, LogicalWriteInfoImpl, MergeBuilder, RequiresScan}
 import org.apache.spark.sql.execution.datasources.DataSourceStrategy
-import org.apache.spark.sql.execution.datasources.v2.{DataSourceV2Relation, DataSourceV2ScanRelation}
+import org.apache.spark.sql.execution.datasources.v2.{DataSourceV2Relation, DataSourceV2ScanRelation, PushDownUtils}
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.{BooleanType, StructType}
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 // TODO: should be part of early scan push down after the delete condition is optimized
-object RewriteDelete extends Rule[LogicalPlan] with PredicateHelper {
+object RewriteDelete extends Rule[LogicalPlan] with PredicateHelper with Logging {
 
   import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implicits._
 
@@ -46,57 +47,78 @@ object RewriteDelete extends Rule[LogicalPlan] with PredicateHelper {
     case DeleteFromTable(_, Some(FalseLiteral)) =>
       LocalRelation()
 
-    // don't rewrite deletes that can be answered using metadata only operations
-    case d @ DeleteFromTable(r: DataSourceV2Relation, Some(cond)) if isMetadataOnlyOperation(r, cond) =>
+    // don't rewrite deletes that can be answered by passing filters to deleteWhere in SupportsDelete
+    case d @ DeleteFromTable(r: DataSourceV2Relation, Some(cond)) if isDeleteWhereCase(r, cond) =>
       d
 
     // rewrite all operations that require reading the table to delete records
     case DeleteFromTable(r: DataSourceV2Relation, Some(cond)) =>
       // TODO: do a switch based on whether we get BatchWrite or DeltaBatchWrite
       val writeInfo = newWriteInfo(r.schema)
-      val builder = r.table.asRowLevelModifiable.newRowLevelOperationsBuilder(writeInfo)
+      val mergeBuilder = r.table.asMergeable.newMergeBuilder(writeInfo)
 
-      pushDownFilters(builder, cond, r.output)
+      val (scan, scanPlan) = buildScanPlan(r.table, r.output, mergeBuilder, cond)
 
-      val scan = builder.buildScan()
-      val scanRelation = DataSourceV2ScanRelation(r.table, scan, r.output)
-      val filterPlan = buildFilterPlan(cond, scanRelation)
+      val remainingRowFilter = Not(EqualNullSafe(cond, Literal(true, BooleanType)))
+      val remainingRowsPlan = Filter(remainingRowFilter, scanPlan)
 
-      val batchWrite = builder.buildBatchWrite()
+      val batchWrite = mergeBuilder.asWriteBuilder.buildForBatch()
+      batchWrite match {
+        case w: RequiresScan => w.withScan(scan)
+        case _ => // do nothing
+      }
+
       // TODO: group by something so that we can write back
       // Option 1: repartition/sort by partition values
       // Option 2: repartition by _file and local sort by partition values (how to deal with 1 GB files?)
-      OverwriteFiles(r, batchWrite, filterPlan)
-      // OverwriteFiles(r, batchWrite, Project(r.output, filterPlan))
+      ReplaceData(r, batchWrite, remainingRowsPlan)
   }
 
-  private def isMetadataOnlyOperation(relation: DataSourceV2Relation, cond: Expression): Boolean = {
+  private def buildScanPlan(
+      table: Table,
+      output: Seq[AttributeReference],
+      mergeBuilder: MergeBuilder,
+      cond: Expression): (Scan, LogicalPlan) = {
+
+    val scanBuilder = mergeBuilder.asScanBuilder
+
+    val predicates = splitConjunctivePredicates(cond)
+    val normalizedPredicates = DataSourceStrategy.normalizeExprs(predicates, output)
+    PushDownUtils.pushFilters(scanBuilder, normalizedPredicates)
+
+    val scan = scanBuilder.build()
+    val scanRelation = DataSourceV2ScanRelation(table, scan, output)
+
+    scan match {
+      case _: SupportsFileFilter =>
+        val matchingFilePlan = buildFileFilterPlan(cond, scanRelation)
+        val dynamicFileFilter = DynamicFileFilter(scanRelation, matchingFilePlan)
+        (scan, dynamicFileFilter)
+      case _ =>
+        (scan, scanRelation)
+    }
+  }
+
+  private def isDeleteWhereCase(relation: DataSourceV2Relation, cond: Expression): Boolean = {
     relation.table match {
-      case t: SupportsMetadataOnlyDeletes if isMetadataOnlyCondition(t, cond) =>
-        val dataSourceFilters = toDataSourceFilters(cond, relation.output)
-        t.canDeleteUsingMetadataWhere(dataSourceFilters)
+      case t: ExtendedSupportsDelete if !SubqueryExpression.hasSubquery(cond) =>
+        val predicates = splitConjunctivePredicates(cond)
+        val normalizedPredicates = DataSourceStrategy.normalizeExprs(predicates, relation.output)
+        val dataSourceFilters = toDataSourceFilters(normalizedPredicates)
+        val allPredicatesTranslated = normalizedPredicates.size == dataSourceFilters.length
+        allPredicatesTranslated && t.canDeleteWhere(dataSourceFilters)
       case _ => false
     }
   }
 
-  private def isMetadataOnlyCondition(table: Table, cond: Expression): Boolean = {
-    val partitionColumnRefs = table.partitioning.flatMap(_.references)
-    val partitionColumnNames = partitionColumnRefs.map(_.fieldNames.mkString(".")).toSet
-
-    val resolver = SQLConf.get.resolver
-    val predicates = splitConjunctivePredicates(cond)
-
-    predicates.forall { pred =>
-      val isExecutable = pred.deterministic && !SubqueryExpression.hasSubquery(pred)
-      isExecutable && isMetadataPredicate(pred, partitionColumnNames, resolver)
-    }
-  }
-
-  private def isMetadataPredicate(
-      predicate: Expression,
-      partitionColumnNames: Set[String],
-      resolver: Resolver): Boolean = {
-    predicate.references.forall { reference => partitionColumnNames.exists(resolver(reference.name, _)) }
+  private def toDataSourceFilters(predicates: Seq[Expression]): Array[sources.Filter] = {
+    predicates.flatMap { p =>
+      val translatedFilter = DataSourceStrategy.translateFilter(p, supportNestedPredicatePushdown = true)
+      if (translatedFilter.isEmpty) {
+        logWarning(s"Cannot translate expression to source filter: $p")
+      }
+      translatedFilter
+    }.toArray
   }
 
   private def newWriteInfo(schema: StructType): LogicalWriteInfo = {
@@ -104,51 +126,12 @@ object RewriteDelete extends Rule[LogicalPlan] with PredicateHelper {
     LogicalWriteInfoImpl(queryId = uuid.toString, schema, CaseInsensitiveStringMap.empty)
   }
 
-  private def pushDownFilters(
-      builder: RowLevelOperationsBuilder,
-      cond: Expression,
-      output: Seq[AttributeReference]): Unit = {
-
-    builder match {
-      case s: SupportsPushDownRowLevelFilters =>
-        val dataSourceFilters = toDataSourceFilters(cond, output)
-        s.pushFilters(dataSourceFilters)
-      case _ => // do nothing
-    }
-  }
-
-  private def toDataSourceFilters(
-      cond: Expression,
-      output: Seq[AttributeReference]): Array[sources.Filter] = {
-
-    val predicates = splitConjunctivePredicates(cond)
-    val normalizedPredicates = DataSourceStrategy.normalizeExprs(predicates, output)
-    toDataSourceFilters(normalizedPredicates)
-  }
-
-  private def toDataSourceFilters(
-      predicates: Seq[Expression],
-      skipUntranslated: Boolean = true): Array[sources.Filter] = {
-
-    predicates.flatMap { p =>
-      val translatedFilter = DataSourceStrategy.translateFilter(p, supportNestedPredicatePushdown = true)
-      if (translatedFilter.isEmpty && !skipUntranslated) {
-        throw new AnalysisException(s"Cannot translate expression to source filter: $p")
-      }
-      translatedFilter
-    }.toArray
-  }
-
-  private def buildFilterPlan(cond: Expression, scanRelation: DataSourceV2ScanRelation): LogicalPlan = {
+  private def buildFileFilterPlan(cond: Expression, scanRelation: DataSourceV2ScanRelation): LogicalPlan = {
     val fileNameExpr = Alias(InputFileName(), FILE_NAME_COL)()
     val fileNameProjection = Project(scanRelation.output :+ fileNameExpr, scanRelation)
     val matchingFilter = Filter(cond, fileNameProjection)
     val fileAttr = findOutputAttr(matchingFilter, FILE_NAME_COL)
-    val matchingFileAgg = Aggregate(Seq(fileAttr), Seq(fileAttr), matchingFilter)
-    // TODO: inject DynamicFileFilter only if either Scan or Write support it
-    val dynamicFileFilter = DynamicFileFilter(scanRelation, matchingFileAgg)
-    val notMatchingRowFilter = Not(EqualNullSafe(cond, Literal(true, BooleanType)))
-    Filter(notMatchingRowFilter, dynamicFileFilter)
+    Aggregate(Seq(fileAttr), Seq(fileAttr), matchingFilter)
   }
 
   private def findOutputAttr(plan: LogicalPlan, attrName: String): Attribute = {
