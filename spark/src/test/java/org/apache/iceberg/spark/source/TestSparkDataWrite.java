@@ -49,6 +49,7 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import static org.apache.iceberg.TableProperties.WRITE_PARTITIONED_FANOUT_ENABLED;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 @RunWith(Parameterized.class)
@@ -333,6 +334,58 @@ public abstract class TestSparkDataWrite {
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
     Table table = tables.create(SCHEMA, spec, location.toString());
+
+    List<SimpleRecord> expected = Lists.newArrayListWithCapacity(8000);
+    for (int i = 0; i < 2000; i++) {
+      expected.add(new SimpleRecord(i, "a"));
+      expected.add(new SimpleRecord(i, "b"));
+      expected.add(new SimpleRecord(i, "c"));
+      expected.add(new SimpleRecord(i, "d"));
+    }
+
+    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
+
+    df.select("id", "data").sort("data").write()
+        .format("iceberg")
+        .option("write-format", format.toString())
+        .mode("append")
+        .option("target-file-size-bytes", 4) // ~4 bytes; low enough to trigger
+        .save(location.toString());
+
+    table.refresh();
+
+    Dataset<Row> result = spark.read()
+        .format("iceberg")
+        .load(location.toString());
+
+    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
+    Assert.assertEquals("Result rows should match", expected, actual);
+
+    List<DataFile> files = Lists.newArrayList();
+    for (ManifestFile manifest : table.currentSnapshot().allManifests()) {
+      for (DataFile file : ManifestFiles.read(manifest, table.io())) {
+        files.add(file);
+      }
+    }
+    // TODO: ORC file now not support target file size
+    if (!format.equals(FileFormat.ORC)) {
+      Assert.assertEquals("Should have 8 DataFiles", 8, files.size());
+      Assert.assertTrue("All DataFiles contain 1000 rows", files.stream().allMatch(d -> d.recordCount() == 1000));
+    }
+  }
+
+  @Test
+  public void testPartitionedFanoutCreateWithTargetFileSizeViaOption() throws IOException {
+    File parent = temp.newFolder(format.toString());
+    File location = new File(parent, "test");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
+    Table table = tables.create(SCHEMA, spec, location.toString());
+    table.updateProperties()
+        .set(WRITE_PARTITIONED_FANOUT_ENABLED, "true")
+        .commit();
 
     List<SimpleRecord> expected = Lists.newArrayListWithCapacity(8000);
     for (int i = 0; i < 2000; i++) {

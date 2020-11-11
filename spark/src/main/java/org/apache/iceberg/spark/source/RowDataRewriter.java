@@ -40,6 +40,7 @@ import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.TaskContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.broadcast.Broadcast;
@@ -106,8 +107,17 @@ public class RowDataRewriter implements Serializable {
     if (spec.fields().isEmpty()) {
       writer = new UnpartitionedWriter<>(spec, format, appenderFactory, fileFactory, io.value(), Long.MAX_VALUE);
     } else {
-      writer = new SparkPartitionedWriter(spec, format, appenderFactory, fileFactory, io.value(), Long.MAX_VALUE,
-          schema, structType);
+      if (PropertyUtil.propertyAsBoolean(properties,
+          TableProperties.WRITE_PARTITIONED_FANOUT_ENABLED,
+          TableProperties.WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT)) {
+        writer = new SparkPartitionedFanoutWriter(spec, format, appenderFactory, fileFactory, io.value(),
+            Long.MAX_VALUE,
+            schema, structType);
+      } else {
+        writer = new SparkPartitionedWriter(spec, format, appenderFactory, fileFactory, io.value(),
+            Long.MAX_VALUE,
+            schema, structType);
+      }
     }
 
     try {

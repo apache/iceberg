@@ -68,6 +68,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.summary.partition-limit      | 0                  | Includes partition-level summary stats in snapshot summaries if the changed partition count is less than this limit |
 | write.metadata.delete-after-commit.enabled | false      | Controls whether to delete the oldest version metadata files after commit |
 | write.metadata.previous-versions-max       | 100        | The max number of previous version metadata files to keep before deleting after commit |
+| write.partitioned.fanout.writer       | false        | Enables Partitioned-Fanout-Writer writes |
 
 ### Table behavior properties
 
@@ -155,4 +156,5 @@ df.write
 | target-file-size-bytes | As per table property      | Overrides this table's write.target-file-size-bytes          |
 | check-nullability      | true                       | Sets the nullable check on fields                            |
 | snapshot-property._custom-key_    | null            | Adds an entry with custom-key and corresponding value in the snapshot summary  |
+| partitioned.fanout.enabled       | Table write.partitioned.fanout.enabled        | Overrides this table's write.partitioned.fanout.enabled  |
 
