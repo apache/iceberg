@@ -28,7 +28,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
 
   override def apply(extensions: SparkSessionExtensions): Unit = {
     extensions.injectParser { case (_, parser) => new IcebergSparkSqlExtensionsParser(parser) }
-    extensions.injectResolutionRule { _ => ResolveProcedures }
+    extensions.injectResolutionRule { spark => ResolveProcedures(spark) }
     extensions.injectPlannerStrategy { _ => ExtendedDataSourceV2Strategy }
   }
 }

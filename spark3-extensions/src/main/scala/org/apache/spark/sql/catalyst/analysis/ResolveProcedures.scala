@@ -20,23 +20,20 @@
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.{AnalysisException, SparkSession}
-import org.apache.spark.sql.catalyst.expressions.{Expression, Literal}
+import org.apache.spark.sql.catalyst.expressions.{Cast, Expression, Literal}
 import org.apache.spark.sql.catalyst.plans.logical.{Call, CallArgument, CallStatement, LogicalPlan, NamedArgument, PositionalArgument}
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.connector.catalog.{CatalogManager, CatalogPlugin, LookupCatalog, Procedure, ProcedureCatalog, ProcedureParameter}
 import scala.collection.Seq
 
-object ResolveProcedures extends Rule[LogicalPlan] with LookupCatalog {
+case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with LookupCatalog {
 
-  protected lazy val catalogManager: CatalogManager = SparkSession.active.sessionState.catalogManager
+  protected lazy val catalogManager: CatalogManager = spark.sessionState.catalogManager
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     case CallStatement(CatalogAndIdentifier(catalog, ident), args) =>
       val procedure = catalog.asProcedureCatalog.loadProcedure(ident)
-
       validateParams(procedure)
-      validateMethodHandle(procedure)
-
       Call(procedure, args = buildArgExprs(procedure, args))
   }
 
@@ -55,40 +52,6 @@ object ResolveProcedures extends Rule[LogicalPlan] with LookupCatalog {
       case Array(previousParam, currentParam) if previousParam.required && !currentParam.required =>
         throw new AnalysisException("Optional parameters must be after required ones")
       case _ =>
-    }
-  }
-
-  private def validateMethodHandle(procedure: Procedure): Unit = {
-    val params = procedure.parameters
-    val outputType = procedure.outputType
-
-    val methodHandle = procedure.methodHandle
-    val methodType = methodHandle.`type`
-    val methodReturnType = methodType.returnType
-
-    // method cannot accept var ags
-    if (methodHandle.isVarargsCollector) {
-      throw new AnalysisException("Method must have fixed arity")
-    }
-
-    // verify the number of params in the procedure match the number of params in the method
-    if (params.length != methodType.parameterCount) {
-      throw new AnalysisException("Method parameter count must match the number of procedure parameters")
-    }
-
-    // the MethodHandle API does not allow us to check the generic type
-    // so we only verify the return type is either void or iterable
-
-    if (outputType.nonEmpty && methodReturnType != classOf[java.lang.Iterable[_]]) {
-      throw new AnalysisException(
-        s"Wrong method return type: $methodReturnType; the procedure defines $outputType " +
-        "as its output so must return java.lang.Iterable of Spark Rows")
-    }
-
-    if (outputType.isEmpty && methodReturnType != classOf[Void]) {
-      throw new AnalysisException(
-        s"Wrong method return type: $methodReturnType; the procedure defines no output columns " +
-        "so must be void")
     }
   }
 
@@ -117,10 +80,16 @@ object ResolveProcedures extends Rule[LogicalPlan] with LookupCatalog {
       val param = params(position)
       val paramType = param.dataType
       val argType = arg.expr.dataType
-      if (paramType != argType) {
+
+      if (paramType != argType && !Cast.canUpCast(argType, paramType)) {
         throw new AnalysisException(s"Wrong arg type for ${param.name}: expected $paramType but got $argType")
       }
-      argExprs(position) = arg.expr
+
+      if (paramType != argType) {
+        argExprs(position) = Cast(arg.expr, paramType)
+      } else {
+        argExprs(position) = arg.expr
+      }
     }
 
     // assign nulls to optional params that were not set

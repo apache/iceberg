@@ -19,29 +19,16 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
-import java.lang.invoke.MethodHandle
-import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.catalyst.expressions.Attribute
-import scala.collection.JavaConverters._
+import org.apache.spark.sql.connector.catalog.Procedure
 
 case class CallExec(
     output: Seq[Attribute],
-    methodHandle: MethodHandle,
-    argValues: Seq[Any]) extends V2CommandExec {
-
-  private lazy val toInternalRow = RowEncoder(schema).resolveAndBind().createSerializer()
+    procedure: Procedure,
+    input: InternalRow) extends V2CommandExec {
 
   override protected def run(): Seq[InternalRow] = {
-    // convert Any to AnyRef since invokeWithArguments expects Java Object
-    val mappedArgValues = argValues.map(_.asInstanceOf[AnyRef])
-    val result = methodHandle.invokeWithArguments(mappedArgValues: _*)
-    if (output.nonEmpty) {
-      val outputRows = result.asInstanceOf[java.lang.Iterable[Row]]
-      outputRows.asScala.map(toInternalRow).toSeq
-    } else {
-      Seq.empty
-    }
+    procedure.call(input)
   }
 }

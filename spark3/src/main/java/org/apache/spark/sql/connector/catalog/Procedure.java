@@ -19,11 +19,11 @@
 
 package org.apache.spark.sql.connector.catalog;
 
-import java.lang.invoke.MethodHandle;
+import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.StructType;
 
 public interface Procedure {
   ProcedureParameter[] parameters();
   StructType outputType();
-  MethodHandle methodHandle();
+  InternalRow[] call(InternalRow input);
 }
