@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -659,5 +660,83 @@ public abstract class TestReadProjection {
     Record innerResult = (Record) outerResult.get("inner");
     Assert.assertNotNull("Should contain the inner record", innerResult);
     Assert.assertNull("Should not contain lon", innerResult.get("lon"));
+  }
+
+  @Test
+  public void testMetadataFieldProjection() throws Exception {
+    Schema writeSchema = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.required(3, "outer", Types.StructType.of(
+            Types.NestedField.required(1, "lat", Types.FloatType.get()),
+            Types.NestedField.required(2, "inner", Types.StructType.of(
+                Types.NestedField.required(5, "lon", Types.FloatType.get())
+                )
+            )
+        ))
+    );
+
+    Record record = new Record(AvroSchemaUtil.convert(writeSchema, "table"));
+    record.put("id", 34L);
+    Record outer = new Record(record.getSchema().getField("outer").schema());
+    Record inner = new Record(outer.getSchema().getField("inner").schema());
+    inner.put("lon", 32.14f);
+    outer.put("lat", 52.995143f);
+    outer.put("inner", inner);
+    record.put("outer", outer);
+
+    Schema metadataStruct = new Schema(
+        Types.NestedField.required(3, "outer", Types.StructType.of(
+            Types.NestedField.required(2, "inner", Types.StructType.of(MetadataColumns.ROW_POSITION)
+            ))
+        ));
+
+    Record projected = writeAndRead("nested_empty_proj", writeSchema, metadataStruct, record);
+    Assert.assertNull("Should not project data", projected.get("id"));
+    Record outerResult = (Record) projected.get("outer");
+    Assert.assertNotNull("Should contain the outer record", outerResult);
+    Assert.assertNull("Should not contain lat", outerResult.get("lat"));
+    Record innerResult = (Record) outerResult.get("inner");
+    Assert.assertNotNull("Should contain the inner record", innerResult);
+    Assert.assertNull("Should not contain lon", innerResult.get("lon"));
+    String metaName = MetadataColumns.ROW_POSITION.name() + "_r" + MetadataColumns.ROW_POSITION.fieldId();
+    Assert.assertNotNull("Should contain metadata field", innerResult.get(metaName));
+  }
+
+  @Test
+  public void testNonExistentProjection() throws Exception {
+    Schema writeSchema = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.optional(3, "location", Types.StructType.of(
+            Types.NestedField.required(1, "lat", Types.FloatType.get()),
+            Types.NestedField.required(2, "long", Types.FloatType.get())
+        ))
+    );
+
+    Record record = new Record(AvroSchemaUtil.convert(writeSchema, "table"));
+    record.put("id", 34L);
+    Record location = new Record(
+        AvroSchemaUtil.fromOption(record.getSchema().getField("location").schema()));
+    location.put("lat", 52.995143f);
+    location.put("long", -1.539054f);
+    record.put("location", location);
+
+    Schema emptyStruct = new Schema(
+        Types.NestedField.required(3, "location", Types.StructType.of(
+            Types.NestedField.optional(10000, "foo", Types.StructType.of(
+                Types.NestedField.optional(10001, "bar", Types.IntegerType.get())
+            ))
+        ))
+    );
+
+    Record projected = writeAndRead("empty_proj", writeSchema, emptyStruct, record);
+    Assert.assertNull("Should not project data", projected.get("data"));
+    Record result = (Record) projected.get("location");
+    Assert.assertNotNull("Should contain an fake optional record", result);
+    Assert.assertNull("Should not project lat", result.get("lat"));
+    Assert.assertNull("Should not project long", result.get("long"));
+    Assert.assertNotNull("Schema should contain foo", result.getSchema().getField("foo_r10000"));
+    Assert.assertNotNull("Schema should contain foo.bar",
+        AvroSchemaUtil.fromOption(result.getSchema().getField("foo_r10000").schema())
+            .getField("bar"));
   }
 }

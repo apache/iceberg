@@ -117,10 +117,6 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
     return record;
   }
 
-  private boolean isEmptyStruct(Types.NestedField field) {
-    return field.type().isStructType() && ((Types.StructType) field.type()).fields().isEmpty();
-  }
-
   @Override
   public Schema.Field field(Schema.Field field, Supplier<Schema> fieldResult) {
     Types.StructType struct = current.asNestedType().asStructType();

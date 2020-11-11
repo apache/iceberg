@@ -37,9 +37,28 @@ class GetEmptyStructIds extends TypeUtil.SchemaVisitor<Set<Integer>> {
     return fieldIds;
   }
 
+  private boolean isEmptyStruct(Types.NestedField field) {
+    return field.type().isStructType() && ((Types.StructType) field.type()).fields().isEmpty();
+  }
+
+  /**
+   * We don't know at this point whether the fields contained within a struct are Metadata (and don't exist in the file)
+   * or have been projected in as optional and don't exist in the file. Here we check if all the fields are a combination
+   * of those two states.
+   * @param field a nested field which may be an empty struct
+   * @return true if we need to preserve this struct as it may be needed for its child fields
+   */
+  private boolean isPotentiallyEmpty(Types.NestedField field) {
+    if (!field.type().isStructType()) {
+      return false;
+    }
+    List<Types.NestedField> fields = ((Types.StructType) field.type()).fields();
+    return fields.stream().allMatch(f -> f.fieldId() > Integer.MAX_VALUE - 201 || f.isOptional());
+  }
+
   @Override
   public Set<Integer> field(Types.NestedField field, Set<Integer> fieldResult) {
-    if (field.type().isStructType() && ((Types.StructType) field.type()).fields().isEmpty()) {
+    if (isEmptyStruct(field) || isPotentiallyEmpty(field)) {
       fieldIds.add(field.fieldId());
     }
     return fieldIds;
