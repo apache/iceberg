@@ -43,8 +43,8 @@ class GetEmptyStructIds extends TypeUtil.SchemaVisitor<Set<Integer>> {
 
   /**
    * We don't know at this point whether the fields contained within a struct are Metadata (and don't exist in the file)
-   * or have been projected in as optional and don't exist in the file. Here we check if all the fields are a combination
-   * of those two states.
+   * or have been projected in as optional and don't exist in the file. Here we check if all the fields are a
+   * combination of those two states.
    * @param field a nested field which may be an empty struct
    * @return true if we need to preserve this struct as it may be needed for its child fields
    */
