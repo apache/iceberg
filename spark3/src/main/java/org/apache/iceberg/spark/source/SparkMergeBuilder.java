@@ -22,11 +22,13 @@ package org.apache.iceberg.spark.source;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import org.apache.arrow.util.Preconditions;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.MergeBuilder;
@@ -42,6 +44,7 @@ class SparkMergeBuilder implements MergeBuilder {
 
   // lazy vars
   private ScanBuilder lazyScanBuilder;
+  private Scan configuredScan;
   private WriteBuilder lazyWriteBuilder;
 
   SparkMergeBuilder(SparkSession spark, Table table, LogicalWriteInfo writeInfo) {
@@ -63,8 +66,14 @@ class SparkMergeBuilder implements MergeBuilder {
 
   private ScanBuilder scanBuilder() {
     if (lazyScanBuilder == null) {
+      SparkScanBuilder scanBuilder = new SparkScanBuilder(spark, table, scanOptions()) {
+        public Scan build() {
+          Scan scan = super.build();
+          SparkMergeBuilder.this.configuredScan = scan;
+          return scan;
+        }
+      };
       // ignore residuals to ensure we read full files
-      SparkScanBuilder scanBuilder = new SparkScanBuilder(spark, table, scanOptions());
       lazyScanBuilder = scanBuilder.ignoreResiduals();
     }
 
@@ -79,7 +88,7 @@ class SparkMergeBuilder implements MergeBuilder {
     }
 
     // set the snapshot id in the scan so that we can fetch it in the write
-    Map<String, String> scanOptions = new HashMap<>();
+    Map<String, String> scanOptions = new HashMap<>(writeInfo.options());
     scanOptions.put("snapshot-id", String.valueOf(currentSnapshot.snapshotId()));
     return new CaseInsensitiveStringMap(scanOptions);
   }
@@ -91,8 +100,9 @@ class SparkMergeBuilder implements MergeBuilder {
 
   private WriteBuilder writeBuilder() {
     if (lazyWriteBuilder == null) {
+      Preconditions.checkState(configuredScan != null, "Write must be configured after scan");
       SparkWriteBuilder writeBuilder = new SparkWriteBuilder(spark, table, writeInfo);
-      lazyWriteBuilder = writeBuilder.overwriteFiles(isolationLevel);
+      lazyWriteBuilder = writeBuilder.overwriteFiles(configuredScan, isolationLevel);
     }
 
     return lazyWriteBuilder;

@@ -26,6 +26,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -33,7 +34,6 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.ExtendedSupportsDelete;
 import org.apache.spark.sql.connector.catalog.SupportsMerge;
@@ -48,12 +48,16 @@ import org.apache.spark.sql.connector.write.WriteBuilder;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.TableProperties.WRITE_ROW_LEVEL_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_ROW_LEVEL_MODE_DEFAULT;
 
 public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     SupportsRead, SupportsWrite, ExtendedSupportsDelete, SupportsMerge {
+
+  private static final Logger LOG = LoggerFactory.getLogger(SparkTable.class);
 
   private static final Set<String> RESERVED_PROPERTIES = Sets.newHashSet("provider", "format", "current-snapshot-id");
   private static final Set<TableCapability> CAPABILITIES = ImmutableSet.of(
@@ -172,13 +176,17 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   @Override
   public boolean canDeleteWhere(Filter[] filters) {
-    // TODO: multiple partition specs
-    Set<Integer> partitionFieldSourceIds = PartitionUtil.sourceFieldIds(table().spec());
+    if (table().specs().size() > 1) {
+      // cannot guarantee a metadata delete will be successful if we have multiple specs
+      return false;
+    }
+
+    Set<Integer> identitySourceIds = table().spec().identitySourceIds();
     Schema schema = table().schema();
 
     for (Filter filter : filters) {
-      // return false if we have a predicate on a non-partition column or if we cannot translate the filter
-      if (isDataFilter(filter, schema, partitionFieldSourceIds) || SparkFilters.convert(filter) == null) {
+      // return false if the filter requires rewrite or if we cannot translate the filter
+      if (requiresRewrite(filter, schema, identitySourceIds) || SparkFilters.convert(filter) == null) {
         return false;
       }
     }
@@ -186,19 +194,24 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     return true;
   }
 
-  private boolean isDataFilter(Filter filter, Schema schema, Set<Integer> partitionFieldSourceIds) {
+  private boolean requiresRewrite(Filter filter, Schema schema, Set<Integer> identitySourceIds) {
     // TODO: handle dots correctly via v2references
     Set<String> filterRefs = Sets.newHashSet(filter.references());
     return filterRefs.stream().anyMatch(ref -> {
       Types.NestedField field = schema.findField(ref);
       ValidationException.check(field != null, "Cannot find field %s in schema", ref);
-      return !partitionFieldSourceIds.contains(field.fieldId());
+      return !identitySourceIds.contains(field.fieldId());
     });
   }
 
   @Override
   public void deleteWhere(Filter[] filters) {
     Expression deleteExpr = SparkFilters.convert(filters);
+
+    if (deleteExpr == Expressions.alwaysFalse()) {
+      LOG.info("Skipping the delete operation as the condition is always false");
+      return;
+    }
 
     try {
       icebergTable.newDelete()

@@ -35,6 +35,7 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.write.BatchWrite;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.SupportsDynamicOverwrite;
@@ -57,7 +58,8 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   private boolean overwriteByFilter = false;
   private Expression overwriteExpr = null;
   private boolean overwriteFiles = false;
-  private IsolationLevel isolationLevel;
+  private SparkBatchScan overwriteFilesScan = null;
+  private IsolationLevel isolationLevel = null;
 
   // lazy variables
   private JavaSparkContext lazySparkContext = null;
@@ -79,10 +81,12 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     return lazySparkContext;
   }
 
-  public WriteBuilder overwriteFiles(IsolationLevel writeIsolationLevel) {
+  public WriteBuilder overwriteFiles(Scan scan, IsolationLevel writeIsolationLevel) {
+    Preconditions.checkArgument(scan instanceof SparkBatchScan, "%s is not SparkBatchScan", scan);
     Preconditions.checkState(!overwriteByFilter, "Cannot overwrite individual files and by filter");
     Preconditions.checkState(!overwriteDynamic, "Cannot overwrite individual files and dynamically");
     this.overwriteFiles = true;
+    this.overwriteFilesScan = (SparkBatchScan) scan;
     this.isolationLevel = writeIsolationLevel;
     return this;
   }
@@ -130,21 +134,25 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
 
     if (overwriteFiles) {
       return new OverwriteFilesBatchWrite(
-          table, io, encryptionManager, options, appId, wapId, writeSchema, dsSchema, isolationLevel);
+          table, io, encryptionManager, options, appId, wapId,
+          writeSchema, dsSchema, overwriteFilesScan, isolationLevel);
     }
 
     if (overwriteByFilter) {
       return new OverwriteByFilterBatchWrite(
-          table, io, encryptionManager, options, appId, wapId, writeSchema, dsSchema, overwriteExpr);
+          table, io, encryptionManager, options, appId, wapId,
+          writeSchema, dsSchema, overwriteExpr);
     }
 
     if (overwriteDynamic) {
       return new OverwriteDynamicBatchWrite(
-          table, io, encryptionManager, options, appId, wapId, writeSchema, dsSchema);
+          table, io, encryptionManager, options, appId, wapId,
+          writeSchema, dsSchema);
     }
 
     return new AppendBatchWrite(
-        table, io, encryptionManager, options, appId, wapId, writeSchema, dsSchema);
+        table, io, encryptionManager, options, appId, wapId,
+        writeSchema, dsSchema);
   }
 
   @Override

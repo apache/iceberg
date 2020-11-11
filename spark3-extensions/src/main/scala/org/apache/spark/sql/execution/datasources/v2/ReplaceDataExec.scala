@@ -30,14 +30,7 @@ case class ReplaceDataExec(batchWrite: BatchWrite, queryExec: SparkPlan) extends
 
   // TODO: doPrepare is NOT invoked by V2TableWriteExec
   override lazy val query: SparkPlan = {
-    val dynamicFileFilters = queryExec.collect { case s: DynamicFileFilterExec => s }
-    require(dynamicFileFilters.size <= 1, "must be at most one dynamic filter")
-
-    if (dynamicFileFilters.nonEmpty) {
-      val dynamicFileFilter = dynamicFileFilters.head
-      dynamicFileFilter.prepare()
-    }
-
+    queryExec.prepare()
     queryExec
   }
 

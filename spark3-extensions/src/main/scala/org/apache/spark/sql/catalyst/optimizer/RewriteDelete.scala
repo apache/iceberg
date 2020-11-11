@@ -23,12 +23,11 @@ import java.util.UUID
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.{sources, AnalysisException}
 import org.apache.spark.sql.catalyst.expressions.{Alias, Attribute, AttributeReference, EqualNullSafe, Expression, InputFileName, Literal, Not, PredicateHelper, SubqueryExpression}
-import org.apache.spark.sql.catalyst.expressions.Literal.FalseLiteral
-import org.apache.spark.sql.catalyst.plans.logical.{Aggregate, DeleteFromTable, DynamicFileFilter, Filter, LocalRelation, LogicalPlan, Project, ReplaceData}
+import org.apache.spark.sql.catalyst.plans.logical.{Aggregate, DeleteFromTable, DynamicFileFilter, Filter, LogicalPlan, Project, ReplaceData}
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.connector.catalog.{ExtendedSupportsDelete, Table}
-import org.apache.spark.sql.connector.read.{Scan, ScanBuilder, SupportsFileFilter}
-import org.apache.spark.sql.connector.write.{LogicalWriteInfo, LogicalWriteInfoImpl, MergeBuilder, RequiresScan}
+import org.apache.spark.sql.connector.read.SupportsFileFilter
+import org.apache.spark.sql.connector.write.{LogicalWriteInfo, LogicalWriteInfoImpl, MergeBuilder}
 import org.apache.spark.sql.execution.datasources.DataSourceStrategy
 import org.apache.spark.sql.execution.datasources.v2.{DataSourceV2Relation, DataSourceV2ScanRelation, PushDownUtils}
 import org.apache.spark.sql.internal.SQLConf
@@ -43,10 +42,6 @@ object RewriteDelete extends Rule[LogicalPlan] with PredicateHelper with Logging
   private val FILE_NAME_COL = "_file"
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
-    // no need to execute this delete as the condition is false
-    case DeleteFromTable(_, Some(FalseLiteral)) =>
-      LocalRelation()
-
     // don't rewrite deletes that can be answered by passing filters to deleteWhere in SupportsDelete
     case d @ DeleteFromTable(r: DataSourceV2Relation, Some(cond)) if isDeleteWhereCase(r, cond) =>
       d
@@ -57,16 +52,12 @@ object RewriteDelete extends Rule[LogicalPlan] with PredicateHelper with Logging
       val writeInfo = newWriteInfo(r.schema)
       val mergeBuilder = r.table.asMergeable.newMergeBuilder(writeInfo)
 
-      val (scan, scanPlan) = buildScanPlan(r.table, r.output, mergeBuilder, cond)
+      val scanPlan = buildScanPlan(r.table, r.output, mergeBuilder, cond)
 
       val remainingRowFilter = Not(EqualNullSafe(cond, Literal(true, BooleanType)))
       val remainingRowsPlan = Filter(remainingRowFilter, scanPlan)
 
       val batchWrite = mergeBuilder.asWriteBuilder.buildForBatch()
-      batchWrite match {
-        case w: RequiresScan => w.withScan(scan)
-        case _ => // do nothing
-      }
 
       // TODO: group by something so that we can write back
       // Option 1: repartition/sort by partition values
@@ -78,7 +69,7 @@ object RewriteDelete extends Rule[LogicalPlan] with PredicateHelper with Logging
       table: Table,
       output: Seq[AttributeReference],
       mergeBuilder: MergeBuilder,
-      cond: Expression): (Scan, LogicalPlan) = {
+      cond: Expression): LogicalPlan = {
 
     val scanBuilder = mergeBuilder.asScanBuilder
 
@@ -93,9 +84,9 @@ object RewriteDelete extends Rule[LogicalPlan] with PredicateHelper with Logging
       case _: SupportsFileFilter =>
         val matchingFilePlan = buildFileFilterPlan(cond, scanRelation)
         val dynamicFileFilter = DynamicFileFilter(scanRelation, matchingFilePlan)
-        (scan, dynamicFileFilter)
+        dynamicFileFilter
       case _ =>
-        (scan, scanRelation)
+        scanRelation
     }
   }
 

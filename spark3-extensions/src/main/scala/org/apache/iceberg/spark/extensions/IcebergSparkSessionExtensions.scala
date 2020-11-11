@@ -30,7 +30,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
   override def apply(extensions: SparkSessionExtensions): Unit = {
     extensions.injectParser { case (_, parser) => new IcebergSparkSqlExtensionsParser(parser) }
     extensions.injectCheckRule { _ => DeleteFromTablePredicateCheck }
-    // TODO: RewriteDeleteOperations should be part of early scan push down rules
+    // TODO: RewriteDelete should be part of early scan push down rules
     extensions.injectOptimizerRule { _ => OptimizeConditionsInRowLevelOperations }
     // TODO: PullupCorrelatedPredicates should handle row-level operations
     extensions.injectOptimizerRule { _ => PullupCorrelatedPredicatesInRowLevelOperations }

@@ -31,10 +31,7 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.broadcast.Broadcast;
-import org.apache.spark.sql.connector.read.Scan;
-import org.apache.spark.sql.connector.write.RequiresScan;
 import org.apache.spark.sql.connector.write.WriterCommitMessage;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -42,22 +39,18 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import static org.apache.iceberg.IsolationLevel.SERIALIZABLE;
 import static org.apache.iceberg.IsolationLevel.SNAPSHOT;
 
-class OverwriteFilesBatchWrite extends BaseBatchWrite implements RequiresScan {
+class OverwriteFilesBatchWrite extends BaseBatchWrite {
 
+  private final SparkBatchScan scan;
   private final IsolationLevel isolationLevel;
-  private SparkBatchScan scan;
 
   OverwriteFilesBatchWrite(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryption,
                            CaseInsensitiveStringMap options, String applicationId, String wapId,
-                           Schema writeSchema, StructType dsSchema, IsolationLevel isolationLevel) {
+                           Schema writeSchema, StructType dsSchema, SparkBatchScan scan,
+                           IsolationLevel isolationLevel) {
     super(table, io, encryption, options, applicationId, wapId, writeSchema, dsSchema);
+    this.scan = scan;
     this.isolationLevel = isolationLevel;
-  }
-
-  @Override
-  public void withScan(Scan newScan) {
-    Preconditions.checkArgument(newScan instanceof SparkBatchScan, "%s is not SparkBatchScan", newScan);
-    this.scan = (SparkBatchScan) newScan;
   }
 
   private List<DataFile> overwrittenFiles() {
