@@ -17,18 +17,23 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.extensions
+package org.apache.spark.sql.execution.datasources.v2
 
-import org.apache.spark.sql.SparkSessionExtensions
-import org.apache.spark.sql.catalyst.analysis.ResolveProcedures
-import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
-import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Strategy
+import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.catalyst.util.truncatedString
+import org.apache.spark.sql.connector.catalog.Procedure
 
-class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
+case class CallExec(
+    output: Seq[Attribute],
+    procedure: Procedure,
+    input: InternalRow) extends V2CommandExec {
 
-  override def apply(extensions: SparkSessionExtensions): Unit = {
-    extensions.injectParser { case (_, parser) => new IcebergSparkSqlExtensionsParser(parser) }
-    extensions.injectResolutionRule { spark => ResolveProcedures(spark) }
-    extensions.injectPlannerStrategy { _ => ExtendedDataSourceV2Strategy }
+  override protected def run(): Seq[InternalRow] = {
+    procedure.call(input)
+  }
+
+  override def simpleString(maxFields: Int): String = {
+    s"CallExec${truncatedString(output, "[", ", ", "]", maxFields)} ${procedure.description}"
   }
 }
