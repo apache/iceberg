@@ -574,7 +574,7 @@ public class ParquetValueWriters {
     protected Object get(PositionDelete<R> delete, int index) {
       switch (index) {
         case 0:
-          return positionAccessor.accessFilePath(delete.path());
+          return positionAccessor.accessPath(delete.path());
         case 1:
           return positionAccessor.accessPos(delete.pos());
         case 2:

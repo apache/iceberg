@@ -113,10 +113,10 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
   @Override
   public ContentFileWriterFactory<DataFile, Record> createDataFileWriterFactory() {
     return (partitionKey, outputFile, fileFormat) -> {
-      FileAppender<Record> appender = appenderFactory.newAppender(outputFile.encryptingOutputFile(), format);
+      FileAppender<Record> appender = appenderFactory.newAppender(outputFile.encryptingOutputFile(), fileFormat);
 
       return new DataFileWriter<>(appender,
-          format,
+          fileFormat,
           outputFile.encryptingOutputFile().location(),
           partitionKey,
           spec, outputFile.keyMetadata());

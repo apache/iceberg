@@ -94,7 +94,7 @@ public class TestOverwrite extends TableTestBase {
 
   @Parameterized.Parameters(name = "formatVersion = {0}")
   public static Object[] parameters() {
-    return new Object[] {1, 2};
+    return new Object[] { 1, 2 };
   }
 
   public TestOverwrite(int formatVersion) {

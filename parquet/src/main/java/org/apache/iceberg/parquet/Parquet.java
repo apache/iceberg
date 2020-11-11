@@ -273,7 +273,7 @@ public class Parquet {
 
   public interface PositionAccessor<FILE, POS> {
 
-    FILE accessFilePath(CharSequence path);
+    FILE accessPath(CharSequence path);
 
     POS accessPos(long pos);
   }
@@ -283,7 +283,7 @@ public class Parquet {
     static final IdentityPositionAccessor INSTANCE = new IdentityPositionAccessor();
 
     @Override
-    public CharSequence accessFilePath(CharSequence path) {
+    public CharSequence accessPath(CharSequence path) {
       return path;
     }
 

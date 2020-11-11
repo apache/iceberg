@@ -127,10 +127,10 @@ public class FlinkDeltaWriterFactory implements DeltaWriterFactory<RowData> {
   public ContentFileWriterFactory<DataFile, RowData> createDataFileWriterFactory() {
     // TODO Move this to its default function ???
     return (partitionKey, outputFile, fileFormat) -> {
-      FileAppender<RowData> appender = appenderFactory.newAppender(outputFile.encryptingOutputFile(), format);
+      FileAppender<RowData> appender = appenderFactory.newAppender(outputFile.encryptingOutputFile(), fileFormat);
 
       return new DataFileWriter<>(appender,
-          format,
+          fileFormat,
           outputFile.encryptingOutputFile().location(),
           partitionKey,
           spec, outputFile.keyMetadata());
@@ -235,7 +235,7 @@ public class FlinkDeltaWriterFactory implements DeltaWriterFactory<RowData> {
     private static final RowDataPositionAccessor INSTANCE = new RowDataPositionAccessor();
 
     @Override
-    public StringData accessFilePath(CharSequence path) {
+    public StringData accessPath(CharSequence path) {
       return StringData.fromString(path.toString());
     }
 
