@@ -26,7 +26,6 @@ import org.apache.avro.JsonProperties;
 import org.apache.avro.Schema;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
