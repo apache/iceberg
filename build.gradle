@@ -249,6 +249,7 @@ project(':iceberg-aws') {
     compile project(':iceberg-api')
     compile project(':iceberg-core')
 
+    compile 'software.amazon.awssdk:url-connection-client'
     compile 'software.amazon.awssdk:s3'
 
     testCompile("com.adobe.testing:s3mock-junit4") {
