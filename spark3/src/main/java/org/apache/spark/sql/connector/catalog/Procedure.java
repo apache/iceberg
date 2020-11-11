@@ -24,6 +24,12 @@ import org.apache.spark.sql.types.StructType;
 
 public interface Procedure {
   ProcedureParameter[] parameters();
+
   StructType outputType();
+
   InternalRow[] call(InternalRow input);
+
+  default String description() {
+    return this.getClass().toString();
+  }
 }
