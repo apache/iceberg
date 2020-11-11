@@ -90,13 +90,15 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       // selected by lower IDs.
       if (selectedIds.contains(fieldId)) {
         filteredFields.add(copyField(field, field.schema(), fieldId));
-      } else if (emptyStructIds.contains(fieldId)) {
-        hasChange = true;
-        Schema empty = AvroSchemaUtil.removeFields(field);
-        filteredFields.add(copyField(field, empty, fieldId));
       } else if (fieldSchema != null) {
         hasChange = true;
         filteredFields.add(copyField(field, fieldSchema, fieldId));
+      } else if (emptyStructIds.contains(fieldId)) {
+        // This field does not require any known sub-fields but is required in the projection so keep it without
+        // any of it's subfields
+        hasChange = true;
+        Schema empty = AvroSchemaUtil.removeFields(field);
+        filteredFields.add(copyField(field, empty, fieldId));
       }
     }
 
