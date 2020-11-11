@@ -23,18 +23,11 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.connector.write.BatchWrite
 import org.apache.spark.sql.execution.SparkPlan
 
-case class ReplaceDataExec(batchWrite: BatchWrite, queryExec: SparkPlan) extends V2TableWriteExec {
-
-  // override child so that we can properly plan queryExec without executing the file filter
-  override def child: SparkPlan = queryExec
-
-  // TODO: doPrepare is NOT invoked by V2TableWriteExec
-  override lazy val query: SparkPlan = {
-    queryExec.prepare()
-    queryExec
-  }
+case class ReplaceDataExec(batchWrite: BatchWrite, query: SparkPlan) extends V2TableWriteExec {
 
   override protected def run(): Seq[InternalRow] = {
+    // calling prepare() ensures we execute DynamicFileFilter if present
+    prepare()
     writeWithV2(batchWrite)
   }
 }
