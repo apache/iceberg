@@ -579,7 +579,7 @@ public abstract class TestReadProjection {
         Types.NestedField.required(3, "location", Types.StructType.of())
     );
 
-    Record projected = writeAndRead("empty_proj", writeSchema, emptyStruct, record);
+    Record projected = writeAndRead("empty_req_proj", writeSchema, emptyStruct, record);
     Assert.assertNull("Should not project data", projected.get("data"));
     Record result = (Record) projected.get("location");
     Assert.assertNotNull("Should contain an empty record", result);
@@ -652,7 +652,7 @@ public abstract class TestReadProjection {
             Types.NestedField.required(2, "inner", Types.StructType.of())
         )));
 
-    Record projected = writeAndRead("nested_empty_proj", writeSchema, emptyStruct, record);
+    Record projected = writeAndRead("nested_empty_req_proj", writeSchema, emptyStruct, record);
     Assert.assertNull("Should not project data", projected.get("id"));
     Record outerResult = (Record) projected.get("outer");
     Assert.assertNotNull("Should contain the outer record", outerResult);
@@ -690,7 +690,7 @@ public abstract class TestReadProjection {
             ))
         ));
 
-    Record projected = writeAndRead("nested_empty_proj", writeSchema, metadataStruct, record);
+    Record projected = writeAndRead("metadata_field_proj", writeSchema, metadataStruct, record);
     Assert.assertNull("Should not project data", projected.get("id"));
     Record outerResult = (Record) projected.get("outer");
     Assert.assertNotNull("Should contain the outer record", outerResult);
@@ -728,7 +728,7 @@ public abstract class TestReadProjection {
         ))
     );
 
-    Record projected = writeAndRead("empty_proj", writeSchema, emptyStruct, record);
+    Record projected = writeAndRead("non_existant_proj", writeSchema, emptyStruct, record);
     Assert.assertNull("Should not project data", projected.get("data"));
     Record result = (Record) projected.get("location");
     Assert.assertNotNull("Should contain an fake optional record", result);
