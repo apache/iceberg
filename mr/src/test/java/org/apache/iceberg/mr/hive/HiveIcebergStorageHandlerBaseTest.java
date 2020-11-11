@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -51,6 +52,7 @@ import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.After;
@@ -106,6 +108,12 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
           StatsSetupConst.RAW_DATA_SIZE, StatsSetupConst.TOTAL_SIZE, StatsSetupConst.NUM_FILES, "numFilesErasureCoded");
 
   private static TestHiveShell shell;
+
+  private static final List<Type> SUPPORTED_TYPES =
+          ImmutableList.of(Types.BooleanType.get(), Types.IntegerType.get(), Types.LongType.get(),
+                  Types.FloatType.get(), Types.DoubleType.get(), Types.DateType.get(), Types.TimestampType.withZone(),
+                  Types.TimestampType.withoutZone(), Types.StringType.get(), Types.BinaryType.get(),
+                  Types.DecimalType.of(3, 1));
 
   private TestTables testTables;
 
@@ -211,6 +219,43 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Assert.assertArrayEquals(new Object[] {0L, "Alice", 100L, 11.11d}, rows.get(0));
     Assert.assertArrayEquals(new Object[] {0L, "Alice", 101L, 22.22d}, rows.get(1));
     Assert.assertArrayEquals(new Object[] {1L, "Bob", 102L, 33.33d}, rows.get(2));
+  }
+
+  @Test
+  public void testJoinTablesSupportedTypes() throws IOException {
+    for (int i = 0; i < SUPPORTED_TYPES.size(); i++) {
+      Type type = SUPPORTED_TYPES.get(i);
+      String tableName = type.typeId().toString().toLowerCase() + "_table_" + i;
+      String columnName = type.typeId().toString().toLowerCase() + "_column";
+
+      Schema schema = new Schema(required(1, columnName, type));
+      List<Record> records = TestHelper.generateRandomRecords(schema, 1, 0L);
+
+      createTable(tableName, schema, records);
+      List<Object[]> queryResult = shell.executeStatement("select s." + columnName + ", h." + columnName +
+              " from default." + tableName + " s join default." + tableName + " h on h." + columnName + "=s." +
+              columnName);
+      Assert.assertEquals("Non matching record count for table " + tableName + " with type " + type,
+              1, queryResult.size());
+    }
+  }
+
+  @Test
+  public void testSelectDistinctFromTable() throws IOException {
+    for (int i = 0; i < SUPPORTED_TYPES.size(); i++) {
+      Type type = SUPPORTED_TYPES.get(i);
+      String tableName = type.typeId().toString().toLowerCase() + "_table_" + i;
+      String columnName = type.typeId().toString().toLowerCase() + "_column";
+
+      Schema schema = new Schema(required(1, columnName, type));
+      List<Record> records = TestHelper.generateRandomRecords(schema, 4, 0L);
+      int size = records.stream().map(r -> r.getField(columnName)).collect(Collectors.toSet()).size();
+      createTable(tableName, schema, records);
+      List<Object[]> queryResult = shell.executeStatement("select count(distinct(" + columnName +
+              ")) from default." + tableName);
+      int distincIds = ((Long) queryResult.get(0)[0]).intValue();
+      Assert.assertEquals(tableName, size, distincIds);
+    }
   }
 
   @Test
