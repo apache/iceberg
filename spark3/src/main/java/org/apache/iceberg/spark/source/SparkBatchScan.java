@@ -94,10 +94,10 @@ class SparkBatchScan implements Scan, Batch, SupportsFileFilter, SupportsReportS
   private final boolean batchReadsEnabled;
   private final int batchSize;
 
-  // lazy cache of tasks
+  // lazy variables
   private StructType readSchema = null;
-  private List<FileScanTask> files = null;
-  private List<CombinedScanTask> tasks = null;
+  private List<FileScanTask> files = null; // lazy cache of files
+  private List<CombinedScanTask> tasks = null; // lazy cache of tasks
 
   SparkBatchScan(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryption, boolean caseSensitive,
                  Schema expectedSchema, List<Expression> filters, boolean ignoreResiduals,
@@ -427,8 +427,8 @@ class SparkBatchScan implements Scan, Batch, SupportsFileFilter, SupportsReportS
     private transient String[] preferredLocations = null;
 
     ReadTask(CombinedScanTask task, String tableSchemaString, String expectedSchemaString, String nameMappingString,
-        Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager, boolean caseSensitive,
-        boolean localityPreferred) {
+             Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager, boolean caseSensitive,
+             boolean localityPreferred) {
       this.task = task;
       this.tableSchemaString = tableSchemaString;
       this.expectedSchemaString = expectedSchemaString;
