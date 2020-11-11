@@ -81,6 +81,10 @@ class S3OutputStream extends PositionOutputStream {
 
   @Override
   public void close() throws IOException {
+    if (closed) {
+      return;
+    }
+
     super.close();
     closed = true;
 

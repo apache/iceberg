@@ -20,6 +20,7 @@
 package org.apache.iceberg.aws.s3;
 
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -70,5 +71,14 @@ public class S3URITest {
     assertEquals("bucket", uri1.bucket());
     assertEquals("path/to/file", uri1.key());
     assertEquals(p1, uri1.toString());
+  }
+
+  @Test
+  public void testValidSchemes() {
+    for (String scheme : Lists.newArrayList("https", "s3", "s3a", "s3n")) {
+      S3URI uri = new S3URI(scheme + "://bucket/path/to/file");
+      assertEquals("bucket", uri.bucket());
+      assertEquals("path/to/file", uri.key());
+    }
   }
 }
