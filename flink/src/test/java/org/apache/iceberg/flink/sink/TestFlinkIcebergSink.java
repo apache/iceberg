@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
@@ -43,10 +44,14 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.TestTables;
+import org.apache.iceberg.data.IcebergGenerics;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
@@ -59,6 +64,7 @@ import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.flink.SimpleDataUtil.FLINK_SCHEMA;
 import static org.apache.iceberg.flink.SimpleDataUtil.ROW_TYPE;
+import static org.apache.iceberg.flink.SimpleDataUtil.createRecord;
 
 @RunWith(Parameterized.class)
 public class TestFlinkIcebergSink extends TableTestBase {
@@ -165,7 +171,7 @@ public class TestFlinkIcebergSink extends TableTestBase {
     // Assert the iceberg table's records. NOTICE: the FiniteTestSource will checkpoint the same rows twice, so it will
     // commit the same row list into iceberg twice.
     List<RowData> expectedRows = Lists.newArrayList(Iterables.concat(convertToRowData(rows), convertToRowData(rows)));
-    SimpleDataUtil.assertTableRows(table, expectedRows);
+    assertTableRows(expectedRows);
   }
 
   private void testWriteRow(TableSchema tableSchema) throws Exception {
@@ -186,7 +192,7 @@ public class TestFlinkIcebergSink extends TableTestBase {
     env.execute("Test Iceberg DataStream.");
 
     List<RowData> expectedRows = Lists.newArrayList(Iterables.concat(convertToRowData(rows), convertToRowData(rows)));
-    SimpleDataUtil.assertTableRows(table, expectedRows);
+    assertTableRows(expectedRows);
   }
 
   @Test
@@ -225,8 +231,22 @@ public class TestFlinkIcebergSink extends TableTestBase {
         SimpleDataUtil.createRowData(2, "bbb"),
         SimpleDataUtil.createRowData(3, "ccc")
     );
-    List<RowData> expectedResult = Lists.newArrayList(Iterables.concat(rowDataList, rowDataList));
-    SimpleDataUtil.assertTableRows(table, expectedResult);
+    assertTableRows(Lists.newArrayList(Iterables.concat(rowDataList, rowDataList)));
+  }
+
+  private void assertTableRows(List<RowData> expectedRows) throws IOException {
+    Iterable<Record> expected =
+        Iterables.transform(expectedRows,
+            row -> createRecord(Objects.requireNonNull(row).getInt(0), row.getString(1).toString()));
+
+    table.refresh();
+    try (CloseableIterable<Record> iterable = IcebergGenerics.read(table).build()) {
+      // Remove the row identifier.
+      Iterable<Record> actual = Iterables.transform(iterable,
+          r -> createRecord((Integer) Objects.requireNonNull(r).getField("id"), (String) r.getField("data")));
+
+      Assert.assertEquals("Should produce the expected record", Sets.newHashSet(expected), Sets.newHashSet(actual));
+    }
   }
 
   private static class TestTableLoader implements TableLoader {

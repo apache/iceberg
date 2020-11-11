@@ -59,9 +59,11 @@ public class Files {
       }
 
       if (!file.getParentFile().isDirectory() && !file.getParentFile().mkdirs()) {
-        throw new RuntimeIOException(
-                "Failed to create the file's directory at %s.",
-                file.getParentFile().getAbsolutePath());
+        if (!new File(file.getParentFile().getAbsolutePath()).exists()) {
+          throw new RuntimeIOException(
+              "Failed to create the file's directory at %s.",
+              file.getParentFile().getAbsolutePath());
+        }
       }
 
       try {
