@@ -24,7 +24,6 @@ import com.dremio.nessie.error.NessieNotFoundException;
 import com.dremio.nessie.model.Branch;
 import com.dremio.nessie.model.Hash;
 import com.dremio.nessie.model.Reference;
-import org.apache.iceberg.exceptions.NotFoundException;
 
 class UpdateableReference {
 
@@ -36,16 +35,12 @@ class UpdateableReference {
     this.client = client;
   }
 
-  public boolean refresh() {
+  public boolean refresh() throws NessieNotFoundException {
     if (reference instanceof Hash) {
       return false;
     }
     Reference oldReference = reference;
-    try {
-      reference = client.getReferenceByName(reference.getName());
-    } catch (NessieNotFoundException e) {
-      throw new NotFoundException(e, "Failure refreshing data, table no longer exists.");
-    }
+    reference = client.getReferenceByName(reference.getName());
     return !oldReference.equals(reference);
   }
 

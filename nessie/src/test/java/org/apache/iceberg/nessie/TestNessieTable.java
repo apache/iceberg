@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.Files;
@@ -80,7 +81,7 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   @Before
-  public void beforeEach() throws NessieConflictException, NessieNotFoundException {
+  public void beforeEach() throws IOException {
     super.beforeEach();
     this.tableLocation = new Path(catalog.createTable(TABLE_IDENTIFIER, schema).location());
   }
@@ -104,7 +105,7 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   @Test
-  public void testCreate() throws NessieNotFoundException {
+  public void testCreate() throws NessieNotFoundException, IOException {
     // Table should be created in iceberg
     // Table should be renamed in iceberg
     String tableName = TABLE_IDENTIFIER.name();
@@ -114,22 +115,20 @@ public class TestNessieTable extends BaseTestIceberg {
     IcebergTable table = getTable(KEY);
     // check parameters are in expected state
     Assert.assertEquals(getTableLocation(tableName),
-                            (tempDir.toURI().toString() + DB_NAME + "/" +
-                             tableName).replace("//",
-                                                "/"));
+        (temp.getRoot().toURI().toString() + DB_NAME + "/" +
+            tableName).replace("//",
+            "/"));
 
     // Only 1 snapshotFile Should exist and no manifests should exist
     Assert.assertEquals(2, metadataVersionFiles(tableName).size());
     Assert.assertEquals(0, manifestFiles(tableName).size());
   }
 
-
-  @SuppressWarnings("VariableDeclarationUsageDistance")
   @Test
   public void testRename() {
     String renamedTableName = "rename_table_name";
     TableIdentifier renameTableIdentifier = TableIdentifier.of(TABLE_IDENTIFIER.namespace(),
-                                                               renamedTableName);
+        renamedTableName);
 
     Table original = catalog.loadTable(TABLE_IDENTIFIER);
 
@@ -167,19 +166,19 @@ public class TestNessieTable extends BaseTestIceberg {
 
     String fileLocation = table.location().replace("file:", "") + "/data/file.avro";
     try (FileAppender<GenericData.Record> writer = Avro.write(Files.localOutput(fileLocation))
-                                                       .schema(schema)
-                                                       .named("test")
-                                                       .build()) {
+        .schema(schema)
+        .named("test")
+        .build()) {
       for (GenericData.Record rec : records) {
         writer.add(rec);
       }
     }
 
     DataFile file = DataFiles.builder(table.spec())
-                             .withRecordCount(3)
-                             .withPath(fileLocation)
-                             .withFileSizeInBytes(Files.localInput(fileLocation).getLength())
-                             .build();
+        .withRecordCount(3)
+        .withPath(fileLocation)
+        .withFileSizeInBytes(Files.localInput(fileLocation).getLength())
+        .build();
 
     table.newAppend().appendFile(file).commit();
 
@@ -193,8 +192,6 @@ public class TestNessieTable extends BaseTestIceberg {
     Assert.assertTrue(new File(manifestListLocation).exists());
   }
 
-
-  @SuppressWarnings("VariableDeclarationUsageDistance")
   @Test
   public void testDropTable() throws IOException {
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
@@ -208,9 +205,9 @@ public class TestNessieTable extends BaseTestIceberg {
 
     String location1 = table.location().replace("file:", "") + "/data/file1.avro";
     try (FileAppender<GenericData.Record> writer = Avro.write(Files.localOutput(location1))
-                                                       .schema(schema)
-                                                       .named("test")
-                                                       .build()) {
+        .schema(schema)
+        .named("test")
+        .build()) {
       for (GenericData.Record rec : records) {
         writer.add(rec);
       }
@@ -218,25 +215,25 @@ public class TestNessieTable extends BaseTestIceberg {
 
     String location2 = table.location().replace("file:", "") + "/data/file2.avro";
     try (FileAppender<GenericData.Record> writer = Avro.write(Files.localOutput(location2))
-                                                       .schema(schema)
-                                                       .named("test")
-                                                       .build()) {
+        .schema(schema)
+        .named("test")
+        .build()) {
       for (GenericData.Record rec : records) {
         writer.add(rec);
       }
     }
 
     DataFile file1 = DataFiles.builder(table.spec())
-                              .withRecordCount(3)
-                              .withPath(location1)
-                              .withFileSizeInBytes(Files.localInput(location2).getLength())
-                              .build();
+        .withRecordCount(3)
+        .withPath(location1)
+        .withFileSizeInBytes(Files.localInput(location2).getLength())
+        .build();
 
     DataFile file2 = DataFiles.builder(table.spec())
-                              .withRecordCount(3)
-                              .withPath(location2)
-                              .withFileSizeInBytes(Files.localInput(location1).getLength())
-                              .build();
+        .withRecordCount(3)
+        .withPath(location2)
+        .withFileSizeInBytes(Files.localInput(location1).getLength())
+        .build();
 
     // add both data files
     table.newAppend().appendFile(file1).appendFile(file2).commit();
@@ -260,10 +257,10 @@ public class TestNessieTable extends BaseTestIceberg {
     }
     Assert.assertTrue(new File(
         ((HasTableOperations) table).operations()
-                                  .current()
-                                  .metadataFileLocation()
-                                  .replace("file:", ""))
-                             .exists());
+            .current()
+            .metadataFileLocation()
+            .replace("file:", ""))
+        .exists());
   }
 
   @Test
@@ -281,7 +278,7 @@ public class TestNessieTable extends BaseTestIceberg {
 
   }
 
-  @Test(expected = CommitFailedException.class)
+  @Test
   public void testFailure() throws NessieNotFoundException, NessieConflictException {
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
     Branch branch = (Branch) client.getTreeApi().getReferenceByName(BRANCH);
@@ -291,59 +288,61 @@ public class TestNessieTable extends BaseTestIceberg {
     client.getContentsApi().setContents(KEY, branch.getName(), branch.getHash(), "",
         IcebergTable.of("dummytable.metadata.json"));
 
-    icebergTable.updateSchema().addColumn("data", Types.LongType.get()).commit();
+    AssertHelpers.assertThrows("Update schema fails with conflict exception, ref not up to date",
+        CommitFailedException.class,
+        () -> icebergTable.updateSchema().addColumn("data", Types.LongType.get()).commit());
   }
 
   @Test
   public void testListTables() {
     List<TableIdentifier> tableIdents = catalog.listTables(TABLE_IDENTIFIER.namespace());
     List<TableIdentifier> expectedIdents = tableIdents.stream()
-                                                      .filter(t -> t.namespace()
-                                                                    .level(0)
-                                                                    .equals(DB_NAME) &&
-                                                                   t.name().equals(TABLE_NAME))
-                                                      .collect(Collectors.toList());
+        .filter(t -> t.namespace()
+            .level(0)
+            .equals(DB_NAME) &&
+            t.name().equals(TABLE_NAME))
+        .collect(Collectors.toList());
 
     Assert.assertEquals(1, expectedIdents.size());
     Assert.assertTrue(catalog.tableExists(TABLE_IDENTIFIER));
   }
 
-  private static String getTableBasePath(String tableName) {
-    String databasePath = tempDir.toString() + "/" + DB_NAME;
+  private String getTableBasePath(String tableName) {
+    String databasePath = temp.getRoot().toString() + "/" + DB_NAME;
     return Paths.get(databasePath, tableName).toAbsolutePath().toString();
   }
 
-  protected static Path getTableLocationPath(String tableName) {
+  protected Path getTableLocationPath(String tableName) {
     return new Path("file", null, Paths.get(getTableBasePath(tableName)).toString());
   }
 
-  protected static String getTableLocation(String tableName) {
+  protected String getTableLocation(String tableName) {
     return getTableLocationPath(tableName).toString();
   }
 
-  private static String metadataLocation(String tableName) {
+  private String metadataLocation(String tableName) {
     return Paths.get(getTableBasePath(tableName), "metadata").toString();
   }
 
-  private static List<String> metadataFiles(String tableName) {
+  private List<String> metadataFiles(String tableName) {
     return Arrays.stream(new File(metadataLocation(tableName)).listFiles())
-                 .map(File::getAbsolutePath)
-                 .collect(Collectors.toList());
+        .map(File::getAbsolutePath)
+        .collect(Collectors.toList());
   }
 
-  protected static List<String> metadataVersionFiles(String tableName) {
+  protected List<String> metadataVersionFiles(String tableName) {
     return filterByExtension(tableName, getFileExtension(TableMetadataParser.Codec.NONE));
   }
 
-  protected static List<String> manifestFiles(String tableName) {
+  protected List<String> manifestFiles(String tableName) {
     return filterByExtension(tableName, ".avro");
   }
 
-  private static List<String> filterByExtension(String tableName, String extension) {
+  private List<String> filterByExtension(String tableName, String extension) {
     return metadataFiles(tableName)
-      .stream()
-      .filter(f -> f.endsWith(extension))
-      .collect(Collectors.toList());
+        .stream()
+        .filter(f -> f.endsWith(extension))
+        .collect(Collectors.toList());
   }
 
 }

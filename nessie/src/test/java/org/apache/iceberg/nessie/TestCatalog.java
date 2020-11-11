@@ -34,19 +34,29 @@ public class TestCatalog extends BaseTestIceberg {
   }
 
   @Test
-  public void test() {
+  public void testList() {
     createTable(TableIdentifier.of("foo", "bar"));
     List<TableIdentifier> tables = catalog.listTables(Namespace.of("foo"));
     Assert.assertEquals(1, tables.size());
     Assert.assertEquals("bar", tables.get(0).name());
     Assert.assertEquals("foo", tables.get(0).namespace().toString());
+  }
+
+  @Test
+  public void testRename() {
+    createTable(TableIdentifier.of("foo", "bar"));
     catalog.renameTable(TableIdentifier.of("foo", "bar"), TableIdentifier.of("foo", "baz"));
-    tables = catalog.listTables(null);
+    List<TableIdentifier> tables = catalog.listTables(null);
     Assert.assertEquals(1, tables.size());
     Assert.assertEquals("baz", tables.get(0).name());
     Assert.assertEquals("foo", tables.get(0).namespace().toString());
+  }
+
+  @Test
+  public void testDelete() {
+    createTable(TableIdentifier.of("foo", "baz"));
     catalog.dropTable(TableIdentifier.of("foo", "baz"));
-    tables = catalog.listTables(Namespace.empty());
+    List<TableIdentifier> tables = catalog.listTables(Namespace.empty());
     Assert.assertTrue(tables.isEmpty());
   }
 

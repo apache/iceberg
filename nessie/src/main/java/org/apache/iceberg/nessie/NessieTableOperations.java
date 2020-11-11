@@ -27,14 +27,11 @@ import com.dremio.nessie.model.ContentsKey;
 import com.dremio.nessie.model.IcebergTable;
 import com.dremio.nessie.model.ImmutableIcebergTable;
 import java.util.Map;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 
 /**
@@ -42,33 +39,33 @@ import org.apache.iceberg.io.FileIO;
  */
 public class NessieTableOperations extends BaseMetastoreTableOperations {
 
-  private static DynFields.StaticField<Object> sparkEnvMethod;
-  private static DynFields.UnboundField<Object> sparkConfMethod;
-  private static DynFields.UnboundField<Object> appIdMethod;
-  private final Configuration conf;
   private final NessieClient client;
   private final ContentsKey key;
   private UpdateableReference reference;
   private IcebergTable table;
-  private HadoopFileIO fileIO;
+  private FileIO fileIO;
 
   /**
    * Create a nessie table operations given a table identifier.
    */
   public NessieTableOperations(
-      Configuration conf,
       ContentsKey key,
       UpdateableReference reference,
-      NessieClient client) {
-    this.conf = conf;
+      NessieClient client,
+      FileIO fileIO) {
     this.key = key;
     this.reference = reference;
     this.client = client;
+    this.fileIO = fileIO;
   }
 
   @Override
   protected void doRefresh() {
-    reference.refresh();
+    try {
+      reference.refresh();
+    } catch (NessieNotFoundException e) {
+      throw new RuntimeException("Failed to drop table as ref is no longer valid.", e);
+    }
     String metadataLocation = null;
     try {
       Contents contents = client.getContentsApi().getContents(key, reference.getHash());
@@ -116,10 +113,6 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
 
   @Override
   public FileIO io() {
-    if (fileIO == null) {
-      fileIO = new HadoopFileIO(conf);
-    }
-
     return fileIO;
   }
 

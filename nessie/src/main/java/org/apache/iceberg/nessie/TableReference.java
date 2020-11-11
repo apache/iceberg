@@ -19,22 +19,19 @@
 
 package org.apache.iceberg.nessie;
 
-import com.dremio.nessie.client.NessieClient;
 import java.time.Instant;
-import java.util.Map;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-public class ParsedTableIdentifier {
+public class TableReference {
 
   private final TableIdentifier tableIdentifier;
   private final Instant timestamp;
   private final String reference;
 
   /**
-   * container class to hold all options in a Nessie table name.
+   * Container class to specify a TableIdentifier on a specific Reference or at an Instant in time.
    */
-  public ParsedTableIdentifier(TableIdentifier tableIdentifier, Instant timestamp, String reference) {
+  public TableReference(TableIdentifier tableIdentifier, Instant timestamp, String reference) {
     this.tableIdentifier = tableIdentifier;
     this.timestamp = timestamp;
     this.reference = reference;
@@ -55,13 +52,17 @@ public class ParsedTableIdentifier {
   /**
    * Convert dataset read/write options to a table and ref/hash.
    */
-  public static ParsedTableIdentifier getParsedTableIdentifier(TableIdentifier path) {
-    return getParsedTableIdentifier(path, ImmutableMap.of());
+  public static TableReference parse(TableIdentifier path) {
+    TableReference pti = parse(path.name());
+    return new TableReference(TableIdentifier.of(path.namespace(), pti.getTableIdentifier().name()),
+        pti.getTimestamp(),
+        pti.getReference());
   }
+
   /**
    * Convert dataset read/write options to a table and ref/hash.
    */
-  public static ParsedTableIdentifier getParsedTableIdentifier(String path, Map<String, String> properties) {
+  public static TableReference parse(String path) {
     // I am assuming tables can't have @ or # symbols
     if (path.split("@").length > 2) {
       throw new IllegalArgumentException(String.format("Can only reference one branch in %s", path));
@@ -71,33 +72,23 @@ public class ParsedTableIdentifier {
     }
 
     if (path.contains("@") && path.contains("#")) {
-      throw new IllegalArgumentException("Currently we don't support referencing by timestamp, # is not allowed in " +
-          "the table name");
+      throw new IllegalArgumentException("Invalid table name:" +
+          " # is not allowed (reference by timestamp is not supported)");
     }
 
     if (path.contains("@")) {
       String[] tableRef = path.split("@");
       TableIdentifier identifier = TableIdentifier.parse(tableRef[0]);
-      return new ParsedTableIdentifier(identifier, null, tableRef[1]);
+      return new TableReference(identifier, null, tableRef[1]);
     }
 
     if (path.contains("#")) {
-      throw new IllegalArgumentException("Currently we don't support referencing by timestamp, # is not allowed in " +
-          "the table name");
+      throw new IllegalArgumentException("Invalid table name:" +
+          " # is not allowed (reference by timestamp is not supported)");
     }
 
     TableIdentifier identifier = TableIdentifier.parse(path);
-    String reference = properties.get(NessieClient.CONF_NESSIE_REF);
-    return new ParsedTableIdentifier(identifier, null, reference);
-  }
 
-  /**
-   * Convert dataset read/write options to a table and ref/hash.
-   */
-  public static ParsedTableIdentifier getParsedTableIdentifier(TableIdentifier path, Map<String, String> properties) {
-    ParsedTableIdentifier pti = getParsedTableIdentifier(path.name(), properties);
-    return new ParsedTableIdentifier(TableIdentifier.of(path.namespace(), pti.getTableIdentifier().name()),
-        pti.getTimestamp(),
-        pti.getReference());
+    return new TableReference(identifier, null, null);
   }
 }

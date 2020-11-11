@@ -47,30 +47,32 @@ public class TestBranchHash extends BaseTestIceberg {
     hadoopConfig.set(NessieClient.CONF_NESSIE_REF, "test");
 
     NessieCatalog newCatalog = initCatalog("test");
-    String initialMetadataLocation = getContent(newCatalog, foobar);
-    Assert.assertEquals(initialMetadataLocation, getContent(catalog, foobar));
+    String initialMetadataLocation = metadataLocation(newCatalog, foobar);
+    Assert.assertEquals(initialMetadataLocation, metadataLocation(catalog, foobar));
 
     bar.updateSchema().addColumn("id1", Types.LongType.get()).commit();
 
     // metadata location changed no longer matches
-    Assert.assertNotEquals(getContent(catalog, foobar), getContent(newCatalog, foobar));
+    Assert.assertNotEquals(metadataLocation(catalog, foobar), metadataLocation(newCatalog, foobar));
 
     // points to the previous metadata location
-    Assert.assertEquals(initialMetadataLocation, getContent(newCatalog, foobar));
+    Assert.assertEquals(initialMetadataLocation, metadataLocation(newCatalog, foobar));
 
 
     String mainHash = tree.getReferenceByName(BRANCH).getHash();
     // catalog created with ref and no hash points to same catalog as above
     NessieCatalog refCatalog = initCatalog("test");
-    Assert.assertEquals(getContent(newCatalog, foobar), getContent(refCatalog, foobar));
+    Assert.assertEquals(metadataLocation(newCatalog, foobar), metadataLocation(refCatalog, foobar));
     // catalog created with ref and hash points to
     NessieCatalog refHashCatalog = initCatalog(mainHash);
-    Assert.assertEquals(getContent(catalog, foobar), getContent(refHashCatalog, foobar));
+    Assert.assertEquals(metadataLocation(catalog, foobar), metadataLocation(refHashCatalog, foobar));
 
     // asking for table@branch gives expected regardless of catalog
-    Assert.assertEquals(getContent(newCatalog, foobar), getContent(catalog, TableIdentifier.of("foo", "bar@test")));
+    Assert.assertEquals(metadataLocation(newCatalog, foobar),
+        metadataLocation(catalog, TableIdentifier.of("foo", "bar@test")));
     // asking for table@branch#hash gives expected regardless of catalog
-    Assert.assertEquals(getContent(catalog, foobar), getContent(catalog, TableIdentifier.of("foo", "bar@" + mainHash)));
+    Assert.assertEquals(metadataLocation(catalog, foobar),
+        metadataLocation(catalog, TableIdentifier.of("foo", "bar@" + mainHash)));
   }
 
 }

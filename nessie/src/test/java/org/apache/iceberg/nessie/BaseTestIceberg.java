@@ -26,8 +26,7 @@ import com.dremio.nessie.error.NessieConflictException;
 import com.dremio.nessie.error.NessieNotFoundException;
 import com.dremio.nessie.model.Branch;
 import com.dremio.nessie.model.Reference;
-import java.io.File;
-import java.nio.file.attribute.PosixFilePermissions;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
@@ -41,9 +40,9 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.StructType;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
+import org.junit.Rule;
+import org.junit.rules.TemporaryFolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,21 +52,15 @@ public abstract class BaseTestIceberg {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(BaseTestIceberg.class);
 
-  protected static File tempDir;
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
+
   protected NessieCatalog catalog;
   protected NessieClient client;
   protected TreeApi tree;
   protected ContentsApi contents;
   protected Configuration hadoopConfig;
   protected final String branch;
-
-  @BeforeClass
-  public static void create() throws Exception {
-    tempDir = java.nio.file.Files.createTempDirectory(
-        "test",
-        PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwxrwxrwx")))
-        .toFile();
-  }
 
   public BaseTestIceberg(String branch) {
     this.branch = branch;
@@ -85,7 +78,7 @@ public abstract class BaseTestIceberg {
   }
 
   @Before
-  public void beforeEach() throws NessieConflictException, NessieNotFoundException {
+  public void beforeEach() throws IOException {
     String port = System.getProperty("quarkus.http.test-port", "19120");
     String path = String.format("http://localhost:%s/api/v1", port);
     this.client = NessieClient.none(path);
@@ -104,7 +97,7 @@ public abstract class BaseTestIceberg {
     hadoopConfig.set(NessieClient.CONF_NESSIE_URL, path);
     hadoopConfig.set(NessieClient.CONF_NESSIE_REF, branch);
     hadoopConfig.set(NessieClient.CONF_NESSIE_AUTH_TYPE, "NONE");
-    hadoopConfig.set("nessie.warehouse.dir", tempDir.toURI().toString());
+    hadoopConfig.set("nessie.warehouse.dir", temp.getRoot().toURI().toString());
     catalog = initCatalog(branch);
   }
 
@@ -139,11 +132,7 @@ public abstract class BaseTestIceberg {
   }
 
   void createBranch(String name, String hash) throws NessieNotFoundException, NessieConflictException {
-    if (hash == null) {
-      tree.createReference(Branch.of(name, null));
-    } else {
-      tree.createReference(Branch.of(name, hash));
-    }
+    tree.createReference(Branch.of(name, hash));
   }
 
   @After
@@ -155,12 +144,7 @@ public abstract class BaseTestIceberg {
     hadoopConfig = null;
   }
 
-  @AfterClass
-  public static void destroy() throws Exception {
-    tempDir.delete();
-  }
-
-  static String getContent(NessieCatalog catalog, TableIdentifier tableIdentifier) {
+  static String metadataLocation(NessieCatalog catalog, TableIdentifier tableIdentifier) {
     Table table = catalog.loadTable(tableIdentifier);
     BaseTable baseTable = (BaseTable) table;
     TableOperations ops = baseTable.operations();

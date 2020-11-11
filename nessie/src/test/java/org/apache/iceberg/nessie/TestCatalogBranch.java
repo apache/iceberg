@@ -48,33 +48,33 @@ public class TestCatalogBranch extends BaseTestIceberg {
     hadoopConfig.set(NessieClient.CONF_NESSIE_REF, "test");
 
     NessieCatalog newCatalog = initCatalog("test");
-    String initialMetadataLocation = getContent(newCatalog, foobar);
-    Assert.assertEquals(initialMetadataLocation, getContent(catalog, foobar));
-    Assert.assertEquals(getContent(newCatalog, foobaz), getContent(catalog, foobaz));
+    String initialMetadataLocation = metadataLocation(newCatalog, foobar);
+    Assert.assertEquals(initialMetadataLocation, metadataLocation(catalog, foobar));
+    Assert.assertEquals(metadataLocation(newCatalog, foobaz), metadataLocation(catalog, foobaz));
     bar.updateSchema().addColumn("id1", Types.LongType.get()).commit();
 
     // metadata location changed no longer matches
-    Assert.assertNotEquals(getContent(catalog, foobar), getContent(newCatalog, foobar));
+    Assert.assertNotEquals(metadataLocation(catalog, foobar), metadataLocation(newCatalog, foobar));
 
     // points to the previous metadata location
-    Assert.assertEquals(initialMetadataLocation, getContent(newCatalog, foobar));
-    initialMetadataLocation = getContent(newCatalog, foobaz);
+    Assert.assertEquals(initialMetadataLocation, metadataLocation(newCatalog, foobar));
+    initialMetadataLocation = metadataLocation(newCatalog, foobaz);
 
 
     newCatalog.loadTable(foobaz).updateSchema().addColumn("id1", Types.LongType.get()).commit();
 
     // metadata location changed no longer matches
-    Assert.assertNotEquals(getContent(catalog, foobaz), getContent(newCatalog, foobaz));
+    Assert.assertNotEquals(metadataLocation(catalog, foobaz), metadataLocation(newCatalog, foobaz));
 
     // points to the previous metadata location
-    Assert.assertEquals(initialMetadataLocation, getContent(catalog, foobaz));
+    Assert.assertEquals(initialMetadataLocation, metadataLocation(catalog, foobaz));
 
     String mainHash = tree.getReferenceByName("main").getHash();
     tree.assignBranch("main", mainHash, Branch.of("main", newCatalog.currentHash()));
-    Assert.assertEquals(getContent(newCatalog, foobar),
-                            getContent(catalog, foobar));
-    Assert.assertEquals(getContent(newCatalog, foobaz),
-                            getContent(catalog, foobaz));
+    Assert.assertEquals(metadataLocation(newCatalog, foobar),
+                            metadataLocation(catalog, foobar));
+    Assert.assertEquals(metadataLocation(newCatalog, foobaz),
+                            metadataLocation(catalog, foobaz));
     catalog.dropTable(foobar);
     catalog.dropTable(foobaz);
     newCatalog.refresh();

@@ -38,6 +38,8 @@ import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -47,6 +49,8 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
@@ -68,6 +72,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   private Configuration config;
   private UpdateableReference reference;
   private String name;
+  private FileIO fileIO;
 
   /**
    * Try to avoid passing parameters via hadoop config. Dynamic catalog expects Map instead
@@ -77,6 +82,8 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
   @Override
   public void initialize(String inputName, Map<String, String> options) {
+    String fileIOImpl = options.get(CatalogProperties.FILE_IO_IMPL);
+    this.fileIO = fileIOImpl == null ? new HadoopFileIO(config) : CatalogUtil.loadFileIO(fileIOImpl, options, config);
     this.name = inputName == null ? "nessie" : inputName;
     this.client = NessieClient.withConfig(s -> options.getOrDefault(s, config.get(s)));
 
@@ -101,15 +108,12 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
-    ParsedTableIdentifier pti = ParsedTableIdentifier.getParsedTableIdentifier(tableIdentifier);
+    TableReference pti = TableReference.parse(tableIdentifier);
     UpdateableReference newReference = this.reference;
     if (pti.getReference() != null) {
       newReference = loadReference(pti.getReference());
     }
-    return new NessieTableOperations(config,
-        NessieUtil.toKey(pti.getTableIdentifier()),
-        newReference,
-        client);
+    return new NessieTableOperations(NessieUtil.toKey(pti.getTableIdentifier()), newReference, client, fileIO);
   }
 
   @Override
@@ -134,15 +138,21 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
       return false;
     }
 
-    // We try to drop the table. If it fails because of a conflict we try again. Not the most elegant handling
-    try {
-      dropTableInner(identifier);
-    } catch (NessieConflictException e) {
+    // We try to drop the table. Simple retry after ref update.
+    int count = 0;
+    while (count < 5) {
+      count++;
       try {
         dropTableInner(identifier);
-      } catch (NessieConflictException ee) {
-        throw new RuntimeException("Drop failed after retry, giving up", ee);
+        break;
+      } catch (NessieConflictException e) {
+        // pass for retry
+      } catch (NessieNotFoundException e) {
+        throw new RuntimeException("Cannot drop table: ref is no longer valid.", e);
       }
+    }
+    if (count >= 5) {
+      throw new RuntimeException("Cannot drop table: failed after retry (update hash and retry)");
     }
     return true;
   }
@@ -172,8 +182,10 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
           "iceberg rename table", contents);
       // TODO: fix this so we don't depend on it in tests.
       refresh();
-    } catch (Exception e) {
+    } catch (NessieConflictException e) {
       throw new CommitFailedException(e, "failed");
+    } catch (NessieNotFoundException e) {
+      throw new RuntimeException("Failed to drop table as ref is no longer valid.", e);
     }
   }
 
@@ -244,7 +256,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     return client.getTreeApi();
   }
 
-  public void refresh() {
+  public void refresh() throws NessieNotFoundException {
     reference.refresh();
   }
 
@@ -282,17 +294,17 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   }
 
 
-  public void dropTableInner(TableIdentifier identifier) throws NessieConflictException {
+  public void dropTableInner(TableIdentifier identifier) throws NessieConflictException, NessieNotFoundException {
     try {
       client.getContentsApi().deleteContents(NessieUtil.toKey(identifier),
           reference.getAsBranch().getName(),
           reference.getHash(),
           String.format("delete table %s", identifier));
-    } catch (NessieNotFoundException e) {
-      throw new RuntimeException("Failed to drop table as ref is no longer valid.", e);
+
+    } finally {
+      // TODO: fix this so we don't depend on it in tests. and move refresh into catch clause.
+      refresh();
     }
-    // TODO: fix this so we don't depend on it in tests. and move refresh into catch clause.
-    refresh();
   }
 
   private Stream<TableIdentifier> tableStream(Namespace namespace) {

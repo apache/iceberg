@@ -51,13 +51,13 @@ public class TestDefaultCatalogBranch extends BaseTestIceberg {
     NessieCatalog forwardCatalog = initCatalog("FORWARD");
     forwardCatalog.loadTable(foobaz).updateSchema().addColumn("id1", Types.LongType.get()).commit();
     forwardCatalog.loadTable(foobar).updateSchema().addColumn("id1", Types.LongType.get()).commit();
-    Assert.assertNotEquals(getContent(forwardCatalog, foobar),
-                               getContent(catalog, foobar));
-    Assert.assertNotEquals(getContent(forwardCatalog, foobaz),
-                               getContent(catalog, foobaz));
+    Assert.assertNotEquals(metadataLocation(forwardCatalog, foobar),
+                               metadataLocation(catalog, foobar));
+    Assert.assertNotEquals(metadataLocation(forwardCatalog, foobaz),
+                               metadataLocation(catalog, foobaz));
 
-    System.out.println(getContent(forwardCatalog, foobar));
-    System.out.println(getContent(catalog, foobar));
+    System.out.println(metadataLocation(forwardCatalog, foobar));
+    System.out.println(metadataLocation(catalog, foobar));
 
     forwardCatalog.refresh();
     tree.assignBranch("main",
@@ -66,13 +66,13 @@ public class TestDefaultCatalogBranch extends BaseTestIceberg {
 
     catalog.refresh();
 
-    System.out.println(getContent(forwardCatalog, foobar));
-    System.out.println(getContent(catalog, foobar));
+    System.out.println(metadataLocation(forwardCatalog, foobar));
+    System.out.println(metadataLocation(catalog, foobar));
 
-    Assert.assertEquals(getContent(forwardCatalog, foobar),
-                            getContent(catalog, foobar));
-    Assert.assertEquals(getContent(forwardCatalog, foobaz),
-                            getContent(catalog, foobaz));
+    Assert.assertEquals(metadataLocation(forwardCatalog, foobar),
+                            metadataLocation(catalog, foobar));
+    Assert.assertEquals(metadataLocation(forwardCatalog, foobaz),
+                            metadataLocation(catalog, foobaz));
 
     catalog.dropTable(foobar);
     catalog.dropTable(foobaz);
