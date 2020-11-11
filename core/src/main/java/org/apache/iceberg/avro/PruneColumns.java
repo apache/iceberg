@@ -37,12 +37,14 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
   private static final Logger LOG = LoggerFactory.getLogger(PruneColumns.class);
 
   private final Set<Integer> selectedIds;
+  private final Set<Integer> emptyStructIds;
   private final NameMapping nameMapping;
 
-  PruneColumns(Set<Integer> selectedIds, NameMapping nameMapping) {
+  PruneColumns(Set<Integer> selectedIds, Set<Integer> emptyStructIds, NameMapping nameMapping) {
     Preconditions.checkNotNull(selectedIds, "Selected field ids cannot be null");
     this.selectedIds = selectedIds;
     this.nameMapping = nameMapping;
+    this.emptyStructIds = emptyStructIds;
   }
 
   Schema rootSchema(Schema record) {
@@ -88,6 +90,10 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       // selected by lower IDs.
       if (selectedIds.contains(fieldId)) {
         filteredFields.add(copyField(field, field.schema(), fieldId));
+      } else if (emptyStructIds.contains(fieldId)) {
+        hasChange = true;
+        Schema empty = AvroSchemaUtil.removeFields(field);
+        filteredFields.add(copyField(field, empty, fieldId));
       } else if (fieldSchema != null) {
         hasChange = true;
         filteredFields.add(copyField(field, fieldSchema, fieldId));

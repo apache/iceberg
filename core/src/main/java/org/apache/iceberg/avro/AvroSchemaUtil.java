@@ -96,8 +96,9 @@ public class AvroSchemaUtil {
     return ImmutableMap.copyOf(converter.getConversionMap());
   }
 
-  public static Schema pruneColumns(Schema schema, Set<Integer> selectedIds, NameMapping nameMapping) {
-    return new PruneColumns(selectedIds, nameMapping).rootSchema(schema);
+  public static Schema pruneColumns(Schema schema, Set<Integer> selectedIds, Set<Integer> emptyStructIds,
+                                    NameMapping nameMapping) {
+    return new PruneColumns(selectedIds, emptyStructIds, nameMapping).rootSchema(schema);
   }
 
   public static Schema buildAvroProjection(Schema schema, org.apache.iceberg.Schema expected,
@@ -407,5 +408,22 @@ public class AvroSchemaUtil {
       return "_" + character;
     }
     return "_x" + Integer.toHexString(character).toUpperCase();
+  }
+
+  public static Schema removeFields(Schema.Field field) {
+    Schema result;
+    if (field.schema().isUnion()) {
+      Schema optionSchema = AvroSchemaUtil.fromOption(field.schema());
+      Preconditions.checkArgument(optionSchema.getType().equals(Schema.Type.RECORD),
+          "Cannot remove fields from a non-Record schema");
+      return AvroSchemaUtil.toOption(Schema.createRecord(optionSchema.getName(), optionSchema.getDoc(), null,
+          optionSchema.isError(), ImmutableList.of()));
+    } else {
+      Preconditions.checkArgument(field.schema().getType().equals(Schema.Type.RECORD),
+          "Cannot remove fields from a non-Record schema");
+      Schema recordSchema = field.schema();
+      return Schema.createRecord(recordSchema.getName(), recordSchema.getDoc(), null, recordSchema.isError(),
+          ImmutableList.of());
+    }
   }
 }

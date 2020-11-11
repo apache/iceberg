@@ -88,6 +88,10 @@ public class TypeUtil {
     return visit(type, new GetProjectedIds());
   }
 
+  public static Set<Integer> getEmptyStructIds(Schema schema) {
+    return visit(schema.asStruct(), new GetEmptyStructIds());
+  }
+
   public static Types.StructType selectNot(Types.StructType struct, Set<Integer> fieldIds) {
     Set<Integer> projectedIds = getIdsInternal(struct);
     projectedIds.removeAll(fieldIds);

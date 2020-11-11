@@ -28,7 +28,6 @@ import org.apache.avro.Schema;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
@@ -99,9 +98,10 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
       } else if (isEmptyStruct(field)) {
         // There is an empty struct required in the expected schema but it wasn't picked up by the pruning code to avoid
         // selecting all subfields. Add the projection for the empty struct to match the expected schema.
-        Schema emptyStructSchema = AvroSchemaUtil.convert(field.type());
-        Schema newSchema = AvroSchemaUtil.copyRecord(emptyStructSchema, ImmutableList.of(), renames.get(field.name()));
-        Schema.Field newField = new Schema.Field(field.name(), newSchema, null, ImmutableMap.of());
+        Schema emptyStructSchema = Schema.createRecord("r" + field.fieldId(), null, null, false);
+        Schema newSchema = AvroSchemaUtil.toOption(
+            AvroSchemaUtil.copyRecord(emptyStructSchema, ImmutableList.of(), renames.get(field.name())));
+        Schema.Field newField = new Schema.Field(field.name(), newSchema, null, JsonProperties.NULL_VALUE);
         newField.addProp(AvroSchemaUtil.FIELD_ID_PROP, field.fieldId());
         updatedFields.add(newField);
         hasChange = true;
