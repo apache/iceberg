@@ -124,10 +124,12 @@ public class TestFlinkIcebergSink extends TableTestBase {
     File tableDir = tempFolder.newFolder();
     Assert.assertTrue(tableDir.delete());
 
+    // Create 'data' directory firstly so that the parallelism writers won't conflict with it.
+    File dataTableDir = new File(tableDir, "data");
+    Assert.assertTrue(dataTableDir.mkdirs());
+
     if (partitioned) {
-      PartitionSpec spec = PartitionSpec.builderFor(SimpleDataUtil.SCHEMA)
-          .bucket("data", 16)
-          .build();
+      PartitionSpec spec = PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).bucket("data", 16).build();
       this.table = TestTables.create(tableDir, TABLE_NAME, SimpleDataUtil.SCHEMA, spec, formatVersion);
     } else {
       this.table = TestTables.create(tableDir, TABLE_NAME, SimpleDataUtil.SCHEMA,
