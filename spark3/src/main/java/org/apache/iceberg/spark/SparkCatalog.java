@@ -78,7 +78,6 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * {@link #buildIcebergCatalog(String, CaseInsensitiveStringMap)}.
  */
 public class SparkCatalog extends BaseCatalog {
-
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
 
   public static final String ICEBERG_CATALOG_TYPE = "type";
