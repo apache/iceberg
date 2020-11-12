@@ -512,6 +512,30 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
   }
 
+  // TODO: enable this test once we fix writing
+  @Ignore
+  public void testDeleteThatRequiresGroupingBeforeWrite() throws NoSuchTableException {
+    createAndInitPartitionedTable();
+
+    append(new Employee(0, "hr"), new Employee(1, "hr"), new Employee(2, "hr"));
+    append(new Employee(0, "ops"), new Employee(1, "ops"), new Employee(2, "ops"));
+    append(new Employee(0, "hr"), new Employee(1, "hr"), new Employee(2, "hr"));
+    append(new Employee(0, "ops"), new Employee(1, "ops"), new Employee(2, "ops"));
+
+    createOrReplaceView("deleted_id", Arrays.asList(1, 100), Encoders.INT());
+
+    String originalNumOfShufflePartitions = spark.conf().get("spark.sql.shuffle.partitions");
+    try {
+      // set the num of shuffle partitions to 1 to ensure we have only 1 writing task
+      spark.conf().set("spark.sql.shuffle.partitions", "1");
+
+      sql("DELETE FROM %s t WHERE id IN (SELECT * FROM deleted_id)", tableName);
+      Assert.assertEquals("Should have expected num of rows", 8L, spark.table(tableName).count());
+    } finally {
+      spark.conf().set("spark.sql.shuffle.partitions", originalNumOfShufflePartitions);
+    }
+  }
+
   // TODO: multiple stripes for ORC
   // TODO: test for isolation levels
 
