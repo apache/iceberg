@@ -63,8 +63,8 @@ subprojects {
   pluginManager.withPlugin('com.palantir.baseline-error-prone') {
     tasks.withType(JavaCompile).configureEach {
       options.errorprone.errorproneArgs.addAll (
-          // error-prone is slow, don't run on tests
-          '-XepExcludedPaths:.*/test/.*',
+          // error-prone is slow, don't run on tests and generated src
+          '-XepExcludedPaths:.*/(test|generated-src)/.*',
           // specific to Palantir
           '-Xep:FinalClass:OFF',
           '-Xep:PreferSafeLoggingPreconditions:OFF',
