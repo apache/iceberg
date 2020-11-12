@@ -61,8 +61,9 @@ public class RewriteDataFilesAction extends BaseRewriteDataFilesAction<RewriteDa
     return this;
   }
 
-  public void maxParallelism(int parallelism) {
+  public RewriteDataFilesAction maxParallelism(int parallelism) {
     Preconditions.checkArgument(parallelism > 0, "Invalid max parallelism %d", parallelism);
     this.maxParallelism = parallelism;
+    return this;
   }
 }
