@@ -66,7 +66,7 @@ HiveCatalog catalog = new HiveCatalog(hadoopConfiguration);
 catalog.createTable(tableId, schema, spec);
 ```
 
-#### Table Property Configuration
+##### Table Property Configuration
 The property `engine.hive.enabled` needs to be set to `true` and added to the table properties when creating the Iceberg table. This can be done like so:
 ```java
     Map<String, String> tableProperties = new HashMap<String, String>();
