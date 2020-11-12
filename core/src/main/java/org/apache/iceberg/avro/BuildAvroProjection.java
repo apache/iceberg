@@ -27,6 +27,7 @@ import org.apache.avro.JsonProperties;
 import org.apache.avro.Schema;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
@@ -102,31 +103,8 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
 
       if (avroField != null) {
         updatedFields.add(avroField);
-      } else if (fileSchema != null && field.type().isStructType()) {
-        Schema realSchema = fileSchema.isUnion() ? AvroSchemaUtil.fromOption(fileSchema) : fileSchema;
-        Schema.Field projectedField = realSchema.getFields().stream()
-            .filter(fileField -> field.fieldId() == AvroSchemaUtil.getFieldId(fileField))
-            .findFirst().map(fileField -> {
-              Schema emptySchema = AvroSchemaUtil.removeFields(fileField);
-              Schema projectedSchema = AvroCustomOrderSchemaVisitor.visit(emptySchema,
-                  new BuildAvroProjection(field.type().asStructType(), renames, fileField.schema()));
-              return AvroSchemaUtil.copyField(fileField, projectedSchema, fileField.name());
-            })
-            .orElseGet(() -> {
-              throw new IllegalArgumentException(String.format("Missing required field: %s", field.name()));
-            });
-        updatedFields.add(projectedField);
-        hasChange = true;
       } else {
-        Preconditions.checkArgument(
-            field.isOptional() || MetadataColumns.metadataFieldIds().contains(field.fieldId()),
-            "Missing required field: %s", field.name());
-        // Create a field that will be defaulted to null. We assign a unique suffix to the field
-        // to make sure that even if records in the file have the field it is not projected.
-        Schema.Field newField = new Schema.Field(
-            field.name() + "_r" + field.fieldId(),
-            AvroSchemaUtil.toOption(AvroSchemaUtil.convert(field.type())), null, JsonProperties.NULL_VALUE);
-        newField.addProp(AvroSchemaUtil.FIELD_ID_PROP, field.fieldId());
+        Schema.Field newField = projectMissingField(field);
         updatedFields.add(newField);
         hasChange = true;
       }
@@ -153,6 +131,19 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
     String expectedName = expectedField.name();
 
     this.current = expectedField.type();
+
+    // Save current file state and recurse down if possible
+    Schema originalSchema = fileSchema;
+    if (fileSchema != null) {
+      Schema nonOptionSchema = (fileSchema.getType() == Schema.Type.UNION) ? AvroSchemaUtil.fromOption(fileSchema)
+          : fileSchema;
+      if (nonOptionSchema.getType() == Schema.Type.RECORD) {
+        fileSchema = nonOptionSchema.getField(field.name()).schema();
+      } else {
+        fileSchema = null;
+      }
+    }
+
     try {
       Schema schema = fieldResult.get();
 
@@ -165,7 +156,9 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
       }
 
     } finally {
+      // Restore state
       this.current = struct;
+      this.fileSchema = originalSchema;
     }
   }
 
@@ -278,4 +271,67 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
     }
   }
 
+
+  private static Schema removeFields(Schema.Field field) {
+    if (field.schema().isUnion()) {
+      Schema optionSchema = AvroSchemaUtil.fromOption(field.schema());
+      Preconditions.checkArgument(optionSchema.getType().equals(Schema.Type.RECORD),
+          "Cannot remove fields from a non-Record schema");
+      return AvroSchemaUtil.toOption(Schema.createRecord(optionSchema.getName(), optionSchema.getDoc(), null,
+          optionSchema.isError(), ImmutableList.of()));
+    } else {
+      Preconditions.checkArgument(field.schema().getType().equals(Schema.Type.RECORD),
+          "Cannot remove fields from a non-Record schema");
+      Schema recordSchema = field.schema();
+      return Schema.createRecord(recordSchema.getName(), recordSchema.getDoc(), null, recordSchema.isError(),
+          ImmutableList.of());
+    }
+  }
+
+  private static boolean fieldsMatch(Schema.Field avroField, Types.NestedField icebergField) {
+    return (AvroSchemaUtil.hasFieldId(avroField) && icebergField.fieldId() == AvroSchemaUtil.getFieldId(avroField)) ||
+        (!AvroSchemaUtil.hasFieldId(avroField) && icebergField.name().equals(avroField.name()));
+  }
+
+  /**
+   * Attempt to handle a missing field in the AvroSchema.
+   * If the field exists in the un-pruned avro schema we will add it back at this point.
+   * If the field is Optional or related to Metadata we will create a brand new field and add it to the schema.
+   * If we cannot do either we throw an error because the projection is impossible.
+   * @param icebergField an Iceberg field which is expected to exist in the projection
+   * @return an AvroField which represents the field in Iceberg Projection
+   */
+  private Schema.Field projectMissingField(Types.NestedField icebergField) {
+    Schema.Field projectedField = null;
+    if (fileSchema != null && icebergField.type().isStructType()) {
+      // Attempt to find the missing field in the FileSchema
+      Schema realSchema = fileSchema.isUnion() ? AvroSchemaUtil.fromOption(fileSchema) : fileSchema;
+      projectedField = realSchema.getFields().stream()
+          .filter(avroField -> fieldsMatch(avroField, icebergField))
+          .findFirst().map(avroField -> {
+            Schema emptySchema = removeFields(avroField);
+            // We must recurse because the subfield may also be within the fileSchema and we don't want to recreate
+            // those subfields
+            Schema projectedSchema = AvroCustomOrderSchemaVisitor.visit(emptySchema,
+                new BuildAvroProjection(icebergField.type().asStructType(), renames, avroField.schema()));
+            return AvroSchemaUtil.copyField(avroField, projectedSchema, avroField.name());
+          }).orElse(null);
+    }
+
+    if (projectedField == null) {
+      // We weren't able to find the projected field in the fileSchema
+      Preconditions.checkArgument(
+          icebergField.isOptional() || icebergField.fieldId() == MetadataColumns.ROW_POSITION.fieldId(),
+          "Missing required field: %s", icebergField.name());
+      // Create a field that will be defaulted to null. We assign a unique suffix to the field
+      // to make sure that even if records in the file have the field it is not projected.
+      projectedField = new Schema.Field(
+          icebergField.name() + "_r" + icebergField.fieldId(),
+          AvroSchemaUtil.toOption(AvroSchemaUtil.convert(icebergField.type())), null, JsonProperties.NULL_VALUE);
+    }
+
+    projectedField.addProp(AvroSchemaUtil.FIELD_ID_PROP, icebergField.fieldId());
+
+    return projectedField;
+  }
 }

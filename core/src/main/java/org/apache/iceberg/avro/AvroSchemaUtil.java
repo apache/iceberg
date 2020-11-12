@@ -425,21 +425,4 @@ public class AvroSchemaUtil {
     }
     return "_x" + Integer.toHexString(character).toUpperCase();
   }
-
-  public static Schema removeFields(Schema.Field field) {
-    Schema result;
-    if (field.schema().isUnion()) {
-      Schema optionSchema = AvroSchemaUtil.fromOption(field.schema());
-      Preconditions.checkArgument(optionSchema.getType().equals(Schema.Type.RECORD),
-          "Cannot remove fields from a non-Record schema");
-      return AvroSchemaUtil.toOption(Schema.createRecord(optionSchema.getName(), optionSchema.getDoc(), null,
-          optionSchema.isError(), ImmutableList.of()));
-    } else {
-      Preconditions.checkArgument(field.schema().getType().equals(Schema.Type.RECORD),
-          "Cannot remove fields from a non-Record schema");
-      Schema recordSchema = field.schema();
-      return Schema.createRecord(recordSchema.getName(), recordSchema.getDoc(), null, recordSchema.isError(),
-          ImmutableList.of());
-    }
-  }
 }
