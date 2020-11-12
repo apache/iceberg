@@ -551,8 +551,9 @@ public abstract class TestReadProjection {
     );
 
     Record projected = writeAndRead("empty_proj", writeSchema, emptyStruct, record);
-    Assert.assertNull("Should not project data", projected.get("data"));
+    Assert.assertNull("Should not project id", projected.get("id"));
     Record result = (Record) projected.get("location");
+    Assert.assertEquals("location should be in the 0th position", result, projected.get(0));
     Assert.assertNotNull("Should contain an empty record", result);
     Assert.assertNull("Should not project lat", result.get("lat"));
     Assert.assertNull("Should not project long", result.get("long"));
@@ -580,8 +581,9 @@ public abstract class TestReadProjection {
     );
 
     Record projected = writeAndRead("empty_req_proj", writeSchema, emptyStruct, record);
-    Assert.assertNull("Should not project data", projected.get("data"));
+    Assert.assertNull("Should not project id", projected.get("id"));
     Record result = (Record) projected.get("location");
+    Assert.assertEquals("location should be in the 0th position", result, projected.get(0));
     Assert.assertNotNull("Should contain an empty record", result);
     Assert.assertNull("Should not project lat", result.get("lat"));
     Assert.assertNull("Should not project long", result.get("long"));
@@ -616,11 +618,13 @@ public abstract class TestReadProjection {
         )));
 
     Record projected = writeAndRead("nested_empty_proj", writeSchema, emptyStruct, record);
-    Assert.assertNull("Should not project data", projected.get("id"));
+    Assert.assertNull("Should not project id", projected.get("id"));
     Record outerResult = (Record) projected.get("outer");
+    Assert.assertEquals("Outer should be in the 0th position", outerResult, projected.get(0));
     Assert.assertNotNull("Should contain the outer record", outerResult);
     Assert.assertNull("Should not contain lat", outerResult.get("lat"));
     Record innerResult = (Record) outerResult.get("inner");
+    Assert.assertEquals("Inner should be in the 0th position", innerResult, outerResult.get(0));
     Assert.assertNotNull("Should contain the inner record", innerResult);
     Assert.assertNull("Should not contain lon", innerResult.get("lon"));
   }
@@ -653,11 +657,13 @@ public abstract class TestReadProjection {
         )));
 
     Record projected = writeAndRead("nested_empty_req_proj", writeSchema, emptyStruct, record);
-    Assert.assertNull("Should not project data", projected.get("id"));
+    Assert.assertNull("Should not project id", projected.get("id"));
     Record outerResult = (Record) projected.get("outer");
+    Assert.assertEquals("Outer should be in the 0th position", outerResult, projected.get(0));
     Assert.assertNotNull("Should contain the outer record", outerResult);
     Assert.assertNull("Should not contain lat", outerResult.get("lat"));
     Record innerResult = (Record) outerResult.get("inner");
+    Assert.assertEquals("Inner should be in the 0th position", innerResult, outerResult.get(0));
     Assert.assertNotNull("Should contain the inner record", innerResult);
     Assert.assertNull("Should not contain lon", innerResult.get("lon"));
   }
@@ -691,11 +697,13 @@ public abstract class TestReadProjection {
         ));
 
     Record projected = writeAndRead("metadata_field_proj", writeSchema, metadataStruct, record);
-    Assert.assertNull("Should not project data", projected.get("id"));
+    Assert.assertNull("Should not project id", projected.get("id"));
     Record outerResult = (Record) projected.get("outer");
+    Assert.assertEquals("Outer should be in the 0th position", outerResult, projected.get(0));
     Assert.assertNotNull("Should contain the outer record", outerResult);
     Assert.assertNull("Should not contain lat", outerResult.get("lat"));
     Record innerResult = (Record) outerResult.get("inner");
+    Assert.assertEquals("Inner should be in the 0th position", innerResult, outerResult.get(0));
     Assert.assertNotNull("Should contain the inner record", innerResult);
     Assert.assertNull("Should not contain lon", innerResult.get("lon"));
     String metaName = MetadataColumns.ROW_POSITION.name() + "_r" + MetadataColumns.ROW_POSITION.fieldId();
@@ -729,12 +737,14 @@ public abstract class TestReadProjection {
     );
 
     Record projected = writeAndRead("non_existant_proj", writeSchema, emptyStruct, record);
-    Assert.assertNull("Should not project data", projected.get("data"));
+    Assert.assertNull("Should not project id", projected.get("id"));
     Record result = (Record) projected.get("location");
+    Assert.assertEquals("location should be in the 0th position", result, projected.get(0));
     Assert.assertNotNull("Should contain an fake optional record", result);
     Assert.assertNull("Should not project lat", result.get("lat"));
     Assert.assertNull("Should not project long", result.get("long"));
     Assert.assertNotNull("Schema should contain foo", result.getSchema().getField("foo_r10000"));
+    Assert.assertNull("foo should be null since it is not present in the data", result.get("foo_r10000"));
     Assert.assertNotNull("Schema should contain foo.bar",
         AvroSchemaUtil.fromOption(result.getSchema().getField("foo_r10000").schema())
             .getField("bar"));
