@@ -590,6 +590,44 @@ public abstract class TestReadProjection {
   }
 
   @Test
+  public void testRequiredEmptyStructInRequiredStruct() throws Exception {
+    Schema writeSchema = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.required(3, "location", Types.StructType.of(
+            Types.NestedField.required(1, "lat", Types.FloatType.get()),
+            Types.NestedField.required(2, "long", Types.FloatType.get()),
+            Types.NestedField.required(4, "empty", Types.StructType.of())
+        ))
+    );
+
+    Record record = new Record(AvroSchemaUtil.convert(writeSchema, "table"));
+    record.put("id", 34L);
+    Record location = new Record(record.getSchema().getField("location").schema());
+    location.put("lat", 52.995143f);
+    location.put("long", -1.539054f);
+    record.put("location", location);
+
+    Schema emptyStruct = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.required(3, "location", Types.StructType.of(
+            Types.NestedField.required(4, "empty", Types.StructType.of())
+        ))
+    );
+
+    Record projected = writeAndRead("req_empty_req_proj", writeSchema, emptyStruct, record);
+    Assert.assertEquals("Should project id", 34L, projected.get("id"));
+    Record result = (Record) projected.get("location");
+    Assert.assertEquals("location should be in the 1st position", result, projected.get(1));
+    Assert.assertNotNull("Should contain an empty record", result);
+    Assert.assertNull("Should not project lat", result.get("lat"));
+    Assert.assertNull("Should not project long", result.get("long"));
+    Assert.assertNotNull("Should project empty", result.getSchema().getField("empty"));
+    Assert.assertNotNull("Empty should not be null", result.get("empty"));
+    Assert.assertEquals("Empty should be empty", 0,
+        ((Record) result.get("empty")).getSchema().getFields().size());
+  }
+
+  @Test
   public void testEmptyNestedStructProjection() throws Exception {
     Schema writeSchema = new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get()),
