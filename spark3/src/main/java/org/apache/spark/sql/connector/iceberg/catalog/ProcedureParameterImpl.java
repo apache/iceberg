@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.spark.sql.connector.catalog;
+package org.apache.spark.sql.connector.iceberg.catalog;
 
 import java.util.Objects;
 import org.apache.spark.sql.types.DataType;

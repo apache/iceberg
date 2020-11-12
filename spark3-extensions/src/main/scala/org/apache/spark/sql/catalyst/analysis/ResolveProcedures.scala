@@ -23,7 +23,8 @@ import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.sql.catalyst.expressions.{Cast, Expression, Literal}
 import org.apache.spark.sql.catalyst.plans.logical.{Call, CallArgument, CallStatement, LogicalPlan, NamedArgument, PositionalArgument}
 import org.apache.spark.sql.catalyst.rules.Rule
-import org.apache.spark.sql.connector.catalog.{CatalogManager, CatalogPlugin, LookupCatalog, Procedure, ProcedureCatalog, ProcedureParameter}
+import org.apache.spark.sql.connector.catalog.{CatalogManager, CatalogPlugin, LookupCatalog}
+import org.apache.spark.sql.connector.iceberg.catalog.{Procedure, ProcedureCatalog, ProcedureParameter}
 import scala.collection.Seq
 
 case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with LookupCatalog {

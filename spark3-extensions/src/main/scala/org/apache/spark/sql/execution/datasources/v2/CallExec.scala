@@ -22,7 +22,7 @@ package org.apache.spark.sql.execution.datasources.v2
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.util.truncatedString
-import org.apache.spark.sql.connector.catalog.Procedure
+import org.apache.spark.sql.connector.iceberg.catalog.Procedure
 
 case class CallExec(
     output: Seq[Attribute],
