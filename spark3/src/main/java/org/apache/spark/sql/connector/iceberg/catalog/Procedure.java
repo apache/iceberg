@@ -17,21 +17,19 @@
  * under the License.
  */
 
-package org.apache.spark.sql.connector.catalog;
+package org.apache.spark.sql.connector.iceberg.catalog;
 
-import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.types.StructType;
 
-public interface ProcedureParameter {
+public interface Procedure {
+  ProcedureParameter[] parameters();
 
-  static ProcedureParameter required(String name, DataType dataType) {
-    return new ProcedureParameterImpl(name, dataType, true);
+  StructType outputType();
+
+  InternalRow[] call(InternalRow input);
+
+  default String description() {
+    return this.getClass().toString();
   }
-
-  static ProcedureParameter optional(String name, DataType dataType) {
-    return new ProcedureParameterImpl(name, dataType, false);
-  }
-
-  String name();
-  DataType dataType();
-  boolean required();
 }

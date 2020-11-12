@@ -17,9 +17,11 @@
  * under the License.
  */
 
-package org.apache.spark.sql.connector.catalog;
+package org.apache.spark.sql.connector.iceberg.catalog;
 
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.apache.spark.sql.connector.catalog.CatalogPlugin;
+import org.apache.spark.sql.connector.catalog.Identifier;
 
 public interface ProcedureCatalog extends CatalogPlugin {
   Procedure loadProcedure(Identifier ident) throws NoSuchProcedureException;
