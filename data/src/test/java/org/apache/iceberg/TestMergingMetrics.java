@@ -141,20 +141,20 @@ public abstract class TestMergingMetrics<T> {
             return 0;
           }
           if (FLOAT_FIELD.equals(field)) {
-            return value.equals(Float.NaN) ? 1 : 0;
+            return Float.isNaN((Float) value) ? 1 : 0;
           } else if  (DOUBLE_FIELD.equals(field)) {
-            return value.equals(Double.NaN) ? 1 : 0;
+            return Double.isNaN((Double) value) ? 1 : 0;
           } else if  (FLOAT_LIST.equals(field)) {
             return ((List<Float>) value).stream()
-                .filter(val -> val != null && val.equals(Float.NaN))
+                .filter(val -> val != null && Float.isNaN(val))
                 .count();
           } else if  (MAP_FIELD_1.equals(field)) {
             return ((Map<Float, ?>) value).keySet().stream()
-                .filter(key -> key.equals(Float.NaN))
+                .filter(key -> Float.isNaN(key))
                 .count();
           } else if  (MAP_FIELD_2.equals(field)) {
             return ((Map<?, Double>) value).values().stream()
-                .filter(val -> val != null && val.equals(Double.NaN))
+                .filter(val -> val != null && Double.isNaN(val))
                 .count();
           } else {
             throw new RuntimeException("unknown field name for getting expected NaN count: " + field.name());

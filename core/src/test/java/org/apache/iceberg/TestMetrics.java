@@ -102,7 +102,18 @@ public abstract class TestMetrics {
       optional(2, "doubleCol", DoubleType.get())
   );
 
+  private static final Record FLOAT_DOUBLE_RECORD_1 = createRecordWithFloatAndDouble(1.2F, 3.4D);
+  private static final Record FLOAT_DOUBLE_RECORD_2 = createRecordWithFloatAndDouble(5.6F, 7.8D);
+  private static final Record NAN_ONLY_RECORD = createRecordWithFloatAndDouble(Float.NaN, Double.NaN);
+
   private final byte[] fixed = "abcd".getBytes(StandardCharsets.UTF_8);
+
+  private static Record createRecordWithFloatAndDouble(float floatValue, double doubleValue) {
+    Record record = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
+    record.setField("floatCol", floatValue);
+    record.setField("doubleCol", doubleValue);
+    return record;
+  }
 
   public abstract FileFormat fileFormat();
 
@@ -119,7 +130,7 @@ public abstract class TestMetrics {
     return false;
   }
 
-  protected abstract OutputFile createFileToWriteTo() throws IOException;
+  protected abstract OutputFile createOutputFile() throws IOException;
 
   @Test
   public void testMetricsForRepeatedValues() throws IOException {
@@ -335,14 +346,7 @@ public abstract class TestMetrics {
 
   @Test
   public void testMetricsForNaNColumns() throws IOException {
-    Record firstRecord = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
-    firstRecord.setField("floatCol", Float.NaN);
-    firstRecord.setField("doubleCol", Double.NaN);
-    Record secondRecord = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
-    secondRecord.setField("floatCol", Float.NaN);
-    secondRecord.setField("doubleCol", Double.NaN);
-
-    Metrics metrics = getMetrics(FLOAT_DOUBLE_ONLY_SCHEMA, firstRecord, secondRecord);
+    Metrics metrics = getMetrics(FLOAT_DOUBLE_ONLY_SCHEMA, NAN_ONLY_RECORD, NAN_ONLY_RECORD);
     Assert.assertEquals(2L, (long) metrics.recordCount());
     assertCounts(1, 2L, 0L, 2L, metrics);
     assertCounts(2, 2L, 0L, 2L, metrics);
@@ -353,19 +357,8 @@ public abstract class TestMetrics {
 
   @Test
   public void testColumnBoundsWithNaNValueAtFront() throws IOException {
-    Record nonNaNRecord1 = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
-    nonNaNRecord1.setField("floatCol", 1.2F);
-    nonNaNRecord1.setField("doubleCol", 3.4D);
-
-    Record nonNaNRecord2 = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
-    nonNaNRecord2.setField("floatCol", 5.6F);
-    nonNaNRecord2.setField("doubleCol", 7.8D);
-
-    Record nanRecord = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
-    nanRecord.setField("floatCol", Float.NaN);
-    nanRecord.setField("doubleCol", Double.NaN);
-
-    Metrics metrics = getMetrics(FLOAT_DOUBLE_ONLY_SCHEMA, nanRecord, nonNaNRecord1, nonNaNRecord2);
+    Metrics metrics = getMetrics(FLOAT_DOUBLE_ONLY_SCHEMA,
+        NAN_ONLY_RECORD, FLOAT_DOUBLE_RECORD_1, FLOAT_DOUBLE_RECORD_2);
     Assert.assertEquals(3L, (long) metrics.recordCount());
     assertCounts(1, 3L, 0L, 1L, metrics);
     assertCounts(2, 3L, 0L, 1L, metrics);
@@ -383,19 +376,8 @@ public abstract class TestMetrics {
 
   @Test
   public void testColumnBoundsWithNaNValueInMiddle() throws IOException {
-    Record nonNaNRecord1 = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
-    nonNaNRecord1.setField("floatCol", 1.2F);
-    nonNaNRecord1.setField("doubleCol", 3.4D);
-
-    Record nonNaNRecord2 = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
-    nonNaNRecord2.setField("floatCol", 5.6F);
-    nonNaNRecord2.setField("doubleCol", 7.8D);
-
-    Record nanRecord = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
-    nanRecord.setField("floatCol", Float.NaN);
-    nanRecord.setField("doubleCol", Double.NaN);
-
-    Metrics metrics = getMetrics(FLOAT_DOUBLE_ONLY_SCHEMA, nonNaNRecord1, nanRecord, nonNaNRecord2);
+    Metrics metrics = getMetrics(FLOAT_DOUBLE_ONLY_SCHEMA,
+        FLOAT_DOUBLE_RECORD_1, NAN_ONLY_RECORD, FLOAT_DOUBLE_RECORD_2);
     Assert.assertEquals(3L, (long) metrics.recordCount());
     assertCounts(1, 3L, 0L, 1L, metrics);
     assertCounts(2, 3L, 0L, 1L, metrics);
@@ -413,19 +395,8 @@ public abstract class TestMetrics {
 
   @Test
   public void testColumnBoundsWithNaNValueAtEnd() throws IOException {
-    Record nonNaNRecord1 = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
-    nonNaNRecord1.setField("floatCol", 1.2F);
-    nonNaNRecord1.setField("doubleCol", 3.4D);
-
-    Record nonNaNRecord2 = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
-    nonNaNRecord2.setField("floatCol", 5.6F);
-    nonNaNRecord2.setField("doubleCol", 7.8D);
-
-    Record nanRecord = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
-    nanRecord.setField("floatCol", Float.NaN);
-    nanRecord.setField("doubleCol", Double.NaN);
-
-    Metrics metrics = getMetrics(FLOAT_DOUBLE_ONLY_SCHEMA, nonNaNRecord1, nonNaNRecord2, nanRecord);
+    Metrics metrics = getMetrics(FLOAT_DOUBLE_ONLY_SCHEMA,
+        FLOAT_DOUBLE_RECORD_1, FLOAT_DOUBLE_RECORD_2, NAN_ONLY_RECORD);
     Assert.assertEquals(3L, (long) metrics.recordCount());
     assertCounts(1, 3L, 0L, 1L, metrics);
     assertCounts(2, 3L, 0L, 1L, metrics);
@@ -467,7 +438,7 @@ public abstract class TestMetrics {
     }
 
     // create file with multiple row groups. by using smaller number of bytes
-    OutputFile outputFile = createFileToWriteTo();
+    OutputFile outputFile = createOutputFile();
     Metrics metrics = getMetricsForRecordsWithSmallRowGroups(SIMPLE_SCHEMA, outputFile, records.toArray(new Record[0]));
     InputFile recordsFile = outputFile.toInputFile();
 
@@ -511,7 +482,7 @@ public abstract class TestMetrics {
     }
 
     // create file with multiple row groups. by using smaller number of bytes
-    OutputFile outputFile = createFileToWriteTo();
+    OutputFile outputFile = createOutputFile();
     Metrics metrics = getMetricsForRecordsWithSmallRowGroups(NESTED_SCHEMA, outputFile, records.toArray(new Record[0]));
     InputFile recordsFile = outputFile.toInputFile();
 

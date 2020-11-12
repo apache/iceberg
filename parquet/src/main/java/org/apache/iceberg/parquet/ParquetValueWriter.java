@@ -33,7 +33,7 @@ public interface ParquetValueWriter<T> {
 
   /**
    * Returns a stream of {@link FieldMetrics} that this ParquetValueWriter keeps track of.
-   *
+   * <p>
    * Since Parquet keeps track of most metrics in its footer, for now ParquetValueWriter only keeps track of NaN
    * counter, and only return non-empty stream if the writer writes double or float values either by itself or
    * transitively.

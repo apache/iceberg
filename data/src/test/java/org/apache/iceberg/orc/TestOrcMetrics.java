@@ -51,7 +51,7 @@ public class TestOrcMetrics extends TestMetrics {
       Type.TypeID.FIXED, Type.TypeID.UUID);
 
   @Override
-  protected OutputFile createFileToWriteTo() throws IOException {
+  protected OutputFile createOutputFile() throws IOException {
     File tmpFolder = temp.newFolder("orc");
     String filename = UUID.randomUUID().toString();
     return Files.localOutput(new File(tmpFolder, FileFormat.ORC.addExtension(filename)));
@@ -72,7 +72,7 @@ public class TestOrcMetrics extends TestMetrics {
 
   @Override
   public Metrics getMetrics(Schema schema, MetricsConfig metricsConfig, Record... records) throws IOException {
-    return getMetrics(schema, createFileToWriteTo(), ImmutableMap.of(), metricsConfig, records);
+    return getMetrics(schema, createOutputFile(), ImmutableMap.of(), metricsConfig, records);
   }
 
   @Override
