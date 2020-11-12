@@ -35,8 +35,8 @@ abstract class BaseCatalog implements StagingTableCatalog, ProcedureCatalog, Sup
     String[] namespace = ident.namespace();
     String name = ident.name();
 
-    // namespace resolution is case sensitive to match how we resolve namespaces for tables right now
-    if (namespace.length == 1 && namespace[0].equals("system")) {
+    // namespace resolution is case insensitive until we have a way to configure case sensitivity in catalogs
+    if (namespace.length == 1 && namespace[0].equalsIgnoreCase("system")) {
       try {
         // procedure resolution is case insensitive to match the existing Spark behavior for functions
         // SimpleFunctionRegistry normalizes function names but leaves namespace resolution to the caller

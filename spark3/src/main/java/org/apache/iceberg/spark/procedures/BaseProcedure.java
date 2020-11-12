@@ -46,8 +46,8 @@ abstract class BaseProcedure implements Procedure {
   }
 
   protected <T> T modifyIcebergTable(String namespace, String tableName, Function<org.apache.iceberg.Table, T> func) {
-    Preconditions.checkArgument(!namespace.isEmpty(), "Namespace cannot be empty");
-    Preconditions.checkArgument(!tableName.isEmpty(), "Table name cannot be empty");
+    Preconditions.checkArgument(namespace != null && !namespace.isEmpty(), "Namespace cannot be empty");
+    Preconditions.checkArgument(tableName != null && !tableName.isEmpty(), "Table name cannot be empty");
 
     Identifier ident = toIdentifier(namespace, tableName);
     SparkTable sparkTable = loadSparkTable(ident);

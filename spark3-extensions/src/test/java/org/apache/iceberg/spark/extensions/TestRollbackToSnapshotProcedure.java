@@ -34,9 +34,9 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.junit.After;
 import org.junit.Test;
 
-public class TestManageSnapshotsProcedures extends SparkExtensionsTestBase {
+public class TestRollbackToSnapshotProcedure extends SparkExtensionsTestBase {
 
-  public TestManageSnapshotsProcedures(String catalogName, String implementation, Map<String, String> config) {
+  public TestRollbackToSnapshotProcedure(String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
   }
 
@@ -209,6 +209,18 @@ public class TestManageSnapshotsProcedures extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows("Should reject calls without all required args",
         AnalysisException.class, "Missing required parameters",
         () -> sql("CALL %s.system.rollback_to_snapshot('n', 't')", catalogName));
+
+    AssertHelpers.assertThrows("Should reject calls without all required args",
+        AnalysisException.class, "Missing required parameters",
+        () -> sql("CALL %s.system.rollback_to_snapshot('n', 1L)", catalogName));
+
+    AssertHelpers.assertThrows("Should reject calls without all required args",
+        AnalysisException.class, "Missing required parameters",
+        () -> sql("CALL %s.system.rollback_to_snapshot(namespace => 'n', snapshot_id => 1L)", catalogName));
+
+    AssertHelpers.assertThrows("Should reject calls without all required args",
+        AnalysisException.class, "Missing required parameters",
+        () -> sql("CALL %s.system.rollback_to_snapshot(table => 't', snapshot_id => 1L)", catalogName));
 
     AssertHelpers.assertThrows("Should reject calls with invalid arg types",
         AnalysisException.class, "Wrong arg type for snapshot_id: expected LongType",

@@ -31,16 +31,16 @@ import org.apache.spark.sql.types.StructType;
 
 public class RollbackToSnapshotProcedure extends BaseProcedure {
 
-  private final ProcedureParameter[] parameters = new ProcedureParameter[]{
+  private static final ProcedureParameter[] parameters = new ProcedureParameter[]{
       ProcedureParameter.required("namespace", DataTypes.StringType),
       ProcedureParameter.required("table", DataTypes.StringType),
       ProcedureParameter.required("snapshot_id", DataTypes.LongType)
   };
-  private final StructField[] outputFields = new StructField[]{
-      new StructField("previous_current_snapshot_id", DataTypes.LongType, false, Metadata.empty()),
+
+  private static final StructType outputType = new StructType(new StructField[]{
+      new StructField("previous_snapshot_id", DataTypes.LongType, false, Metadata.empty()),
       new StructField("current_snapshot_id", DataTypes.LongType, false, Metadata.empty())
-  };
-  private final StructType outputType = new StructType(outputFields);
+  });
 
   public RollbackToSnapshotProcedure(TableCatalog catalog) {
     super(catalog);
@@ -69,7 +69,7 @@ public class RollbackToSnapshotProcedure extends BaseProcedure {
           .rollbackTo(snapshotId)
           .commit();
 
-      Object[] outputValues = new Object[outputFields.length];
+      Object[] outputValues = new Object[outputType.size()];
       outputValues[0] = previousCurrentSnapshot.snapshotId();
       outputValues[1] = snapshotId;
       GenericInternalRow outputRow = new GenericInternalRow(outputValues);
