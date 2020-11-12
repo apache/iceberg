@@ -57,7 +57,9 @@ public class HiveIcebergSerDe extends AbstractSerDe {
     // the resulting properties are serialized and distributed to the executors
 
     Schema tableSchema;
-    if (serDeProperties.get(InputFormatConfig.TABLE_SCHEMA) != null) {
+    if (configuration.get(InputFormatConfig.TABLE_SCHEMA) != null) {
+      tableSchema = SchemaParser.fromJson(configuration.get(InputFormatConfig.TABLE_SCHEMA));
+    } else if (serDeProperties.get(InputFormatConfig.TABLE_SCHEMA) != null) {
       tableSchema = SchemaParser.fromJson((String) serDeProperties.get(InputFormatConfig.TABLE_SCHEMA));
     } else {
       // Read the configuration parameters
