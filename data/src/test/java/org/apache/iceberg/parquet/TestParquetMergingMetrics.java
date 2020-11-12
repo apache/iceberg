@@ -19,27 +19,23 @@
 
 package org.apache.iceberg.parquet;
 
+import java.io.IOException;
 import java.util.List;
-import java.util.stream.Stream;
-import org.apache.iceberg.FieldMetrics;
-import org.apache.parquet.column.ColumnWriteStore;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.TestMergingMetrics;
+import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.io.FileAppender;
 
-public interface ParquetValueWriter<T> {
-  void write(int repetitionLevel, T value);
+public class TestParquetMergingMetrics extends TestMergingMetrics<Record> {
 
-  List<TripleWriter<?>> columns();
-
-  void setColumnStore(ColumnWriteStore columnStore);
-
-  /**
-   * Returns a stream of {@link FieldMetrics} that this ParquetValueWriter keeps track of.
-   * <p>
-   * Since Parquet keeps track of most metrics in its footer, for now ParquetValueWriter only keeps track of NaN
-   * counter, and only return non-empty stream if the writer writes double or float values either by itself or
-   * transitively.
-   */
-  default Stream<FieldMetrics> metrics() {
-    return Stream.empty();
+  @Override
+  protected FileAppender<Record> writeAndGetAppender(List<Record> records) throws IOException {
+    FileAppender<Record> appender = new GenericAppenderFactory(SCHEMA).newAppender(
+        org.apache.iceberg.Files.localOutput(temp.newFile()), FileFormat.PARQUET);
+    try (FileAppender<Record> fileAppender = appender) {
+      records.forEach(fileAppender::add);
+    }
+    return appender;
   }
 }
-

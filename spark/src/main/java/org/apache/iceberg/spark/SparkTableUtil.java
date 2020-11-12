@@ -28,6 +28,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -301,9 +302,12 @@ public class SparkTableUtil {
 
   /**
    * Returns the data files in a partition by listing the partition location.
-   *
+   * <p>
    * For Parquet and ORC partitions, this will read metrics from the file footer. For Avro partitions,
    * metrics are set to null.
+   * <p>
+   * Note: certain metrics, like NaN counts, that are only supported by iceberg file writers but not file footers, will
+   * not be populated.
    *
    * @param partition partition key, e.g., "a=1/b=2"
    * @param uri partition location URI
@@ -369,7 +373,7 @@ public class SparkTableUtil {
             Metrics metrics;
             try {
               ParquetMetadata metadata = ParquetFileReader.readFooter(conf, stat);
-              metrics = ParquetUtil.footerMetrics(metadata, metricsSpec, mapping);
+              metrics = ParquetUtil.footerMetrics(metadata, Stream.empty(), metricsSpec, mapping);
             } catch (IOException e) {
               throw SparkExceptionUtil.toUncheckedException(
                   e, "Unable to read the footer of the parquet file: %s", stat.getPath());

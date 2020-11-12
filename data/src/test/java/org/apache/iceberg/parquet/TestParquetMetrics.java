@@ -57,32 +57,40 @@ public class TestParquetMetrics extends TestMetrics {
   }
 
   @Override
-  public Metrics getMetrics(InputFile file, MetricsConfig metricsConfig) {
-    return ParquetUtil.fileMetrics(file, metricsConfig);
-  }
-
-  @Override
-  public InputFile writeRecordsWithSmallRowGroups(Schema schema, Record... records) throws IOException {
-    return writeRecords(schema, SMALL_ROW_GROUP_CONFIG, records);
-  }
-
-  @Override
-  public InputFile writeRecords(Schema schema, Record... records) throws IOException {
-    return writeRecords(schema, ImmutableMap.of(), records);
-  }
-
-  private InputFile writeRecords(Schema schema, Map<String, String> properties, Record... records) throws IOException {
+  protected OutputFile createOutputFile() throws IOException {
     File tmpFolder = temp.newFolder("parquet");
     String filename = UUID.randomUUID().toString();
-    OutputFile file = Files.localOutput(new File(tmpFolder, FileFormat.PARQUET.addExtension(filename)));
-    try (FileAppender<Record> writer = Parquet.write(file)
+    return Files.localOutput(new File(tmpFolder, FileFormat.PARQUET.addExtension(filename)));
+  }
+
+  @Override
+  public Metrics getMetrics(Schema schema, Record... records) throws IOException {
+    return getMetrics(schema, MetricsConfig.getDefault(), records);
+  }
+
+  @Override
+  public Metrics getMetrics(Schema schema, MetricsConfig metricsConfig, Record... records) throws IOException {
+    return getMetrics(schema, createOutputFile(), ImmutableMap.of(), metricsConfig, records);
+  }
+
+  private Metrics getMetrics(Schema schema, OutputFile file, Map<String, String> properties,
+                             MetricsConfig metricsConfig, Record... records) throws IOException {
+    FileAppender<Record> writer = Parquet.write(file)
         .schema(schema)
         .setAll(properties)
         .createWriterFunc(GenericParquetWriter::buildWriter)
-        .build()) {
-      writer.addAll(Lists.newArrayList(records));
+        .metricsConfig(metricsConfig)
+        .build();
+    try (FileAppender<Record> appender = writer) {
+      appender.addAll(Lists.newArrayList(records));
     }
-    return file.toInputFile();
+    return writer.metrics();
+  }
+
+  @Override
+  protected Metrics getMetricsForRecordsWithSmallRowGroups(
+      Schema schema, OutputFile outputFile, Record... records) throws IOException {
+    return getMetrics(schema, outputFile, SMALL_ROW_GROUP_CONFIG, MetricsConfig.getDefault(), records);
   }
 
   @Override
