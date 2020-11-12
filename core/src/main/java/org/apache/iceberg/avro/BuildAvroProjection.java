@@ -43,10 +43,18 @@ import org.apache.iceberg.types.Types;
 class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Field> {
   private final Map<String, String> renames;
   private Type current = null;
+  private Schema fileSchema = null;
 
-  BuildAvroProjection(org.apache.iceberg.Schema expectedSchema, Map<String, String> renames) {
+  BuildAvroProjection(org.apache.iceberg.Schema expectedSchema, Map<String, String> renames, Schema fileSchema) {
     this.renames = renames;
     this.current = expectedSchema.asStruct();
+    this.fileSchema = fileSchema;
+  }
+
+  BuildAvroProjection(Types.StructType expectedSchema, Map<String, String> renames, Schema fileSchema) {
+    this.renames = renames;
+    this.current = expectedSchema;
+    this.fileSchema = fileSchema;
   }
 
   @Override
@@ -94,7 +102,21 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
 
       if (avroField != null) {
         updatedFields.add(avroField);
-
+      } else if (fileSchema != null && field.type().isStructType()) {
+        Schema realSchema = fileSchema.isUnion() ? AvroSchemaUtil.fromOption(fileSchema) : fileSchema;
+        Schema.Field projectedField = realSchema.getFields().stream()
+            .filter(fileField -> field.fieldId() == AvroSchemaUtil.getFieldId(fileField))
+            .findFirst().map(fileField -> {
+              Schema emptySchema = AvroSchemaUtil.removeFields(fileField);
+              Schema projectedSchema = AvroCustomOrderSchemaVisitor.visit(emptySchema,
+                  new BuildAvroProjection(field.type().asStructType(), renames, fileField.schema()));
+              return AvroSchemaUtil.copyField(fileField, projectedSchema, fileField.name());
+            })
+            .orElseGet(() -> {
+              throw new IllegalArgumentException(String.format("Missing required field: %s", field.name()));
+            });
+        updatedFields.add(projectedField);
+        hasChange = true;
       } else {
         Preconditions.checkArgument(
             field.isOptional() || MetadataColumns.metadataFieldIds().contains(field.fieldId()),

@@ -64,9 +64,8 @@ public class ProjectionDatumReader<D> implements DatumReader<D>, SupportsRowPosi
       nameMapping = MappingUtil.create(expectedSchema);
     }
     Set<Integer> projectedIds = TypeUtil.getProjectedIds(expectedSchema);
-    Set<Integer> emptyLeafStructs = TypeUtil.getEmptyStructIds(expectedSchema);
-    Schema prunedSchema = AvroSchemaUtil.pruneColumns(newFileSchema, projectedIds, emptyLeafStructs, nameMapping);
-    this.readSchema = AvroSchemaUtil.buildAvroProjection(prunedSchema, expectedSchema, renames);
+    Schema prunedSchema = AvroSchemaUtil.pruneColumns(newFileSchema, projectedIds, nameMapping);
+    this.readSchema = AvroSchemaUtil.buildAvroProjection(prunedSchema, expectedSchema, renames, newFileSchema);
     this.wrapped = newDatumReader();
   }
 
