@@ -133,7 +133,7 @@ public class S3OutputStreamTest {
   @Test
   public void testMultipleClose() throws IOException {
     S3URI uri = new S3URI("s3://bucket/path/to/array-out.dat");
-    S3OutputStream stream = new S3OutputStream(s3, uri);
+    S3OutputStream stream = new S3OutputStream(properties, s3, uri);
     stream.close();
     stream.close();
   }
