@@ -36,6 +36,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -49,7 +50,6 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
-import software.amazon.awssdk.services.s3.model.AbortMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CompletedMultipartUpload;
 import software.amazon.awssdk.services.s3.model.CompletedPart;
@@ -229,22 +229,27 @@ class S3OutputStream extends PositionOutputStream {
   }
 
   private void completeMultiPartUpload() throws IOException {
-    List<CompletedPart> completedParts =
-        multiPartMap.values()
-            .stream()
-            .map(CompletableFuture::join)
-            .sorted(Comparator.comparing(CompletedPart::partNumber))
-            .collect(Collectors.toList());
+    try {
+      List<CompletedPart> completedParts =
+          multiPartMap.values()
+              .stream()
+              .map(CompletableFuture::join)
+              .sorted(Comparator.comparing(CompletedPart::partNumber))
+              .collect(Collectors.toList());
 
-    s3.completeMultipartUpload(CompleteMultipartUploadRequest.builder()
-        .bucket(location.bucket()).key(location.key())
-        .uploadId(multipartUploadId)
-        .multipartUpload(CompletedMultipartUpload.builder().parts(completedParts).build()).build());
+      s3.completeMultipartUpload(CompleteMultipartUploadRequest.builder()
+          .bucket(location.bucket()).key(location.key())
+          .uploadId(multipartUploadId)
+          .multipartUpload(CompletedMultipartUpload.builder().parts(completedParts).build()).build());
+    } catch (CompletionException e) {
+      abortUpload();
+      throw new IOException("Multipart upload failed for upload id: " + multipartUploadId, e);
+    }
   }
 
   private void abortUpload() {
     if (multipartUploadId != null) {
-      AbortMultipartUploadResponse response = s3.abortMultipartUpload(AbortMultipartUploadRequest.builder()
+      s3.abortMultipartUpload(AbortMultipartUploadRequest.builder()
           .bucket(location.bucket()).key(location.key()).uploadId(multipartUploadId).build());
     }
   }
