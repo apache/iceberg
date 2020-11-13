@@ -237,9 +237,9 @@ class S3OutputStream extends PositionOutputStream {
             .collect(Collectors.toList());
 
     s3.completeMultipartUpload(CompleteMultipartUploadRequest.builder()
-      .bucket(location.bucket()).key(location.key())
-      .uploadId(multipartUploadId)
-      .multipartUpload(CompletedMultipartUpload.builder().parts(completedParts).build()).build());
+        .bucket(location.bucket()).key(location.key())
+        .uploadId(multipartUploadId)
+        .multipartUpload(CompletedMultipartUpload.builder().parts(completedParts).build()).build());
   }
 
   private void abortUpload() {
