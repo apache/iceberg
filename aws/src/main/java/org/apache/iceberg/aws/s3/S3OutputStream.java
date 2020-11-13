@@ -230,9 +230,11 @@ class S3OutputStream extends PositionOutputStream {
 
   private void completeMultiPartUpload() throws IOException {
     List<CompletedPart> completedParts =
-        multiPartMap.values().stream().map(CompletableFuture::join).collect(Collectors.toList());
-
-    completedParts.sort(Comparator.comparing(CompletedPart::partNumber));
+        multiPartMap.values()
+            .stream()
+            .map(CompletableFuture::join)
+            .sorted(Comparator.comparing(CompletedPart::partNumber))
+            .collect(Collectors.toList());
 
     s3.completeMultipartUpload(CompleteMultipartUploadRequest.builder()
       .bucket(location.bucket()).key(location.key())
