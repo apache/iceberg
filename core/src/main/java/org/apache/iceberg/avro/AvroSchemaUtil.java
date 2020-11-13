@@ -96,30 +96,13 @@ public class AvroSchemaUtil {
     return ImmutableMap.copyOf(converter.getConversionMap());
   }
 
-  public static Schema pruneColumns(Schema schema, Set<Integer> selectedIds,
-                                    NameMapping nameMapping) {
+  public static Schema pruneColumns(Schema schema, Set<Integer> selectedIds, NameMapping nameMapping) {
     return new PruneColumns(selectedIds, nameMapping).rootSchema(schema);
-  }
-
-  /**
-   * Projects an Avro Schema from an existing Avro schema to match an Iceberg schema.
-   * @param schema The Avro Schema containing all required data fields for the expected Iceberg Schema
-   * @param expected The Iceberg Schema which our projection should match
-   * @param renames A mapping of field names to be renamed for the projection
-   * @param originalSchema The full Avro Schema, this should be a superset of {@code schema} or null. This is used
-   *                       when the projection requires a struct which contains only metadata fields, optional fields,
-   *                       or fields which are empty structs. When null, {@code schema} is expected to contain all
-   *                       required fields to produce the Iceberg schema.
-   * @return An Avro schema which will produce the expected Iceberg Schema
-   */
-  public static Schema buildAvroProjection(Schema schema, org.apache.iceberg.Schema expected,
-                                           Map<String, String> renames, Schema originalSchema) {
-    return AvroCustomOrderSchemaVisitor.visit(schema, new BuildAvroProjection(expected, renames, originalSchema));
   }
 
   public static Schema buildAvroProjection(Schema schema, org.apache.iceberg.Schema expected,
                                            Map<String, String> renames) {
-    return AvroCustomOrderSchemaVisitor.visit(schema, new BuildAvroProjection(expected, renames, null));
+    return AvroCustomOrderSchemaVisitor.visit(schema, new BuildAvroProjection(expected, renames));
   }
 
   public static boolean isTimestamptz(Schema schema) {
