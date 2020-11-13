@@ -37,6 +37,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -45,6 +48,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Predicates;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.CountingOutputStream;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -62,12 +67,16 @@ import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 class S3OutputStream extends PositionOutputStream {
   private static final Logger LOG = LoggerFactory.getLogger(S3OutputStream.class);
 
-  static final String MULTIPART_SIZE = "s3fileio.multipart.size";
+  static final String UPLOAD_POOL_SIZE  = "s3fileio.multipart.num-threads";
+  static final String MULTIPART_SIZE = "s3fileio.multipart.part.size";
   static final String MULTIPART_THRESHOLD_FACTOR = "s3fileio.multipart.threshold";
 
+  static final int DEFAULT_UPLOAD_WORKER_POOL_SIZE = Runtime.getRuntime().availableProcessors();
   static final int MIN_MULTIPART_UPLOAD_SIZE = 5 * 1024 * 1024;
   static final int DEFAULT_MULTIPART_SIZE = 32 * 1024 * 1024;
   static final double DEFAULT_MULTIPART_THRESHOLD = 1.5;
+
+  private static ExecutorService executorService;
 
   private final StackTraceElement[] createStack;
   private final S3Client s3;
@@ -90,6 +99,19 @@ class S3OutputStream extends PositionOutputStream {
   }
 
   S3OutputStream(S3Client s3, S3URI location, AwsProperties awsProperties) throws IOException {
+    synchronized (this) {
+      if (executorService == null) {
+        executorService = MoreExecutors.getExitingExecutorService(
+            (ThreadPoolExecutor) Executors.newFixedThreadPool(
+                Integer.parseInt(properties.getOrDefault(UPLOAD_POOL_SIZE,
+                    Integer.toString(DEFAULT_UPLOAD_WORKER_POOL_SIZE))),
+                new ThreadFactoryBuilder()
+                    .setDaemon(true)
+                    .setNameFormat("iceberg-s3fileio-upload-%d")
+                    .build()));
+      }
+    }
+
     this.s3 = s3;
     this.location = location;
     this.awsProperties = awsProperties;
@@ -221,7 +243,8 @@ class S3OutputStream extends PositionOutputStream {
               () -> {
                 UploadPartResponse response = s3.uploadPart(uploadRequest, RequestBody.fromFile(f));
                 return CompletedPart.builder().eTag(response.eTag()).partNumber(uploadRequest.partNumber()).build();
-              }
+              },
+              executorService
           );
 
           multiPartMap.put(f, future);
