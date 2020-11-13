@@ -151,7 +151,7 @@ class S3OutputStream extends PositionOutputStream {
     pos += len;
 
     // switch to multipart upload
-    if (pos >= multiPartSize * multiPartThresholdFactor) {
+    if (multipartUploadId == null && pos >= multiPartSize * multiPartThresholdFactor) {
       initializeMultiPartUpload();
       uploadParts();
     }
