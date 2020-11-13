@@ -201,6 +201,7 @@ public class ManifestReader<F extends ContentFile<F>>
             .project(ManifestEntry.wrapFileSchema(Types.StructType.of(fields)))
             .rename("manifest_entry", GenericManifestEntry.class.getName())
             .rename("partition", PartitionData.class.getName())
+            .rename("partition_r102", PartitionData.class.getName())
             .rename("r102", PartitionData.class.getName())
             .rename("data_file", content.fileClass())
             .rename("r2", content.fileClass())

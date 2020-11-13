@@ -23,8 +23,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.generic.GenericData.Record;
-import org.apache.iceberg.AssertHelpers;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -33,6 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -707,49 +706,13 @@ public abstract class TestReadProjection {
   }
 
   @Test
-  public void testMetadataFieldProjection() throws Exception {
-    Schema writeSchema = new Schema(
-        Types.NestedField.required(0, "id", Types.LongType.get()),
-        Types.NestedField.required(3, "outer", Types.StructType.of(
-            Types.NestedField.required(1, "lat", Types.FloatType.get()),
-            Types.NestedField.required(2, "inner", Types.StructType.of(
-                Types.NestedField.required(5, "lon", Types.FloatType.get())
-                )
-            )
-        ))
-    );
-
-    Record record = new Record(AvroSchemaUtil.convert(writeSchema, "table"));
-    record.put("id", 34L);
-    Record outer = new Record(record.getSchema().getField("outer").schema());
-    Record inner = new Record(outer.getSchema().getField("inner").schema());
-    inner.put("lon", 32.14f);
-    outer.put("lat", 52.995143f);
-    outer.put("inner", inner);
-    record.put("outer", outer);
-
-    Schema metadataStruct = new Schema(
-        Types.NestedField.required(3, "outer", Types.StructType.of(
-            Types.NestedField.required(2, "inner", Types.StructType.of(MetadataColumns.ROW_POSITION)
-            ))
-        ));
-
-    Record projected = writeAndRead("metadata_field_proj", writeSchema, metadataStruct, record);
-    Assert.assertNull("Should not project id", projected.get("id"));
-    Record outerResult = (Record) projected.get("outer");
-    Assert.assertEquals("Outer should be in the 0th position", outerResult, projected.get(0));
-    Assert.assertNotNull("Should contain the outer record", outerResult);
-    Assert.assertNull("Should not contain lat", outerResult.get("lat"));
-    Record innerResult = (Record) outerResult.get("inner");
-    Assert.assertEquals("Inner should be in the 0th position", innerResult, outerResult.get(0));
-    Assert.assertNotNull("Should contain the inner record", innerResult);
-    Assert.assertNull("Should not contain lon", innerResult.get("lon"));
-    String metaName = MetadataColumns.ROW_POSITION.name() + "_r" + MetadataColumns.ROW_POSITION.fieldId();
-    Assert.assertNotNull("Should contain metadata field", innerResult.get(metaName));
-  }
-
-  @Test
   public void testNonExistentProjection() throws Exception {
+    Assume.assumeFalse("Bug in pruning code will make the names not match when name mapping applied",
+        this.getClass().getName().equals(TestAvroNameMapping.class.getName()));
+    // TODO Purning code keeps records whose subfields have changed even if those fields are not required,
+    // this means BuildAvroProjection builds a r_Named "foo" because "location" is kept in the pruned schema
+    // even though it should not be. Otherwise location would be missing and the foo field would be returned
+    // "foo" since it is a subfield of required field being built rather than the field being built.
     Schema writeSchema = new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get()),
         Types.NestedField.optional(3, "location", Types.StructType.of(
@@ -781,10 +744,10 @@ public abstract class TestReadProjection {
     Assert.assertNotNull("Should contain an fake optional record", result);
     Assert.assertNull("Should not project lat", result.get("lat"));
     Assert.assertNull("Should not project long", result.get("long"));
-    Assert.assertNotNull("Schema should contain foo", result.getSchema().getField("foo_r10000"));
-    Assert.assertNull("foo should be null since it is not present in the data", result.get("foo_r10000"));
+    Assert.assertNotNull("Schema should contain foo", result.getSchema().getField("foo"));
+    Assert.assertNull("foo should be null since it is not present in the data", result.get("foo"));
     Assert.assertNotNull("Schema should contain foo.bar",
-        AvroSchemaUtil.fromOption(result.getSchema().getField("foo_r10000").schema())
+        AvroSchemaUtil.fromOption(result.getSchema().getField("foo").schema())
             .getField("bar"));
   }
 }
