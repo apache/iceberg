@@ -25,6 +25,7 @@ import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializableSupplier;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.Delete;
@@ -39,7 +40,6 @@ import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 public class S3FileIO implements FileIO {
   private final SerializableSupplier<S3Client> s3;
   private AwsProperties awsProperties;
-
   private transient S3Client client;
 
   public S3FileIO() {

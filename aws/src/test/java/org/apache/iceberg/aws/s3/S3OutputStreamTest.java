@@ -21,7 +21,9 @@ package org.apache.iceberg.aws.s3;
 
 import com.adobe.testing.s3mock.junit4.S3MockRule;
 import java.io.IOException;
+import java.util.Map;
 import java.util.Random;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -32,6 +34,7 @@ import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
+import static org.apache.iceberg.aws.s3.S3OutputStream.MULTIPART_SIZE;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
@@ -41,6 +44,7 @@ public class S3OutputStreamTest {
 
   private final S3Client s3 = S3_MOCK_RULE.createS3ClientV2();
   private final Random random = new Random(1);
+  private final Map<String, String> properties = ImmutableMap.of(MULTIPART_SIZE, Integer.toString(5 * 1024 * 1024));
 
   @Before
   public void before() {
@@ -49,10 +53,11 @@ public class S3OutputStreamTest {
 
   @Test
   public void getPos() throws IOException {
+
     S3URI uri = new S3URI("s3://bucket/path/to/pos.dat");
     int writeSize = 1024;
 
-    try (S3OutputStream stream = new S3OutputStream(s3, uri)) {
+    try (S3OutputStream stream = new S3OutputStream(properties, s3, uri)) {
       stream.write(new byte[writeSize]);
       assertEquals(writeSize, stream.getPos());
     }
@@ -65,7 +70,7 @@ public class S3OutputStreamTest {
     byte [] expected =  new byte[size];
     random.nextBytes(expected);
 
-    try (S3OutputStream stream = new S3OutputStream(s3, uri)) {
+    try (S3OutputStream stream = new S3OutputStream(properties, s3, uri)) {
       for (int i = 0; i < size; i++) {
         stream.write(expected[i]);
         assertEquals(i + 1, stream.getPos());
@@ -83,7 +88,39 @@ public class S3OutputStreamTest {
     byte [] expected =  new byte[5 * 1024 * 1024];
     random.nextBytes(expected);
 
-    try (S3OutputStream stream = new S3OutputStream(s3, uri)) {
+    try (S3OutputStream stream = new S3OutputStream(properties, s3, uri)) {
+      stream.write(expected);
+      assertEquals(expected.length, stream.getPos());
+    }
+
+    byte [] actual = readS3Data(uri);
+
+    assertArrayEquals(expected, actual);
+  }
+
+  @Test
+  public void testMultiPartWriteArray() throws IOException {
+    S3URI uri = new S3URI("s3://bucket/path/to/array-out.dat");
+    byte [] expected =  new byte[10 * 1024 * 1024];
+    random.nextBytes(expected);
+
+    try (S3OutputStream stream = new S3OutputStream(properties, s3, uri)) {
+      stream.write(expected);
+      assertEquals(expected.length, stream.getPos());
+    }
+
+    byte [] actual = readS3Data(uri);
+
+    assertArrayEquals(expected, actual);
+  }
+
+  @Test
+  public void testMultiPartWriteArraySmallFragment() throws IOException {
+    S3URI uri = new S3URI("s3://bucket/path/to/array-out.dat");
+    byte [] expected =  new byte[10 * 1024 * 1024 + 10 * 1024];
+    random.nextBytes(expected);
+
+    try (S3OutputStream stream = new S3OutputStream(properties, s3, uri)) {
       stream.write(expected);
       assertEquals(expected.length, stream.getPos());
     }
