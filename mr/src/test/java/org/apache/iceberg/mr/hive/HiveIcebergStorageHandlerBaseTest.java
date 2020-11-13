@@ -603,6 +603,20 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   }
 
   @Test
+  public void testCreateTableWithDifferentColumnSpecification() {
+    // We should throw an error if column specification is provided when creating a table above an existing table
+    AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
+        "schema should match", () -> {
+          shell.executeStatement("CREATE EXTERNAL TABLE customers (customer_id BIGINT) " +
+              "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+              testTables.locationForCreateTableSQL(TableIdentifier.of("default", "customers")) +
+              "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" +
+              SchemaParser.toJson(CUSTOMER_SCHEMA) + "')");
+        }
+    );
+  }
+
+  @Test
   public void testCreateTableWithColumnSpecification() throws IOException {
     TableIdentifier identifier = TableIdentifier.of("default", "customers");
 

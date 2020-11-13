@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import org.apache.hadoop.hive.common.type.Timestamp;
 import org.apache.hadoop.hive.serde2.io.TimestampWritableV2;
@@ -28,17 +28,30 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitive
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 
-public class IcebergTimestampObjectInspectorHive3 extends AbstractPrimitiveJavaObjectInspector
+public abstract class IcebergTimestampObjectInspectorHive3 extends AbstractPrimitiveJavaObjectInspector
     implements TimestampObjectInspector {
 
-  private static final AbstractPrimitiveJavaObjectInspector INSTANCE_WITHOUT_ZONE =
-      new IcebergTimestampObjectInspectorHive3();
+  private static final IcebergTimestampObjectInspectorHive3 INSTANCE_WITH_ZONE =
+      new IcebergTimestampObjectInspectorHive3() {
+        @Override
+        LocalDateTime toLocalDateTime(Object o) {
+          return ((OffsetDateTime) o).toLocalDateTime();
+        }
+      };
 
-  private static final AbstractPrimitiveJavaObjectInspector INSTANCE_WITH_ZONE =
-      new IcebergTimestampLocalTZObjectInspectorHive3();
+  private static final IcebergTimestampObjectInspectorHive3 INSTANCE_WITHOUT_ZONE =
+      new IcebergTimestampObjectInspectorHive3() {
+        @Override
+        LocalDateTime toLocalDateTime(Object o) {
+          if (o instanceof OffsetDateTime) {
+            return ((OffsetDateTime) o).toLocalDateTime();
+          } else {
+            return (LocalDateTime) o;
+          }
+        }
+      };
 
-
-  public static AbstractPrimitiveJavaObjectInspector get(boolean adjustToUTC) {
+  public static IcebergTimestampObjectInspectorHive3 get(boolean adjustToUTC) {
     return adjustToUTC ? INSTANCE_WITH_ZONE : INSTANCE_WITHOUT_ZONE;
   }
 
@@ -46,17 +59,18 @@ public class IcebergTimestampObjectInspectorHive3 extends AbstractPrimitiveJavaO
     super(TypeInfoFactory.timestampTypeInfo);
   }
 
-  private Instant toInstant(Object object) {
-    return ((LocalDateTime) object).toInstant(ZoneOffset.UTC);
-  }
+
+  abstract LocalDateTime toLocalDateTime(Object object);
 
   @Override
   public Timestamp getPrimitiveJavaObject(Object o) {
     if (o == null) {
       return null;
     }
-    Instant instant = toInstant(o);
-    return Timestamp.ofEpochSecond(instant.getEpochSecond(), instant.getNano());
+    LocalDateTime time = toLocalDateTime(o);
+    Timestamp timestamp = Timestamp.ofEpochMilli(time.toInstant(ZoneOffset.UTC).toEpochMilli());
+    timestamp.setNanos(time.getNano());
+    return timestamp;
   }
 
   @Override
@@ -76,6 +90,8 @@ public class IcebergTimestampObjectInspectorHive3 extends AbstractPrimitiveJavaO
       Timestamp copy = new Timestamp(ts);
       copy.setNanos(ts.getNanos());
       return copy;
+    } else if (o instanceof OffsetDateTime) {
+      return OffsetDateTime.of(((OffsetDateTime) o).toLocalDateTime(), ((OffsetDateTime) o).getOffset());
     } else if (o instanceof LocalDateTime) {
       return LocalDateTime.of(((LocalDateTime) o).toLocalDate(), ((LocalDateTime) o).toLocalTime());
     } else {

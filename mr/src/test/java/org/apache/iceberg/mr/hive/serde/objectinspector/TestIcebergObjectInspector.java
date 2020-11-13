@@ -167,7 +167,7 @@ public class TestIcebergObjectInspector {
     Assert.assertEquals("timestamptz comment", timestampTzField.getFieldComment());
     if (MetastoreUtil.hive3PresentOnClasspath()) {
       Assert.assertTrue(timestampTzField.getFieldObjectInspector().getClass().getName()
-          .startsWith("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampLocalTZObjectInspectorHive3"));
+              .startsWith("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampObjectInspectorHive3"));
     } else {
       Assert.assertEquals(IcebergTimestampObjectInspector.get(true), timestampTzField.getFieldObjectInspector());
     }

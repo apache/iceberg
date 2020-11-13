@@ -47,11 +47,7 @@ public final class HiveTypeConverter {
       case TIME:
         return "string";
       case TIMESTAMP:
-        if (((Types.TimestampType) type).shouldAdjustToUTC() && MetastoreUtil.hive3PresentOnClasspath()) {
-          return "timestamp with local time zone";
-        } else {
-          return "timestamp";
-        }
+        return "timestamp";
       case STRING:
       case UUID:
         return "string";

@@ -30,23 +30,23 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-public class HiveSchemaVisitor {
+class HiveSchemaConverter {
   private int id;
 
-  public HiveSchemaVisitor() {
+  HiveSchemaConverter() {
     id = 0;
   }
 
-  List<Types.NestedField> visit(List<String> names, List<TypeInfo> typeInfos) {
+  List<Types.NestedField> converter(List<String> names, List<TypeInfo> typeInfos) {
     List<Types.NestedField> result = new ArrayList<>(names.size());
     for (int i = 0; i < names.size(); ++i) {
-      result.add(Types.NestedField.optional(id++, names.get(i), visit(typeInfos.get(i))));
+      result.add(Types.NestedField.optional(id++, names.get(i), converter(typeInfos.get(i))));
     }
 
     return result;
   }
 
-  Type visit(TypeInfo typeInfo) {
+  Type converter(TypeInfo typeInfo) {
     switch (typeInfo.getCategory()) {
       case PRIMITIVE:
         switch (((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory()) {
@@ -84,18 +84,18 @@ public class HiveSchemaVisitor {
       case STRUCT:
         StructTypeInfo structTypeInfo = (StructTypeInfo) typeInfo;
         List<Types.NestedField> fields =
-            visit(structTypeInfo.getAllStructFieldNames(), structTypeInfo.getAllStructFieldTypeInfos());
+            converter(structTypeInfo.getAllStructFieldNames(), structTypeInfo.getAllStructFieldTypeInfos());
         return Types.StructType.of(fields);
       case MAP:
         MapTypeInfo mapTypeInfo = (MapTypeInfo) typeInfo;
-        Type keyType = visit(mapTypeInfo.getMapKeyTypeInfo());
-        Type valueType = visit(mapTypeInfo.getMapValueTypeInfo());
+        Type keyType = converter(mapTypeInfo.getMapKeyTypeInfo());
+        Type valueType = converter(mapTypeInfo.getMapValueTypeInfo());
         int keyId = id++;
         int valueId = id++;
         return Types.MapType.ofOptional(keyId, valueId, keyType, valueType);
       case LIST:
         ListTypeInfo listTypeInfo = (ListTypeInfo) typeInfo;
-        Type listType = visit(listTypeInfo.getListElementTypeInfo());
+        Type listType = converter(listTypeInfo.getListElementTypeInfo());
         return Types.ListType.ofOptional(id++, listType);
       case UNION:
       default:

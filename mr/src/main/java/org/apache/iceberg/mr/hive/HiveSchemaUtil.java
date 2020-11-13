@@ -28,11 +28,10 @@ import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.common.DynClasses;
-import org.apache.iceberg.hive.MetastoreUtil;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergRecordObjectInspector;
 import org.slf4j.Logger;
@@ -40,14 +39,6 @@ import org.slf4j.LoggerFactory;
 
 public class HiveSchemaUtil {
   private static final Logger LOG = LoggerFactory.getLogger(HiveSchemaUtil.class);
-
-  // get the correct HiveSchemaVisitor depending on whether we're working with Hive2 or Hive3 dependencies
-  private static final String HIVE_SCHEMA_VISITOR_CLASS_NAME = MetastoreUtil.hive3PresentOnClasspath() ?
-      "org.apache.iceberg.mr.hive.Hive3SchemaVisitor" :
-      "org.apache.iceberg.mr.hive.HiveSchemaVisitor";
-
-  private static final Class HIVE_SCHEMA_VISITOR_CLASS =
-      DynClasses.builder().impl(HIVE_SCHEMA_VISITOR_CLASS_NAME).build();
 
   private HiveSchemaUtil() {
   }
@@ -120,6 +111,9 @@ public class HiveSchemaUtil {
 
     switch (inspector.getCategory()) {
       case PRIMITIVE:
+        if (inspector instanceof TimestampObjectInspector && other instanceof TimestampObjectInspector) {
+          return true;
+        }
         return inspector.equals(other);
 
       case MAP:
@@ -134,38 +128,42 @@ public class HiveSchemaUtil {
             ((ListObjectInspector) other).getListElementObjectInspector());
 
       case STRUCT:
-        StructObjectInspector otherStructInspector = (StructObjectInspector) other;
-        List<? extends StructField> structFields = ((StructObjectInspector) inspector).getAllStructFieldRefs();
+        return compatible((StructObjectInspector) inspector, (StructObjectInspector) other);
 
-        if (structFields.size() != otherStructInspector.getAllStructFieldRefs().size()) {
-          return false;
-        }
-
-        for (StructField field : structFields) {
-          StructField otherField;
-          try {
-            otherField = otherStructInspector.getStructFieldRef(field.getFieldName());
-          } catch (Exception e) {
-            LOG.debug("Error getting struct field", e);
-            return false;
-          }
-
-          if (!compatible(field.getFieldObjectInspector(), otherField.getFieldObjectInspector())) {
-            return false;
-          }
-        }
-
-        return true;
       case UNION:
       default:
         throw new IllegalArgumentException("Unsupported inspector type " + inspector + ", " + other);
     }
   }
 
+  private static boolean compatible(StructObjectInspector inspector, StructObjectInspector other) {
+    List<? extends StructField> structFields = inspector.getAllStructFieldRefs();
+
+    if (structFields.size() != other.getAllStructFieldRefs().size()) {
+      return false;
+    }
+
+    for (StructField field : structFields) {
+      StructField otherField;
+      try {
+        otherField = other.getStructFieldRef(field.getFieldName());
+      } catch (Exception e) {
+        LOG.debug("Error getting struct field", e);
+        return false;
+      }
+
+      if (!compatible(field.getFieldObjectInspector(), otherField.getFieldObjectInspector())) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   private static Schema convert(List<String> names, List<TypeInfo> typeInfos) {
     try {
-      HiveSchemaVisitor visitor = (HiveSchemaVisitor) HIVE_SCHEMA_VISITOR_CLASS.getConstructor().newInstance();
-      return new Schema(visitor.visit(names, typeInfos));
+      HiveSchemaConverter converter = new HiveSchemaConverter();
+      return new Schema(converter.converter(names, typeInfos));
     } catch (Exception e) {
       throw new RuntimeException("Cannot instantiate class", e);
     }

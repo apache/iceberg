@@ -27,30 +27,41 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitive
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 
-public class IcebergTimestampObjectInspector extends AbstractPrimitiveJavaObjectInspector
-                                             implements TimestampObjectInspector {
+public abstract class IcebergTimestampObjectInspector extends AbstractPrimitiveJavaObjectInspector
+                                                      implements TimestampObjectInspector {
 
-  private static final IcebergTimestampObjectInspector INSTANCE = new IcebergTimestampObjectInspector();
+  private static final IcebergTimestampObjectInspector INSTANCE_WITH_ZONE = new IcebergTimestampObjectInspector() {
+    @Override
+    LocalDateTime toLocalDateTime(Object o) {
+      return ((OffsetDateTime) o).toLocalDateTime();
+    }
+  };
+
+  private static final IcebergTimestampObjectInspector INSTANCE_WITHOUT_ZONE = new IcebergTimestampObjectInspector() {
+    @Override
+    LocalDateTime toLocalDateTime(Object o) {
+      if (o instanceof OffsetDateTime) {
+        return ((OffsetDateTime) o).toLocalDateTime();
+      } else {
+        return (LocalDateTime) o;
+      }
+    }
+  };
 
   public static IcebergTimestampObjectInspector get(boolean adjustToUTC) {
-    return INSTANCE;
+    return adjustToUTC ? INSTANCE_WITH_ZONE : INSTANCE_WITHOUT_ZONE;
   }
 
   private IcebergTimestampObjectInspector() {
     super(TypeInfoFactory.timestampTypeInfo);
   }
 
+
+  abstract LocalDateTime toLocalDateTime(Object object);
+
   @Override
   public Timestamp getPrimitiveJavaObject(Object o) {
-    if (o == null) {
-      return null;
-    }
-
-    if (o instanceof OffsetDateTime) {
-      return Timestamp.valueOf(((OffsetDateTime) o).toLocalDateTime());
-    } else {
-      return Timestamp.valueOf((LocalDateTime) o);
-    }
+    return o == null ? null : Timestamp.valueOf(toLocalDateTime(o));
   }
 
   @Override

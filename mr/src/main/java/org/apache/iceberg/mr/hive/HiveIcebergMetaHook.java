@@ -200,8 +200,12 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
   }
 
   private Schema schema(Properties properties, org.apache.hadoop.hive.metastore.api.Table hmsTable) {
+    Schema hmsSchema = HiveSchemaUtil.schema(hmsTable.getSd().getCols());
     if (properties.getProperty(InputFormatConfig.TABLE_SCHEMA) != null) {
-      return SchemaParser.fromJson(properties.getProperty(InputFormatConfig.TABLE_SCHEMA));
+      Schema propertySchema = SchemaParser.fromJson(properties.getProperty(InputFormatConfig.TABLE_SCHEMA));
+      Preconditions.checkArgument(HiveSchemaUtil.compatible(hmsSchema, propertySchema),
+          "Hive and Iceberg table schema should match");
+      return propertySchema;
     } else {
       return HiveSchemaUtil.schema(hmsTable.getSd().getCols());
     }
