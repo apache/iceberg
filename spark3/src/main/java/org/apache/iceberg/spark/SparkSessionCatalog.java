@@ -45,7 +45,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * @param <T> CatalogPlugin class to avoid casting to TableCatalog and SupportsNamespaces.
  */
 public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
-    implements StagingTableCatalog, SupportsNamespaces, CatalogExtension {
+    extends BaseCatalog implements CatalogExtension {
   private static final String[] DEFAULT_NAMESPACE = new String[] {"default"};
 
   private String catalogName = null;

@@ -42,8 +42,8 @@ public class SparkTestBase {
 
   protected static final Object ANY = new Object();
 
-  private static TestHiveMetastore metastore = null;
-  private static HiveConf hiveConf = null;
+  protected static TestHiveMetastore metastore = null;
+  protected static HiveConf hiveConf = null;
   protected static SparkSession spark = null;
   protected static HiveCatalog catalog = null;
 
