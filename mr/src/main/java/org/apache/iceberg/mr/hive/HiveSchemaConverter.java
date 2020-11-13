@@ -37,16 +37,16 @@ class HiveSchemaConverter {
     id = 0;
   }
 
-  List<Types.NestedField> converter(List<String> names, List<TypeInfo> typeInfos) {
+  List<Types.NestedField> convert(List<String> names, List<TypeInfo> typeInfos) {
     List<Types.NestedField> result = new ArrayList<>(names.size());
     for (int i = 0; i < names.size(); ++i) {
-      result.add(Types.NestedField.optional(id++, names.get(i), converter(typeInfos.get(i))));
+      result.add(Types.NestedField.optional(id++, names.get(i), convert(typeInfos.get(i))));
     }
 
     return result;
   }
 
-  Type converter(TypeInfo typeInfo) {
+  Type convert(TypeInfo typeInfo) {
     switch (typeInfo.getCategory()) {
       case PRIMITIVE:
         switch (((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory()) {
@@ -84,18 +84,18 @@ class HiveSchemaConverter {
       case STRUCT:
         StructTypeInfo structTypeInfo = (StructTypeInfo) typeInfo;
         List<Types.NestedField> fields =
-            converter(structTypeInfo.getAllStructFieldNames(), structTypeInfo.getAllStructFieldTypeInfos());
+            convert(structTypeInfo.getAllStructFieldNames(), structTypeInfo.getAllStructFieldTypeInfos());
         return Types.StructType.of(fields);
       case MAP:
         MapTypeInfo mapTypeInfo = (MapTypeInfo) typeInfo;
-        Type keyType = converter(mapTypeInfo.getMapKeyTypeInfo());
-        Type valueType = converter(mapTypeInfo.getMapValueTypeInfo());
+        Type keyType = convert(mapTypeInfo.getMapKeyTypeInfo());
+        Type valueType = convert(mapTypeInfo.getMapValueTypeInfo());
         int keyId = id++;
         int valueId = id++;
         return Types.MapType.ofOptional(keyId, valueId, keyType, valueType);
       case LIST:
         ListTypeInfo listTypeInfo = (ListTypeInfo) typeInfo;
-        Type listType = converter(listTypeInfo.getListElementTypeInfo());
+        Type listType = convert(listTypeInfo.getListElementTypeInfo());
         return Types.ListType.ofOptional(id++, listType);
       case UNION:
       default:

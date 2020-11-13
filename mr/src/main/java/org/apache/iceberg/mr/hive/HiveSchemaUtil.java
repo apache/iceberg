@@ -163,7 +163,7 @@ public class HiveSchemaUtil {
   private static Schema convert(List<String> names, List<TypeInfo> typeInfos) {
     try {
       HiveSchemaConverter converter = new HiveSchemaConverter();
-      return new Schema(converter.converter(names, typeInfos));
+      return new Schema(converter.convert(names, typeInfos));
     } catch (Exception e) {
       throw new RuntimeException("Cannot instantiate class", e);
     }
