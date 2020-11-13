@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.procedures;
 import java.util.function.Function;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -38,11 +39,11 @@ import scala.collection.Seq;
 
 abstract class BaseProcedure implements Procedure {
   private final SparkSession spark;
-  private final TableCatalog catalog;
+  private final TableCatalog tableCatalog;
 
-  protected BaseProcedure(TableCatalog catalog) {
+  protected BaseProcedure(TableCatalog tableCatalog) {
     this.spark = SparkSession.active();
-    this.catalog = catalog;
+    this.tableCatalog = tableCatalog;
   }
 
   protected <T> T modifyIcebergTable(String namespace, String tableName, Function<org.apache.iceberg.Table, T> func) {
@@ -62,20 +63,21 @@ abstract class BaseProcedure implements Procedure {
 
   // we have to parse both namespace and name as they may be quoted
   protected Identifier toIdentifier(String namespaceAsString, String name) {
-    Seq<String> namespaceParts = parseMultipartIdentifier(namespaceAsString);
-    String[] namespace = new String[namespaceParts.size()];
-    namespaceParts.copyToArray(namespace);
+    String[] namespaceParts = parseMultipartIdentifier(namespaceAsString);
 
-    Seq<String> nameParts = parseMultipartIdentifier(name);
-    Preconditions.checkArgument(nameParts.size() == 1, "Name must consist of one part: %s", name);
+    String[] nameParts = parseMultipartIdentifier(name);
+    Preconditions.checkArgument(nameParts.length == 1, "Name must consist of one part: %s", name);
 
-    return Identifier.of(namespace, nameParts.head());
+    return Identifier.of(namespaceParts, nameParts[0]);
   }
 
-  private Seq<String> parseMultipartIdentifier(String identifierAsString) {
+  private String[] parseMultipartIdentifier(String identifierAsString) {
     try {
       ParserInterface parser = spark.sessionState().sqlParser();
-      return parser.parseMultipartIdentifier(identifierAsString);
+      Seq<String> namePartsSeq = parser.parseMultipartIdentifier(identifierAsString);
+      String[] nameParts = new String[namePartsSeq.size()];
+      namePartsSeq.copyToArray(nameParts);
+      return nameParts;
     } catch (ParseException e) {
       throw new RuntimeException("Couldn't parse identifier: " + identifierAsString, e);
     }
@@ -83,17 +85,39 @@ abstract class BaseProcedure implements Procedure {
 
   protected SparkTable loadSparkTable(Identifier ident) {
     try {
-      Table table = catalog.loadTable(ident);
+      Table table = tableCatalog.loadTable(ident);
       ValidationException.check(table instanceof SparkTable, "%s is not %s", ident, SparkTable.class.getName());
       return (SparkTable) table;
     } catch (NoSuchTableException e) {
-      throw new RuntimeException(String.format("Couldn't load table '%s' in catalog '%s'", ident, catalog.name()), e);
+      String errMsg = String.format("Couldn't load table '%s' in catalog '%s'", ident, tableCatalog.name());
+      throw new RuntimeException(errMsg, e);
     }
   }
 
   protected void refreshSparkCache(Identifier ident, Table table) {
     CacheManager cacheManager = spark.sharedState().cacheManager();
-    DataSourceV2Relation relation = DataSourceV2Relation.create(table, Option.apply(catalog), Option.apply(ident));
+    DataSourceV2Relation relation = DataSourceV2Relation.create(table, Option.apply(tableCatalog), Option.apply(ident));
     cacheManager.recacheByPlan(spark, relation);
+  }
+
+  protected abstract static class Builder<T extends BaseProcedure> implements ProcedureBuilder {
+    private TableCatalog tableCatalog;
+
+    @Override
+    public Builder<T> withTableCatalog(TableCatalog newTableCatalog) {
+      this.tableCatalog = newTableCatalog;
+      return this;
+    }
+
+    @Override
+    public T build() {
+      return doBuild();
+    }
+
+    protected abstract T doBuild();
+
+    TableCatalog tableCatalog() {
+      return tableCatalog;
+    }
   }
 }

@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.spark;
 
-import java.util.Locale;
-import org.apache.iceberg.spark.procedures.SparkProcedure;
+import org.apache.iceberg.spark.procedures.SparkProcedures;
+import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
@@ -37,13 +37,9 @@ abstract class BaseCatalog implements StagingTableCatalog, ProcedureCatalog, Sup
 
     // namespace resolution is case insensitive until we have a way to configure case sensitivity in catalogs
     if (namespace.length == 1 && namespace[0].equalsIgnoreCase("system")) {
-      try {
-        // procedure resolution is case insensitive to match the existing Spark behavior for functions
-        // SimpleFunctionRegistry normalizes function names but leaves namespace resolution to the caller
-        SparkProcedure procedure = SparkProcedure.valueOf(name.toUpperCase(Locale.ROOT));
-        return procedure.build(this);
-      } catch (IllegalArgumentException e) {
-        throw new NoSuchProcedureException(ident);
+      ProcedureBuilder builder = SparkProcedures.newBuilder(name);
+      if (builder != null) {
+        return builder.withTableCatalog(this).build();
       }
     }
 

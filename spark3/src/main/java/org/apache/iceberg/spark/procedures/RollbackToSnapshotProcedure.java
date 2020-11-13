@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.procedures;
 
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -29,52 +30,64 @@ import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
-public class RollbackToSnapshotProcedure extends BaseProcedure {
+/**
+ * A procedure that rollbacks a table to a specific snapshot id.
+ */
+class RollbackToSnapshotProcedure extends BaseProcedure {
 
-  private static final ProcedureParameter[] parameters = new ProcedureParameter[]{
+  private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
       ProcedureParameter.required("namespace", DataTypes.StringType),
       ProcedureParameter.required("table", DataTypes.StringType),
       ProcedureParameter.required("snapshot_id", DataTypes.LongType)
   };
 
-  private static final StructType outputType = new StructType(new StructField[]{
+  private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
       new StructField("previous_snapshot_id", DataTypes.LongType, false, Metadata.empty()),
       new StructField("current_snapshot_id", DataTypes.LongType, false, Metadata.empty())
   });
 
-  public RollbackToSnapshotProcedure(TableCatalog catalog) {
-    super(catalog);
+  public static ProcedureBuilder builder() {
+    return new BaseProcedure.Builder<RollbackToSnapshotProcedure>() {
+      @Override
+      public RollbackToSnapshotProcedure doBuild() {
+        return new RollbackToSnapshotProcedure(tableCatalog());
+      }
+    };
+  }
+
+  private RollbackToSnapshotProcedure(TableCatalog tableCatalog) {
+    super(tableCatalog);
   }
 
   @Override
   public ProcedureParameter[] parameters() {
-    return parameters;
+    return PARAMETERS;
   }
 
   @Override
   public StructType outputType() {
-    return outputType;
+    return OUTPUT_TYPE;
   }
 
   @Override
-  public InternalRow[] call(InternalRow input) {
-    String namespace = input.getString(0);
-    String tableName = input.getString(1);
-    long snapshotId = input.getLong(2);
+  public InternalRow[] call(InternalRow args) {
+    String namespace = args.getString(0);
+    String tableName = args.getString(1);
+    long snapshotId = args.getLong(2);
 
     return modifyIcebergTable(namespace, tableName, table -> {
-      Snapshot previousCurrentSnapshot = table.currentSnapshot();
+      Snapshot previousSnapshot = table.currentSnapshot();
 
       table.manageSnapshots()
           .rollbackTo(snapshotId)
           .commit();
 
-      Object[] outputValues = new Object[outputType.size()];
-      outputValues[0] = previousCurrentSnapshot.snapshotId();
+      Object[] outputValues = new Object[OUTPUT_TYPE.size()];
+      outputValues[0] = previousSnapshot.snapshotId();
       outputValues[1] = snapshotId;
       GenericInternalRow outputRow = new GenericInternalRow(outputValues);
 
-      return new InternalRow[] {outputRow};
+      return new InternalRow[]{outputRow};
     });
   }
 

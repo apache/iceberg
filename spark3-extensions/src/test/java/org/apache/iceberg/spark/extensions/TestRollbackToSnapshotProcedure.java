@@ -32,6 +32,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.junit.After;
+import org.junit.Assume;
 import org.junit.Test;
 
 public class TestRollbackToSnapshotProcedure extends SparkExtensionsTestBase {
@@ -174,6 +175,40 @@ public class TestRollbackToSnapshotProcedure extends SparkExtensionsTestBase {
     List<Object[]> output = sql(
         "CALL %s.system.rollback_to_snapshot('%s', '`%s`', %d)",
         catalogName, quotedNamespace, tableIdent.name(), firstSnapshot.snapshotId());
+
+    assertEquals("Procedure output must match",
+        ImmutableList.of(row(secondSnapshot.snapshotId(), firstSnapshot.snapshotId())),
+        output);
+
+    assertEquals("Rollback must be successful",
+        ImmutableList.of(row(1L, "a")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testRollbackToSnapshotWithoutExplicitCatalog() {
+    Assume.assumeTrue("Working only with the session catalog", "spark_catalog".equals(catalogName));
+
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1L, "a"), row(1L, "a")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    table.refresh();
+
+    Snapshot secondSnapshot = table.currentSnapshot();
+
+    // use camel case intentionally to test case sensitivity
+    List<Object[]> output = sql(
+        "CALL SyStEm.rOLlBaCk_to_SnApShOt('%s', '%s', %dL)",
+        tableIdent.namespace(), tableIdent.name(), firstSnapshot.snapshotId());
 
     assertEquals("Procedure output must match",
         ImmutableList.of(row(secondSnapshot.snapshotId(), firstSnapshot.snapshotId())),
