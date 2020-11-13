@@ -32,11 +32,11 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Locale;
 import org.apache.iceberg.aws.AwsProperties;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -229,22 +229,15 @@ class S3OutputStream extends PositionOutputStream {
   }
 
   private void completeMultiPartUpload() throws IOException {
-    List<CompletedPart> completedParts = Lists.newArrayList();
-    for (Future<CompletedPart> future : multiPartMap.values()) {
-      try {
-        completedParts.add(future.get());
-      } catch (InterruptedException | ExecutionException e) {
-        abortUpload();
-        throw new IOException("Filed to complete upload for: " + location, e);
-      }
-    }
+    List<CompletedPart> completedParts =
+        multiPartMap.values().stream().map(CompletableFuture::join).collect(Collectors.toList());
 
-    CompletableFuture.allOf(multiPartMap.values().toArray(new CompletableFuture[0])).thenRun(() ->
-        s3.completeMultipartUpload(CompleteMultipartUploadRequest.builder()
-          .bucket(location.bucket()).key(location.key())
-          .uploadId(multipartUploadId)
-          .multipartUpload(CompletedMultipartUpload.builder().parts(completedParts).build()).build())
-    );
+    completedParts.sort(Comparator.comparing(CompletedPart::partNumber));
+
+    s3.completeMultipartUpload(CompleteMultipartUploadRequest.builder()
+      .bucket(location.bucket()).key(location.key())
+      .uploadId(multipartUploadId)
+      .multipartUpload(CompletedMultipartUpload.builder().parts(completedParts).build()).build());
   }
 
   private void abortUpload() {
