@@ -48,7 +48,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
 
   private final SparkSession spark;
   private final Table table;
-  private final String writeQueryId;
+  private final LogicalWriteInfo writeInfo;
   private final StructType dsSchema;
   private final CaseInsensitiveStringMap options;
   private final String overwriteMode;
@@ -62,7 +62,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   SparkWriteBuilder(SparkSession spark, Table table, LogicalWriteInfo info) {
     this.spark = spark;
     this.table = table;
-    this.writeQueryId = info.queryId();
+    this.writeInfo = info;
     this.dsSchema = info.schema();
     this.options = info.options();
     this.overwriteMode = options.containsKey("overwrite-mode") ?
@@ -113,9 +113,14 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     Broadcast<FileIO> io = lazySparkContext().broadcast(SparkUtil.serializableFileIO(table));
     Broadcast<EncryptionManager> encryptionManager = lazySparkContext().broadcast(table.encryption());
 
-    return new SparkBatchWrite(
-        table, io, encryptionManager, options, overwriteDynamic, overwriteByFilter, overwriteExpr, appId, wapId,
-        writeSchema, dsSchema);
+    SparkWrite write = new SparkWrite(table, io, encryptionManager, writeInfo, appId, wapId, writeSchema, dsSchema);
+    if (overwriteByFilter) {
+      return write.asOverwriteByFilter(overwriteExpr);
+    } else if (overwriteDynamic) {
+      return write.asDynamicOverwrite();
+    } else {
+      return write.asBatchAppend();
+    }
   }
 
   @Override
@@ -141,8 +146,12 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     Broadcast<FileIO> io = lazySparkContext().broadcast(SparkUtil.serializableFileIO(table));
     Broadcast<EncryptionManager> encryptionManager = lazySparkContext().broadcast(table.encryption());
 
-    return new SparkStreamingWrite(
-        table, io, encryptionManager, options, overwriteByFilter, writeQueryId, appId, wapId, writeSchema, dsSchema);
+    SparkWrite write = new SparkWrite(table, io, encryptionManager, writeInfo, appId, wapId, writeSchema, dsSchema);
+    if (overwriteByFilter) {
+      return write.asStreamingOverwrite();
+    } else {
+      return write.asStreamingAppend();
+    }
   }
 
   private static boolean checkNullability(SparkSession spark, CaseInsensitiveStringMap options) {

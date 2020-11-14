@@ -31,12 +31,14 @@ import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFileFactory;
@@ -51,11 +53,12 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.write.BatchWrite;
 import org.apache.spark.sql.connector.write.DataWriter;
 import org.apache.spark.sql.connector.write.DataWriterFactory;
+import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.PhysicalWriteInfo;
 import org.apache.spark.sql.connector.write.WriterCommitMessage;
 import org.apache.spark.sql.connector.write.streaming.StreamingDataWriterFactory;
+import org.apache.spark.sql.connector.write.streaming.StreamingWrite;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,16 +75,14 @@ import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
-class SparkBatchWrite implements BatchWrite {
-  private static final Logger LOG = LoggerFactory.getLogger(SparkBatchWrite.class);
+class SparkWrite {
+  private static final Logger LOG = LoggerFactory.getLogger(SparkWrite.class);
 
   private final Table table;
+  private final String queryId;
   private final FileFormat format;
   private final Broadcast<FileIO> io;
   private final Broadcast<EncryptionManager> encryptionManager;
-  private final boolean overwriteDynamic;
-  private final boolean overwriteByFilter;
-  private final Expression overwriteExpr;
   private final String applicationId;
   private final String wapId;
   private final long targetFileSize;
@@ -89,24 +90,21 @@ class SparkBatchWrite implements BatchWrite {
   private final StructType dsSchema;
   private final Map<String, String> extraSnapshotMetadata;
 
-  SparkBatchWrite(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
-                  CaseInsensitiveStringMap options, boolean overwriteDynamic, boolean overwriteByFilter,
-                  Expression overwriteExpr, String applicationId, String wapId, Schema writeSchema,
-                  StructType dsSchema) {
+  SparkWrite(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
+             LogicalWriteInfo writeInfo, String applicationId, String wapId,
+             Schema writeSchema, StructType dsSchema) {
     this.table = table;
-    this.format = getFileFormat(table.properties(), options);
+    this.queryId = writeInfo.queryId();
+    this.format = getFileFormat(table.properties(), writeInfo.options());
     this.io = io;
     this.encryptionManager = encryptionManager;
-    this.overwriteDynamic = overwriteDynamic;
-    this.overwriteByFilter = overwriteByFilter;
-    this.overwriteExpr = overwriteExpr;
     this.applicationId = applicationId;
     this.wapId = wapId;
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
     this.extraSnapshotMetadata = Maps.newHashMap();
 
-    options.forEach((key, value) -> {
+    writeInfo.options().forEach((key, value) -> {
       if (key.startsWith(SnapshotSummary.EXTRA_METADATA_PREFIX)) {
         extraSnapshotMetadata.put(key.substring(SnapshotSummary.EXTRA_METADATA_PREFIX.length()), value);
       }
@@ -114,10 +112,30 @@ class SparkBatchWrite implements BatchWrite {
 
     long tableTargetFileSize = PropertyUtil.propertyAsLong(
         table.properties(), WRITE_TARGET_FILE_SIZE_BYTES, WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
-    this.targetFileSize = options.getLong("target-file-size-bytes", tableTargetFileSize);
+    this.targetFileSize = writeInfo.options().getLong("target-file-size-bytes", tableTargetFileSize);
   }
 
-  protected FileFormat getFileFormat(Map<String, String> tableProperties, Map<String, String> options) {
+  BatchWrite asBatchAppend() {
+    return new BatchAppend();
+  }
+
+  BatchWrite asDynamicOverwrite() {
+    return new DynamicOverwrite();
+  }
+
+  BatchWrite asOverwriteByFilter(Expression overwriteExpr) {
+    return new OverwriteByFilter(overwriteExpr);
+  }
+
+  StreamingWrite asStreamingAppend() {
+    return new StreamingAppend();
+  }
+
+  StreamingWrite asStreamingOverwrite() {
+    return new StreamingOverwrite();
+  }
+
+  private FileFormat getFileFormat(Map<String, String> tableProperties, Map<String, String> options) {
     Optional<String> formatOption = Optional.ofNullable(options.get("write-format"));
     String formatString = formatOption
         .orElseGet(() -> tableProperties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT));
@@ -129,26 +147,15 @@ class SparkBatchWrite implements BatchWrite {
         TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
   }
 
-  @Override
-  public WriterFactory createBatchWriterFactory(PhysicalWriteInfo info) {
+  // the writer factory works for both batch and streaming
+  private WriterFactory createWriterFactory() {
     return new WriterFactory(
         table.spec(), format, table.locationProvider(), table.properties(), io, encryptionManager, targetFileSize,
         writeSchema, dsSchema);
   }
 
-  @Override
-  public void commit(WriterCommitMessage[] messages) {
-    if (overwriteDynamic) {
-      replacePartitions(messages);
-    } else if (overwriteByFilter) {
-      overwrite(messages);
-    } else {
-      append(messages);
-    }
-  }
-
-  protected void commitOperation(SnapshotUpdate<?> operation, int numFiles, String description) {
-    LOG.info("Committing {} with {} files to table {}", description, numFiles, table);
+  private void commitOperation(SnapshotUpdate<?> operation, String description) {
+    LOG.info("Committing {} to table {}", description, table);
     if (applicationId != null) {
       operation.set("spark.app.id", applicationId);
     }
@@ -170,45 +177,7 @@ class SparkBatchWrite implements BatchWrite {
     LOG.info("Committed in {} ms", duration);
   }
 
-  private void append(WriterCommitMessage[] messages) {
-    AppendFiles append = table.newAppend();
-
-    int numFiles = 0;
-    for (DataFile file : files(messages)) {
-      numFiles += 1;
-      append.appendFile(file);
-    }
-
-    commitOperation(append, numFiles, "append");
-  }
-
-  private void replacePartitions(WriterCommitMessage[] messages) {
-    ReplacePartitions dynamicOverwrite = table.newReplacePartitions();
-
-    int numFiles = 0;
-    for (DataFile file : files(messages)) {
-      numFiles += 1;
-      dynamicOverwrite.addFile(file);
-    }
-
-    commitOperation(dynamicOverwrite, numFiles, "dynamic partition overwrite");
-  }
-
-  private void overwrite(WriterCommitMessage[] messages) {
-    OverwriteFiles overwriteFiles = table.newOverwrite();
-    overwriteFiles.overwriteByRowFilter(overwriteExpr);
-
-    int numFiles = 0;
-    for (DataFile file : files(messages)) {
-      numFiles += 1;
-      overwriteFiles.addFile(file);
-    }
-
-    commitOperation(overwriteFiles, numFiles, "overwrite by filter");
-  }
-
-  @Override
-  public void abort(WriterCommitMessage[] messages) {
+  private void abort(WriterCommitMessage[] messages) {
     Map<String, String> props = table.properties();
     Tasks.foreach(files(messages))
         .retry(PropertyUtil.propertyAsInt(props, COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
@@ -223,11 +192,7 @@ class SparkBatchWrite implements BatchWrite {
         });
   }
 
-  protected Table table() {
-    return table;
-  }
-
-  protected Iterable<DataFile> files(WriterCommitMessage[] messages) {
+  private Iterable<DataFile> files(WriterCommitMessage[] messages) {
     if (messages.length > 0) {
       return Iterables.concat(Iterables.transform(Arrays.asList(messages), message -> message != null ?
           ImmutableList.copyOf(((TaskCommit) message).files()) :
@@ -236,9 +201,172 @@ class SparkBatchWrite implements BatchWrite {
     return ImmutableList.of();
   }
 
-  @Override
-  public String toString() {
-    return String.format("IcebergWrite(table=%s, format=%s)", table, format);
+  private abstract class BaseBatchWrite implements BatchWrite {
+    @Override
+    public DataWriterFactory createBatchWriterFactory(PhysicalWriteInfo info) {
+      return createWriterFactory();
+    }
+
+    @Override
+    public void abort(WriterCommitMessage[] messages) {
+      SparkWrite.this.abort(messages);
+    }
+
+    @Override
+    public String toString() {
+      return String.format("IcebergBatchWrite(table=%s, format=%s)", table, format);
+    }
+  }
+
+  private class BatchAppend extends BaseBatchWrite {
+    @Override
+    public void commit(WriterCommitMessage[] messages) {
+      AppendFiles append = table.newAppend();
+
+      int numFiles = 0;
+      for (DataFile file : files(messages)) {
+        numFiles += 1;
+        append.appendFile(file);
+      }
+
+      commitOperation(append, String.format("append with %d new data files", numFiles));
+    }
+  }
+
+  private class DynamicOverwrite extends BaseBatchWrite {
+    @Override
+    public void commit(WriterCommitMessage[] messages) {
+      ReplacePartitions dynamicOverwrite = table.newReplacePartitions();
+
+      int numFiles = 0;
+      for (DataFile file : files(messages)) {
+        numFiles += 1;
+        dynamicOverwrite.addFile(file);
+      }
+
+      commitOperation(dynamicOverwrite, String.format("dynamic partition overwrite with %d new data files", numFiles));
+    }
+  }
+
+  private class OverwriteByFilter extends BaseBatchWrite {
+    private final Expression overwriteExpr;
+
+    private OverwriteByFilter(Expression overwriteExpr) {
+      this.overwriteExpr = overwriteExpr;
+    }
+
+    @Override
+    public void commit(WriterCommitMessage[] messages) {
+      OverwriteFiles overwriteFiles = table.newOverwrite();
+      overwriteFiles.overwriteByRowFilter(overwriteExpr);
+
+      int numFiles = 0;
+      for (DataFile file : files(messages)) {
+        numFiles += 1;
+        overwriteFiles.addFile(file);
+      }
+
+      String commitMsg = String.format("overwrite by filter %s with %d new data files", overwriteExpr, numFiles);
+      commitOperation(overwriteFiles, commitMsg);
+    }
+  }
+
+  private abstract class BaseStreamingWrite implements StreamingWrite {
+    private static final String QUERY_ID_PROPERTY = "spark.sql.streaming.queryId";
+    private static final String EPOCH_ID_PROPERTY = "spark.sql.streaming.epochId";
+
+    protected abstract String mode();
+
+    @Override
+    public StreamingDataWriterFactory createStreamingWriterFactory(PhysicalWriteInfo info) {
+      return createWriterFactory();
+    }
+
+    @Override
+    public final void commit(long epochId, WriterCommitMessage[] messages) {
+      LOG.info("Committing epoch {} for query {} in {} mode", epochId, queryId, mode());
+
+      table.refresh();
+
+      Long lastCommittedEpochId = findLastCommittedEpochId();
+      if (lastCommittedEpochId != null && epochId <= lastCommittedEpochId) {
+        LOG.info("Skipping epoch {} for query {} as it was already committed", epochId, queryId);
+        return;
+      }
+
+      doCommit(epochId, messages);
+    }
+
+    protected abstract void doCommit(long epochId, WriterCommitMessage[] messages);
+
+    protected <T> void commit(SnapshotUpdate<T> snapshotUpdate, long epochId, String description) {
+      snapshotUpdate.set(QUERY_ID_PROPERTY, queryId);
+      snapshotUpdate.set(EPOCH_ID_PROPERTY, Long.toString(epochId));
+      commitOperation(snapshotUpdate, description);
+    }
+
+    private Long findLastCommittedEpochId() {
+      Snapshot snapshot = table.currentSnapshot();
+      Long lastCommittedEpochId = null;
+      while (snapshot != null) {
+        Map<String, String> summary = snapshot.summary();
+        String snapshotQueryId = summary.get(QUERY_ID_PROPERTY);
+        if (queryId.equals(snapshotQueryId)) {
+          lastCommittedEpochId = Long.valueOf(summary.get(EPOCH_ID_PROPERTY));
+          break;
+        }
+        Long parentSnapshotId = snapshot.parentId();
+        snapshot = parentSnapshotId != null ? table.snapshot(parentSnapshotId) : null;
+      }
+      return lastCommittedEpochId;
+    }
+
+    @Override
+    public void abort(long epochId, WriterCommitMessage[] messages) {
+      SparkWrite.this.abort(messages);
+    }
+
+    @Override
+    public String toString() {
+      return String.format("IcebergStreamingWrite(table=%s, format=%s)", table, format);
+    }
+  }
+
+  private class StreamingAppend extends BaseStreamingWrite {
+    @Override
+    protected String mode() {
+      return "append";
+    }
+
+    @Override
+    protected void doCommit(long epochId, WriterCommitMessage[] messages) {
+      AppendFiles append = table.newFastAppend();
+      int numFiles = 0;
+      for (DataFile file : files(messages)) {
+        append.appendFile(file);
+        numFiles++;
+      }
+      commit(append, epochId, String.format("streaming append with %d new data files", numFiles));
+    }
+  }
+
+  private class StreamingOverwrite extends BaseStreamingWrite {
+    @Override
+    protected String mode() {
+      return "complete";
+    }
+
+    @Override
+    public void doCommit(long epochId, WriterCommitMessage[] messages) {
+      OverwriteFiles overwriteFiles = table.newOverwrite();
+      overwriteFiles.overwriteByRowFilter(Expressions.alwaysTrue());
+      int numFiles = 0;
+      for (DataFile file : files(messages)) {
+        overwriteFiles.addFile(file);
+        numFiles++;
+      }
+      commit(overwriteFiles, epochId, String.format("streaming complete overwrite with %d new data files", numFiles));
+    }
   }
 
   public static class TaskCommit implements WriterCommitMessage {
