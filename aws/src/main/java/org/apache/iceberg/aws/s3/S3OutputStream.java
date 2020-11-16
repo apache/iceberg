@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Locale;
 import org.apache.iceberg.aws.AwsProperties;
@@ -50,6 +51,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.CountingOutputStream;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -89,26 +92,25 @@ class S3OutputStream extends PositionOutputStream {
   private String multipartUploadId;
   private final Map<File, CompletableFuture<CompletedPart>> multiPartMap = Maps.newHashMap();
   private final int multiPartSize;
-  private final double multiPartThresholdFactor;
+  private final int multiPartThresholdSize;
 
   private long pos = 0;
   private boolean closed = false;
 
-  S3OutputStream(S3Client s3, S3URI location) throws IOException {
-    this(s3, location, new AwsProperties());
-  }
-
   S3OutputStream(S3Client s3, S3URI location, AwsProperties awsProperties) throws IOException {
-    synchronized (this) {
-      if (executorService == null) {
-        executorService = MoreExecutors.getExitingExecutorService(
-            (ThreadPoolExecutor) Executors.newFixedThreadPool(
-                Integer.parseInt(properties.getOrDefault(UPLOAD_POOL_SIZE,
-                    Integer.toString(DEFAULT_UPLOAD_WORKER_POOL_SIZE))),
-                new ThreadFactoryBuilder()
-                    .setDaemon(true)
-                    .setNameFormat("iceberg-s3fileio-upload-%d")
-                    .build()));
+    if (executorService == null) {
+      synchronized (this) {
+        if (executorService == null) {
+          executorService = MoreExecutors.getExitingExecutorService(
+              (ThreadPoolExecutor) Executors.newFixedThreadPool(
+                  Integer.parseInt(properties.getOrDefault(
+                      UPLOAD_POOL_SIZE,
+                      Integer.toString(DEFAULT_UPLOAD_WORKER_POOL_SIZE))),
+                  new ThreadFactoryBuilder()
+                      .setDaemon(true)
+                      .setNameFormat("iceberg-s3fileio-upload-%d")
+                      .build()));
+        }
       }
     }
 
@@ -118,12 +120,12 @@ class S3OutputStream extends PositionOutputStream {
 
     createStack = Thread.currentThread().getStackTrace();
 
-    multiPartSize = Integer.parseInt(properties.getOrDefault(MULTIPART_SIZE, Integer.toString(DEFAULT_MULTIPART_SIZE)));
-    multiPartThresholdFactor = Double.parseDouble(properties.getOrDefault(
+    multiPartSize = PropertyUtil.propertyAsInt(properties, MULTIPART_SIZE, DEFAULT_MULTIPART_SIZE);
+    multiPartThresholdSize =  (int) (multiPartSize * PropertyUtil.propertyAsDouble(properties,
         MULTIPART_THRESHOLD_FACTOR,
-        Double.toString(DEFAULT_MULTIPART_THRESHOLD)));
+        DEFAULT_MULTIPART_THRESHOLD));
 
-    Preconditions.checkArgument(multiPartSize * multiPartThresholdFactor > MIN_MULTIPART_UPLOAD_SIZE,
+    Preconditions.checkArgument(multiPartThresholdSize > MIN_MULTIPART_UPLOAD_SIZE,
         "Minimum multipart upload object size must be larger than 5 MB.");
 
     newStream();
@@ -173,7 +175,7 @@ class S3OutputStream extends PositionOutputStream {
     pos += len;
 
     // switch to multipart upload
-    if (multipartUploadId == null && pos >= multiPartSize * multiPartThresholdFactor) {
+    if (multipartUploadId == null && pos >= multiPartThresholdSize) {
       initializeMultiPartUpload();
       uploadParts();
     }
@@ -199,18 +201,13 @@ class S3OutputStream extends PositionOutputStream {
 
     super.close();
     closed = true;
-    currentStagingFile = null;
 
     try {
       stream.close();
 
       completeUploads();
     } finally {
-      stagingFiles.forEach(f -> {
-        if (f.exists() && !f.delete()) {
-          LOG.warn("Could not delete temporary file: {}", f);
-        }
-      });
+      cleanUpStagingFiles();
     }
   }
 
@@ -227,7 +224,7 @@ class S3OutputStream extends PositionOutputStream {
 
     stagingFiles.stream()
         // do not upload the file currently being written
-        .filter(f -> currentStagingFile == null || !currentStagingFile.equals(f))
+        .filter(f -> closed || !f.equals(currentStagingFile))
         // do not upload any files that have already been processed
         .filter(Predicates.not(multiPartMap::containsKey))
         .forEach(f -> {
@@ -245,13 +242,21 @@ class S3OutputStream extends PositionOutputStream {
                 return CompletedPart.builder().eTag(response.eTag()).partNumber(uploadRequest.partNumber()).build();
               },
               executorService
-          );
+          ).whenComplete((result, thrown) -> {
+            try {
+              Files.deleteIfExists(f.toPath());
+            } catch (IOException e) {
+              LOG.warn("Failed to delete staging file: " + f);
+            }
+          });
 
           multiPartMap.put(f, future);
         });
   }
 
   private void completeMultiPartUpload() throws IOException {
+    Preconditions.checkState(closed, "Complete upload called on open stream: " + location);
+
     try {
       List<CompletedPart> completedParts =
           multiPartMap.values()
@@ -270,11 +275,23 @@ class S3OutputStream extends PositionOutputStream {
     }
   }
 
-  private void abortUpload() {
+  private void abortUpload() throws IOException {
     if (multipartUploadId != null) {
       s3.abortMultipartUpload(AbortMultipartUploadRequest.builder()
           .bucket(location.bucket()).key(location.key()).uploadId(multipartUploadId).build());
+
+      cleanUpStagingFiles();
     }
+  }
+
+  private void cleanUpStagingFiles() throws IOException {
+    Tasks.foreach(stagingFiles)
+        .executeWith(executorService)
+        .suppressFailureWhenFinished()
+        .onFailure((file, thrown) -> {
+          LOG.warn("Failed to delete staging file: " + file, thrown);
+        })
+        .run(f -> Files.deleteIfExists(f.toPath()), IOException.class);
   }
 
   private void completeUploads() throws IOException {
@@ -282,7 +299,8 @@ class S3OutputStream extends PositionOutputStream {
       long contentLength = stagingFiles.stream().mapToLong(File::length).sum();
       InputStream contentStream = new BufferedInputStream(stagingFiles.stream()
           .map(S3OutputStream::uncheckedInputStream)
-          .reduce(SequenceInputStream::new).orElseGet(() -> new ByteArrayInputStream(new byte[0])));
+          .reduce(SequenceInputStream::new)
+          .orElseGet(() -> new ByteArrayInputStream(new byte[0])));
 
       PutObjectRequest.Builder requestBuilder = PutObjectRequest.builder()
           .bucket(location.bucket())
