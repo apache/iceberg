@@ -580,10 +580,19 @@ public class ValueReaders {
     private final Object[] constants;
     private int posField = -1;
 
-    protected StructReader(List<ValueReader<?>> readers) {
+    protected StructReader(List<ValueReader<?>> readers, Schema schema) {
       this.readers = readers.toArray(new ValueReader[0]);
       this.positions = new int[0];
       this.constants = new Object[0];
+
+      List<Schema.Field> fields = schema.getFields();
+      for (int pos = 0; pos < fields.size(); pos += 1) {
+        Schema.Field field = fields.get(pos);
+        if (AvroSchemaUtil.getFieldId(field) == MetadataColumns.ROW_POSITION.fieldId()) {
+          // track where the _pos field is located for setRowPositionSupplier
+          this.posField = pos;
+        }
+      }
     }
 
     protected StructReader(List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
@@ -609,7 +618,7 @@ public class ValueReaders {
 
     @Override
     public void setRowPositionSupplier(Supplier<Long> posSupplier) {
-      if (posField > 0) {
+      if (posField >= 0) {
         long startingPos = posSupplier.get();
         this.readers[posField] = new PositionReader(startingPos);
         for (ValueReader<?> reader : readers) {
@@ -667,7 +676,7 @@ public class ValueReaders {
     private final Schema recordSchema;
 
     private RecordReader(List<ValueReader<?>> readers, Schema recordSchema) {
-      super(readers);
+      super(readers, recordSchema);
       this.recordSchema = recordSchema;
     }
 
@@ -697,7 +706,7 @@ public class ValueReaders {
     private final Schema schema;
 
     IndexedRecordReader(List<ValueReader<?>> readers, Class<R> recordClass, Schema schema) {
-      super(readers);
+      super(readers, schema);
       this.recordClass = recordClass;
       this.ctor = DynConstructors.builder(IndexedRecord.class)
           .hiddenImpl(recordClass, Schema.class)

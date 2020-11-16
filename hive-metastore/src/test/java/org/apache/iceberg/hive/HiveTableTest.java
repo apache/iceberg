@@ -401,8 +401,10 @@ public class HiveTableTest extends HiveTableBaseTest {
           hmsTable.getParameters().get(hive_metastoreConstants.META_TABLE_STORAGE));
       Assert.assertEquals("org.apache.iceberg.mr.hive.HiveIcebergSerDe",
           hmsTable.getSd().getSerdeInfo().getSerializationLib());
-      Assert.assertNull(hmsTable.getSd().getInputFormat());
-      Assert.assertNull(hmsTable.getSd().getOutputFormat());
+      Assert.assertEquals("org.apache.iceberg.mr.hive.HiveIcebergInputFormat",
+          hmsTable.getSd().getInputFormat());
+      Assert.assertEquals("org.apache.iceberg.mr.hive.HiveIcebergOutputFormat",
+          hmsTable.getSd().getOutputFormat());
     } else {
       Assert.assertNull(hmsTable.getParameters().get(hive_metastoreConstants.META_TABLE_STORAGE));
       Assert.assertEquals("org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe",

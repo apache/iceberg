@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.extensions
 
 import org.apache.spark.sql.SparkSessionExtensions
+import org.apache.spark.sql.catalyst.analysis.ResolveProcedures
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
 import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Strategy
 
@@ -27,6 +28,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
 
   override def apply(extensions: SparkSessionExtensions): Unit = {
     extensions.injectParser { case (_, parser) => new IcebergSparkSqlExtensionsParser(parser) }
+    extensions.injectResolutionRule { spark => ResolveProcedures(spark) }
     extensions.injectPlannerStrategy { _ => ExtendedDataSourceV2Strategy }
   }
 }

@@ -251,6 +251,7 @@ This product includes code from Presto.
 * S3FileIO logic derived from PrestoS3FileSystem.java in S3InputStream.java
   and S3OutputStream.java
 * SQL grammar rules for parsing CALL statements in IcebergSqlExtensions.g4
+* some aspects of handling stored procedures
 
 Copyright: 2016 Facebook and contributors
 Home page: https://prestodb.io/

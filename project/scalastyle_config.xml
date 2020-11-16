@@ -85,11 +85,6 @@
             <parameter name="maxTypes"><![CDATA[30]]></parameter>
         </parameters>
     </check>
-    <check level="error" class="org.scalastyle.scalariform.CyclomaticComplexityChecker" enabled="true">
-        <parameters>
-            <parameter name="maximum"><![CDATA[10]]></parameter>
-        </parameters>
-    </check>
     <check level="error" class="org.scalastyle.scalariform.UppercaseLChecker" enabled="true"/>
     <check level="error" class="org.scalastyle.scalariform.SimplifyBooleanExpressionChecker" enabled="true"/>
     <check level="error" class="org.scalastyle.scalariform.IfBraceChecker" enabled="true">

@@ -120,4 +120,15 @@ public class TestManifestReader extends TableTestBase {
     }
   }
 
+  @Test
+  public void testDataFilePositions() throws IOException {
+    ManifestFile manifest = writeManifest(1000L, FILE_A, FILE_B, FILE_C);
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
+      long expectedPos = 0L;
+      for (DataFile file : reader) {
+        Assert.assertEquals("Position should match", (Long) expectedPos, file.pos());
+        expectedPos += 1;
+      }
+    }
+  }
 }

@@ -93,6 +93,14 @@ public class S3OutputStreamTest {
     assertArrayEquals(expected, actual);
   }
 
+  @Test
+  public void testMultipleClose() throws IOException {
+    S3URI uri = new S3URI("s3://bucket/path/to/array-out.dat");
+    S3OutputStream stream = new S3OutputStream(s3, uri);
+    stream.close();
+    stream.close();
+  }
+
   private byte[] readS3Data(S3URI uri) {
     ResponseBytes<GetObjectResponse> data =
         s3.getObject(GetObjectRequest.builder().bucket(uri.bucket()).key(uri.key()).build(),

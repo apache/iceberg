@@ -28,6 +28,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
@@ -65,28 +68,25 @@ public class ParquetUtil {
   private ParquetUtil() {
   }
 
-  // Access modifier is package-private, to only allow use from existing tests
-  static Metrics fileMetrics(InputFile file) {
-    return fileMetrics(file, MetricsConfig.getDefault());
-  }
-
   public static Metrics fileMetrics(InputFile file, MetricsConfig metricsConfig) {
     return fileMetrics(file, metricsConfig, null);
   }
 
   public static Metrics fileMetrics(InputFile file, MetricsConfig metricsConfig, NameMapping nameMapping) {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
-      return footerMetrics(reader.getFooter(), metricsConfig, nameMapping);
+      return footerMetrics(reader.getFooter(), Stream.empty(), metricsConfig, nameMapping);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read footer of file: %s", file);
     }
   }
 
-  public static Metrics footerMetrics(ParquetMetadata metadata, MetricsConfig metricsConfig) {
-    return footerMetrics(metadata, metricsConfig, null);
+  public static Metrics footerMetrics(ParquetMetadata metadata, Stream<FieldMetrics> fieldMetrics,
+                                      MetricsConfig metricsConfig) {
+    return footerMetrics(metadata, fieldMetrics, metricsConfig, null);
   }
 
-  public static Metrics footerMetrics(ParquetMetadata metadata, MetricsConfig metricsConfig, NameMapping nameMapping) {
+  public static Metrics footerMetrics(ParquetMetadata metadata, Stream<FieldMetrics> fieldMetrics,
+                                      MetricsConfig metricsConfig, NameMapping nameMapping) {
     long rowCount = 0;
     Map<Integer, Long> columnSizes = Maps.newHashMap();
     Map<Integer, Long> valueCounts = Maps.newHashMap();
@@ -149,7 +149,23 @@ public class ParquetUtil {
     }
 
     return new Metrics(rowCount, columnSizes, valueCounts, nullValueCounts,
+        getNanValueCounts(fieldMetrics, metricsConfig, fileSchema),
         toBufferMap(fileSchema, lowerBounds), toBufferMap(fileSchema, upperBounds));
+  }
+
+  private static Map<Integer, Long> getNanValueCounts(
+      Stream<FieldMetrics> fieldMetrics, MetricsConfig metricsConfig, Schema inputSchema) {
+    if (fieldMetrics == null || inputSchema == null) {
+      return Maps.newHashMap();
+    }
+
+    return fieldMetrics
+        .filter(metrics -> {
+          String columnName = inputSchema.findColumnName(metrics.id());
+          MetricsMode metricsMode = metricsConfig.columnMode(columnName);
+          return metricsMode != MetricsModes.None.get();
+        })
+        .collect(Collectors.toMap(FieldMetrics::id, FieldMetrics::nanValueCount));
   }
 
   private static MessageType getParquetTypeWithIds(ParquetMetadata metadata, NameMapping nameMapping) {

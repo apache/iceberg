@@ -19,15 +19,26 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
-import org.apache.spark.sql.{AnalysisException, Strategy}
-import org.apache.spark.sql.catalyst.plans.logical.{CallStatement, LogicalPlan}
+import org.apache.spark.sql.Strategy
+import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.expressions.{Expression, GenericInternalRow}
+import org.apache.spark.sql.catalyst.plans.logical.{Call, LogicalPlan}
 import org.apache.spark.sql.execution.SparkPlan
 
 object ExtendedDataSourceV2Strategy extends Strategy {
 
   override def apply(plan: LogicalPlan): Seq[SparkPlan] = plan match {
-    case _: CallStatement =>
-      throw new AnalysisException("CALL statements are not currently supported")
+    case c @ Call(procedure, args) =>
+      val input = buildInternalRow(args)
+      CallExec(c.output, procedure, input) :: Nil
     case _ => Nil
+  }
+
+  private def buildInternalRow(exprs: Seq[Expression]): InternalRow = {
+    val values = new Array[Any](exprs.size)
+    for (index <- exprs.indices) {
+      values(index) = exprs(index).eval()
+    }
+    new GenericInternalRow(values)
   }
 }
