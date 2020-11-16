@@ -19,13 +19,18 @@
 
 package org.apache.iceberg.aws.s3;
 
+import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 
 public class S3InputFile extends BaseS3File implements InputFile {
   public S3InputFile(S3Client client, S3URI uri) {
-    super(client, uri);
+    this(client, uri, new AwsProperties());
+  }
+
+  public S3InputFile(S3Client client, S3URI uri, AwsProperties awsProperties) {
+    super(client, uri, awsProperties);
   }
 
   /**
@@ -40,7 +45,7 @@ public class S3InputFile extends BaseS3File implements InputFile {
 
   @Override
   public SeekableInputStream newStream() {
-    return new S3InputStream(client(), uri());
+    return new S3InputStream(client(), uri(), awsProperties());
   }
 
 }

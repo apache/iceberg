@@ -22,6 +22,7 @@ package org.apache.iceberg.aws.s3;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
+import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -31,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 
 class S3InputStream extends SeekableInputStream {
   private static final Logger LOG = LoggerFactory.getLogger(S3InputStream.class);
@@ -38,6 +40,7 @@ class S3InputStream extends SeekableInputStream {
   private final StackTraceElement[] createStack;
   private final S3Client s3;
   private final S3URI location;
+  private final AwsProperties awsProperties;
 
   private InputStream stream;
   private long pos = 0;
@@ -47,8 +50,13 @@ class S3InputStream extends SeekableInputStream {
   private int skipSize = 1024 * 1024;
 
   S3InputStream(S3Client s3, S3URI location) {
+    this(s3, location, new AwsProperties());
+  }
+
+  S3InputStream(S3Client s3, S3URI location, AwsProperties awsProperties) {
     this.s3 = s3;
     this.location = location;
+    this.awsProperties = awsProperties;
 
     createStack = Thread.currentThread().getStackTrace();
   }
@@ -126,13 +134,19 @@ class S3InputStream extends SeekableInputStream {
   }
 
   private void openStream() throws IOException {
-    GetObjectRequest request = GetObjectRequest.builder()
+    GetObjectRequest.Builder requestBuilder = GetObjectRequest.builder()
         .bucket(location.bucket())
         .key(location.key())
-        .range(String.format("bytes=%s-", pos))
-        .build();
+        .range(String.format("bytes=%s-", pos));
+
+    if (AwsProperties.S3FILEIO_SSE_TYPE_CUSTOM.equals(awsProperties.s3FileIoSseType())) {
+      requestBuilder.sseCustomerAlgorithm(ServerSideEncryption.AES256.name());
+      requestBuilder.sseCustomerKey(awsProperties.s3FileIoSseKey());
+      requestBuilder.sseCustomerKeyMD5(awsProperties.s3FileIoSseMd5());
+    }
+
     closeStream();
-    stream = s3.getObject(request, ResponseTransformer.toInputStream());
+    stream = s3.getObject(requestBuilder.build(), ResponseTransformer.toInputStream());
   }
 
   private void closeStream() throws IOException {
