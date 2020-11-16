@@ -20,6 +20,7 @@
 package org.apache.iceberg.aws;
 
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
+import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
 /**
@@ -37,6 +38,12 @@ public class AwsClientUtil {
 
   public static S3Client defaultS3Client() {
     return S3Client.builder()
+        .httpClient(UrlConnectionHttpClient.create())
+        .build();
+  }
+
+  public static KmsClient defaultKmsClient() {
+    return KmsClient.builder()
         .httpClient(UrlConnectionHttpClient.create())
         .build();
   }

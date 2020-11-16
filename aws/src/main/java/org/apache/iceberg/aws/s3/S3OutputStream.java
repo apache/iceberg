@@ -25,6 +25,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.Locale;
+import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.slf4j.Logger;
@@ -32,6 +34,7 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 
 class S3OutputStream extends PositionOutputStream {
   private static final Logger LOG = LoggerFactory.getLogger(S3OutputStream.class);
@@ -39,6 +42,7 @@ class S3OutputStream extends PositionOutputStream {
   private final StackTraceElement[] createStack;
   private final S3Client s3;
   private final S3URI location;
+  private final AwsProperties awsProperties;
 
   private final OutputStream stream;
   private final File stagingFile;
@@ -47,8 +51,13 @@ class S3OutputStream extends PositionOutputStream {
   private boolean closed = false;
 
   S3OutputStream(S3Client s3, S3URI location) throws IOException {
+    this(s3, location, new AwsProperties());
+  }
+
+  S3OutputStream(S3Client s3, S3URI location, AwsProperties awsProperties) throws IOException {
     this.s3 = s3;
     this.location = location;
+    this.awsProperties = awsProperties;
 
     createStack = Thread.currentThread().getStackTrace();
     stagingFile = File.createTempFile("s3fileio-", ".tmp");
@@ -91,9 +100,35 @@ class S3OutputStream extends PositionOutputStream {
     try {
       stream.close();
 
-      s3.putObject(
-          PutObjectRequest.builder().bucket(location.bucket()).key(location.key()).build(),
-          RequestBody.fromFile(stagingFile));
+      PutObjectRequest.Builder requestBuilder = PutObjectRequest.builder()
+          .bucket(location.bucket())
+          .key(location.key());
+
+      switch (awsProperties.s3FileIoSseType().toLowerCase(Locale.ENGLISH)) {
+        case AwsProperties.S3FILEIO_SSE_TYPE_NONE:
+          break;
+
+        case AwsProperties.S3FILEIO_SSE_TYPE_KMS:
+          requestBuilder.serverSideEncryption(ServerSideEncryption.AWS_KMS);
+          requestBuilder.ssekmsKeyId(awsProperties.s3FileIoSseKey());
+          break;
+
+        case AwsProperties.S3FILEIO_SSE_TYPE_S3:
+          requestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
+          break;
+
+        case AwsProperties.S3FILEIO_SSE_TYPE_CUSTOM:
+          requestBuilder.sseCustomerAlgorithm(ServerSideEncryption.AES256.name());
+          requestBuilder.sseCustomerKey(awsProperties.s3FileIoSseKey());
+          requestBuilder.sseCustomerKeyMD5(awsProperties.s3FileIoSseMd5());
+          break;
+
+        default:
+          throw new IllegalArgumentException(
+              "Cannot support given S3 encryption type: " + awsProperties.s3FileIoSseType());
+      }
+
+      s3.putObject(requestBuilder.build(), RequestBody.fromFile(stagingFile));
     } finally {
       if (!stagingFile.delete()) {
         LOG.warn("Could not delete temporary file: {}", stagingFile);
