@@ -370,4 +370,76 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     expected.add(SimpleDataUtil.createRecord(2, "b"));
     SimpleDataUtil.assertTableRecords(icebergTableUnPartitioned, expected);
   }
+
+  /**
+   * a test case to test exclude the datafile which file size > targetSizeInBytes
+   * <p>
+   * if there is a data file which file size > targetSizeInBytes, we should exclude it and don't do the rewrite.
+   * <p>
+   * In this test case, we generated 3 data files and set targetSizeInBytes less than  the largest file size ， Then the
+   * datafile with the largest file size will not be rewrote .
+   *
+   * @throws IOException IOException
+   */
+  @Test
+  public void testRewriteRemoveLargeFile() throws IOException {
+    Assume.assumeFalse("ORC does not support getting length when file is opening", format.equals(FileFormat.ORC));
+    List<Record> expected = Lists.newArrayList();
+    Schema schema = icebergTableUnPartitioned.schema();
+    GenericAppenderFactory genericAppenderFactory = new GenericAppenderFactory(schema);
+    int count = 0;
+    File file = temp.newFile();
+    try (FileAppender<Record> fileAppender = genericAppenderFactory.newAppender(Files.localOutput(file), format)) {
+      long filesize = 20000;
+      for (; fileAppender.length() < filesize; count++) {
+        Record record = SimpleDataUtil.createRecord(count, "iceberg");
+        fileAppender.add(record);
+        expected.add(record);
+      }
+    }
+
+    DataFile dataFile = DataFiles.builder(icebergTableUnPartitioned.spec())
+        .withPath(file.getAbsolutePath())
+        .withFileSizeInBytes(file.length())
+        .withFormat(format)
+        .withRecordCount(count)
+        .build();
+
+    icebergTableUnPartitioned.newAppend().appendFile(dataFile).commit();
+
+    sql("INSERT INTO %s SELECT 1,'a' ", TABLE_NAME_UNPARTITIONED);
+    sql("INSERT INTO %s SELECT 2,'b' ", TABLE_NAME_UNPARTITIONED);
+
+    icebergTableUnPartitioned.refresh();
+
+    CloseableIterable<FileScanTask> tasks = icebergTableUnPartitioned.newScan().planFiles();
+    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
+    Assert.assertEquals("Should have 3 data files before rewrite", 3, dataFiles.size());
+
+    Actions actions = Actions.forTable(icebergTableUnPartitioned);
+
+    long targetSizeInBytes = file.length() - 10;
+    RewriteDataFilesActionResult result = actions
+        .rewriteDataFiles()
+        .targetSizeInBytes(targetSizeInBytes)
+        .splitOpenFileCost(1)
+        .execute();
+    Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
+    Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
+
+    icebergTableUnPartitioned.refresh();
+
+    CloseableIterable<FileScanTask> tasks1 = icebergTableUnPartitioned.newScan().planFiles();
+    List<DataFile> dataFilesRewrote = Lists.newArrayList(CloseableIterable.transform(tasks1, FileScanTask::file));
+    Assert.assertEquals("Should have 2 data files after rewrite", 2, dataFilesRewrote.size());
+
+    // the biggest file do not be rewrote
+    List rewroteDataFileNames = dataFilesRewrote.stream().map(ContentFile::path).collect(Collectors.toList());
+    Assert.assertTrue(rewroteDataFileNames.contains(file.getAbsolutePath()));
+
+    // Assert the table records as expected.
+    expected.add(SimpleDataUtil.createRecord(1, "a"));
+    expected.add(SimpleDataUtil.createRecord(2, "b"));
+    SimpleDataUtil.assertTableRecords(icebergTableUnPartitioned, expected);
+  }
 }

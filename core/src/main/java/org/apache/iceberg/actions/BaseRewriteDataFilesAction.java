@@ -250,7 +250,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     try (CloseableIterator<FileScanTask> iterator = tasksIter) {
       iterator.forEachRemaining(task -> {
         // if there is a data file which file size > targetSizeInBytes,
-        // we should remove it and do not do the rewrite
+        // we should exclude it and do not do the rewrite
         if (task.file().fileSizeInBytes() < targetSizeInBytes) {
           StructLikeWrapper structLike = StructLikeWrapper.forType(spec.partitionType()).set(task.file().partition());
           tasksGroupedByPartition.put(structLike, task);
