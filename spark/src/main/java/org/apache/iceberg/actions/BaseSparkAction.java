@@ -36,6 +36,7 @@ import org.apache.iceberg.spark.SparkUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.sql.DataFrameReader;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -127,28 +128,27 @@ abstract class BaseSparkAction<R> implements Action<R> {
 
   protected static Dataset<Row> loadMetadataTable(SparkSession spark, String tableName, String tableLocation,
                                                   MetadataTableType type) {
-    String metadataTableName = metadataTableName(tableName, tableLocation, type);
-    if (!metadataTableName.contains("/") && metadataTableName.split("\\.").length > 3) {
-      // This table has a three or more components and is not a file (catalog.db.table.meta), use the V2 read path
-      return spark.table(metadataTableName);
-    } else {
-      // This table is file based or has no catalog (db.tableName.meta) or (/some/path#meta), read via non-catalog path
-      return spark.read().format("iceberg").load(metadataTableName);
-    }
-  }
-
-  private static String metadataTableName(String tableName, String tableLocation, MetadataTableType type) {
+    DataFrameReader noCatalogReader = spark.read().format("iceberg");
     if (tableName.contains("/")) {
-      return tableName + "#" + type;
-    } else if (tableName.startsWith("hadoop.")) {
-      // for HadoopCatalog tables, use the table location to load the metadata table
-      // because IcebergCatalog uses HiveCatalog when the table is identified by name
-      return tableLocation + "#" + type;
-    } else if (tableName.startsWith("hive.")) {
-      // HiveCatalog prepend a logical name which we need to drop for Spark 2.4
-      return tableName.replaceFirst("hive\\.", "") + "." + type;
+      // Metadata location passed, load without a catalog
+      return noCatalogReader.load(tableName + "#" + type);
     } else {
-      return tableName + "." + type;
+      // Try catalog based name based resolution
+      try {
+        return spark.table(tableName + "." + type);
+      } catch (Exception e) {
+        // Catalog based resolution failed, our catalog may be a non-DatasourceV2 Catalog
+        if (tableName.startsWith("hadoop.")) {
+          // Try loading by location as Hadoop table without Catalog
+          return noCatalogReader.load(tableLocation + "#" + type);
+        } else if (tableName.startsWith("hive")) {
+          // Try loading by name as a Hive table without Catalog
+          return noCatalogReader.load(tableName.replaceFirst("hive\\.", "") + "." + type);
+        } else {
+          throw new IllegalArgumentException(String.format(
+              "Cannot find the metadata table for %s of type %s", tableName, type));
+        }
+      }
     }
   }
 

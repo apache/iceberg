@@ -60,5 +60,54 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
         results.contains("file:" + location + "/data/trashfile"));
   }
 
+  @Test
+  public void testSparkCatalogHadoopTable() throws TableAlreadyExistsException, NoSuchTableException, IOException {
+    spark.conf().set("spark.sql.catalog.hadoop", "org.apache.iceberg.spark.SparkCatalog");
+    spark.conf().set("spark.sql.catalog.hadoop.type", "hadoop");
+    spark.conf().set("spark.sql.catalog.hadoop.warehouse", tableLocation);
+    SparkCatalog cat = (SparkCatalog) spark.sessionState().catalogManager().catalog("hadoop");
+
+    String[] database = {"default"};
+    Identifier id = Identifier.of(database, "table");
+    Map<String, String> options = Maps.newHashMap();
+    Transform[] transforms = {};
+    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, options);
+    SparkTable table = cat.loadTable(id);
+
+    spark.sql("INSERT INTO hadoop.default.table VALUES (1,1,1)");
+
+    String location = table.table().location().replaceFirst("file:", "");
+    new File(location + "/data/trashfile").createNewFile();
+
+    List<String> results = Actions.forTable(table.table()).removeOrphanFiles()
+        .olderThan(System.currentTimeMillis() + 1000).execute();
+    Assert.assertTrue("trash file should be removed",
+        results.contains("file:" + location + "/data/trashfile"));
+  }
+
+  @Test
+  public void testSparkCatalogHiveTable() throws TableAlreadyExistsException, NoSuchTableException, IOException {
+    spark.conf().set("spark.sql.catalog.hive", "org.apache.iceberg.spark.SparkCatalog");
+    spark.conf().set("spark.sql.catalog.hive.type", "hadoop");
+    spark.conf().set("spark.sql.catalog.hive.warehouse", tableLocation);
+    SparkCatalog cat = (SparkCatalog) spark.sessionState().catalogManager().catalog("hive");
+
+    String[] database = {"default"};
+    Identifier id = Identifier.of(database, "table");
+    Map<String, String> options = Maps.newHashMap();
+    Transform[] transforms = {};
+    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, options);
+    SparkTable table = cat.loadTable(id);
+
+    spark.sql("INSERT INTO hive.default.table VALUES (1,1,1)");
+
+    String location = table.table().location().replaceFirst("file:", "");
+    new File(location + "/data/trashfile").createNewFile();
+
+    List<String> results = Actions.forTable(table.table()).removeOrphanFiles()
+        .olderThan(System.currentTimeMillis() + 1000).execute();
+    Assert.assertTrue("trash file should be removed",
+        results.contains("file:" + location + "/data/trashfile"));
+  }
 
 }
