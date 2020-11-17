@@ -82,9 +82,33 @@ public class AwsProperties {
   public static final String GLUE_CATALOG_SKIP_ARCHIVE = "gluecatalog.skip-archive";
   public static final boolean GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT = false;
 
+  /**
+   * Number of threads to use for uploading parts to S3 (shared pool across all output streams).
+   */
+  public static final String S3FILEIO_MULTIPART_UPLOAD_THREADS  = "s3fileio.multipart.num-threads";
+
+  /**
+   * The size of a single part for multipart upload requests (default: 32MB).
+   */
+  public static final String S3FILEIO_MULTIPART_SIZE = "s3fileio.multipart.part.size";
+
+  /**
+   * The threshold expressed as a factor times the multipart size at which to
+   * switch from uploading using a single put object request to uploading using multipart upload
+   * (default: 1.5).
+   */
+  public static final String S3FILEIO_MULTIPART_THRESHOLD_FACTOR = "s3fileio.multipart.threshold";
+
+  static final int MIN_MULTIPART_UPLOAD_SIZE = 5 * 1024 * 1024;
+  static final int DEFAULT_MULTIPART_SIZE = 32 * 1024 * 1024;
+  static final double DEFAULT_MULTIPART_THRESHOLD = 1.5;
+
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
   private String s3FileIoSseMd5;
+  private int s3FileIoMultipartUploadThreads;
+  private int s3FileIoMultiPartSize;
+  private double s3FileIOMultipartThresholdFactor;
 
   private String glueCatalogId;
   private boolean glueCatalogSkipArchive;
@@ -111,6 +135,18 @@ public class AwsProperties {
     this.glueCatalogId = properties.get(GLUE_CATALOG_ID);
     this.glueCatalogSkipArchive = PropertyUtil.propertyAsBoolean(properties,
         AwsProperties.GLUE_CATALOG_SKIP_ARCHIVE, AwsProperties.GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT);
+
+    this.s3FileIoMultipartUploadThreads = PropertyUtil.propertyAsInt(properties, S3FILEIO_MULTIPART_UPLOAD_THREADS,
+        Runtime.getRuntime().availableProcessors());
+
+    this.s3FileIoMultiPartSize = PropertyUtil.propertyAsInt(properties, S3FILEIO_MULTIPART_SIZE,
+        DEFAULT_MULTIPART_SIZE);
+
+    this.s3FileIOMultipartThresholdFactor = PropertyUtil.propertyAsDouble(properties,
+        S3FILEIO_MULTIPART_THRESHOLD_FACTOR, DEFAULT_MULTIPART_THRESHOLD);
+
+    Preconditions.checkArgument(s3FileIoMultiPartSize >= MIN_MULTIPART_UPLOAD_SIZE,
+        "Minimum multipart upload object size must be larger than 5 MB.");
   }
 
   public String s3FileIoSseType() {
@@ -151,5 +187,17 @@ public class AwsProperties {
 
   public void setGlueCatalogSkipArchive(boolean skipArchive) {
     this.glueCatalogSkipArchive = skipArchive;
+  }
+
+  public int s3FileIoMultipartUploadThreads() {
+    return s3FileIoMultipartUploadThreads;
+  }
+
+  public int s3FileIoMultiPartSize() {
+    return s3FileIoMultiPartSize;
+  }
+
+  public double s3FileIOMultipartThresholdFactor() {
+    return s3FileIOMultipartThresholdFactor;
   }
 }

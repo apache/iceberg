@@ -31,8 +31,6 @@ import java.io.SequenceInputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.Arrays;
-import java.util.Locale;
-import org.apache.iceberg.aws.AwsProperties;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +40,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
+import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -51,7 +50,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.CountingOutputStream;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,23 +61,13 @@ import software.amazon.awssdk.services.s3.model.CompletedMultipartUpload;
 import software.amazon.awssdk.services.s3.model.CompletedPart;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 
 class S3OutputStream extends PositionOutputStream {
   private static final Logger LOG = LoggerFactory.getLogger(S3OutputStream.class);
 
-  static final String UPLOAD_POOL_SIZE  = "s3fileio.multipart.num-threads";
-  static final String MULTIPART_SIZE = "s3fileio.multipart.part.size";
-  static final String MULTIPART_THRESHOLD_FACTOR = "s3fileio.multipart.threshold";
-
-  static final int DEFAULT_UPLOAD_WORKER_POOL_SIZE = Runtime.getRuntime().availableProcessors();
-  static final int MIN_MULTIPART_UPLOAD_SIZE = 5 * 1024 * 1024;
-  static final int DEFAULT_MULTIPART_SIZE = 32 * 1024 * 1024;
-  static final double DEFAULT_MULTIPART_THRESHOLD = 1.5;
-
-  private static ExecutorService executorService;
+  private static volatile ExecutorService executorService;
 
   private final StackTraceElement[] createStack;
   private final S3Client s3;
@@ -103,9 +91,7 @@ class S3OutputStream extends PositionOutputStream {
         if (executorService == null) {
           executorService = MoreExecutors.getExitingExecutorService(
               (ThreadPoolExecutor) Executors.newFixedThreadPool(
-                  Integer.parseInt(properties.getOrDefault(
-                      UPLOAD_POOL_SIZE,
-                      Integer.toString(DEFAULT_UPLOAD_WORKER_POOL_SIZE))),
+                  awsProperties.s3FileIoMultipartUploadThreads(),
                   new ThreadFactoryBuilder()
                       .setDaemon(true)
                       .setNameFormat("iceberg-s3fileio-upload-%d")
@@ -120,13 +106,8 @@ class S3OutputStream extends PositionOutputStream {
 
     createStack = Thread.currentThread().getStackTrace();
 
-    multiPartSize = PropertyUtil.propertyAsInt(properties, MULTIPART_SIZE, DEFAULT_MULTIPART_SIZE);
-    multiPartThresholdSize =  (int) (multiPartSize * PropertyUtil.propertyAsDouble(properties,
-        MULTIPART_THRESHOLD_FACTOR,
-        DEFAULT_MULTIPART_THRESHOLD));
-
-    Preconditions.checkArgument(multiPartThresholdSize > MIN_MULTIPART_UPLOAD_SIZE,
-        "Minimum multipart upload object size must be larger than 5 MB.");
+    multiPartSize = awsProperties.s3FileIoMultiPartSize();
+    multiPartThresholdSize =  (int) (multiPartSize * awsProperties.s3FileIOMultipartThresholdFactor());
 
     newStream();
   }
@@ -150,6 +131,12 @@ class S3OutputStream extends PositionOutputStream {
 
     stream.write(b);
     pos += 1;
+
+    // switch to multipart upload
+    if (multipartUploadId == null && pos >= multiPartThresholdSize) {
+      initializeMultiPartUpload();
+      uploadParts();
+    }
   }
 
   @Override
@@ -212,8 +199,11 @@ class S3OutputStream extends PositionOutputStream {
   }
 
   private void initializeMultiPartUpload() {
-    multipartUploadId = s3.createMultipartUpload(CreateMultipartUploadRequest.builder()
-        .bucket(location.bucket()).key(location.key()).build()).uploadId();
+    CreateMultipartUploadRequest.Builder requestBuilder = CreateMultipartUploadRequest.builder()
+        .bucket(location.bucket()).key(location.key());
+    S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
+
+    multipartUploadId = s3.createMultipartUpload(requestBuilder.build()).uploadId();
   }
 
   private void uploadParts() {
@@ -228,13 +218,16 @@ class S3OutputStream extends PositionOutputStream {
         // do not upload any files that have already been processed
         .filter(Predicates.not(multiPartMap::containsKey))
         .forEach(f -> {
-          UploadPartRequest uploadRequest = UploadPartRequest.builder()
+          UploadPartRequest.Builder requestBuilder = UploadPartRequest.builder()
               .bucket(location.bucket())
               .key(location.key())
               .uploadId(multipartUploadId)
               .partNumber(stagingFiles.indexOf(f) + 1)
-              .contentLength(f.length())
-              .build();
+              .contentLength(f.length());
+
+          S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
+
+          UploadPartRequest uploadRequest = requestBuilder.build();
 
           CompletableFuture<CompletedPart> future = CompletableFuture.supplyAsync(
               () -> {
@@ -246,7 +239,7 @@ class S3OutputStream extends PositionOutputStream {
             try {
               Files.deleteIfExists(f.toPath());
             } catch (IOException e) {
-              LOG.warn("Failed to delete staging file: " + f);
+              LOG.warn("Failed to delete staging file: {}", f, e);
             }
           });
 
@@ -289,7 +282,7 @@ class S3OutputStream extends PositionOutputStream {
         .executeWith(executorService)
         .suppressFailureWhenFinished()
         .onFailure((file, thrown) -> {
-          LOG.warn("Failed to delete staging file: " + file, thrown);
+          LOG.warn("Failed to delete staging file: {}", file, thrown);
         })
         .run(f -> Files.deleteIfExists(f.toPath()), IOException.class);
   }
@@ -306,29 +299,7 @@ class S3OutputStream extends PositionOutputStream {
           .bucket(location.bucket())
           .key(location.key());
 
-      switch (awsProperties.s3FileIoSseType().toLowerCase(Locale.ENGLISH)) {
-        case AwsProperties.S3FILEIO_SSE_TYPE_NONE:
-          break;
-
-        case AwsProperties.S3FILEIO_SSE_TYPE_KMS:
-          requestBuilder.serverSideEncryption(ServerSideEncryption.AWS_KMS);
-          requestBuilder.ssekmsKeyId(awsProperties.s3FileIoSseKey());
-          break;
-
-        case AwsProperties.S3FILEIO_SSE_TYPE_S3:
-          requestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
-          break;
-
-        case AwsProperties.S3FILEIO_SSE_TYPE_CUSTOM:
-          requestBuilder.sseCustomerAlgorithm(ServerSideEncryption.AES256.name());
-          requestBuilder.sseCustomerKey(awsProperties.s3FileIoSseKey());
-          requestBuilder.sseCustomerKeyMD5(awsProperties.s3FileIoSseMd5());
-          break;
-
-        default:
-          throw new IllegalArgumentException(
-              "Cannot support given S3 encryption type: " + awsProperties.s3FileIoSseType());
-      }
+      S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
 
       s3.putObject(requestBuilder.build(), RequestBody.fromInputStream(contentStream, contentLength));
     } else {
