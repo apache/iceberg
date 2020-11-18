@@ -44,9 +44,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 
-// CHECKSTYLE:OFF
 import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
-// CHECKSTYLE:ON
 
 abstract class BaseSparkAction<R> implements Action<R> {
 

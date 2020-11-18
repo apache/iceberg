@@ -66,9 +66,7 @@ import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-// CHECKSTYLE:OFF
 import static org.apache.iceberg.MetadataTableType.ENTRIES;
-// CHECKSTYLE:ON
 
 /**
  * An action that rewrites manifests in a distributed manner and co-locates metadata for partitions.
