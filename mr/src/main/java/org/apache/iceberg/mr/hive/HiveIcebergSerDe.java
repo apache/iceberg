@@ -79,8 +79,8 @@ public class HiveIcebergSerDe extends AbstractSerDe {
   }
 
   private void assertNotVectorizedTez(Configuration configuration) {
-    if ("tez".equals(configuration.get("hive.execution.engine"))
-        && "true".equals(configuration.get("hive.vectorized.execution.enabled"))) {
+    if ("tez".equals(configuration.get("hive.execution.engine")) &&
+        "true".equals(configuration.get("hive.vectorized.execution.enabled"))) {
       throw new UnsupportedOperationException("Vectorized execution on Tez is currently not supported when using " +
           "Iceberg tables. Please set hive.vectorized.execution.enabled=false and rerun the query.");
     }
