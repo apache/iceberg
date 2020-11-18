@@ -248,6 +248,10 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 This product includes code from Presto.
 
 * Retry wait and jitter logic in Tasks.java
+* S3FileIO logic derived from PrestoS3FileSystem.java in S3InputStream.java
+  and S3OutputStream.java
+* SQL grammar rules for parsing CALL statements in IcebergSqlExtensions.g4
+* some aspects of handling stored procedures
 
 Copyright: 2016 Facebook and contributors
 Home page: https://prestodb.io/
@@ -279,6 +283,7 @@ This product includes code from Apache Spark.
 
 * dev/check-license script
 * vectorized reading of definition levels in BaseVectorizedParquetValuesReader.java
+* portions of the extensions parser
 
 Copyright: 2011-2018 The Apache Software Foundation
 Home page: http://hive.apache.org/

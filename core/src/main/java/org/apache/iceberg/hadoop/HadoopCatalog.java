@@ -33,6 +33,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.iceberg.BaseMetastoreCatalog;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
@@ -45,11 +46,13 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 /**
@@ -76,6 +79,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   private final Configuration conf;
   private final String warehouseLocation;
   private final FileSystem fs;
+  private final FileIO fileIO;
 
   /**
    * The constructor of the HadoopCatalog. It uses the passed location as its warehouse directory.
@@ -85,6 +89,18 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
    * @param warehouseLocation The location used as warehouse directory
    */
   public HadoopCatalog(String name, Configuration conf, String warehouseLocation) {
+    this(name, conf, warehouseLocation, Maps.newHashMap());
+  }
+
+  /**
+   * The all-arg constructor of the HadoopCatalog.
+   *
+   * @param name The catalog name
+   * @param conf The Hadoop configuration
+   * @param warehouseLocation The location used as warehouse directory
+   * @param properties catalog properties
+   */
+  public HadoopCatalog(String name, Configuration conf, String warehouseLocation, Map<String, String> properties) {
     Preconditions.checkArgument(warehouseLocation != null && !warehouseLocation.equals(""),
         "no location provided for warehouse");
 
@@ -92,6 +108,9 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     this.conf = conf;
     this.warehouseLocation = warehouseLocation.replaceAll("/*$", "");
     this.fs = Util.getFs(new Path(warehouseLocation), conf);
+
+    String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
+    this.fileIO = fileIOImpl == null ? new HadoopFileIO(conf) : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
   }
 
   /**
@@ -163,7 +182,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   @Override
   protected TableOperations newTableOps(TableIdentifier identifier) {
-    return new HadoopTableOperations(new Path(defaultWarehouseLocation(identifier)), conf);
+    return new HadoopTableOperations(new Path(defaultWarehouseLocation(identifier)), fileIO, conf);
   }
 
   @Override

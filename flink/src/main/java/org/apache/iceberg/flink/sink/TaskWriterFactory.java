@@ -27,7 +27,7 @@ import org.apache.iceberg.io.TaskWriter;
  *
  * @param <T> data type of record.
  */
-interface TaskWriterFactory<T> extends Serializable {
+public interface TaskWriterFactory<T> extends Serializable {
 
   /**
    * Initialize the factory with a given taskId and attemptId.

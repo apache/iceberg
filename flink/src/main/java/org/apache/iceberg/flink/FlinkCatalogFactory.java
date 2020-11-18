@@ -23,6 +23,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.apache.flink.configuration.GlobalConfiguration;
 import org.apache.flink.runtime.util.HadoopUtils;
@@ -31,6 +32,7 @@ import org.apache.flink.table.descriptors.CatalogDescriptorValidator;
 import org.apache.flink.table.factories.CatalogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -58,11 +60,10 @@ public class FlinkCatalogFactory implements CatalogFactory {
 
   // Can not just use "type", it conflicts with CATALOG_TYPE.
   public static final String ICEBERG_CATALOG_TYPE = "catalog-type";
-  public static final String HIVE_URI = "uri";
-  public static final String HIVE_CLIENT_POOL_SIZE = "clients";
-  public static final String HIVE_CONF_DIR = "hive-conf-dir";
-  public static final String WAREHOUSE_LOCATION = "warehouse";
+  public static final String ICEBERG_CATALOG_TYPE_HADOOP = "hadoop";
+  public static final String ICEBERG_CATALOG_TYPE_HIVE = "hive";
 
+  public static final String HIVE_CONF_DIR = "hive-conf-dir";
   public static final String DEFAULT_DATABASE = "default-database";
   public static final String BASE_NAMESPACE = "base-namespace";
 
@@ -75,21 +76,22 @@ public class FlinkCatalogFactory implements CatalogFactory {
    * @return an Iceberg catalog loader
    */
   protected CatalogLoader createCatalogLoader(String name, Map<String, String> properties, Configuration hadoopConf) {
-    String catalogType = properties.getOrDefault(ICEBERG_CATALOG_TYPE, "hive");
-    switch (catalogType) {
-      case "hive":
+    String catalogImpl = properties.get(CatalogProperties.CATALOG_IMPL);
+    if (catalogImpl != null) {
+      return CatalogLoader.custom(name, properties, hadoopConf, catalogImpl);
+    }
+
+    String catalogType = properties.getOrDefault(ICEBERG_CATALOG_TYPE, ICEBERG_CATALOG_TYPE_HIVE);
+    switch (catalogType.toLowerCase(Locale.ENGLISH)) {
+      case ICEBERG_CATALOG_TYPE_HIVE:
         // The values of properties 'uri', 'warehouse', 'hive-conf-dir' are allowed to be null, in that case it will
         // fallback to parse those values from hadoop configuration which is loaded from classpath.
-        String uri = properties.get(HIVE_URI);
-        String warehouse = properties.get(WAREHOUSE_LOCATION);
-        int clientPoolSize = Integer.parseInt(properties.getOrDefault(HIVE_CLIENT_POOL_SIZE, "2"));
         String hiveConfDir = properties.get(HIVE_CONF_DIR);
         Configuration newHadoopConf = mergeHiveConf(hadoopConf, hiveConfDir);
-        return CatalogLoader.hive(name, newHadoopConf, uri, warehouse, clientPoolSize);
+        return CatalogLoader.hive(name, newHadoopConf, properties);
 
-      case "hadoop":
-        String warehouseLocation = properties.get(WAREHOUSE_LOCATION);
-        return CatalogLoader.hadoop(name, hadoopConf, warehouseLocation);
+      case ICEBERG_CATALOG_TYPE_HADOOP:
+        return CatalogLoader.hadoop(name, hadoopConf, properties);
 
       default:
         throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
@@ -108,12 +110,13 @@ public class FlinkCatalogFactory implements CatalogFactory {
   public List<String> supportedProperties() {
     List<String> properties = Lists.newArrayList();
     properties.add(ICEBERG_CATALOG_TYPE);
-    properties.add(HIVE_URI);
-    properties.add(HIVE_CLIENT_POOL_SIZE);
     properties.add(HIVE_CONF_DIR);
-    properties.add(WAREHOUSE_LOCATION);
     properties.add(DEFAULT_DATABASE);
     properties.add(BASE_NAMESPACE);
+    properties.add(CatalogProperties.FILE_IO_IMPL);
+    properties.add(CatalogProperties.WAREHOUSE_LOCATION);
+    properties.add(CatalogProperties.HIVE_URI);
+    properties.add(CatalogProperties.HIVE_CLIENT_POOL_SIZE);
     return properties;
   }
 

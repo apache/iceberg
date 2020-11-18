@@ -27,7 +27,9 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -73,11 +75,11 @@ public class ParquetValueWriters {
   }
 
   public static UnboxedWriter<Float> floats(ColumnDescriptor desc) {
-    return new UnboxedWriter<>(desc);
+    return new FloatWriter(desc);
   }
 
   public static UnboxedWriter<Double> doubles(ColumnDescriptor desc) {
-    return new UnboxedWriter<>(desc);
+    return new DoubleWriter(desc);
   }
 
   public static PrimitiveWriter<CharSequence> strings(ColumnDescriptor desc) {
@@ -162,6 +164,54 @@ public class ParquetValueWriters {
 
     public void writeDouble(int repetitionLevel, double value) {
       column.writeDouble(repetitionLevel, value);
+    }
+  }
+
+  private static class FloatWriter extends UnboxedWriter<Float> {
+    private final int id;
+    private long nanCount;
+
+    private FloatWriter(ColumnDescriptor desc) {
+      super(desc);
+      this.id = desc.getPrimitiveType().getId().intValue();
+      this.nanCount = 0;
+    }
+
+    @Override
+    public void write(int repetitionLevel, Float value) {
+      writeFloat(repetitionLevel, value);
+      if (Float.isNaN(value)) {
+        nanCount++;
+      }
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Stream.of(new ParquetFieldMetrics(id, nanCount));
+    }
+  }
+
+  private static class DoubleWriter extends UnboxedWriter<Double> {
+    private final int id;
+    private long nanCount;
+
+    private DoubleWriter(ColumnDescriptor desc) {
+      super(desc);
+      this.id = desc.getPrimitiveType().getId().intValue();
+      this.nanCount = 0;
+    }
+
+    @Override
+    public void write(int repetitionLevel, Double value) {
+      writeDouble(repetitionLevel, value);
+      if (Double.isNaN(value)) {
+        nanCount++;
+      }
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Stream.of(new ParquetFieldMetrics(id, nanCount));
     }
   }
 
@@ -308,6 +358,11 @@ public class ParquetValueWriters {
     public void setColumnStore(ColumnWriteStore columnStore) {
       writer.setColumnStore(columnStore);
     }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return writer.metrics();
+    }
   }
 
   public abstract static class RepeatedWriter<L, E> implements ParquetValueWriter<L> {
@@ -362,6 +417,11 @@ public class ParquetValueWriters {
     }
 
     protected abstract Iterator<E> elements(L value);
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return writer.metrics();
+    }
   }
 
   private static class CollectionWriter<E> extends RepeatedWriter<Collection<E>, E> {
@@ -435,6 +495,11 @@ public class ParquetValueWriters {
     }
 
     protected abstract Iterator<Map.Entry<K, V>> pairs(M value);
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Stream.concat(keyWriter.metrics(), valueWriter.metrics());
+    }
   }
 
   private static class MapWriter<K, V> extends RepeatedKeyValueWriter<Map<K, V>, K, V> {
@@ -489,6 +554,11 @@ public class ParquetValueWriters {
     }
 
     protected abstract Object get(S struct, int index);
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Arrays.stream(writers).flatMap(ParquetValueWriter::metrics);
+    }
   }
 
   public static class PositionDeleteStructWriter<R> extends StructWriter<PositionDelete<R>> {

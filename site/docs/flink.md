@@ -89,6 +89,8 @@ export HADOOP_CLASSPATH=`$HADOOP_HOME/bin/hadoop classpath`
 
 Flink 1.11 support to create catalogs by using flink sql.
 
+### Hive catalog
+
 This creates an iceberg catalog named `hive_catalog` that loads tables from a hive metastore:
 
 ```sql
@@ -110,6 +112,8 @@ CREATE CATALOG hive_catalog WITH (
 * `warehouse`: The Hive warehouse location, users should specify this path if neither set the `hive-conf-dir` to specify a location containing a `hive-site.xml` configuration file nor add a correct `hive-site.xml` to classpath.
 * `hive-conf-dir`: Path to a directory containing a `hive-site.xml` configuration file which will be used to provide custom Hive configuration values. The value of `hive.metastore.warehouse.dir` from `<hive-conf-dir>/hive-site.xml` (or hive configure file from classpath) will be overwrote with the `warehouse` value if setting both `hive-conf-dir` and `warehouse` when creating iceberg catalog.
 
+### Hadoop catalog
+
 Iceberg also supports a directory-based catalog in HDFS that can be configured using `'catalog-type'='hadoop'`:
 
 ```sql
@@ -124,6 +128,19 @@ CREATE CATALOG hadoop_catalog WITH (
 * `warehouse`: The HDFS directory to store metadata files and data files. (Required)
 
 We could execute the sql command `USE CATALOG hive_catalog` to set the current catalog.
+
+### Custom catalog
+
+Flink also supports loading a custom Iceberg `Catalog` implementation by specifying the `catalog-impl` property.
+When `catalog-impl` is set, the value of `catalog-type` is ignored. Here is an example:
+
+```sql
+CREATE CATALOG my_catalog WITH (
+  'type'='iceberg',
+  'catalog-impl'='com.my.custom.CatalogImpl',
+  'my-additional-catalog-config'='my-value'
+);
+```
 
 ## DDL commands
 
@@ -149,7 +166,7 @@ Table create commands support the most commonly used [flink create clauses](http
 
 * `PARTITION BY (column1, column2, ...)` to configure partitioning, apache flink does not yet support hidden partitioning.
 * `COMMENT 'table document'` to set a table description.
-* `WITH ('key'='value', ...)` to set [table configuration](../configuration) which will be stored in apache iceberg table properties.
+* `WITH ('key'='value', ...)` to set [table configuration](./configuration.md) which will be stored in apache iceberg table properties.
 
 Currently, it does not support computed column, primary key and watermark definition etc.
 
@@ -292,7 +309,7 @@ env.execute("Test Iceberg DataStream");
 
 ## Inspecting tables.
 
-Iceberg does not support inspecting table in flink sql now, we need to use [iceberg's Java API](../api) to read iceberg's meta data to get those table information.
+Iceberg does not support inspecting table in flink sql now, we need to use [iceberg's Java API](./api.md) to read iceberg's meta data to get those table information.
 
 ## Future improvement.
 

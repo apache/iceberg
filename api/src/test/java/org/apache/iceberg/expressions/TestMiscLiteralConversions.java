@@ -231,7 +231,6 @@ public class TestMiscLiteralConversions {
         Types.TimeType.get(),
         Types.TimestampType.withZone(),
         Types.TimestampType.withoutZone(),
-        Types.DecimalType.of(9, 4),
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(1),

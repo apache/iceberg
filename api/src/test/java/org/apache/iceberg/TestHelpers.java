@@ -333,6 +333,11 @@ public class TestHelpers {
     }
 
     @Override
+    public Long pos() {
+      return null;
+    }
+
+    @Override
     public int specId() {
       return 0;
     }

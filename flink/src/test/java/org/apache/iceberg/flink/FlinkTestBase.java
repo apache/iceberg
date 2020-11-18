@@ -72,7 +72,7 @@ public abstract class FlinkTestBase extends AbstractTestBase {
     return tEnv;
   }
 
-  List<Object[]> sql(String query, Object... args) {
+  protected List<Object[]> sql(String query, Object... args) {
     TableResult tableResult = getTableEnv().executeSql(String.format(query, args));
     tableResult.getJobClient().ifPresent(c -> {
       try {

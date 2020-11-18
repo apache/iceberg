@@ -56,7 +56,17 @@ public final class IcebergDateObjectInspectorHive3 extends AbstractPrimitiveJava
 
   @Override
   public Object copyObject(Object o) {
-    return o == null ? null : new Date((Date) o);
+    if (o == null) {
+      return null;
+    }
+
+    if (o instanceof Date) {
+      return new Date((Date) o);
+    } else if (o instanceof LocalDate) {
+      return LocalDate.of(((LocalDate) o).getYear(), ((LocalDate) o).getMonth(), ((LocalDate) o).getDayOfMonth());
+    } else {
+      return o;
+    }
   }
 
 }

@@ -20,6 +20,8 @@
 package org.apache.iceberg.parquet;
 
 import java.util.List;
+import java.util.stream.Stream;
+import org.apache.iceberg.FieldMetrics;
 import org.apache.parquet.column.ColumnWriteStore;
 
 public interface ParquetValueWriter<T> {
@@ -28,4 +30,16 @@ public interface ParquetValueWriter<T> {
   List<TripleWriter<?>> columns();
 
   void setColumnStore(ColumnWriteStore columnStore);
+
+  /**
+   * Returns a stream of {@link FieldMetrics} that this ParquetValueWriter keeps track of.
+   * <p>
+   * Since Parquet keeps track of most metrics in its footer, for now ParquetValueWriter only keeps track of NaN
+   * counter, and only return non-empty stream if the writer writes double or float values either by itself or
+   * transitively.
+   */
+  default Stream<FieldMetrics> metrics() {
+    return Stream.empty();
+  }
 }
+

@@ -135,19 +135,39 @@ class StructInternalRow extends InternalRow {
 
   @Override
   public Decimal getDecimal(int ordinal, int precision, int scale) {
+    return isNullAt(ordinal) ? null : getDecimalInternal(ordinal, precision, scale);
+  }
+
+  private Decimal getDecimalInternal(int ordinal, int precision, int scale) {
     return Decimal.apply(struct.get(ordinal, BigDecimal.class));
   }
 
   @Override
   public UTF8String getUTF8String(int ordinal) {
+    return isNullAt(ordinal) ? null : getUTF8StringInternal(ordinal);
+  }
+
+  private UTF8String getUTF8StringInternal(int ordinal) {
     CharSequence seq = struct.get(ordinal, CharSequence.class);
     return UTF8String.fromString(seq.toString());
   }
 
   @Override
   public byte[] getBinary(int ordinal) {
-    ByteBuffer bytes = struct.get(ordinal, ByteBuffer.class);
-    return ByteBuffers.toByteArray(bytes);
+    return isNullAt(ordinal) ? null : getBinaryInternal(ordinal);
+  }
+
+  private byte[] getBinaryInternal(int ordinal) {
+    Object bytes = struct.get(ordinal, Object.class);
+
+    // should only be either ByteBuffer or byte[]
+    if (bytes instanceof ByteBuffer) {
+      return ByteBuffers.toByteArray((ByteBuffer) bytes);
+    } else if (bytes instanceof byte[]) {
+      return (byte[]) bytes;
+    } else {
+      throw new IllegalStateException("Unknown type for binary field. Type name: " + bytes.getClass().getName());
+    }
   }
 
   @Override
@@ -157,6 +177,10 @@ class StructInternalRow extends InternalRow {
 
   @Override
   public InternalRow getStruct(int ordinal, int numFields) {
+    return isNullAt(ordinal) ? null : getStructInternal(ordinal, numFields);
+  }
+
+  private InternalRow getStructInternal(int ordinal, int numFields) {
     return new StructInternalRow(
         type.fields().get(ordinal).type().asStructType(),
         struct.get(ordinal, StructLike.class));
@@ -164,6 +188,10 @@ class StructInternalRow extends InternalRow {
 
   @Override
   public ArrayData getArray(int ordinal) {
+    return isNullAt(ordinal) ? null : getArrayInternal(ordinal);
+  }
+
+  private ArrayData getArrayInternal(int ordinal) {
     return collectionToArrayData(
         type.fields().get(ordinal).type().asListType().elementType(),
         struct.get(ordinal, Collection.class));
@@ -171,33 +199,41 @@ class StructInternalRow extends InternalRow {
 
   @Override
   public MapData getMap(int ordinal) {
+    return isNullAt(ordinal) ? null : getMapInternal(ordinal);
+  }
+
+  private MapData getMapInternal(int ordinal) {
     return mapToMapData(type.fields().get(ordinal).type().asMapType(), struct.get(ordinal, Map.class));
   }
 
   @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Object get(int ordinal, DataType dataType) {
+    if (isNullAt(ordinal)) {
+      return null;
+    }
+
     if (dataType instanceof IntegerType) {
       return getInt(ordinal);
     } else if (dataType instanceof LongType) {
       return getLong(ordinal);
     } else if (dataType instanceof StringType) {
-      return getUTF8String(ordinal);
+      return getUTF8StringInternal(ordinal);
     } else if (dataType instanceof FloatType) {
       return getFloat(ordinal);
     } else if (dataType instanceof DoubleType) {
       return getDouble(ordinal);
     } else if (dataType instanceof DecimalType) {
       DecimalType decimalType = (DecimalType) dataType;
-      return getDecimal(ordinal, decimalType.precision(), decimalType.scale());
+      return getDecimalInternal(ordinal, decimalType.precision(), decimalType.scale());
     } else if (dataType instanceof BinaryType) {
-      return getBinary(ordinal);
+      return getBinaryInternal(ordinal);
     } else if (dataType instanceof StructType) {
-      return getStruct(ordinal, ((StructType) dataType).size());
+      return getStructInternal(ordinal, ((StructType) dataType).size());
     } else if (dataType instanceof ArrayType) {
-      return getArray(ordinal);
+      return getArrayInternal(ordinal);
     } else if (dataType instanceof MapType) {
-      return getMap(ordinal);
+      return getMapInternal(ordinal);
     } else if (dataType instanceof BooleanType) {
       return getBoolean(ordinal);
     } else if (dataType instanceof ByteType) {

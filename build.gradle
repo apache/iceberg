@@ -244,6 +244,41 @@ project(':iceberg-data') {
   }
 }
 
+project(':iceberg-aws') {
+  dependencies {
+    compile project(':iceberg-api')
+    compile project(':iceberg-core')
+
+    compile 'software.amazon.awssdk:url-connection-client'
+    compile 'software.amazon.awssdk:s3'
+    compile 'software.amazon.awssdk:kms'
+
+    testCompile("com.adobe.testing:s3mock-junit4") {
+      exclude module: "spring-boot-starter-logging"
+      exclude module: "logback-classic"
+    }
+  }
+
+  sourceSets {
+    integration {
+      java.srcDir "$projectDir/src/integration/java"
+      resources.srcDir "$projectDir/src/integration/resources"
+      compileClasspath += main.output + test.output
+      runtimeClasspath += main.output + test.output
+    }
+  }
+
+  configurations {
+    integrationImplementation.extendsFrom testImplementation
+    integrationRuntime.extendsFrom testRuntime
+  }
+
+  task integrationTest(type: Test) {
+    testClassesDirs = sourceSets.integration.output.classesDirs
+    classpath = sourceSets.integration.runtimeClasspath
+  }
+}
+
 project(':iceberg-flink') {
   dependencies {
     compile project(':iceberg-api')
@@ -881,6 +916,49 @@ project(':iceberg-spark3') {
 
     // Vectorized reads need more memory
     maxHeapSize '2500m'
+  }
+}
+
+project(":iceberg-spark3-extensions") {
+  apply plugin: 'java'
+  apply plugin: 'scala'
+  apply plugin: 'antlr'
+
+  configurations {
+    /*
+     The Gradle Antlr plugin erroneously adds both antlr-build and runtime dependencies to the runtime path. This
+     bug https://github.com/gradle/gradle/issues/820 exists because older versions of Antlr do not have separate
+     runtime and compile dependencies and they do not want to break backwards compatibility. So to only end up with
+     the runtime dependency on the runtime classpath we remove the dependencies added by the plugin here. Then add
+     the runtime dependency back to only the runtime configuration manually.
+    */
+    compile {
+      extendsFrom = extendsFrom.findAll { it != configurations.antlr }
+    }
+  }
+
+  dependencies {
+    compileOnly project(':iceberg-spark3')
+
+    compileOnly "org.scala-lang:scala-library"
+    compileOnly("org.apache.spark:spark-hive_2.12") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.apache.arrow'
+    }
+
+    testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-spark', configuration: 'testArtifacts')
+    testCompile project(path: ':iceberg-spark3', configuration: 'testArtifacts')
+
+    // Required because we remove antlr plugin dependencies from the compile configuration, see note above
+    runtime "org.antlr:antlr4-runtime:4.7.1"
+    antlr "org.antlr:antlr4:4.7.1"
+  }
+
+  generateGrammarSource {
+    maxHeapSize = "64m"
+    arguments += ['-visitor', '-package', 'org.apache.spark.sql.catalyst.parser.extensions']
   }
 }
 

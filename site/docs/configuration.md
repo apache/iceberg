@@ -17,6 +17,24 @@
 
 # Configuration
 
+## Catalog properties
+
+Iceberg catalogs support using catalog properties to configure catalog behaviors. Here is a list of commonly used catalog properties:
+
+| Property                          | Default            | Description                                            |
+| --------------------------------- | ------------------ | ------------------------------------------------------ |
+| catalog-impl                      | null               | a custom `Catalog` implementation to use by an engine  |
+| io-impl                           | null               | a custom `FileIO` implementation to use in a catalog   |
+| warehouse                         | null               | the root path of the data warehouse                    |
+| uri                               | null               | (Hive catalog only) the Hive metastore URI             |
+| clients                           | 2                  | (Hive catalog only) the Hive client pool size          |
+
+`HadoopCatalog` and `HiveCatalog` can access the properties in their constructors.
+Any other custom catalog can access the properties by implementing `Catalog.initialize(catalogName, catalogProperties)`.
+The properties can be manually constructed or passed in from a compute engine like Spark or Flink.
+Spark uses its session properties as catalog properties, see more details in the [Spark configuration](#spark-configuration) section.
+Flink passes in catalog properties through `CREATE CATALOG` statement, see more details in the [Flink](../flink/#creating-catalogs-and-using-catalogs) section.
+
 ## Table properties
 
 Iceberg tables support table properties to configure table behavior, like the default split size for readers.
@@ -82,7 +100,7 @@ The following properties from the Hadoop configuration are used by the Hive Meta
 
 ### Catalogs
 
-[Spark catalogs](../spark#configuring-catalogs) are configured using Spark session properties.
+[Spark catalogs](./spark.md#configuring-catalogs) are configured using Spark session properties.
 
 A catalog is created and named by adding a property `spark.sql.catalog.(catalog-name)` with an implementation class for its value.
 
@@ -95,7 +113,8 @@ Both catalogs are configured using properties nested under the catalog name:
 
 | Property                                           | Values                        | Description                                                          |
 | -------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------- |
-| spark.sql.catalog._catalog-name_.type              | hive or hadoop                | The underlying Iceberg catalog implementation                        |
+| spark.sql.catalog._catalog-name_.type              | `hive` or `hadoop`            | The underlying Iceberg catalog implementation, `HiveCatalog` or `HadoopCatalog` |
+| spark.sql.catalog._catalog-name_.catalog-impl      |                               | The underlying Iceberg catalog implementation. When set, the value of `type` property is ignored |
 | spark.sql.catalog._catalog-name_.default-namespace | default                       | The default current namespace for the catalog                        |
 | spark.sql.catalog._catalog-name_.uri               | thrift://host:port            | URI for the Hive Metastore; default from `hive-site.xml` (Hive only) |
 | spark.sql.catalog._catalog-name_.warehouse         | hdfs://nn:8020/warehouse/path | Base path for the warehouse directory (Hadoop only)                  |

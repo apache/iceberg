@@ -121,7 +121,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   @Override
   public Metrics metrics() {
-    return ParquetUtil.footerMetrics(writer.getFooter(), metricsConfig);
+    return ParquetUtil.footerMetrics(writer.getFooter(), model.metrics(), metricsConfig);
   }
 
   @Override

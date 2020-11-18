@@ -20,6 +20,7 @@
 package org.apache.iceberg.mr.hive;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -51,6 +53,7 @@ import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.After;
@@ -108,6 +111,12 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   private static TestHiveShell shell;
 
+  private static final List<Type> SUPPORTED_TYPES =
+          ImmutableList.of(Types.BooleanType.get(), Types.IntegerType.get(), Types.LongType.get(),
+                  Types.FloatType.get(), Types.DoubleType.get(), Types.DateType.get(), Types.TimestampType.withZone(),
+                  Types.TimestampType.withoutZone(), Types.StringType.get(), Types.BinaryType.get(),
+                  Types.DecimalType.of(3, 1));
+
   private TestTables testTables;
 
   public abstract TestTables testTables(Configuration conf, TemporaryFolder tmp) throws IOException;
@@ -139,6 +148,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   public static void beforeClass() {
     shell = new TestHiveShell();
     shell.setHiveConfValue("hive.notification.event.poll.interval", "-1");
+    shell.setHiveConfValue("hive.tez.exec.print.summary", "true");
     shell.start();
   }
 
@@ -218,6 +228,76 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Assert.assertArrayEquals(new Object[] {0L, "Alice", 100L, 11.11d}, rows.get(0));
     Assert.assertArrayEquals(new Object[] {0L, "Alice", 101L, 22.22d}, rows.get(1));
     Assert.assertArrayEquals(new Object[] {1L, "Bob", 102L, 33.33d}, rows.get(2));
+  }
+
+  @Test
+  public void testDecimalTableWithPredicateLiterals() throws IOException {
+    Schema schema = new Schema(required(1, "decimal_field", Types.DecimalType.of(7, 2)));
+    List<Record> records = TestHelper.RecordsBuilder.newInstance(schema)
+            .add(new BigDecimal("85.00"))
+            .add(new BigDecimal("100.56"))
+            .add(new BigDecimal("100.57"))
+            .build();
+    createTable("dec_test", schema, records);
+
+    // Use integer literal in predicate
+    List<Object[]> rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field >= 85");
+    Assert.assertEquals(3, rows.size());
+    Assert.assertArrayEquals(new Object[] {"85.00"}, rows.get(0));
+    Assert.assertArrayEquals(new Object[] {"100.56"}, rows.get(1));
+    Assert.assertArrayEquals(new Object[] {"100.57"}, rows.get(2));
+
+    // Use decimal literal in predicate with smaller scale than schema type definition
+    rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field > 99.1");
+    Assert.assertEquals(2, rows.size());
+    Assert.assertArrayEquals(new Object[] {"100.56"}, rows.get(0));
+    Assert.assertArrayEquals(new Object[] {"100.57"}, rows.get(1));
+
+    // Use decimal literal in predicate with higher scale than schema type definition
+    rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field > 100.565");
+    Assert.assertEquals(1, rows.size());
+    Assert.assertArrayEquals(new Object[] {"100.57"}, rows.get(0));
+
+    // Use decimal literal in predicate with the same scale as schema type definition
+    rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field > 640.34");
+    Assert.assertEquals(0, rows.size());
+  }
+
+  @Test
+  public void testJoinTablesSupportedTypes() throws IOException {
+    for (int i = 0; i < SUPPORTED_TYPES.size(); i++) {
+      Type type = SUPPORTED_TYPES.get(i);
+      String tableName = type.typeId().toString().toLowerCase() + "_table_" + i;
+      String columnName = type.typeId().toString().toLowerCase() + "_column";
+
+      Schema schema = new Schema(required(1, columnName, type));
+      List<Record> records = TestHelper.generateRandomRecords(schema, 1, 0L);
+
+      createTable(tableName, schema, records);
+      List<Object[]> queryResult = shell.executeStatement("select s." + columnName + ", h." + columnName +
+              " from default." + tableName + " s join default." + tableName + " h on h." + columnName + "=s." +
+              columnName);
+      Assert.assertEquals("Non matching record count for table " + tableName + " with type " + type,
+              1, queryResult.size());
+    }
+  }
+
+  @Test
+  public void testSelectDistinctFromTable() throws IOException {
+    for (int i = 0; i < SUPPORTED_TYPES.size(); i++) {
+      Type type = SUPPORTED_TYPES.get(i);
+      String tableName = type.typeId().toString().toLowerCase() + "_table_" + i;
+      String columnName = type.typeId().toString().toLowerCase() + "_column";
+
+      Schema schema = new Schema(required(1, columnName, type));
+      List<Record> records = TestHelper.generateRandomRecords(schema, 4, 0L);
+      int size = records.stream().map(r -> r.getField(columnName)).collect(Collectors.toSet()).size();
+      createTable(tableName, schema, records);
+      List<Object[]> queryResult = shell.executeStatement("select count(distinct(" + columnName +
+              ")) from default." + tableName);
+      int distincIds = ((Long) queryResult.get(0)[0]).intValue();
+      Assert.assertEquals(tableName, size, distincIds);
+    }
   }
 
   @Test

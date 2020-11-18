@@ -26,20 +26,94 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public interface PartitionSpecVisitor<T> {
-  T identity(String sourceName, int sourceId);
+  default T identity(int fieldId, String sourceName, int sourceId) {
+    return identity(sourceName, sourceId);
+  }
 
-  T bucket(String sourceName, int sourceId, int width);
+  default T identity(String sourceName, int sourceId) {
+    throw new UnsupportedOperationException("Identity transform is not supported");
+  }
 
-  T truncate(String sourceName, int sourceId, int width);
+  default T bucket(int fieldId, String sourceName, int sourceId, int numBuckets) {
+    return bucket(sourceName, sourceId, numBuckets);
+  }
 
-  T year(String sourceName, int sourceId);
+  default T bucket(String sourceName, int sourceId, int numBuckets) {
+    throw new UnsupportedOperationException("Bucket transform is not supported");
+  }
 
-  T month(String sourceName, int sourceId);
+  default T truncate(int fieldId, String sourceName, int sourceId, int width) {
+    return truncate(sourceName, sourceId, width);
+  }
 
-  T day(String sourceName, int sourceId);
+  default T truncate(String sourceName, int sourceId, int width) {
+    throw new UnsupportedOperationException("Truncate transform is not supported");
+  }
 
-  T hour(String sourceName, int sourceId);
+  default T year(int fieldId, String sourceName, int sourceId) {
+    return year(sourceName, sourceId);
+  }
 
+  default T year(String sourceName, int sourceId) {
+    throw new UnsupportedOperationException("Year transform is not supported");
+  }
+
+  default T month(int fieldId, String sourceName, int sourceId) {
+    return month(sourceName, sourceId);
+  }
+
+  default T month(String sourceName, int sourceId) {
+    throw new UnsupportedOperationException("Month transform is not supported");
+  }
+
+  default T day(int fieldId, String sourceName, int sourceId) {
+    return day(sourceName, sourceId);
+  }
+
+  default T day(String sourceName, int sourceId) {
+    throw new UnsupportedOperationException("Day transform is not supported");
+  }
+
+  default T hour(int fieldId, String sourceName, int sourceId) {
+    return hour(sourceName, sourceId);
+  }
+
+  default T hour(String sourceName, int sourceId) {
+    throw new UnsupportedOperationException("Hour transform is not supported");
+  }
+
+  default T alwaysNull(int fieldId, String sourceName, int sourceId) {
+    throw new UnsupportedOperationException("Void transform is not supported");
+  }
+
+  default T unknown(int fieldId, String sourceName, int sourceId, String transform) {
+    throw new UnsupportedOperationException(String.format("Unknown transform %s is not supported", transform));
+  }
+
+  /**
+   * Visit the fields of a {@link PartitionSpec}.
+   *
+   * @param spec a partition spec to visit
+   * @param visitor a partition spec visitor
+   * @param <R> return type of the visitor
+   * @return a list of the result produced by visiting each partition field
+   */
+  static <R> List<R> visit(PartitionSpec spec, PartitionSpecVisitor<R> visitor) {
+    return visit(spec.schema(), spec, visitor);
+  }
+
+  /**
+   * Visit the fields of a {@link PartitionSpec}.
+   *
+   * @param schema a schema for source field lookups
+   * @param spec a partition spec to visit
+   * @param visitor a partition spec visitor
+   * @param <R> return type of the visitor
+   * @return a list of the result produced by visiting each partition field
+   * @deprecated this will be removed in 0.11.0; use {@link #visit(PartitionSpec, PartitionSpecVisitor)} instead.
+   */
+  @Deprecated
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   static <R> List<R> visit(Schema schema, PartitionSpec spec, PartitionSpecVisitor<R> visitor) {
     List<R> results = Lists.newArrayListWithExpectedSize(spec.fields().size());
 
@@ -48,21 +122,25 @@ public interface PartitionSpecVisitor<T> {
       Transform<?, ?> transform = field.transform();
 
       if (transform instanceof Identity) {
-        results.add(visitor.identity(sourceName, field.sourceId()));
+        results.add(visitor.identity(field.fieldId(), sourceName, field.sourceId()));
       } else if (transform instanceof Bucket) {
-        results.add(visitor.bucket(sourceName, field.sourceId(),
-            ((Bucket<?>) transform).numBuckets()));
+        int numBuckets = ((Bucket<?>) transform).numBuckets();
+        results.add(visitor.bucket(field.fieldId(), sourceName, field.sourceId(), numBuckets));
       } else if (transform instanceof Truncate) {
-        results.add(visitor.truncate(sourceName, field.sourceId(),
-            ((Truncate<?>) transform).width()));
+        int width = ((Truncate<?>) transform).width();
+        results.add(visitor.truncate(field.fieldId(), sourceName, field.sourceId(), width));
       } else if (transform == Dates.YEAR || transform == Timestamps.YEAR) {
-        results.add(visitor.year(sourceName, field.sourceId()));
+        results.add(visitor.year(field.fieldId(), sourceName, field.sourceId()));
       } else if (transform == Dates.MONTH || transform == Timestamps.MONTH) {
-        results.add(visitor.month(sourceName, field.sourceId()));
+        results.add(visitor.month(field.fieldId(), sourceName, field.sourceId()));
       } else if (transform == Dates.DAY || transform == Timestamps.DAY) {
-        results.add(visitor.day(sourceName, field.sourceId()));
+        results.add(visitor.day(field.fieldId(), sourceName, field.sourceId()));
       } else if (transform == Timestamps.HOUR) {
-        results.add(visitor.hour(sourceName, field.sourceId()));
+        results.add(visitor.hour(field.fieldId(), sourceName, field.sourceId()));
+      } else if (transform instanceof VoidTransform) {
+        results.add(visitor.alwaysNull(field.fieldId(), sourceName, field.sourceId()));
+      } else if (transform instanceof UnknownTransform) {
+        results.add(visitor.unknown(field.fieldId(), sourceName, field.sourceId(), transform.toString()));
       }
     }
 

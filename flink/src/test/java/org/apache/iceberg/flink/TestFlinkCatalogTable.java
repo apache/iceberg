@@ -71,6 +71,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     sql("DROP TABLE IF EXISTS %s.tl", flinkDatabase);
     sql("DROP TABLE IF EXISTS %s.tl2", flinkDatabase);
     sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
+    super.clean();
   }
 
   @Test

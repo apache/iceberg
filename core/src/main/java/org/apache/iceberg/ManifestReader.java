@@ -189,10 +189,14 @@ public class ManifestReader<F extends ContentFile<F>>
     FileFormat format = FileFormat.fromFileName(file.location());
     Preconditions.checkArgument(format != null, "Unable to determine format of manifest: %s", file);
 
+    List<Types.NestedField> fields = Lists.newArrayList();
+    fields.addAll(projection.asStruct().fields());
+    fields.add(MetadataColumns.ROW_POSITION);
+
     switch (format) {
       case AVRO:
         AvroIterable<ManifestEntry<F>> reader = Avro.read(file)
-            .project(ManifestEntry.wrapFileSchema(projection.asStruct()))
+            .project(ManifestEntry.wrapFileSchema(Types.StructType.of(fields)))
             .rename("manifest_entry", GenericManifestEntry.class.getName())
             .rename("partition", PartitionData.class.getName())
             .rename("r102", PartitionData.class.getName())
@@ -271,6 +275,7 @@ public class ManifestReader<F extends ContentFile<F>>
   private static boolean requireStatsProjection(Expression rowFilter, Collection<String> columns) {
     // Make sure we have all stats columns for metrics evaluator
     return rowFilter != Expressions.alwaysTrue() &&
+        columns != null &&
         !columns.containsAll(ManifestReader.ALL_COLUMNS) &&
         !columns.containsAll(STATS_COLUMNS);
   }
@@ -279,6 +284,7 @@ public class ManifestReader<F extends ContentFile<F>>
     // Make sure we only drop all stats if we had projected all stats
     // We do not drop stats even if we had partially added some stats columns
     return rowFilter != Expressions.alwaysTrue() &&
+        columns != null &&
         !columns.containsAll(ManifestReader.ALL_COLUMNS) &&
         Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS).isEmpty();
   }

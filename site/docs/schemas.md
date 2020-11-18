@@ -38,4 +38,4 @@ Iceberg tables support the following types:
 | **`list<E>`**      | A list with elements of any data type                                    |                                                  |
 | **`map<K, V>`**    | A map with keys and values of any data type                              |                                                  |
 
-Iceberg tracks each field in a table schema using an ID that is never reused in a table. See [correctness guarantees](../evolution#correctness) for more information.
+Iceberg tracks each field in a table schema using an ID that is never reused in a table. See [correctness guarantees](./evolution.md#correctness) for more information.

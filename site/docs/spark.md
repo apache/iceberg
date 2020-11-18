@@ -37,7 +37,7 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 
 ## Configuring catalogs
 
-Spark 3.0 adds an API to plug in table catalogs that are used to load, create, and manage Iceberg tables. Spark catalogs are configured by setting [Spark properties](../configuration#catalogs) under `spark.sql.catalog`.
+Spark 3.0 adds an API to plug in table catalogs that are used to load, create, and manage Iceberg tables. Spark catalogs are configured by setting [Spark properties](./configuration.md#catalogs) under `spark.sql.catalog`.
 
 This creates an Iceberg catalog named `hive_prod` that loads tables from a Hive metastore:
 
@@ -89,11 +89,21 @@ Spark's built-in catalog supports existing v1 and v2 tables tracked in a Hive Me
 
 This configuration can use same Hive Metastore for both Iceberg and non-Iceberg tables.
 
+### Loading a custom catalog
+
+Spark supports loading a custom Iceberg `Catalog` implementation by specifying the `catalog-impl` property.
+When `catalog-impl` is set, the value of `type` is ignored. Here is an example:
+
+```plain
+spark.sql.catalog.custom_prod = org.apache.iceberg.spark.SparkCatalog
+spark.sql.catalog.custom_prod.catalog-impl = com.my.custom.CatalogImpl
+spark.sql.catalog.custom_prod.my-additional-catalog-config = my-value
+```
 
 ## DDL commands
 
 !!! Note
-    Spark 2.4 can't create Iceberg tables with DDL, instead use the [Iceberg API](../java-api-quickstart).
+    Spark 2.4 can't create Iceberg tables with DDL, instead use the [Iceberg API](./java-api-quickstart.md).
 
 ### `CREATE TABLE`
 
@@ -106,12 +116,14 @@ CREATE TABLE prod.db.sample (
 USING iceberg
 ```
 
+Iceberg will convert the column type in Spark to corresponding Iceberg type. Please check the section of [type compatibility on creating table](#spark-type-to-iceberg-type) for details.
+
 Table create commands, including CTAS and RTAS, support the full range of Spark create clauses, including:
 
 * `PARTITION BY (partition-expressions)` to configure partitioning
 * `LOCATION '(fully-qualified-uri)'` to set the table location
 * `COMMENT 'table documentation'` to set a table description
-* `TBLPROPERTIES ('key'='value', ...)` to set [table configuration](../configuration)
+* `TBLPROPERTIES ('key'='value', ...)` to set [table configuration](./configuration.md)
 
 Create commands may also set the default format with the `USING` clause. This is only supported for `SparkCatalog` because Spark handles the `USING` clause differently for the built-in catalog.
 
@@ -128,7 +140,7 @@ USING iceberg
 PARTITIONED BY (category)
 ```
 
-The `PARTITIONED BY` clause supports transform expressions to create [hidden partitions](../partitioning).
+The `PARTITIONED BY` clause supports transform expressions to create [hidden partitions](./partitioning.md).
 
 ```sql
 CREATE TABLE prod.db.sample (
@@ -204,7 +216,7 @@ ALTER TABLE prod.db.sample SET TBLPROPERTIES (
 )
 ```
 
-Iceberg uses table properties to control table behavior. For a list of available properties, see [Table configuration](../configuration).
+Iceberg uses table properties to control table behavior. For a list of available properties, see [Table configuration](./configuration.md).
 
 `UNSET` is used to remove properties:
 
@@ -359,7 +371,7 @@ The partitions that will be replaced by `INSERT OVERWRITE` depends on Spark's pa
 
 !!! Warning
     Spark 3.0.0 has a correctness bug that affects dynamic `INSERT OVERWRITE` with hidden partitioning, [SPARK-32168][spark-32168].
-    For tables with [hidden partitions](../partitioning), wait for Spark 3.0.1.
+    For tables with [hidden partitions](./partitioning.md), wait for Spark 3.0.1.
 
 [spark-32168]: https://issues.apache.org/jira/browse/SPARK-32168
 
@@ -728,3 +740,62 @@ spark.read.format("iceberg").load("db.table.files").show(truncate = false)
 // Hadoop path table
 spark.read.format("iceberg").load("hdfs://nn:8020/path/to/table#files").show(truncate = false)
 ```
+
+## Type compatibility
+
+Spark and Iceberg support different set of types. Iceberg does the type conversion automatically, but not for all combinations,
+so you may want to understand the type conversion in Iceberg in prior to design the types of columns in your tables.
+
+### Spark type to Iceberg type
+
+This type conversion table describes how Spark types are converted to the Iceberg types. The conversion applies on both creating Iceberg table and writing to Iceberg table via Spark.
+
+| Spark           | Iceberg                 | Notes |
+|-----------------|-------------------------|-------|
+| boolean         | boolean                 |       |
+| short           | integer                 |       |
+| byte            | integer                 |       |
+| integer         | integer                 |       |
+| long            | long                    |       |
+| float           | float                   |       |
+| double          | double                  |       |
+| date            | date                    |       |
+| timestamp       | timestamp with timezone |       |
+| char            | string                  |       |
+| varchar         | string                  |       |
+| string          | string                  |       |
+| binary          | binary                  |       |
+| decimal         | decimal                 |       |
+| struct          | struct                  |       |
+| array           | list                    |       |
+| map             | map                     |       |
+
+!!! Note
+    The table is based on representing conversion during creating table. In fact, broader supports are applied on write. Here're some points on write:
+    
+    * Iceberg numeric types (`integer`, `long`, `float`, `double`, `decimal`) support promotion during writes. e.g. You can write Spark types `short`, `byte`, `integer`, `long` to Iceberg type `long`.
+    * You can write to Iceberg `fixed` type using Spark `binary` type. Note that assertion on the length will be performed.
+
+### Iceberg type to Spark type
+
+This type conversion table describes how Iceberg types are converted to the Spark types. The conversion applies on reading from Iceberg table via Spark.
+
+| Iceberg                    | Spark                   | Note          |
+|----------------------------|-------------------------|---------------|
+| boolean                    | boolean                 |               |
+| integer                    | integer                 |               |
+| long                       | long                    |               |
+| float                      | float                   |               |
+| double                     | double                  |               |
+| date                       | date                    |               |
+| time                       |                         | Not supported |
+| timestamp with timezone    | timestamp               |               |
+| timestamp without timezone |                         | Not supported |
+| string                     | string                  |               |
+| uuid                       | string                  |               |
+| fixed                      | binary                  |               |
+| binary                     | binary                  |               |
+| decimal                    | decimal                 |               |
+| struct                     | struct                  |               |
+| list                       | array                   |               |
+| map                        | map                     |               |

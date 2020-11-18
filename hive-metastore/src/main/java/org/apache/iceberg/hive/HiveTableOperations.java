@@ -56,7 +56,6 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.ConfigProperties;
-import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -86,13 +85,13 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final String tableName;
   private final Configuration conf;
   private final long lockAcquireTimeout;
+  private final FileIO fileIO;
 
-  private FileIO fileIO;
-
-  protected HiveTableOperations(Configuration conf, HiveClientPool metaClients,
+  protected HiveTableOperations(Configuration conf, HiveClientPool metaClients, FileIO fileIO,
                                 String catalogName, String database, String table) {
     this.conf = conf;
     this.metaClients = metaClients;
+    this.fileIO = fileIO;
     this.fullName = catalogName + "." + database + "." + table;
     this.database = database;
     this.tableName = table;
@@ -107,10 +106,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
   @Override
   public FileIO io() {
-    if (fileIO == null) {
-      fileIO = new HadoopFileIO(conf);
-    }
-
     return fileIO;
   }
 
@@ -284,8 +279,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     storageDescriptor.setLocation(metadata.location());
     SerDeInfo serDeInfo = new SerDeInfo();
     if (hiveEngineEnabled) {
-      storageDescriptor.setInputFormat(null);
-      storageDescriptor.setOutputFormat(null);
+      storageDescriptor.setInputFormat("org.apache.iceberg.mr.hive.HiveIcebergInputFormat");
+      storageDescriptor.setOutputFormat("org.apache.iceberg.mr.hive.HiveIcebergOutputFormat");
       serDeInfo.setSerializationLib("org.apache.iceberg.mr.hive.HiveIcebergSerDe");
     } else {
       storageDescriptor.setOutputFormat("org.apache.hadoop.mapred.FileOutputFormat");

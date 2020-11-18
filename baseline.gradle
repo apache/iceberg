@@ -36,6 +36,7 @@ subprojects {
     apply plugin: 'com.palantir.baseline-checkstyle'
     apply plugin: 'com.palantir.baseline-error-prone'
   }
+  apply plugin: 'com.palantir.baseline-scalastyle'
   apply plugin: 'com.palantir.baseline-class-uniqueness'
   apply plugin: 'com.palantir.baseline-reproducibility'
   apply plugin: 'com.palantir.baseline-exact-dependencies'
@@ -62,8 +63,8 @@ subprojects {
   pluginManager.withPlugin('com.palantir.baseline-error-prone') {
     tasks.withType(JavaCompile).configureEach {
       options.errorprone.errorproneArgs.addAll (
-          // error-prone is slow, don't run on tests
-          '-XepExcludedPaths:.*/test/.*',
+          // error-prone is slow, don't run on tests and generated src
+          '-XepExcludedPaths:.*/(test|generated-src)/.*',
           // specific to Palantir
           '-Xep:FinalClass:OFF',
           '-Xep:PreferSafeLoggingPreconditions:OFF',

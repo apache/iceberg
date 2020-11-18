@@ -46,36 +46,34 @@ nav:
     - Releases: releases.md
     - Trademarks: trademarks.md
     - How to Release: how-to-release.md
-  - User docs:
-    - Getting Started: getting-started.md
-    - Flink: flink.md
-    - Spark: spark.md
-    - Spark Streaming: spark-structured-streaming.md
-    - Presto: presto.md
-    - Hive: hive.md
-    - Maintenance: maintenance.md
+  - Tables:
     - Configuration: configuration.md
     - Schemas: schemas.md
     - Partitioning: partitioning.md
     - Table evolution: evolution.md
+    - Maintenance: maintenance.md
     - Performance: performance.md
     - Reliability: reliability.md
+  - Spark:
+    - Getting Started: getting-started.md
+    - Spark SQL: spark.md
+    - Spark Streaming: spark-structured-streaming.md
     - Time Travel: spark#time-travel
-  - Java:
-    - Git Repo: https://github.com/apache/iceberg
-    - Quickstart: java-api-quickstart.md
-    - API intro: api.md
+  - Presto: https://prestosql.io/docs/current/connector/iceberg.html
+  - Flink: flink.md
+  - Hive: hive.md
+  - API:
     - Javadoc: /javadoc/
-    - Custom Catalog: custom-catalog.md
-  - Python:
-    - Git Repo: https://github.com/apache/iceberg/tree/master/python
-    - Quickstart: python-quickstart.md
-    - API Intro: python-api-intro.md
-    - Feature Support: python-feature-support.md
+    - Java API intro: api.md
+    - Java Quickstart: java-api-quickstart.md
+    - Java Custom Catalog: custom-catalog.md
+    - Python Quickstart: python-quickstart.md
+    - Python API Intro: python-api-intro.md
+    - Python Feature Support: python-feature-support.md
   - Format:
     - Definitions: terms.md
     - Spec: spec.md
-  - Iceberg on GitHub: https://github.com/apache/iceberg
+  - GitHub: https://github.com/apache/iceberg
   - ASF:
     - License: https://www.apache.org/licenses/
     - Security: https://www.apache.org/security/
