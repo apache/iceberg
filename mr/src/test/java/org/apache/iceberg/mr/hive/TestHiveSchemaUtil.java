@@ -20,9 +20,11 @@
 package org.apache.iceberg.mr.hive;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.serde.serdeConstants;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -98,8 +100,8 @@ public class TestHiveSchemaUtil {
 
   @Test
   public void testSchemaConvertForEveryPrimitiveType() {
-    Schema schemaWithEveryType = HiveSchemaUtil.schema(getFieldsWithEveryPrimitiveType());
-    Assert.assertEquals(getSchemaWithEveryPrimitiveType().asStruct(), schemaWithEveryType.asStruct());
+    Schema schemaWithEveryType = HiveSchemaUtil.schema(getSupportedFieldSchemas());
+    Assert.assertEquals(getSchemaWithSupportedTypes().asStruct(), schemaWithEveryType.asStruct());
   }
 
   @Test
@@ -160,40 +162,54 @@ public class TestHiveSchemaUtil {
     Assert.assertTrue(HiveSchemaUtil.compatible(COMPLEX_SCHEMA, differentId));
   }
 
-  protected List<FieldSchema> getFieldsWithEveryPrimitiveType() {
+  @Test
+  public void testNotSupportedTypes() {
+    for (FieldSchema notSupportedField : getNotSupportedFieldSchemas()) {
+      AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
+          "Unsupported Hive type", () -> {
+            HiveSchemaUtil.schema(new ArrayList<>(Arrays.asList(notSupportedField)));
+          }
+      );
+    }
+  }
+
+  protected List<FieldSchema> getSupportedFieldSchemas() {
     List<FieldSchema> fields = new ArrayList<>();
     fields.add(new FieldSchema("c_float", serdeConstants.FLOAT_TYPE_NAME, ""));
     fields.add(new FieldSchema("c_double", serdeConstants.DOUBLE_TYPE_NAME, ""));
     fields.add(new FieldSchema("c_boolean", serdeConstants.BOOLEAN_TYPE_NAME, ""));
-    fields.add(new FieldSchema("c_byte", serdeConstants.TINYINT_TYPE_NAME, ""));
-    fields.add(new FieldSchema("c_short", serdeConstants.SMALLINT_TYPE_NAME, ""));
     fields.add(new FieldSchema("c_int", serdeConstants.INT_TYPE_NAME, ""));
     fields.add(new FieldSchema("c_long", serdeConstants.BIGINT_TYPE_NAME, ""));
     fields.add(new FieldSchema("c_binary", serdeConstants.BINARY_TYPE_NAME, ""));
     fields.add(new FieldSchema("c_string", serdeConstants.STRING_TYPE_NAME, ""));
-    fields.add(new FieldSchema("c_char", serdeConstants.CHAR_TYPE_NAME + "(5)", ""));
-    fields.add(new FieldSchema("c_varchar", serdeConstants.VARCHAR_TYPE_NAME + "(5)", ""));
     fields.add(new FieldSchema("c_timestamp", serdeConstants.TIMESTAMP_TYPE_NAME, ""));
     fields.add(new FieldSchema("c_date", serdeConstants.DATE_TYPE_NAME, ""));
     fields.add(new FieldSchema("c_decimal", serdeConstants.DECIMAL_TYPE_NAME + "(38,10)", ""));
     return fields;
   }
 
-  protected Schema getSchemaWithEveryPrimitiveType() {
+  protected List<FieldSchema> getNotSupportedFieldSchemas() {
+    List<FieldSchema> fields = new ArrayList<>();
+    fields.add(new FieldSchema("c_byte", serdeConstants.TINYINT_TYPE_NAME, ""));
+    fields.add(new FieldSchema("c_short", serdeConstants.SMALLINT_TYPE_NAME, ""));
+    fields.add(new FieldSchema("c_char", serdeConstants.CHAR_TYPE_NAME + "(5)", ""));
+    fields.add(new FieldSchema("c_varchar", serdeConstants.VARCHAR_TYPE_NAME + "(5)", ""));
+    fields.add(new FieldSchema("c_interval_date", serdeConstants.INTERVAL_YEAR_MONTH_TYPE_NAME, ""));
+    fields.add(new FieldSchema("c_interval_time", serdeConstants.INTERVAL_DAY_TIME_TYPE_NAME, ""));
+    return fields;
+  }
+
+  protected Schema getSchemaWithSupportedTypes() {
     return new Schema(
         optional(0, "c_float", Types.FloatType.get()),
         optional(1, "c_double", Types.DoubleType.get()),
         optional(2, "c_boolean", Types.BooleanType.get()),
-        optional(3, "c_byte", Types.IntegerType.get()),
-        optional(4, "c_short", Types.IntegerType.get()),
-        optional(5, "c_int", Types.IntegerType.get()),
-        optional(6, "c_long", Types.LongType.get()),
-        optional(7, "c_binary", Types.BinaryType.get()),
-        optional(8, "c_string", Types.StringType.get()),
-        optional(9, "c_char", Types.StringType.get()),
-        optional(10, "c_varchar", Types.StringType.get()),
-        optional(11, "c_timestamp", Types.TimestampType.withoutZone()),
-        optional(12, "c_date", Types.DateType.get()),
-        optional(13, "c_decimal", Types.DecimalType.of(38, 10)));
+        optional(3, "c_int", Types.IntegerType.get()),
+        optional(4, "c_long", Types.LongType.get()),
+        optional(5, "c_binary", Types.BinaryType.get()),
+        optional(6, "c_string", Types.StringType.get()),
+        optional(7, "c_timestamp", Types.TimestampType.withoutZone()),
+        optional(8, "c_date", Types.DateType.get()),
+        optional(9, "c_decimal", Types.DecimalType.of(38, 10)));
   }
 }

@@ -58,15 +58,21 @@ class HiveSchemaConverter {
             return Types.BooleanType.get();
           case BYTE:
           case SHORT:
+            throw new IllegalArgumentException("Unsupported Hive type (" +
+                ((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory() +
+                ") for Iceberg tables. Consider using INT/INTEGER type instead.");
           case INT:
             return Types.IntegerType.get();
           case LONG:
             return Types.LongType.get();
           case BINARY:
             return Types.BinaryType.get();
-          case STRING:
           case CHAR:
           case VARCHAR:
+            throw new IllegalArgumentException("Unsupported Hive type (" +
+                ((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory() +
+                ") for Iceberg tables. Consider using STRING type instead.");
+          case STRING:
             return Types.StringType.get();
           case TIMESTAMP:
             return Types.TimestampType.withoutZone();
@@ -78,8 +84,9 @@ class HiveSchemaConverter {
           case INTERVAL_YEAR_MONTH:
           case INTERVAL_DAY_TIME:
           default:
-            throw new IllegalArgumentException("Unknown primitive type " +
-                ((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory());
+            throw new IllegalArgumentException("Unsupported Hive type (" +
+                ((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory() +
+                ") for Iceberg tables.");
         }
       case STRUCT:
         StructTypeInfo structTypeInfo = (StructTypeInfo) typeInfo;

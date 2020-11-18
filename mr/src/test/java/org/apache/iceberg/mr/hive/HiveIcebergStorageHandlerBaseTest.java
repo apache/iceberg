@@ -697,6 +697,51 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Assert.assertEquals(COMPLEX_SCHEMA.asStruct(), icebergTable.schema().asStruct());
   }
 
+  @Test
+  public void testCreateTableWithAllSupportedTypes() {
+    TableIdentifier identifier = TableIdentifier.of("default", "all_types");
+    Schema allSupportedSchema = new Schema(
+        optional(1, "t_float", Types.FloatType.get()),
+        optional(2, "t_double", Types.DoubleType.get()),
+        optional(3, "t_boolean", Types.BooleanType.get()),
+        optional(4, "t_int", Types.IntegerType.get()),
+        optional(5, "t_bigint", Types.LongType.get()),
+        optional(6, "t_binary", Types.BinaryType.get()),
+        optional(7, "t_string", Types.StringType.get()),
+        optional(8, "t_timestamp", Types.TimestampType.withoutZone()),
+        optional(9, "t_date", Types.DateType.get()),
+        optional(10, "t_decimal", Types.DecimalType.of(3, 2))
+    );
+
+    shell.executeStatement("CREATE EXTERNAL TABLE all_types (" +
+        "t_float FLOAT, t_double DOUBLE, t_boolean BOOLEAN, t_int INT, t_bigint BIGINT, t_binary BINARY, " +
+        "t_string STRING, t_timestamp TIMESTAMP, t_date DATE, t_decimal DECIMAL(3,2)) " +
+        "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+        testTables.locationForCreateTableSQL(identifier));
+
+    // Check the Iceberg table data
+    org.apache.iceberg.Table icebergTable = loadTable(identifier);
+    Assert.assertEquals(allSupportedSchema.asStruct(), icebergTable.schema().asStruct());
+  }
+
+  @Test
+  public void testCreateTableWithNotSupportedTypes() {
+    TableIdentifier identifier = TableIdentifier.of("default", "not_supported_types");
+    // Can not create INTERVAL types from normal create table, so leave them out from this test
+    String[] notSupportedTypes = new String[] { "TINYINT", "SMALLINT", "VARCHAR(1)", "CHAR(1)" };
+
+    for (String notSupportedType : notSupportedTypes) {
+      AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
+          "Unsupported Hive type", () -> {
+            shell.executeStatement("CREATE EXTERNAL TABLE not_supported_types " +
+                "(not_supported " + notSupportedType + ") " +
+                "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+                testTables.locationForCreateTableSQL(identifier));
+          }
+      );
+    }
+  }
+
   protected void createTable(String tableName, Schema schema, List<Record> records)
           throws IOException {
     Table table = createIcebergTable(tableName, schema, records);
