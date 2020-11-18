@@ -298,13 +298,13 @@ public class TestMetricsRowGroupFilter {
   @Test
   public void testIsNaN() {
     boolean shouldRead = shouldRead(isNaN("all_nans"));
-    Assert.assertTrue("Should read: not enough information", shouldRead);
+    Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
 
     shouldRead = shouldRead(isNaN("some_nans"));
-    Assert.assertTrue("Should read: not enough information", shouldRead);
+    Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
 
     shouldRead = shouldRead(isNaN("no_nans"));
-    Assert.assertTrue("Should read: not enough information", shouldRead);
+    Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
 
     shouldRead = shouldRead(isNaN("all_nulls"));
     Assert.assertFalse("Should skip: all null column will not contain nan value", shouldRead);
@@ -313,16 +313,16 @@ public class TestMetricsRowGroupFilter {
   @Test
   public void testNotNaN() {
     boolean shouldRead = shouldRead(notNaN("all_nans"));
-    Assert.assertTrue("Should read: not enough information", shouldRead);
+    Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
 
     shouldRead = shouldRead(notNaN("some_nans"));
-    Assert.assertTrue("Should read: not enough information", shouldRead);
+    Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
 
     shouldRead = shouldRead(notNaN("no_nans"));
-    Assert.assertTrue("Should read: not enough information", shouldRead);
+    Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
 
     shouldRead = shouldRead(notNaN("all_nulls"));
-    Assert.assertTrue("Should read: not enough information", shouldRead);
+    Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
 
   }
 

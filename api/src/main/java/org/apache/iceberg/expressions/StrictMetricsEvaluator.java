@@ -152,25 +152,9 @@ public class StrictMetricsEvaluator {
       int id = ref.fieldId();
 
       if (nanCounts != null && nanCounts.containsKey(id) &&
-          valueCounts != null && valueCounts.containsKey(id)) {
-        if (nanCounts.get(id).equals(valueCounts.get(id))) {
-          return ROWS_MUST_MATCH;
-        }
-
-        return ROWS_MIGHT_NOT_MATCH;
-      }
-
-      // for v1 table, when NaN could still be upper/lower bound,
-      // if upper == lower == NaN and null count == 0, the column will only contain NaN
-      if (nullCounts != null && nullCounts.getOrDefault(id, -1L) == 0 &&
-          upperBounds != null && upperBounds.containsKey(id) &&
-          lowerBounds != null && upperBounds.get(id).equals(lowerBounds.get(id))) {
-        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
-
-        if ((lower instanceof Double && Double.isNaN((Double) lower)) ||
-            (lower instanceof Float && Float.isNaN((Float) lower))) {
-          return ROWS_MUST_MATCH;
-        }
+          valueCounts != null && valueCounts.containsKey(id) &&
+          nanCounts.get(id).equals(valueCounts.get(id))) {
+        return ROWS_MUST_MATCH;
       }
 
       return ROWS_MIGHT_NOT_MATCH;

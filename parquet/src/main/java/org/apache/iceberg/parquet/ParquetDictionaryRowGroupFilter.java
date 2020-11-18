@@ -33,9 +33,11 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.expressions.NaNUtils;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
@@ -150,12 +152,35 @@ public class ParquetDictionaryRowGroupFilter {
 
     @Override
     public <T> Boolean isNaN(BoundReference<T> ref) {
-      return ROWS_MIGHT_MATCH;
+      int id = ref.fieldId();
+
+      Boolean hasNonDictPage = isFallback.get(id);
+      if (hasNonDictPage == null || hasNonDictPage) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Set<T> dictionary = dict(id, comparatorForNaNPredicate(ref));
+      return dictionary.stream().anyMatch(NaNUtils::isNaN) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
     }
 
     @Override
     public <T> Boolean notNaN(BoundReference<T> ref) {
-      return ROWS_MIGHT_MATCH;
+      int id = ref.fieldId();
+
+      Boolean hasNonDictPage = isFallback.get(id);
+      if (hasNonDictPage == null || hasNonDictPage) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Set<T> dictionary = dict(id, comparatorForNaNPredicate(ref));
+      return dictionary.stream().allMatch(NaNUtils::isNaN) ? ROWS_CANNOT_MATCH : ROWS_MIGHT_MATCH;
+    }
+
+    private <T> Comparator<T> comparatorForNaNPredicate(BoundReference<T> ref) {
+      // Construct the same comparator as in ComparableLiteral.comparator, which is always null first and then use
+      // natural order.
+      // No need to check type: incompatible types will be handled during expression binding.
+      return Comparators.<T>nullsFirst().thenComparing(Comparators.forType(ref.type().asPrimitiveType()));
     }
 
     @Override

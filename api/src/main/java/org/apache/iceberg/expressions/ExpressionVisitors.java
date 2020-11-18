@@ -76,11 +76,11 @@ public class ExpressionVisitors {
     }
 
     public <T> R isNaN(BoundReference<T> ref) {
-      return null;
+      throw new UnsupportedOperationException(this.getClass().getName() + " does not implement isNaN");
     }
 
     public <T> R notNaN(BoundReference<T> ref) {
-      return null;
+      throw new UnsupportedOperationException(this.getClass().getName() + " does not implement notNaN");
     }
 
     public <T> R lt(BoundReference<T> ref, Literal<T> lit) {
@@ -189,11 +189,11 @@ public class ExpressionVisitors {
     }
 
     public <T> R isNaN(Bound<T> expr) {
-      return null;
+      throw new UnsupportedOperationException(this.getClass().getName() + " does not implement isNaN");
     }
 
     public <T> R notNaN(Bound<T> expr) {
-      return null;
+      throw new UnsupportedOperationException(this.getClass().getName() + " does not implement notNaN");
     }
 
     public <T> R lt(Bound<T> expr, Literal<T> lit) {

@@ -65,8 +65,8 @@ public class TestStrictMetricsEvaluator {
       optional(10, "no_nans", Types.FloatType.get()),
       optional(11, "all_nulls_double", Types.DoubleType.get()),
       optional(12, "all_nans_v1_stats", Types.FloatType.get()),
-      optional(13, "nan_and_null_only", Types.DoubleType.get())
-
+      optional(13, "nan_and_null_only", Types.DoubleType.get()),
+      optional(14, "no_nan_stats", Types.DoubleType.get())
   );
 
   private static final int INT_MIN_VALUE = 30;
@@ -84,6 +84,7 @@ public class TestStrictMetricsEvaluator {
           .put(11, 50L)
           .put(12, 50L)
           .put(13, 50L)
+          .put(14, 50L)
           .build(),
       // null value counts
       ImmutableMap.<Integer, Long>builder()
@@ -208,11 +209,11 @@ public class TestStrictMetricsEvaluator {
     shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("all_nulls_double")).eval(FILE);
     Assert.assertFalse("Should not match: at least one non-nan value in all null column", shouldRead);
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("all_nans")).eval(FILE_2);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("no_nan_stats")).eval(FILE);
     Assert.assertFalse("Should not match: cannot determine without nan stats", shouldRead);
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("all_nans_v1_stats")).eval(FILE);
-    Assert.assertTrue("Should match: all values are nan", shouldRead);
+    Assert.assertFalse("Should not match: cannot determine without nan stats", shouldRead);
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("nan_and_null_only")).eval(FILE);
     Assert.assertFalse("Should not match: null values are not nan", shouldRead);
@@ -232,7 +233,7 @@ public class TestStrictMetricsEvaluator {
     shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("all_nulls_double")).eval(FILE);
     Assert.assertTrue("Should match: no nan value in all null column", shouldRead);
 
-    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("all_nans")).eval(FILE_2);
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("no_nan_stats")).eval(FILE);
     Assert.assertFalse("Should not match: cannot determine without nan stats", shouldRead);
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("all_nans_v1_stats")).eval(FILE);

@@ -93,23 +93,12 @@ public class Evaluator implements Serializable {
 
     @Override
     public <T> Boolean isNaN(Bound<T> valueExpr) {
-      T value = valueExpr.eval(struct);
-      if (value == null) {
-        return false;
-      }
-
-      if (value instanceof Double) {
-        return Double.isNaN((Double) value);
-      } else if (value instanceof Float) {
-        return Float.isNaN((Float) value);
-      } else {
-        return false;
-      }
+      return NaNUtils.isNaN(valueExpr.eval(struct));
     }
 
     @Override
-    public <T> Boolean notNaN(Bound<T> ref) {
-      return !isNaN(ref);
+    public <T> Boolean notNaN(Bound<T> valueExpr) {
+      return !NaNUtils.isNaN(valueExpr.eval(struct));
     }
 
     @Override

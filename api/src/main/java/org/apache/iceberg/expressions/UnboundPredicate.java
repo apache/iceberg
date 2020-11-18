@@ -129,35 +129,25 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
         }
         return new BoundUnaryPredicate<>(Operation.NOT_NULL, boundTerm);
       case IS_NAN:
-        if (typeAcceptsNaN(boundTerm.type().typeId())) {
-          return new BoundUnaryPredicate<>(Operation.IS_NAN, boundTerm);
-        } else {
-          return Expressions.alwaysFalse();
-        }
+        return toIsNaNExpression(boundTerm);
       case NOT_NAN:
-        if (typeAcceptsNaN(boundTerm.type().typeId())) {
-          return new BoundUnaryPredicate<>(Operation.NOT_NAN, boundTerm);
-        } else {
-          return Expressions.alwaysTrue();
-        }
+        return toNotNaNExpression(boundTerm);
       default:
         throw new ValidationException("Operation must be IS_NULL, NOT_NULL, IS_NAN, or NOT_NAN");
     }
   }
 
-  private boolean typeAcceptsNaN(Type.TypeID typeID) {
-    return Type.TypeID.DOUBLE.equals(typeID) || Type.TypeID.FLOAT.equals(typeID);
+  private Expression bindLiteralOperation(BoundTerm<T> boundTerm) {
+    return bindLiteralOperation(boundTerm, op(), literal().to(boundTerm.type()));
   }
 
-  private Expression bindLiteralOperation(BoundTerm<T> boundTerm) {
-    Literal<T> lit = literal().to(boundTerm.type());
-
+  private Expression bindLiteralOperation(BoundTerm<T> boundTerm, Operation op, Literal<T> lit) {
     if (lit == null) {
       throw new ValidationException("Invalid value for conversion to type %s: %s (%s)",
           boundTerm.type(), literal().value(), literal().value().getClass().getName());
 
     } else if (lit == Literals.aboveMax()) {
-      switch (op()) {
+      switch (op) {
         case LT:
         case LT_EQ:
         case NOT_EQ:
@@ -168,7 +158,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
           return Expressions.alwaysFalse();
       }
     } else if (lit == Literals.belowMin()) {
-      switch (op()) {
+      switch (op) {
         case GT:
         case GT_EQ:
         case NOT_EQ:
@@ -178,10 +168,42 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
         case EQ:
           return Expressions.alwaysFalse();
       }
+    } else if (NaNUtils.isNaN(lit.value())) {
+      switch (op) {
+        case GT:
+        case GT_EQ:
+        case LT:
+        case LT_EQ:
+          throw new IllegalArgumentException(String.format("Cannot perform operation %s with value NaN", op));
+        case EQ:
+          return toIsNaNExpression(boundTerm);
+        case NOT_EQ:
+          return toNotNaNExpression(boundTerm);
+      }
     }
 
     // TODO: translate truncate(col) == value to startsWith(value)
-    return new BoundLiteralPredicate<>(op(), boundTerm, lit);
+    return new BoundLiteralPredicate<>(op, boundTerm, lit);
+  }
+
+  private Expression toIsNaNExpression(BoundTerm<T> boundTerm) {
+    if (typeIncludesNaN(boundTerm.type().typeId())) {
+      return new BoundUnaryPredicate<>(Operation.IS_NAN, boundTerm);
+    } else {
+      return Expressions.alwaysFalse();
+    }
+  }
+
+  private Expression toNotNaNExpression(BoundTerm<T> boundTerm) {
+    if (typeIncludesNaN(boundTerm.type().typeId())) {
+      return new BoundUnaryPredicate<>(Operation.NOT_NAN, boundTerm);
+    } else {
+      return Expressions.alwaysTrue();
+    }
+  }
+
+  private boolean typeIncludesNaN(Type.TypeID typeID) {
+    return Type.TypeID.DOUBLE.equals(typeID) || Type.TypeID.FLOAT.equals(typeID);
   }
 
   private Expression bindInOperation(BoundTerm<T> boundTerm) {
@@ -209,9 +231,9 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
     if (literalSet.size() == 1) {
       switch (op()) {
         case IN:
-          return new BoundLiteralPredicate<>(Operation.EQ, boundTerm, Iterables.get(convertedLiterals, 0));
+          return bindLiteralOperation(boundTerm, Operation.EQ, Iterables.get(convertedLiterals, 0));
         case NOT_IN:
-          return new BoundLiteralPredicate<>(Operation.NOT_EQ, boundTerm, Iterables.get(convertedLiterals, 0));
+          return bindLiteralOperation(boundTerm, Operation.NOT_EQ, Iterables.get(convertedLiterals, 0));
         default:
           throw new ValidationException("Operation must be IN or NOT_IN");
       }

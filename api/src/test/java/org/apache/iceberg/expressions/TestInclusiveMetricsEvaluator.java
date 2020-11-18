@@ -68,7 +68,8 @@ public class TestInclusiveMetricsEvaluator {
       optional(9, "no_nans", Types.FloatType.get()),
       optional(10, "all_nulls_double", Types.DoubleType.get()),
       optional(11, "all_nans_v1_stats", Types.FloatType.get()),
-      optional(12, "nan_and_null_only", Types.DoubleType.get())
+      optional(12, "nan_and_null_only", Types.DoubleType.get()),
+      optional(13, "no_nan_stats", Types.DoubleType.get())
   );
 
   private static final int INT_MIN_VALUE = 30;
@@ -86,6 +87,7 @@ public class TestInclusiveMetricsEvaluator {
           .put(10, 50L)
           .put(11, 50L)
           .put(12, 50L)
+          .put(13, 50L)
           .build(),
       // null value counts
       ImmutableMap.<Integer, Long>builder()
@@ -114,9 +116,7 @@ public class TestInclusiveMetricsEvaluator {
 
   private static final DataFile FILE_2 = new TestDataFile("file_2.avro", Row.of(), 50,
       // any value counts, including nulls
-      ImmutableMap.of(
-          3, 20L,
-          9, 20L),
+      ImmutableMap.of(3, 20L),
       // null value counts
       ImmutableMap.of(3, 2L),
       // nan value counts
@@ -206,7 +206,7 @@ public class TestInclusiveMetricsEvaluator {
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, isNaN("all_nulls_double")).eval(FILE);
     Assert.assertFalse("Should skip: all-null column doesn't contain nan value", shouldRead);
 
-    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, isNaN("no_nans")).eval(FILE_2);
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, isNaN("no_nan_stats")).eval(FILE);
     Assert.assertTrue("Should read: no guarantee on if contains nan value without nan stats", shouldRead);
 
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, isNaN("all_nans_v1_stats")).eval(FILE);
@@ -230,11 +230,11 @@ public class TestInclusiveMetricsEvaluator {
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notNaN("all_nulls_double")).eval(FILE);
     Assert.assertTrue("Should read: at least one non-nan value in all null column", shouldRead);
 
-    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notNaN("no_nans")).eval(FILE_2);
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notNaN("no_nan_stats")).eval(FILE);
     Assert.assertTrue("Should read: no guarantee on if contains nan value without nan stats", shouldRead);
 
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notNaN("all_nans_v1_stats")).eval(FILE);
-    Assert.assertFalse("Should not read: no non-nan value in all nan column", shouldRead);
+    Assert.assertTrue("Should read: no guarantee on if contains nan value without nan stats", shouldRead);
 
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notNaN("nan_and_null_only")).eval(FILE);
     Assert.assertTrue("Should read: at least one null value in nan and nulls only column", shouldRead);

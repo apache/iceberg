@@ -262,30 +262,38 @@ public class TestDictionaryRowGroupFilter {
   public void testIsNaNs() {
     boolean shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, isNaN("all_nans"))
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: dictionary filter doesn't help", shouldRead);
+    Assert.assertTrue("Should read: all_nans column will contain NaN", shouldRead);
 
     shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, isNaN("some_nans"))
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: dictionary filter doesn't help", shouldRead);
+    Assert.assertTrue("Should read: some_nans column will contain NaN", shouldRead);
 
     shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, isNaN("no_nans"))
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: dictionary filter doesn't help", shouldRead);
+    Assert.assertFalse("Should skip: no_nans column will not contain NaN", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, isNaN("id"))
+        .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    Assert.assertFalse("Should skip: integer column will not contain NaN", shouldRead);
   }
 
   @Test
-  public void testNoNaNs() {
+  public void testNotNaNs() {
     boolean shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notNaN("all_nans"))
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: dictionary filter doesn't help", shouldRead);
+    Assert.assertFalse("Should skip: all_nans column will not contain non-NaN", shouldRead);
 
     shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notNaN("some_nans"))
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: dictionary filter doesn't help", shouldRead);
+    Assert.assertTrue("Should read: some_nans column will contain non-NaN", shouldRead);
 
     shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notNaN("no_nans"))
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    Assert.assertTrue("Should read: dictionary filter doesn't help", shouldRead);
+    Assert.assertTrue("Should read: no_nans column will contain non-NaN", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notNaN("id"))
+        .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    Assert.assertTrue("Should read: integer column will contain non-NaN", shouldRead);
   }
 
   @Test

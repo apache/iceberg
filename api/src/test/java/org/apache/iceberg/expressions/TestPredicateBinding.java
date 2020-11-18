@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.junit.Assert;
@@ -383,6 +384,78 @@ public class TestPredicateBinding {
   }
 
   @Test
+  public void testNonEqPredicateBindingThrowException() {
+    testNonEqPredicateBindingThrowExceptionWithType(Types.DoubleType.get());
+    testNonEqPredicateBindingThrowExceptionWithType(Types.FloatType.get());
+  }
+
+  private void testNonEqPredicateBindingThrowExceptionWithType(Type type) {
+    StructType struct = StructType.of(optional(21, "d", type));
+
+    for (Expression.Operation op : COMPARISONS) {
+      if (op == EQ || op == NOT_EQ) {
+        continue;
+      }
+      UnboundPredicate<Double> unbound = new UnboundPredicate<>(op, ref("d"), Double.NaN);
+
+      try {
+        unbound.bind(struct);
+        Assert.fail("Should not bind non-equal comparison operators with NaN");
+      } catch (IllegalArgumentException e) {
+        Assert.assertEquals("Should complain about binding operator with NaN",
+            e.getMessage(),
+            String.format("Cannot perform operation %s with value NaN", op));
+      }
+    }
+  }
+
+  @Test
+  public void testEqPredicateBindingConversionToIsNan() {
+    // double
+    StructType struct = StructType.of(optional(21, "d", Types.DoubleType.get()));
+
+    UnboundPredicate<?> unbound = new UnboundPredicate<>(EQ, ref("d"), Double.NaN);
+    Expression expr = unbound.bind(struct);
+    BoundPredicate<?> bound = assertAndUnwrap(expr);
+    Assert.assertEquals("Should convert to isNaN", IS_NAN, bound.op());
+    Assert.assertEquals("Should use the correct field", 21, bound.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound.isUnaryPredicate());
+
+    // float
+    struct = StructType.of(optional(21, "f", Types.FloatType.get()));
+
+    unbound = new UnboundPredicate<>(EQ, ref("f"), Double.NaN);
+    expr = unbound.bind(struct);
+    bound = assertAndUnwrap(expr);
+    Assert.assertEquals("Should convert to isNaN", IS_NAN, bound.op());
+    Assert.assertEquals("Should use the correct field", 21, bound.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound.isUnaryPredicate());
+  }
+
+  @Test
+  public void testNotEqPredicateBindingConversionToNotNan() {
+    // double
+    StructType struct = StructType.of(optional(21, "d", Types.DoubleType.get()));
+
+    UnboundPredicate<?> unbound = new UnboundPredicate<>(NOT_EQ, ref("d"), Double.NaN);
+    Expression expr = unbound.bind(struct);
+    BoundPredicate<?> bound = assertAndUnwrap(expr);
+    Assert.assertEquals("Should convert to isNaN", NOT_NAN, bound.op());
+    Assert.assertEquals("Should use the correct field", 21, bound.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound.isUnaryPredicate());
+
+    // float
+    struct = StructType.of(optional(21, "f", Types.FloatType.get()));
+
+    unbound = new UnboundPredicate<>(NOT_EQ, ref("f"), Double.NaN);
+    expr = unbound.bind(struct);
+    bound = assertAndUnwrap(expr);
+    Assert.assertEquals("Should convert to isNaN", NOT_NAN, bound.op());
+    Assert.assertEquals("Should use the correct field", 21, bound.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound.isUnaryPredicate());
+  }
+
+  @Test
   public void testInPredicateBinding() {
     StructType struct = StructType.of(
         required(10, "x", Types.IntegerType.get()),
@@ -454,6 +527,23 @@ public class TestPredicateBinding {
         Integer.valueOf(5), bound.asLiteralPredicate().literal().value());
     Assert.assertEquals("Should reference correct field ID", 14, bound.ref().fieldId());
     Assert.assertEquals("Should change the IN operation to EQ", EQ, bound.op());
+  }
+
+  @Test
+  public void testInPredicateBindingConversionToIsNaN() {
+    StructType struct = StructType.of(required(14, "x", Types.FloatType.get()));
+
+    UnboundPredicate<Float> unbound = Expressions.in("x", Float.NaN);
+
+    Expression.Operation op = unbound.op();
+    Assert.assertEquals("Should create an IN unbound predicate", IN, op);
+
+    Expression expr = unbound.bind(struct);
+    BoundPredicate<Float> bound = assertAndUnwrap(expr);
+
+    Assert.assertEquals("Should convert to isNaN", IS_NAN, bound.op());
+    Assert.assertEquals("Should use the correct field", 14, bound.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound.isUnaryPredicate());
   }
 
   @Test
@@ -585,4 +675,22 @@ public class TestPredicateBinding {
     Expression expr = unbound.bind(struct);
     Assert.assertEquals("Should change NOT_IN to alwaysTrue expression", Expressions.alwaysTrue(), expr);
   }
+
+  @Test
+  public void testNotInPredicateBindingConversionToNotNan() {
+    StructType struct = StructType.of(required(14, "x", Types.DoubleType.get()));
+
+    UnboundPredicate<Double> unbound = Expressions.notIn("x", Double.NaN);
+
+    Expression.Operation op = unbound.op();
+    Assert.assertEquals("Should create an NOT_IN unbound predicate", NOT_IN, op);
+
+    Expression expr = unbound.bind(struct);
+    BoundPredicate<Double> bound = assertAndUnwrap(expr);
+
+    Assert.assertEquals("Should convert to notNaN", NOT_NAN, bound.op());
+    Assert.assertEquals("Should use the correct field", 14, bound.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound.isUnaryPredicate());
+  }
+
 }
