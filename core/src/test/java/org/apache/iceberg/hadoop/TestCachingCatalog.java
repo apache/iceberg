@@ -19,8 +19,11 @@
 
 package org.apache.iceberg.hadoop;
 
+import java.io.IOException;
+import java.util.Locale;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
+import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
@@ -66,6 +69,54 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     // underlying table operation in metadata tables are shared with the origin table
     Assert.assertEquals(filesMetaTable2.currentSnapshot(), table.currentSnapshot());
     Assert.assertEquals(manifestsMetaTable2.currentSnapshot(), table.currentSnapshot());
+  }
+
+  @Test
+  public void testInvalidateMetadataTablesIfBaseTableIsDropped() throws IOException {
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+
+    HadoopCatalog hadoopCatalog = new HadoopCatalog(conf, warehousePath);
+    Catalog catalog = CachingCatalog.wrap(hadoopCatalog);
+
+    // create the original table
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    Table table = catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key2", "value2"));
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // remember the original snapshot
+    Snapshot oldSnapshot = table.currentSnapshot();
+
+    // populate the cache with metadata tables
+    for (MetadataTableType type : MetadataTableType.values()) {
+      catalog.loadTable(TableIdentifier.parse(tableIdent + "." + type.name()));
+      catalog.loadTable(TableIdentifier.parse(tableIdent + "." + type.name().toLowerCase(Locale.ROOT)));
+    }
+
+    // drop the original table
+    catalog.dropTable(tableIdent);
+
+    // create a new table with the same name
+    table = catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key2", "value2"));
+
+    table.newAppend().appendFile(FILE_B).commit();
+
+    // remember the new snapshot
+    Snapshot newSnapshot = table.currentSnapshot();
+
+    Assert.assertNotEquals("Snapshots must be different", oldSnapshot, newSnapshot);
+
+    // validate metadata tables were correctly invalidated
+    for (MetadataTableType type : MetadataTableType.values()) {
+      TableIdentifier metadataIdent1 = TableIdentifier.parse(tableIdent + "." + type.name());
+      Table metadataTable1 = catalog.loadTable(metadataIdent1);
+      Assert.assertEquals("Snapshot must be new", newSnapshot, metadataTable1.currentSnapshot());
+
+      TableIdentifier metadataIdent2 = TableIdentifier.parse(tableIdent + "." + type.name().toLowerCase(Locale.ROOT));
+      Table metadataTable2 = catalog.loadTable(metadataIdent2);
+      Assert.assertEquals("Snapshot must be new", newSnapshot, metadataTable2.currentSnapshot());
+    }
   }
 
   @Test
