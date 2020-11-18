@@ -129,28 +129,35 @@ abstract class BaseSparkAction<R> implements Action<R> {
     return manifestDF.union(otherMetadataFileDF).union(manifestListDF);
   }
 
+  private static Dataset<Row> loadMetadataTableFromCatalog(SparkSession spark, String tableName, String tableLocation,
+                                                           MetadataTableType type) {
+    DataFrameReader dataFrameReader = spark.read().format("iceberg");
+    if (tableName.startsWith("spark_catalog")) {
+      // Do to the design of Spark, we cannot pass multi-element namespaces to the session catalog.
+      // We also don't know whether the Catalog is Hive or Hadoop Based so we can't just load one way or the other.
+      // Instead we will try to load the metadata table in the hive manner first, then fall back and try the
+      // hadoop location method if that fails
+      // TODO remove this when we have Spark workaround for multipart identifiers in SparkSessionCatalog
+      try {
+        return dataFrameReader.load(tableName.replaceFirst("spark_catalog\\.", "") + "." + type);
+      } catch (NoSuchTableException noSuchTableException) {
+        return dataFrameReader.load(tableLocation + "#" + type);
+      }
+    } else {
+      return spark.table(tableName + "." + type);
+    }
+  }
+
   protected static Dataset<Row> loadMetadataTable(SparkSession spark, String tableName, String tableLocation,
                                                   MetadataTableType type) {
-    DataFrameReader noCatalogReader = spark.read().format("iceberg");
+    DataFrameReader dataFrameReader = spark.read().format("iceberg");
     if (tableName.contains("/")) {
       // Hadoop Table or Metadata location passed, load without a catalog
-      return noCatalogReader.load(tableName + "#" + type);
+      return dataFrameReader.load(tableName + "#" + type);
     }
     // Try catalog based name based resolution
     try {
-      if (tableName.startsWith("spark_catalog")) {
-        // Do to the design of Spark, we cannot pass multi element namespaces to the session catalog
-        // We also don't know whether the Catalog is Hive or Hadoop Based, so we will try to load it
-        // in the hive manner first, then fall back and try the location if we have completely run out of options
-        // TODO remove this when we have Spark workaround for multipart identifiers in SparkSessionCatalog
-        try {
-          return noCatalogReader.load(tableName.replaceFirst("spark_catalog\\.", "") + "." + type);
-        } catch (NoSuchTableException noSuchTableException) {
-          return noCatalogReader.load(tableLocation + "#" + type);
-        }
-      } else {
-        return spark.table(tableName + "." + type);
-      }
+      loadMetadataTableFromCatalog(spark, tableName, tableLocation, type);
     } catch (Exception e) {
       if (!(e instanceof ParseException || e instanceof AnalysisException)) {
         // Rethrow unexpected exceptions
@@ -159,10 +166,10 @@ abstract class BaseSparkAction<R> implements Action<R> {
       // Catalog based resolution failed, our catalog may be a non-DatasourceV2 Catalog
       if (tableName.startsWith("hadoop.")) {
         // Try loading by location as Hadoop table without Catalog
-        return noCatalogReader.load(tableLocation + "#" + type);
+        return dataFrameReader.load(tableLocation + "#" + type);
       } else if (tableName.startsWith("hive")) {
         // Try loading by name as a Hive table without Catalog
-        return noCatalogReader.load(tableName.replaceFirst("hive\\.", "") + "." + type);
+        return dataFrameReader.load(tableName.replaceFirst("hive\\.", "") + "." + type);
       } else {
         throw new IllegalArgumentException(String.format(
             "Cannot find the metadata table for %s of type %s", tableName, type));

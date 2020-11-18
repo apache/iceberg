@@ -38,7 +38,7 @@ import org.junit.Test;
 
 public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
   @Test
-  public void testSparkCatalogTable() throws TableAlreadyExistsException, NoSuchTableException, IOException {
+  public void testSparkCatalogTable() throws Exception {
     spark.conf().set("spark.sql.catalog.mycat", "org.apache.iceberg.spark.SparkCatalog");
     spark.conf().set("spark.sql.catalog.mycat.type", "hadoop");
     spark.conf().set("spark.sql.catalog.mycat.warehouse", tableLocation);
@@ -63,7 +63,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
   }
 
   @Test
-  public void testSparkCatalogNamedHadoopTable() throws TableAlreadyExistsException, NoSuchTableException, IOException {
+  public void testSparkCatalogNamedHadoopTable() throws Exception {
     spark.conf().set("spark.sql.catalog.hadoop", "org.apache.iceberg.spark.SparkCatalog");
     spark.conf().set("spark.sql.catalog.hadoop.type", "hadoop");
     spark.conf().set("spark.sql.catalog.hadoop.warehouse", tableLocation);
@@ -88,7 +88,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
   }
 
   @Test
-  public void testSparkCatalogNamedHiveTable() throws TableAlreadyExistsException, NoSuchTableException, IOException {
+  public void testSparkCatalogNamedHiveTable() throws Exception {
     spark.conf().set("spark.sql.catalog.hive", "org.apache.iceberg.spark.SparkCatalog");
     spark.conf().set("spark.sql.catalog.hive.type", "hadoop");
     spark.conf().set("spark.sql.catalog.hive.warehouse", tableLocation);
@@ -113,8 +113,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
   }
 
   @Test
-  public void testSparkSessionCatalogHadoopTable()
-      throws TableAlreadyExistsException, NoSuchTableException, IOException, NoSuchNamespaceException {
+  public void testSparkSessionCatalogHadoopTable() throws Exception {
     spark.conf().set("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog");
     spark.conf().set("spark.sql.catalog.spark_catalog.type", "hadoop");
     spark.conf().set("spark.sql.catalog.spark_catalog.warehouse", tableLocation);
@@ -139,8 +138,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
   }
 
   @Test
-  public void testSparkSessionCatalogHiveTable()
-      throws TableAlreadyExistsException, NoSuchTableException, IOException, NoSuchNamespaceException {
+  public void testSparkSessionCatalogHiveTable() throws Exception {
     spark.conf().set("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog");
     spark.conf().set("spark.sql.catalog.spark_catalog.type", "hive");
     SparkSessionCatalog cat = (SparkSessionCatalog) spark.sessionState().catalogManager().v2SessionCatalog();
