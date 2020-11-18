@@ -58,12 +58,12 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
-  private static final Schema SCHEMA = new Schema(
+  protected static final Schema SCHEMA = new Schema(
       optional(1, "c1", Types.IntegerType.get()),
       optional(2, "c2", Types.StringType.get()),
       optional(3, "c3", Types.StringType.get())
   );
-  private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
+  protected static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
       .truncate("c2", 2)
       .identity("c3")
       .build();
@@ -71,7 +71,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
   private File tableDir = null;
-  private String tableLocation = null;
+  protected String tableLocation = null;
 
   @Before
   public void setupTableLocation() throws Exception {
@@ -568,5 +568,31 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .as(Encoders.bean(ThreeColumnRecord.class))
         .collectAsList();
     Assert.assertEquals("Rows must match", records, actualRecords);
+  }
+
+  @Test
+  public void testHiveCatalogTable() throws IOException {
+    Table table = catalog.createTable(TableIdentifier.of("default", "hivetestorphan"), SCHEMA, SPEC, tableLocation,
+        Maps.newHashMap());
+
+    List<ThreeColumnRecord> records = Lists.newArrayList(
+        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA")
+    );
+
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+
+    df.select("c1", "c2", "c3")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save("default.hivetestorphan");
+
+    String location = table.location().replaceFirst("file:", "");
+    new File(location + "/data/trashfile").createNewFile();
+
+    List<String> results = Actions.forTable(table).removeOrphanFiles()
+        .olderThan(System.currentTimeMillis() + 1000).execute();
+    Assert.assertTrue("trash file should be removed",
+        results.contains("file:" + location + "data/trashfile"));
   }
 }
