@@ -36,11 +36,17 @@ import org.apache.iceberg.spark.SparkUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.DataFrameReader;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.parser.ParseException;
+
+// CHECKSTYLE:OFF
+import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
+// CHECKSTYLE:ON
 
 abstract class BaseSparkAction<R> implements Action<R> {
 
@@ -88,8 +94,7 @@ abstract class BaseSparkAction<R> implements Action<R> {
     JavaSparkContext context = new JavaSparkContext(spark.sparkContext());
     Broadcast<FileIO> ioBroadcast = context.broadcast(SparkUtil.serializableFileIO(table()));
 
-    Dataset<ManifestFileBean> allManifests = loadMetadataTable(spark, tableName, table().location(),
-        MetadataTableType.ALL_MANIFESTS)
+    Dataset<ManifestFileBean> allManifests = loadMetadataTable(spark, tableName, table().location(), ALL_MANIFESTS)
         .selectExpr("path", "length", "partition_spec_id as partitionSpecId", "added_snapshot_id as addedSnapshotId")
         .dropDuplicates("path")
         .repartition(spark.sessionState().conf().numShufflePartitions()) // avoid adaptive execution combining tasks
@@ -99,8 +104,7 @@ abstract class BaseSparkAction<R> implements Action<R> {
   }
 
   protected Dataset<Row> buildManifestFileDF(SparkSession spark, String tableName) {
-    return loadMetadataTable(spark, tableName, table().location(), MetadataTableType.ALL_MANIFESTS)
-        .selectExpr("path as file_path");
+    return loadMetadataTable(spark, tableName, table().location(), ALL_MANIFESTS).selectExpr("path as file_path");
   }
 
   protected Dataset<Row> buildManifestListDF(SparkSession spark, Table table) {
@@ -130,24 +134,27 @@ abstract class BaseSparkAction<R> implements Action<R> {
                                                   MetadataTableType type) {
     DataFrameReader noCatalogReader = spark.read().format("iceberg");
     if (tableName.contains("/")) {
-      // Metadata location passed, load without a catalog
+      // Hadoop Table or Metadata location passed, load without a catalog
       return noCatalogReader.load(tableName + "#" + type);
-    } else {
-      // Try catalog based name based resolution
-      try {
-        return spark.table(tableName + "." + type);
-      } catch (Exception e) {
-        // Catalog based resolution failed, our catalog may be a non-DatasourceV2 Catalog
-        if (tableName.startsWith("hadoop.")) {
-          // Try loading by location as Hadoop table without Catalog
-          return noCatalogReader.load(tableLocation + "#" + type);
-        } else if (tableName.startsWith("hive")) {
-          // Try loading by name as a Hive table without Catalog
-          return noCatalogReader.load(tableName.replaceFirst("hive\\.", "") + "." + type);
-        } else {
-          throw new IllegalArgumentException(String.format(
-              "Cannot find the metadata table for %s of type %s", tableName, type));
-        }
+    }
+    // Try catalog based name based resolution
+    try {
+      return spark.table(tableName + "." + type);
+    } catch (Exception e) {
+      if (!(e instanceof ParseException || e instanceof AnalysisException)) {
+        // Rethrow unexpected exceptions
+        throw e;
+      }
+      // Catalog based resolution failed, our catalog may be a non-DatasourceV2 Catalog
+      if (tableName.startsWith("hadoop.")) {
+        // Try loading by location as Hadoop table without Catalog
+        return noCatalogReader.load(tableLocation + "#" + type);
+      } else if (tableName.startsWith("hive")) {
+        // Try loading by name as a Hive table without Catalog
+        return noCatalogReader.load(tableName.replaceFirst("hive\\.", "") + "." + type);
+      } else {
+        throw new IllegalArgumentException(String.format(
+            "Cannot find the metadata table for %s of type %s", tableName, type));
       }
     }
   }
