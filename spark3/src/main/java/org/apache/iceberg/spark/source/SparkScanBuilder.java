@@ -55,6 +55,7 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
   private boolean caseSensitive;
   private List<Expression> filterExpressions = null;
   private Filter[] pushedFilters = NO_FILTERS;
+  private boolean ignoreResiduals = false;
 
   // lazy variables
   private JavaSparkContext lazySparkContext = null;
@@ -133,12 +134,25 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
     this.requestedProjection = requestedSchema;
   }
 
+  public SparkScanBuilder ignoreResiduals() {
+    this.ignoreResiduals = true;
+    return this;
+  }
+
   @Override
   public Scan build() {
     Broadcast<FileIO> io = lazySparkContext().broadcast(SparkUtil.serializableFileIO(table));
     Broadcast<EncryptionManager> encryption = lazySparkContext().broadcast(table.encryption());
 
-    return new SparkBatchScan(table, io, encryption, caseSensitive, lazySchema(), filterExpressions, options);
+    return new SparkBatchQueryScan(table, io, encryption, caseSensitive, lazySchema(), filterExpressions, options);
   }
 
+  public Scan buildMergeScan() {
+    Broadcast<FileIO> io = lazySparkContext().broadcast(SparkUtil.serializableFileIO(table));
+    Broadcast<EncryptionManager> encryption = lazySparkContext().broadcast(table.encryption());
+
+    return new SparkMergeScan(
+        table, io, encryption, caseSensitive, ignoreResiduals,
+        lazySchema(), filterExpressions, options);
+  }
 }
