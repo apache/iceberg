@@ -21,6 +21,8 @@ package org.apache.iceberg;
 
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.events.IncrementalScanEvent;
+import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
@@ -68,7 +70,6 @@ class IncrementalDataTableScan extends DataTableScan {
 
   @Override
   public CloseableIterable<FileScanTask> planFiles() {
-    // TODO publish an incremental appends scan event
     List<Snapshot> snapshots = snapshotsWithin(table(),
         context().fromSnapshotId(), context().toSnapshotId());
     Set<Long> snapshotIds = Sets.newHashSet(Iterables.transform(snapshots, Snapshot::snapshotId));
@@ -92,6 +93,9 @@ class IncrementalDataTableScan extends DataTableScan {
     if (shouldIgnoreResiduals()) {
       manifestGroup = manifestGroup.ignoreResiduals();
     }
+
+    Listeners.notifyAll(new IncrementalScanEvent(table().name(), context().fromSnapshotId(),
+        context().toSnapshotId(), context().rowFilter(), schema()));
 
     if (PLAN_SCANS_WITH_WORKER_POOL && manifests.size() > 1) {
       manifestGroup = manifestGroup.planWith(ThreadPools.getWorkerPool());

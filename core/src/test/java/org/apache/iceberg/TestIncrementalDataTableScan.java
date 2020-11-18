@@ -22,6 +22,9 @@ package org.apache.iceberg;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import org.apache.iceberg.events.IncrementalScanEvent;
+import org.apache.iceberg.events.Listener;
+import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -78,8 +81,31 @@ public class TestIncrementalDataTableScan extends TableTestBase {
     add(table.newAppend(), files("C"));
     add(table.newAppend(), files("D"));
     add(table.newAppend(), files("E")); // 5
+
+    class MyListener implements Listener<IncrementalScanEvent> {
+
+      IncrementalScanEvent lastEvent = null;
+
+      public void notify(IncrementalScanEvent event) {
+        this.lastEvent = event;
+      }
+
+      public IncrementalScanEvent event() {
+        return lastEvent;
+      }
+    }
+
+    MyListener listener1 = new MyListener();
+    Listeners.register(listener1, IncrementalScanEvent.class);
     filesMatch(Lists.newArrayList("B", "C", "D", "E"), appendsBetweenScan(1, 5));
+    Assert.assertTrue(listener1.event().fromSnapshotId() == 1);
+    Assert.assertTrue(listener1.event().toSnapshotId() == 5);
     filesMatch(Lists.newArrayList("C", "D", "E"), appendsBetweenScan(2, 5));
+    Assert.assertTrue(listener1.event().fromSnapshotId() == 2);
+    Assert.assertTrue(listener1.event().toSnapshotId() == 5);
+    Assert.assertEquals(table.schema(), listener1.event().projection());
+    Assert.assertEquals(Expressions.alwaysTrue(), listener1.event().filter());
+    Assert.assertEquals("test", listener1.event().tableName());
   }
 
   @Test
