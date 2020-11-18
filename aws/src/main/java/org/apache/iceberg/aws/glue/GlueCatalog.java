@@ -63,7 +63,6 @@ import software.amazon.awssdk.services.glue.model.GetTableRequest;
 import software.amazon.awssdk.services.glue.model.GetTableResponse;
 import software.amazon.awssdk.services.glue.model.GetTablesRequest;
 import software.amazon.awssdk.services.glue.model.GetTablesResponse;
-import software.amazon.awssdk.services.glue.model.GlueException;
 import software.amazon.awssdk.services.glue.model.InvalidInputException;
 import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.TableInput;
@@ -233,29 +232,33 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
       throw new NoSuchTableException(e, "Cannot rename %s because the table does not exist in Glue", from);
     }
 
-    dropTable(from, false);
     // use the same Glue info to create the new table, pointing to the old metadata
     TableInput.Builder tableInputBuilder = TableInput.builder()
         .owner(fromTable.owner())
         .tableType(fromTable.tableType())
         .parameters(fromTable.parameters());
+
+    glue.createTable(CreateTableRequest.builder()
+        .catalogId(awsProperties.glueCatalogId())
+        .databaseName(toTableDbName)
+        .tableInput(tableInputBuilder.name(toTableName).build())
+        .build());
+    LOG.info("created rename destination table {}", to);
+
     try {
-      glue.createTable(CreateTableRequest.builder()
+      dropTable(from, false);
+    } catch (Exception e) {
+      // rollback, delete renamed table
+      LOG.error("Fail to drop old table {} after renaming to {}, rollback to use the old table", from, to, e);
+      glue.deleteTable(DeleteTableRequest.builder()
           .catalogId(awsProperties.glueCatalogId())
           .databaseName(toTableDbName)
-          .tableInput(tableInputBuilder.name(toTableName).build())
-          .build());
-      LOG.info("Renamed table from {} to {}", from, to);
-    } catch (GlueException e) {
-      // rollback, recreate old table and rethrow exception
-      LOG.error("Fail to rename table from {} to {}, rollback the old table", from, to, e);
-      glue.createTable(CreateTableRequest.builder()
-          .catalogId(awsProperties.glueCatalogId())
-          .databaseName(fromTableDbName)
-          .tableInput(tableInputBuilder.name(fromTableName).build())
+          .name(toTableName)
           .build());
       throw e;
     }
+
+    LOG.info("Successfully renamed table from {} to {}", from, to);
   }
 
   @Override

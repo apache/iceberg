@@ -22,7 +22,6 @@ package org.apache.iceberg.aws.glue;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.aws.AwsProperties;
@@ -83,9 +82,8 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   @Override
   protected void doRefresh() {
     String metadataLocation = null;
-    Optional<Table> tableOptional = getGlueTable();
-    if (tableOptional.isPresent()) {
-      Table table = tableOptional.get();
+    Table table = getGlueTable();
+    if (table != null) {
       GlueToIcebergConverter.validateTable(table, tableName());
       metadataLocation = table.parameters().get(METADATA_LOCATION_PROP);
     } else {
@@ -102,28 +100,14 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
     boolean exceptionThrown = true;
-    boolean isUpdate = false;
-    Table glueTable = null;
+    Table glueTable = getGlueTable();
+    checkMetadataLocation(glueTable, base);
+    Map<String, String> properties = prepareProperties(glueTable, newMetadataLocation);
     try {
-      Optional<Table> glueTableOptional = getGlueTable();
-      if (glueTableOptional.isPresent()) {
-        glueTable = glueTableOptional.get();
-        isUpdate = true;
-        // If we try to create the table but the metadata location is already set, then we had a concurrent commit
-        if (base == null && glueTable.parameters().get(METADATA_LOCATION_PROP) != null) {
-          throw new AlreadyExistsException("Cannot commit because table %s already exists in Glue", tableName());
-        }
-      }
-
-      checkMetadataLocation(isUpdate, glueTable, base);
-      Map<String, String> properties = prepareProperties(isUpdate, glueTable, newMetadataLocation);
-      persistGlueTable(isUpdate, properties);
+      persistGlueTable(glueTable, properties);
       exceptionThrown = false;
-    } catch (CommitFailedException | AlreadyExistsException e) {
-      throw e;
     } catch (ConcurrentModificationException e) {
-      throw new CommitFailedException(e,
-          "Cannot commit %s because Glue detected concurrent update", tableName());
+      throw new CommitFailedException(e, "Cannot commit %s because Glue detected concurrent update", tableName());
     } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
       throw new AlreadyExistsException(e,
           "Cannot commit %s because its Glue table already exists when trying to create one", tableName());
@@ -136,8 +120,8 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     }
   }
 
-  private void checkMetadataLocation(boolean isUpdate, Table glueTable, TableMetadata base) {
-    String glueMetadataLocation = isUpdate ? glueTable.parameters().get(METADATA_LOCATION_PROP) : null;
+  private void checkMetadataLocation(Table glueTable, TableMetadata base) {
+    String glueMetadataLocation = glueTable != null ? glueTable.parameters().get(METADATA_LOCATION_PROP) : null;
     String baseMetadataLocation = base != null ? base.metadataFileLocation() : null;
     if (!Objects.equals(baseMetadataLocation, glueMetadataLocation)) {
       throw new CommitFailedException(
@@ -146,21 +130,21 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     }
   }
 
-  private Optional<Table> getGlueTable() {
+  private Table getGlueTable() {
     try {
       GetTableResponse response = glue.getTable(GetTableRequest.builder()
           .catalogId(awsProperties.glueCatalogId())
           .databaseName(databaseName)
           .name(tableName)
           .build());
-      return Optional.ofNullable(response.table());
+      return response.table();
     } catch (EntityNotFoundException e) {
-      return Optional.empty();
+      return null;
     }
   }
 
-  private Map<String, String> prepareProperties(boolean isUpdate, Table glueTable, String newMetadataLocation) {
-    Map<String, String> properties = isUpdate ? Maps.newHashMap(glueTable.parameters()) : Maps.newHashMap();
+  private Map<String, String> prepareProperties(Table glueTable, String newMetadataLocation) {
+    Map<String, String> properties = glueTable != null ? Maps.newHashMap(glueTable.parameters()) : Maps.newHashMap();
     properties.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH));
     properties.put(METADATA_LOCATION_PROP, newMetadataLocation);
     if (currentMetadataLocation() != null && !currentMetadataLocation().isEmpty()) {
@@ -170,8 +154,8 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     return properties;
   }
 
-  private void persistGlueTable(boolean isUpdate, Map<String, String> parameters) {
-    if (isUpdate) {
+  private void persistGlueTable(Table glueTable, Map<String, String> parameters) {
+    if (glueTable != null) {
       LOG.debug("Committing existing Glue table: {}", tableName());
       glue.updateTable(UpdateTableRequest.builder()
           .catalogId(awsProperties.glueCatalogId())

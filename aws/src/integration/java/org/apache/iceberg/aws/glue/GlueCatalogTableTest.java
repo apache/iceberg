@@ -35,14 +35,18 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 import software.amazon.awssdk.services.glue.model.CreateTableRequest;
+import software.amazon.awssdk.services.glue.model.EntityNotFoundException;
 import software.amazon.awssdk.services.glue.model.GetTableRequest;
 import software.amazon.awssdk.services.glue.model.GetTableResponse;
 import software.amazon.awssdk.services.glue.model.GetTableVersionsRequest;
 import software.amazon.awssdk.services.glue.model.TableInput;
+import software.amazon.awssdk.services.glue.model.UpdateTableRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
@@ -152,7 +156,7 @@ public class GlueCatalogTableTest extends GlueTestBase {
   }
 
   @Test
-  public void testRenameTableFailure() {
+  public void testRenameTable_failToCreateNewTable() {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
     TableIdentifier id = TableIdentifier.of(namespace, tableName);
@@ -169,11 +173,34 @@ public class GlueCatalogTableTest extends GlueTestBase {
         () -> glueCatalog.renameTable(
             TableIdentifier.of(namespace, tableName), TableIdentifier.of(namespace, newTableName)));
     // old table can still be read with same metadata
-    Table rollbackTable = glueCatalog.loadTable(id);
-    Assert.assertEquals(table.location(), rollbackTable.location());
-    Assert.assertEquals(table.schema().toString(), rollbackTable.schema().toString());
-    Assert.assertEquals(table.spec(), rollbackTable.spec());
-    Assert.assertEquals(table.currentSnapshot(), rollbackTable.currentSnapshot());
+    Table oldTable = glueCatalog.loadTable(id);
+    Assert.assertEquals(table.location(), oldTable.location());
+    Assert.assertEquals(table.schema().toString(), oldTable.schema().toString());
+    Assert.assertEquals(table.spec(), oldTable.spec());
+    Assert.assertEquals(table.currentSnapshot(), oldTable.currentSnapshot());
+  }
+
+  @Test
+  public void testRenameTable_failToDeleteOldTable() {
+    String namespace = createNamespace();
+    String tableName = createTable(namespace);
+    TableIdentifier id = TableIdentifier.of(namespace, tableName);
+    Table table = glueCatalog.loadTable(id);
+    // delete the old table metadata, so that drop old table will fail
+    String newTableName = tableName + "_2";
+    glue.updateTable(UpdateTableRequest.builder()
+        .databaseName(namespace)
+        .tableInput(TableInput.builder().name(tableName).parameters(Maps.newHashMap()).build())
+        .build());
+    AssertHelpers.assertThrows("should fail to rename",
+        ValidationException.class,
+        "Input Glue table is not an iceberg table",
+        () -> glueCatalog.renameTable(
+            TableIdentifier.of(namespace, tableName), TableIdentifier.of(namespace, newTableName)));
+    AssertHelpers.assertThrows("renamed table should be deleted",
+        EntityNotFoundException.class,
+        "not found",
+        () -> glue.getTable(GetTableRequest.builder().databaseName(namespace).name(newTableName).build()));
   }
 
   @Test
