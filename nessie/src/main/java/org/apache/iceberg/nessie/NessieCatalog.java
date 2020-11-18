@@ -53,6 +53,8 @@ import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Nessie implementation of Iceberg Catalog.
@@ -64,7 +66,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
  * </p>
  */
 public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable, SupportsNamespaces, Configurable {
-
+  private static final Logger logger = LoggerFactory.getLogger(NessieCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
   public static final String NESSIE_WAREHOUSE_DIR = "nessie.warehouse.dir";
   private NessieClient client;
@@ -74,9 +76,6 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   private String name;
   private FileIO fileIO;
 
-  /**
-   * Try to avoid passing parameters via hadoop config. Dynamic catalog expects Map instead
-   */
   public NessieCatalog() {
   }
 
@@ -85,14 +84,13 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     String fileIOImpl = options.get(CatalogProperties.FILE_IO_IMPL);
     this.fileIO = fileIOImpl == null ? new HadoopFileIO(config) : CatalogUtil.loadFileIO(fileIOImpl, options, config);
     this.name = inputName == null ? "nessie" : inputName;
-    this.client = NessieClient.withConfig(s -> options.getOrDefault(s, config.get(s)));
+    this.client = NessieClient.withConfig(options::get);
 
-    this.warehouseLocation = options.getOrDefault(NESSIE_WAREHOUSE_DIR, config.get(NESSIE_WAREHOUSE_DIR));
+    this.warehouseLocation = options.get(NESSIE_WAREHOUSE_DIR);
     if (warehouseLocation == null) {
       throw new IllegalStateException("Parameter nessie.warehouse.dir not set, nessie can't store data.");
     }
-    final String requestedRef = options.getOrDefault(NessieClient.CONF_NESSIE_REF,
-        config.get(NessieClient.CONF_NESSIE_REF));
+    final String requestedRef = options.get(NessieClient.CONF_NESSIE_REF);
     this.reference = loadReference(requestedRef);
   }
 
@@ -148,11 +146,13 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
       } catch (NessieConflictException e) {
         // pass for retry
       } catch (NessieNotFoundException e) {
-        throw new RuntimeException("Cannot drop table: ref is no longer valid.", e);
+        logger.error("Cannot drop table: ref is no longer valid.", e);
+        return false;
       }
     }
     if (count >= 5) {
-      throw new RuntimeException("Cannot drop table: failed after retry (update hash and retry)");
+      logger.error("Cannot drop table: failed after retry (update hash and retry)");
+      return false;
     }
     return true;
   }

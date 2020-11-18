@@ -61,6 +61,7 @@ public abstract class BaseTestIceberg {
   protected ContentsApi contents;
   protected Configuration hadoopConfig;
   protected final String branch;
+  private String path;
 
   public BaseTestIceberg(String branch) {
     this.branch = branch;
@@ -80,7 +81,7 @@ public abstract class BaseTestIceberg {
   @Before
   public void beforeEach() throws IOException {
     String port = System.getProperty("quarkus.http.test-port", "19120");
-    String path = String.format("http://localhost:%s/api/v1", port);
+    path = String.format("http://localhost:%s/api/v1", port);
     this.client = NessieClient.none(path);
     tree = client.getTreeApi();
     contents = client.getContentsApi();
@@ -94,17 +95,17 @@ public abstract class BaseTestIceberg {
     }
 
     hadoopConfig = new Configuration();
-    hadoopConfig.set(NessieClient.CONF_NESSIE_URL, path);
-    hadoopConfig.set(NessieClient.CONF_NESSIE_REF, branch);
-    hadoopConfig.set(NessieClient.CONF_NESSIE_AUTH_TYPE, "NONE");
-    hadoopConfig.set("nessie.warehouse.dir", temp.getRoot().toURI().toString());
     catalog = initCatalog(branch);
   }
 
   NessieCatalog initCatalog(String ref) {
     NessieCatalog newCatalog = new NessieCatalog();
     newCatalog.setConf(hadoopConfig);
-    newCatalog.initialize(null, ImmutableMap.of(NessieClient.CONF_NESSIE_REF, ref));
+    newCatalog.initialize(null, ImmutableMap.of(NessieClient.CONF_NESSIE_REF, ref,
+        NessieClient.CONF_NESSIE_URL, path,
+        NessieClient.CONF_NESSIE_AUTH_TYPE, "NONE",
+        "nessie.warehouse.dir", temp.getRoot().toURI().toString()
+        ));
     return newCatalog;
   }
 

@@ -64,7 +64,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
     try {
       reference.refresh();
     } catch (NessieNotFoundException e) {
-      throw new RuntimeException("Failed to drop table as ref is no longer valid.", e);
+      throw new RuntimeException("Failed to refresh as ref is no longer valid.", e);
     }
     String metadataLocation = null;
     try {
