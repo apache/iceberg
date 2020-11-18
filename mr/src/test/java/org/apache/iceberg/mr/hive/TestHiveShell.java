@@ -171,6 +171,12 @@ public class TestHiveShell {
     hiveConf.setLongVar(HiveConf.ConfVars.HIVECOUNTERSPULLINTERVAL, 1L);
     hiveConf.setBoolVar(HiveConf.ConfVars.HIVESTATSAUTOGATHER, false);
 
+    // Resource configuration
+    hiveConf.setInt("mapreduce.map.memory.mb", 1024);
+
+    // Tez configuration
+    hiveConf.setBoolean("tez.local.mode", true);
+
     return hiveConf;
   }
 }

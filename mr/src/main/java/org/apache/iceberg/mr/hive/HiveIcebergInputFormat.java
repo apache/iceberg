@@ -49,8 +49,6 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
 
   private static final Logger LOG = LoggerFactory.getLogger(HiveIcebergInputFormat.class);
 
-  private String[] selectedColumns;
-
   @Override
   public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
     // Convert Hive filter to Iceberg filter
@@ -67,7 +65,7 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
       }
     }
 
-    selectedColumns = ColumnProjectionUtils.getReadColumnNames(job);
+    String[] selectedColumns = ColumnProjectionUtils.getReadColumnNames(job);
     job.setStrings(InputFormatConfig.SELECTED_COLUMNS, selectedColumns);
 
     String location = job.get(InputFormatConfig.TABLE_LOCATION);
@@ -79,6 +77,7 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
   @Override
   public RecordReader<Void, Container<Record>> getRecordReader(InputSplit split, JobConf job,
                                                                Reporter reporter) throws IOException {
+    String[] selectedColumns = ColumnProjectionUtils.getReadColumnNames(job);
     job.setStrings(InputFormatConfig.SELECTED_COLUMNS, selectedColumns);
     return super.getRecordReader(split, job, reporter);
   }

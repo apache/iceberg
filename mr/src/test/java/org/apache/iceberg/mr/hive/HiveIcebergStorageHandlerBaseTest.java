@@ -20,6 +20,8 @@
 package org.apache.iceberg.mr.hive;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -110,13 +112,28 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   public abstract TestTables testTables(Configuration conf, TemporaryFolder tmp) throws IOException;
 
-  @Parameters(name = "fileFormat={0}")
-  public static Iterable<FileFormat> fileFormats() {
-    return ImmutableList.of(FileFormat.PARQUET, FileFormat.ORC, FileFormat.AVRO);
+  @Parameters(name = "fileFormat={0}, engine={1}")
+  public static Collection<Object[]> parameters() {
+    Collection<Object[]> testParams = new ArrayList<>();
+    testParams.add(new Object[] { FileFormat.PARQUET, "mr" });
+    testParams.add(new Object[] { FileFormat.ORC, "mr" });
+    testParams.add(new Object[] { FileFormat.AVRO, "mr" });
+
+    // include Tez tests only for Java 8
+    String javaVersion = System.getProperty("java.specification.version");
+    if (javaVersion.equals("1.8")) {
+      testParams.add(new Object[] { FileFormat.PARQUET, "tez" });
+      testParams.add(new Object[] { FileFormat.ORC, "tez" });
+      testParams.add(new Object[] { FileFormat.AVRO, "tez" });
+    }
+    return testParams;
   }
 
-  @Parameter
+  @Parameter(0)
   public FileFormat fileFormat;
+
+  @Parameter(1)
+  public String executionEngine;
 
   @BeforeClass
   public static void beforeClass() {
@@ -136,6 +153,14 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     testTables = testTables(shell.metastore().hiveConf(), temp);
     for (Map.Entry<String, String> property : testTables.properties().entrySet()) {
       shell.setHiveSessionValue(property.getKey(), property.getValue());
+    }
+    shell.setHiveSessionValue("hive.execution.engine", executionEngine);
+    shell.setHiveSessionValue("hive.jar.directory", temp.getRoot().getAbsolutePath());
+    shell.setHiveSessionValue("tez.staging-dir", temp.getRoot().getAbsolutePath());
+    // temporarily disabling vectorization in Tez, since it doesn't work with projection pruning (fix: TEZ-4248)
+    // TODO: remove this once TEZ-4248 has been released and the Tez dependencies updated here
+    if (executionEngine.equals("tez")) {
+      shell.setHiveSessionValue("hive.vectorized.execution.enabled", "false");
     }
   }
 
@@ -170,12 +195,13 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Assert.assertArrayEquals(new Object[] {2L, "Trudy", "Pink"}, rows.get(2));
 
     // Adding the ORDER BY clause will cause Hive to spawn a local MR job this time.
-    List<Object[]> descRows = shell.executeStatement("SELECT * FROM default.customers ORDER BY customer_id DESC");
+    List<Object[]> descRows =
+        shell.executeStatement("SELECT first_name, customer_id FROM default.customers ORDER BY customer_id DESC");
 
     Assert.assertEquals(3, descRows.size());
-    Assert.assertArrayEquals(new Object[] {2L, "Trudy", "Pink"}, descRows.get(0));
-    Assert.assertArrayEquals(new Object[] {1L, "Bob", "Green"}, descRows.get(1));
-    Assert.assertArrayEquals(new Object[] {0L, "Alice", "Brown"}, descRows.get(2));
+    Assert.assertArrayEquals(new Object[] {"Trudy", 2L}, descRows.get(0));
+    Assert.assertArrayEquals(new Object[] {"Bob", 1L}, descRows.get(1));
+    Assert.assertArrayEquals(new Object[] {"Alice", 0L}, descRows.get(2));
   }
 
   @Test
