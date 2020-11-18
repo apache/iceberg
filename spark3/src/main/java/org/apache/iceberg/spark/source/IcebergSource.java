@@ -19,17 +19,23 @@
 
 package org.apache.iceberg.spark.source;
 
+import java.util.Arrays;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.hive.HiveCatalog;
-import org.apache.iceberg.hive.HiveCatalogs;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.connector.catalog.CatalogManager;
+import org.apache.spark.sql.connector.catalog.CatalogPlugin;
+import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableProvider;
 import org.apache.spark.sql.connector.expressions.Transform;
+import org.apache.spark.sql.internal.SQLConf;
+import org.apache.spark.sql.internal.StaticSQLConf;
 import org.apache.spark.sql.sources.DataSourceRegister;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -74,10 +80,44 @@ public class IcebergSource implements DataSourceRegister, TableProvider {
       HadoopTables tables = new HadoopTables(conf);
       return tables.load(path);
     } else {
-      HiveCatalog hiveCatalog = HiveCatalogs.loadCatalog(conf);
-      TableIdentifier tableIdentifier = TableIdentifier.parse(path);
-      return hiveCatalog.loadTable(tableIdentifier);
+      return parsePath(path);
     }
+  }
+
+  private Table parsePath(String path) {
+    CatalogManager catalogManager = SparkSession.active().sessionState().catalogManager();
+    String globalTempDB = SQLConf.get().getConf(StaticSQLConf.GLOBAL_TEMP_DATABASE());
+    TableIdentifier tableIdentifier = TableIdentifier.parse(path);
+
+    Identifier ident;
+    CatalogPlugin catalog;
+    if (!tableIdentifier.hasNamespace()) {
+      ident = Identifier.of(catalogManager.currentNamespace(), tableIdentifier.name());
+      catalog = catalogManager.currentCatalog();
+    } else if (tableIdentifier.namespace().levels()[0].equalsIgnoreCase(globalTempDB)) {
+      catalog = catalogManager.v2SessionCatalog();
+      ident = Identifier.of(tableIdentifier.namespace().levels(), tableIdentifier.name());
+    } else {
+      String[] namespaceLevels = tableIdentifier.namespace().levels();
+      try {
+        catalog = catalogManager.catalog(namespaceLevels[0]);
+        ident = Identifier.of(Arrays.copyOfRange(namespaceLevels, 1, namespaceLevels.length), tableIdentifier.name());
+      } catch (Exception e) {
+        catalog = catalogManager.currentCatalog();
+        ident = Identifier.of(tableIdentifier.namespace().levels(), tableIdentifier.name());
+      }
+    }
+    try {
+      if (catalog instanceof TableCatalog) {
+        org.apache.spark.sql.connector.catalog.Table table = ((TableCatalog) catalog).loadTable(ident);
+        if (table instanceof SparkTable) {
+          return ((SparkTable) table).table();
+        }
+      }
+    } catch (NoSuchTableException e) {
+      // pass
+    }
+    return null;
   }
 
   private Table getTableAndResolveHadoopConfiguration(Map<String, String> options, Configuration conf) {
