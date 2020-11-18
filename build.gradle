@@ -608,7 +608,7 @@ project(':iceberg-hive-runtime') {
       compile project(':iceberg-hive3')
     }
     // including thrift so that the Tez AM can communicate with the HMS when using Hive catalog
-    compile("org.apache.thrift:libfb303:0.9.3")
+    compile("org.apache.thrift:libfb303")
   }
   
   shadowJar {
