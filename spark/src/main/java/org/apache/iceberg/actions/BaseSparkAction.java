@@ -29,6 +29,7 @@ import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -137,7 +138,19 @@ abstract class BaseSparkAction<R> implements Action<R> {
     }
     // Try catalog based name based resolution
     try {
-      return spark.table(tableName + "." + type);
+      if (tableName.startsWith("spark_catalog")) {
+        // Do to the design of Spark, we cannot pass multi element namespaces to the session catalog
+        // We also don't know whether the Catalog is Hive or Hadoop Based, so we will try to load it
+        // in the hive manner first, then fall back and try the location if we have completely run out of options
+        // TODO remove this when we have Spark workaround for multipart identifiers in SparkSessionCatalog
+        try {
+          return noCatalogReader.load(tableName.replaceFirst("spark_catalog\\.", "") + "." + type);
+        } catch (NoSuchTableException noSuchTableException) {
+          return noCatalogReader.load(tableLocation + "#" + type);
+        }
+      } else {
+        return spark.table(tableName + "." + type);
+      }
     } catch (Exception e) {
       if (!(e instanceof ParseException || e instanceof AnalysisException)) {
         // Rethrow unexpected exceptions

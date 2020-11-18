@@ -26,7 +26,9 @@ import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.source.SparkTable;
+import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -61,7 +63,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
   }
 
   @Test
-  public void testSparkCatalogHadoopTable() throws TableAlreadyExistsException, NoSuchTableException, IOException {
+  public void testSparkCatalogNamedHadoopTable() throws TableAlreadyExistsException, NoSuchTableException, IOException {
     spark.conf().set("spark.sql.catalog.hadoop", "org.apache.iceberg.spark.SparkCatalog");
     spark.conf().set("spark.sql.catalog.hadoop.type", "hadoop");
     spark.conf().set("spark.sql.catalog.hadoop.warehouse", tableLocation);
@@ -86,7 +88,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
   }
 
   @Test
-  public void testSparkCatalogHiveTable() throws TableAlreadyExistsException, NoSuchTableException, IOException {
+  public void testSparkCatalogNamedHiveTable() throws TableAlreadyExistsException, NoSuchTableException, IOException {
     spark.conf().set("spark.sql.catalog.hive", "org.apache.iceberg.spark.SparkCatalog");
     spark.conf().set("spark.sql.catalog.hive.type", "hadoop");
     spark.conf().set("spark.sql.catalog.hive.warehouse", tableLocation);
@@ -100,6 +102,58 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     SparkTable table = cat.loadTable(id);
 
     spark.sql("INSERT INTO hive.default.table VALUES (1,1,1)");
+
+    String location = table.table().location().replaceFirst("file:", "");
+    new File(location + "/data/trashfile").createNewFile();
+
+    List<String> results = Actions.forTable(table.table()).removeOrphanFiles()
+        .olderThan(System.currentTimeMillis() + 1000).execute();
+    Assert.assertTrue("trash file should be removed",
+        results.contains("file:" + location + "/data/trashfile"));
+  }
+
+  @Test
+  public void testSparkSessionCatalogHadoopTable()
+      throws TableAlreadyExistsException, NoSuchTableException, IOException, NoSuchNamespaceException {
+    spark.conf().set("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog");
+    spark.conf().set("spark.sql.catalog.spark_catalog.type", "hadoop");
+    spark.conf().set("spark.sql.catalog.spark_catalog.warehouse", tableLocation);
+    SparkSessionCatalog cat = (SparkSessionCatalog) spark.sessionState().catalogManager().v2SessionCatalog();
+
+    String[] database = {"default"};
+    Identifier id = Identifier.of(database, "table");
+    Map<String, String> options = Maps.newHashMap();
+    Transform[] transforms = {};
+    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, options);
+    SparkTable table = (SparkTable) cat.loadTable(id);
+
+    spark.sql("INSERT INTO default.table VALUES (1,1,1)");
+
+    String location = table.table().location().replaceFirst("file:", "");
+    new File(location + "/data/trashfile").createNewFile();
+
+    List<String> results = Actions.forTable(table.table()).removeOrphanFiles()
+        .olderThan(System.currentTimeMillis() + 1000).execute();
+    Assert.assertTrue("trash file should be removed",
+        results.contains("file:" + location + "/data/trashfile"));
+  }
+
+  @Test
+  public void testSparkSessionCatalogHiveTable()
+      throws TableAlreadyExistsException, NoSuchTableException, IOException, NoSuchNamespaceException {
+    spark.conf().set("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog");
+    spark.conf().set("spark.sql.catalog.spark_catalog.type", "hive");
+    SparkSessionCatalog cat = (SparkSessionCatalog) spark.sessionState().catalogManager().v2SessionCatalog();
+
+    String[] database = {"default"};
+    Identifier id = Identifier.of(database, "sessioncattest");
+    Map<String, String> options = Maps.newHashMap();
+    Transform[] transforms = {};
+    cat.dropTable(id);
+    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, options);
+    SparkTable table = (SparkTable) cat.loadTable(id);
+
+    spark.sql("INSERT INTO default.sessioncattest VALUES (1,1,1)");
 
     String location = table.table().location().replaceFirst("file:", "");
     new File(location + "/data/trashfile").createNewFile();
