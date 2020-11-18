@@ -118,6 +118,10 @@ public class AwsProperties {
     this.s3FileIoSseKey = null;
     this.s3FileIoSseMd5 = null;
 
+    this.s3FileIoMultipartUploadThreads = Runtime.getRuntime().availableProcessors();
+    this.s3FileIoMultiPartSize = DEFAULT_MULTIPART_SIZE;
+    this.s3FileIOMultipartThresholdFactor = DEFAULT_MULTIPART_THRESHOLD;
+    
     this.glueCatalogId = null;
     this.glueCatalogSkipArchive = GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT;
   }
