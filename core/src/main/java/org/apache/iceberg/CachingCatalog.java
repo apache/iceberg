@@ -22,12 +22,14 @@ package org.apache.iceberg;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class CachingCatalog implements Catalog {
   public static Catalog wrap(Catalog catalog) {
@@ -126,20 +128,36 @@ public class CachingCatalog implements Catalog {
     // when the transaction commits, invalidate the table in the cache if it is present.
     return CommitCallbackTransaction.addCallback(
         catalog.newReplaceTableTransaction(ident, schema, spec, location, properties, orCreate),
-        () -> tableCache.invalidate(canonicalizeIdentifier(ident)));
+        () -> invalidate(canonicalizeIdentifier(ident)));
   }
 
   @Override
   public boolean dropTable(TableIdentifier ident, boolean purge) {
     boolean dropped = catalog.dropTable(ident, purge);
-    tableCache.invalidate(canonicalizeIdentifier(ident));
+    invalidate(canonicalizeIdentifier(ident));
     return dropped;
   }
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
     catalog.renameTable(from, to);
-    tableCache.invalidate(canonicalizeIdentifier(from));
+    invalidate(canonicalizeIdentifier(from));
   }
 
+  private void invalidate(TableIdentifier ident) {
+    tableCache.invalidate(ident);
+    tableCache.invalidateAll(metadataTableIdentifiers(ident));
+  }
+
+  private Iterable<TableIdentifier> metadataTableIdentifiers(TableIdentifier ident) {
+    ImmutableList.Builder<TableIdentifier> builder = ImmutableList.builder();
+
+    for (MetadataTableType type : MetadataTableType.values()) {
+      // metadata table resolution is case insensitive right now
+      builder.add(TableIdentifier.parse(ident + "." + type.name()));
+      builder.add(TableIdentifier.parse(ident + "." + type.name().toLowerCase(Locale.ROOT)));
+    }
+
+    return builder.build();
+  }
 }
