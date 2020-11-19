@@ -183,7 +183,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     createTable("empty", emptySchema, ImmutableList.of());
 
     List<Object[]> rows = shell.executeStatement("SELECT * FROM default.empty");
-    Assert.assertEquals(0, rows.size());
+    Assert.assertEquals(1, rows.size());
   }
 
   @Test
@@ -205,6 +205,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Assert.assertArrayEquals(new Object[] {2L, "Trudy"}, descRows.get(0));
     Assert.assertArrayEquals(new Object[] {1L, "Bob"}, descRows.get(1));
     Assert.assertArrayEquals(new Object[] {0L, "Alice"}, descRows.get(2));
+    throw new RuntimeException("Test exception stack trace");
   }
 
   @Test
