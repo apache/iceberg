@@ -69,7 +69,6 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.Option;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
 
@@ -157,14 +156,14 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     this.io = io;
     this.encryptionManager = encryptionManager;
     this.caseSensitive = caseSensitive;
-    Option<String> option = SparkSession.active().sparkContext().getConf()
-            .getOption("spark.iceberg.vectorization.enabled");
-    if (option.isDefined()) {
-      this.batchReadsEnabled = Boolean.valueOf(option.get());
+    String batchReadsSessionConf = SparkSession.active().conf()
+        .get("spark.iceberg.vectorization.enabled", null);
+    if (batchReadsSessionConf != null) {
+      this.batchReadsEnabled = Boolean.valueOf(batchReadsSessionConf);
     } else {
       this.batchReadsEnabled = options.get("vectorization-enabled").map(Boolean::parseBoolean).orElseGet(() ->
-              PropertyUtil.propertyAsBoolean(table.properties(), TableProperties.PARQUET_VECTORIZATION_ENABLED,
-                      TableProperties.PARQUET_VECTORIZATION_ENABLED_DEFAULT));
+          PropertyUtil.propertyAsBoolean(table.properties(), TableProperties.PARQUET_VECTORIZATION_ENABLED,
+              TableProperties.PARQUET_VECTORIZATION_ENABLED_DEFAULT));
     }
     this.batchSize = options.get("batch-size").map(Integer::parseInt).orElseGet(() ->
         PropertyUtil.propertyAsInt(table.properties(),
