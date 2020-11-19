@@ -109,13 +109,17 @@ public final class HiveIcebergOutputCommitter extends OutputCommitter {
     int expectedFiles = conf.getNumReduceTasks() != 0 ? conf.getNumReduceTasks() : conf.getNumMapTasks();
     Table table = Catalogs.loadTable(conf);
 
+    long startTime = System.currentTimeMillis();
+    LOG.info("Committing job is started for {} using {} expecting {} file(s)", table,
+        LocationHelper.generateJobLocation(conf, jobContext.getJobID()), expectedFiles);
+
     ExecutorService executor = null;
     try {
       // Creating executor service for parallel handling of file reads
       executor = Executors.newFixedThreadPool(
           conf.getInt(InputFormatConfig.COMMIT_THREAD_POOL_SIZE, InputFormatConfig.COMMIT_THREAD_POOL_SIZE_DEFAULT),
           new ThreadFactoryBuilder()
-              .setDaemon(false)
+              .setDaemon(true)
               .setPriority(Thread.NORM_PRIORITY)
               .setNameFormat("iceberg-commit-pool-%d")
               .build());
@@ -154,9 +158,11 @@ public final class HiveIcebergOutputCommitter extends OutputCommitter {
           addedFiles.add(dataFile.path().toString());
         });
         append.commit();
-        LOG.info("Iceberg write is committed for {} with files {}", table, addedFiles);
+        LOG.info("Commit for Iceberg write taken {} ms for {} with file(s) {}",
+            System.currentTimeMillis() - startTime, table, addedFiles);
       } else {
-        LOG.info("Iceberg write is committed for {} with no new files", table);
+        LOG.info("Commit for Iceberg write taken {} ms for {} with no new files",
+            System.currentTimeMillis() - startTime, table);
       }
 
       // Calling super to cleanupJob if something more is needed
