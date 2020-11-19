@@ -21,6 +21,7 @@ package org.apache.iceberg.aws;
 
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.PropertyUtil;
 
 public class AwsProperties {
 
@@ -65,14 +66,36 @@ public class AwsProperties {
    */
   public static final String S3FILEIO_SSE_MD5 = "s3fileio.sse.md5";
 
+  /**
+   * The ID of the Glue Data Catalog where the tables reside.
+   * If none is provided, Glue automatically uses the caller's AWS account ID by default.
+   * For more details, see https://docs.aws.amazon.com/glue/latest/dg/aws-glue-api-catalog-databases.html
+   */
+  public static final String GLUE_CATALOG_ID = "gluecatalog.id";
+
+  /**
+   * If Glue should skip archiving an old table version when creating a new version in a commit.
+   * By default Glue archives all old table versions after an UpdateTable call,
+   * but Glue has a default max number of archived table versions (can be increased).
+   * So for streaming use case with lots of commits, it is recommended to set this value to true.
+   */
+  public static final String GLUE_CATALOG_SKIP_ARCHIVE = "gluecatalog.skip-archive";
+  public static final boolean GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT = false;
+
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
   private String s3FileIoSseMd5;
+
+  private String glueCatalogId;
+  private boolean glueCatalogSkipArchive;
 
   public AwsProperties() {
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
     this.s3FileIoSseKey = null;
     this.s3FileIoSseMd5 = null;
+
+    this.glueCatalogId = null;
+    this.glueCatalogSkipArchive = GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT;
   }
 
   public AwsProperties(Map<String, String> properties) {
@@ -84,6 +107,10 @@ public class AwsProperties {
       Preconditions.checkNotNull(s3FileIoSseKey, "Cannot initialize SSE-C S3FileIO with null encryption key");
       Preconditions.checkNotNull(s3FileIoSseMd5, "Cannot initialize SSE-C S3FileIO with null encryption key MD5");
     }
+
+    this.glueCatalogId = properties.get(GLUE_CATALOG_ID);
+    this.glueCatalogSkipArchive = PropertyUtil.propertyAsBoolean(properties,
+        AwsProperties.GLUE_CATALOG_SKIP_ARCHIVE, AwsProperties.GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT);
   }
 
   public String s3FileIoSseType() {
@@ -108,5 +135,21 @@ public class AwsProperties {
 
   public void setS3FileIoSseMd5(String sseMd5) {
     this.s3FileIoSseMd5 = sseMd5;
+  }
+
+  public String glueCatalogId() {
+    return glueCatalogId;
+  }
+
+  public void setGlueCatalogId(String id) {
+    this.glueCatalogId = id;
+  }
+
+  public boolean glueCatalogSkipArchive() {
+    return glueCatalogSkipArchive;
+  }
+
+  public void setGlueCatalogSkipArchive(boolean skipArchive) {
+    this.glueCatalogSkipArchive = skipArchive;
   }
 }
