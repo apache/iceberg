@@ -70,13 +70,15 @@ catalog.createTable(tableId, schema, spec);
 The property `engine.hive.enabled` needs to be set to `true` and added to the table properties when creating the Iceberg table. This can be done like so:
 ```java
     Map<String, String> tableProperties = new HashMap<String, String>();
-    tableProperties.put(TableProperties.ENGINE_HIVE_ENABLED, "true"); ////engine.hive.enabled=true
+    tableProperties.put(TableProperties.ENGINE_HIVE_ENABLED, "true"); //engine.hive.enabled=true
     catalog.createTable(tableId, schema, spec, tableProperties);
 ```
 
 #### Query the Iceberg table via Hive
-TODO: tables created by the above can't just be read "as is", need to document steps needed in order to be able to query them here.
-
+In order to query a Hive table created by either of the HiveCatalog methods described above you need to first set a Hive configuration value like so:
+```sql
+SET iceberg.mr.catalog=hive;
+```
 You should now be able to issue Hive SQL `SELECT` queries using the above table and see the results returned from the underlying Iceberg table. Both the Map Reduce and Tez query execution engines are supported.
 ```sql
 SELECT * from table_b;
