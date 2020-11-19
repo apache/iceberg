@@ -37,6 +37,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.deletes.DeletesUtil;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -92,7 +93,7 @@ public class FlinkDeltaWriterFactory implements DeltaWriterFactory<RowData> {
         format, fileFactory, io, targetFileSize, createDataFileWriterFactory());
 
     if (!ctxt.allowPosDelete() && !ctxt.allowEqualityDelete()) {
-      return new BaseDeltaWriter<>(dataWriter);
+      return new RowDataDeltaWriter(dataWriter);
     }
 
     RollingContentFileWriter<DeleteFile, PositionDelete<RowData>> posDeleteWriter =
@@ -100,7 +101,7 @@ public class FlinkDeltaWriterFactory implements DeltaWriterFactory<RowData> {
             format, fileFactory, io, targetFileSize, createPosDeleteWriterFactory(ctxt.posDeleteRowSchema()));
 
     if (ctxt.allowPosDelete() && !ctxt.allowEqualityDelete()) {
-      return new BaseDeltaWriter<>(dataWriter, posDeleteWriter);
+      return new RowDataDeltaWriter(dataWriter, posDeleteWriter);
     }
 
     Preconditions.checkState(ctxt.allowEqualityDelete(), "Should always allow equality-delete here.");
@@ -111,11 +112,7 @@ public class FlinkDeltaWriterFactory implements DeltaWriterFactory<RowData> {
         format, fileFactory, io, targetFileSize,
         createEqualityDeleteWriterFactory(ctxt.equalityFieldIds(), ctxt.eqDeleteRowSchema()));
 
-    // Define flink's as struct like function.
-    RowDataWrapper asStructLike = new RowDataWrapper(flinkSchema, schema.asStruct());
-
-    return new BaseDeltaWriter<>(dataWriter, posDeleteWriter, eqDeleteWriter, schema, ctxt.equalityFieldIds(),
-        asStructLike::wrap);
+    return new RowDataDeltaWriter(dataWriter, posDeleteWriter, eqDeleteWriter, schema, ctxt.equalityFieldIds());
   }
 
   @Override
@@ -229,6 +226,38 @@ public class FlinkDeltaWriterFactory implements DeltaWriterFactory<RowData> {
         throw new UncheckedIOException(e);
       }
     };
+  }
+
+  private class RowDataDeltaWriter extends BaseDeltaWriter<RowData> {
+    private final RowDataWrapper rowDataWrapper;
+
+    RowDataDeltaWriter(RollingContentFileWriter<DataFile, RowData> dataWriter) {
+      this(dataWriter, null);
+    }
+
+    RowDataDeltaWriter(RollingContentFileWriter<DataFile, RowData> dataWriter,
+                       RollingContentFileWriter<DeleteFile, PositionDelete<RowData>> posDeleteWriter) {
+      this(dataWriter, posDeleteWriter, null, null, null);
+    }
+
+    RowDataDeltaWriter(RollingContentFileWriter<DataFile, RowData> dataWriter,
+                       RollingContentFileWriter<DeleteFile, PositionDelete<RowData>> posDeleteWriter,
+                       RollingContentFileWriter<DeleteFile, RowData> equalityDeleteWriter, Schema tableSchema,
+                       List<Integer> equalityFieldIds) {
+      super(dataWriter, posDeleteWriter, equalityDeleteWriter, tableSchema, equalityFieldIds);
+
+      this.rowDataWrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
+    }
+
+    @Override
+    protected StructLike asKey(RowData row) {
+      return rowDataWrapper.wrap(row);
+    }
+
+    @Override
+    protected StructLike asCopiedKey(RowData row) {
+      return rowDataWrapper.copy().wrap(row);
+    }
   }
 
   private static class RowDataPositionAccessor implements Parquet.PositionAccessor<StringData, Long> {

@@ -21,7 +21,6 @@ package org.apache.iceberg.io;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Schema;
@@ -36,7 +35,7 @@ import org.apache.iceberg.util.StructLikeMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class BaseDeltaWriter<T> implements DeltaWriter<T> {
+public abstract class BaseDeltaWriter<T> implements DeltaWriter<T> {
   private static final Logger LOG = LoggerFactory.getLogger(BaseDeltaWriter.class);
 
   private final RollingContentFileWriter<DataFile, T> dataWriter;
@@ -46,24 +45,11 @@ public class BaseDeltaWriter<T> implements DeltaWriter<T> {
   private final PositionDelete<T> positionDelete = new PositionDelete<>();
   private final StructLikeMap<RowOffset> insertedRowMap;
 
-  // Function to convert the generic data to a StructLike.
-  private final Function<T, StructLike> structLikeFun;
-
-  public BaseDeltaWriter(RollingContentFileWriter<DataFile, T> dataWriter) {
-    this(dataWriter, null);
-  }
-
-  public BaseDeltaWriter(RollingContentFileWriter<DataFile, T> dataWriter,
-                         RollingContentFileWriter<DeleteFile, PositionDelete<T>> posDeleteWriter) {
-    this(dataWriter, posDeleteWriter, null, null, null, null);
-  }
-
   public BaseDeltaWriter(RollingContentFileWriter<DataFile, T> dataWriter,
                          RollingContentFileWriter<DeleteFile, PositionDelete<T>> posDeleteWriter,
                          RollingContentFileWriter<DeleteFile, T> equalityDeleteWriter,
                          Schema tableSchema,
-                         List<Integer> equalityFieldIds,
-                         Function<T, StructLike> structLikeFun) {
+                         List<Integer> equalityFieldIds) {
 
     Preconditions.checkNotNull(dataWriter, "Data writer should always not be null.");
 
@@ -86,14 +72,11 @@ public class BaseDeltaWriter<T> implements DeltaWriter<T> {
           "Position delete writer shouldn't be null when writing equality deletions.");
       Preconditions.checkNotNull(tableSchema, "Iceberg table schema shouldn't be null");
       Preconditions.checkNotNull(equalityFieldIds, "Equality field ids shouldn't be null");
-      Preconditions.checkNotNull(structLikeFun, "StructLike function shouldn't be null");
 
       Schema deleteSchema = TypeUtil.select(tableSchema, Sets.newHashSet(equalityFieldIds));
       this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
-      this.structLikeFun = structLikeFun;
     } else {
       this.insertedRowMap = null;
-      this.structLikeFun = null;
     }
 
     this.dataWriter = dataWriter;
@@ -101,12 +84,17 @@ public class BaseDeltaWriter<T> implements DeltaWriter<T> {
     this.posDeleteWriter = posDeleteWriter;
   }
 
+  protected abstract StructLike asKey(T row);
+
+  protected abstract StructLike asCopiedKey(T row);
+
   @Override
   public void writeRow(T row) {
     if (enableEqualityDelete()) {
       RowOffset rowOffset = RowOffset.create(dataWriter.currentPath(), dataWriter.currentRows());
 
-      StructLike key = structLikeFun.apply(row);
+      // Copy the key to avoid messing up keys in the insertedRowMap.
+      StructLike key = asCopiedKey(row);
       RowOffset previous = insertedRowMap.putIfAbsent(key, rowOffset);
       ValidationException.check(previous == null, "Detected duplicate insert for %s", key);
     }
@@ -120,7 +108,7 @@ public class BaseDeltaWriter<T> implements DeltaWriter<T> {
       throw new UnsupportedOperationException("Could not accept equality deletion.");
     }
 
-    StructLike key = structLikeFun.apply(equalityDelete);
+    StructLike key = asKey(equalityDelete);
     RowOffset existing = insertedRowMap.get(key);
 
     if (existing == null) {

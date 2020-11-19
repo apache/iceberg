@@ -32,6 +32,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
@@ -81,7 +82,7 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
         format, fileFactory, io, targetFileSize, createDataFileWriterFactory());
 
     if (!ctxt.allowPosDelete() && !ctxt.allowEqualityDelete()) {
-      return new BaseDeltaWriter<>(dataWriter);
+      return new GenericDeltaWriter(dataWriter);
     }
 
     RollingContentFileWriter<DeleteFile, PositionDelete<Record>> posDeleteWriter =
@@ -89,7 +90,7 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
             format, fileFactory, io, targetFileSize, createPosDeleteWriterFactory(ctxt.posDeleteRowSchema()));
 
     if (ctxt.allowPosDelete() && !ctxt.allowEqualityDelete()) {
-      return new BaseDeltaWriter<>(dataWriter, posDeleteWriter);
+      return new GenericDeltaWriter(dataWriter, posDeleteWriter);
     }
 
     Preconditions.checkState(ctxt.allowEqualityDelete(), "Should always allow equality-delete here.");
@@ -101,8 +102,7 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
         createEqualityDeleteWriterFactory(ctxt.equalityFieldIds(), ctxt.eqDeleteRowSchema()));
 
 
-    return new BaseDeltaWriter<>(dataWriter, posDeleteWriter, eqDeleteWriter, schema, ctxt.equalityFieldIds(),
-        t -> t);
+    return new GenericDeltaWriter(dataWriter, posDeleteWriter, eqDeleteWriter, schema, ctxt.equalityFieldIds());
   }
 
   @Override
@@ -207,5 +207,34 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
         throw new UncheckedIOException(e);
       }
     };
+  }
+
+  private static class GenericDeltaWriter extends BaseDeltaWriter<Record> {
+
+    GenericDeltaWriter(RollingContentFileWriter<DataFile, Record> dataWriter) {
+      this(dataWriter, null);
+    }
+
+    GenericDeltaWriter(RollingContentFileWriter<DataFile, Record> dataWriter,
+                       RollingContentFileWriter<DeleteFile, PositionDelete<Record>> posDeleteWriter) {
+      this(dataWriter, posDeleteWriter, null, null, null);
+    }
+
+    GenericDeltaWriter(RollingContentFileWriter<DataFile, Record> dataWriter,
+                       RollingContentFileWriter<DeleteFile, PositionDelete<Record>> posDeleteWriter,
+                       RollingContentFileWriter<DeleteFile, Record> equalityDeleteWriter, Schema tableSchema,
+                       List<Integer> equalityFieldIds) {
+      super(dataWriter, posDeleteWriter, equalityDeleteWriter, tableSchema, equalityFieldIds);
+    }
+
+    @Override
+    protected StructLike asKey(Record row) {
+      return row;
+    }
+
+    @Override
+    protected StructLike asCopiedKey(Record row) {
+      return row.copy();
+    }
   }
 }
