@@ -53,6 +53,8 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
+import org.apache.spark.sql.catalyst.parser.ParserInterface;
+import org.apache.spark.sql.connector.catalog.CatalogManager;
 import org.apache.spark.sql.connector.catalog.CatalogNotFoundException;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.CatalogV2Implicits;
@@ -588,8 +590,10 @@ public class Spark3Util {
   }
 
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, String name) throws ParseException {
-    return catalogAndIdentifier(spark,
-          JavaConverters.seqAsJavaList(spark.sessionState().sqlParser().parseMultipartIdentifier(name)));
+    ParserInterface parser = spark.sessionState().sqlParser();
+    Seq<String> multiPartIdentifier = parser.parseMultipartIdentifier(name);
+    List<String> javaMultiPartIdentifier = JavaConverters.seqAsJavaList(multiPartIdentifier);
+    return catalogAndIdentifier(spark, javaMultiPartIdentifier);
   }
 
   /**
@@ -600,27 +604,29 @@ public class Spark3Util {
    * @return The CatalogPlugin and Identifier for the table
    */
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, List<String> nameParts) {
-    Seq<String> namePartsSeq = JavaConverters.asScalaIterator(nameParts.iterator()).toSeq();
-    Preconditions.checkArgument(namePartsSeq.nonEmpty(),
+    Preconditions.checkArgument(!nameParts.isEmpty(),
         "Cannot determine catalog and Identifier from empty name parts");
-    CatalogPlugin currentCatalog = spark.sessionState().catalogManager().currentCatalog();
-    String[] currentNamespace = spark.sessionState().catalogManager().currentNamespace();
-    if (namePartsSeq.length() == 1) {
-      return new CatalogAndIdentifier(currentCatalog, Identifier.of(currentNamespace, namePartsSeq.head()));
+    CatalogManager catalogManager = spark.sessionState().catalogManager();
+    CatalogPlugin currentCatalog = catalogManager.currentCatalog();
+    String[] currentNamespace = catalogManager.currentNamespace();
+    int lastElementIndex = nameParts.size() - 1;
+    String name = nameParts.get(lastElementIndex);
+
+    if (nameParts.size() == 1) {
+      // Only a single element, use current catalog and namespace
+      return new CatalogAndIdentifier(currentCatalog, Identifier.of(currentNamespace, name));
     } else {
       try {
-        CatalogPlugin namedCatalog = spark.sessionState().catalogManager().catalog(namePartsSeq.head());
-        return new CatalogAndIdentifier(namedCatalog,
-            CatalogV2Implicits.MultipartIdentifierHelper((Seq<String>) namePartsSeq.tail()).asIdentifier());
+        // Assume the first element is a valid catalog
+        CatalogPlugin namedCatalog = catalogManager.catalog(nameParts.get(0));
+        String[] namespace = (String[]) nameParts.subList(1, lastElementIndex).toArray();
+        return new CatalogAndIdentifier(namedCatalog, Identifier.of(namespace, name));
       } catch (Exception e) {
-        return new CatalogAndIdentifier(currentCatalog,
-            CatalogV2Implicits.MultipartIdentifierHelper(namePartsSeq).asIdentifier());
+        // The first element was not a valid catalog, treat it like part of the namespace
+        String[] namespace = (String[]) nameParts.subList(0, lastElementIndex).toArray();
+        return new CatalogAndIdentifier(currentCatalog, Identifier.of(namespace, name));
       }
     }
-  }
-
-  public static TableIdentifier toTableIdentifier(Identifier table) {
-    return new CatalogV2Implicits.IdentifierHelper(table).asTableIdentifier();
   }
 
   /**

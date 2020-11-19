@@ -157,7 +157,7 @@ abstract class BaseSparkAction<R> implements Action<R> {
     }
     try {
       // Try DSV2 catalog based name based resolution
-      if (!spark.version().startsWith("2")) {
+      if (spark.version().startsWith("3")) {
         return loadCatalogMetadataTable(spark, tableName, type);
       }
     } catch (Exception e) {
