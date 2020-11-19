@@ -25,7 +25,6 @@ import org.apache.iceberg.ContentFileWriter;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileMetadata;
-import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
@@ -62,11 +61,6 @@ public class EqualityDeleteWriter<T> implements ContentFileWriter<DeleteFile, T>
   @Override
   public void write(T row) {
     appender.add(row);
-  }
-
-  @Override
-  public Metrics metrics() {
-    return appender.metrics();
   }
 
   @Override

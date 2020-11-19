@@ -26,7 +26,6 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentFileWriter;
 import org.apache.iceberg.ContentFileWriterFactory;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -67,7 +66,7 @@ public class RollingContentFileWriter<ContentFileT, T> implements Closeable {
     return currentFile.encryptingOutputFile().location();
   }
 
-  public long currentPos() {
+  public long currentRows() {
     return currentRows;
   }
 
@@ -133,10 +132,9 @@ public class RollingContentFileWriter<ContentFileT, T> implements Closeable {
       }
 
       ContentFileT contentFile = currentFileWriter.toContentFile();
-      Metrics metrics = currentFileWriter.metrics();
       this.currentFileWriter = null;
 
-      if (metrics.recordCount() == 0L) {
+      if (currentRows == 0L) {
         io.deleteFile(currentFile.encryptingOutputFile());
       } else if (contentFile instanceof ContentFile) {
         resultBuilder.add((ContentFile) contentFile);

@@ -37,11 +37,6 @@ public interface ContentFileWriter<T, R> extends Closeable {
   }
 
   /**
-   * Returns {@link Metrics} for this file. Only valid after the file is closed.
-   */
-  Metrics metrics();
-
-  /**
    * Returns the length of this file.
    */
   long length();

@@ -73,7 +73,7 @@ class RowDataTaskWriter implements TaskWriter<RowData> {
       this.ctxt = DeltaWriterFactory.Context.builder()
           .allowEqualityDelete(true)
           .equalityFieldIds(equalityFieldIds)
-          .rowSchema(TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds)))
+          .eqDeleteRowSchema(TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds)))
           .build();
     } else {
       this.ctxt = DeltaWriterFactory.Context.builder().build();

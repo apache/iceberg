@@ -46,14 +46,17 @@ public interface DeltaWriterFactory<T> {
     private final boolean allowPosDelete;
     private final boolean allowEqualityDelete;
     private final List<Integer> equalityFieldIds;
-    private final Schema rowSchema;
+    private final Schema posDeleteRowSchema;
+    private final Schema eqDeleteRowSchema;
 
-    private Context(boolean allowPosDelete, boolean allowEqualityDelete, List<Integer> equalityFieldIds,
-                    Schema rowSchema) {
+    private Context(boolean allowPosDelete, boolean allowEqualityDelete,
+                    List<Integer> equalityFieldIds, Schema eqDeleteRowSchema,
+                    Schema posDeleteRowSchema) {
       this.allowPosDelete = allowPosDelete;
       this.allowEqualityDelete = allowEqualityDelete;
       this.equalityFieldIds = equalityFieldIds;
-      this.rowSchema = rowSchema;
+      this.eqDeleteRowSchema = eqDeleteRowSchema;
+      this.posDeleteRowSchema = posDeleteRowSchema;
     }
 
     public boolean allowPosDelete() {
@@ -68,8 +71,12 @@ public interface DeltaWriterFactory<T> {
       return equalityFieldIds;
     }
 
-    public Schema rowSchema() {
-      return rowSchema;
+    public Schema posDeleteRowSchema() {
+      return posDeleteRowSchema;
+    }
+
+    public Schema eqDeleteRowSchema() {
+      return eqDeleteRowSchema;
     }
 
     public static Builder builder() {
@@ -80,7 +87,8 @@ public interface DeltaWriterFactory<T> {
       private boolean allowPosDelete = false;
       private boolean allowEqualityDelete = false;
       private List<Integer> equalityFieldIds = ImmutableList.of();
-      private Schema rowSchema;
+      private Schema eqDeleteRowSchema;
+      private Schema posDeleteRowSchema;
 
       public Builder allowPosDelete(boolean enable) {
         this.allowPosDelete = enable;
@@ -97,23 +105,29 @@ public interface DeltaWriterFactory<T> {
         return this;
       }
 
-      public Builder rowSchema(Schema newRowSchema) {
-        this.rowSchema = newRowSchema;
+      public Builder eqDeleteRowSchema(Schema newRowSchema) {
+        this.eqDeleteRowSchema = newRowSchema;
+        return this;
+      }
+
+      public Builder posDeleteRowSchema(Schema newRowSchema) {
+        this.posDeleteRowSchema = newRowSchema;
         return this;
       }
 
       public Context build() {
         if (allowEqualityDelete) {
           Preconditions.checkNotNull(equalityFieldIds, "Equality field ids shouldn't be null for equality deletes");
-          Preconditions.checkNotNull(rowSchema, "Row schema shouldn't be null for equality deletes");
+          Preconditions.checkNotNull(eqDeleteRowSchema, "Row schema shouldn't be null for equality deletes");
 
           for (Integer fieldId : equalityFieldIds) {
-            Preconditions.checkNotNull(rowSchema.findField(fieldId),
-                "Missing field id %s in provided row schema: %s", fieldId, rowSchema);
+            Preconditions.checkNotNull(eqDeleteRowSchema.findField(fieldId),
+                "Missing field id %s in provided row schema: %s", fieldId, eqDeleteRowSchema);
           }
         }
 
-        return new Context(allowPosDelete, allowEqualityDelete, equalityFieldIds, rowSchema);
+        return new Context(allowPosDelete, allowEqualityDelete, equalityFieldIds, eqDeleteRowSchema,
+            posDeleteRowSchema);
       }
     }
   }

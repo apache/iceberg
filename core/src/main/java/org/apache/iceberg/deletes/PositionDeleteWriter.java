@@ -26,7 +26,6 @@ import org.apache.iceberg.ContentFileWriter;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileMetadata;
-import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
@@ -89,11 +88,6 @@ public class PositionDeleteWriter<T> implements ContentFileWriter<DeleteFile, Po
   @Override
   public void write(PositionDelete<T> record) {
     delete(record.path(), record.pos(), record.row());
-  }
-
-  @Override
-  public Metrics metrics() {
-    return appender.metrics();
   }
 
   @Override

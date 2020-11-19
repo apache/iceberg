@@ -135,4 +135,9 @@ public class RowDataWrapper implements StructLike {
         return null;
     }
   }
+
+  @Override
+  public String toString() {
+    return rowData == null ? null : rowData.toString();
+  }
 }

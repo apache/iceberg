@@ -97,7 +97,7 @@ public class FlinkDeltaWriterFactory implements DeltaWriterFactory<RowData> {
 
     RollingContentFileWriter<DeleteFile, PositionDelete<RowData>> posDeleteWriter =
         new RollingContentFileWriter<>(partitionKey,
-            format, fileFactory, io, targetFileSize, createPosDeleteWriterFactory(ctxt.rowSchema()));
+            format, fileFactory, io, targetFileSize, createPosDeleteWriterFactory(ctxt.posDeleteRowSchema()));
 
     if (ctxt.allowPosDelete() && !ctxt.allowEqualityDelete()) {
       return new BaseDeltaWriter<>(dataWriter, posDeleteWriter);
@@ -109,7 +109,7 @@ public class FlinkDeltaWriterFactory implements DeltaWriterFactory<RowData> {
 
     RollingContentFileWriter<DeleteFile, RowData> eqDeleteWriter = new RollingContentFileWriter<>(partitionKey,
         format, fileFactory, io, targetFileSize,
-        createEqualityDeleteWriterFactory(ctxt.equalityFieldIds(), ctxt.rowSchema()));
+        createEqualityDeleteWriterFactory(ctxt.equalityFieldIds(), ctxt.eqDeleteRowSchema()));
 
     // Define flink's as struct like function.
     RowDataWrapper asStructLike = new RowDataWrapper(flinkSchema, schema.asStruct());

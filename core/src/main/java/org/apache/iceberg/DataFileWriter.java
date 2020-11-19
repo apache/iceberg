@@ -51,11 +51,6 @@ public class DataFileWriter<T> implements ContentFileWriter<DataFile, T> {
   }
 
   @Override
-  public Metrics metrics() {
-    return appender.metrics();
-  }
-
-  @Override
   public long length() {
     return appender.length();
   }

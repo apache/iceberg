@@ -124,7 +124,7 @@ public class TestGenericDeltaWriter extends TableTestBase {
     DeltaWriterFactory.Context ctxt = DeltaWriterFactory.Context.builder()
         .allowEqualityDelete(true)
         .equalityFieldIds(equalityFieldIds)
-        .rowSchema(table.schema())
+        .eqDeleteRowSchema(table.schema())
         .build();
 
     // TODO More unit tests to test the partitioned case.
@@ -159,6 +159,50 @@ public class TestGenericDeltaWriter extends TableTestBase {
     commitTransaction(result);
 
     assertTableRecords(ImmutableSet.of());
+  }
+
+  @Test
+  public void testEqualityDeleteSameRow() throws IOException {
+    DeltaWriterFactory<Record> writerFactory = createDeltaWriterFactory();
+
+    List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
+    DeltaWriterFactory.Context ctxt = DeltaWriterFactory.Context.builder()
+        .allowEqualityDelete(true)
+        .equalityFieldIds(equalityFieldIds)
+        .eqDeleteRowSchema(table.schema())
+        .posDeleteRowSchema(table.schema())
+        .build();
+
+    DeltaWriter<Record> deltaWriter1 = writerFactory.createDeltaWriter(null, ctxt);
+
+    GenericRecord record = GenericRecord.create(SCHEMA);
+    Record record1 = record.copy("id", 1, "data", "aaa");
+
+    deltaWriter1.writeRow(record1);
+    deltaWriter1.writeEqualityDelete(record1);
+    deltaWriter1.writeRow(record1);
+    deltaWriter1.writeEqualityDelete(record1);
+    deltaWriter1.writeRow(record1);
+
+    AssertHelpers.assertThrows("Encountered duplicated keys in the same transaction",
+        ValidationException.class, () -> deltaWriter1.writeRow(record1));
+
+    WriterResult result = deltaWriter1.complete();
+    Assert.assertEquals(result.dataFiles().length, 1);
+    Assert.assertEquals(result.deleteFiles().length, 1);
+    commitTransaction(result);
+
+    assertTableRecords(ImmutableSet.of(record1));
+
+    DeltaWriter<Record> deltaWriter2 = writerFactory.createDeltaWriter(null, ctxt);
+    deltaWriter2.writeRow(record1);
+
+    result = deltaWriter2.complete();
+    Assert.assertEquals(result.dataFiles().length, 1);
+    Assert.assertEquals(result.deleteFiles().length, 0);
+    commitTransaction(result);
+
+    assertTableRecords(ImmutableSet.of(record1, record1));
   }
 
   @Test
@@ -217,7 +261,8 @@ public class TestGenericDeltaWriter extends TableTestBase {
     DeltaWriterFactory.Context ctxt = DeltaWriterFactory.Context.builder()
         .allowEqualityDelete(true)
         .equalityFieldIds(equalityFieldIds)
-        .rowSchema(table.schema().select("id"))
+        .eqDeleteRowSchema(table.schema().select("id"))
+        .posDeleteRowSchema(table.schema())
         .build();
     final DeltaWriter<Record> deltaWriter1 = writerFactory.createDeltaWriter(null, ctxt);
 

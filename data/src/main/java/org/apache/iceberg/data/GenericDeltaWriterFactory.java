@@ -86,7 +86,7 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
 
     RollingContentFileWriter<DeleteFile, PositionDelete<Record>> posDeleteWriter =
         new RollingContentFileWriter<>(partitionKey,
-            format, fileFactory, io, targetFileSize, createPosDeleteWriterFactory(ctxt.rowSchema()));
+            format, fileFactory, io, targetFileSize, createPosDeleteWriterFactory(ctxt.posDeleteRowSchema()));
 
     if (ctxt.allowPosDelete() && !ctxt.allowEqualityDelete()) {
       return new BaseDeltaWriter<>(dataWriter, posDeleteWriter);
@@ -98,7 +98,7 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
 
     RollingContentFileWriter<DeleteFile, Record> eqDeleteWriter = new RollingContentFileWriter<>(partitionKey,
         format, fileFactory, io, targetFileSize,
-        createEqualityDeleteWriterFactory(ctxt.equalityFieldIds(), ctxt.rowSchema()));
+        createEqualityDeleteWriterFactory(ctxt.equalityFieldIds(), ctxt.eqDeleteRowSchema()));
 
 
     return new BaseDeltaWriter<>(dataWriter, posDeleteWriter, eqDeleteWriter, schema, ctxt.equalityFieldIds(),

@@ -44,7 +44,7 @@ public class BaseDeltaWriter<T> implements DeltaWriter<T> {
   private final RollingContentFileWriter<DeleteFile, PositionDelete<T>> posDeleteWriter;
 
   private final PositionDelete<T> positionDelete = new PositionDelete<>();
-  private final StructLikeMap<FilePos> insertedRowMap;
+  private final StructLikeMap<RowOffset> insertedRowMap;
 
   // Function to convert the generic data to a StructLike.
   private final Function<T, StructLike> structLikeFun;
@@ -104,10 +104,10 @@ public class BaseDeltaWriter<T> implements DeltaWriter<T> {
   @Override
   public void writeRow(T row) {
     if (enableEqualityDelete()) {
-      FilePos filePos = FilePos.create(dataWriter.currentPath(), dataWriter.currentPos());
+      RowOffset rowOffset = RowOffset.create(dataWriter.currentPath(), dataWriter.currentRows());
 
       StructLike key = structLikeFun.apply(row);
-      FilePos previous = insertedRowMap.putIfAbsent(key, filePos);
+      RowOffset previous = insertedRowMap.putIfAbsent(key, rowOffset);
       ValidationException.check(previous == null, "Detected duplicate insert for %s", key);
     }
 
@@ -120,14 +120,18 @@ public class BaseDeltaWriter<T> implements DeltaWriter<T> {
       throw new UnsupportedOperationException("Could not accept equality deletion.");
     }
 
-    FilePos existing = insertedRowMap.get(structLikeFun.apply(equalityDelete));
+    StructLike key = structLikeFun.apply(equalityDelete);
+    RowOffset existing = insertedRowMap.get(key);
 
     if (existing == null) {
       // Delete the row which have been written by other completed delta writer.
       equalityDeleteWriter.write(equalityDelete);
     } else {
-      // Delete the rows which was written in current delta writer.
-      posDeleteWriter.write(positionDelete.set(existing.path, existing.pos, null));
+      // Delete the rows which was written in current delta writer. If the position delete row schema is null, then the
+      // writer won't write the records even if we provide the rows here.
+      posDeleteWriter.write(positionDelete.set(existing.path, existing.rowId, equalityDelete));
+      // Remove the records from insertedRowMap because we've already deleted it by writing position delete file.
+      insertedRowMap.remove(key);
     }
   }
 
@@ -212,24 +216,24 @@ public class BaseDeltaWriter<T> implements DeltaWriter<T> {
     return posDeleteWriter != null;
   }
 
-  private static class FilePos {
+  private static class RowOffset {
     private final CharSequence path;
-    private final long pos;
+    private final long rowId;
 
-    private FilePos(CharSequence path, long pos) {
+    private RowOffset(CharSequence path, long rowId) {
       this.path = path;
-      this.pos = pos;
+      this.rowId = rowId;
     }
 
-    private static FilePos create(CharSequence path, long pos) {
-      return new FilePos(path, pos);
+    private static RowOffset create(CharSequence path, long pos) {
+      return new RowOffset(path, pos);
     }
 
     @Override
     public String toString() {
       return MoreObjects.toStringHelper(this)
           .add("path", path)
-          .add("pos", pos)
+          .add("pos", rowId)
           .toString();
     }
   }

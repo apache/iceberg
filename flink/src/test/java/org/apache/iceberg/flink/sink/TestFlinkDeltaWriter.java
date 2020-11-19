@@ -26,6 +26,7 @@ import java.util.Locale;
 import java.util.Set;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -37,6 +38,7 @@ import org.apache.iceberg.TestTables;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.data.RandomRowData;
@@ -132,7 +134,7 @@ public class TestFlinkDeltaWriter extends TableTestBase {
     DeltaWriterFactory.Context ctxt = DeltaWriterFactory.Context.builder()
         .allowEqualityDelete(true)
         .equalityFieldIds(equalityFieldIds)
-        .rowSchema(table.schema().select("id"))
+        .eqDeleteRowSchema(table.schema().select("id"))
         .build();
 
     // TODO More unit tests to test the partitioned case.
@@ -166,6 +168,49 @@ public class TestFlinkDeltaWriter extends TableTestBase {
     commitTransaction(result);
 
     assertTableRecords(ImmutableSet.of());
+  }
+
+  @Test
+  public void testEqualityDeleteSameRow() throws IOException {
+    DeltaWriterFactory<RowData> writerFactory = createDeltaWriterFactory();
+
+    List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
+    DeltaWriterFactory.Context ctxt = DeltaWriterFactory.Context.builder()
+        .allowEqualityDelete(true)
+        .equalityFieldIds(equalityFieldIds)
+        .eqDeleteRowSchema(table.schema())
+        .posDeleteRowSchema(table.schema())
+        .build();
+
+    DeltaWriter<RowData> deltaWriter1 = writerFactory.createDeltaWriter(null, ctxt);
+
+    RowData record1 = createRowData(1, "aaa");
+
+    deltaWriter1.writeRow(record1);
+    deltaWriter1.writeEqualityDelete(record1);
+    deltaWriter1.writeRow(record1);
+    deltaWriter1.writeEqualityDelete(record1);
+    deltaWriter1.writeRow(record1);
+
+    AssertHelpers.assertThrows("Encountered duplicated keys in the same transaction",
+        ValidationException.class, () -> deltaWriter1.writeRow(record1));
+
+    WriterResult result = deltaWriter1.complete();
+    Assert.assertEquals(result.dataFiles().length, 1);
+    Assert.assertEquals(result.deleteFiles().length, 1);
+    commitTransaction(result);
+
+    assertTableRecords(ImmutableSet.of(record1));
+
+    DeltaWriter<RowData> deltaWriter2 = writerFactory.createDeltaWriter(null, ctxt);
+    deltaWriter2.writeRow(record1);
+
+    result = deltaWriter2.complete();
+    Assert.assertEquals(result.dataFiles().length, 1);
+    Assert.assertEquals(result.deleteFiles().length, 0);
+    commitTransaction(result);
+
+    assertTableRecords(ImmutableSet.of(record1, record1));
   }
 
   @Test
@@ -223,9 +268,9 @@ public class TestFlinkDeltaWriter extends TableTestBase {
     DeltaWriterFactory.Context ctxt = DeltaWriterFactory.Context.builder()
         .allowEqualityDelete(true)
         .equalityFieldIds(equalityFieldIds)
-        .rowSchema(table.schema().select("id"))
+        .eqDeleteRowSchema(table.schema().select("id"))
         .build();
-    DeltaWriter<RowData> deltaWriter = writerFactory.createDeltaWriter(null, ctxt);
+    DeltaWriter<RowData> deltaWriter1 = writerFactory.createDeltaWriter(null, ctxt);
 
     RowData record1 = createRowData(1, "aaa");
     RowData record2 = createRowData(1, "bbb");
@@ -235,43 +280,47 @@ public class TestFlinkDeltaWriter extends TableTestBase {
     RowData record6 = createRowData(1, "fff");
     RowData record7 = createRowData(1, "ggg");
 
-    deltaWriter.writeRow(record1);
-    deltaWriter.writeRow(record2);
+    deltaWriter1.writeRow(record1);
+    AssertHelpers.assertThrows("Duplicated keys", ValidationException.class,
+        () -> deltaWriter1.writeRow(record2));
 
     // Commit the transaction.
-    WriterResult result = deltaWriter.complete();
+    WriterResult result = deltaWriter1.complete();
     Assert.assertEquals(result.dataFiles().length, 1);
     Assert.assertEquals(result.deleteFiles().length, 0);
     commitTransaction(result);
 
-    assertTableRecords(ImmutableSet.of(record1, record2));
+    assertTableRecords(ImmutableSet.of(record1));
 
-    deltaWriter = writerFactory.createDeltaWriter(null, ctxt);
+    DeltaWriter<RowData> deltaWriter2 = writerFactory.createDeltaWriter(null, ctxt);
 
     // UPSERT (1, "ccc")
-    deltaWriter.writeEqualityDelete(record3);
-    deltaWriter.writeRow(record3);
+    deltaWriter2.writeEqualityDelete(record3);
+    deltaWriter2.writeRow(record3);
 
     // INSERT (1, "ddd")
     // INSERT (1, "eee")
-    deltaWriter.writeRow(record4);
-    deltaWriter.writeRow(record5);
+    AssertHelpers.assertThrows("Duplicated keys", ValidationException.class,
+        () -> deltaWriter2.writeRow(record4));
+    AssertHelpers.assertThrows("Duplicated keys", ValidationException.class,
+        () -> deltaWriter2.writeRow(record5));
 
     // UPSERT (1, "fff")
-    deltaWriter.writeEqualityDelete(record6);
-    deltaWriter.writeRow(record6);
+    deltaWriter2.writeEqualityDelete(record6);
+    deltaWriter2.writeRow(record6);
 
     // INSERT (1, "ggg")
-    deltaWriter.writeRow(record7);
+    AssertHelpers.assertThrows("Duplicated keys", ValidationException.class,
+        () -> deltaWriter2.writeRow(record7));
 
     // Commit the transaction.
-    result = deltaWriter.complete();
+    result = deltaWriter2.complete();
     Assert.assertEquals(1, result.dataFiles().length);
     // One pos-delete file, and one equality-delete file.
     Assert.assertEquals(2, result.deleteFiles().length);
     commitTransaction(result);
 
-    assertTableRecords(ImmutableSet.of(record6, record7));
+    assertTableRecords(ImmutableSet.of(record6));
   }
 
   private void assertTableRecords(Set<RowData> expectedRowDataSet) {
