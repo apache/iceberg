@@ -29,7 +29,7 @@ import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -37,13 +37,11 @@ import org.apache.iceberg.spark.SparkUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.broadcast.Broadcast;
-import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.DataFrameReader;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.parser.ParseException;
 
 import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
 
@@ -129,23 +127,25 @@ abstract class BaseSparkAction<R> implements Action<R> {
     return manifestDF.union(otherMetadataFileDF).union(manifestListDF);
   }
 
-  private static Dataset<Row> loadMetadataTableFromCatalog(SparkSession spark, String tableName, String tableLocation,
-                                                           MetadataTableType type) {
-    DataFrameReader dataFrameReader = spark.read().format("iceberg");
-    if (tableName.startsWith("spark_catalog")) {
-      // Due to the design of Spark, we cannot pass multi-element namespaces to the session catalog.
-      // We also don't know whether the Catalog is Hive or Hadoop Based so we can't just load one way or the other.
-      // Instead we will try to load the metadata table in the hive manner first, then fall back and try the
-      // hadoop location method if that fails
-      // TODO remove this when we have Spark workaround for multipart identifiers in SparkSessionCatalog
-      try {
-        return dataFrameReader.load(tableName.replaceFirst("spark_catalog\\.", "") + "." + type);
-      } catch (NoSuchTableException noSuchTableException) {
-        return dataFrameReader.load(tableLocation + "#" + type);
-      }
-    } else {
-      return spark.table(tableName + "." + type);
+  private static boolean isExpectedCatalogLookupException(Exception exception) {
+    return exception.getMessage().contains("AnalysisException") ||
+        exception.getMessage().contains("SparkException") ||
+        exception.getMessage().contains("NoSuchTableException") ||
+        exception.getMessage().contains("CatalogNotFoundException");
+  }
+
+  // Attempt to use Spark3 Catalog resolution if available on the path
+  private static DynMethods.StaticMethod loadCatalogImpl = null;
+
+  private static Dataset<Row> loadCatalogMetadataTable(SparkSession spark, String tableName, MetadataTableType type)
+      throws NoSuchMethodException {
+    if (loadCatalogImpl == null) {
+      loadCatalogImpl = DynMethods.builder("loadCatalogMetadataTable")
+          .hiddenImpl("org.apache.iceberg.spark.Spark3Util",
+              SparkSession.class, String.class, MetadataTableType.class)
+          .buildStaticChecked();
     }
+    return loadCatalogImpl.invoke(spark, tableName, type);
   }
 
   protected static Dataset<Row> loadMetadataTable(SparkSession spark, String tableName, String tableLocation,
@@ -155,25 +155,27 @@ abstract class BaseSparkAction<R> implements Action<R> {
       // Hadoop Table or Metadata location passed, load without a catalog
       return dataFrameReader.load(tableName + "#" + type);
     }
-    // Try catalog based name based resolution
     try {
-      return loadMetadataTableFromCatalog(spark, tableName, tableLocation, type);
+      // Try DSV2 catalog based name based resolution
+      if (!spark.version().startsWith("2")) {
+        return loadCatalogMetadataTable(spark, tableName, type);
+      }
     } catch (Exception e) {
-      if (!(e instanceof ParseException || e instanceof AnalysisException)) {
-        // Rethrow unexpected exceptions
-        throw e;
+      if (!(isExpectedCatalogLookupException(e))) {
+      // Rethrow unexpected exceptions
+        throw new IllegalArgumentException("Cannot load metadata table, unexpected error", e);
       }
-      // Catalog based resolution failed, our catalog may be a non-DatasourceV2 Catalog
-      if (tableName.startsWith("hadoop.")) {
-        // Try loading by location as Hadoop table without Catalog
-        return dataFrameReader.load(tableLocation + "#" + type);
-      } else if (tableName.startsWith("hive")) {
-        // Try loading by name as a Hive table without Catalog
-        return dataFrameReader.load(tableName.replaceFirst("hive\\.", "") + "." + type);
-      } else {
-        throw new IllegalArgumentException(String.format(
-            "Cannot find the metadata table for %s of type %s", tableName, type));
-      }
+    }
+    // Catalog based resolution failed, our catalog may be a non-DatasourceV2 Catalog
+    if (tableName.startsWith("hadoop.")) {
+      // Try loading by location as Hadoop table without Catalog
+      return dataFrameReader.load(tableLocation + "#" + type);
+    } else if (tableName.startsWith("hive")) {
+      // Try loading by name as a Hive table without Catalog
+      return dataFrameReader.load(tableName.replaceFirst("hive\\.", "") + "." + type);
+    } else {
+      throw new IllegalArgumentException(String.format(
+          "Cannot find the metadata table for %s of type %s", tableName, type));
     }
   }
 

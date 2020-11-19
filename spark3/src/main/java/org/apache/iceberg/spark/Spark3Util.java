@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
@@ -45,15 +47,30 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.TableIdentifier;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
+import org.apache.spark.sql.connector.catalog.CatalogNotFoundException;
+import org.apache.spark.sql.connector.catalog.CatalogPlugin;
+import org.apache.spark.sql.connector.catalog.CatalogV2Implicits;
+import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.expressions.Expression;
 import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.Literal;
 import org.apache.spark.sql.connector.expressions.Transform;
+import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import scala.Some;
+import scala.collection.JavaConverters;
+import scala.collection.Seq;
 
 public class Spark3Util {
 
@@ -546,6 +563,85 @@ public class Spark3Util {
       } else {
         return lit.value().toString();
       }
+    }
+  }
+
+  /*
+   * Because Spark does not allow more than 1 piece in the namespace for a Session Catalog table, we circumvent
+   * the entire resolution path for tables and instead look up the table directly ourselves. This lets us correctly
+   * get metadata tables for the SessionCatalog, if we didn't have to work around this we could just use spark.table.
+   */
+  private static Dataset<Row> loadCatalogMetadataTable(SparkSession spark, String name, MetadataTableType type)
+      throws CatalogNotFoundException, ParseException, NoSuchTableException {
+
+    CatalogAndIdentifier catalogAndIdentifier = catalogAndIdentifier(spark, name);
+    if (catalogAndIdentifier.catalog instanceof BaseCatalog) {
+      BaseCatalog catalog = (BaseCatalog) catalogAndIdentifier.catalog;
+      Identifier baseIdent = catalogAndIdentifier.identifier;
+      Identifier metaIdent = Identifier.of(ArrayUtils.add(baseIdent.namespace(), baseIdent.name()), type.name());
+      Table metaTable = catalog.loadTable(metaIdent);
+      return Dataset.ofRows(spark, DataSourceV2Relation.create(metaTable, Some.apply(catalog), Some.apply(metaIdent)));
+    } else {
+      throw new CatalogNotFoundException(String.format("Cannot cast %s as an Iceberg catalog",
+          catalogAndIdentifier.catalog.name()));
+    }
+  }
+
+  public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, String name) throws ParseException {
+    return catalogAndIdentifier(spark,
+          JavaConverters.seqAsJavaList(spark.sessionState().sqlParser().parseMultipartIdentifier(name)));
+  }
+
+  /**
+   * A modified version of Spark's LookupCatalog.CatalogAndIdentifier.unapply
+   * Attempts to find the catalog and identifier a multipart identifier represents
+   * @param spark Spark session to use for resolution
+   * @param nameParts Multipart identifier representing a table
+   * @return The CatalogPlugin and Identifier for the table
+   */
+  public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, List<String> nameParts) {
+    Seq<String> namePartsSeq = JavaConverters.asScalaIterator(nameParts.iterator()).toSeq();
+    Preconditions.checkArgument(namePartsSeq.nonEmpty(),
+        "Cannot determine catalog and Identifier from empty name parts");
+    CatalogPlugin currentCatalog = spark.sessionState().catalogManager().currentCatalog();
+    String[] currentNamespace = spark.sessionState().catalogManager().currentNamespace();
+    if (namePartsSeq.length() == 1) {
+      return new CatalogAndIdentifier(currentCatalog, Identifier.of(currentNamespace, namePartsSeq.head()));
+    } else {
+      try {
+        CatalogPlugin namedCatalog = spark.sessionState().catalogManager().catalog(namePartsSeq.head());
+        return new CatalogAndIdentifier(namedCatalog,
+            CatalogV2Implicits.MultipartIdentifierHelper((Seq<String>) namePartsSeq.tail()).asIdentifier());
+      } catch (Exception e) {
+        return new CatalogAndIdentifier(currentCatalog,
+            CatalogV2Implicits.MultipartIdentifierHelper(namePartsSeq).asIdentifier());
+      }
+    }
+  }
+
+  public static TableIdentifier toTableIdentifier(Identifier table) {
+    return new CatalogV2Implicits.IdentifierHelper(table).asTableIdentifier();
+  }
+
+  /**
+   * This mimics a class inside of Spark which is private inside of LookupCatalog.
+   */
+  public static class CatalogAndIdentifier {
+    private final CatalogPlugin catalog;
+    private final Identifier identifier;
+
+
+    public CatalogAndIdentifier(CatalogPlugin catalog, Identifier identifier) {
+      this.catalog = catalog;
+      this.identifier = identifier;
+    }
+
+    public CatalogPlugin catalog() {
+      return catalog;
+    }
+
+    public Identifier identifier() {
+      return identifier;
     }
   }
 }
