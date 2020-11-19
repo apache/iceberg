@@ -123,8 +123,15 @@ public class RollingContentFileWriter<ContentFileT, T> implements Closeable {
         currentRows % ROWS_DIVISOR == 0 && currentFileWriter.length() >= targetFileSize;
   }
 
+  protected void beforeClose(ContentFileWriter<ContentFileT, T> writer) {
+  }
+
   private void closeCurrent() {
     if (currentFileWriter != null) {
+
+      // Call the hook before close the current writer.
+      beforeClose(currentFileWriter);
+
       try {
         currentFileWriter.close();
       } catch (IOException e) {

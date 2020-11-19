@@ -29,17 +29,35 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
+/**
+ * Factory to create {@link DeltaWriter}, which have few dependencies factories to create different kinds of writers.
+ */
 public interface DeltaWriterFactory<T> {
 
+  /**
+   * Create a factory to initialize the {@link DeltaWriter}.
+   */
   DeltaWriter<T> createDeltaWriter(PartitionKey partitionKey, Context context);
 
+  /**
+   * Create a factory to initialize the {@link FileAppender}.
+   */
   FileAppenderFactory<T> createFileAppenderFactory();
 
+  /**
+   * Create a factory to initialize the {@link org.apache.iceberg.DataFileWriter}.
+   */
   ContentFileWriterFactory<DataFile, T> createDataFileWriterFactory();
 
+  /**
+   * Create a factory to initialize the {@link org.apache.iceberg.deletes.EqualityDeleteWriter}.
+   */
   ContentFileWriterFactory<DeleteFile, T> createEqualityDeleteWriterFactory(List<Integer> equalityFieldIds,
                                                                             Schema rowSchema);
 
+  /**
+   * Create a factory to initialize the {@link org.apache.iceberg.deletes.PositionDeleteWriter}.
+   */
   ContentFileWriterFactory<DeleteFile, PositionDelete<T>> createPosDeleteWriterFactory(Schema rowSchema);
 
   class Context {

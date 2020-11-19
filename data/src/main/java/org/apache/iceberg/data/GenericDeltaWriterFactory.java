@@ -45,6 +45,7 @@ import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.RollingContentFileWriter;
+import org.apache.iceberg.io.RollingPosDeleteWriter;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -85,9 +86,8 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
       return new GenericDeltaWriter(dataWriter);
     }
 
-    RollingContentFileWriter<DeleteFile, PositionDelete<Record>> posDeleteWriter =
-        new RollingContentFileWriter<>(partitionKey,
-            format, fileFactory, io, targetFileSize, createPosDeleteWriterFactory(ctxt.posDeleteRowSchema()));
+    RollingPosDeleteWriter<Record> posDeleteWriter = new RollingPosDeleteWriter<>(partitionKey,
+        format, fileFactory, io, targetFileSize, createPosDeleteWriterFactory(ctxt.posDeleteRowSchema()));
 
     if (ctxt.allowPosDelete() && !ctxt.allowEqualityDelete()) {
       return new GenericDeltaWriter(dataWriter, posDeleteWriter);
@@ -100,7 +100,6 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
     RollingContentFileWriter<DeleteFile, Record> eqDeleteWriter = new RollingContentFileWriter<>(partitionKey,
         format, fileFactory, io, targetFileSize,
         createEqualityDeleteWriterFactory(ctxt.equalityFieldIds(), ctxt.eqDeleteRowSchema()));
-
 
     return new GenericDeltaWriter(dataWriter, posDeleteWriter, eqDeleteWriter, schema, ctxt.equalityFieldIds());
   }
@@ -216,12 +215,12 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
     }
 
     GenericDeltaWriter(RollingContentFileWriter<DataFile, Record> dataWriter,
-                       RollingContentFileWriter<DeleteFile, PositionDelete<Record>> posDeleteWriter) {
+                       RollingPosDeleteWriter<Record> posDeleteWriter) {
       this(dataWriter, posDeleteWriter, null, null, null);
     }
 
     GenericDeltaWriter(RollingContentFileWriter<DataFile, Record> dataWriter,
-                       RollingContentFileWriter<DeleteFile, PositionDelete<Record>> posDeleteWriter,
+                       RollingPosDeleteWriter<Record> posDeleteWriter,
                        RollingContentFileWriter<DeleteFile, Record> equalityDeleteWriter, Schema tableSchema,
                        List<Integer> equalityFieldIds) {
       super(dataWriter, posDeleteWriter, equalityDeleteWriter, tableSchema, equalityFieldIds);

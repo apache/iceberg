@@ -40,13 +40,13 @@ public abstract class BaseDeltaWriter<T> implements DeltaWriter<T> {
 
   private final RollingContentFileWriter<DataFile, T> dataWriter;
   private final RollingContentFileWriter<DeleteFile, T> equalityDeleteWriter;
-  private final RollingContentFileWriter<DeleteFile, PositionDelete<T>> posDeleteWriter;
+  private final RollingPosDeleteWriter<T> posDeleteWriter;
 
   private final PositionDelete<T> positionDelete = new PositionDelete<>();
   private final StructLikeMap<RowOffset> insertedRowMap;
 
   public BaseDeltaWriter(RollingContentFileWriter<DataFile, T> dataWriter,
-                         RollingContentFileWriter<DeleteFile, PositionDelete<T>> posDeleteWriter,
+                         RollingPosDeleteWriter<T> posDeleteWriter,
                          RollingContentFileWriter<DeleteFile, T> equalityDeleteWriter,
                          Schema tableSchema,
                          List<Integer> equalityFieldIds) {

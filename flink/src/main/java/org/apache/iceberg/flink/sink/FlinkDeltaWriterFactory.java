@@ -53,6 +53,7 @@ import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.RollingContentFileWriter;
+import org.apache.iceberg.io.RollingPosDeleteWriter;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -96,9 +97,8 @@ public class FlinkDeltaWriterFactory implements DeltaWriterFactory<RowData> {
       return new RowDataDeltaWriter(dataWriter);
     }
 
-    RollingContentFileWriter<DeleteFile, PositionDelete<RowData>> posDeleteWriter =
-        new RollingContentFileWriter<>(partitionKey,
-            format, fileFactory, io, targetFileSize, createPosDeleteWriterFactory(ctxt.posDeleteRowSchema()));
+    RollingPosDeleteWriter<RowData> posDeleteWriter = new RollingPosDeleteWriter<>(partitionKey,
+        format, fileFactory, io, targetFileSize, createPosDeleteWriterFactory(ctxt.posDeleteRowSchema()));
 
     if (ctxt.allowPosDelete() && !ctxt.allowEqualityDelete()) {
       return new RowDataDeltaWriter(dataWriter, posDeleteWriter);
@@ -236,12 +236,12 @@ public class FlinkDeltaWriterFactory implements DeltaWriterFactory<RowData> {
     }
 
     RowDataDeltaWriter(RollingContentFileWriter<DataFile, RowData> dataWriter,
-                       RollingContentFileWriter<DeleteFile, PositionDelete<RowData>> posDeleteWriter) {
+                       RollingPosDeleteWriter<RowData> posDeleteWriter) {
       this(dataWriter, posDeleteWriter, null, null, null);
     }
 
     RowDataDeltaWriter(RollingContentFileWriter<DataFile, RowData> dataWriter,
-                       RollingContentFileWriter<DeleteFile, PositionDelete<RowData>> posDeleteWriter,
+                       RollingPosDeleteWriter<RowData> posDeleteWriter,
                        RollingContentFileWriter<DeleteFile, RowData> equalityDeleteWriter, Schema tableSchema,
                        List<Integer> equalityFieldIds) {
       super(dataWriter, posDeleteWriter, equalityDeleteWriter, tableSchema, equalityFieldIds);
