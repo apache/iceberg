@@ -59,7 +59,7 @@ public class HiveSchemaUtil {
       typeInfos.add(TypeInfoUtils.getTypeInfoFromTypeString(col.getType()));
     }
 
-    return convert(names, typeInfos);
+    return HiveSchemaConverter.convert(names, typeInfos);
   }
 
   /**
@@ -74,7 +74,7 @@ public class HiveSchemaUtil {
     List<String> names = new ArrayList<>();
     Collections.addAll(names, columnNames.split(columnNameDelimiter));
 
-    return HiveSchemaUtil.convert(names, TypeInfoUtils.getTypeInfosFromTypeString(columnTypes));
+    return HiveSchemaConverter.convert(names, TypeInfoUtils.getTypeInfosFromTypeString(columnTypes));
   }
 
   /**
@@ -101,7 +101,7 @@ public class HiveSchemaUtil {
 
   private static boolean compatible(ObjectInspector inspector, ObjectInspector other) {
     if (inspector == null && other == null) {
-      // We do not expect this type of calls, but for completeness shake
+      // We do not expect this type of calls, but for completeness sake
       return true;
     }
 
@@ -158,10 +158,5 @@ public class HiveSchemaUtil {
     }
 
     return true;
-  }
-
-  private static Schema convert(List<String> names, List<TypeInfo> typeInfos) {
-    HiveSchemaConverter converter = new HiveSchemaConverter();
-    return new Schema(converter.convert(names, typeInfos));
   }
 }

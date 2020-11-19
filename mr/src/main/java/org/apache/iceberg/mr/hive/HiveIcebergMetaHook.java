@@ -99,13 +99,10 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
     // - Partitioned Hive tables are currently not allowed
 
     Schema schema = schema(catalogProperties, hmsTable);
-    PartitionSpec spec = spec(schema, catalogProperties);
+    PartitionSpec spec = spec(schema, catalogProperties, hmsTable);
 
     catalogProperties.put(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(schema));
     catalogProperties.put(InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(spec));
-
-    Preconditions.checkArgument(hmsTable.getPartitionKeys() == null || hmsTable.getPartitionKeys().isEmpty(),
-        "Partitioned Hive tables are currently not supported");
 
     // Allow purging table data if the table is created now and not set otherwise
     if (hmsTable.getParameters().get(InputFormatConfig.EXTERNAL_TABLE_PURGE) == null) {
@@ -180,7 +177,7 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
    * @param hmsTable Table for which we are calculating the properties
    * @return The properties we can provide for Iceberg functions, like {@link Catalogs}
    */
-  private Properties getCatalogProperties(org.apache.hadoop.hive.metastore.api.Table hmsTable) {
+  private static Properties getCatalogProperties(org.apache.hadoop.hive.metastore.api.Table hmsTable) {
     Properties properties = new Properties();
     properties.putAll(hmsTable.getParameters());
 
@@ -199,7 +196,7 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
     return properties;
   }
 
-  private Schema schema(Properties properties, org.apache.hadoop.hive.metastore.api.Table hmsTable) {
+  private static Schema schema(Properties properties, org.apache.hadoop.hive.metastore.api.Table hmsTable) {
     Schema hmsSchema = HiveSchemaUtil.schema(hmsTable.getSd().getCols());
     if (properties.getProperty(InputFormatConfig.TABLE_SCHEMA) != null) {
       Schema propertySchema = SchemaParser.fromJson(properties.getProperty(InputFormatConfig.TABLE_SCHEMA));
@@ -211,7 +208,12 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
     }
   }
 
-  private PartitionSpec spec(Schema schema, Properties properties) {
+  private static PartitionSpec spec(Schema schema, Properties properties,
+      org.apache.hadoop.hive.metastore.api.Table hmsTable) {
+
+    Preconditions.checkArgument(hmsTable.getPartitionKeys() == null || hmsTable.getPartitionKeys().isEmpty(),
+        "Partitioned Hive tables are currently not supported");
+
     if (properties.getProperty(InputFormatConfig.PARTITION_SPEC) != null) {
       return PartitionSpecParser.fromJson(schema, properties.getProperty(InputFormatConfig.PARTITION_SPEC));
     } else {

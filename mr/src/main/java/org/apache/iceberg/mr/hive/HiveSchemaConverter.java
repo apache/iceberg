@@ -27,17 +27,23 @@ import org.apache.hadoop.hive.serde2.typeinfo.MapTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.StructTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 class HiveSchemaConverter {
   private int id;
 
-  HiveSchemaConverter() {
+  private HiveSchemaConverter() {
     id = 0;
   }
 
-  List<Types.NestedField> convert(List<String> names, List<TypeInfo> typeInfos) {
+  static Schema convert(List<String> names, List<TypeInfo> typeInfos) {
+    HiveSchemaConverter converter = new HiveSchemaConverter();
+    return new Schema(converter.convertInternal(names, typeInfos));
+  }
+
+  List<Types.NestedField> convertInternal(List<String> names, List<TypeInfo> typeInfos) {
     List<Types.NestedField> result = new ArrayList<>(names.size());
     for (int i = 0; i < names.size(); ++i) {
       result.add(Types.NestedField.optional(id++, names.get(i), convert(typeInfos.get(i))));
@@ -91,7 +97,7 @@ class HiveSchemaConverter {
       case STRUCT:
         StructTypeInfo structTypeInfo = (StructTypeInfo) typeInfo;
         List<Types.NestedField> fields =
-            convert(structTypeInfo.getAllStructFieldNames(), structTypeInfo.getAllStructFieldTypeInfos());
+            convertInternal(structTypeInfo.getAllStructFieldNames(), structTypeInfo.getAllStructFieldTypeInfos());
         return Types.StructType.of(fields);
       case MAP:
         MapTypeInfo mapTypeInfo = (MapTypeInfo) typeInfo;

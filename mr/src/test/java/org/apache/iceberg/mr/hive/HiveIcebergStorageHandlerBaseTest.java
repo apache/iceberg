@@ -713,8 +713,9 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         optional(10, "t_decimal", Types.DecimalType.of(3, 2))
     );
 
+    // Intentionally adding some mixed letters to test that we handle them correctly
     shell.executeStatement("CREATE EXTERNAL TABLE all_types (" +
-        "t_float FLOAT, t_double DOUBLE, t_boolean BOOLEAN, t_int INT, t_bigint BIGINT, t_binary BINARY, " +
+        "t_Float FLOaT, t_dOuble DOUBLE, t_boolean BOOLEAN, t_int INT, t_bigint BIGINT, t_binary BINARY, " +
         "t_string STRING, t_timestamp TIMESTAMP, t_date DATE, t_decimal DECIMAL(3,2)) " +
         "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
         testTables.locationForCreateTableSQL(identifier));
