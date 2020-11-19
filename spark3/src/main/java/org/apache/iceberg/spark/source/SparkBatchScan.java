@@ -45,9 +45,13 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.OrcRowFilterUtils;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.broadcast.Broadcast;
@@ -84,6 +88,7 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   private final Broadcast<EncryptionManager> encryptionManager;
   private final boolean batchReadsEnabled;
   private final int batchSize;
+  private final boolean readTimestampWithoutZone;
 
   // lazy variables
   private StructType readSchema = null;
@@ -124,6 +129,7 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     this.localityPreferred = Spark3Util.isLocalityEnabled(io.value(), table.location(), options);
     this.batchReadsEnabled = Spark3Util.isVectorizationEnabled(table.properties(), options);
     this.batchSize = Spark3Util.batchSize(table.properties(), options);
+    this.readTimestampWithoutZone = options.getBoolean("read-timestamp-without-zone", false);
   }
 
   @Override
@@ -134,6 +140,8 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   @Override
   public StructType readSchema() {
     if (readSchema == null) {
+      Preconditions.checkArgument(readTimestampWithoutZone || !hasTimestampWithoutZone(expectedSchema),
+          "Spark does not support timestamp without time zone fields");
       this.readSchema = SparkSchemaUtil.convert(expectedSchema);
     }
     return readSchema;
@@ -184,10 +192,18 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
     boolean hasNoDeleteFiles = tasks().stream().noneMatch(TableScanUtil::hasDeletes);
 
+    boolean hasTimestampWithoutZone = hasTimestampWithoutZone(expectedSchema);
+
     boolean readUsingBatch = batchReadsEnabled && hasNoDeleteFiles && ((allOrcFileScanTasks && hasNoRowFilters) ||
-        (allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives));
+        (allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives && !hasTimestampWithoutZone));
 
     return new ReaderFactory(readUsingBatch ? batchSize : 0);
+  }
+
+  private static boolean hasTimestampWithoutZone(Schema schema) {
+    return TypeUtil.find(schema, t ->
+        t.typeId().equals(Type.TypeID.TIMESTAMP) && !((Types.TimestampType) t).shouldAdjustToUTC()
+    ) != null;
   }
 
   @Override
