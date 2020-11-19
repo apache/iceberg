@@ -133,6 +133,7 @@ subprojects {
     testLogging {
       if ("true".equalsIgnoreCase(System.getenv('CI'))) {
         events "failed", "passed"
+        testLogging.showStandardStreams = true
       } else {
         events "failed"
       }
