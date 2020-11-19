@@ -133,7 +133,7 @@ abstract class BaseSparkAction<R> implements Action<R> {
                                                            MetadataTableType type) {
     DataFrameReader dataFrameReader = spark.read().format("iceberg");
     if (tableName.startsWith("spark_catalog")) {
-      // Do to the design of Spark, we cannot pass multi-element namespaces to the session catalog.
+      // Due to the design of Spark, we cannot pass multi-element namespaces to the session catalog.
       // We also don't know whether the Catalog is Hive or Hadoop Based so we can't just load one way or the other.
       // Instead we will try to load the metadata table in the hive manner first, then fall back and try the
       // hadoop location method if that fails
@@ -157,7 +157,7 @@ abstract class BaseSparkAction<R> implements Action<R> {
     }
     // Try catalog based name based resolution
     try {
-      loadMetadataTableFromCatalog(spark, tableName, tableLocation, type);
+      return loadMetadataTableFromCatalog(spark, tableName, tableLocation, type);
     } catch (Exception e) {
       if (!(e instanceof ParseException || e instanceof AnalysisException)) {
         // Rethrow unexpected exceptions
