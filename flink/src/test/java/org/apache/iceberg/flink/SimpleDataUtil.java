@@ -20,7 +20,6 @@
 package org.apache.iceberg.flink;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.table.api.DataTypes;
@@ -47,6 +46,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.HashMultiset;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -129,23 +129,9 @@ public class SimpleDataUtil {
   public static void assertTableRecords(Table table, List<Record> expected) throws IOException {
     table.refresh();
     try (CloseableIterable<Record> iterable = IcebergGenerics.read(table).build()) {
-      List<Record> iterList = Lists.newArrayList(iterable.iterator());
-      sortRecordList(iterList);
-      sortRecordList(expected);
-      Assert.assertEquals("Should produce the expected record", expected, iterList);
+      Assert.assertEquals("Should produce the expected record",
+          HashMultiset.create(expected), HashMultiset.create(iterable));
     }
-  }
-
-  private static void sortRecordList(List<Record> list) {
-    Collections.sort(list, (o1, o2) -> {
-      if (o1.hashCode() > o2.hashCode()) {
-        return 1;
-      } else if (o1.hashCode() == o2.hashCode()) {
-        return 0;
-      } else {
-        return -1;
-      }
-    });
   }
 
   public static void assertTableRecords(String tablePath, List<Record> expected) throws IOException {
