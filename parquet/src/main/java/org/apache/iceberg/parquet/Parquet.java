@@ -405,9 +405,9 @@ public class Parquet {
 
       meta("delete-type", "position");
 
-      appenderBuilder.schema(DeletesUtil.posDeleteSchema(rowSchema));
-
       if (createWriterFunc != null) {
+        appenderBuilder.schema(DeletesUtil.posDeleteSchema(rowSchema));
+
         appenderBuilder.createWriterFunc(parquetSchema -> {
           ParquetValueWriter<?> writer = createWriterFunc.apply(parquetSchema);
           if (writer instanceof StructWriter) {
@@ -418,6 +418,8 @@ public class Parquet {
         });
 
       } else {
+        appenderBuilder.schema(DeletesUtil.pathPosSchema());
+
         appenderBuilder.createWriterFunc(parquetSchema ->
             new PositionDeleteStructWriter<T>((StructWriter<?>) GenericParquetWriter.buildWriter(parquetSchema),
                 positionAccessor));

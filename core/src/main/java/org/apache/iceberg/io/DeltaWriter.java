@@ -31,24 +31,24 @@ public interface DeltaWriter<T> extends Closeable {
   /**
    * Write the insert record.
    */
-  void writeRow(T row) throws IOException;
+  void writeRow(T row);
 
   /**
    * Write the equality delete record.
    */
-  void writeEqualityDelete(T equalityDelete) throws IOException;
+  void writeEqualityDelete(T equalityDelete);
 
   /**
    * Write the deletion with file path and position into underlying system.
    */
-  default void writePosDelete(CharSequence path, long offset) throws IOException {
+  default void writePosDelete(CharSequence path, long offset) {
     writePosDelete(path, offset, null);
   }
 
   /**
    * Write the deletion with file path, position and original row into underlying system.
    */
-  void writePosDelete(CharSequence path, long offset, T row) throws IOException;
+  void writePosDelete(CharSequence path, long offset, T row);
 
   /**
    * Abort the writer to clean all generated files.

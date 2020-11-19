@@ -27,9 +27,9 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.StructLikeMap;
@@ -44,7 +44,7 @@ public class BaseDeltaWriter<T> implements DeltaWriter<T> {
   private final RollingContentFileWriter<DeleteFile, PositionDelete<T>> posDeleteWriter;
 
   private final PositionDelete<T> positionDelete = new PositionDelete<>();
-  private final StructLikeMap<List<FilePos>> insertedRowMap;
+  private final StructLikeMap<FilePos> insertedRowMap;
 
   // Function to convert the generic data to a StructLike.
   private final Function<T, StructLike> structLikeFun;
@@ -69,13 +69,15 @@ public class BaseDeltaWriter<T> implements DeltaWriter<T> {
 
     if (posDeleteWriter == null) {
       // Only accept INSERT records.
-      Preconditions.checkArgument(equalityDeleteWriter == null);
+      Preconditions.checkArgument(equalityDeleteWriter == null,
+          "Could not accept equality deletes when position delete writer is null.");
     }
 
     if (posDeleteWriter != null && equalityDeleteWriter == null) {
       // Only accept INSERT records and position deletion.
-      Preconditions.checkArgument(tableSchema == null);
-      Preconditions.checkArgument(equalityFieldIds == null);
+      Preconditions.checkArgument(tableSchema == null, "Table schema is only required for equality delete writer.");
+      Preconditions.checkArgument(equalityFieldIds == null,
+          "Equality field id list is only required for equality delete writer.");
     }
 
     if (equalityDeleteWriter != null) {
@@ -100,43 +102,37 @@ public class BaseDeltaWriter<T> implements DeltaWriter<T> {
   }
 
   @Override
-  public void writeRow(T row) throws IOException {
+  public void writeRow(T row) {
     if (enableEqualityDelete()) {
       FilePos filePos = FilePos.create(dataWriter.currentPath(), dataWriter.currentPos());
-      insertedRowMap.compute(structLikeFun.apply(row), (k, v) -> {
-        if (v == null) {
-          return Lists.newArrayList(filePos);
-        } else {
-          v.add(filePos);
-          return v;
-        }
-      });
+
+      StructLike key = structLikeFun.apply(row);
+      FilePos previous = insertedRowMap.putIfAbsent(key, filePos);
+      ValidationException.check(previous == null, "Detected duplicate insert for %s", key);
     }
 
     dataWriter.write(row);
   }
 
   @Override
-  public void writeEqualityDelete(T equalityDelete) throws IOException {
+  public void writeEqualityDelete(T equalityDelete) {
     if (!enableEqualityDelete()) {
       throw new UnsupportedOperationException("Could not accept equality deletion.");
     }
 
-    List<FilePos> existing = insertedRowMap.get(structLikeFun.apply(equalityDelete));
+    FilePos existing = insertedRowMap.get(structLikeFun.apply(equalityDelete));
 
     if (existing == null) {
       // Delete the row which have been written by other completed delta writer.
       equalityDeleteWriter.write(equalityDelete);
     } else {
       // Delete the rows which was written in current delta writer.
-      for (FilePos filePos : existing) {
-        posDeleteWriter.write(positionDelete.set(filePos.path(), filePos.pos(), null));
-      }
+      posDeleteWriter.write(positionDelete.set(existing.path, existing.pos, null));
     }
   }
 
   @Override
-  public void writePosDelete(CharSequence path, long offset, T row) throws IOException {
+  public void writePosDelete(CharSequence path, long offset, T row) {
     if (!enablePosDelete()) {
       throw new UnsupportedOperationException("Could not accept position deletion.");
     }
@@ -227,14 +223,6 @@ public class BaseDeltaWriter<T> implements DeltaWriter<T> {
 
     private static FilePos create(CharSequence path, long pos) {
       return new FilePos(path, pos);
-    }
-
-    private CharSequence path() {
-      return path;
-    }
-
-    private long pos() {
-      return pos;
     }
 
     @Override

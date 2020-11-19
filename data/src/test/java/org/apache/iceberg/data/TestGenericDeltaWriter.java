@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -32,6 +33,7 @@ import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.TestTables;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.DeltaWriter;
 import org.apache.iceberg.io.DeltaWriterFactory;
 import org.apache.iceberg.io.OutputFileFactory;
@@ -217,7 +219,7 @@ public class TestGenericDeltaWriter extends TableTestBase {
         .equalityFieldIds(equalityFieldIds)
         .rowSchema(table.schema().select("id"))
         .build();
-    DeltaWriter<Record> deltaWriter = writerFactory.createDeltaWriter(null, ctxt);
+    final DeltaWriter<Record> deltaWriter1 = writerFactory.createDeltaWriter(null, ctxt);
 
     GenericRecord record = GenericRecord.create(SCHEMA);
     Record record1 = record.copy("id", 1, "data", "aaa");
@@ -228,43 +230,47 @@ public class TestGenericDeltaWriter extends TableTestBase {
     Record record6 = record.copy("id", 1, "data", "fff");
     Record record7 = record.copy("id", 1, "data", "ggg");
 
-    deltaWriter.writeRow(record1);
-    deltaWriter.writeRow(record2);
+    deltaWriter1.writeRow(record1);
+    AssertHelpers.assertThrows("Detect duplicated keys", ValidationException.class,
+        () -> deltaWriter1.writeRow(record2));
 
     // Commit the transaction.
-    WriterResult result = deltaWriter.complete();
+    WriterResult result = deltaWriter1.complete();
     Assert.assertEquals(result.dataFiles().length, 1);
     Assert.assertEquals(result.deleteFiles().length, 0);
     commitTransaction(result);
 
-    assertTableRecords(ImmutableSet.of(record1, record2));
+    assertTableRecords(ImmutableSet.of(record1));
 
-    deltaWriter = writerFactory.createDeltaWriter(null, ctxt);
+    final DeltaWriter<Record> deltaWriter2 = writerFactory.createDeltaWriter(null, ctxt);
 
     // UPSERT (1, "ccc")
-    deltaWriter.writeEqualityDelete(record3);
-    deltaWriter.writeRow(record3);
+    deltaWriter2.writeEqualityDelete(record3);
+    deltaWriter2.writeRow(record3);
 
     // INSERT (1, "ddd")
     // INSERT (1, "eee")
-    deltaWriter.writeRow(record4);
-    deltaWriter.writeRow(record5);
+    AssertHelpers.assertThrows("Detect duplicated keys", ValidationException.class,
+        () -> deltaWriter2.writeRow(record4));
+    AssertHelpers.assertThrows("Detect duplicated keys", ValidationException.class,
+        () -> deltaWriter2.writeRow(record5));
 
     // UPSERT (1, "fff")
-    deltaWriter.writeEqualityDelete(record6);
-    deltaWriter.writeRow(record6);
+    deltaWriter2.writeEqualityDelete(record6);
+    deltaWriter2.writeRow(record6);
 
     // INSERT (1, "ggg")
-    deltaWriter.writeRow(record7);
+    AssertHelpers.assertThrows("Detect duplicated keys", ValidationException.class,
+        () -> deltaWriter2.writeRow(record7));
 
     // Commit the transaction.
-    result = deltaWriter.complete();
+    result = deltaWriter2.complete();
     Assert.assertEquals(1, result.dataFiles().length);
     // One pos-delete file, and one equality-delete file.
     Assert.assertEquals(2, result.deleteFiles().length);
     commitTransaction(result);
 
-    assertTableRecords(ImmutableSet.of(record6, record7));
+    assertTableRecords(ImmutableSet.of(record6));
   }
 
   private void assertTableRecords(Set<Record> expectedRecords) {

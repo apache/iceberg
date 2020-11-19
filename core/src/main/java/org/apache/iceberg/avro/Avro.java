@@ -299,12 +299,14 @@ public class Avro {
 
       meta("delete-type", "position");
 
-      appenderBuilder.schema(DeletesUtil.posDeleteSchema(rowSchema));
-
       if (rowSchema != null && createWriterFunc != null) {
+        appenderBuilder.schema(DeletesUtil.pathPosSchema(rowSchema));
+
         appenderBuilder.createWriterFunc(
             avroSchema -> new PositionAndRowDatumWriter<>(createWriterFunc.apply(avroSchema)));
       } else {
+        appenderBuilder.schema(DeletesUtil.pathPosSchema());
+
         appenderBuilder.createWriterFunc(ignored -> new PositionDatumWriter());
       }
 

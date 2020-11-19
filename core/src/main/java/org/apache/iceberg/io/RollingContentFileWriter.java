@@ -21,6 +21,7 @@ package org.apache.iceberg.io;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentFileWriter;
 import org.apache.iceberg.ContentFileWriterFactory;
@@ -70,7 +71,7 @@ public class RollingContentFileWriter<ContentFileT, T> implements Closeable {
     return currentRows;
   }
 
-  public void write(T record) throws IOException {
+  public void write(T record) {
     this.currentFileWriter.write(record);
     this.currentRows++;
 
@@ -123,9 +124,13 @@ public class RollingContentFileWriter<ContentFileT, T> implements Closeable {
         currentRows % ROWS_DIVISOR == 0 && currentFileWriter.length() >= targetFileSize;
   }
 
-  private void closeCurrent() throws IOException {
+  private void closeCurrent() {
     if (currentFileWriter != null) {
-      currentFileWriter.close();
+      try {
+        currentFileWriter.close();
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to close the current file writer", e);
+      }
 
       ContentFileT contentFile = currentFileWriter.toContentFile();
       Metrics metrics = currentFileWriter.metrics();
