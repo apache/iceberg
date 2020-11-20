@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink.source;
 
 import java.io.Serializable;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.configuration.ConfigOption;
@@ -61,6 +62,12 @@ class ScanContext implements Serializable {
   private static final ConfigOption<Long> SPLIT_FILE_OPEN_COST =
       ConfigOptions.key("split-file-open-cost").longType().defaultValue(null);
 
+  public static final ConfigOption<Boolean> STREAMING =
+      ConfigOptions.key("streaming").booleanType().defaultValue(false);
+
+  public static final ConfigOption<Duration> MONITOR_INTERVAL =
+      ConfigOptions.key("monitor-interval").durationType().defaultValue(Duration.ofSeconds(10));
+
   private final boolean caseSensitive;
   private final Long snapshotId;
   private final Long startSnapshotId;
@@ -69,6 +76,9 @@ class ScanContext implements Serializable {
   private final Long splitSize;
   private final Integer splitLookback;
   private final Long splitOpenFileCost;
+  private final boolean isStreaming;
+  private final Duration monitorInterval;
+
   private final String nameMapping;
   private final Schema projectedSchema;
   private final List<Expression> filterExpressions;
@@ -83,6 +93,9 @@ class ScanContext implements Serializable {
     this.splitSize = SPLIT_SIZE.defaultValue();
     this.splitLookback = SPLIT_LOOKBACK.defaultValue();
     this.splitOpenFileCost = SPLIT_FILE_OPEN_COST.defaultValue();
+    this.isStreaming = STREAMING.defaultValue();
+    this.monitorInterval = MONITOR_INTERVAL.defaultValue();
+
     this.nameMapping = null;
     this.projectedSchema = null;
     this.filterExpressions = null;
@@ -90,8 +103,9 @@ class ScanContext implements Serializable {
   }
 
   private ScanContext(boolean caseSensitive, Long snapshotId, Long startSnapshotId, Long endSnapshotId,
-      Long asOfTimestamp, Long splitSize, Integer splitLookback, Long splitOpenFileCost,
-      String nameMapping, Schema projectedSchema, List<Expression> filterExpressions, Long limit) {
+                      Long asOfTimestamp, Long splitSize, Integer splitLookback, Long splitOpenFileCost,
+                      boolean isStreaming, Duration monitorInterval, String nameMapping,
+                      Schema projectedSchema, List<Expression> filterExpressions, Long limit) {
     this.caseSensitive = caseSensitive;
     this.snapshotId = snapshotId;
     this.startSnapshotId = startSnapshotId;
@@ -100,126 +114,214 @@ class ScanContext implements Serializable {
     this.splitSize = splitSize;
     this.splitLookback = splitLookback;
     this.splitOpenFileCost = splitOpenFileCost;
+    this.isStreaming = isStreaming;
+    this.monitorInterval = monitorInterval;
+
     this.nameMapping = nameMapping;
     this.projectedSchema = projectedSchema;
     this.filterExpressions = filterExpressions;
     this.limit = limit;
   }
 
-  ScanContext fromProperties(Map<String, String> properties) {
-    Configuration config = new Configuration();
-    properties.forEach(config::setString);
-    return new ScanContext(config.get(CASE_SENSITIVE), config.get(SNAPSHOT_ID), config.get(START_SNAPSHOT_ID),
-        config.get(END_SNAPSHOT_ID), config.get(AS_OF_TIMESTAMP), config.get(SPLIT_SIZE), config.get(SPLIT_LOOKBACK),
-        config.get(SPLIT_FILE_OPEN_COST), properties.get(DEFAULT_NAME_MAPPING), projectedSchema, filterExpressions,
-        limit);
-  }
-
   boolean caseSensitive() {
     return caseSensitive;
-  }
-
-  ScanContext setCaseSensitive(boolean isCaseSensitive) {
-    return new ScanContext(isCaseSensitive, snapshotId, startSnapshotId, endSnapshotId, asOfTimestamp, splitSize,
-        splitLookback, splitOpenFileCost, nameMapping, projectedSchema, filterExpressions, limit);
   }
 
   Long snapshotId() {
     return snapshotId;
   }
 
-  ScanContext useSnapshotId(Long scanSnapshotId) {
-    return new ScanContext(caseSensitive, scanSnapshotId, startSnapshotId, endSnapshotId, asOfTimestamp, splitSize,
-        splitLookback, splitOpenFileCost, nameMapping, projectedSchema, filterExpressions, limit);
-  }
-
   Long startSnapshotId() {
     return startSnapshotId;
-  }
-
-  ScanContext startSnapshotId(Long id) {
-    return new ScanContext(caseSensitive, snapshotId, id, endSnapshotId, asOfTimestamp, splitSize, splitLookback,
-        splitOpenFileCost, nameMapping, projectedSchema, filterExpressions, limit);
   }
 
   Long endSnapshotId() {
     return endSnapshotId;
   }
 
-  ScanContext endSnapshotId(Long id) {
-    return new ScanContext(caseSensitive, snapshotId, startSnapshotId, id, asOfTimestamp, splitSize, splitLookback,
-        splitOpenFileCost, nameMapping, projectedSchema, filterExpressions, limit);
-  }
-
   Long asOfTimestamp() {
     return asOfTimestamp;
-  }
-
-  ScanContext asOfTimestamp(Long timestamp) {
-    return new ScanContext(caseSensitive, snapshotId, startSnapshotId, endSnapshotId, timestamp, splitSize,
-        splitLookback, splitOpenFileCost, nameMapping, projectedSchema, filterExpressions, limit);
   }
 
   Long splitSize() {
     return splitSize;
   }
 
-  ScanContext splitSize(Long size) {
-    return new ScanContext(caseSensitive, snapshotId, startSnapshotId, endSnapshotId, asOfTimestamp, size,
-        splitLookback, splitOpenFileCost, nameMapping, projectedSchema, filterExpressions, limit);
-  }
-
   Integer splitLookback() {
     return splitLookback;
-  }
-
-  ScanContext splitLookback(Integer lookback) {
-    return new ScanContext(caseSensitive, snapshotId, startSnapshotId, endSnapshotId, asOfTimestamp, splitSize,
-        lookback, splitOpenFileCost, nameMapping, projectedSchema, filterExpressions, limit);
   }
 
   Long splitOpenFileCost() {
     return splitOpenFileCost;
   }
 
-  ScanContext splitOpenFileCost(Long fileCost) {
-    return new ScanContext(caseSensitive, snapshotId, startSnapshotId, endSnapshotId, asOfTimestamp, splitSize,
-        splitLookback, fileCost, nameMapping, projectedSchema, filterExpressions, limit);
+  boolean isStreaming() {
+    return isStreaming;
+  }
+
+  Duration monitorInterval() {
+    return monitorInterval;
   }
 
   String nameMapping() {
     return nameMapping;
   }
 
-  ScanContext nameMapping(String mapping) {
-    return new ScanContext(caseSensitive, snapshotId, startSnapshotId, endSnapshotId, asOfTimestamp, splitSize,
-        splitLookback, splitOpenFileCost, mapping, projectedSchema, filterExpressions, limit);
-  }
-
   Schema projectedSchema() {
     return projectedSchema;
-  }
-
-  ScanContext project(Schema schema) {
-    return new ScanContext(caseSensitive, snapshotId, startSnapshotId, endSnapshotId, asOfTimestamp, splitSize,
-        splitLookback, splitOpenFileCost, nameMapping, schema, filterExpressions, limit);
   }
 
   List<Expression> filterExpressions() {
     return filterExpressions;
   }
 
-  ScanContext filterRows(List<Expression> filters) {
-    return new ScanContext(caseSensitive, snapshotId, startSnapshotId, endSnapshotId, asOfTimestamp, splitSize,
-        splitLookback, splitOpenFileCost, nameMapping, projectedSchema, filters, limit);
-  }
-
   long limit() {
     return limit;
   }
 
-  ScanContext limit(Long newLimit) {
-    return new ScanContext(caseSensitive, snapshotId, startSnapshotId, endSnapshotId, asOfTimestamp, splitSize,
-        splitLookback, splitOpenFileCost, nameMapping, projectedSchema, filterExpressions, newLimit);
+  ScanContext copyWithAppendsBetween(long newStartSnapshotId, long newEndSnapshotId) {
+    return ScanContext.builder()
+        .caseSensitive(caseSensitive)
+        .useSnapshotId(null)
+        .startSnapshotId(newStartSnapshotId)
+        .endSnapshotId(newEndSnapshotId)
+        .asOfTimestamp(null)
+        .splitSize(splitSize)
+        .splitOpenFileCost(splitOpenFileCost)
+        .nameMapping(nameMapping)
+        .streaming(isStreaming)
+        .monitorInterval(monitorInterval)
+        .build();
+  }
+
+  ScanContext copyWithSnapshotId(long newSnapshotId) {
+    return ScanContext.builder()
+        .caseSensitive(caseSensitive)
+        .useSnapshotId(newSnapshotId)
+        .startSnapshotId(null)
+        .endSnapshotId(null)
+        .asOfTimestamp(null)
+        .splitSize(splitSize)
+        .splitOpenFileCost(splitOpenFileCost)
+        .nameMapping(nameMapping)
+        .streaming(isStreaming)
+        .monitorInterval(monitorInterval)
+        .build();
+  }
+
+  static Builder builder() {
+    return new Builder();
+  }
+
+  static class Builder {
+    private boolean caseSensitive;
+    private Long snapshotId;
+    private Long startSnapshotId;
+    private Long endSnapshotId;
+    private Long asOfTimestamp;
+    private Long splitSize;
+    private Integer splitLookback;
+    private Long splitOpenFileCost;
+    private boolean isStreaming;
+    private Duration monitorInterval;
+    private String nameMapping;
+    private Schema projectedSchema;
+    private List<Expression> filterExpressions;
+    private Long limit;
+
+    private Builder() {
+    }
+
+    public Builder caseSensitive(boolean newCaseSensitive) {
+      this.caseSensitive = newCaseSensitive;
+      return this;
+    }
+
+    public Builder useSnapshotId(Long newSnapshotId) {
+      this.snapshotId = newSnapshotId;
+      return this;
+    }
+
+    public Builder startSnapshotId(Long newStartSnapshotId) {
+      this.startSnapshotId = newStartSnapshotId;
+      return this;
+    }
+
+    public Builder endSnapshotId(Long newEndsnapshotId) {
+      this.endSnapshotId = newEndsnapshotId;
+      return this;
+    }
+
+    public Builder asOfTimestamp(Long newAsOfTimestamp) {
+      this.asOfTimestamp = newAsOfTimestamp;
+      return this;
+    }
+
+    public Builder splitSize(Long newSplitSize) {
+      this.splitSize = newSplitSize;
+      return this;
+    }
+
+    public Builder splitLookback(Integer newSplitLookback) {
+      this.splitLookback = newSplitLookback;
+      return this;
+    }
+
+    public Builder splitOpenFileCost(Long newSplitOpenFileCost) {
+      this.splitOpenFileCost = newSplitOpenFileCost;
+      return this;
+    }
+
+    public Builder streaming(boolean streaming) {
+      this.isStreaming = streaming;
+      return this;
+    }
+
+    public Builder monitorInterval(Duration newMonitorInterval) {
+      this.monitorInterval = newMonitorInterval;
+      return this;
+    }
+
+    public Builder nameMapping(String newNameMapping) {
+      this.nameMapping = newNameMapping;
+      return this;
+    }
+
+    public Builder projectedSchema(Schema newProjectedSchema) {
+      this.projectedSchema = newProjectedSchema;
+      return this;
+    }
+
+    public Builder filterExpression(List<Expression> newFilterExpressions) {
+      this.filterExpressions = newFilterExpressions;
+      return this;
+    }
+
+    public Builder limit(long newLimit) {
+      this.limit = newLimit;
+      return this;
+    }
+
+    Builder fromProperties(Map<String, String> properties) {
+      Configuration config = new Configuration();
+      properties.forEach(config::setString);
+
+      return builder().caseSensitive(config.get(CASE_SENSITIVE))
+          .useSnapshotId(config.get(SNAPSHOT_ID))
+          .startSnapshotId(config.get(START_SNAPSHOT_ID))
+          .endSnapshotId(config.get(END_SNAPSHOT_ID))
+          .asOfTimestamp(config.get(AS_OF_TIMESTAMP))
+          .splitSize(config.get(SPLIT_SIZE))
+          .splitLookback(config.get(SPLIT_LOOKBACK))
+          .splitOpenFileCost(config.get(SPLIT_FILE_OPEN_COST))
+          .nameMapping(properties.get(DEFAULT_NAME_MAPPING));
+    }
+
+    public ScanContext build() {
+      return new ScanContext(caseSensitive, snapshotId, startSnapshotId,
+          endSnapshotId, asOfTimestamp, splitSize, splitLookback,
+          splitOpenFileCost, isStreaming, monitorInterval, nameMapping, projectedSchema,
+          filterExpressions, limit);
+    }
   }
 }
