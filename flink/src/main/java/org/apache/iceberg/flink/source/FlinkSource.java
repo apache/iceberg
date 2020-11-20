@@ -23,13 +23,13 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperatorFactory;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo;
-import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
@@ -72,8 +72,6 @@ public class FlinkSource {
     private TableLoader tableLoader;
     private TableSchema projectedSchema;
     private ScanContext.Builder ctxtBuilder = ScanContext.builder();
-
-    private RowDataTypeInfo rowTypeInfo;
 
     public Builder tableLoader(TableLoader newLoader) {
       this.tableLoader = newLoader;
@@ -183,13 +181,12 @@ public class FlinkSource {
         encryption = table.encryption();
       }
 
-      rowTypeInfo = RowDataTypeInfo.of((RowType) (
-          projectedSchema == null ?
-              FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(icebergSchema)) :
-              projectedSchema).toRowDataType().getLogicalType());
+      if (projectedSchema == null) {
+        ctxtBuilder.projectedSchema(icebergSchema);
+      } else {
+        ctxtBuilder.projectedSchema(FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
+      }
 
-      ctxtBuilder.projectedSchema(projectedSchema == null ? icebergSchema :
-          FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
       return new FlinkInputFormat(tableLoader, icebergSchema, io, encryption, ctxtBuilder.build());
     }
 
@@ -197,18 +194,21 @@ public class FlinkSource {
       Preconditions.checkNotNull(env, "StreamExecutionEnvironment should not be null");
       FlinkInputFormat format = buildFormat();
 
-      ScanContext context = ctxtBuilder.build();
+      ScanContext ctxt = ctxtBuilder.build();
+      TypeInformation<RowData> typeInfo = RowDataTypeInfo.of(FlinkSchemaUtil.convert(ctxt.projectedSchema()));
 
-      if (isBounded(context)) {
-        return env.createInput(format, rowTypeInfo);
+      if (isBounded(ctxt)) {
+        return env.createInput(format, typeInfo);
       } else {
         OneInputStreamOperatorFactory<FlinkInputSplit, RowData> factory = StreamingReaderOperator.factory(format);
-        StreamingMonitorFunction function =
-            new StreamingMonitorFunction(tableLoader, context.projectedSchema(), context.filterExpressions(), context);
+        StreamingMonitorFunction function = new StreamingMonitorFunction(tableLoader,
+            ctxt.projectedSchema(), ctxt.filterExpressions(), ctxt);
+
         String monitorFunctionName = String.format("Iceberg table (%s) monitor", table);
         String readerOperatorName = String.format("Iceberg table (%s) reader", table);
+
         return env.addSource(function, monitorFunctionName)
-            .transform(readerOperatorName, rowTypeInfo, factory);
+            .transform(readerOperatorName, typeInfo, factory);
       }
     }
   }

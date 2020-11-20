@@ -232,67 +232,67 @@ class ScanContext implements Serializable {
     private Builder() {
     }
 
-    public Builder caseSensitive(boolean newCaseSensitive) {
+    Builder caseSensitive(boolean newCaseSensitive) {
       this.caseSensitive = newCaseSensitive;
       return this;
     }
 
-    public Builder useSnapshotId(Long newSnapshotId) {
+    Builder useSnapshotId(Long newSnapshotId) {
       this.snapshotId = newSnapshotId;
       return this;
     }
 
-    public Builder startSnapshotId(Long newStartSnapshotId) {
+    Builder startSnapshotId(Long newStartSnapshotId) {
       this.startSnapshotId = newStartSnapshotId;
       return this;
     }
 
-    public Builder endSnapshotId(Long newEndsnapshotId) {
+    Builder endSnapshotId(Long newEndsnapshotId) {
       this.endSnapshotId = newEndsnapshotId;
       return this;
     }
 
-    public Builder asOfTimestamp(Long newAsOfTimestamp) {
+    Builder asOfTimestamp(Long newAsOfTimestamp) {
       this.asOfTimestamp = newAsOfTimestamp;
       return this;
     }
 
-    public Builder splitSize(Long newSplitSize) {
+    Builder splitSize(Long newSplitSize) {
       this.splitSize = newSplitSize;
       return this;
     }
 
-    public Builder splitLookback(Integer newSplitLookback) {
+    Builder splitLookback(Integer newSplitLookback) {
       this.splitLookback = newSplitLookback;
       return this;
     }
 
-    public Builder splitOpenFileCost(Long newSplitOpenFileCost) {
+    Builder splitOpenFileCost(Long newSplitOpenFileCost) {
       this.splitOpenFileCost = newSplitOpenFileCost;
       return this;
     }
 
-    public Builder streaming(boolean streaming) {
+    Builder streaming(boolean streaming) {
       this.isStreaming = streaming;
       return this;
     }
 
-    public Builder monitorInterval(Duration newMonitorInterval) {
+    Builder monitorInterval(Duration newMonitorInterval) {
       this.monitorInterval = newMonitorInterval;
       return this;
     }
 
-    public Builder nameMapping(String newNameMapping) {
+    Builder nameMapping(String newNameMapping) {
       this.nameMapping = newNameMapping;
       return this;
     }
 
-    public Builder projectedSchema(Schema newProjectedSchema) {
+    Builder projectedSchema(Schema newProjectedSchema) {
       this.projectedSchema = newProjectedSchema;
       return this;
     }
 
-    public Builder filterExpression(List<Expression> newFilterExpressions) {
+    Builder filterExpression(List<Expression> newFilterExpressions) {
       this.filterExpressions = newFilterExpressions;
       return this;
     }
@@ -306,7 +306,8 @@ class ScanContext implements Serializable {
       Configuration config = new Configuration();
       properties.forEach(config::setString);
 
-      return builder().caseSensitive(config.get(CASE_SENSITIVE))
+      return new Builder()
+          .caseSensitive(config.get(CASE_SENSITIVE))
           .useSnapshotId(config.get(SNAPSHOT_ID))
           .startSnapshotId(config.get(START_SNAPSHOT_ID))
           .endSnapshotId(config.get(END_SNAPSHOT_ID))
