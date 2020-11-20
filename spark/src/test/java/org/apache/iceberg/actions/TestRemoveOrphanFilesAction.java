@@ -619,7 +619,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .commit();
 
     Actions actions = Actions.forTable(table);
-    AssertHelpers.assertThrows("Should complain about expiring snapshots",
+    AssertHelpers.assertThrows("Should complain about removing orphan files",
         ValidationException.class, "Cannot remove orphan files: GC is disabled",
         actions::removeOrphanFiles);
   }
