@@ -243,7 +243,7 @@ class S3OutputStream extends PositionOutputStream {
               LOG.warn("Failed to delete staging file: {}", f, e);
             }
 
-            if(thrown != null) {
+            if (thrown != null) {
               LOG.error("Failed to upload part: {}", uploadRequest, thrown);
               abortUpload();
             }

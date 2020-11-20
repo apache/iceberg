@@ -37,7 +37,6 @@ import org.mockito.runners.MockitoJUnitRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.ResponseBytes;
-import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -78,7 +77,8 @@ public class S3OutputStreamTest {
       AwsProperties.S3FILEIO_MULTIPART_SIZE, Integer.toString(5 * 1024 * 1024),
       AwsProperties.S3FILEIO_STAGING_DIRECTORY, tmpDir.toString()));
 
-  public S3OutputStreamTest() throws IOException {}
+  public S3OutputStreamTest() throws IOException {
+  }
 
   @Before
   public void before() {
@@ -88,7 +88,7 @@ public class S3OutputStreamTest {
   @Test
   public void testWrite() {
     // Run tests for both byte and array write paths
-    Stream.of(true, false).forEach((arrayWrite) -> {
+    Stream.of(true, false).forEach(arrayWrite -> {
       // Test small file write (less than multipart threshold)
       writeAndVerify(s3mock, randomURI(), randomData(1024), arrayWrite);
       verify(s3mock, times(1)).putObject((PutObjectRequest) any(), (RequestBody) any());
@@ -140,9 +140,9 @@ public class S3OutputStreamTest {
     stream.close();
   }
 
-  private void writeAndVerify(S3Client s3, S3URI uri, byte [] data, boolean arrayWrite) {
-    try (S3OutputStream stream = new S3OutputStream(s3, uri, properties)) {
-      if(arrayWrite) {
+  private void writeAndVerify(S3Client client, S3URI uri, byte [] data, boolean arrayWrite) {
+    try (S3OutputStream stream = new S3OutputStream(client, uri, properties)) {
+      if (arrayWrite) {
         stream.write(data);
         assertEquals(data.length, stream.getPos());
       } else {
