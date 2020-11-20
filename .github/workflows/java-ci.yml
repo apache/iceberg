@@ -39,9 +39,9 @@ jobs:
         restore-keys: ${{ runner.os }}-gradle
     - run: ./gradlew check
     - uses: actions/upload-artifact@v2
+      if: failure()
       with:
         name: failing tests
         path: |
-          mr/build/reports
-          hive3/build/reports
+          **/build/reports
 
