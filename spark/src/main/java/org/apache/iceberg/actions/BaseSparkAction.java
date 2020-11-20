@@ -29,20 +29,20 @@ import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.broadcast.Broadcast;
-import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.DataFrameReader;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.parser.ParseException;
 
 import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
 
@@ -128,32 +128,44 @@ abstract class BaseSparkAction<R> implements Action<R> {
     return manifestDF.union(otherMetadataFileDF).union(manifestListDF);
   }
 
+  // Attempt to use Spark3 Catalog resolution if available on the path
+  private static final DynMethods.UnboundMethod LOAD_CATALOG = DynMethods.builder("loadCatalogMetadataTable")
+      .hiddenImpl("org.apache.iceberg.spark.Spark3Util",
+          SparkSession.class, String.class, MetadataTableType.class)
+      .orNoop()
+      .build();
+
+  private static Dataset<Row> loadCatalogMetadataTable(SparkSession spark, String tableName, MetadataTableType type) {
+    Preconditions.checkArgument(!LOAD_CATALOG.isNoop(), "Cannot find Spark3Util class but Spark3 is in use");
+    return LOAD_CATALOG.asStatic().invoke(spark, tableName, type);
+  }
+
   protected static Dataset<Row> loadMetadataTable(SparkSession spark, String tableName, String tableLocation,
                                                   MetadataTableType type) {
-    DataFrameReader noCatalogReader = spark.read().format("iceberg");
+    DataFrameReader dataFrameReader = spark.read().format("iceberg");
     if (tableName.contains("/")) {
       // Hadoop Table or Metadata location passed, load without a catalog
-      return noCatalogReader.load(tableName + "#" + type);
+      return dataFrameReader.load(tableName + "#" + type);
     }
-    // Try catalog based name based resolution
-    try {
-      return spark.table(tableName + "." + type);
-    } catch (Exception e) {
-      if (!(e instanceof ParseException || e instanceof AnalysisException)) {
-        // Rethrow unexpected exceptions
-        throw e;
+
+    // Try DSV2 catalog based name based resolution
+    if (spark.version().startsWith("3")) {
+      Dataset<Row> catalogMetadataTable = loadCatalogMetadataTable(spark, tableName, type);
+      if (catalogMetadataTable != null) {
+        return catalogMetadataTable;
       }
-      // Catalog based resolution failed, our catalog may be a non-DatasourceV2 Catalog
-      if (tableName.startsWith("hadoop.")) {
-        // Try loading by location as Hadoop table without Catalog
-        return noCatalogReader.load(tableLocation + "#" + type);
-      } else if (tableName.startsWith("hive")) {
-        // Try loading by name as a Hive table without Catalog
-        return noCatalogReader.load(tableName.replaceFirst("hive\\.", "") + "." + type);
-      } else {
-        throw new IllegalArgumentException(String.format(
-            "Cannot find the metadata table for %s of type %s", tableName, type));
-      }
+    }
+
+    // Catalog based resolution failed, our catalog may be a non-DatasourceV2 Catalog
+    if (tableName.startsWith("hadoop.")) {
+      // Try loading by location as Hadoop table without Catalog
+      return dataFrameReader.load(tableLocation + "#" + type);
+    } else if (tableName.startsWith("hive")) {
+      // Try loading by name as a Hive table without Catalog
+      return dataFrameReader.load(tableName.replaceFirst("hive\\.", "") + "." + type);
+    } else {
+      throw new IllegalArgumentException(String.format(
+          "Cannot find the metadata table for %s of type %s", tableName, type));
     }
   }
 
