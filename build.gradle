@@ -130,10 +130,26 @@ subprojects {
   }
 
   test {
+    def logDir = "${rootDir}/build/testlogs"
+    def logFile = "${logDir}/${project.name}.log"
+    mkdir("${logDir}")
+    delete("${logFile}")
+    def buildLog = new File(logFile)
+    addTestOutputListener(new TestOutputListener() {
+      def lastDescriptor
+      @Override
+      void onOutput(TestDescriptor testDescriptor, TestOutputEvent testOutputEvent) {
+        if (lastDescriptor != testDescriptor) {
+          buildLog << "--------\n- Test log for: "<< testDescriptor << "\n--------\n"
+          lastDescriptor = testDescriptor
+        }
+        buildLog << testOutputEvent.destination << " " << testOutputEvent.message
+      }
+    })
+
     testLogging {
       if ("true".equalsIgnoreCase(System.getenv('CI'))) {
         events "failed", "passed"
-        testLogging.showStandardStreams = true
       } else {
         events "failed"
       }

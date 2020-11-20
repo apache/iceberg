@@ -43,5 +43,5 @@ jobs:
       with:
         name: failing tests
         path: |
-          **/build/reports
+          **/build/testlogs
 
