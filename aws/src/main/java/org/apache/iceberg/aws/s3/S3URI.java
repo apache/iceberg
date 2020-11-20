@@ -76,23 +76,21 @@ class S3URI {
   }
 
   /**
-   * S3 bucket name
-   * @return S3 bucket
+   * Returns S3 bucket name.
    */
   public String bucket() {
     return bucket;
   }
 
   /**
-   * S3 object key name
-   * @return S3 key
+   * Returns S3 object key name.
    */
   public String key() {
     return key;
   }
 
-  /*
-   * @return original, unmodified location
+  /**
+   * Returns original, unmodified S3 URI location.
    */
   public String location() {
     return location;
