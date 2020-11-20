@@ -40,6 +40,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -380,6 +381,22 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     Assert.assertEquals("Should have three snapshots.", 3, Lists.newArrayList(table.snapshots()).size());
     Assert.assertNotNull("Second snapshot should present.", table.snapshot(secondSnapshot.snapshotId()));
     checkExpirationResults(0L, 0L, 1L, result);
+  }
+
+  @Test
+  public void testExpireSnapshotsWithDisabledGarbageCollection() {
+    table.updateProperties()
+        .set(TableProperties.GC_ENABLED, "false")
+        .commit();
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    Actions actions = Actions.forTable(table);
+    AssertHelpers.assertThrows("Should complain about expiring snapshots",
+        ValidationException.class, "Cannot expire snapshots: GC is disabled",
+        actions::expireSnapshots);
   }
 
   @Test
