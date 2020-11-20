@@ -22,8 +22,19 @@ package org.apache.iceberg.actions;
 import org.apache.iceberg.Table;
 import org.apache.spark.sql.SparkSession;
 
-class SparkActions extends Actions {
-  protected SparkActions(SparkSession spark, Table table) {
-    super(spark, table);
+class Spark3Actions implements ActionsFactoryMethods {
+  private final SparkSession spark;
+
+  public Spark3Actions() {
+    this(SparkSession.active());
+  }
+
+  public Spark3Actions(SparkSession spark) {
+    this.spark = spark;
+  }
+
+  @Override
+  public Actions forTable(Table table) {
+    return new Actions(spark, table);
   }
 }
