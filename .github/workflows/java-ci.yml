@@ -38,4 +38,10 @@ jobs:
         key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
         restore-keys: ${{ runner.os }}-gradle
     - run: ./gradlew check
+    - uses: actions/upload-artifact@v2
+      if: failure()
+      with:
+        name: test logs
+        path: |
+          **/build/testlogs
 
