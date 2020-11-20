@@ -582,11 +582,10 @@ public class Spark3Util {
       CatalogAndIdentifier catalogAndIdentifier = catalogAndIdentifier(spark, name);
       if (catalogAndIdentifier.catalog instanceof BaseCatalog) {
         BaseCatalog catalog = (BaseCatalog) catalogAndIdentifier.catalog;
-        Identifier baseIdent = catalogAndIdentifier.identifier;
-        Identifier metaIdent = Identifier.of(ArrayUtils.add(baseIdent.namespace(), baseIdent.name()), type.name());
-        Table metaTable = catalog.loadTable(metaIdent);
-        return Dataset
-            .ofRows(spark, DataSourceV2Relation.create(metaTable, Some.apply(catalog), Some.apply(metaIdent)));
+        Identifier baseId = catalogAndIdentifier.identifier;
+        Identifier metaId = Identifier.of(ArrayUtils.add(baseId.namespace(), baseId.name()), type.name());
+        Table metaTable = catalog.loadTable(metaId);
+        return Dataset.ofRows(spark, DataSourceV2Relation.create(metaTable, Some.apply(catalog), Some.apply(metaId)));
       }
     } catch (NoSuchTableException | ParseException e) {
       // Could not find table
