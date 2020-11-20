@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -1043,5 +1044,20 @@ public class TestRemoveSnapshots extends TableTestBase {
         Assert.assertFalse(deletedFiles.contains(item.path().toString()));
       });
     });
+  }
+
+  @Test
+  public void testExpireSnapshotsInSnapshotTable() {
+    table.updateProperties()
+        .set(TableProperties.SNAPSHOT, "true")
+        .commit();
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    AssertHelpers.assertThrows("Should complain about expiring snapshots",
+        ValidationException.class, "Not allowed to expire snapshots",
+        () -> table.expireSnapshots());
   }
 }

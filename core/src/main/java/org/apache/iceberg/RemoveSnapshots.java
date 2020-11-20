@@ -30,6 +30,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -51,6 +52,8 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.SNAPSHOT;
+import static org.apache.iceberg.TableProperties.SNAPSHOT_DEFAULT;
 
 @SuppressWarnings("UnnecessaryAnonymousClass")
 class RemoveSnapshots implements ExpireSnapshots {
@@ -78,6 +81,10 @@ class RemoveSnapshots implements ExpireSnapshots {
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
     this.base = ops.current();
+
+    ValidationException.check(
+        !PropertyUtil.propertyAsBoolean(base.properties(), SNAPSHOT, SNAPSHOT_DEFAULT),
+        "Not allowed to expire snapshots in a snapshot table as this may remove files in the original table");
   }
 
   @Override
