@@ -393,13 +393,10 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         .appendFile(FILE_A)
         .commit();
 
-    ExpireSnapshotsAction action = Actions.forTable(table).expireSnapshots()
-        .expireOlderThan(System.currentTimeMillis())
-        .retainLast(2);
-
+    Actions actions = Actions.forTable(table);
     AssertHelpers.assertThrows("Should complain about expiring snapshots",
         ValidationException.class, "Cannot expire snapshots: GC is disabled",
-        action::execute);
+        actions::expireSnapshots);
   }
 
   @Test
