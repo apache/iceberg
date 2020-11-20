@@ -123,9 +123,9 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   @Parameters(name = "fileFormat={0}, engine={1}")
   public static Collection<Object[]> parameters() {
     Collection<Object[]> testParams = new ArrayList<>();
-//    testParams.add(new Object[] { FileFormat.PARQUET, "mr" });
-//    testParams.add(new Object[] { FileFormat.ORC, "mr" });
-//    testParams.add(new Object[] { FileFormat.AVRO, "mr" });
+    testParams.add(new Object[] { FileFormat.PARQUET, "mr" });
+    testParams.add(new Object[] { FileFormat.ORC, "mr" });
+    testParams.add(new Object[] { FileFormat.AVRO, "mr" });
 
     // include Tez tests only for Java 8
     String javaVersion = System.getProperty("java.specification.version");
@@ -220,7 +220,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
     Assert.assertArrayEquals(new Object[] {0L, "Alice", 100L, 11.11d}, rows.get(0));
     Assert.assertArrayEquals(new Object[] {0L, "Alice", 101L, 22.22d}, rows.get(1));
-    Assert.assertArrayEquals(new Object[] {1L, "Bob", 102L, 33.33d}, rows.get(3));
+    Assert.assertArrayEquals(new Object[] {1L, "Bob", 102L, 33.33d}, rows.get(2));
   }
 
   @Test
