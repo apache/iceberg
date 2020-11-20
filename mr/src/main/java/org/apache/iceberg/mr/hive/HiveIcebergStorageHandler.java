@@ -77,6 +77,7 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
     map.put(InputFormatConfig.TABLE_IDENTIFIER, props.getProperty(Catalogs.NAME));
     map.put(InputFormatConfig.TABLE_LOCATION, table.location());
     map.put(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(table.schema()));
+    map.put(HiveIcebergInputFormat.SPLIT_LOCATION, props.getProperty(Catalogs.LOCATION));
   }
 
   @Override
@@ -97,7 +98,11 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
 
   @Override
   public void configureJobConf(TableDesc tableDesc, JobConf jobConf) {
-
+    HiveIcebergConfigUtil.copySchemaToConf(
+        () -> Catalogs.loadTable(conf, tableDesc.getProperties()).schema(),
+        jobConf,
+        tableDesc.getProperties()
+    );
   }
 
   @Override

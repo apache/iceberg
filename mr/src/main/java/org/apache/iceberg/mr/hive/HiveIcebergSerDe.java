@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.mr.hive;
 
+import java.util.Optional;
 import java.util.Properties;
 import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
@@ -51,7 +52,12 @@ public class HiveIcebergSerDe extends AbstractSerDe {
     // the resulting properties are serialized and distributed to the executors
 
     Schema tableSchema;
-    if (configuration.get(InputFormatConfig.TABLE_SCHEMA) != null) {
+    // LinkedIn's Hive doesn't call configureInputJobProperties() before initializing SerDe. This is a workaround
+    // to appropriately capture configs from configureJobConf()
+    Optional<Schema> configSchema = HiveIcebergConfigUtil.getSchemaFromConf(configuration, serDeProperties);
+    if (configSchema.isPresent()) {
+      tableSchema = configSchema.get();
+    } else if (configuration.get(InputFormatConfig.TABLE_SCHEMA) != null) {
       tableSchema = SchemaParser.fromJson(configuration.get(InputFormatConfig.TABLE_SCHEMA));
     } else if (serDeProperties.get(InputFormatConfig.TABLE_SCHEMA) != null) {
       tableSchema = SchemaParser.fromJson((String) serDeProperties.get(InputFormatConfig.TABLE_SCHEMA));
