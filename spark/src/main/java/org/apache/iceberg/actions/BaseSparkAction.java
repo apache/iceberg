@@ -32,6 +32,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -128,20 +129,15 @@ abstract class BaseSparkAction<R> implements Action<R> {
   }
 
   // Attempt to use Spark3 Catalog resolution if available on the path
-  private static DynMethods.StaticMethod loadCatalogImpl = null;
+  private static final DynMethods.UnboundMethod LOAD_CATALOG = DynMethods.builder("loadCatalogMetadataTable")
+      .hiddenImpl("org.apache.iceberg.spark.Spark3Util",
+          SparkSession.class, String.class, MetadataTableType.class)
+      .orNoop()
+      .build();
 
   private static Dataset<Row> loadCatalogMetadataTable(SparkSession spark, String tableName, MetadataTableType type) {
-    if (loadCatalogImpl == null) {
-      try {
-        loadCatalogImpl = DynMethods.builder("loadCatalogMetadataTable")
-            .hiddenImpl("org.apache.iceberg.spark.Spark3Util",
-                SparkSession.class, String.class, MetadataTableType.class)
-            .buildStaticChecked();
-      } catch (NoSuchMethodException e) {
-        throw new IllegalArgumentException("Cannot find Spark3Util class but Spark 3 is being used.", e);
-      }
-    }
-    return loadCatalogImpl.invoke(spark, tableName, type);
+    Preconditions.checkArgument(!LOAD_CATALOG.isNoop(), "Cannot find Spark3Util class but Spark3 is in use");
+    return LOAD_CATALOG.invoke(spark, tableName, type);
   }
 
   protected static Dataset<Row> loadMetadataTable(SparkSession spark, String tableName, String tableLocation,
@@ -151,6 +147,7 @@ abstract class BaseSparkAction<R> implements Action<R> {
       // Hadoop Table or Metadata location passed, load without a catalog
       return dataFrameReader.load(tableName + "#" + type);
     }
+
     // Try DSV2 catalog based name based resolution
     if (spark.version().startsWith("3")) {
       Dataset<Row> catalogMetadataTable = loadCatalogMetadataTable(spark, tableName, type);
@@ -158,6 +155,7 @@ abstract class BaseSparkAction<R> implements Action<R> {
         return catalogMetadataTable;
       }
     }
+
     // Catalog based resolution failed, our catalog may be a non-DatasourceV2 Catalog
     if (tableName.startsWith("hadoop.")) {
       // Try loading by location as Hadoop table without Catalog
