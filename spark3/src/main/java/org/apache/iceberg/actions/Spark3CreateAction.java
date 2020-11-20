@@ -33,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.BaseCatalog;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -70,30 +71,29 @@ import scala.collection.JavaConverters;
  *   be committed upon a successful import. Then the original session catalog entry will be dropped
  *   and the new replacement table renamed to take its place.
  */
-class Spark3CreateAction implements CreateAction {
+abstract class Spark3CreateAction implements CreateAction {
   private static final Logger LOG = LoggerFactory.getLogger(Spark3CreateAction.class);
   private static final Set<String> ALLOWED_SOURCES = ImmutableSet.of("parquet", "avro", "orc", "hive");
-  private static final String ICEBERG_METADATA_FOLDER = "metadata";
-  private static final String REPLACEMENT_NAME = "_REPLACEMENT_";
+  protected static final String ICEBERG_METADATA_FOLDER = "metadata";
 
-  private final SparkSession spark;
+  protected final SparkSession spark;
 
   // Source Fields
-  private final CatalogTable sourceTable;
-  private final String sourceTableLocation;
-  private final CatalogPlugin sourceCatalog;
-  private final Identifier sourceTableName;
-  private final PartitionSpec sourcePartitionSpec;
+  protected final CatalogTable sourceTable;
+  protected final String sourceTableLocation;
+  protected final CatalogPlugin sourceCatalog;
+  protected final Identifier sourceTableName;
+  protected final PartitionSpec sourcePartitionSpec;
 
   // Destination Fields
-  private final Boolean sessionCatalogReplacement;
-  private final CatalogPlugin destCatalog;
-  private final Identifier destTableName;
+  protected final Boolean sessionCatalogReplacement;
+  protected final CatalogPlugin destCatalog;
+  protected final Identifier destTableName;
 
   // Optional Parameters for destination
-  private String destDataLocation;
-  private String destMetadataLocation;
-  private Map<String, String> additionalProperties = Maps.newHashMap();
+  protected String destDataLocation;
+  protected String destMetadataLocation;
+  protected Map<String, String> additionalProperties = Maps.newHashMap();
 
   Spark3CreateAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableName,
                        CatalogPlugin destCatalog,  Identifier destTableName) {
@@ -164,95 +164,6 @@ class Spark3CreateAction implements CreateAction {
   }
 
   @Override
-  public Long execute() {
-    StagingTableCatalog stagingCatalog = checkDestinationCatalog(destCatalog);
-    Map<String, String> newTableProperties = new ImmutableMap.Builder<String, String>()
-        .put(TableCatalog.PROP_PROVIDER, "iceberg")
-        .putAll(JavaConverters.mapAsJavaMapConverter(sourceTable.properties()).asJava())
-        .putAll(extraIcebergTableProps(destDataLocation, destMetadataLocation))
-        .putAll(additionalProperties)
-        .build();
-
-    StagedTable stagedTable;
-    try {
-      if (sessionCatalogReplacement) {
-        /*
-         * Spark Session Catalog cannot stage a replacement of a Session table with an Iceberg Table.
-         * To workaround this we create a replacement table which is renamed after it
-         * is successfully constructed.
-         */
-        stagedTable = stagingCatalog.stageCreate(Identifier.of(
-            destTableName.namespace(),
-            destTableName.name() + REPLACEMENT_NAME),
-            sourceTable.schema(),
-            Spark3Util.toTransforms(sourcePartitionSpec), newTableProperties);
-      } else {
-        stagedTable = stagingCatalog.stageCreate(destTableName, sourceTable.schema(),
-            Spark3Util.toTransforms(sourcePartitionSpec), newTableProperties);
-      }
-    } catch (NoSuchNamespaceException e) {
-      throw new IllegalArgumentException("Cannot create a new table in a namespace which does not exist", e);
-    } catch (TableAlreadyExistsException e) {
-      throw new IllegalArgumentException("Destination table already exists", e);
-    }
-
-    Table icebergTable = ((SparkTable) stagedTable).table();
-
-    String stagingLocation;
-    if (destMetadataLocation != null) {
-      stagingLocation = destMetadataLocation;
-    } else {
-      stagingLocation = ((SparkTable) stagedTable).table().location() + "/" + ICEBERG_METADATA_FOLDER;
-    }
-
-    LOG.info("Beginning migration of {} to {} using metadata location {}", sourceTableName, destTableName,
-        stagingLocation);
-
-    long numMigratedFiles;
-    try {
-      SparkTableUtil.importSparkTable(spark, Spark3Util.toTableIdentifier(sourceTableName), icebergTable,
-          stagingLocation);
-
-      Snapshot snapshot = icebergTable.currentSnapshot();
-      numMigratedFiles = Long.valueOf(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
-
-      stagedTable.commitStagedChanges();
-      LOG.info("Successfully loaded Iceberg metadata for {} files", numMigratedFiles);
-    } catch (Exception e) {
-      LOG.error("Error when attempting to commit migration changes, rolling back", e);
-      stagedTable.abortStagedChanges();
-      throw e;
-    }
-
-    if (sessionCatalogReplacement) {
-      Identifier replacementTable = Identifier.of(destTableName.namespace(), destTableName.name() + REPLACEMENT_NAME);
-      try {
-        stagingCatalog.dropTable(destTableName);
-        stagingCatalog.renameTable(replacementTable, destTableName);
-      } catch (NoSuchTableException e) {
-        LOG.error("Cannot migrate, replacement table is missing. Attempting to recreate source table", e);
-        try {
-          stagingCatalog.createTable(sourceTableName, sourceTable.schema(),
-              Spark3Util.toTransforms(sourcePartitionSpec), JavaConverters.mapAsJavaMap(sourceTable.properties()));
-        } catch (TableAlreadyExistsException tableAlreadyExistsException) {
-          Log.error("Cannot recreate source table. Source table has already been recreated", e);
-          throw new RuntimeException(e);
-        } catch (NoSuchNamespaceException noSuchNamespaceException) {
-          Log.error("Cannot recreate source table. Source namespace has been removed, cannot recreate", e);
-          throw new RuntimeException(e);
-        }
-      } catch (TableAlreadyExistsException e) {
-        Log.error("Cannot migrate, Source table was recreated before replacement could be moved. " +
-            "Attempting to remove replacement table.", e);
-        stagingCatalog.dropTable(replacementTable);
-        stagedTable.abortStagedChanges();
-      }
-    }
-
-    return numMigratedFiles;
-  }
-
-  @Override
   public CreateAction set(Map<String, String> properties) {
     this.additionalProperties.putAll(properties);
     return this;
@@ -276,19 +187,14 @@ class Spark3CreateAction implements CreateAction {
     }
   }
 
-  private static Map<String, String> extraIcebergTableProps(String tableLocation, String metadataLocation) {
-    if (tableLocation != null && metadataLocation != null) {
-      return ImmutableMap.of(
-          TableProperties.WRITE_METADATA_LOCATION, metadataLocation,
-          TableProperties.WRITE_NEW_DATA_LOCATION, tableLocation,
-          "migrated", "true"
-      );
-    } else {
-      return ImmutableMap.of("migrated", "true");
-    }
+  protected static Map<String, String> tableLocationProperties(String tableLocation) {
+    return ImmutableMap.of(
+        TableProperties.WRITE_METADATA_LOCATION, tableLocation + "/" + ICEBERG_METADATA_FOLDER,
+        TableProperties.WRITE_NEW_DATA_LOCATION, tableLocation
+    );
   }
 
-  private static StagingTableCatalog checkDestinationCatalog(CatalogPlugin catalog) {
+  protected static StagingTableCatalog checkDestinationCatalog(CatalogPlugin catalog) {
     if (!(catalog instanceof SparkSessionCatalog) && !(catalog instanceof SparkCatalog)) {
       throw new IllegalArgumentException(String.format("Cannot create Iceberg table in non Iceberg Catalog. " +
               "Catalog %s was of class %s but %s or %s are required", catalog.name(), catalog.getClass(),
@@ -299,7 +205,7 @@ class Spark3CreateAction implements CreateAction {
 
   private CatalogPlugin checkSourceCatalog(CatalogPlugin catalog) {
     // Currently the Import code relies on being able to look up the table in the session code
-    if (!catalog.name().equals("spark_catalog")) {
+    if (!(catalog instanceof SparkSessionCatalog)
       throw new IllegalArgumentException(String.format(
           "Cannot create an Iceberg table from a non-Session Catalog table. " +
               "Found %s of class %s as the source catalog o", catalog.name(), catalog.getClass().getName()));
