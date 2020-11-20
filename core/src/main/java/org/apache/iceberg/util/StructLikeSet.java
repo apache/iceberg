@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.util;
 
+import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Objects;
@@ -29,7 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 
-public class StructLikeSet implements Set<StructLike> {
+public class StructLikeSet extends AbstractSet<StructLike> implements Set<StructLike> {
   public static StructLikeSet create(Types.StructType type) {
     return new StructLikeSet(type);
   }
@@ -104,7 +105,7 @@ public class StructLikeSet implements Set<StructLike> {
 
   @Override
   public boolean remove(Object obj) {
-    if (obj instanceof CharSequence) {
+    if (obj instanceof StructLike) {
       StructLikeWrapper wrapper = wrappers.get();
       boolean result = wrapperSet.remove(wrapper.set((StructLike) obj));
       wrapper.set(null); // don't hold a reference to the value
