@@ -170,6 +170,12 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     this.batchSize = options.get("batch-size").map(Integer::parseInt).orElseGet(() ->
         PropertyUtil.propertyAsInt(table.properties(),
           TableProperties.PARQUET_BATCH_SIZE, TableProperties.PARQUET_BATCH_SIZE_DEFAULT));
+    // Allow reading timestamp without time zone as timestamp with time zone. Generally, this is not safe as timestamp
+    // without time zone is supposed to represent wall clock time semantics, i.e. no matter the reader/writer timezone
+    // 3PM should always be read as 3PM, but timestamp with time zone represents instant semantics, i.e the timestamp
+    // is adjusted so that the corresponding time in the reader timezone is displayed. However, at LinkedIn, all readers
+    // and writers are in the UTC timezone as our production machines are set to UTC. So, timestamp with/without time
+    // zone is the same.
     this.readTimestampWithoutZone = options.get("read-timestamp-without-zone").map(Boolean::parseBoolean).orElse(false);
   }
 
