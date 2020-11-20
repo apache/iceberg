@@ -127,23 +127,19 @@ abstract class BaseSparkAction<R> implements Action<R> {
     return manifestDF.union(otherMetadataFileDF).union(manifestListDF);
   }
 
-  private static boolean isExpectedCatalogLookupException(Exception exception) {
-    return exception.getMessage().contains("AnalysisException") ||
-        exception.getMessage().contains("SparkException") ||
-        exception.getMessage().contains("NoSuchTableException") ||
-        exception.getMessage().contains("CatalogNotFoundException");
-  }
-
   // Attempt to use Spark3 Catalog resolution if available on the path
   private static DynMethods.StaticMethod loadCatalogImpl = null;
 
-  private static Dataset<Row> loadCatalogMetadataTable(SparkSession spark, String tableName, MetadataTableType type)
-      throws NoSuchMethodException {
+  private static Dataset<Row> loadCatalogMetadataTable(SparkSession spark, String tableName, MetadataTableType type) {
     if (loadCatalogImpl == null) {
-      loadCatalogImpl = DynMethods.builder("loadCatalogMetadataTable")
-          .hiddenImpl("org.apache.iceberg.spark.Spark3Util",
-              SparkSession.class, String.class, MetadataTableType.class)
-          .buildStaticChecked();
+      try {
+        loadCatalogImpl = DynMethods.builder("loadCatalogMetadataTable")
+            .hiddenImpl("org.apache.iceberg.spark.Spark3Util",
+                SparkSession.class, String.class, MetadataTableType.class)
+            .buildStaticChecked();
+      } catch (NoSuchMethodException e) {
+        throw new IllegalArgumentException("Cannot find Spark3Util class but Spark 3 is being used.", e);
+      }
     }
     return loadCatalogImpl.invoke(spark, tableName, type);
   }
@@ -155,15 +151,11 @@ abstract class BaseSparkAction<R> implements Action<R> {
       // Hadoop Table or Metadata location passed, load without a catalog
       return dataFrameReader.load(tableName + "#" + type);
     }
-    try {
-      // Try DSV2 catalog based name based resolution
-      if (spark.version().startsWith("3")) {
-        return loadCatalogMetadataTable(spark, tableName, type);
-      }
-    } catch (Exception e) {
-      if (!(isExpectedCatalogLookupException(e))) {
-      // Rethrow unexpected exceptions
-        throw new IllegalArgumentException("Cannot load metadata table, unexpected error", e);
+    // Try DSV2 catalog based name based resolution
+    if (spark.version().startsWith("3")) {
+      Dataset<Row> catalogMetadataTable = loadCatalogMetadataTable(spark, tableName, type);
+      if (catalogMetadataTable != null) {
+        return catalogMetadataTable;
       }
     }
     // Catalog based resolution failed, our catalog may be a non-DatasourceV2 Catalog

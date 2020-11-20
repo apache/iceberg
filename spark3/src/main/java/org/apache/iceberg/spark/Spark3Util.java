@@ -50,14 +50,11 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.parser.ParserInterface;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
-import org.apache.spark.sql.connector.catalog.CatalogNotFoundException;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
-import org.apache.spark.sql.connector.catalog.CatalogV2Implicits;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -568,25 +565,35 @@ public class Spark3Util {
     }
   }
 
-  /*
+  /**
+   * Returns a Metadata Table Dataset if it can be loaded from a Spark V2 Catalog
+   *
    * Because Spark does not allow more than 1 piece in the namespace for a Session Catalog table, we circumvent
    * the entire resolution path for tables and instead look up the table directly ourselves. This lets us correctly
    * get metadata tables for the SessionCatalog, if we didn't have to work around this we could just use spark.table.
+   *
+   * @param spark SparkSession used for looking up catalog references and tables
+   * @param name The multipart identifier of the base Iceberg table
+   * @param type The type of metadata table to load
+   * @return null if we cannot find the Metadata Table, a Dataset of rows otherwise
    */
-  private static Dataset<Row> loadCatalogMetadataTable(SparkSession spark, String name, MetadataTableType type)
-      throws CatalogNotFoundException, ParseException, NoSuchTableException {
-
-    CatalogAndIdentifier catalogAndIdentifier = catalogAndIdentifier(spark, name);
-    if (catalogAndIdentifier.catalog instanceof BaseCatalog) {
-      BaseCatalog catalog = (BaseCatalog) catalogAndIdentifier.catalog;
-      Identifier baseIdent = catalogAndIdentifier.identifier;
-      Identifier metaIdent = Identifier.of(ArrayUtils.add(baseIdent.namespace(), baseIdent.name()), type.name());
-      Table metaTable = catalog.loadTable(metaIdent);
-      return Dataset.ofRows(spark, DataSourceV2Relation.create(metaTable, Some.apply(catalog), Some.apply(metaIdent)));
-    } else {
-      throw new CatalogNotFoundException(String.format("Cannot cast %s as an Iceberg catalog",
-          catalogAndIdentifier.catalog.name()));
+  private static Dataset<Row> loadCatalogMetadataTable(SparkSession spark, String name, MetadataTableType type) {
+    try {
+      CatalogAndIdentifier catalogAndIdentifier = catalogAndIdentifier(spark, name);
+      if (catalogAndIdentifier.catalog instanceof BaseCatalog) {
+        BaseCatalog catalog = (BaseCatalog) catalogAndIdentifier.catalog;
+        Identifier baseIdent = catalogAndIdentifier.identifier;
+        Identifier metaIdent = Identifier.of(ArrayUtils.add(baseIdent.namespace(), baseIdent.name()), type.name());
+        Table metaTable = catalog.loadTable(metaIdent);
+        return Dataset
+            .ofRows(spark, DataSourceV2Relation.create(metaTable, Some.apply(catalog), Some.apply(metaIdent)));
+      }
+    } catch (NoSuchTableException | ParseException e) {
+      // Could not find table
+      return null;
     }
+    // Could not find table
+    return null;
   }
 
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, String name) throws ParseException {
@@ -619,11 +626,11 @@ public class Spark3Util {
       try {
         // Assume the first element is a valid catalog
         CatalogPlugin namedCatalog = catalogManager.catalog(nameParts.get(0));
-        String[] namespace = (String[]) nameParts.subList(1, lastElementIndex).toArray();
+        String[] namespace = nameParts.subList(1, lastElementIndex).toArray(new String[0]);
         return new CatalogAndIdentifier(namedCatalog, Identifier.of(namespace, name));
       } catch (Exception e) {
         // The first element was not a valid catalog, treat it like part of the namespace
-        String[] namespace = (String[]) nameParts.subList(0, lastElementIndex).toArray();
+        String[] namespace =  nameParts.subList(0, lastElementIndex).toArray(new String[0]);
         return new CatalogAndIdentifier(currentCatalog, Identifier.of(namespace, name));
       }
     }
