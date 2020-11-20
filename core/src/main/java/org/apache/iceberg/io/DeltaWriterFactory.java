@@ -140,7 +140,7 @@ public interface DeltaWriterFactory<T> {
 
           for (Integer fieldId : equalityFieldIds) {
             Preconditions.checkNotNull(eqDeleteRowSchema.findField(fieldId),
-                "Missing field id %s in provided row schema: %s", fieldId, eqDeleteRowSchema);
+                "Unknown field with id %s in provided equality row schema: %s", fieldId, eqDeleteRowSchema);
           }
         }
 

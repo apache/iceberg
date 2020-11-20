@@ -45,6 +45,7 @@ import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.RollingContentFileWriter;
+import org.apache.iceberg.io.RollingEqDeleteWriter;
 import org.apache.iceberg.io.RollingPosDeleteWriter;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -83,6 +84,7 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
         format, fileFactory, io, targetFileSize, createDataFileWriterFactory());
 
     if (!ctxt.allowPosDelete() && !ctxt.allowEqualityDelete()) {
+      // Only accept INSERT records.
       return new GenericDeltaWriter(dataWriter);
     }
 
@@ -90,14 +92,16 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
         format, fileFactory, io, targetFileSize, createPosDeleteWriterFactory(ctxt.posDeleteRowSchema()));
 
     if (ctxt.allowPosDelete() && !ctxt.allowEqualityDelete()) {
+      // Only accept INSERT records and POS-DELETE records.
       return new GenericDeltaWriter(dataWriter, posDeleteWriter);
     }
 
+    // Accept INSERT records, POS-DELETE records and EQUALITY-DELETE records.
     Preconditions.checkState(ctxt.allowEqualityDelete(), "Should always allow equality-delete here.");
     Preconditions.checkState(ctxt.equalityFieldIds() != null && !ctxt.equalityFieldIds().isEmpty(),
         "Equality field id list shouldn't be null or emtpy.");
 
-    RollingContentFileWriter<DeleteFile, Record> eqDeleteWriter = new RollingContentFileWriter<>(partitionKey,
+    RollingEqDeleteWriter<Record> eqDeleteWriter = new RollingEqDeleteWriter<>(partitionKey,
         format, fileFactory, io, targetFileSize,
         createEqualityDeleteWriterFactory(ctxt.equalityFieldIds(), ctxt.eqDeleteRowSchema()));
 
@@ -221,9 +225,9 @@ public class GenericDeltaWriterFactory implements DeltaWriterFactory<Record> {
 
     GenericDeltaWriter(RollingContentFileWriter<DataFile, Record> dataWriter,
                        RollingPosDeleteWriter<Record> posDeleteWriter,
-                       RollingContentFileWriter<DeleteFile, Record> equalityDeleteWriter, Schema tableSchema,
+                       RollingEqDeleteWriter<Record> eqDeleteWriter, Schema tableSchema,
                        List<Integer> equalityFieldIds) {
-      super(dataWriter, posDeleteWriter, equalityDeleteWriter, tableSchema, equalityFieldIds);
+      super(dataWriter, posDeleteWriter, eqDeleteWriter, tableSchema, equalityFieldIds);
     }
 
     @Override

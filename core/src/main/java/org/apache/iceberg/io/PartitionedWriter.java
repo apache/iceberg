@@ -102,12 +102,7 @@ public abstract class PartitionedWriter<ContentFileT, T> implements TaskWriter<T
     close();
 
     if (currentWriter != null) {
-      try {
-        currentWriter.abort();
-      } catch (IOException e) {
-        LOG.warn("Failed to abort the current writer: {} because: ", currentWriter, e);
-      }
-
+      currentWriter.abort();
       currentWriter = null;
     }
 

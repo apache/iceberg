@@ -20,7 +20,6 @@
 package org.apache.iceberg.io;
 
 import java.io.Closeable;
-import java.io.IOException;
 
 /**
  * The write interface could accept INSERT, POS-DELETION, EQUALITY-DELETION. It usually write those operations
@@ -53,10 +52,10 @@ public interface DeltaWriter<T> extends Closeable {
   /**
    * Abort the writer to clean all generated files.
    */
-  void abort() throws IOException;
+  void abort();
 
   /**
    * Close the writer and get all the completed data files and delete files.
    */
-  WriterResult complete() throws IOException;
+  WriterResult complete();
 }

@@ -22,7 +22,6 @@ package org.apache.iceberg.io;
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -32,42 +31,38 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.StructLikeMap;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public abstract class BaseDeltaWriter<T> implements DeltaWriter<T> {
-  private static final Logger LOG = LoggerFactory.getLogger(BaseDeltaWriter.class);
-
   private final RollingContentFileWriter<DataFile, T> dataWriter;
-  private final RollingContentFileWriter<DeleteFile, T> equalityDeleteWriter;
+  private final RollingEqDeleteWriter<T> eqDeleteWriter;
   private final RollingPosDeleteWriter<T> posDeleteWriter;
 
   private final PositionDelete<T> positionDelete = new PositionDelete<>();
   private final StructLikeMap<RowOffset> insertedRowMap;
 
-  public BaseDeltaWriter(RollingContentFileWriter<DataFile, T> dataWriter,
-                         RollingPosDeleteWriter<T> posDeleteWriter,
-                         RollingContentFileWriter<DeleteFile, T> equalityDeleteWriter,
-                         Schema tableSchema,
-                         List<Integer> equalityFieldIds) {
+  protected BaseDeltaWriter(RollingContentFileWriter<DataFile, T> dataWriter,
+                            RollingPosDeleteWriter<T> posDeleteWriter,
+                            RollingEqDeleteWriter<T> eqDeleteWriter,
+                            Schema tableSchema,
+                            List<Integer> equalityFieldIds) {
 
     Preconditions.checkNotNull(dataWriter, "Data writer should always not be null.");
 
     if (posDeleteWriter == null) {
       // Only accept INSERT records.
-      Preconditions.checkArgument(equalityDeleteWriter == null,
+      Preconditions.checkArgument(eqDeleteWriter == null,
           "Could not accept equality deletes when position delete writer is null.");
     }
 
-    if (posDeleteWriter != null && equalityDeleteWriter == null) {
-      // Only accept INSERT records and position deletion.
+    if (posDeleteWriter != null && eqDeleteWriter == null) {
+      // Only accept INSERT records and POS-DELETE records.
       Preconditions.checkArgument(tableSchema == null, "Table schema is only required for equality delete writer.");
       Preconditions.checkArgument(equalityFieldIds == null,
           "Equality field id list is only required for equality delete writer.");
     }
 
-    if (equalityDeleteWriter != null) {
-      // Accept insert records, position deletion, equality deletions.
+    if (eqDeleteWriter != null) {
+      // Accept INSERT records, POS-DELETE records and EQUALITY-DELETE records.
       Preconditions.checkNotNull(posDeleteWriter,
           "Position delete writer shouldn't be null when writing equality deletions.");
       Preconditions.checkNotNull(tableSchema, "Iceberg table schema shouldn't be null");
@@ -80,7 +75,7 @@ public abstract class BaseDeltaWriter<T> implements DeltaWriter<T> {
     }
 
     this.dataWriter = dataWriter;
-    this.equalityDeleteWriter = equalityDeleteWriter;
+    this.eqDeleteWriter = eqDeleteWriter;
     this.posDeleteWriter = posDeleteWriter;
   }
 
@@ -90,10 +85,10 @@ public abstract class BaseDeltaWriter<T> implements DeltaWriter<T> {
 
   @Override
   public void writeRow(T row) {
-    if (enableEqualityDelete()) {
+    if (allowEqDelete()) {
       RowOffset rowOffset = RowOffset.create(dataWriter.currentPath(), dataWriter.currentRows());
 
-      // Copy the key to avoid messing up keys in the insertedRowMap.
+      // Copy the key to avoid messing up the insertedRowMap.
       StructLike key = asCopiedKey(row);
       RowOffset previous = insertedRowMap.putIfAbsent(key, rowOffset);
       ValidationException.check(previous == null, "Detected duplicate insert for %s", key);
@@ -104,16 +99,14 @@ public abstract class BaseDeltaWriter<T> implements DeltaWriter<T> {
 
   @Override
   public void writeEqualityDelete(T equalityDelete) {
-    if (!enableEqualityDelete()) {
-      throw new UnsupportedOperationException("Could not accept equality deletion.");
-    }
+    Preconditions.checkState(allowEqDelete(), "Could not accept equality deletion.");
 
     StructLike key = asKey(equalityDelete);
     RowOffset existing = insertedRowMap.get(key);
 
     if (existing == null) {
       // Delete the row which have been written by other completed delta writer.
-      equalityDeleteWriter.write(equalityDelete);
+      eqDeleteWriter.write(equalityDelete);
     } else {
       // Delete the rows which was written in current delta writer. If the position delete row schema is null, then the
       // writer won't write the records even if we provide the rows here.
@@ -125,9 +118,7 @@ public abstract class BaseDeltaWriter<T> implements DeltaWriter<T> {
 
   @Override
   public void writePosDelete(CharSequence path, long offset, T row) {
-    if (!enablePosDelete()) {
-      throw new UnsupportedOperationException("Could not accept position deletion.");
-    }
+    Preconditions.checkState(allowPosDelete(), "Could not accept position deletion.");
 
     posDeleteWriter.write(positionDelete.set(path, offset, row));
   }
@@ -135,41 +126,29 @@ public abstract class BaseDeltaWriter<T> implements DeltaWriter<T> {
   @Override
   public void abort() {
     if (dataWriter != null) {
-      try {
-        dataWriter.abort();
-      } catch (IOException e) {
-        LOG.warn("Failed to abort the data writer {} because: ", dataWriter, e);
-      }
+      dataWriter.abort();
     }
 
-    if (equalityDeleteWriter != null) {
-      try {
-        equalityDeleteWriter.abort();
-      } catch (IOException e) {
-        LOG.warn("Failed to abort the equality-delete writer {} because: ", equalityDeleteWriter, e);
-      }
+    if (eqDeleteWriter != null) {
+      eqDeleteWriter.abort();
       insertedRowMap.clear();
     }
 
     if (posDeleteWriter != null) {
-      try {
-        posDeleteWriter.abort();
-      } catch (IOException e) {
-        LOG.warn("Failed to abort the pos-delete writer {} because: ", posDeleteWriter, e);
-      }
+      posDeleteWriter.abort();
     }
   }
 
   @Override
-  public WriterResult complete() throws IOException {
+  public WriterResult complete() {
     WriterResult.Builder builder = WriterResult.builder();
 
     if (dataWriter != null) {
       builder.add(dataWriter.complete());
     }
 
-    if (equalityDeleteWriter != null) {
-      builder.add(equalityDeleteWriter.complete());
+    if (eqDeleteWriter != null) {
+      builder.add(eqDeleteWriter.complete());
       insertedRowMap.clear();
     }
 
@@ -186,8 +165,8 @@ public abstract class BaseDeltaWriter<T> implements DeltaWriter<T> {
       dataWriter.close();
     }
 
-    if (equalityDeleteWriter != null) {
-      equalityDeleteWriter.close();
+    if (eqDeleteWriter != null) {
+      eqDeleteWriter.close();
       insertedRowMap.clear();
     }
 
@@ -196,11 +175,11 @@ public abstract class BaseDeltaWriter<T> implements DeltaWriter<T> {
     }
   }
 
-  private boolean enableEqualityDelete() {
-    return equalityDeleteWriter != null && posDeleteWriter != null;
+  private boolean allowEqDelete() {
+    return eqDeleteWriter != null && posDeleteWriter != null;
   }
 
-  private boolean enablePosDelete() {
+  private boolean allowPosDelete() {
     return posDeleteWriter != null;
   }
 
@@ -221,7 +200,7 @@ public abstract class BaseDeltaWriter<T> implements DeltaWriter<T> {
     public String toString() {
       return MoreObjects.toStringHelper(this)
           .add("path", path)
-          .add("pos", rowId)
+          .add("row_id", rowId)
           .toString();
     }
   }

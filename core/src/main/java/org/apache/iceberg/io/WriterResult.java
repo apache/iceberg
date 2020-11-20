@@ -36,12 +36,12 @@ public class WriterResult implements Serializable {
   private DataFile[] dataFiles;
   private DeleteFile[] deleteFiles;
 
-  WriterResult(DataFile[] dataFiles, DeleteFile[] deleteFiles) {
+  private WriterResult(DataFile[] dataFiles, DeleteFile[] deleteFiles) {
     this.dataFiles = dataFiles;
     this.deleteFiles = deleteFiles;
   }
 
-  WriterResult(List<DataFile> dataFiles, List<DeleteFile> deleteFiles) {
+  private WriterResult(List<DataFile> dataFiles, List<DeleteFile> deleteFiles) {
     this.dataFiles = dataFiles.toArray(new DataFile[0]);
     this.deleteFiles = deleteFiles.toArray(new DeleteFile[0]);
   }
@@ -123,7 +123,7 @@ public class WriterResult implements Serializable {
           break;
 
         default:
-          throw new UnsupportedOperationException("Unknown file: " + contentFile.content());
+          throw new UnsupportedOperationException("Unknown content file: " + contentFile.content());
       }
     }
 

@@ -42,7 +42,7 @@ public interface ContentFileWriter<T, R> extends Closeable {
   long length();
 
   /**
-   * Return a {@link DeleteFile} or {@link DataFile}
+   * Return a {@link ContentFile} which is either {@link DeleteFile} or {@link DataFile}.
    */
   T toContentFile();
 }

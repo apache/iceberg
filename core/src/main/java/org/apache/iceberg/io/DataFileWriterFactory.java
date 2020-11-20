@@ -29,7 +29,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 
 /**
- * TODO: This factory would be removed once we've replaced by using {@link DeltaWriterFactory} in the upper layer.
+ * TODO: This factory would be removed once we've replaced this with {@link DeltaWriterFactory} in the compute engines.
  */
 public class DataFileWriterFactory<D> implements ContentFileWriterFactory<DataFile, D> {
   private final FileAppenderFactory<D> appenderFactory;

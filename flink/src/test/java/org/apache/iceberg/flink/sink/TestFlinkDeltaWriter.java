@@ -101,7 +101,7 @@ public class TestFlinkDeltaWriter extends TableTestBase {
   }
 
   @Test
-  public void testWritePureInsert() throws IOException {
+  public void testWritePureInsert() {
     DeltaWriterFactory<RowData> writerFactory = createDeltaWriterFactory();
 
     DeltaWriterFactory.Context ctxt = DeltaWriterFactory.Context.builder()
@@ -127,7 +127,7 @@ public class TestFlinkDeltaWriter extends TableTestBase {
   }
 
   @Test
-  public void testWriteEqualityDelete() throws IOException {
+  public void testWriteEqualityDelete() {
     DeltaWriterFactory<RowData> writerFactory = createDeltaWriterFactory();
 
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
@@ -171,7 +171,7 @@ public class TestFlinkDeltaWriter extends TableTestBase {
   }
 
   @Test
-  public void testEqualityDeleteSameRow() throws IOException {
+  public void testEqualityDeleteSameRow() {
     DeltaWriterFactory<RowData> writerFactory = createDeltaWriterFactory();
 
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
@@ -214,7 +214,7 @@ public class TestFlinkDeltaWriter extends TableTestBase {
   }
 
   @Test
-  public void testPositionDelete() throws IOException {
+  public void testPositionDelete() {
     DeltaWriterFactory<RowData> writerFactory = createDeltaWriterFactory();
     DeltaWriterFactory.Context ctxt = DeltaWriterFactory.Context.builder()
         .allowPosDelete(true)
@@ -262,7 +262,7 @@ public class TestFlinkDeltaWriter extends TableTestBase {
   }
 
   @Test
-  public void testUpsertSameRow() throws IOException {
+  public void testUpsertSameRow() {
     DeltaWriterFactory<RowData> writerFactory = createDeltaWriterFactory();
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
     DeltaWriterFactory.Context ctxt = DeltaWriterFactory.Context.builder()

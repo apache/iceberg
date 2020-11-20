@@ -91,7 +91,7 @@ public class TestGenericDeltaWriter extends TableTestBase {
   }
 
   @Test
-  public void testWritePureInsert() throws IOException {
+  public void testWritePureInsert() {
     DeltaWriterFactory<Record> writerFactory = createDeltaWriterFactory();
 
     DeltaWriterFactory.Context ctxt = DeltaWriterFactory.Context.builder()
@@ -102,9 +102,7 @@ public class TestGenericDeltaWriter extends TableTestBase {
     DeltaWriter<Record> deltaWriter = writerFactory.createDeltaWriter(null, ctxt);
 
     List<Record> expected = RandomGenericData.generate(SCHEMA, 100, 22112234L);
-    for (Record record : expected) {
-      deltaWriter.writeRow(record);
-    }
+    expected.forEach(deltaWriter::writeRow);
 
     WriterResult result = deltaWriter.complete();
 
@@ -117,7 +115,7 @@ public class TestGenericDeltaWriter extends TableTestBase {
   }
 
   @Test
-  public void testWriteEqualityDelete() throws IOException {
+  public void testWriteEqualityDelete() {
     DeltaWriterFactory<Record> writerFactory = createDeltaWriterFactory();
 
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
@@ -162,7 +160,7 @@ public class TestGenericDeltaWriter extends TableTestBase {
   }
 
   @Test
-  public void testEqualityDeleteSameRow() throws IOException {
+  public void testEqualityDeleteSameRow() {
     DeltaWriterFactory<Record> writerFactory = createDeltaWriterFactory();
 
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
@@ -206,7 +204,7 @@ public class TestGenericDeltaWriter extends TableTestBase {
   }
 
   @Test
-  public void testPositionDelete() throws IOException {
+  public void testPositionDelete() {
     DeltaWriterFactory<Record> writerFactory = createDeltaWriterFactory();
     DeltaWriterFactory.Context ctxt = DeltaWriterFactory.Context.builder()
         .allowPosDelete(true)
@@ -255,7 +253,7 @@ public class TestGenericDeltaWriter extends TableTestBase {
   }
 
   @Test
-  public void testUpsertSameRow() throws IOException {
+  public void testUpsertSameRow() {
     DeltaWriterFactory<Record> writerFactory = createDeltaWriterFactory();
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
     DeltaWriterFactory.Context ctxt = DeltaWriterFactory.Context.builder()

@@ -21,9 +21,23 @@ package org.apache.iceberg;
 
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 
+/**
+ * Factory to create a new {@link ContentFileWriter} to write INSERT or DELETE records.
+ *
+ * @param <T> Content file type, it's either {@link DataFile} or {@link DeleteFile}.
+ * @param <R> data type of the rows to write.
+ */
 public interface ContentFileWriterFactory<T, R> {
 
-  ContentFileWriter<T, R> createWriter(PartitionKey partitionKey,
-                                       EncryptedOutputFile outputFile,
+  /**
+   * Create a new {@link ContentFileWriter}
+   *
+   * @param partitionKey an partition key to indicate which partition the rows will be written. Null if it's
+   *                     unpartitioned.
+   * @param outputFile   an OutputFile used to create an output stream.
+   * @param fileFormat   File format.
+   * @return a newly created {@link ContentFileWriter}
+   */
+  ContentFileWriter<T, R> createWriter(PartitionKey partitionKey, EncryptedOutputFile outputFile,
                                        FileFormat fileFormat);
 }

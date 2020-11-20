@@ -48,8 +48,8 @@ public class RollingContentFileWriter<ContentFileT, T> implements Closeable {
   private long currentRows = 0;
 
   public RollingContentFileWriter(PartitionKey partitionKey, FileFormat format,
-                                  OutputFileFactory fileFactory, FileIO io,
-                                  long targetFileSize, ContentFileWriterFactory<ContentFileT, T> writerFactory) {
+                                  OutputFileFactory fileFactory, FileIO io, long targetFileSize,
+                                  ContentFileWriterFactory<ContentFileT, T> writerFactory) {
     this.partitionKey = partitionKey;
     this.format = format;
     this.fileFactory = fileFactory;
@@ -62,11 +62,11 @@ public class RollingContentFileWriter<ContentFileT, T> implements Closeable {
     openCurrent();
   }
 
-  public CharSequence currentPath() {
+  CharSequence currentPath() {
     return currentFile.encryptingOutputFile().location();
   }
 
-  public long currentRows() {
+  long currentRows() {
     return currentRows;
   }
 
@@ -80,8 +80,8 @@ public class RollingContentFileWriter<ContentFileT, T> implements Closeable {
     }
   }
 
-  public void abort() throws IOException {
-    close();
+  public void abort() {
+    closeCurrent();
 
     WriterResult result = resultBuilder.build();
 
@@ -91,8 +91,8 @@ public class RollingContentFileWriter<ContentFileT, T> implements Closeable {
         .run(file -> io.deleteFile(file.path().toString()));
   }
 
-  public WriterResult complete() throws IOException {
-    close();
+  public WriterResult complete() {
+    closeCurrent();
 
     return resultBuilder.build();
   }
@@ -135,7 +135,7 @@ public class RollingContentFileWriter<ContentFileT, T> implements Closeable {
       try {
         currentFileWriter.close();
       } catch (IOException e) {
-        throw new UncheckedIOException("Failed to close the current file writer", e);
+        throw new UncheckedIOException("Failed to close the current file writer: ", e);
       }
 
       ContentFileT contentFile = currentFileWriter.toContentFile();

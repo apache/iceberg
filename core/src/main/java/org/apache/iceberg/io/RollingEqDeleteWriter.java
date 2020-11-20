@@ -19,37 +19,15 @@
 
 package org.apache.iceberg.io;
 
-import java.io.IOException;
 import org.apache.iceberg.ContentFileWriterFactory;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionKey;
 
-public class UnpartitionedWriter<ContentFileT, T> implements TaskWriter<T> {
-
-  private final RollingContentFileWriter<ContentFileT, T> currentWriter;
-
-  public UnpartitionedWriter(FileFormat format, OutputFileFactory fileFactory, FileIO io, long targetFileSize,
-                             ContentFileWriterFactory<ContentFileT, T> writerFactory) {
-    currentWriter = new RollingContentFileWriter<>(null, format, fileFactory, io,
-        targetFileSize, writerFactory);
-  }
-
-  @Override
-  public void write(T record) throws IOException {
-    currentWriter.write(record);
-  }
-
-  @Override
-  public void abort() {
-    currentWriter.abort();
-  }
-
-  @Override
-  public WriterResult complete() {
-    return currentWriter.complete();
-  }
-
-  @Override
-  public void close() throws IOException {
-    currentWriter.close();
+public class RollingEqDeleteWriter<T> extends RollingContentFileWriter<DeleteFile, T> {
+  public RollingEqDeleteWriter(PartitionKey partitionKey, FileFormat format,
+                               OutputFileFactory fileFactory, FileIO io, long targetFileSize,
+                               ContentFileWriterFactory<DeleteFile, T> writerFactory) {
+    super(partitionKey, format, fileFactory, io, targetFileSize, writerFactory);
   }
 }

@@ -81,7 +81,7 @@ class RowDataTaskWriter implements TaskWriter<RowData> {
   }
 
   @Override
-  public void write(RowData row) throws IOException {
+  public void write(RowData row) {
     DeltaWriter<RowData> deltaWriter;
 
     if (spec.fields().size() <= 0) {
@@ -128,17 +128,11 @@ class RowDataTaskWriter implements TaskWriter<RowData> {
     Tasks.foreach(deltaWriterMap.values())
         .throwFailureWhenFinished()
         .noRetry()
-        .run(deltaWriter -> {
-          try {
-            deltaWriter.abort();
-          } catch (IOException e) {
-            throw new UncheckedIOException(e);
-          }
-        });
+        .run(DeltaWriter::abort);
   }
 
   @Override
-  public WriterResult complete() throws IOException {
+  public WriterResult complete() {
     close();
 
     WriterResult.Builder builder = WriterResult.builder();
