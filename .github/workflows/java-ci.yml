@@ -41,7 +41,7 @@ jobs:
     - uses: actions/upload-artifact@v2
       if: failure()
       with:
-        name: failing tests
+        name: test logs
         path: |
           **/build/testlogs
 
