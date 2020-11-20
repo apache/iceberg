@@ -35,7 +35,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -76,6 +75,7 @@ class S3OutputStream extends PositionOutputStream {
 
   private CountingOutputStream stream;
   private final List<File> stagingFiles = Lists.newArrayList();
+  private final File stagingDirectory;
   private File currentStagingFile;
   private String multipartUploadId;
   private final Map<File, CompletableFuture<CompletedPart>> multiPartMap = Maps.newHashMap();
@@ -108,6 +108,7 @@ class S3OutputStream extends PositionOutputStream {
 
     multiPartSize = awsProperties.s3FileIoMultiPartSize();
     multiPartThresholdSize =  (int) (multiPartSize * awsProperties.s3FileIOMultipartThresholdFactor());
+    stagingDirectory = new File(awsProperties.getS3fileIoStagingDirectory());
 
     newStream();
   }
@@ -173,7 +174,7 @@ class S3OutputStream extends PositionOutputStream {
       stream.close();
     }
 
-    currentStagingFile = File.createTempFile("s3fileio-", ".tmp");
+    currentStagingFile = File.createTempFile("s3fileio-", ".tmp", stagingDirectory);
     currentStagingFile.deleteOnExit();
     stagingFiles.add(currentStagingFile);
 
@@ -241,53 +242,61 @@ class S3OutputStream extends PositionOutputStream {
             } catch (IOException e) {
               LOG.warn("Failed to delete staging file: {}", f, e);
             }
+
+            if(thrown != null) {
+              LOG.error("Failed to upload part: {}", uploadRequest, thrown);
+              abortUpload();
+            }
           });
 
           multiPartMap.put(f, future);
         });
   }
 
-  private void completeMultiPartUpload() throws IOException {
+  private void completeMultiPartUpload() {
     Preconditions.checkState(closed, "Complete upload called on open stream: " + location);
 
-    try {
-      List<CompletedPart> completedParts =
-          multiPartMap.values()
-              .stream()
-              .map(CompletableFuture::join)
-              .sorted(Comparator.comparing(CompletedPart::partNumber))
-              .collect(Collectors.toList());
+    List<CompletedPart> completedParts =
+        multiPartMap.values()
+            .stream()
+            .map(CompletableFuture::join)
+            .sorted(Comparator.comparing(CompletedPart::partNumber))
+            .collect(Collectors.toList());
 
-      s3.completeMultipartUpload(CompleteMultipartUploadRequest.builder()
-          .bucket(location.bucket()).key(location.key())
-          .uploadId(multipartUploadId)
-          .multipartUpload(CompletedMultipartUpload.builder().parts(completedParts).build()).build());
-    } catch (CompletionException e) {
-      abortUpload();
-      throw new IOException("Multipart upload failed for upload id: " + multipartUploadId, e);
-    }
-  }
+    CompleteMultipartUploadRequest request = CompleteMultipartUploadRequest.builder()
+        .bucket(location.bucket()).key(location.key())
+        .uploadId(multipartUploadId)
+        .multipartUpload(CompletedMultipartUpload.builder().parts(completedParts).build()).build();
 
-  private void abortUpload() throws IOException {
-    if (multipartUploadId != null) {
-      s3.abortMultipartUpload(AbortMultipartUploadRequest.builder()
-          .bucket(location.bucket()).key(location.key()).uploadId(multipartUploadId).build());
-
-      cleanUpStagingFiles();
-    }
-  }
-
-  private void cleanUpStagingFiles() throws IOException {
-    Tasks.foreach(stagingFiles)
-        .executeWith(executorService)
-        .suppressFailureWhenFinished()
-        .onFailure((file, thrown) -> {
-          LOG.warn("Failed to delete staging file: {}", file, thrown);
+    Tasks.foreach(request)
+        .noRetry()
+        .onFailure((r, thrown) -> {
+          LOG.error("Failed to complete multipart upload request: {}", r, thrown);
+          abortUpload();
         })
-        .run(f -> Files.deleteIfExists(f.toPath()), IOException.class);
+        .throwFailureWhenFinished()
+        .run(s3::completeMultipartUpload);
   }
 
-  private void completeUploads() throws IOException {
+  private void abortUpload() {
+    if (multipartUploadId != null) {
+      try {
+        s3.abortMultipartUpload(AbortMultipartUploadRequest.builder()
+            .bucket(location.bucket()).key(location.key()).uploadId(multipartUploadId).build());
+      } finally {
+        cleanUpStagingFiles();
+      }
+    }
+  }
+
+  private void cleanUpStagingFiles() {
+    Tasks.foreach(stagingFiles)
+        .suppressFailureWhenFinished()
+        .onFailure((file, thrown) -> LOG.warn("Failed to delete staging file: {}", file, thrown))
+        .run(File::delete);
+  }
+
+  private void completeUploads() {
     if (multipartUploadId == null) {
       long contentLength = stagingFiles.stream().mapToLong(File::length).sum();
       InputStream contentStream = new BufferedInputStream(stagingFiles.stream()

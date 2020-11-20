@@ -99,6 +99,12 @@ public class AwsProperties {
    */
   public static final String S3FILEIO_MULTIPART_THRESHOLD_FACTOR = "s3fileio.multipart.threshold";
 
+  /**
+   * Location to put staging files for upload to S3.
+   */
+  public static final String S3FILEIO_STAGING_DIRECTORY = "s3fileio.staging.dir";
+
+
   static final int MIN_MULTIPART_UPLOAD_SIZE = 5 * 1024 * 1024;
   static final int DEFAULT_MULTIPART_SIZE = 32 * 1024 * 1024;
   static final double DEFAULT_MULTIPART_THRESHOLD = 1.5;
@@ -108,7 +114,8 @@ public class AwsProperties {
   private String s3FileIoSseMd5;
   private int s3FileIoMultipartUploadThreads;
   private int s3FileIoMultiPartSize;
-  private double s3FileIOMultipartThresholdFactor;
+  private double s3FileIoMultipartThresholdFactor;
+  private String s3fileIoStagingDirectory;
 
   private String glueCatalogId;
   private boolean glueCatalogSkipArchive;
@@ -120,8 +127,9 @@ public class AwsProperties {
 
     this.s3FileIoMultipartUploadThreads = Runtime.getRuntime().availableProcessors();
     this.s3FileIoMultiPartSize = DEFAULT_MULTIPART_SIZE;
-    this.s3FileIOMultipartThresholdFactor = DEFAULT_MULTIPART_THRESHOLD;
-    
+    this.s3FileIoMultipartThresholdFactor = DEFAULT_MULTIPART_THRESHOLD;
+    this.s3fileIoStagingDirectory = System.getProperty("java.io.tmpdir");
+
     this.glueCatalogId = null;
     this.glueCatalogSkipArchive = GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT;
   }
@@ -146,11 +154,17 @@ public class AwsProperties {
     this.s3FileIoMultiPartSize = PropertyUtil.propertyAsInt(properties, S3FILEIO_MULTIPART_SIZE,
         DEFAULT_MULTIPART_SIZE);
 
-    this.s3FileIOMultipartThresholdFactor = PropertyUtil.propertyAsDouble(properties,
+    this.s3FileIoMultipartThresholdFactor = PropertyUtil.propertyAsDouble(properties,
         S3FILEIO_MULTIPART_THRESHOLD_FACTOR, DEFAULT_MULTIPART_THRESHOLD);
+
+    Preconditions.checkArgument(s3FileIoMultipartThresholdFactor >= 1.0,
+        "Multipart threshold factor must be >= to 1.0");
 
     Preconditions.checkArgument(s3FileIoMultiPartSize >= MIN_MULTIPART_UPLOAD_SIZE,
         "Minimum multipart upload object size must be larger than 5 MB.");
+
+    this.s3fileIoStagingDirectory = PropertyUtil.propertyAsString(properties, S3FILEIO_STAGING_DIRECTORY,
+        System.getProperty("java.io.tmpdir"));
   }
 
   public String s3FileIoSseType() {
@@ -202,6 +216,10 @@ public class AwsProperties {
   }
 
   public double s3FileIOMultipartThresholdFactor() {
-    return s3FileIOMultipartThresholdFactor;
+    return s3FileIoMultipartThresholdFactor;
+  }
+
+  public String getS3fileIoStagingDirectory() {
+    return s3fileIoStagingDirectory;
   }
 }
