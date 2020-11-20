@@ -19,11 +19,10 @@
 
 package org.apache.iceberg.spark.source;
 
-import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
@@ -33,17 +32,13 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.TableScan;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.Util;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.PropertyUtil;
@@ -63,7 +58,7 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
+abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   private static final Logger LOG = LoggerFactory.getLogger(SparkBatchScan.class);
 
   private final Table table;
@@ -71,13 +66,6 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   private final boolean localityPreferred;
   private final Schema expectedSchema;
   private final List<Expression> filterExpressions;
-  private final Long snapshotId;
-  private final Long startSnapshotId;
-  private final Long endSnapshotId;
-  private final Long asOfTimestamp;
-  private final Long splitSize;
-  private final Integer splitLookback;
-  private final Long splitOpenFileCost;
   private final Broadcast<FileIO> io;
   private final Broadcast<EncryptionManager> encryptionManager;
   private final boolean batchReadsEnabled;
@@ -85,44 +73,38 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
   // lazy variables
   private StructType readSchema = null;
-  private List<CombinedScanTask> tasks = null; // lazy cache of tasks
 
-  SparkBatchScan(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryption, boolean caseSensitive,
-                 Schema expectedSchema, List<Expression> filters, CaseInsensitiveStringMap options) {
+  SparkBatchScan(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryption,
+                 boolean caseSensitive, Schema expectedSchema, List<Expression> filters,
+                 CaseInsensitiveStringMap options) {
     this.table = table;
     this.io = io;
     this.encryptionManager = encryption;
     this.caseSensitive = caseSensitive;
     this.expectedSchema = expectedSchema;
-    this.filterExpressions = filters;
-    this.snapshotId = Spark3Util.propertyAsLong(options, "snapshot-id", null);
-    this.asOfTimestamp = Spark3Util.propertyAsLong(options, "as-of-timestamp", null);
-
-    if (snapshotId != null && asOfTimestamp != null) {
-      throw new IllegalArgumentException(
-          "Cannot scan using both snapshot-id and as-of-timestamp to select the table snapshot");
-    }
-
-    this.startSnapshotId = Spark3Util.propertyAsLong(options, "start-snapshot-id", null);
-    this.endSnapshotId = Spark3Util.propertyAsLong(options, "end-snapshot-id", null);
-    if (snapshotId != null || asOfTimestamp != null) {
-      if (startSnapshotId != null || endSnapshotId != null) {
-        throw new IllegalArgumentException(
-            "Cannot specify start-snapshot-id and end-snapshot-id to do incremental scan when either snapshot-id or " +
-                "as-of-timestamp is specified");
-      }
-    } else if (startSnapshotId == null && endSnapshotId != null) {
-      throw new IllegalArgumentException("Cannot only specify option end-snapshot-id to do incremental scan");
-    }
-
-    // look for split behavior overrides in options
-    this.splitSize = Spark3Util.propertyAsLong(options, "split-size", null);
-    this.splitLookback = Spark3Util.propertyAsInt(options, "lookback", null);
-    this.splitOpenFileCost = Spark3Util.propertyAsLong(options, "file-open-cost", null);
+    this.filterExpressions = filters != null ? filters : Collections.emptyList();
     this.localityPreferred = Spark3Util.isLocalityEnabled(io.value(), table.location(), options);
     this.batchReadsEnabled = Spark3Util.isVectorizationEnabled(table.properties(), options);
     this.batchSize = Spark3Util.batchSize(table.properties(), options);
   }
+
+  protected Table table() {
+    return table;
+  }
+
+  protected boolean caseSensitive() {
+    return caseSensitive;
+  }
+
+  protected Schema expectedSchema() {
+    return expectedSchema;
+  }
+
+  protected List<Expression> filterExpressions() {
+    return filterExpressions;
+  }
+
+  protected abstract List<CombinedScanTask> tasks();
 
   @Override
   public Batch toBatch() {
@@ -190,7 +172,7 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     }
 
     // estimate stats using snapshot summary only for partitioned tables (metadata tables are unpartitioned)
-    if (!table.spec().isUnpartitioned() && (filterExpressions == null || filterExpressions.isEmpty())) {
+    if (!table.spec().isUnpartitioned() && filterExpressions.isEmpty()) {
       LOG.debug("using table metadata to estimate table statistics");
       long totalRecords = PropertyUtil.propertyAsLong(table.currentSnapshot().summary(),
           SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
@@ -214,94 +196,9 @@ class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   }
 
   @Override
-  public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    }
-
-    if (o == null || getClass() != o.getClass()) {
-      return false;
-    }
-
-    SparkBatchScan that = (SparkBatchScan) o;
-    return table.name().equals(that.table.name()) &&
-        readSchema().equals(that.readSchema()) && // compare Spark schemas to ignore field ids
-        filterExpressions.toString().equals(that.filterExpressions.toString()) &&
-        Objects.equals(snapshotId, that.snapshotId) &&
-        Objects.equals(startSnapshotId, that.startSnapshotId) &&
-        Objects.equals(endSnapshotId, that.endSnapshotId) &&
-        Objects.equals(asOfTimestamp, that.asOfTimestamp);
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(
-        table.name(), readSchema(), filterExpressions.toString(), snapshotId, startSnapshotId, endSnapshotId,
-        asOfTimestamp);
-  }
-
-  private List<CombinedScanTask> tasks() {
-    if (tasks == null) {
-      TableScan scan = table
-          .newScan()
-          .caseSensitive(caseSensitive)
-          .project(expectedSchema);
-
-      if (snapshotId != null) {
-        scan = scan.useSnapshot(snapshotId);
-      }
-
-      if (asOfTimestamp != null) {
-        scan = scan.asOfTime(asOfTimestamp);
-      }
-
-      if (startSnapshotId != null) {
-        if (endSnapshotId != null) {
-          scan = scan.appendsBetween(startSnapshotId, endSnapshotId);
-        } else {
-          scan = scan.appendsAfter(startSnapshotId);
-        }
-      }
-
-      if (splitSize != null) {
-        scan = scan.option(TableProperties.SPLIT_SIZE, splitSize.toString());
-      }
-
-      if (splitLookback != null) {
-        scan = scan.option(TableProperties.SPLIT_LOOKBACK, splitLookback.toString());
-      }
-
-      if (splitOpenFileCost != null) {
-        scan = scan.option(TableProperties.SPLIT_OPEN_FILE_COST, splitOpenFileCost.toString());
-      }
-
-      if (filterExpressions != null) {
-        for (Expression filter : filterExpressions) {
-          scan = scan.filter(filter);
-        }
-      }
-
-      try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
-        this.tasks = Lists.newArrayList(tasksIterable);
-      }  catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to close table scan: %s", scan);
-      }
-    }
-
-    return tasks;
-  }
-
-  @Override
   public String description() {
     String filters = filterExpressions.stream().map(Spark3Util::describe).collect(Collectors.joining(", "));
     return String.format("%s [filters=%s]", table, filters);
-  }
-
-  @Override
-  public String toString() {
-    return String.format(
-        "IcebergScan(table=%s, type=%s, filters=%s, caseSensitive=%s)",
-        table, expectedSchema.asStruct(), filterExpressions, caseSensitive);
   }
 
   private static class ReaderFactory implements PartitionReaderFactory {
