@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
@@ -101,10 +102,10 @@ public abstract class BaseTestIceberg {
   NessieCatalog initCatalog(String ref) {
     NessieCatalog newCatalog = new NessieCatalog();
     newCatalog.setConf(hadoopConfig);
-    newCatalog.initialize(null, ImmutableMap.of(NessieClient.CONF_NESSIE_REF, ref,
-        NessieClient.CONF_NESSIE_URL, path,
-        NessieClient.CONF_NESSIE_AUTH_TYPE, "NONE",
-        "nessie.warehouse.dir", temp.getRoot().toURI().toString()
+    newCatalog.initialize("nessie", ImmutableMap.of("ref", ref,
+        "url", path,
+        "auth_type", "NONE",
+        CatalogProperties.WAREHOUSE_LOCATION, temp.getRoot().toURI().toString()
         ));
     return newCatalog;
   }

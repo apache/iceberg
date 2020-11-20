@@ -19,66 +19,133 @@
 
 package org.apache.iceberg.nessie;
 
-import com.dremio.nessie.client.NessieClient;
 import com.dremio.nessie.error.NessieConflictException;
 import com.dremio.nessie.error.NessieNotFoundException;
-import com.dremio.nessie.model.Branch;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 public class TestCatalogBranch extends BaseTestIceberg {
+
+
+  private final TableIdentifier tableIdentifier1 = TableIdentifier.of("test-ns", "table1");
+  private final TableIdentifier tableIdentifier2 = TableIdentifier.of("test-ns", "table2");
+  private NessieCatalog testCatalog;
+  private int schemaCounter = 1;
 
   public TestCatalogBranch() {
     super("main");
   }
 
-  @SuppressWarnings("VariableDeclarationUsageDistance")
-  @Test
-  public void testBasicBranch() throws NessieNotFoundException, NessieConflictException {
-    TableIdentifier foobar = TableIdentifier.of("foo", "bar");
-    TableIdentifier foobaz = TableIdentifier.of("foo", "baz");
-    Table bar = createTable(foobar, 1); // table 1
-    createTable(foobaz, 1); // table 2
+
+  @Before
+  public void before() throws NessieNotFoundException, NessieConflictException {
+    createTable(tableIdentifier1, 1); // table 1
+    createTable(tableIdentifier2, 1); // table 2
     catalog.refresh();
     createBranch("test", catalog.currentHash());
+    testCatalog = initCatalog("test");
+  }
 
-    hadoopConfig.set(NessieClient.CONF_NESSIE_REF, "test");
+  @After
+  public void after() throws NessieNotFoundException, NessieConflictException {
+    catalog.dropTable(tableIdentifier1);
+    catalog.dropTable(tableIdentifier2);
+    catalog.refresh();
+    catalog.getTreeApi().deleteBranch("test",
+        catalog.getTreeApi().getReferenceByName("test").getHash());
+    testCatalog = null;
+  }
 
-    NessieCatalog newCatalog = initCatalog("test");
-    String initialMetadataLocation = metadataLocation(newCatalog, foobar);
-    Assert.assertEquals(initialMetadataLocation, metadataLocation(catalog, foobar));
-    Assert.assertEquals(metadataLocation(newCatalog, foobaz), metadataLocation(catalog, foobaz));
-    bar.updateSchema().addColumn("id1", Types.LongType.get()).commit();
+  @Test
+  public void testBranchNoChange() {
+    testCatalogEquality(true, true);
+  }
 
-    // metadata location changed no longer matches
-    Assert.assertNotEquals(metadataLocation(catalog, foobar), metadataLocation(newCatalog, foobar));
+  @Test
+  public void testUpdateCatalogs() {
+    // ensure catalogs can't see each others updates
+    updateSchema(catalog, tableIdentifier1);
+
+    testCatalogEquality(false, true);
+
+    String initialMetadataLocation = metadataLocation(testCatalog, tableIdentifier2);
+    updateSchema(testCatalog, tableIdentifier2);
+
+    testCatalogEquality(false, false);
 
     // points to the previous metadata location
-    Assert.assertEquals(initialMetadataLocation, metadataLocation(newCatalog, foobar));
-    initialMetadataLocation = metadataLocation(newCatalog, foobaz);
+    Assert.assertEquals(initialMetadataLocation, metadataLocation(catalog, tableIdentifier2));
+  }
 
-
-    newCatalog.loadTable(foobaz).updateSchema().addColumn("id1", Types.LongType.get()).commit();
-
-    // metadata location changed no longer matches
-    Assert.assertNotEquals(metadataLocation(catalog, foobaz), metadataLocation(newCatalog, foobaz));
-
-    // points to the previous metadata location
-    Assert.assertEquals(initialMetadataLocation, metadataLocation(catalog, foobaz));
-
+  @Test
+  public void testCatalogOnReference() throws NessieNotFoundException {
+    updateSchema(catalog, tableIdentifier1);
+    updateSchema(testCatalog, tableIdentifier2);
     String mainHash = tree.getReferenceByName("main").getHash();
-    tree.assignBranch("main", mainHash, Branch.of("main", newCatalog.currentHash()));
-    Assert.assertEquals(metadataLocation(newCatalog, foobar),
-                            metadataLocation(catalog, foobar));
-    Assert.assertEquals(metadataLocation(newCatalog, foobaz),
-                            metadataLocation(catalog, foobaz));
-    catalog.dropTable(foobar);
-    catalog.dropTable(foobaz);
-    newCatalog.refresh();
-    catalog.getTreeApi().deleteBranch("test", newCatalog.currentHash());
+
+    // catalog created with ref points to same catalog as above
+    NessieCatalog refCatalog = initCatalog("test");
+    testCatalogEquality(refCatalog, testCatalog, true, true);
+
+    // catalog created with hash points to same catalog as above
+    NessieCatalog refHashCatalog = initCatalog(mainHash);
+    testCatalogEquality(refHashCatalog, catalog, true, true);
+  }
+
+  @Test
+  public void testCatalogWithTableNames() throws NessieNotFoundException {
+    updateSchema(testCatalog, tableIdentifier2);
+    String mainHash = tree.getReferenceByName("main").getHash();
+
+    // asking for table@branch gives expected regardless of catalog
+    testMetadataLocationEquality(true,
+        metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@test")),
+        metadataLocation(testCatalog, tableIdentifier1));
+
+    // asking for table@branch#hash gives expected regardless of catalog
+    testMetadataLocationEquality(true,
+        metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@" + mainHash)),
+        metadataLocation(testCatalog, tableIdentifier1));
+  }
+
+  @Test
+  public void testConcurrentChanges() throws NessieNotFoundException {
+    NessieCatalog emptyTestCatalog = initCatalog("test");
+    updateSchema(testCatalog, tableIdentifier1);
+    // Updating table with out of date hash. We expect this to succeed because of retry despite the conflict.
+    updateSchema(emptyTestCatalog, tableIdentifier1);
+  }
+
+  private void updateSchema(NessieCatalog catalog, TableIdentifier identifier) {
+    catalog.loadTable(identifier).updateSchema().addColumn("id" + schemaCounter++, Types.LongType.get()).commit();
+  }
+
+  private void testCatalogEquality(boolean table1Equal, boolean table2Equal) {
+    testCatalogEquality(catalog, testCatalog, table1Equal, table2Equal);
+  }
+
+  private void testCatalogEquality(NessieCatalog catalog,
+                                   NessieCatalog compareCatalog,
+                                   boolean table1Equal,
+                                   boolean table2Equal) {
+    String testTable1 = metadataLocation(compareCatalog, tableIdentifier1);
+    String table1 = metadataLocation(catalog, tableIdentifier1);
+    String testTable2 = metadataLocation(compareCatalog, tableIdentifier2);
+    String table2 = metadataLocation(catalog, tableIdentifier2);
+    testMetadataLocationEquality(table1Equal, testTable1, table1);
+    testMetadataLocationEquality(table2Equal, testTable2, table2);
+  }
+
+  private void testMetadataLocationEquality(boolean tablesEqual, String testTable, String table) {
+    if (tablesEqual) {
+      Assert.assertEquals(testTable, table);
+    } else {
+      Assert.assertNotEquals(testTable, table);
+    }
   }
 
 }

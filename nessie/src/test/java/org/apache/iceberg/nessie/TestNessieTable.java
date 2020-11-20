@@ -157,22 +157,8 @@ public class TestNessieTable extends BaseTestIceberg {
   public void testDropWithoutPurgeLeavesTableData() throws IOException {
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
 
-    GenericRecordBuilder recordBuilder =
-        new GenericRecordBuilder(AvroSchemaUtil.convert(schema, "test"));
-    List<GenericData.Record> records = new ArrayList<>();
-    records.add(recordBuilder.set("id", 1L).build());
-    records.add(recordBuilder.set("id", 2L).build());
-    records.add(recordBuilder.set("id", 3L).build());
 
-    String fileLocation = table.location().replace("file:", "") + "/data/file.avro";
-    try (FileAppender<GenericData.Record> writer = Avro.write(Files.localOutput(fileLocation))
-        .schema(schema)
-        .named("test")
-        .build()) {
-      for (GenericData.Record rec : records) {
-        writer.add(rec);
-      }
-    }
+    String fileLocation = addRecordsToFile(table, "file");
 
     DataFile file = DataFiles.builder(table.spec())
         .withRecordCount(3)
@@ -203,25 +189,8 @@ public class TestNessieTable extends BaseTestIceberg {
     records.add(recordBuilder.set("id", 2L).build());
     records.add(recordBuilder.set("id", 3L).build());
 
-    String location1 = table.location().replace("file:", "") + "/data/file1.avro";
-    try (FileAppender<GenericData.Record> writer = Avro.write(Files.localOutput(location1))
-        .schema(schema)
-        .named("test")
-        .build()) {
-      for (GenericData.Record rec : records) {
-        writer.add(rec);
-      }
-    }
-
-    String location2 = table.location().replace("file:", "") + "/data/file2.avro";
-    try (FileAppender<GenericData.Record> writer = Avro.write(Files.localOutput(location2))
-        .schema(schema)
-        .named("test")
-        .build()) {
-      for (GenericData.Record rec : records) {
-        writer.add(rec);
-      }
-    }
+    String location1 = addRecordsToFile(table, "file1");
+    String location2 = addRecordsToFile(table, "file2");
 
     DataFile file1 = DataFiles.builder(table.spec())
         .withRecordCount(3)
@@ -345,4 +314,24 @@ public class TestNessieTable extends BaseTestIceberg {
         .collect(Collectors.toList());
   }
 
+  private static String addRecordsToFile(Table table, String filename) throws IOException {
+    GenericRecordBuilder recordBuilder =
+        new GenericRecordBuilder(AvroSchemaUtil.convert(schema, "test"));
+    List<GenericData.Record> records = new ArrayList<>();
+    records.add(recordBuilder.set("id", 1L).build());
+    records.add(recordBuilder.set("id", 2L).build());
+    records.add(recordBuilder.set("id", 3L).build());
+
+    String fileLocation = table.location().replace("file:", "") +
+        String.format("/data/%s.avro", filename);
+    try (FileAppender<GenericData.Record> writer = Avro.write(Files.localOutput(fileLocation))
+        .schema(schema)
+        .named("test")
+        .build()) {
+      for (GenericData.Record rec : records) {
+        writer.add(rec);
+      }
+    }
+    return fileLocation;
+  }
 }

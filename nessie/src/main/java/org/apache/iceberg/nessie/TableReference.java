@@ -37,15 +37,15 @@ public class TableReference {
     this.reference = reference;
   }
 
-  public TableIdentifier getTableIdentifier() {
+  public TableIdentifier tableIdentifier() {
     return tableIdentifier;
   }
 
-  public Instant getTimestamp() {
+  public Instant timestamp() {
     return timestamp;
   }
 
-  public String getReference() {
+  public String reference() {
     return reference;
   }
 
@@ -54,9 +54,9 @@ public class TableReference {
    */
   public static TableReference parse(TableIdentifier path) {
     TableReference pti = parse(path.name());
-    return new TableReference(TableIdentifier.of(path.namespace(), pti.getTableIdentifier().name()),
-        pti.getTimestamp(),
-        pti.getReference());
+    return new TableReference(TableIdentifier.of(path.namespace(), pti.tableIdentifier().name()),
+        pti.timestamp(),
+        pti.reference());
   }
 
   /**

@@ -98,12 +98,10 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
                                           newTable);
       threw = false;
     } catch (NessieConflictException ex) {
-      String fixMsg = reference.isBranch() ?
-          String.format("Update the reference %s and try again", reference.getName()) :
-          String.format("Can't commit to the tag %s", reference.getName());
-      throw new CommitFailedException(ex, "Commit failed: Reference hash is out of date. %s", fixMsg);
+      throw new CommitFailedException(ex, "Commit failed: Reference hash is out of date. " +
+          "Update the reference %s and try again", reference.getName());
     } catch (NessieNotFoundException ex) {
-      throw new RuntimeException(String.format("Commit failed: Reference %s does not exist", reference.getName()), ex);
+      throw new RuntimeException(String.format("Commit failed: Reference %s no longer exist", reference.getName()), ex);
     } finally {
       if (threw) {
         io().deleteFile(newMetadataLocation);

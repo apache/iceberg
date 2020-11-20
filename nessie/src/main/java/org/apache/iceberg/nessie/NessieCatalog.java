@@ -21,6 +21,7 @@ package org.apache.iceberg.nessie;
 
 import com.dremio.nessie.api.TreeApi;
 import com.dremio.nessie.client.NessieClient;
+import com.dremio.nessie.error.BaseNessieClientServerException;
 import com.dremio.nessie.error.NessieConflictException;
 import com.dremio.nessie.error.NessieNotFoundException;
 import com.dremio.nessie.model.Contents;
@@ -33,6 +34,7 @@ import com.dremio.nessie.model.Reference;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configurable;
@@ -53,6 +55,7 @@ import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,7 +71,6 @@ import org.slf4j.LoggerFactory;
 public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable, SupportsNamespaces, Configurable {
   private static final Logger logger = LoggerFactory.getLogger(NessieCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
-  public static final String NESSIE_WAREHOUSE_DIR = "nessie.warehouse.dir";
   private NessieClient client;
   private String warehouseLocation;
   private Configuration config;
@@ -84,13 +86,16 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     String fileIOImpl = options.get(CatalogProperties.FILE_IO_IMPL);
     this.fileIO = fileIOImpl == null ? new HadoopFileIO(config) : CatalogUtil.loadFileIO(fileIOImpl, options, config);
     this.name = inputName == null ? "nessie" : inputName;
-    this.client = NessieClient.withConfig(options::get);
+    // remove nessie prefix
+    final Function<String, String> removePrefix = x -> x.replace("nessie.", "");
 
-    this.warehouseLocation = options.get(NESSIE_WAREHOUSE_DIR);
+    this.client = NessieClient.withConfig(x -> options.get(removePrefix.apply(x)));
+
+    this.warehouseLocation = options.get(CatalogProperties.WAREHOUSE_LOCATION);
     if (warehouseLocation == null) {
-      throw new IllegalStateException("Parameter nessie.warehouse.dir not set, nessie can't store data.");
+      throw new IllegalStateException("Parameter warehouse not set, nessie can't store data.");
     }
-    final String requestedRef = options.get(NessieClient.CONF_NESSIE_REF);
+    final String requestedRef = options.get(removePrefix.apply(NessieClient.CONF_NESSIE_REF));
     this.reference = loadReference(requestedRef);
   }
 
@@ -108,10 +113,10 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
     TableReference pti = TableReference.parse(tableIdentifier);
     UpdateableReference newReference = this.reference;
-    if (pti.getReference() != null) {
-      newReference = loadReference(pti.getReference());
+    if (pti.reference() != null) {
+      newReference = loadReference(pti.reference());
     }
-    return new NessieTableOperations(NessieUtil.toKey(pti.getTableIdentifier()), newReference, client, fileIO);
+    return new NessieTableOperations(NessieUtil.toKey(pti.tableIdentifier()), newReference, client, fileIO);
   }
 
   @Override
@@ -137,24 +142,22 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     }
 
     // We try to drop the table. Simple retry after ref update.
-    int count = 0;
-    while (count < 5) {
-      count++;
-      try {
-        dropTableInner(identifier);
-        break;
-      } catch (NessieConflictException e) {
-        // pass for retry
-      } catch (NessieNotFoundException e) {
-        logger.error("Cannot drop table: ref is no longer valid.", e);
-        return false;
-      }
+    boolean threw = true;
+    try {
+      Tasks.foreach(identifier)
+           .retry(5)
+           .stopRetryOn(NessieNotFoundException.class)
+           .throwFailureWhenFinished()
+           .run(this::dropTableInner, BaseNessieClientServerException.class);
+      threw = false;
+    } catch (NessieConflictException e) {
+      logger.error("Cannot drop table: failed after retry (update ref and retry)", e);
+    } catch (NessieNotFoundException e) {
+      logger.error("Cannot drop table: ref is no longer valid.", e);
+    } catch (BaseNessieClientServerException e) {
+      logger.error("Cannot drop table: unknown error", e);
     }
-    if (count >= 5) {
-      logger.error("Cannot drop table: failed after retry (update hash and retry)");
-      return false;
-    }
-    return true;
+    return !threw;
   }
 
   @Override
@@ -178,14 +181,24 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
         .build();
 
     try {
-      client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(), reference.getHash(),
-          "iceberg rename table", contents);
-      // TODO: fix this so we don't depend on it in tests.
-      refresh();
-    } catch (NessieConflictException e) {
-      throw new CommitFailedException(e, "failed");
+      Tasks.foreach(contents)
+          .retry(5)
+          .stopRetryOn(NessieNotFoundException.class)
+          .throwFailureWhenFinished()
+          .run(c -> {
+            client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(), reference.getHash(),
+                "iceberg rename table", c);
+            refresh();
+          }, BaseNessieClientServerException.class);
+
     } catch (NessieNotFoundException e) {
+      // important note: the NotFoundException refers to the ref only. If a table was not found it would imply that the
+      // another commit has deleted the table from underneath us. This would arise as a Conflict exception as opposed to
+      // a not found exception. This is analogous to a merge conflict in git when a table has been changed by one user
+      // and removed by another.
       throw new RuntimeException("Failed to drop table as ref is no longer valid.", e);
+    } catch (BaseNessieClientServerException e) {
+      throw new CommitFailedException(e, "Failed to rename table: the current reference is not up to date.");
     }
   }
 
@@ -252,7 +265,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     return config;
   }
 
-  public TreeApi getTreeApi() {
+  TreeApi getTreeApi() {
     return client.getTreeApi();
   }
 
@@ -267,13 +280,10 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   private IcebergTable table(TableIdentifier tableIdentifier) {
     try {
       Contents table = client.getContentsApi().getContents(NessieUtil.toKey(tableIdentifier), reference.getHash());
-      if (table instanceof IcebergTable) {
-        return (IcebergTable) table;
-      }
+      return table.unwrap(IcebergTable.class).orElse(null);
     } catch (NessieNotFoundException e) {
-      // ignore
+      return null;
     }
-    return null;
   }
 
   private UpdateableReference loadReference(String requestedRef) {

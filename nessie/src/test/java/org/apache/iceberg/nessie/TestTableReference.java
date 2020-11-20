@@ -30,18 +30,18 @@ public class TestTableReference {
   public void noMarkings() {
     String path = "foo";
     TableReference pti = TableReference.parse(path);
-    Assert.assertEquals(path, pti.getTableIdentifier().name());
-    Assert.assertNull(pti.getReference());
-    Assert.assertNull(pti.getTimestamp());
+    Assert.assertEquals(path, pti.tableIdentifier().name());
+    Assert.assertNull(pti.reference());
+    Assert.assertNull(pti.timestamp());
   }
 
   @Test
   public void branchOnly() {
     String path = "foo@bar";
     TableReference pti = TableReference.parse(path);
-    Assert.assertEquals("foo", pti.getTableIdentifier().name());
-    Assert.assertEquals("bar", pti.getReference());
-    Assert.assertNull(pti.getTimestamp());
+    Assert.assertEquals("foo", pti.tableIdentifier().name());
+    Assert.assertEquals("bar", pti.reference());
+    Assert.assertNull(pti.timestamp());
   }
 
   @Test
@@ -85,22 +85,22 @@ public class TestTableReference {
     String branch = "bar";
     String path = "/%";
     TableReference pti = TableReference.parse(path);
-    Assert.assertEquals(path, pti.getTableIdentifier().name());
-    Assert.assertNull(pti.getReference());
-    Assert.assertNull(pti.getTimestamp());
+    Assert.assertEquals(path, pti.tableIdentifier().name());
+    Assert.assertNull(pti.reference());
+    Assert.assertNull(pti.timestamp());
     pti = TableReference.parse(path + "@" + branch);
-    Assert.assertEquals(path, pti.getTableIdentifier().name());
-    Assert.assertEquals(branch, pti.getReference());
-    Assert.assertNull(pti.getTimestamp());
+    Assert.assertEquals(path, pti.tableIdentifier().name());
+    Assert.assertEquals(branch, pti.reference());
+    Assert.assertNull(pti.timestamp());
     path = "&&";
     pti = TableReference.parse(path);
-    Assert.assertEquals(path, pti.getTableIdentifier().name());
-    Assert.assertNull(pti.getReference());
-    Assert.assertNull(pti.getTimestamp());
+    Assert.assertEquals(path, pti.tableIdentifier().name());
+    Assert.assertNull(pti.reference());
+    Assert.assertNull(pti.timestamp());
     pti = TableReference.parse(path + "@" + branch);
-    Assert.assertEquals(path, pti.getTableIdentifier().name());
-    Assert.assertEquals(branch, pti.getReference());
-    Assert.assertNull(pti.getTimestamp());
+    Assert.assertEquals(path, pti.tableIdentifier().name());
+    Assert.assertEquals(branch, pti.reference());
+    Assert.assertNull(pti.timestamp());
   }
 
   @Test
@@ -108,22 +108,22 @@ public class TestTableReference {
     String branch = "bar";
     String path = "/%国";
     TableReference pti = TableReference.parse(path);
-    Assert.assertEquals(path, pti.getTableIdentifier().name());
-    Assert.assertNull(pti.getReference());
-    Assert.assertNull(pti.getTimestamp());
+    Assert.assertEquals(path, pti.tableIdentifier().name());
+    Assert.assertNull(pti.reference());
+    Assert.assertNull(pti.timestamp());
     pti = TableReference.parse(path + "@" + branch);
-    Assert.assertEquals(path, pti.getTableIdentifier().name());
-    Assert.assertEquals(branch, pti.getReference());
-    Assert.assertNull(pti.getTimestamp());
+    Assert.assertEquals(path, pti.tableIdentifier().name());
+    Assert.assertEquals(branch, pti.reference());
+    Assert.assertNull(pti.timestamp());
     path = "国.国";
     pti = TableReference.parse(path);
-    Assert.assertEquals(path, pti.getTableIdentifier().toString());
-    Assert.assertNull(pti.getReference());
-    Assert.assertNull(pti.getTimestamp());
+    Assert.assertEquals(path, pti.tableIdentifier().toString());
+    Assert.assertNull(pti.reference());
+    Assert.assertNull(pti.timestamp());
     pti = TableReference.parse(path + "@" + branch);
-    Assert.assertEquals(path, pti.getTableIdentifier().toString());
-    Assert.assertEquals(branch, pti.getReference());
-    Assert.assertNull(pti.getTimestamp());
+    Assert.assertEquals(path, pti.tableIdentifier().toString());
+    Assert.assertEquals(branch, pti.reference());
+    Assert.assertNull(pti.timestamp());
   }
 
   @Test
@@ -131,12 +131,12 @@ public class TestTableReference {
     String branch = "bar ";
     String path = "foo ";
     TableReference pti = TableReference.parse(path);
-    Assert.assertEquals(path, pti.getTableIdentifier().name());
-    Assert.assertNull(pti.getReference());
-    Assert.assertNull(pti.getTimestamp());
+    Assert.assertEquals(path, pti.tableIdentifier().name());
+    Assert.assertNull(pti.reference());
+    Assert.assertNull(pti.timestamp());
     pti = TableReference.parse(path + "@" + branch);
-    Assert.assertEquals(path, pti.getTableIdentifier().name());
-    Assert.assertEquals(branch, pti.getReference());
-    Assert.assertNull(pti.getTimestamp());
+    Assert.assertEquals(path, pti.tableIdentifier().name());
+    Assert.assertEquals(branch, pti.reference());
+    Assert.assertNull(pti.timestamp());
   }
 }
