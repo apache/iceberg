@@ -37,6 +37,11 @@ jobs:
         path: ~/.gradle/caches
         key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
         restore-keys: ${{ runner.os }}-gradle
-    - run: ./gradlew check |tee full.log |egrep  ">.*PASSED|>.*FAILED"
-    - run: cat full.log
+    - run: ./gradlew check
+    - uses: actions/upload-artifact@v2
+      with:
+        name: failing tests
+        path: |
+          mr/build/reports
+          hive3/build/reports
 
