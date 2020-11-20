@@ -36,7 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-class PartitionData
+public class PartitionData
     implements IndexedRecord, StructLike, SpecificData.SchemaConstructable, Serializable {
 
   static Schema partitionDataSchema(Types.StructType partitionType) {

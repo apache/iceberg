@@ -22,6 +22,7 @@ package org.apache.iceberg.flink;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -52,6 +53,9 @@ import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.factories.TableFactory;
 import org.apache.flink.util.StringUtils;
 import org.apache.iceberg.CachingCatalog;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -65,11 +69,13 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 
 /**
  * A Flink Catalog implementation that wraps an Iceberg {@link Catalog}.
@@ -619,7 +625,23 @@ public class FlinkCatalog extends AbstractCatalog {
   @Override
   public List<CatalogPartitionSpec> listPartitions(ObjectPath tablePath)
       throws CatalogException {
-    throw new UnsupportedOperationException();
+    Table table = icebergCatalog.loadTable(toIdentifier(tablePath));
+    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
+    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
+
+    Set<CatalogPartitionSpec> set = Sets.newHashSet();
+    for (DataFile dataFile : dataFiles) {
+      Map<String, String> map = new HashMap<>();
+      PartitionData partitionData = (PartitionData) dataFile.partition();
+      Types.StructType structType = partitionData.getPartitionType();
+      for (int i = 0; i < partitionData.size(); i++) {
+        map.put(structType.fields().get(i).name(), partitionData.get(i).toString());
+      }
+      if (map.size() > 0) {
+        set.add(new CatalogPartitionSpec(map));
+      }
+    }
+    return Lists.newArrayList(set);
   }
 
   @Override
