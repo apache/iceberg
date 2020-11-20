@@ -48,6 +48,8 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   private final ScanContext context;
 
   private transient RowDataIterator iterator;
+  private transient long currentReadCount = 0L;
+  private transient long limit;
 
   FlinkInputFormat(TableLoader tableLoader, Schema tableSchema, FileIO io, EncryptionManager encryption,
                    ScanContext context) {
@@ -93,15 +95,21 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
     this.iterator = new RowDataIterator(
         split.getTask(), io, encryption, tableSchema, context.projectedSchema(), context.nameMapping(),
         context.caseSensitive());
+    this.limit = context.limit();
   }
 
   @Override
   public boolean reachedEnd() {
-    return !iterator.hasNext();
+    if (limit > 0 && currentReadCount >= limit) {
+      return true;
+    } else {
+      return !iterator.hasNext();
+    }
   }
 
   @Override
   public RowData nextRecord(RowData reuse) {
+    currentReadCount++;
     return iterator.next();
   }
 
