@@ -137,7 +137,7 @@ abstract class BaseSparkAction<R> implements Action<R> {
 
   private static Dataset<Row> loadCatalogMetadataTable(SparkSession spark, String tableName, MetadataTableType type) {
     Preconditions.checkArgument(!LOAD_CATALOG.isNoop(), "Cannot find Spark3Util class but Spark3 is in use");
-    return LOAD_CATALOG.invoke(spark, tableName, type);
+    return LOAD_CATALOG.asStatic().invoke(spark, tableName, type);
   }
 
   protected static Dataset<Row> loadMetadataTable(SparkSession spark, String tableName, String tableLocation,
