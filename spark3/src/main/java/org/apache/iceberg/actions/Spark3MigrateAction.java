@@ -104,8 +104,7 @@ class Spark3MigrateAction extends Spark3CreateAction {
 
       icebergTable = ((SparkTable) stagedTable).table();
 
-      String stagingLocation;
-      stagingLocation = ((SparkTable) stagedTable).table().location() + "/" + ICEBERG_METADATA_FOLDER;
+      String stagingLocation = icebergTable.location() + "/" + ICEBERG_METADATA_FOLDER;
 
       LOG.info("Beginning migration of {} using metadata location {}", sourceTableName, stagingLocation);
 
