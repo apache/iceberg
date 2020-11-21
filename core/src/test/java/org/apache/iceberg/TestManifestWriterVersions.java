@@ -45,7 +45,8 @@ public class TestManifestWriterVersions {
       required(1, "id", Types.LongType.get()),
       required(2, "timestamp", Types.TimestampType.withZone()),
       required(3, "category", Types.StringType.get()),
-      required(4, "data", Types.StringType.get()));
+      required(4, "data", Types.StringType.get()),
+      required(5, "double", Types.DoubleType.get()));
 
   private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
       .identity("category")
@@ -60,9 +61,10 @@ public class TestManifestWriterVersions {
   private static final PartitionData PARTITION = DataFiles.data(SPEC, "category=cheesy/timestamp_hour=10/id_bucket=3");
   private static final Metrics METRICS = new Metrics(
       1587L,
-      ImmutableMap.of(1, 15L, 2, 122L, 3, 4021L, 4, 9411L), // sizes
-      ImmutableMap.of(1, 100L, 2, 100L, 3, 100L, 4, 100L),  // value counts
-      ImmutableMap.of(1, 0L, 2, 0L, 3, 0L, 4, 0L),          // null value counts
+      ImmutableMap.of(1, 15L, 2, 122L, 3, 4021L, 4, 9411L, 5, 15L), // sizes
+      ImmutableMap.of(1, 100L, 2, 100L, 3, 100L, 4, 100L, 5, 100L),  // value counts
+      ImmutableMap.of(1, 0L, 2, 0L, 3, 0L, 4, 0L, 5, 0L), // null value counts
+      ImmutableMap.of(5, 10L), // null value counts
       ImmutableMap.of(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1)),  // lower bounds
       ImmutableMap.of(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1))); // upper bounds
   private static final List<Long> OFFSETS = ImmutableList.of(4L);
@@ -83,7 +85,7 @@ public class TestManifestWriterVersions {
   public void testV1Write() throws IOException {
     ManifestFile manifest = writeManifest(1);
     checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
-    checkEntry(readManifest(manifest), ManifestWriter.UNASSIGNED_SEQ, FileContent.DATA);
+    checkEntry(readManifest(manifest), ManifestWriter.UNASSIGNED_SEQ, FileContent.DATA, false);
   }
 
   @Test
@@ -99,15 +101,15 @@ public class TestManifestWriterVersions {
     checkManifest(manifest, 0L);
 
     // v1 should be read using sequence number 0 because it was missing from the manifest list file
-    checkEntry(readManifest(manifest), 0L, FileContent.DATA);
+    checkEntry(readManifest(manifest), 0L, FileContent.DATA, false);
   }
 
   @Test
   public void testV2Write() throws IOException {
-    ManifestFile manifest = writeManifest(1);
+    ManifestFile manifest = writeManifest(2);
     checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
     Assert.assertEquals("Content", ManifestContent.DATA, manifest.content());
-    checkEntry(readManifest(manifest), ManifestWriter.UNASSIGNED_SEQ, FileContent.DATA);
+    checkEntry(readManifest(manifest), ManifestWriter.UNASSIGNED_SEQ, FileContent.DATA, true);
   }
 
   @Test
@@ -117,7 +119,7 @@ public class TestManifestWriterVersions {
     Assert.assertEquals("Content", ManifestContent.DATA, manifest.content());
 
     // v2 should use the correct sequence number by inheriting it
-    checkEntry(readManifest(manifest), SEQUENCE_NUMBER, FileContent.DATA);
+    checkEntry(readManifest(manifest), SEQUENCE_NUMBER, FileContent.DATA, true);
   }
 
   @Test
@@ -125,7 +127,7 @@ public class TestManifestWriterVersions {
     ManifestFile manifest = writeDeleteManifest(2);
     checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
     Assert.assertEquals("Content", ManifestContent.DELETES, manifest.content());
-    checkEntry(readDeleteManifest(manifest), ManifestWriter.UNASSIGNED_SEQ, FileContent.EQUALITY_DELETES);
+    checkEntry(readDeleteManifest(manifest), ManifestWriter.UNASSIGNED_SEQ, FileContent.EQUALITY_DELETES, true);
   }
 
   @Test
@@ -135,7 +137,7 @@ public class TestManifestWriterVersions {
     Assert.assertEquals("Content", ManifestContent.DELETES, manifest.content());
 
     // v2 should use the correct sequence number by inheriting it
-    checkEntry(readDeleteManifest(manifest), SEQUENCE_NUMBER, FileContent.EQUALITY_DELETES);
+    checkEntry(readDeleteManifest(manifest), SEQUENCE_NUMBER, FileContent.EQUALITY_DELETES, true);
   }
 
   @Test
@@ -150,7 +152,8 @@ public class TestManifestWriterVersions {
     checkManifest(manifest2, 0L);
 
     // should not inherit the v2 sequence number because it was a rewrite
-    checkEntry(readManifest(manifest2), 0L, FileContent.DATA);
+    // NaN count also won't be present since v1 manifest doesn't have this information
+    checkEntry(readManifest(manifest2), 0L, FileContent.DATA, false);
   }
 
   @Test
@@ -169,24 +172,26 @@ public class TestManifestWriterVersions {
     checkRewrittenManifest(manifest2, SEQUENCE_NUMBER, 0L);
 
     // should not inherit the v2 sequence number because it was written into the v2 manifest
-    checkRewrittenEntry(readManifest(manifest2), 0L, FileContent.DATA);
+    // NaN count also won't be present since v1 manifest doesn't have this information
+    checkRewrittenEntry(readManifest(manifest2), 0L, FileContent.DATA, false);
   }
 
-  void checkEntry(ManifestEntry<?> entry, Long expectedSequenceNumber, FileContent content) {
+  void checkEntry(ManifestEntry<?> entry, Long expectedSequenceNumber, FileContent content, boolean hasNaNCount) {
     Assert.assertEquals("Status", ManifestEntry.Status.ADDED, entry.status());
     Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, entry.snapshotId());
     Assert.assertEquals("Sequence number", expectedSequenceNumber, entry.sequenceNumber());
-    checkDataFile(entry.file(), content);
+    checkDataFile(entry.file(), content, hasNaNCount);
   }
 
-  void checkRewrittenEntry(ManifestEntry<DataFile> entry, Long expectedSequenceNumber, FileContent content) {
+  void checkRewrittenEntry(ManifestEntry<DataFile> entry, Long expectedSequenceNumber,
+                           FileContent content, boolean hasNaNCount) {
     Assert.assertEquals("Status", ManifestEntry.Status.EXISTING, entry.status());
     Assert.assertEquals("Snapshot ID", (Long) SNAPSHOT_ID, entry.snapshotId());
     Assert.assertEquals("Sequence number", expectedSequenceNumber, entry.sequenceNumber());
-    checkDataFile(entry.file(), content);
+    checkDataFile(entry.file(), content, hasNaNCount);
   }
 
-  void checkDataFile(ContentFile<?> dataFile, FileContent content) {
+  void checkDataFile(ContentFile<?> dataFile, FileContent content, boolean hasNaNCount) {
     // DataFile is the superclass of DeleteFile, so this method can check both
     Assert.assertEquals("Content", content, dataFile.content());
     Assert.assertEquals("Path", PATH, dataFile.path());
@@ -202,6 +207,11 @@ public class TestManifestWriterVersions {
       Assert.assertEquals(EQUALITY_IDS, dataFile.equalityFieldIds());
     } else {
       Assert.assertNull(dataFile.equalityFieldIds());
+    }
+    if (hasNaNCount) {
+      Assert.assertEquals("NaN", METRICS.nanValueCounts(), dataFile.nanValueCounts());
+    } else {
+      Assert.assertNull("NaN", dataFile.nanValueCounts());
     }
   }
 

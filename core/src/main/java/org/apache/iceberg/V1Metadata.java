@@ -356,7 +356,7 @@ class V1Metadata {
 
     @Override
     public void put(int i, Object v) {
-      throw new UnsupportedOperationException("Cannot read into IndexedDataFile");
+      throw new UnsupportedOperationException("Cannot write into IndexedDataFile");
     }
 
     @Override

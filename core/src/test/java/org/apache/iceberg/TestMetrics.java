@@ -73,7 +73,8 @@ public abstract class TestMetrics {
 
   private static final StructType NESTED_STRUCT_TYPE = StructType.of(
       required(3, "longCol", LongType.get()),
-      required(4, "leafStructCol", LEAF_STRUCT_TYPE)
+      required(4, "leafStructCol", LEAF_STRUCT_TYPE),
+      required(7, "doubleCol", DoubleType.get())
   );
 
   private static final Schema NESTED_SCHEMA = new Schema(
@@ -272,6 +273,8 @@ public abstract class TestMetrics {
     assertCounts(6, 1L, 0L, metrics);
     assertBounds(6, BinaryType.get(),
         ByteBuffer.wrap("A".getBytes()), ByteBuffer.wrap("A".getBytes()), metrics);
+    assertCounts(7, 1L, 0L, 1L, metrics);
+    assertBounds(7, DoubleType.get(), Double.NaN, Double.NaN, metrics);
   }
 
   private Record buildNestedTestRecord() {
@@ -281,6 +284,7 @@ public abstract class TestMetrics {
     Record nestedStruct = GenericRecord.create(NESTED_STRUCT_TYPE);
     nestedStruct.setField("longCol", 100L);
     nestedStruct.setField("leafStructCol", leafStruct);
+    nestedStruct.setField("doubleCol", Double.NaN);
     Record record = GenericRecord.create(NESTED_SCHEMA);
     record.setField("intCol", Integer.MAX_VALUE);
     record.setField("nestedStructCol", nestedStruct);
@@ -475,6 +479,7 @@ public abstract class TestMetrics {
       Record newNestedStruct = GenericRecord.create(NESTED_STRUCT_TYPE);
       newNestedStruct.setField("longCol", i + 1L);
       newNestedStruct.setField("leafStructCol", newLeafStruct);
+      newNestedStruct.setField("doubleCol", Double.NaN);
       Record newRecord = GenericRecord.create(NESTED_SCHEMA);
       newRecord.setField("intCol", i + 1);
       newRecord.setField("nestedStructCol", newNestedStruct);
@@ -500,6 +505,8 @@ public abstract class TestMetrics {
     assertCounts(6, 201L, 0L, metrics);
     assertBounds(6, BinaryType.get(),
         ByteBuffer.wrap("A".getBytes()), ByteBuffer.wrap("A".getBytes()), metrics);
+    assertCounts(7, 201L, 0L, 201L, metrics);
+    assertBounds(7, DoubleType.get(), Double.NaN, Double.NaN, metrics);
   }
 
   @Test
@@ -518,6 +525,8 @@ public abstract class TestMetrics {
     assertBounds(5, Types.LongType.get(), null, null, metrics);
     assertCounts(6, null, null, metrics);
     assertBounds(6, Types.BinaryType.get(), null, null, metrics);
+    assertCounts(7, null, null, metrics);
+    assertBounds(7, Types.DoubleType.get(), null, null, metrics);
   }
 
   @Test
@@ -536,6 +545,8 @@ public abstract class TestMetrics {
     assertBounds(5, Types.LongType.get(), null, null, metrics);
     assertCounts(6, 1L, 0L, metrics);
     assertBounds(6, Types.BinaryType.get(), null, null, metrics);
+    assertCounts(7, 1L, 0L, 1L, metrics);
+    assertBounds(7, Types.DoubleType.get(), null, null, metrics);
   }
 
   @Test
@@ -555,6 +566,8 @@ public abstract class TestMetrics {
     assertCounts(6, 1L, 0L, metrics);
     assertBounds(6, Types.BinaryType.get(),
         ByteBuffer.wrap("A".getBytes()), ByteBuffer.wrap("A".getBytes()), metrics);
+    assertCounts(7, 1L, 0L, 1L, metrics);
+    assertBounds(7, Types.DoubleType.get(), Double.NaN, Double.NaN, metrics);
   }
 
   @Test

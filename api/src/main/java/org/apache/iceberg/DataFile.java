@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.BinaryType;
 import org.apache.iceberg.types.Types.IntegerType;
@@ -59,10 +60,13 @@ public interface DataFile extends ContentFile<DataFile> {
       "Splittable offsets");
   Types.NestedField EQUALITY_IDS = optional(135, "equality_ids", ListType.ofRequired(136, IntegerType.get()),
       "Equality comparison field IDs");
+  Types.NestedField NAN_VALUE_COUNTS = optional(137, "nan_value_counts", MapType.ofRequired(138, 139,
+      IntegerType.get(), LongType.get()), "Map of column id to number of NaN values in the column");
+
   int PARTITION_ID = 102;
   String PARTITION_NAME = "partition";
   String PARTITION_DOC = "Partition data tuple, schema based on the partition spec";
-  // NEXT ID TO ASSIGN: 137
+  // NEXT ID TO ASSIGN: 140
 
   static StructType getType(StructType partitionType) {
     // IDs start at 100 to leave room for changes to ManifestEntry
@@ -80,7 +84,8 @@ public interface DataFile extends ContentFile<DataFile> {
         UPPER_BOUNDS,
         KEY_METADATA,
         SPLIT_OFFSETS,
-        EQUALITY_IDS
+        EQUALITY_IDS,
+        NAN_VALUE_COUNTS
     );
   }
 
@@ -94,6 +99,11 @@ public interface DataFile extends ContentFile<DataFile> {
 
   @Override
   default List<Integer> equalityFieldIds() {
+    return null;
+  }
+
+  @Override
+  default Map<Integer, Long> nanValueCounts() {
     return null;
   }
 }

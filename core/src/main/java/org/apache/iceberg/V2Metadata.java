@@ -254,7 +254,8 @@ class V2Metadata {
         DataFile.UPPER_BOUNDS,
         DataFile.KEY_METADATA,
         DataFile.SPLIT_OFFSETS,
-        DataFile.EQUALITY_IDS
+        DataFile.EQUALITY_IDS,
+        DataFile.NAN_VALUE_COUNTS
     );
   }
 
@@ -406,13 +407,15 @@ class V2Metadata {
           return wrapped.splitOffsets();
         case 13:
           return wrapped.equalityFieldIds();
+        case 14:
+          return wrapped.nanValueCounts();
       }
       throw new IllegalArgumentException("Unknown field ordinal: " + pos);
     }
 
     @Override
     public void put(int i, Object v) {
-      throw new UnsupportedOperationException("Cannot read into IndexedDataFile");
+      throw new UnsupportedOperationException("Cannot write into IndexedDataFile");
     }
 
     @Override
@@ -468,6 +471,11 @@ class V2Metadata {
     @Override
     public Map<Integer, Long> nullValueCounts() {
       return wrapped.nullValueCounts();
+    }
+
+    @Override
+    public Map<Integer, Long> nanValueCounts() {
+      return wrapped.nanValueCounts();
     }
 
     @Override

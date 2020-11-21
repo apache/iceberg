@@ -67,6 +67,7 @@ abstract class BaseFile<F>
   private Map<Integer, Long> columnSizes = null;
   private Map<Integer, Long> valueCounts = null;
   private Map<Integer, Long> nullValueCounts = null;
+  private Map<Integer, Long> nanValueCounts = null;
   private Map<Integer, ByteBuffer> lowerBounds = null;
   private Map<Integer, ByteBuffer> upperBounds = null;
   private long[] splitOffsets = null;
@@ -116,8 +117,8 @@ abstract class BaseFile<F>
   }
 
   BaseFile(int specId, FileContent content, String filePath, FileFormat format,
-           PartitionData partition, long fileSizeInBytes, long recordCount,
-           Map<Integer, Long> columnSizes, Map<Integer, Long> valueCounts, Map<Integer, Long> nullValueCounts,
+           PartitionData partition, long fileSizeInBytes, long recordCount, Map<Integer, Long> columnSizes,
+           Map<Integer, Long> valueCounts, Map<Integer, Long> nullValueCounts, Map<Integer, Long> nanValueCounts,
            Map<Integer, ByteBuffer> lowerBounds, Map<Integer, ByteBuffer> upperBounds, List<Long> splitOffsets,
            int[] equalityFieldIds, ByteBuffer keyMetadata) {
     this.partitionSpecId = specId;
@@ -140,6 +141,7 @@ abstract class BaseFile<F>
     this.columnSizes = columnSizes;
     this.valueCounts = valueCounts;
     this.nullValueCounts = nullValueCounts;
+    this.nanValueCounts = nanValueCounts;
     this.lowerBounds = SerializableByteBufferMap.wrap(lowerBounds);
     this.upperBounds = SerializableByteBufferMap.wrap(upperBounds);
     this.splitOffsets = ArrayUtil.toLongArray(splitOffsets);
@@ -168,12 +170,14 @@ abstract class BaseFile<F>
       this.columnSizes = copy(toCopy.columnSizes);
       this.valueCounts = copy(toCopy.valueCounts);
       this.nullValueCounts = copy(toCopy.nullValueCounts);
+      this.nanValueCounts = copy(toCopy.nanValueCounts);
       this.lowerBounds = SerializableByteBufferMap.wrap(copy(toCopy.lowerBounds));
       this.upperBounds = SerializableByteBufferMap.wrap(copy(toCopy.upperBounds));
     } else {
       this.columnSizes = null;
       this.valueCounts = null;
       this.nullValueCounts = null;
+      this.nanValueCounts = null;
       this.lowerBounds = null;
       this.upperBounds = null;
     }
@@ -262,6 +266,9 @@ abstract class BaseFile<F>
         this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
         return;
       case 14:
+        this.nanValueCounts = (Map<Integer, Long>) value;
+        return;
+      case 15:
         this.fileOrdinal = (long) value;
         return;
       default:
@@ -311,6 +318,8 @@ abstract class BaseFile<F>
       case 13:
         return equalityFieldIds();
       case 14:
+        return nanValueCounts;
+      case 15:
         return pos;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
@@ -378,6 +387,11 @@ abstract class BaseFile<F>
   }
 
   @Override
+  public Map<Integer, Long> nanValueCounts() {
+    return nanValueCounts;
+  }
+
+  @Override
   public Map<Integer, ByteBuffer> lowerBounds() {
     return lowerBounds;
   }
@@ -423,6 +437,7 @@ abstract class BaseFile<F>
         .add("column_sizes", columnSizes)
         .add("value_counts", valueCounts)
         .add("null_value_counts", nullValueCounts)
+        .add("nan_value_counts", nanValueCounts)
         .add("lower_bounds", lowerBounds)
         .add("upper_bounds", upperBounds)
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
