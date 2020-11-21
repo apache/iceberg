@@ -22,6 +22,15 @@ package org.apache.spark.sql.connector.iceberg.read;
 import java.util.Set;
 import org.apache.spark.sql.connector.read.Scan;
 
+/**
+ * A mix-in interface for Scan. Data sources can implement this interface if they support dynamic
+ * file filters.
+ */
 public interface SupportsFileFilter extends Scan {
+  /**
+   * Filters this scan to query only selected files.
+   *
+   * @param locations file locations
+   */
   void filterFiles(Set<String> locations);
 }
