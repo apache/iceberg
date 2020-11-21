@@ -20,12 +20,19 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFile;
@@ -41,11 +48,16 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   private final Map<String, String> properties;
   private final Schema writeSchema;
   private final StructType dsSchema;
+  private final PartitionSpec spec;
+  private final int[] equalityFieldIds;
 
   SparkAppenderFactory(Map<String, String> properties, Schema writeSchema, StructType dsSchema) {
     this.properties = properties;
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
+    // TODO: set these for real
+    this.spec = PartitionSpec.unpartitioned();
+    this.equalityFieldIds = new int[] { 0 };
   }
 
   @Override
@@ -84,6 +96,83 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
       }
     } catch (IOException e) {
       throw new RuntimeIOException(e);
+    }
+  }
+
+  @Override
+  public DataWriter<InternalRow> newDataWriter(EncryptedOutputFile file, FileFormat fileFormat, StructLike partition) {
+    return new DataWriter<>(
+        newAppender(file.encryptingOutputFile(), fileFormat), fileFormat,
+        file.encryptingOutputFile().location(), spec, partition, file.keyMetadata());
+  }
+
+  @Override
+  public EqualityDeleteWriter<InternalRow> newEqDeleteWriter(EncryptedOutputFile outputFile, FileFormat format,
+                                                             StructLike partition) {
+    try {
+      switch (format) {
+        case PARQUET:
+          return Parquet.writeDeletes(outputFile.encryptingOutputFile())
+              .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(dsSchema, msgType))
+              .overwrite()
+              .rowSchema(writeSchema)
+              .withSpec(spec)
+              .withPartition(partition)
+              .equalityFieldIds(equalityFieldIds)
+              .withKeyMetadata(outputFile.keyMetadata())
+              .buildEqualityWriter();
+
+        case AVRO:
+          return Avro.writeDeletes(outputFile.encryptingOutputFile())
+              .createWriterFunc(ignored -> new SparkAvroWriter(dsSchema))
+              .overwrite()
+              .rowSchema(writeSchema)
+              .withSpec(spec)
+              .withPartition(partition)
+              .equalityFieldIds(equalityFieldIds)
+              .withKeyMetadata(outputFile.keyMetadata())
+              .buildEqualityWriter();
+
+        default:
+          throw new UnsupportedOperationException("Cannot write unsupported format: " + format);
+      }
+
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to create new equality delete writer", e);
+    }
+  }
+
+  @Override
+  public PositionDeleteWriter<InternalRow> newPosDeleteWriter(EncryptedOutputFile outputFile, FileFormat format,
+                                                              StructLike partition) {
+    try {
+      switch (format) {
+        case PARQUET:
+          return Parquet.writeDeletes(outputFile.encryptingOutputFile())
+              .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(dsSchema, msgType))
+              .overwrite()
+              .rowSchema(writeSchema)
+              .withSpec(spec)
+              .withPartition(partition)
+              .withKeyMetadata(outputFile.keyMetadata())
+              .buildPositionWriter();
+
+        case AVRO:
+          return Avro.writeDeletes(outputFile.encryptingOutputFile())
+              .createWriterFunc(ignored -> new SparkAvroWriter(dsSchema))
+              .overwrite()
+              .rowSchema(writeSchema)
+              .withSpec(spec)
+              .withPartition(partition)
+              .withKeyMetadata(outputFile.keyMetadata())
+              .buildPositionWriter();
+
+        default:
+          throw new UnsupportedOperationException("Cannot write unsupported format: " + format);
+      }
+
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to create new equality delete writer", e);
     }
   }
 }
