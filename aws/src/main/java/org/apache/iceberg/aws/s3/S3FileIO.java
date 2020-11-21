@@ -39,7 +39,6 @@ import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 public class S3FileIO implements FileIO {
   private final SerializableSupplier<S3Client> s3;
   private AwsProperties awsProperties;
-
   private transient S3Client client;
 
   public S3FileIO() {
