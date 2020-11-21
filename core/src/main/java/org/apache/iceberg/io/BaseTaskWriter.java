@@ -71,21 +71,26 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     return completedFiles.toArray(new DataFile[0]);
   }
 
-  protected class RollingFileWriter implements Closeable {
+  protected abstract class BaseRollingWriter<T, W extends Closeable> implements Closeable {
     private static final int ROWS_DIVISOR = 1000;
     private final PartitionKey partitionKey;
 
     private EncryptedOutputFile currentFile = null;
-    private DataWriter<T> currentWriter = null;
+    private W currentWriter = null;
     private long currentRows = 0;
 
-    public RollingFileWriter(PartitionKey partitionKey) {
+    public BaseRollingWriter(PartitionKey partitionKey) {
       this.partitionKey = partitionKey;
       openCurrent();
     }
 
-    public void add(T record) throws IOException {
-      this.currentWriter.add(record);
+    abstract W newWriter(EncryptedOutputFile file, PartitionKey key);
+    abstract long length(W writer);
+    abstract void write(W writer, T record);
+    abstract void complete(W closedWriter);
+
+    public void write(T record) throws IOException {
+      write(currentWriter, record);
       this.currentRows++;
 
       if (shouldRollToNewFile()) {
@@ -102,14 +107,14 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         // partitioned
         this.currentFile = fileFactory.newOutputFile(partitionKey);
       }
-      this.currentWriter = appenderFactory.newDataWriter(currentFile, format, partitionKey);
+      this.currentWriter = newWriter(currentFile, partitionKey);
       this.currentRows = 0;
     }
 
     private boolean shouldRollToNewFile() {
       // TODO: ORC file now not support target file size before closed
       return !format.equals(FileFormat.ORC) &&
-          currentRows % ROWS_DIVISOR == 0 && currentWriter.length() >= targetFileSize;
+          currentRows % ROWS_DIVISOR == 0 && length(currentWriter) >= targetFileSize;
     }
 
     private void closeCurrent() throws IOException {
@@ -119,7 +124,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         if (currentRows == 0L) {
           io.deleteFile(currentFile.encryptingOutputFile());
         } else {
-          completedFiles.add(currentWriter.toDataFile());
+          complete(currentWriter);
         }
 
         this.currentFile = null;
@@ -134,66 +139,55 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
   }
 
-  protected class RollingEqDeleteWriter implements Closeable {
-    private static final int ROWS_DIVISOR = 1000;
-    private final PartitionKey partitionKey;
-
-    private EncryptedOutputFile currentFile = null;
-    private EqualityDeleteWriter<T> currentWriter = null;
-    private long currentRows = 0;
-
-    public RollingEqDeleteWriter(PartitionKey partitionKey) {
-      this.partitionKey = partitionKey;
-      openCurrent();
-    }
-
-    public void delete(T record) throws IOException {
-      this.currentWriter.delete(record);
-      this.currentRows++;
-
-      if (shouldRollToNewFile()) {
-        closeCurrent();
-        openCurrent();
-      }
-    }
-
-    private void openCurrent() {
-      if (partitionKey == null) {
-        // unpartitioned
-        this.currentFile = fileFactory.newOutputFile();
-      } else {
-        // partitioned
-        this.currentFile = fileFactory.newOutputFile(partitionKey);
-      }
-      this.currentWriter = appenderFactory.newEqDeleteWriter(currentFile, format, partitionKey);
-      this.currentRows = 0;
-    }
-
-    private boolean shouldRollToNewFile() {
-      // TODO: ORC file now not support target file size before closed
-      return !format.equals(FileFormat.ORC) &&
-          currentRows % ROWS_DIVISOR == 0 && currentWriter.length() >= targetFileSize;
-    }
-
-    private void closeCurrent() throws IOException {
-      if (currentWriter != null) {
-        currentWriter.close();
-
-        if (currentRows == 0L) {
-          io.deleteFile(currentFile.encryptingOutputFile());
-        } else {
-          completedDeletes.add(currentWriter.toDeleteFile());
-        }
-
-        this.currentFile = null;
-        this.currentWriter = null;
-        this.currentRows = 0;
-      }
+  protected class RollingFileWriter extends BaseRollingWriter<T, DataWriter<T>> {
+    public RollingFileWriter(PartitionKey partitionKey) {
+      super(partitionKey);
     }
 
     @Override
-    public void close() throws IOException {
-      closeCurrent();
+    DataWriter<T> newWriter(EncryptedOutputFile file, PartitionKey key) {
+      return appenderFactory.newDataWriter(file, format, key);
+    }
+
+    @Override
+    long length(DataWriter<T> writer) {
+      return writer.length();
+    }
+
+    @Override
+    void write(DataWriter<T> writer, T record) {
+      writer.add(record);
+    }
+
+    @Override
+    void complete(DataWriter<T> closedWriter) {
+      completedFiles.add(closedWriter.toDataFile());
+    }
+  }
+
+  protected class RollingEqDeleteWriter extends BaseRollingWriter<T, EqualityDeleteWriter<T>> {
+    public RollingEqDeleteWriter(PartitionKey partitionKey) {
+      super(partitionKey);
+    }
+
+    @Override
+    EqualityDeleteWriter<T> newWriter(EncryptedOutputFile file, PartitionKey key) {
+      return appenderFactory.newEqDeleteWriter(file, format, key);
+    }
+
+    @Override
+    long length(EqualityDeleteWriter<T> writer) {
+      return writer.length();
+    }
+
+    @Override
+    void write(EqualityDeleteWriter<T> writer, T record) {
+      writer.delete(record);
+    }
+
+    @Override
+    void complete(EqualityDeleteWriter<T> closedWriter) {
+      completedDeletes.add(closedWriter.toDeleteFile());
     }
   }
 }
