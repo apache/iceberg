@@ -59,7 +59,7 @@ abstract class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
       writers.put(copiedKey, writer);
     }
 
-    writer.add(row);
+    writer.write(row);
   }
 
   @Override

@@ -24,11 +24,16 @@ import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFile;
@@ -42,10 +47,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
   private final Schema schema;
+  private final PartitionSpec spec;
+  private final int[] equalityFieldIds;
   private final Map<String, String> config = Maps.newHashMap();
 
   public GenericAppenderFactory(Schema schema) {
     this.schema = schema;
+    // TODO set spec.
+    this.spec = PartitionSpec.unpartitioned();
+    this.equalityFieldIds = new int[] {0};
   }
 
   public GenericAppenderFactory set(String property, String value) {
@@ -90,6 +100,90 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
         default:
           throw new UnsupportedOperationException("Cannot write format: " + fileFormat);
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  @Override
+  public org.apache.iceberg.io.DataWriter<Record> newDataWriter(EncryptedOutputFile file, FileFormat format,
+                                                                StructLike partition) {
+    return new org.apache.iceberg.io.DataWriter<>(
+        newAppender(file.encryptingOutputFile(), format), format,
+        file.encryptingOutputFile().location(), spec, partition, file.keyMetadata());
+  }
+
+  @Override
+  public EqualityDeleteWriter<Record> newEqDeleteWriter(EncryptedOutputFile outputFile, FileFormat format,
+                                                        StructLike partition) {
+    MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
+    try {
+      switch (format) {
+        case AVRO:
+          return Avro.writeDeletes(outputFile.encryptingOutputFile())
+              .createWriterFunc(DataWriter::create)
+              .withPartition(partition)
+              .overwrite()
+              .setAll(config)
+              .rowSchema(schema)
+              .withSpec(spec)
+              .withKeyMetadata(outputFile.keyMetadata())
+              .equalityFieldIds(equalityFieldIds)
+              .buildEqualityWriter();
+
+        case PARQUET:
+          return Parquet.writeDeletes(outputFile.encryptingOutputFile())
+              .createWriterFunc(GenericParquetWriter::buildWriter)
+              .withPartition(partition)
+              .overwrite()
+              .setAll(config)
+              .metricsConfig(metricsConfig)
+              .rowSchema(schema)
+              .withSpec(spec)
+              .withKeyMetadata(outputFile.keyMetadata())
+              .equalityFieldIds(equalityFieldIds)
+              .buildEqualityWriter();
+
+        default:
+          throw new UnsupportedOperationException("Cannot write unknown file format: " + format);
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  @Override
+  public PositionDeleteWriter<Record> newPosDeleteWriter(EncryptedOutputFile outputFile, FileFormat format,
+                                                         StructLike partition) {
+    MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
+    try {
+      switch (format) {
+        case AVRO:
+          return Avro.writeDeletes(outputFile.encryptingOutputFile())
+              .createWriterFunc(DataWriter::create)
+              .withPartition(partition)
+              .overwrite()
+              .setAll(config)
+              .rowSchema(schema) // it's a nullable field.
+              .withSpec(spec)
+              .withKeyMetadata(outputFile.keyMetadata())
+              .buildPositionWriter();
+
+        case PARQUET:
+          return Parquet.writeDeletes(outputFile.encryptingOutputFile())
+              .createWriterFunc(GenericParquetWriter::buildWriter)
+              .withPartition(partition)
+              .overwrite()
+              .setAll(config)
+              .metricsConfig(metricsConfig)
+              .rowSchema(schema) // it's a nullable field.
+              .withSpec(spec)
+              .withKeyMetadata(outputFile.keyMetadata())
+              .buildPositionWriter();
+
+        default:
+          throw new UnsupportedOperationException("Cannot write unknown file format: " + format);
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);

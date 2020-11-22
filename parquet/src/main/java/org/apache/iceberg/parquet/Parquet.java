@@ -32,7 +32,6 @@ import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -49,6 +48,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.DeleteUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -58,7 +58,6 @@ import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.parquet.HadoopReadOptions;
 import org.apache.parquet.ParquetReadOptions;
@@ -379,41 +378,59 @@ public class Parquet {
           appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata, equalityFieldIds);
     }
 
-
     public <T> PositionDeleteWriter<T> buildPositionWriter() throws IOException {
+      return buildPositionWriter(IdentityPositionAccessor.INSTANCE);
+    }
+
+    public <T> PositionDeleteWriter<T> buildPositionWriter(PositionAccessor<?, ?> positionAccessor) throws IOException {
       Preconditions.checkState(equalityFieldIds == null, "Cannot create position delete file using delete field ids");
 
       meta("delete-type", "position");
 
       if (rowSchema != null && createWriterFunc != null) {
         // the appender uses the row schema wrapped with position fields
-        appenderBuilder.schema(new org.apache.iceberg.Schema(
-            MetadataColumns.DELETE_FILE_PATH,
-            MetadataColumns.DELETE_FILE_POS,
-            NestedField.optional(
-                MetadataColumns.DELETE_FILE_ROW_FIELD_ID, "row", rowSchema.asStruct(),
-                MetadataColumns.DELETE_FILE_ROW_DOC)));
+        appenderBuilder.schema(DeleteUtil.posDeleteSchema(rowSchema));
 
         appenderBuilder.createWriterFunc(parquetSchema -> {
           ParquetValueWriter<?> writer = createWriterFunc.apply(parquetSchema);
           if (writer instanceof StructWriter) {
-            return new PositionDeleteStructWriter<T>((StructWriter<?>) writer);
+            return new PositionDeleteStructWriter<T>((StructWriter<?>) writer, positionAccessor);
           } else {
             throw new UnsupportedOperationException("Cannot wrap writer for position deletes: " + writer.getClass());
           }
         });
 
       } else {
-        appenderBuilder.schema(new org.apache.iceberg.Schema(
-            MetadataColumns.DELETE_FILE_PATH,
-            MetadataColumns.DELETE_FILE_POS));
+        appenderBuilder.schema(DeleteUtil.pathPosSchema());
 
         appenderBuilder.createWriterFunc(parquetSchema ->
-            new PositionDeleteStructWriter<T>((StructWriter<?>) GenericParquetWriter.buildWriter(parquetSchema)));
+            new PositionDeleteStructWriter<T>((StructWriter<?>) GenericParquetWriter.buildWriter(parquetSchema),
+                positionAccessor));
       }
 
       return new PositionDeleteWriter<>(
           appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata);
+    }
+  }
+
+  public interface PositionAccessor<FILE, POS> {
+    FILE accessPath(CharSequence path);
+
+    POS accessPos(long pos);
+  }
+
+  private static class IdentityPositionAccessor implements PositionAccessor<CharSequence, Long> {
+
+    static final IdentityPositionAccessor INSTANCE = new IdentityPositionAccessor();
+
+    @Override
+    public CharSequence accessPath(CharSequence path) {
+      return path;
+    }
+
+    @Override
+    public Long accessPos(long pos) {
+      return pos;
     }
   }
 
@@ -489,7 +506,7 @@ public class Parquet {
     /**
      * Restricts the read to the given range: [start, start + length).
      *
-     * @param newStart the start position for this read
+     * @param newStart  the start position for this read
      * @param newLength the length of the range this read should scan
      * @return this builder for method chaining
      */
@@ -707,8 +724,8 @@ public class Parquet {
                             Map<String, String> metadata) throws IOException {
     OutputFile file = Files.localOutput(outputFile);
     ParquetFileWriter writer = new ParquetFileWriter(
-            ParquetIO.file(file), ParquetSchemaUtil.convert(schema, "table"),
-            ParquetFileWriter.Mode.CREATE, rowGroupSize, 0);
+        ParquetIO.file(file), ParquetSchemaUtil.convert(schema, "table"),
+        ParquetFileWriter.Mode.CREATE, rowGroupSize, 0);
     writer.start();
     for (File inputFile : inputFiles) {
       writer.appendFile(ParquetIO.file(Files.localInput(inputFile)));

@@ -35,7 +35,7 @@ public class UnpartitionedWriter<T> extends BaseTaskWriter<T> {
 
   @Override
   public void write(T record) throws IOException {
-    currentWriter.add(record);
+    currentWriter.write(record);
   }
 
   @Override
