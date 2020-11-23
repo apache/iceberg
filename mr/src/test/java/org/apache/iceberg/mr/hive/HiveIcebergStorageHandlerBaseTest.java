@@ -616,7 +616,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
                           j, k, i));
           Assert.assertEquals(expectedInnerList.get(k).toString(), queryResult.get(0)[0]);
         }
-
       }
     }
   }
@@ -875,9 +874,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
           throws IOException {
     List<Record> records = TestHelper.generateRandomRecords(schema, numRecords, seed);
     createTable(tableName, schema, records);
-    // sanity check, fetch all rows
-    List<Object[]> allRows = shell.executeStatement("SELECT * from default." + tableName);
-    Assert.assertEquals("Number of rows doesn't match expected.", records.size(), allRows.size());
     return records;
   }
 }
