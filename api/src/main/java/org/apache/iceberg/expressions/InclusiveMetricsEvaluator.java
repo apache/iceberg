@@ -170,13 +170,10 @@ public class InclusiveMetricsEvaluator {
     }
 
     @Override
-    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public <T> Boolean notNaN(BoundReference<T> ref) {
       Integer id = ref.fieldId();
 
-      if (nanCounts != null && nanCounts.containsKey(id) &&
-          valueCounts != null && valueCounts.containsKey(id) &&
-          nanCounts.get(id).equals(valueCounts.get(id))) {
+      if (containsNaNsOnly(id)) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -379,6 +376,11 @@ public class InclusiveMetricsEvaluator {
       return valueCounts != null && valueCounts.containsKey(id) &&
           nullCounts != null && nullCounts.containsKey(id) &&
           valueCounts.get(id) - nullCounts.get(id) == 0;
+    }
+
+    private boolean containsNaNsOnly(Integer id) {
+      return nanCounts != null && nanCounts.containsKey(id) &&
+          valueCounts != null && nanCounts.get(id).equals(valueCounts.get(id));
     }
   }
 }

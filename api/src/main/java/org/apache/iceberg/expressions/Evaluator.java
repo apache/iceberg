@@ -25,6 +25,7 @@ import java.util.Set;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundVisitor;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.NaNUtil;
 
 /**
  * Evaluates an {@link Expression} for data described by a {@link StructType}.
@@ -93,12 +94,12 @@ public class Evaluator implements Serializable {
 
     @Override
     public <T> Boolean isNaN(Bound<T> valueExpr) {
-      return NaNUtils.isNaN(valueExpr.eval(struct));
+      return NaNUtil.isNaN(valueExpr.eval(struct));
     }
 
     @Override
     public <T> Boolean notNaN(Bound<T> valueExpr) {
-      return !NaNUtils.isNaN(valueExpr.eval(struct));
+      return !NaNUtil.isNaN(valueExpr.eval(struct));
     }
 
     @Override

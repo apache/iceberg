@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.expressions;
 
+import org.apache.iceberg.util.NaNUtil;
+
 public class BoundUnaryPredicate<T> extends BoundPredicate<T> {
   BoundUnaryPredicate(Operation op, BoundTerm<T> term) {
     super(op, term);
@@ -47,9 +49,9 @@ public class BoundUnaryPredicate<T> extends BoundPredicate<T> {
       case NOT_NULL:
         return value != null;
       case IS_NAN:
-        return NaNUtils.isNaN(value);
+        return NaNUtil.isNaN(value);
       case NOT_NAN:
-        return !NaNUtils.isNaN(value);
+        return !NaNUtil.isNaN(value);
       default:
         throw new IllegalStateException("Invalid operation for BoundUnaryPredicate: " + op());
     }

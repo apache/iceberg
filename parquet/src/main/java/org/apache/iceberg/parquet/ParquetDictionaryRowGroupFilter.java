@@ -33,7 +33,7 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.expressions.NaNUtils;
+import org.apache.iceberg.util.NaNUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -160,7 +160,7 @@ public class ParquetDictionaryRowGroupFilter {
       }
 
       Set<T> dictionary = dict(id, comparatorForNaNPredicate(ref));
-      return dictionary.stream().anyMatch(NaNUtils::isNaN) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
+      return dictionary.stream().anyMatch(NaNUtil::isNaN) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
     }
 
     @Override
@@ -173,7 +173,7 @@ public class ParquetDictionaryRowGroupFilter {
       }
 
       Set<T> dictionary = dict(id, comparatorForNaNPredicate(ref));
-      return dictionary.stream().allMatch(NaNUtils::isNaN) ? ROWS_CANNOT_MATCH : ROWS_MIGHT_MATCH;
+      return dictionary.stream().allMatch(NaNUtil::isNaN) ? ROWS_CANNOT_MATCH : ROWS_MIGHT_MATCH;
     }
 
     private <T> Comparator<T> comparatorForNaNPredicate(BoundReference<T> ref) {

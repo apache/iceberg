@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.apache.iceberg.expressions;
+package org.apache.iceberg.util;
 
-public class NaNUtils {
+public class NaNUtil {
 
-  private NaNUtils() {
+  private NaNUtil() {
   }
 
   public static boolean isNaN(Object value) {

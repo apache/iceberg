@@ -147,13 +147,10 @@ public class StrictMetricsEvaluator {
     }
 
     @Override
-    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public <T> Boolean isNaN(BoundReference<T> ref) {
       int id = ref.fieldId();
 
-      if (nanCounts != null && nanCounts.containsKey(id) &&
-          valueCounts != null && valueCounts.containsKey(id) &&
-          nanCounts.get(id).equals(valueCounts.get(id))) {
+      if (containsNaNsOnly(id)) {
         return ROWS_MUST_MATCH;
       }
 
@@ -413,6 +410,11 @@ public class StrictMetricsEvaluator {
       return valueCounts != null && valueCounts.containsKey(id) &&
           nullCounts != null && nullCounts.containsKey(id) &&
           valueCounts.get(id) - nullCounts.get(id) == 0;
+    }
+
+    private boolean containsNaNsOnly(Integer id) {
+        return nanCounts != null && nanCounts.containsKey(id) &&
+            valueCounts != null && nanCounts.get(id).equals(valueCounts.get(id));
     }
   }
 }

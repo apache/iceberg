@@ -30,6 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.NaNUtil;
 
 public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements Unbound<T, Expression> {
   private static final Joiner COMMA = Joiner.on(", ");
@@ -168,7 +169,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
         case EQ:
           return Expressions.alwaysFalse();
       }
-    } else if (NaNUtils.isNaN(lit.value())) {
+    } else if (NaNUtil.isNaN(lit.value())) {
       switch (op) {
         case GT:
         case GT_EQ:
