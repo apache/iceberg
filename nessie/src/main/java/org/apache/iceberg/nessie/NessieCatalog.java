@@ -277,6 +277,10 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     return reference.getHash();
   }
 
+  String currentRefName() {
+    return reference.getName();
+  }
+
   private IcebergTable table(TableIdentifier tableIdentifier) {
     try {
       Contents table = client.getContentsApi().getContents(NessieUtil.toKey(tableIdentifier), reference.getHash());

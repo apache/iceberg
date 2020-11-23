@@ -28,7 +28,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-public class TestCatalogBranch extends BaseTestIceberg {
+public class TestBranchVisibility extends BaseTestIceberg {
 
 
   private final TableIdentifier tableIdentifier1 = TableIdentifier.of("test-ns", "table1");
@@ -36,7 +36,7 @@ public class TestCatalogBranch extends BaseTestIceberg {
   private NessieCatalog testCatalog;
   private int schemaCounter = 1;
 
-  public TestCatalogBranch() {
+  public TestBranchVisibility() {
     super("main");
   }
 
@@ -62,7 +62,7 @@ public class TestCatalogBranch extends BaseTestIceberg {
 
   @Test
   public void testBranchNoChange() {
-    testCatalogEquality(true, true);
+    testCatalogEquality(catalog, testCatalog, true, true);
   }
 
   @Test
@@ -70,12 +70,12 @@ public class TestCatalogBranch extends BaseTestIceberg {
     // ensure catalogs can't see each others updates
     updateSchema(catalog, tableIdentifier1);
 
-    testCatalogEquality(false, true);
+    testCatalogEquality(catalog, testCatalog, false, true);
 
     String initialMetadataLocation = metadataLocation(testCatalog, tableIdentifier2);
     updateSchema(testCatalog, tableIdentifier2);
 
-    testCatalogEquality(false, false);
+    testCatalogEquality(catalog, testCatalog, false, false);
 
     // points to the previous metadata location
     Assert.assertEquals(initialMetadataLocation, metadataLocation(catalog, tableIdentifier2));
@@ -102,13 +102,11 @@ public class TestCatalogBranch extends BaseTestIceberg {
     String mainHash = tree.getReferenceByName("main").getHash();
 
     // asking for table@branch gives expected regardless of catalog
-    testMetadataLocationEquality(true,
-        metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@test")),
+    Assert.assertEquals(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@test")),
         metadataLocation(testCatalog, tableIdentifier1));
 
     // asking for table@branch#hash gives expected regardless of catalog
-    testMetadataLocationEquality(true,
-        metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@" + mainHash)),
+    Assert.assertEquals(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@" + mainHash)),
         metadataLocation(testCatalog, tableIdentifier1));
   }
 
@@ -124,10 +122,6 @@ public class TestCatalogBranch extends BaseTestIceberg {
     catalog.loadTable(identifier).updateSchema().addColumn("id" + schemaCounter++, Types.LongType.get()).commit();
   }
 
-  private void testCatalogEquality(boolean table1Equal, boolean table2Equal) {
-    testCatalogEquality(catalog, testCatalog, table1Equal, table2Equal);
-  }
-
   private void testCatalogEquality(NessieCatalog catalog,
                                    NessieCatalog compareCatalog,
                                    boolean table1Equal,
@@ -136,16 +130,13 @@ public class TestCatalogBranch extends BaseTestIceberg {
     String table1 = metadataLocation(catalog, tableIdentifier1);
     String testTable2 = metadataLocation(compareCatalog, tableIdentifier2);
     String table2 = metadataLocation(catalog, tableIdentifier2);
-    testMetadataLocationEquality(table1Equal, testTable1, table1);
-    testMetadataLocationEquality(table2Equal, testTable2, table2);
-  }
 
-  private void testMetadataLocationEquality(boolean tablesEqual, String testTable, String table) {
-    if (tablesEqual) {
-      Assert.assertEquals(testTable, table);
-    } else {
-      Assert.assertNotEquals(testTable, table);
-    }
+    String msg1 = String.format("Table %s on ref %s should%s equal table %s on ref %s", tableIdentifier1.name(),
+        tableIdentifier2.name(), table1Equal ? "" : " not", catalog.currentRefName(), testCatalog.currentRefName());
+    Assert.assertEquals(msg1, table1Equal, table1.equals(testTable1));
+    String msg2 = String.format("Table %s on ref %s should%s equal table %s on ref %s", tableIdentifier1.name(),
+        tableIdentifier2.name(), table1Equal ? "" : " not", catalog.currentRefName(), testCatalog.currentRefName());
+    Assert.assertEquals(msg2, table2Equal, table2.equals(testTable2));
   }
 
 }
