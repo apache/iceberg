@@ -45,6 +45,7 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Util;
@@ -581,6 +582,262 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     }
   }
 
+  @Test
+  public void testArrayOfPrimitivesInTable() throws IOException {
+    Schema schema =
+            new Schema(required(1, "arrayofprimitives", Types.ListType.ofRequired(2, Types.IntegerType.get())));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "arraytable");
+    // access a single element from the array
+    for (int i = 0; i < records.size(); i++) {
+      List<?> expectedList = (List<?>) records.get(i).getField("arrayofprimitives");
+      for (int j = 0; j < expectedList.size(); j++) {
+        List<Object[]> queryResult = shell.executeStatement(
+                String.format("SELECT arrayofprimitives[%d] FROM default.arraytable " + "LIMIT 1 OFFSET %d", j, i));
+        Assert.assertEquals(expectedList.get(j), queryResult.get(0)[0]);
+      }
+    }
+  }
+
+  @Test
+  public void testArrayOfArraysInTable() throws IOException {
+    Schema schema =
+            new Schema(
+                    required(1, "arrayofarrays",
+                            Types.ListType.ofRequired(2, Types.ListType.ofRequired(3, Types.DateType.get()))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "arraytable");
+    // access an element from a matrix
+    for (int i = 0; i < records.size(); i++) {
+      List<?> expectedList = (List<?>) records.get(i).getField("arrayofarrays");
+      for (int j = 0; j < expectedList.size(); j++) {
+        List<?> expectedInnerList = (List<?>) expectedList.get(j);
+        for (int k = 0; k < expectedInnerList.size(); k++) {
+          List<Object[]> queryResult = shell.executeStatement(
+                  String.format("SELECT arrayofarrays[%d][%d] FROM default.arraytable " + "LIMIT 1 OFFSET %d",
+                          j, k, i));
+          Assert.assertEquals(expectedInnerList.get(k).toString(), queryResult.get(0)[0]);
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testArrayOfMapsInTable() throws IOException {
+    Schema schema =
+            new Schema(required(1, "arrayofmaps", Types.ListType
+                    .ofRequired(2, Types.MapType.ofRequired(3, 4, Types.StringType.get(),
+                            Types.BooleanType.get()))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "arraytable");
+    // access an element from a map in an array
+    for (int i = 0; i < records.size(); i++) {
+      List<?> expectedList = (List<?>) records.get(i).getField("arrayofmaps");
+      for (int j = 0; j < expectedList.size(); j++) {
+        Map<?, ?> expectedMap = (Map<?, ?>) expectedList.get(j);
+        for (Map.Entry<?, ?> entry : expectedMap.entrySet()) {
+          List<Object[]> queryResult = shell.executeStatement(String
+                  .format("SELECT arrayofmaps[%d][\"%s\"] FROM default.arraytable LIMIT 1 OFFSET %d", j,
+                          entry.getKey(), i));
+          Assert.assertEquals(entry.getValue(), queryResult.get(0)[0]);
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testArrayOfStructsInTable() throws IOException {
+    Schema schema =
+            new Schema(
+                    required(1, "arrayofstructs", Types.ListType.ofRequired(2, Types.StructType
+                            .of(required(3, "something", Types.DoubleType.get()), required(4, "someone",
+                                    Types.LongType.get()), required(5, "somewhere", Types.StringType.get())))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "arraytable");
+    // access an element from a struct in an array
+    for (int i = 0; i < records.size(); i++) {
+      List<?> expectedList = (List<?>) records.get(i).getField("arrayofstructs");
+      for (int j = 0; j < expectedList.size(); j++) {
+        List<Object[]> queryResult = shell.executeStatement(String.format("SELECT arrayofstructs[%d].something, " +
+                "arrayofstructs[%d].someone, arrayofstructs[%d].somewhere FROM default.arraytable LIMIT 1 " +
+                "OFFSET %d", j, j, j, i));
+        GenericRecord genericRecord = (GenericRecord) expectedList.get(j);
+        Assert.assertEquals(genericRecord.getField("something"), queryResult.get(0)[0]);
+        Assert.assertEquals(genericRecord.getField("someone"), queryResult.get(0)[1]);
+        Assert.assertEquals(genericRecord.getField("somewhere"), queryResult.get(0)[2]);
+      }
+    }
+  }
+
+  @Test
+  public void testMapOfPrimitivesInTable() throws IOException {
+    Schema schema = new Schema(
+            required(1, "mapofprimitives", Types.MapType.ofRequired(2, 3, Types.StringType.get(),
+                    Types.IntegerType.get())));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "maptable");
+    // access a single value from the map
+    for (int i = 0; i < records.size(); i++) {
+      Map<?, ?> expectedMap = (Map<?, ?>) records.get(i).getField("mapofprimitives");
+      for (Map.Entry<?, ?> entry : expectedMap.entrySet()) {
+        List<Object[]> queryResult = shell.executeStatement(String
+                .format("SELECT mapofprimitives[\"%s\"] " + "FROM default.maptable LIMIT 1 OFFSET %d", entry.getKey(),
+                        i));
+        Assert.assertEquals(entry.getValue(), queryResult.get(0)[0]);
+      }
+    }
+  }
+
+  @Test
+  public void testMapOfArraysInTable() throws IOException {
+    Schema schema = new Schema(
+            required(1, "mapofarrays",
+                    Types.MapType.ofRequired(2, 3, Types.StringType.get(), Types.ListType.ofRequired(4,
+                            Types.DateType.get()))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "maptable");
+    // access a single element from a list in a map
+    for (int i = 0; i < records.size(); i++) {
+      Map<?, ?> expectedMap = (Map<?, ?>) records.get(i).getField("mapofarrays");
+      for (Map.Entry<?, ?> entry : expectedMap.entrySet()) {
+        List<?> expectedList = (List<?>) entry.getValue();
+        for (int j = 0; j < expectedList.size(); j++) {
+          List<Object[]> queryResult = shell.executeStatement(String
+                  .format("SELECT mapofarrays[\"%s\"]" + "[%d] FROM maptable LIMIT 1 OFFSET %d", entry.getKey(), j, i));
+          Assert.assertEquals(expectedList.get(j).toString(), queryResult.get(0)[0]);
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testMapOfMapsInTable() throws IOException {
+    Schema schema = new Schema(
+            required(1, "mapofmaps", Types.MapType.ofRequired(2, 3, Types.StringType.get(),
+                    Types.MapType.ofRequired(4, 5, Types.StringType.get(), Types.StringType.get()))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "maptable");
+    // access a single element from a map in a map
+    for (int i = 0; i < records.size(); i++) {
+      Map<?, ?> expectedMap = (Map<?, ?>) records.get(i).getField("mapofmaps");
+      for (Map.Entry<?, ?> entry : expectedMap.entrySet()) {
+        Map<?, ?> expectedInnerMap = (Map<?, ?>) entry.getValue();
+        for (Map.Entry<?, ?> innerEntry : expectedInnerMap.entrySet()) {
+          List<Object[]> queryResult = shell.executeStatement(String
+                  .format("SELECT mapofmaps[\"%s\"]" + "[\"%s\"] FROM maptable LIMIT 1 OFFSET %d", entry.getKey(),
+                          innerEntry.getKey(), i));
+          Assert.assertEquals(innerEntry.getValue(), queryResult.get(0)[0]);
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testMapOfStructsInTable() throws IOException {
+    Schema schema = new Schema(
+            required(1, "mapofstructs", Types.MapType.ofRequired(2, 3, Types.StringType.get(),
+                    Types.StructType.of(required(4, "something", Types.DoubleType.get()),
+                            required(5, "someone", Types.LongType.get()),
+                            required(6, "somewhere", Types.StringType.get())))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "maptable");
+    // access a single element from a struct in a map
+    for (int i = 0; i < records.size(); i++) {
+      Map<?, ?> expectedMap = (Map<?, ?>) records.get(i).getField("mapofstructs");
+      for (Map.Entry<?, ?> entry : expectedMap.entrySet()) {
+        List<Object[]> queryResult = shell.executeStatement(String.format("SELECT mapofstructs[\"%s\"].something, " +
+                "mapofstructs[\"%s\"].someone, mapofstructs[\"%s\"].somewhere FROM default.maptable LIMIT 1 " +
+                "OFFSET %d", entry.getKey(), entry.getKey(), entry.getKey(), i));
+        GenericRecord genericRecord = (GenericRecord) entry.getValue();
+        Assert.assertEquals(genericRecord.getField("something"), queryResult.get(0)[0]);
+        Assert.assertEquals(genericRecord.getField("someone"), queryResult.get(0)[1]);
+        Assert.assertEquals(genericRecord.getField("somewhere"), queryResult.get(0)[2]);
+      }
+    }
+  }
+
+  @Test
+  public void testStructOfPrimitivesInTable() throws IOException {
+    Schema schema = new Schema(required(1, "structofprimitives",
+            Types.StructType.of(required(2, "key", Types.StringType.get()), required(3, "value",
+                    Types.IntegerType.get()))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "structtable");
+    // access a single value in a struct
+    for (int i = 0; i < records.size(); i++) {
+      GenericRecord expectedStruct = (GenericRecord) records.get(i).getField("structofprimitives");
+      List<Object[]> queryResult = shell.executeStatement(String.format(
+              "SELECT structofprimitives.key, structofprimitives.value FROM default.structtable LIMIT 1 OFFSET %d", i));
+      Assert.assertEquals(expectedStruct.getField("key"), queryResult.get(0)[0]);
+      Assert.assertEquals(expectedStruct.getField("value"), queryResult.get(0)[1]);
+    }
+  }
+
+  @Test
+  public void testStructOfArraysInTable() throws IOException {
+    Schema schema = new Schema(
+            required(1, "structofarrays", Types.StructType
+                    .of(required(2, "names", Types.ListType.ofRequired(3, Types.StringType.get())),
+                            required(4, "birthdays", Types.ListType.ofRequired(5,
+                                    Types.DateType.get())))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "structtable");
+    // access an element of an array inside a struct
+    for (int i = 0; i < records.size(); i++) {
+      GenericRecord expectedStruct = (GenericRecord) records.get(i).getField("structofarrays");
+      List<?> expectedList = (List<?>) expectedStruct.getField("names");
+      for (int j = 0; j < expectedList.size(); j++) {
+        List<Object[]> queryResult = shell.executeStatement(
+                String.format("SELECT structofarrays.names[%d] FROM default.structtable LIMIT 1 OFFSET %d", j, i));
+        Assert.assertEquals(expectedList.get(j), queryResult.get(0)[0]);
+      }
+      expectedList = (List<?>) expectedStruct.getField("birthdays");
+      for (int j = 0; j < expectedList.size(); j++) {
+        List<Object[]> queryResult = shell.executeStatement(
+                String.format("SELECT structofarrays.birthdays[%d] FROM default.structtable LIMIT 1 OFFSET %d", j, i));
+        Assert.assertEquals(expectedList.get(j).toString(), queryResult.get(0)[0]);
+      }
+    }
+  }
+
+  @Test
+  public void testStructOfMapsInTable() throws IOException {
+    Schema schema = new Schema(
+            required(1, "structofmaps", Types.StructType
+                    .of(required(2, "map1", Types.MapType.ofRequired(3, 4,
+                            Types.StringType.get(), Types.StringType.get())), required(5, "map2",
+                            Types.MapType.ofRequired(6, 7, Types.StringType.get(),
+                                    Types.IntegerType.get())))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "structtable");
+    // access a map entry inside a struct
+    for (int i = 0; i < records.size(); i++) {
+      GenericRecord expectedStruct = (GenericRecord) records.get(i).getField("structofmaps");
+      Map<?, ?> expectedMap = (Map<?, ?>) expectedStruct.getField("map1");
+      for (Map.Entry<?, ?> entry : expectedMap.entrySet()) {
+        List<Object[]> queryResult = shell.executeStatement(String
+                .format("SELECT structofmaps.map1[\"%s\"] from default.structtable LIMIT 1 OFFSET %d", entry.getKey(),
+                        i));
+        Assert.assertEquals(entry.getValue(), queryResult.get(0)[0]);
+      }
+      expectedMap = (Map<?, ?>) expectedStruct.getField("map2");
+      for (Map.Entry<?, ?> entry : expectedMap.entrySet()) {
+        List<Object[]> queryResult = shell.executeStatement(String
+                .format("SELECT structofmaps.map2[\"%s\"] from default.structtable LIMIT 1 OFFSET %d", entry.getKey(),
+                        i));
+        Assert.assertEquals(entry.getValue(), queryResult.get(0)[0]);
+      }
+    }
+  }
+
+  @Test
+  public void testStructOfStructsInTable() throws IOException {
+    Schema schema = new Schema(
+            required(1, "structofstructs", Types.StructType.of(required(2, "struct1", Types.StructType
+                    .of(required(3, "key", Types.StringType.get()), required(4, "value",
+                            Types.IntegerType.get()))))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "structtable");
+    // access a struct element inside a struct
+    for (int i = 0; i < records.size(); i++) {
+      GenericRecord expectedStruct = (GenericRecord) records.get(i).getField("structofstructs");
+      GenericRecord expectedInnerStruct = (GenericRecord) expectedStruct.getField("struct1");
+      List<Object[]> queryResult = shell.executeStatement(String.format(
+              "SELECT structofstructs.struct1.key, structofstructs.struct1.value FROM default.structtable " +
+                      "LIMIT 1 OFFSET %d", i));
+      Assert.assertEquals(expectedInnerStruct.getField("key"), queryResult.get(0)[0]);
+      Assert.assertEquals(expectedInnerStruct.getField("value"), queryResult.get(0)[1]);
+    }
+  }
+
   protected void createTable(String tableName, Schema schema, List<Record> records)
           throws IOException {
     Table table = createIcebergTable(tableName, schema, records);
@@ -611,5 +868,12 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   protected String locationForCreateTable(String tempDirName, String tableName) {
     return null;
+  }
+
+  private List<Record> createTableWithGeneratedRecords(Schema schema, int numRecords, long seed, String tableName)
+          throws IOException {
+    List<Record> records = TestHelper.generateRandomRecords(schema, numRecords, seed);
+    createTable(tableName, schema, records);
+    return records;
   }
 }
