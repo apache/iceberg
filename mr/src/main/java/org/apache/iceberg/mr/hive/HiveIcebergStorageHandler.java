@@ -73,10 +73,15 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   public void configureInputJobProperties(TableDesc tableDesc, Map<String, String> map) {
     Properties props = tableDesc.getProperties();
     Table table = Catalogs.loadTable(conf, props);
+    String schemaJson = SchemaParser.toJson(table.schema());
 
     map.put(InputFormatConfig.TABLE_IDENTIFIER, props.getProperty(Catalogs.NAME));
     map.put(InputFormatConfig.TABLE_LOCATION, table.location());
-    map.put(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(table.schema()));
+    map.put(InputFormatConfig.TABLE_SCHEMA, schemaJson);
+
+    // save schema into table props as well to avoid repeatedly hitting the HMS during serde initializations
+    // this is an exception to the interface documentation, but it's a safe operation to add this property
+    props.put(InputFormatConfig.TABLE_SCHEMA, schemaJson);
   }
 
   @Override
