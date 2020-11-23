@@ -66,4 +66,9 @@ class ProcedureParameterImpl implements ProcedureParameter {
   public int hashCode() {
     return Objects.hash(name, dataType, required);
   }
+
+  @Override
+  public String toString() {
+    return String.format("ProcedureParameter(name='%s', type=%s, required=%b)", name, dataType, required);
+  }
 }
