@@ -45,6 +45,7 @@ public class SparkProcedures {
     mapBuilder.put("rollback_to_timestamp", RollbackToTimestampProcedure::builder);
     mapBuilder.put("set_current_snapshot", SetCurrentSnapshotProcedure::builder);
     mapBuilder.put("cherrypick_snapshot", CherrypickSnapshotProcedure::builder);
+    mapBuilder.put("expire_snapshot", ExpireSnapshotProcedure::builder);
     return mapBuilder.build();
   }
 
