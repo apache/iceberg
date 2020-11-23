@@ -50,6 +50,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -151,6 +152,21 @@ public abstract class TestTimestampWithoutZone {
         read(unpartitioned.toString(), vectorized, "id", "ts"));
   }
 
+  @Rule
+  public ExpectedException exception = ExpectedException.none();
+
+  @Test
+  public void testUnpartitionedTimestampWithoutZoneError() {
+    exception.expect(IllegalArgumentException.class);
+    exception.expectMessage("Spark does not support timestamp without time zone fields");
+
+    spark.read().format("iceberg")
+        .option("vectorization-enabled", String.valueOf(vectorized))
+        .option("read-timestamp-without-zone", "false")
+        .load(unpartitioned.toString())
+        .collectAsList();
+  }
+
   private static Record projectFlat(Schema projection, Record record) {
     Record result = GenericRecord.create(projection);
     List<Types.NestedField> fields = projection.asStruct().fields();
@@ -163,12 +179,10 @@ public abstract class TestTimestampWithoutZone {
 
   public static void assertEqualsSafe(Types.StructType struct,
                                       List<Record> expected, List<Row> actual) {
-    // TODO: match records by ID
-    int numRecords = Math.min(expected.size(), actual.size());
-    for (int i = 0; i < numRecords; i += 1) {
+    Assert.assertEquals("Number of results should match expected", expected.size(), actual.size());
+    for (int i = 0; i < expected.size(); i += 1) {
       GenericsHelpers.assertEqualsSafe(struct, expected.get(i), actual.get(i));
     }
-    Assert.assertEquals("Number of results should match expected", expected.size(), actual.size());
   }
 
   private List<Record> testRecords(Schema schema) {

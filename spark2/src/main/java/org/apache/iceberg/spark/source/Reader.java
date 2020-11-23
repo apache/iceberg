@@ -176,6 +176,8 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     // is adjusted so that the corresponding time in the reader timezone is displayed. However, at LinkedIn, all readers
     // and writers are in the UTC timezone as our production machines are set to UTC. So, timestamp with/without time
     // zone is the same.
+    // When set to false (default), we throw an exception at runtime
+    // "Spark does not support timestamp without time zone fields" if reading timestamp without time zone fields
     this.readTimestampWithoutZone = options.get("read-timestamp-without-zone").map(Boolean::parseBoolean).orElse(false);
   }
 
