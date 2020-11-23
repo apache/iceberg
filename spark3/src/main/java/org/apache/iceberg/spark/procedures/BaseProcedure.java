@@ -47,6 +47,15 @@ abstract class BaseProcedure implements Procedure {
   }
 
   protected <T> T modifyIcebergTable(String namespace, String tableName, Function<org.apache.iceberg.Table, T> func) {
+    return execute(namespace, tableName, true, func);
+  }
+
+  protected <T> T withIcebergTable(String namespace, String tableName, Function<org.apache.iceberg.Table, T> func) {
+    return execute(namespace, tableName, false, func);
+  }
+
+  private <T> T execute(String namespace, String tableName, boolean refreshSparkCache,
+                        Function<org.apache.iceberg.Table, T> func) {
     Preconditions.checkArgument(namespace != null && !namespace.isEmpty(), "Namespace cannot be empty");
     Preconditions.checkArgument(tableName != null && !tableName.isEmpty(), "Table name cannot be empty");
 
@@ -56,7 +65,9 @@ abstract class BaseProcedure implements Procedure {
 
     T result = func.apply(icebergTable);
 
-    refreshSparkCache(ident, sparkTable);
+    if (refreshSparkCache) {
+      refreshSparkCache(ident, sparkTable);
+    }
 
     return result;
   }
