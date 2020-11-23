@@ -57,7 +57,7 @@ Iceberg tables created using `HiveCatalog` are automatically registered with Hiv
 The first step is to create an Iceberg table using the Spark/Java/Python API and `HiveCatalog`. For the purposes of this documentation we will assume that the table is called `table_b` and that the table location is `s3://some_path/table_b`. In order for Iceberg to correctly set up the Hive table for querying some configuration values need to be set, the two options for this are described below - you can use either or the other depending on your use case.
 
 ##### Hive Configuration
-The value `iceberg.engine.hive.enabled` needs to be set to `true` and added to the Hive configuration file on the classpath of the application creating the table. This can be done by modifying the relevant `hive-site.xml`. Alternatively this can done programatically like so:
+The value `iceberg.engine.hive.enabled` needs to be set to `true` and added to the Hive configuration file on the classpath of the application creating the table. This can be done by modifying the relevant `hive-site.xml`. Alternatively this can be done programmatically like so:
 ```java
 Configuration hadoopConfiguration = spark.sparkContext().hadoopConfiguration();
 hadoopConfiguration.set(ConfigProperties.ENGINE_HIVE_ENABLED, "true"); //iceberg.engine.hive.enabled=true
