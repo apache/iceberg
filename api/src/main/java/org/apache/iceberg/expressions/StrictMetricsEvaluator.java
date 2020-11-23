@@ -413,8 +413,8 @@ public class StrictMetricsEvaluator {
     }
 
     private boolean containsNaNsOnly(Integer id) {
-        return nanCounts != null && nanCounts.containsKey(id) &&
-            valueCounts != null && nanCounts.get(id).equals(valueCounts.get(id));
+      return nanCounts != null && nanCounts.containsKey(id) &&
+          valueCounts != null && nanCounts.get(id).equals(valueCounts.get(id));
     }
   }
 }
