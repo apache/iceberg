@@ -268,7 +268,7 @@ Iceberg support writing to iceberg table from different DataStream input.
 
 ### Appending data.
 
-we have supported writing `DataStream<RowData>` and `DataStream<Row` to the sink iceberg table natively.
+we have supported writing `DataStream<RowData>` and `DataStream<Row>` to the sink iceberg table natively.
 
 ```java
 StreamExecutionEnvironment env = ...;
