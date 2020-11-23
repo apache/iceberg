@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkTableUtil;
@@ -103,6 +104,10 @@ class Spark3MigrateAction extends Spark3CreateAction {
           Spark3Util.toTransforms(sourcePartitionSpec), newTableProperties);
 
       icebergTable = ((SparkTable) stagedTable).table();
+
+      if (!icebergTable.properties().containsKey(TableProperties.DEFAULT_NAME_MAPPING)) {
+        applyDefaultTableNameMapping(icebergTable);
+      }
 
       String stagingLocation = icebergTable.location() + "/" + ICEBERG_METADATA_FOLDER;
 

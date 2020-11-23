@@ -20,6 +20,7 @@
 package org.apache.iceberg.actions;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -84,12 +85,6 @@ class Spark3SnapshotAction extends Spark3CreateAction {
   public Long execute() {
     StagingTableCatalog stagingCatalog = checkDestinationCatalog(destCatalog);
     Map<String, String> newTableProperties = new ImmutableMap.Builder<String, String>()
-        .put(TableCatalog.PROP_PROVIDER, "iceberg")
-        .putAll(JavaConverters.mapAsJavaMapConverter(sourceTable.properties()).asJava())
-        .putAll(tableLocationProperties(destDataLocation))
-        //put SnapshotProperty
-        .putAll(additionalProperties)
-        .build();
 
     StagedTable stagedTable = null;
     Table icebergTable = null;
@@ -98,6 +93,10 @@ class Spark3SnapshotAction extends Spark3CreateAction {
       stagedTable = stagingCatalog.stageCreate(destTableName, sourceTable.schema(),
           Spark3Util.toTransforms(sourcePartitionSpec), newTableProperties);
       icebergTable = ((SparkTable) stagedTable).table();
+
+      if (!icebergTable.properties().containsKey(TableProperties.DEFAULT_NAME_MAPPING)) {
+        applyDefaultTableNameMapping(icebergTable);
+      }
     } catch (TableAlreadyExistsException taeException) {
       throw new IllegalArgumentException("Cannot create snapshot because a table already exists with that name",
           taeException);

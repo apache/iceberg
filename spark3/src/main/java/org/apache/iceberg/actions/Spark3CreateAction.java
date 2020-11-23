@@ -29,6 +29,9 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.mapping.MappingUtil;
+import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -133,7 +136,6 @@ abstract class Spark3CreateAction implements CreateAction {
     return !sourceIceberg && sameCatalog && sameIdentifier;
   }
 
-
   /**
    * Creates the Iceberg data and metadata at a given location instead of the source table
    * location. New metadata and data files will be added to this
@@ -194,6 +196,12 @@ abstract class Spark3CreateAction implements CreateAction {
     );
   }
 
+  protected static void applyDefaultTableNameMapping(Table table) {
+    NameMapping nameMapping = MappingUtil.create(table.schema());
+    String nameMappingJson = NameMappingParser.toJson(nameMapping);
+    table.updateProperties().set(TableProperties.DEFAULT_NAME_MAPPING, nameMappingJson).commit();
+  }
+
   protected static StagingTableCatalog checkDestinationCatalog(CatalogPlugin catalog) {
     if (!(catalog instanceof SparkSessionCatalog) && !(catalog instanceof SparkCatalog)) {
       throw new IllegalArgumentException(String.format("Cannot create Iceberg table in non Iceberg Catalog. " +
@@ -205,7 +213,7 @@ abstract class Spark3CreateAction implements CreateAction {
 
   private CatalogPlugin checkSourceCatalog(CatalogPlugin catalog) {
     // Currently the Import code relies on being able to look up the table in the session code
-    if (!(catalog instanceof SparkSessionCatalog)
+    if (!(catalog instanceof SparkSessionCatalog)) {
       throw new IllegalArgumentException(String.format(
           "Cannot create an Iceberg table from a non-Session Catalog table. " +
               "Found %s of class %s as the source catalog o", catalog.name(), catalog.getClass().getName()));
