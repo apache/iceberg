@@ -38,6 +38,7 @@ buildscript {
 
 plugins {
   id 'nebula.dependency-recommender' version '9.0.2'
+  id 'org.projectnessie' version '0.2.1'
 }
 
 try {
@@ -1074,6 +1075,53 @@ project(':iceberg-pig') {
       exclude group: 'org.apache.avro', module: 'avro'
     }
   }
+}
+
+project(':iceberg-nessie') {
+  apply plugin: 'org.projectnessie'
+
+  java {
+    registerFeature('clientSupport') {
+      usingSourceSet(sourceSets.main)
+    }
+  }
+
+  dependencies {
+    compile project(':iceberg-core')
+    compile project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    compile "org.projectnessie:nessie-client"
+    quarkusAppRunnerConfig "org.projectnessie:nessie-quarkus:0.2.1"
+    clientSupportImplementation("io.quarkus:quarkus-rest-client") {
+      exclude group: "org.jboss.logging", module: "commons-logging-jboss-logging"
+    }
+    clientSupportImplementation("io.quarkus:quarkus-resteasy-jackson") {
+      exclude group: "org.codehaus.mojo", module: "animal-sniffer-annotations"
+    }
+
+
+    compileOnly("org.apache.hadoop:hadoop-common") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.apache.httpcomponents', module: 'httpclient'
+      exclude group: 'org.apache.httpcomponents', module: 'httpcore'
+      exclude group: 'commons-httpclient', module: 'commons-httpclient'
+      exclude group: "com.sun.jersey", module: 'jersey-core'
+      exclude group: "com.sun.jersey", module: 'jersey-json'
+      exclude group: "com.sun.jersey", module: 'jersey-server'
+    }
+
+    testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testCompile(project(":iceberg-nessie")) {
+      capabilities {
+        requireCapability("org.apache.iceberg:iceberg-nessie-client-support")
+      }
+    }
+  }
+  quarkusAppRunnerProperties {
+    props = ["quarkus.http.test-port": 0]
+  }
+  tasks.getByName("quarkus-start").dependsOn("compileTestJava")
+  tasks.test.dependsOn("quarkus-start").finalizedBy("quarkus-stop")
+
 }
 
 @Memoized
