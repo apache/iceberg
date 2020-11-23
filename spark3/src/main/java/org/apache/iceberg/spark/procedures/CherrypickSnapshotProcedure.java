@@ -22,7 +22,6 @@ package org.apache.iceberg.spark.procedures;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.types.DataTypes;
@@ -79,11 +78,7 @@ class CherrypickSnapshotProcedure extends BaseProcedure {
 
       Snapshot currentSnapshot = table.currentSnapshot();
 
-      Object[] outputValues = new Object[OUTPUT_TYPE.size()];
-      outputValues[0] = snapshotId;
-      outputValues[1] = currentSnapshot.snapshotId();
-      GenericInternalRow outputRow = new GenericInternalRow(outputValues);
-
+      InternalRow outputRow = newInternalRow(snapshotId, currentSnapshot.snapshotId());
       return new InternalRow[]{outputRow};
     });
   }

@@ -25,7 +25,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.parser.ParserInterface;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -98,6 +100,10 @@ abstract class BaseProcedure implements Procedure {
     CacheManager cacheManager = spark.sharedState().cacheManager();
     DataSourceV2Relation relation = DataSourceV2Relation.create(table, Option.apply(tableCatalog), Option.apply(ident));
     cacheManager.recacheByPlan(spark, relation);
+  }
+
+  protected InternalRow newInternalRow(Object... values) {
+    return new GenericInternalRow(values);
   }
 
   protected abstract static class Builder<T extends BaseProcedure> implements ProcedureBuilder {
