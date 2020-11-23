@@ -78,6 +78,7 @@ public class TestDataFileSerialization {
     VALUE_COUNTS.put(2, 3L);
     VALUE_COUNTS.put(4, 2L);
     NULL_VALUE_COUNTS.put(1, 0L);
+    NULL_VALUE_COUNTS.put(2, 2L);
     NAN_VALUE_COUNTS.put(4, 1L);
     LOWER_BOUNDS.put(1, longToBuffer(0L));
     UPPER_BOUNDS.put(1, longToBuffer(4L));

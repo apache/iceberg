@@ -138,7 +138,7 @@ public interface ContentFile<F> {
    * this method to copy data without stats when collecting files.
    *
    * @return a copy of this data file, without lower bounds, upper bounds, value counts,
-   * null value counts, or nan value counts
+   *         null value counts, or nan value counts
    */
   F copyWithoutStats();
 }
