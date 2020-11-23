@@ -27,10 +27,17 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.Tasks;
 
 public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
@@ -53,6 +60,14 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     this.targetFileSize = targetFileSize;
   }
 
+  protected PartitionSpec spec() {
+    return spec;
+  }
+
+  protected FileAppenderFactory<T> appenderFactory() {
+    return appenderFactory;
+  }
+
   @Override
   public void abort() throws IOException {
     close();
@@ -71,6 +86,105 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     return completedFiles.toArray(new DataFile[0]);
   }
 
+  protected abstract class BaseDeltaWriter implements Closeable {
+    private final PartitionKey partition;
+    private final RollingFileWriter dataWriter;
+
+    private final boolean enableEqDelete;
+    private RollingEqDeleteWriter eqDeleteWriter = null;
+    private SortedPosDeleteWriter<T> posDeleteWriter = null;
+    private Integer[] equalityFieldIds = null;
+    private StructLikeMap<FilePos> insertedRowMap = null;
+    private Schema schema = null;
+
+    public BaseDeltaWriter(PartitionKey partition,
+                           RollingFileWriter dataWriter,
+                           RollingEqDeleteWriter eqDeleteWriter,
+                           Schema schema) {
+      this.partition = partition;
+      this.dataWriter = dataWriter;
+
+      this.enableEqDelete = eqDeleteWriter != null;
+      if (enableEqDelete) {
+        this.eqDeleteWriter = eqDeleteWriter;
+        this.posDeleteWriter = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, partition);
+
+        // TODO set the equality field ids.
+        this.equalityFieldIds = new Integer[] {0};
+        this.schema = null;
+        Schema deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
+        this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
+      }
+    }
+
+    protected abstract StructLike asKey(T row);
+
+    protected abstract StructLike asCopiedKey(T row);
+
+    public void write(T row) throws IOException {
+      if (enableEqDelete) {
+        FilePos filePos = FilePos.create(dataWriter.currentPath(), dataWriter.currentRows());
+
+        StructLike copiedKey = asCopiedKey(row);
+        // Adding a pos-delete to replace the old row.
+        FilePos previous = insertedRowMap.put(copiedKey, filePos);
+        if (previous != null) {
+          posDeleteWriter.delete(previous.path, previous.rowOffset, null /* TODO set non-nullable row*/);
+        }
+      }
+
+      dataWriter.write(row);
+    }
+
+    public void delete(T row) throws IOException {
+      Preconditions.checkState(enableEqDelete, "Could not accept equality deletion.");
+
+      StructLike key = asKey(row);
+      FilePos previous = insertedRowMap.get(key);
+
+      if (previous != null) {
+        posDeleteWriter.delete(previous.path, previous.rowOffset, row);
+        insertedRowMap.remove(key);
+      }
+
+      eqDeleteWriter.write(row);
+    }
+
+    @Override
+    public void close() throws IOException {
+      dataWriter.close();
+
+      if (enableEqDelete) {
+        eqDeleteWriter.close();
+        insertedRowMap.clear();
+
+        completedDeletes.addAll(posDeleteWriter.complete());
+      }
+    }
+  }
+
+  private static class FilePos {
+    private final CharSequence path;
+    private final long rowOffset;
+
+    private FilePos(CharSequence path, long rowOffset) {
+      this.path = path;
+      this.rowOffset = rowOffset;
+    }
+
+    private static FilePos create(CharSequence path, long pos) {
+      return new FilePos(path, pos);
+    }
+
+    @Override
+    public String toString() {
+      return MoreObjects.toStringHelper(this)
+          .add("path", path)
+          .add("row_offset", rowOffset)
+          .toString();
+    }
+  }
+
   protected abstract class BaseRollingWriter<T, W extends Closeable> implements Closeable {
     private static final int ROWS_DIVISOR = 1000;
     private final PartitionKey partitionKey;
@@ -85,8 +199,11 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
 
     abstract W newWriter(EncryptedOutputFile file, PartitionKey key);
+
     abstract long length(W writer);
+
     abstract void write(W writer, T record);
+
     abstract void complete(W closedWriter);
 
     public void write(T record) throws IOException {
@@ -97,6 +214,15 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         closeCurrent();
         openCurrent();
       }
+    }
+
+    public CharSequence currentPath() {
+      Preconditions.checkNotNull(currentFile, "The currentFile shouldn't be null");
+      return currentFile.encryptingOutputFile().location();
+    }
+
+    public long currentRows() {
+      return currentRows;
     }
 
     private void openCurrent() {
