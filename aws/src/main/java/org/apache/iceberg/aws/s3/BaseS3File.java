@@ -25,7 +25,6 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
-import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 
 abstract class BaseS3File {
   private final S3Client client;
@@ -81,13 +80,7 @@ abstract class BaseS3File {
       HeadObjectRequest.Builder requestBuilder = HeadObjectRequest.builder()
           .bucket(uri().bucket())
           .key(uri().key());
-
-      if (AwsProperties.S3FILEIO_SSE_TYPE_CUSTOM.equals(awsProperties.s3FileIoSseType())) {
-        requestBuilder.sseCustomerAlgorithm(ServerSideEncryption.AES256.name());
-        requestBuilder.sseCustomerKey(awsProperties.s3FileIoSseKey());
-        requestBuilder.sseCustomerKeyMD5(awsProperties.s3FileIoSseMd5());
-      }
-
+      S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
       metadata = client().headObject(requestBuilder.build());
     }
 
