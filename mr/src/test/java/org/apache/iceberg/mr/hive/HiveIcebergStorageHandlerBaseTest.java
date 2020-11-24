@@ -527,7 +527,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
     // Missing schema, we try to get the schema from the table and fail
     AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
-        "Please provide an existing table or a valid schema", () -> {
+        "Please provide ", () -> {
           shell.executeStatement("CREATE EXTERNAL TABLE withShell2 " +
               "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
               testTables.locationForCreateTableSQL(identifier));
@@ -583,37 +583,6 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       Assert.assertEquals(BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(),
           hmsTable.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP));
     }
-  }
-
-  @Test
-  public void testCreateTableAboveExistingTableWithColumnSpecification() throws IOException {
-    // Create the Iceberg table
-    createIcebergTable("customers", CUSTOMER_SCHEMA, Collections.emptyList());
-
-    if (!Catalogs.hiveCatalog(shell.getHiveConf())) {
-      // We should throw an error if column specification is provided when creating a table above an existing table
-      AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
-          "with different specification", () -> {
-            shell.executeStatement("CREATE EXTERNAL TABLE customers (customer_id BIGINT) " +
-                "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
-                testTables.locationForCreateTableSQL(TableIdentifier.of("default", "customers")));
-          }
-      );
-    }
-  }
-
-  @Test
-  public void testCreateTableWithDifferentColumnSpecification() {
-    // We should throw an error if column specification is provided when creating a table above an existing table
-    AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
-        "schema should match", () -> {
-          shell.executeStatement("CREATE EXTERNAL TABLE customers (customer_id BIGINT) " +
-              "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
-              testTables.locationForCreateTableSQL(TableIdentifier.of("default", "customers")) +
-              "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" +
-              SchemaParser.toJson(CUSTOMER_SCHEMA) + "')");
-        }
-    );
   }
 
   @Test

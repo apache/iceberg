@@ -31,7 +31,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.io.Writable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
@@ -62,21 +61,27 @@ public class HiveIcebergSerDe extends AbstractSerDe {
     } else if (serDeProperties.get(InputFormatConfig.TABLE_SCHEMA) != null) {
       tableSchema = SchemaParser.fromJson((String) serDeProperties.get(InputFormatConfig.TABLE_SCHEMA));
     } else {
-      // Read the configuration parameters
-      String columnNames = serDeProperties.getProperty(serdeConstants.LIST_COLUMNS);
-      String columnTypes = serDeProperties.getProperty(serdeConstants.LIST_COLUMN_TYPES);
-      String columnNameDelimiter = serDeProperties.containsKey(serdeConstants.COLUMN_NAME_DELIMITER) ?
-          serDeProperties.getProperty(serdeConstants.COLUMN_NAME_DELIMITER) : String.valueOf(SerDeUtils.COMMA);
-      if (columnNames != null && columnTypes != null && columnNameDelimiter != null &&
-          !columnNames.isEmpty() && !columnTypes.isEmpty() && !columnNameDelimiter.isEmpty()) {
-        tableSchema = HiveSchemaUtil.schema(columnNames, columnTypes, columnNameDelimiter);
-        LOG.info("Using schema from column specification {}", SchemaParser.toJson(tableSchema));
+      if (Catalogs.hiveCatalog(configuration)) {
+        tableSchema = hiveSchema(serDeProperties);
+        if (tableSchema == null) {
+          throw new SerDeException("Please provide a valid schema");
+        } else {
+          LOG.info("Using hive schema {}", SchemaParser.toJson(tableSchema));
+        }
       } else {
         try {
+          // always prefer the original table schema if there is one
           tableSchema = Catalogs.loadTable(configuration, serDeProperties).schema();
           LOG.info("Using schema from existing table {}", SchemaParser.toJson(tableSchema));
-        } catch (NoSuchTableException nte) {
-          throw new SerDeException("Please provide an existing table or a valid schema", nte);
+        } catch (Exception e) {
+          // If we can not load the table try the provided hive schema
+          tableSchema = hiveSchema(serDeProperties);
+          if (tableSchema == null) {
+            throw new SerDeException("Please provide an existing table or a valid schema", e);
+          } else {
+            LOG.info("Using schema from column specification {} since table load is failed",
+                SchemaParser.toJson(tableSchema), e);
+          }
         }
       }
     }
@@ -111,5 +116,19 @@ public class HiveIcebergSerDe extends AbstractSerDe {
   @Override
   public ObjectInspector getObjectInspector() {
     return inspector;
+  }
+
+  private static Schema hiveSchema(Properties serDeProperties) {
+    // Read the configuration parameters
+    String columnNames = serDeProperties.getProperty(serdeConstants.LIST_COLUMNS);
+    String columnTypes = serDeProperties.getProperty(serdeConstants.LIST_COLUMN_TYPES);
+    String columnNameDelimiter = serDeProperties.containsKey(serdeConstants.COLUMN_NAME_DELIMITER) ?
+        serDeProperties.getProperty(serdeConstants.COLUMN_NAME_DELIMITER) : String.valueOf(SerDeUtils.COMMA);
+    if (columnNames != null && columnTypes != null && columnNameDelimiter != null &&
+        !columnNames.isEmpty() && !columnTypes.isEmpty() && !columnNameDelimiter.isEmpty()) {
+      return HiveSchemaUtil.schema(columnNames, columnTypes, columnNameDelimiter);
+    } else {
+      return null;
+    }
   }
 }

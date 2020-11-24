@@ -105,64 +105,6 @@ public class TestHiveSchemaUtil {
   }
 
   @Test
-  public void testSimpleSchemaCompatible() {
-    Schema differentId = new Schema(
-        optional(1, "customer_id", Types.LongType.get()),
-        optional(2, "first_name", Types.StringType.get())
-    );
-    Schema differentName = new Schema(
-        optional(0, "customer_id2", Types.LongType.get()),
-        optional(1, "first_name2", Types.StringType.get())
-    );
-    Schema missingColumn = new Schema(
-        optional(0, "customer_id", Types.LongType.get())
-    );
-    Assert.assertTrue(HiveSchemaUtil.compatible(SIMPLE_SCHEMA, SIMPLE_SCHEMA));
-    Assert.assertTrue(HiveSchemaUtil.compatible(SIMPLE_SCHEMA, differentId));
-    Assert.assertFalse(HiveSchemaUtil.compatible(SIMPLE_SCHEMA, differentName));
-    Assert.assertFalse(HiveSchemaUtil.compatible(SIMPLE_SCHEMA, missingColumn));
-    // To make sure that extra column is also detected
-    Assert.assertFalse(HiveSchemaUtil.compatible(missingColumn, SIMPLE_SCHEMA));
-  }
-
-  // Make sure that we are able to traverse the whole struct
-  @Test
-  public void testComplexSchemaCompatible() {
-    Schema differentId = new Schema(
-        optional(10, "id", Types.LongType.get()),
-        optional(11, "name", Types.StringType.get()),
-        optional(12, "employee_info", Types.StructType.of(
-            optional(13, "employer", Types.StringType.get()),
-            optional(14, "id", Types.LongType.get()),
-            optional(15, "address", Types.StringType.get())
-        )),
-        optional(16, "places_lived", Types.ListType.ofOptional(110, Types.StructType.of(
-            optional(17, "street", Types.StringType.get()),
-            optional(18, "city", Types.StringType.get()),
-            optional(19, "country", Types.StringType.get())
-        ))),
-        optional(111, "memorable_moments", Types.MapType.ofOptional(115, 116,
-            Types.StringType.get(),
-            Types.StructType.of(
-                optional(112, "year", Types.IntegerType.get()),
-                optional(113, "place", Types.StringType.get()),
-                optional(114, "details", Types.StringType.get())
-            ))),
-        optional(117, "current_address", Types.StructType.of(
-            optional(118, "street_address", Types.StructType.of(
-                optional(119, "street_number", Types.IntegerType.get()),
-                optional(120, "street_name", Types.StringType.get()),
-                optional(121, "street_type", Types.StringType.get())
-            )),
-            optional(122, "country", Types.StringType.get()),
-            optional(123, "postal_code", Types.StringType.get())
-        ))
-    );
-    Assert.assertTrue(HiveSchemaUtil.compatible(COMPLEX_SCHEMA, COMPLEX_SCHEMA));
-    Assert.assertTrue(HiveSchemaUtil.compatible(COMPLEX_SCHEMA, differentId));
-  }
-
-  @Test
   public void testNotSupportedTypes() {
     for (FieldSchema notSupportedField : getNotSupportedFieldSchemas()) {
       AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
