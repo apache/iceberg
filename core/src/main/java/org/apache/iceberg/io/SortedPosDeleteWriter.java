@@ -41,6 +41,7 @@ public class SortedPosDeleteWriter<T> implements Closeable {
 
   private final Map<CharSequence, List<Long>> posDeletes = Maps.newHashMap();
   private final List<DeleteFile> completedFiles = Lists.newArrayList();
+
   private final FileAppenderFactory<T> appenderFactory;
   private final OutputFileFactory fileFactory;
   private final FileFormat format;

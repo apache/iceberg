@@ -80,7 +80,9 @@ public class RowDataRewriter {
         encryptionManager,
         Long.MAX_VALUE,
         format,
-        table.properties());
+        table.properties(),
+        /* TODO does not support rewriting with delete files.*/
+        Lists.newArrayList());
   }
 
   public List<DataFile> rewriteDataForTasks(DataStream<CombinedScanTask> dataStream, int parallelism) {

@@ -102,7 +102,8 @@ public class SimpleDataUtil {
     Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
 
     RowType flinkSchema = FlinkSchemaUtil.convert(schema);
-    FileAppenderFactory<RowData> appenderFactory = new FlinkFileAppenderFactory(schema, flinkSchema, ImmutableMap.of());
+    FileAppenderFactory<RowData> appenderFactory =
+        new FlinkFileAppenderFactory(schema, flinkSchema, ImmutableMap.of(), spec, null);
 
     FileAppender<RowData> appender = appenderFactory.newAppender(fromPath(path, conf), fileFormat);
     try (FileAppender<RowData> closeableAppender = appender) {

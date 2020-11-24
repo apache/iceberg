@@ -56,7 +56,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
                                   EncryptionManager encryptionManager,
                                   long targetFileSizeBytes,
                                   FileFormat format,
-                                  Map<String, String> tableProperties) {
+                                  Map<String, String> tableProperties,
+                                  List<Integer> equalityFieldIds) {
     this.schema = schema;
     this.flinkSchema = flinkSchema;
     this.spec = spec;
@@ -65,7 +66,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.encryptionManager = encryptionManager;
     this.targetFileSizeBytes = targetFileSizeBytes;
     this.format = format;
-    this.appenderFactory = new FlinkFileAppenderFactory(schema, flinkSchema, tableProperties);
+    this.appenderFactory = new FlinkFileAppenderFactory(schema, flinkSchema, tableProperties, spec, equalityFieldIds);
   }
 
   @Override

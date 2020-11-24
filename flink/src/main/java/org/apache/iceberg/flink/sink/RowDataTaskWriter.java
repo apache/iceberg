@@ -39,6 +39,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
 
 public class RowDataTaskWriter extends BaseTaskWriter<RowData> {
+
+  private static final PartitionKey UNPARTITIONED_KEY = new PartitionKey(PartitionSpec.unpartitioned(), null);
+
   private final Schema schema;
   private final PartitionKey partitionKey;
   private final RowDataWrapper rowDataWrapper;
@@ -70,10 +73,10 @@ public class RowDataTaskWriter extends BaseTaskWriter<RowData> {
 
     if (spec().fields().size() <= 0) {
       // Create and cache the delta writer if absent for unpartitioned table.
-      deltaWriter = deltaWriterMap.get(partitionKey);
+      deltaWriter = deltaWriterMap.get(UNPARTITIONED_KEY);
       if (deltaWriter == null) {
-        deltaWriter = createDeltaWriter(null);
-        deltaWriterMap.put(partitionKey, deltaWriter);
+        deltaWriter = new RowDataDeltaWriter(null, equalityFieldIds);
+        deltaWriterMap.put(UNPARTITIONED_KEY, deltaWriter);
       }
     } else {
       // Refresh the current partition key.
@@ -84,7 +87,7 @@ public class RowDataTaskWriter extends BaseTaskWriter<RowData> {
       if (deltaWriter == null) {
         // NOTICE: we need to copy a new partition key here, in case of messing up the keys in writers.
         PartitionKey copiedKey = partitionKey.copy();
-        deltaWriter = createDeltaWriter(copiedKey);
+        deltaWriter = new RowDataDeltaWriter(copiedKey, equalityFieldIds);
         deltaWriterMap.put(copiedKey, deltaWriter);
       }
     }
@@ -119,23 +122,10 @@ public class RowDataTaskWriter extends BaseTaskWriter<RowData> {
         });
   }
 
-  private RowDataDeltaWriter createDeltaWriter(PartitionKey partition) {
-    RollingFileWriter dataWriter = new RollingFileWriter(partition);
-
-    RollingEqDeleteWriter eqDeleteWriter = null;
-    if (equalityFieldIds != null && !equalityFieldIds.isEmpty()) {
-      eqDeleteWriter = new RollingEqDeleteWriter(partition);
-    }
-
-    return new RowDataDeltaWriter(partition, dataWriter, eqDeleteWriter);
-  }
-
   private class RowDataDeltaWriter extends BaseDeltaWriter {
 
-    private RowDataDeltaWriter(PartitionKey partition,
-                               RollingFileWriter dataWriter,
-                               RollingEqDeleteWriter eqDeleteWriter) {
-      super(partition, dataWriter, eqDeleteWriter, schema);
+    private RowDataDeltaWriter(PartitionKey partition, List<Integer> equalityFieldIds) {
+      super(partition, equalityFieldIds, schema);
     }
 
     @Override

@@ -87,31 +87,21 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   }
 
   protected abstract class BaseDeltaWriter implements Closeable {
-    private final PartitionKey partition;
     private final RollingFileWriter dataWriter;
 
     private final boolean enableEqDelete;
     private RollingEqDeleteWriter eqDeleteWriter = null;
     private SortedPosDeleteWriter<T> posDeleteWriter = null;
-    private Integer[] equalityFieldIds = null;
     private StructLikeMap<FilePos> insertedRowMap = null;
-    private Schema schema = null;
 
-    public BaseDeltaWriter(PartitionKey partition,
-                           RollingFileWriter dataWriter,
-                           RollingEqDeleteWriter eqDeleteWriter,
-                           Schema schema) {
-      this.partition = partition;
-      this.dataWriter = dataWriter;
+    public BaseDeltaWriter(PartitionKey partition, List<Integer> equalityFieldIds, Schema schema) {
+      this.dataWriter = new RollingFileWriter(partition);
 
-      this.enableEqDelete = eqDeleteWriter != null;
+      this.enableEqDelete = equalityFieldIds != null && !equalityFieldIds.isEmpty();
       if (enableEqDelete) {
-        this.eqDeleteWriter = eqDeleteWriter;
+        this.eqDeleteWriter = new RollingEqDeleteWriter(partition);
         this.posDeleteWriter = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, partition);
 
-        // TODO set the equality field ids.
-        this.equalityFieldIds = new Integer[] {0};
-        this.schema = null;
         Schema deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
         this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
       }
@@ -126,7 +116,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         FilePos filePos = FilePos.create(dataWriter.currentPath(), dataWriter.currentRows());
 
         StructLike copiedKey = asCopiedKey(row);
-        // Adding a pos-delete to replace the old row.
+        // Adding a pos-delete to replace the old filePos.
         FilePos previous = insertedRowMap.put(copiedKey, filePos);
         if (previous != null) {
           posDeleteWriter.delete(previous.path, previous.rowOffset, null /* TODO set non-nullable row*/);
@@ -143,7 +133,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       FilePos previous = insertedRowMap.get(key);
 
       if (previous != null) {
-        posDeleteWriter.delete(previous.path, previous.rowOffset, row);
+        posDeleteWriter.delete(previous.path, previous.rowOffset, null /* TODO set non-nullable row */);
         insertedRowMap.remove(key);
       }
 
@@ -152,12 +142,15 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
     @Override
     public void close() throws IOException {
+      // Moving the completed data files into task writer's completedFiles automatically.
       dataWriter.close();
 
       if (enableEqDelete) {
+        // Moving the completed eq-delete files into task writer's completedDeletes automatically.
         eqDeleteWriter.close();
         insertedRowMap.clear();
 
+        // Moving the completed pos-delete files into completedDeletes.
         completedDeletes.addAll(posDeleteWriter.complete());
       }
     }
@@ -291,8 +284,8 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
   }
 
-  protected class RollingEqDeleteWriter extends BaseRollingWriter<EqualityDeleteWriter<T>> {
-    public RollingEqDeleteWriter(PartitionKey partitionKey) {
+  private class RollingEqDeleteWriter extends BaseRollingWriter<EqualityDeleteWriter<T>> {
+    private RollingEqDeleteWriter(PartitionKey partitionKey) {
       super(partitionKey);
     }
 

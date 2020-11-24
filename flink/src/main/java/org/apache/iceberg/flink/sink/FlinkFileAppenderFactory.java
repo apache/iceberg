@@ -22,6 +22,7 @@ package org.apache.iceberg.flink.sink;
 import java.io.IOException;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.avro.io.DatumWriter;
@@ -54,16 +55,15 @@ public class FlinkFileAppenderFactory implements FileAppenderFactory<RowData>, S
   private final RowType flinkSchema;
   private final Map<String, String> props;
   private final PartitionSpec spec;
-  private final int[] equalityFieldIds;
+  private final List<Integer> equalityFieldIds;
 
-  public FlinkFileAppenderFactory(Schema schema, RowType flinkSchema, Map<String, String> props) {
+  public FlinkFileAppenderFactory(Schema schema, RowType flinkSchema, Map<String, String> props,
+                                  PartitionSpec spec, List<Integer> equalityFieldIds) {
     this.schema = schema;
     this.flinkSchema = flinkSchema;
     this.props = props;
-
-    // TODO set those members.
-    this.spec = PartitionSpec.unpartitioned();
-    this.equalityFieldIds = new int[] {0};
+    this.spec = spec;
+    this.equalityFieldIds = equalityFieldIds;
   }
 
   @Override

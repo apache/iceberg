@@ -49,10 +49,6 @@ public class DataWriter<T> implements Closeable {
     this.keyMetadata = keyMetadata != null ? keyMetadata.buffer() : null;
   }
 
-  public void addAll(Iterable<T> rows) {
-    appender.addAll(rows);
-  }
-
   public void add(T row) {
     appender.add(row);
   }
