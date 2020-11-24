@@ -37,7 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 
 public class SortedPosDeleteWriter<T> implements Closeable {
-  private static final int RECORDS_FLUSH_NUM = 10000_000;
+  private static final int RECORDS_FLUSH_NUM = 1000_000;
 
   private final Map<CharSequence, List<Long>> posDeletes = Maps.newHashMap();
   private final List<DeleteFile> completedFiles = Lists.newArrayList();
@@ -122,6 +122,9 @@ public class SortedPosDeleteWriter<T> implements Closeable {
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
+
+    // Clear the buffered pos-deletions.
+    posDeletes.clear();
 
     completedFiles.add(writer.toDeleteFile());
   }

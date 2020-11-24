@@ -185,7 +185,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
   }
 
-  protected abstract class BaseRollingWriter<T, W extends Closeable> implements Closeable {
+  private abstract class BaseRollingWriter<W extends Closeable> implements Closeable {
     private static final int ROWS_DIVISOR = 1000;
     private final PartitionKey partitionKey;
 
@@ -193,7 +193,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     private W currentWriter = null;
     private long currentRows = 0;
 
-    public BaseRollingWriter(PartitionKey partitionKey) {
+    private BaseRollingWriter(PartitionKey partitionKey) {
       this.partitionKey = partitionKey;
       openCurrent();
     }
@@ -265,7 +265,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
   }
 
-  protected class RollingFileWriter extends BaseRollingWriter<T, DataWriter<T>> {
+  protected class RollingFileWriter extends BaseRollingWriter<DataWriter<T>> {
     public RollingFileWriter(PartitionKey partitionKey) {
       super(partitionKey);
     }
@@ -291,7 +291,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
   }
 
-  protected class RollingEqDeleteWriter extends BaseRollingWriter<T, EqualityDeleteWriter<T>> {
+  protected class RollingEqDeleteWriter extends BaseRollingWriter<EqualityDeleteWriter<T>> {
     public RollingEqDeleteWriter(PartitionKey partitionKey) {
       super(partitionKey);
     }

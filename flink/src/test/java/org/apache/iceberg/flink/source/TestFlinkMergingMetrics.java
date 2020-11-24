@@ -29,7 +29,7 @@ import org.apache.iceberg.TestMergingMetrics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataConverter;
-import org.apache.iceberg.flink.sink.RowDataTaskWriterFactory;
+import org.apache.iceberg.flink.sink.FlinkFileAppenderFactory;
 import org.apache.iceberg.io.FileAppender;
 
 public class TestFlinkMergingMetrics extends TestMergingMetrics<RowData> {
@@ -38,9 +38,8 @@ public class TestFlinkMergingMetrics extends TestMergingMetrics<RowData> {
   protected FileAppender<RowData> writeAndGetAppender(List<Record> records) throws IOException {
     RowType flinkSchema = FlinkSchemaUtil.convert(SCHEMA);
 
-    FileAppender<RowData> appender =
-        new RowDataTaskWriterFactory.FlinkFileAppenderFactory(SCHEMA, flinkSchema, new HashMap<>()).newAppender(
-            org.apache.iceberg.Files.localOutput(temp.newFile()), FileFormat.PARQUET);
+    FileAppender<RowData> appender = new FlinkFileAppenderFactory(SCHEMA, flinkSchema, new HashMap<>()).newAppender(
+        org.apache.iceberg.Files.localOutput(temp.newFile()), FileFormat.PARQUET);
     try (FileAppender<RowData> fileAppender = appender) {
       records.stream().map(r -> RowDataConverter.convert(SCHEMA, r)).forEach(fileAppender::add);
     }
