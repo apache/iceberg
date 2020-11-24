@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.BinaryType;
 import org.apache.iceberg.types.Types.IntegerType;
@@ -51,6 +50,8 @@ public interface DataFile extends ContentFile<DataFile> {
       IntegerType.get(), LongType.get()), "Map of column id to total count, including null and NaN");
   Types.NestedField NULL_VALUE_COUNTS = optional(110, "null_value_counts", MapType.ofRequired(121, 122,
       IntegerType.get(), LongType.get()), "Map of column id to null value count");
+  Types.NestedField NAN_VALUE_COUNTS = optional(137, "nan_value_counts", MapType.ofRequired(138, 139,
+      IntegerType.get(), LongType.get()), "Map of column id to number of NaN values in the column");
   Types.NestedField LOWER_BOUNDS = optional(125, "lower_bounds", MapType.ofRequired(126, 127,
       IntegerType.get(), BinaryType.get()), "Map of column id to lower bound");
   Types.NestedField UPPER_BOUNDS = optional(128, "upper_bounds", MapType.ofRequired(129, 130,
@@ -60,8 +61,6 @@ public interface DataFile extends ContentFile<DataFile> {
       "Splittable offsets");
   Types.NestedField EQUALITY_IDS = optional(135, "equality_ids", ListType.ofRequired(136, IntegerType.get()),
       "Equality comparison field IDs");
-  Types.NestedField NAN_VALUE_COUNTS = optional(137, "nan_value_counts", MapType.ofRequired(138, 139,
-      IntegerType.get(), LongType.get()), "Map of column id to number of NaN values in the column");
 
   int PARTITION_ID = 102;
   String PARTITION_NAME = "partition";
@@ -80,12 +79,12 @@ public interface DataFile extends ContentFile<DataFile> {
         COLUMN_SIZES,
         VALUE_COUNTS,
         NULL_VALUE_COUNTS,
+        NAN_VALUE_COUNTS,
         LOWER_BOUNDS,
         UPPER_BOUNDS,
         KEY_METADATA,
         SPLIT_OFFSETS,
-        EQUALITY_IDS,
-        NAN_VALUE_COUNTS
+        EQUALITY_IDS
     );
   }
 
@@ -99,11 +98,6 @@ public interface DataFile extends ContentFile<DataFile> {
 
   @Override
   default List<Integer> equalityFieldIds() {
-    return null;
-  }
-
-  @Override
-  default Map<Integer, Long> nanValueCounts() {
     return null;
   }
 }

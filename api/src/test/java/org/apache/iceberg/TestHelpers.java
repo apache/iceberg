@@ -383,6 +383,11 @@ public class TestHelpers {
     }
 
     @Override
+    public Map<Integer, Long> nanValueCounts() {
+      return null; // will be updated in a separate pr soon
+    }
+
+    @Override
     public Map<Integer, ByteBuffer> lowerBounds() {
       return lowerBounds;
     }

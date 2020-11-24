@@ -151,12 +151,7 @@ public class TestManifestReaderStats extends TableTestBase {
     Assert.assertEquals(NULL_VALUE_COUNTS, dataFile.nullValueCounts());
     Assert.assertEquals(LOWER_BOUNDS, dataFile.lowerBounds());
     Assert.assertEquals(UPPER_BOUNDS, dataFile.upperBounds());
-
-    if (formatVersion == 1) {
-      Assert.assertNull(dataFile.nanValueCounts());
-    } else {
-      Assert.assertEquals(NAN_VALUE_COUNTS, dataFile.nanValueCounts());
-    }
+    Assert.assertEquals(NAN_VALUE_COUNTS, dataFile.nanValueCounts());
   }
 
   private void assertStatsDropped(DataFile dataFile) {

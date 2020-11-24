@@ -252,22 +252,22 @@ abstract class BaseFile<F>
         this.nullValueCounts = (Map<Integer, Long>) value;
         return;
       case 9:
-        this.lowerBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
+        this.nanValueCounts = (Map<Integer, Long>) value;
         return;
       case 10:
-        this.upperBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
+        this.lowerBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
         return;
       case 11:
-        this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
+        this.upperBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
         return;
       case 12:
-        this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
+        this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
         return;
       case 13:
-        this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
+        this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
         return;
       case 14:
-        this.nanValueCounts = (Map<Integer, Long>) value;
+        this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
         return;
       case 15:
         this.fileOrdinal = (long) value;
@@ -309,17 +309,17 @@ abstract class BaseFile<F>
       case 8:
         return nullValueCounts;
       case 9:
-        return lowerBounds;
-      case 10:
-        return upperBounds;
-      case 11:
-        return keyMetadata();
-      case 12:
-        return splitOffsets();
-      case 13:
-        return equalityFieldIds();
-      case 14:
         return nanValueCounts;
+      case 10:
+        return lowerBounds;
+      case 11:
+        return upperBounds;
+      case 12:
+        return keyMetadata();
+      case 13:
+        return splitOffsets();
+      case 14:
+        return equalityFieldIds();
       case 15:
         return pos;
       default:
