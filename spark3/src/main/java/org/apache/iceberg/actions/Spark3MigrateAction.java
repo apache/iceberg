@@ -25,7 +25,6 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.SparkSession;
@@ -60,28 +59,20 @@ class Spark3MigrateAction extends Spark3CreateAction {
   private static final String REPLACEMENT_NAME = "_REPLACEMENT_";
   private static final String BACKUP_SUFFIX = "_BACKUP_";
 
-
-  private Spark3MigrateAction(SparkSession spark, CatalogPlugin sourceCatalog,
-                      Identifier sourceTableName, CatalogPlugin destCatalog,
-                      Identifier destTableName) {
-    super(spark, sourceCatalog, sourceTableName, destCatalog, destTableName);
-  }
-
   Spark3MigrateAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableName) {
     super(spark, sourceCatalog, sourceTableName, sourceCatalog, sourceTableName);
   }
 
   @Override
   public Long execute() {
-    StagingTableCatalog stagingCatalog = checkDestinationCatalog(sourceCatalog);
-
+    StagingTableCatalog stagingCatalog = checkDestinationCatalog();
 
     Table icebergTable = null;
 
-    String backupName = sourceTableName.name() + BACKUP_SUFFIX;
-    Identifier backupIdentifier = Identifier.of(sourceTableName.namespace(), backupName);
+    String backupName = sourceTableName().name() + BACKUP_SUFFIX;
+    Identifier backupIdentifier = Identifier.of(sourceTableName().namespace(), backupName);
     try {
-      stagingCatalog.renameTable(sourceTableName, backupIdentifier);
+      stagingCatalog.renameTable(sourceTableName(), backupIdentifier);
     } catch (NoSuchTableException e) {
       throw new IllegalArgumentException("Cannot find table to migrate", e);
     } catch (TableAlreadyExistsException e) {
@@ -92,16 +83,17 @@ class Spark3MigrateAction extends Spark3CreateAction {
     try {
       Map<String, String> newTableProperties = new ImmutableMap.Builder<String, String>()
           .put(TableCatalog.PROP_PROVIDER, "iceberg")
-          .putAll(JavaConverters.mapAsJavaMapConverter(sourceTable.properties()).asJava())
-          .putAll(tableLocationProperties(sourceTableLocation))
-          .putAll(additionalProperties)
+          .putAll(JavaConverters.mapAsJavaMapConverter(v1SourceTable().properties()).asJava())
+          .putAll(tableLocationProperties(sourceTableLocation()))
+          .putAll(additionalProperties())
           .build();
 
       stagedTable = stagingCatalog.stageCreate(Identifier.of(
-          destTableName.namespace(),
-          destTableName.name() + REPLACEMENT_NAME),
-          sourceTable.schema(),
-          Spark3Util.toTransforms(sourcePartitionSpec), newTableProperties);
+          destTableName().namespace(),
+          destTableName().name() + REPLACEMENT_NAME),
+          v1SourceTable().schema(),
+          sourcePartitionSpec(),
+          newTableProperties);
 
       icebergTable = ((SparkTable) stagedTable).table();
 
@@ -111,10 +103,10 @@ class Spark3MigrateAction extends Spark3CreateAction {
 
       String stagingLocation = icebergTable.location() + "/" + ICEBERG_METADATA_FOLDER;
 
-      LOG.info("Beginning migration of {} using metadata location {}", sourceTableName, stagingLocation);
+      LOG.info("Beginning migration of {} using metadata location {}", sourceTableName(), stagingLocation);
 
-      TableIdentifier v1TableIdentifier = Spark3Util.toTableIdentifier(sourceTableName);
-      SparkTableUtil.importSparkTable(spark, v1TableIdentifier, icebergTable, stagingLocation);
+      TableIdentifier v1TableIdentifier = v1SourceTable().identifier();
+      SparkTableUtil.importSparkTable(spark(), v1TableIdentifier, icebergTable, stagingLocation);
 
       stagedTable.commitStagedChanges();
     } catch (Exception e) {
@@ -129,7 +121,7 @@ class Spark3MigrateAction extends Spark3CreateAction {
       }
 
       try {
-        stagingCatalog.renameTable(backupIdentifier, sourceTableName);
+        stagingCatalog.renameTable(backupIdentifier, sourceTableName());
       } catch (NoSuchTableException nstException) {
         throw new IllegalArgumentException("Cannot restore backup, the backup cannot be found", nstException);
       } catch (TableAlreadyExistsException taeException) {

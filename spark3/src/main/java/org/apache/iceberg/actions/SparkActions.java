@@ -36,9 +36,7 @@ public class SparkActions extends Actions {
   public static CreateAction migrate(SparkSession spark, String tableName) {
     Spark3Util.CatalogAndIdentifier catalogAndIdentifier = Spark3Util.catalogAndIdentifier(spark, tableName);
 
-    return new Spark3CreateAction(spark,
-        catalogAndIdentifier.catalog(), catalogAndIdentifier.identifier(),
-        catalogAndIdentifier.catalog(), catalogAndIdentifier.identifier());
+    return new Spark3MigrateAction(spark, catalogAndIdentifier.catalog(), catalogAndIdentifier.identifier());
   }
 
   public static CreateAction snapshot(String sourceId, String destId) {
@@ -50,8 +48,8 @@ public class SparkActions extends Actions {
     Spark3Util.CatalogAndIdentifier destIdent = Spark3Util.catalogAndIdentifier(spark, destId);
     Preconditions.checkArgument(sourceIdent != destIdent || sourceIdent.catalog() != destIdent.catalog(),
         "Cannot create a snapshot with the same name as the source of the snapshot.");
-    return new Spark3CreateAction(spark, sourceIdent.catalog(), sourceIdent.identifier(), destIdent.catalog(),
-        destIdent.identifier()).asSnapshotAtDefaultLocation();
+    return new Spark3SnapshotAction(spark, sourceIdent.catalog(), sourceIdent.identifier(), destIdent.catalog(),
+        destIdent.identifier());
   }
 
   public static CreateAction snapshot(String sourceId, String destId, String location) {
@@ -63,7 +61,7 @@ public class SparkActions extends Actions {
     Spark3Util.CatalogAndIdentifier destIdent = Spark3Util.catalogAndIdentifier(spark, destId);
     Preconditions.checkArgument(sourceIdent != destIdent || sourceIdent.catalog() != destIdent.catalog(),
         "Cannot create a snapshot with the same name as the source of the snapshot.");
-    return new Spark3CreateAction(spark, sourceIdent.catalog(), sourceIdent.identifier(), destIdent.catalog(),
-        destIdent.identifier()).asSnapshotAtLocation(location);
+    return new Spark3SnapshotAction(spark, sourceIdent.catalog(), sourceIdent.identifier(), destIdent.catalog(),
+        destIdent.identifier(), location);
   }
 }

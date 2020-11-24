@@ -19,36 +19,19 @@
 
 package org.apache.iceberg.actions;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
-import jline.internal.Log;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.spark.Spark3Util;
-import org.apache.iceberg.spark.SparkCatalog;
-import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.SparkTable;
-import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
-import org.apache.spark.sql.catalyst.analysis.NoSuchDatabaseException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
-import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
-import org.apache.spark.sql.catalyst.catalog.CatalogTable;
-import org.apache.spark.sql.catalyst.catalog.CatalogUtils;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.StagedTable;
@@ -75,23 +58,35 @@ import scala.collection.JavaConverters;
 class Spark3SnapshotAction extends Spark3CreateAction {
   private static final Logger LOG = LoggerFactory.getLogger(Spark3SnapshotAction.class);
 
+  private final String destTableLocation;
+
   Spark3SnapshotAction(SparkSession spark, CatalogPlugin sourceCatalog,
                        Identifier sourceTableName, CatalogPlugin destCatalog,
                        Identifier destTableName) {
     super(spark, sourceCatalog, sourceTableName, destCatalog, destTableName);
+    this.destTableLocation = null;
+  }
+
+  Spark3SnapshotAction(SparkSession spark, CatalogPlugin sourceCatalog,
+                       Identifier sourceTableName, CatalogPlugin destCatalog,
+                       Identifier destTableName, String destTableLocation) {
+    super(spark, sourceCatalog, sourceTableName, destCatalog, destTableName);
+    this.destTableLocation = destTableLocation;
   }
 
   @Override
   public Long execute() {
-    StagingTableCatalog stagingCatalog = checkDestinationCatalog(destCatalog);
-    Map<String, String> newTableProperties = new ImmutableMap.Builder<String, String>()
+    Preconditions.checkArgument(!sourceTableLocation().equals(destTableLocation),
+        "Cannot create snapshot where destination location is the same as the source location. This" +
+            "would cause a mixing of original table created and snapshot created files.");
+    StagingTableCatalog stagingCatalog = checkDestinationCatalog();
 
     StagedTable stagedTable = null;
     Table icebergTable = null;
 
     try {
-      stagedTable = stagingCatalog.stageCreate(destTableName, sourceTable.schema(),
-          Spark3Util.toTransforms(sourcePartitionSpec), newTableProperties);
+      stagedTable = stagingCatalog.stageCreate(destTableName(), v1SourceTable().schema(),
+          sourcePartitionSpec(), buildPropertyMap());
       icebergTable = ((SparkTable) stagedTable).table();
 
       if (!icebergTable.properties().containsKey(TableProperties.DEFAULT_NAME_MAPPING)) {
@@ -107,12 +102,11 @@ class Spark3SnapshotAction extends Spark3CreateAction {
 
     try {
       String stagingLocation = icebergTable.location() + "/" + ICEBERG_METADATA_FOLDER;
-      LOG.info("Beginning snapshot of {} to {} using metadata location {}", sourceTableName, destTableName,
+      LOG.info("Beginning snapshot of {} to {} using metadata location {}", sourceTableName(), destTableName(),
           stagingLocation);
 
-      TableIdentifier v1TableIdentifier = Spark3Util.toTableIdentifier(sourceTableName);
-      SparkTableUtil.importSparkTable(spark, Spark3Util.toTableIdentifier(sourceTableName), icebergTable,
-          icebergTable.location() + "/" + ICEBERG_METADATA_FOLDER);
+      TableIdentifier v1TableIdentifier = v1SourceTable().identifier();
+      SparkTableUtil.importSparkTable(spark(), v1TableIdentifier, icebergTable, stagingLocation);
       stagedTable.commitStagedChanges();
 
     } catch (Exception e) {
@@ -128,5 +122,19 @@ class Spark3SnapshotAction extends Spark3CreateAction {
     numMigratedFiles = Long.valueOf(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
     LOG.info("Successfully loaded Iceberg metadata for {} files", numMigratedFiles);
     return numMigratedFiles;
+  }
+
+  private Map<String, String> buildPropertyMap() {
+    ImmutableMap.Builder<String, String> propBuilder = ImmutableMap.<String, String>builder()
+        .put(TableCatalog.PROP_PROVIDER, "iceberg")
+        .putAll(JavaConverters.mapAsJavaMapConverter(v1SourceTable().properties()).asJava())
+        .putAll(additionalProperties());
+
+    // Don't use the default location for the destination table if an alternate is specified in the constructor
+    if (destTableLocation != null) {
+      propBuilder.putAll(tableLocationProperties(destTableLocation));
+    }
+
+    return propBuilder.build();
   }
 }
