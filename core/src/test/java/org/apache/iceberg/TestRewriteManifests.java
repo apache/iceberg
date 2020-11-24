@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -146,7 +147,7 @@ public class TestRewriteManifests extends TableTestBase {
         .clusterBy(file -> file.path())
         .commit();
 
-    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> manifests = new ArrayList(table.currentSnapshot().allManifests());
     Assert.assertEquals(2, manifests.size());
     manifests.sort(Comparator.comparing(ManifestFile::path));
 
@@ -279,7 +280,7 @@ public class TestRewriteManifests extends TableTestBase {
     when(rewriteManifests.getManifestTargetSizeBytes()).thenReturn(1L);
     rewriteManifests.clusterBy(file -> "file").commit();
 
-    List<ManifestFile> manifests = table.currentSnapshot().allManifests();
+    List<ManifestFile> manifests = new ArrayList(table.currentSnapshot().allManifests());
     Assert.assertEquals(2, manifests.size());
     manifests.sort(Comparator.comparing(ManifestFile::path));
 

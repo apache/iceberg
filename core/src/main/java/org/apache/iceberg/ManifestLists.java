@@ -27,7 +27,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 class ManifestLists {
   private ManifestLists() {
@@ -43,7 +43,7 @@ class ManifestLists {
         .reuseContainers(false)
         .build()) {
 
-      return Lists.newLinkedList(files);
+      return ImmutableList.copyOf(files);
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Cannot read manifest list file: %s", manifestList.location());
