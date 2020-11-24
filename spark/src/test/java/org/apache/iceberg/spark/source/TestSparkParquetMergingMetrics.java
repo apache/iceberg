@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.TestMergingMetrics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.FileAppender;
@@ -34,7 +35,8 @@ public class TestSparkParquetMergingMetrics extends TestMergingMetrics<InternalR
   @Override
   protected FileAppender<InternalRow> writeAndGetAppender(List<Record> records) throws IOException {
     FileAppender<InternalRow> appender =
-        new SparkAppenderFactory(new HashMap<>(), SCHEMA, SparkSchemaUtil.convert(SCHEMA)).newAppender(
+        new SparkAppenderFactory(new HashMap<>(), SCHEMA, SparkSchemaUtil.convert(SCHEMA),
+            PartitionSpec.unpartitioned()).newAppender(
             org.apache.iceberg.Files.localOutput(temp.newFile()), FileFormat.PARQUET);
     try (FileAppender<InternalRow> fileAppender = appender) {
       records.stream().map(r -> new StructInternalRow(SCHEMA.asStruct()).setStruct(r)).forEach(fileAppender::add);

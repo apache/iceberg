@@ -20,7 +20,6 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
@@ -49,15 +48,12 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   private final Schema writeSchema;
   private final StructType dsSchema;
   private final PartitionSpec spec;
-  private final int[] equalityFieldIds;
 
-  SparkAppenderFactory(Map<String, String> properties, Schema writeSchema, StructType dsSchema) {
+  SparkAppenderFactory(Map<String, String> properties, Schema writeSchema, StructType dsSchema, PartitionSpec spec) {
     this.properties = properties;
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
-    // TODO: set these for real
-    this.spec = PartitionSpec.unpartitioned();
-    this.equalityFieldIds = new int[] { 0 };
+    this.spec = spec;
   }
 
   @Override
@@ -100,7 +96,8 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   }
 
   @Override
-  public DataWriter<InternalRow> newDataWriter(EncryptedOutputFile file, FileFormat fileFormat, StructLike partition) {
+  public DataWriter<InternalRow> newDataWriter(EncryptedOutputFile file, FileFormat fileFormat,
+                                               StructLike partition) {
     return new DataWriter<>(
         newAppender(file.encryptingOutputFile(), fileFormat), fileFormat,
         file.encryptingOutputFile().location(), spec, partition, file.keyMetadata());
@@ -109,70 +106,12 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   @Override
   public EqualityDeleteWriter<InternalRow> newEqDeleteWriter(EncryptedOutputFile outputFile, FileFormat format,
                                                              StructLike partition) {
-    try {
-      switch (format) {
-        case PARQUET:
-          return Parquet.writeDeletes(outputFile.encryptingOutputFile())
-              .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(dsSchema, msgType))
-              .overwrite()
-              .rowSchema(writeSchema)
-              .withSpec(spec)
-              .withPartition(partition)
-              .equalityFieldIds(equalityFieldIds)
-              .withKeyMetadata(outputFile.keyMetadata())
-              .buildEqualityWriter();
-
-        case AVRO:
-          return Avro.writeDeletes(outputFile.encryptingOutputFile())
-              .createWriterFunc(ignored -> new SparkAvroWriter(dsSchema))
-              .overwrite()
-              .rowSchema(writeSchema)
-              .withSpec(spec)
-              .withPartition(partition)
-              .equalityFieldIds(equalityFieldIds)
-              .withKeyMetadata(outputFile.keyMetadata())
-              .buildEqualityWriter();
-
-        default:
-          throw new UnsupportedOperationException("Cannot write unsupported format: " + format);
-      }
-
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to create new equality delete writer", e);
-    }
+    throw new UnsupportedOperationException("Cannot create equality-delete writer for spark now.");
   }
 
   @Override
   public PositionDeleteWriter<InternalRow> newPosDeleteWriter(EncryptedOutputFile outputFile, FileFormat format,
                                                               StructLike partition) {
-    try {
-      switch (format) {
-        case PARQUET:
-          return Parquet.writeDeletes(outputFile.encryptingOutputFile())
-              .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(dsSchema, msgType))
-              .overwrite()
-              .rowSchema(writeSchema)
-              .withSpec(spec)
-              .withPartition(partition)
-              .withKeyMetadata(outputFile.keyMetadata())
-              .buildPositionWriter();
-
-        case AVRO:
-          return Avro.writeDeletes(outputFile.encryptingOutputFile())
-              .createWriterFunc(ignored -> new SparkAvroWriter(dsSchema))
-              .overwrite()
-              .rowSchema(writeSchema)
-              .withSpec(spec)
-              .withPartition(partition)
-              .withKeyMetadata(outputFile.keyMetadata())
-              .buildPositionWriter();
-
-        default:
-          throw new UnsupportedOperationException("Cannot write unsupported format: " + format);
-      }
-
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to create new equality delete writer", e);
-    }
+    throw new UnsupportedOperationException("Cannot create pos-delete writer for spark now.");
   }
 }
