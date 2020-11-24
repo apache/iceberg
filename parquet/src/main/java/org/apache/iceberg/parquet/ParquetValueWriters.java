@@ -154,7 +154,7 @@ public class ParquetValueWriters {
       column.writeInteger(repetitionLevel, value);
     }
 
-    public void writeLong(int repetitionLevel, long value) {
+    public void writeLong(int repetitionLevel, long  value) {
       column.writeLong(repetitionLevel, value);
     }
 
@@ -562,20 +562,18 @@ public class ParquetValueWriters {
   }
 
   public static class PositionDeleteStructWriter<R> extends StructWriter<PositionDelete<R>> {
-    private Parquet.PositionAccessor<?, ?> positionAccessor;
 
-    public PositionDeleteStructWriter(StructWriter<?> replacedWriter, Parquet.PositionAccessor<?, ?> positionAccessor) {
+    public PositionDeleteStructWriter(StructWriter<?> replacedWriter) {
       super(Arrays.asList(replacedWriter.writers));
-      this.positionAccessor = positionAccessor;
     }
 
     @Override
     protected Object get(PositionDelete<R> delete, int index) {
       switch (index) {
         case 0:
-          return positionAccessor.accessPath(delete.path());
+          return delete.path();
         case 1:
-          return positionAccessor.accessPos(delete.pos());
+          return delete.pos();
         case 2:
           return delete.row();
       }

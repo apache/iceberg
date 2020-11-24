@@ -379,10 +379,6 @@ public class Parquet {
     }
 
     public <T> PositionDeleteWriter<T> buildPositionWriter() throws IOException {
-      return buildPositionWriter(IdentityPositionAccessor.INSTANCE);
-    }
-
-    public <T> PositionDeleteWriter<T> buildPositionWriter(PositionAccessor<?, ?> positionAccessor) throws IOException {
       Preconditions.checkState(equalityFieldIds == null, "Cannot create position delete file using delete field ids");
 
       meta("delete-type", "position");
@@ -394,7 +390,7 @@ public class Parquet {
         appenderBuilder.createWriterFunc(parquetSchema -> {
           ParquetValueWriter<?> writer = createWriterFunc.apply(parquetSchema);
           if (writer instanceof StructWriter) {
-            return new PositionDeleteStructWriter<T>((StructWriter<?>) writer, positionAccessor);
+            return new PositionDeleteStructWriter<T>((StructWriter<?>) writer);
           } else {
             throw new UnsupportedOperationException("Cannot wrap writer for position deletes: " + writer.getClass());
           }
@@ -404,33 +400,11 @@ public class Parquet {
         appenderBuilder.schema(DeleteUtil.pathPosSchema());
 
         appenderBuilder.createWriterFunc(parquetSchema ->
-            new PositionDeleteStructWriter<T>((StructWriter<?>) GenericParquetWriter.buildWriter(parquetSchema),
-                positionAccessor));
+            new PositionDeleteStructWriter<T>((StructWriter<?>) GenericParquetWriter.buildWriter(parquetSchema)));
       }
 
       return new PositionDeleteWriter<>(
           appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata);
-    }
-  }
-
-  public interface PositionAccessor<FILE, POS> {
-    FILE accessPath(CharSequence path);
-
-    POS accessPos(long pos);
-  }
-
-  private static class IdentityPositionAccessor implements PositionAccessor<CharSequence, Long> {
-
-    static final IdentityPositionAccessor INSTANCE = new IdentityPositionAccessor();
-
-    @Override
-    public CharSequence accessPath(CharSequence path) {
-      return path;
-    }
-
-    @Override
-    public Long accessPos(long pos) {
-      return pos;
     }
   }
 

@@ -133,11 +133,10 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       Preconditions.checkState(enableEqDelete, "Could not accept equality deletion.");
 
       StructLike key = asKey(row);
-      FilePos previous = insertedRowMap.get(key);
+      FilePos previous = insertedRowMap.remove(key);
 
       if (previous != null) {
         posDeleteWriter.delete(previous.path, previous.rowOffset, null /* TODO set non-nullable row */);
-        insertedRowMap.remove(key);
       }
 
       eqDeleteWriter.write(row);
@@ -168,8 +167,8 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       this.rowOffset = rowOffset;
     }
 
-    private static FilePos create(CharSequence path, long pos) {
-      return new FilePos(path, pos);
+    private static FilePos create(CharSequence path, long rowOffset) {
+      return new FilePos(path, rowOffset);
     }
 
     @Override

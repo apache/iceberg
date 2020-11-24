@@ -20,9 +20,7 @@
 package org.apache.iceberg.io;
 
 import java.io.Serializable;
-import java.util.Iterator;
 import java.util.List;
-import java.util.NoSuchElementException;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -54,31 +52,6 @@ public class WriterResult implements Serializable {
     return deleteFiles;
   }
 
-  public Iterable<ContentFile<?>> contentFiles() {
-    return () -> new Iterator<ContentFile<?>>() {
-      private int currentIndex = 0;
-
-      @Override
-      public boolean hasNext() {
-        return currentIndex < dataFiles.length + deleteFiles.length;
-      }
-
-      @Override
-      public ContentFile<?> next() {
-        ContentFile<?> contentFile;
-        if (currentIndex < dataFiles.length) {
-          contentFile = dataFiles[currentIndex];
-        } else if (currentIndex < dataFiles.length + deleteFiles.length) {
-          contentFile = deleteFiles[currentIndex - dataFiles.length];
-        } else {
-          throw new NoSuchElementException();
-        }
-        currentIndex += 1;
-        return contentFile;
-      }
-    };
-  }
-
   public static WriterResult create(DataFile dataFile) {
     return new WriterResult(new DataFile[] {dataFile}, EMPTY_DELETE_FILES);
   }
@@ -101,8 +74,11 @@ public class WriterResult implements Serializable {
     }
 
     public Builder add(WriterResult result) {
-      for (ContentFile<?> contentFile : result.contentFiles()) {
-        add(contentFile);
+      for (DataFile dataFile : result.dataFiles()) {
+        add(dataFile);
+      }
+      for (DeleteFile deleteFile : result.deleteFiles()) {
+        add(deleteFile);
       }
 
       return this;
