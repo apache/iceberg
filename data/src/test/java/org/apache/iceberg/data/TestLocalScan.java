@@ -449,7 +449,7 @@ public class TestLocalScan {
     FileFormat fileFormat = FileFormat.fromFileName(filename);
     Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
 
-    FileAppender<Record> fileAppender = new GenericAppenderFactory(schema).newAppender(
+    FileAppender<Record> fileAppender = new GenericAppenderFactory(schema, PartitionSpec.unpartitioned()).newAppender(
         fromPath(path, CONF), fileFormat);
     try (FileAppender<Record> appender = fileAppender) {
       appender.addAll(records);

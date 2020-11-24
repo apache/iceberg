@@ -63,7 +63,7 @@ public class TestSplitScan {
 
   @Parameterized.Parameters(name = "format = {0}")
   public static Object[] parameters() {
-    return new Object[] { "parquet", "avro" };
+    return new Object[] {"parquet", "avro"};
   }
 
   private final FileFormat format;
@@ -116,7 +116,7 @@ public class TestSplitScan {
     File file = temp.newFile();
     Assert.assertTrue(file.delete());
 
-    GenericAppenderFactory factory = new GenericAppenderFactory(SCHEMA).set(
+    GenericAppenderFactory factory = new GenericAppenderFactory(SCHEMA, table.spec()).set(
         TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, String.valueOf(SPLIT_SIZE));
     try (FileAppender<Record> appender = factory.newAppender(Files.localOutput(file), fileFormat)) {
       appender.addAll(records);

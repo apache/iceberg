@@ -61,11 +61,11 @@ public abstract class TestSparkReadProjection extends TestReadProjection {
   @Parameterized.Parameters(name = "format = {0}, vectorized = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-        { "parquet", false },
-        { "parquet", true },
-        { "avro", false },
-        { "orc", false },
-        { "orc", true }
+        {"parquet", false},
+        {"parquet", true},
+        {"avro", false},
+        {"orc", false},
+        {"orc", true}
     };
   }
 
@@ -106,8 +106,8 @@ public abstract class TestSparkReadProjection extends TestReadProjection {
       // When tables are created, the column ids are reassigned.
       Schema tableSchema = table.schema();
 
-      try (FileAppender<Record> writer = new GenericAppenderFactory(tableSchema).newAppender(
-          localOutput(testFile), format)) {
+      try (FileAppender<Record> writer = new GenericAppenderFactory(tableSchema, PartitionSpec.unpartitioned())
+          .newAppender(localOutput(testFile), format)) {
         writer.add(record);
       }
 

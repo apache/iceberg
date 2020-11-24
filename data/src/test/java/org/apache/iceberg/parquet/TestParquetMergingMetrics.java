@@ -22,6 +22,7 @@ package org.apache.iceberg.parquet;
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.TestMergingMetrics;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
@@ -31,7 +32,7 @@ public class TestParquetMergingMetrics extends TestMergingMetrics<Record> {
 
   @Override
   protected FileAppender<Record> writeAndGetAppender(List<Record> records) throws IOException {
-    FileAppender<Record> appender = new GenericAppenderFactory(SCHEMA).newAppender(
+    FileAppender<Record> appender = new GenericAppenderFactory(SCHEMA, PartitionSpec.unpartitioned()).newAppender(
         org.apache.iceberg.Files.localOutput(temp.newFile()), FileFormat.PARQUET);
     try (FileAppender<Record> fileAppender = appender) {
       records.forEach(fileAppender::add);

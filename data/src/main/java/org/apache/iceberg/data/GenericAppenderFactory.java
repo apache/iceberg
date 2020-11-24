@@ -48,14 +48,11 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
   private final Schema schema;
   private final PartitionSpec spec;
-  private final int[] equalityFieldIds;
   private final Map<String, String> config = Maps.newHashMap();
 
-  public GenericAppenderFactory(Schema schema) {
+  public GenericAppenderFactory(Schema schema, PartitionSpec spec) {
     this.schema = schema;
-    // TODO set spec.
-    this.spec = PartitionSpec.unpartitioned();
-    this.equalityFieldIds = new int[] {0};
+    this.spec = spec;
   }
 
   public GenericAppenderFactory set(String property, String value) {
@@ -117,76 +114,12 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   @Override
   public EqualityDeleteWriter<Record> newEqDeleteWriter(EncryptedOutputFile outputFile, FileFormat format,
                                                         StructLike partition) {
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
-    try {
-      switch (format) {
-        case AVRO:
-          return Avro.writeDeletes(outputFile.encryptingOutputFile())
-              .createWriterFunc(DataWriter::create)
-              .withPartition(partition)
-              .overwrite()
-              .setAll(config)
-              .rowSchema(schema)
-              .withSpec(spec)
-              .withKeyMetadata(outputFile.keyMetadata())
-              .equalityFieldIds(equalityFieldIds)
-              .buildEqualityWriter();
-
-        case PARQUET:
-          return Parquet.writeDeletes(outputFile.encryptingOutputFile())
-              .createWriterFunc(GenericParquetWriter::buildWriter)
-              .withPartition(partition)
-              .overwrite()
-              .setAll(config)
-              .metricsConfig(metricsConfig)
-              .rowSchema(schema)
-              .withSpec(spec)
-              .withKeyMetadata(outputFile.keyMetadata())
-              .equalityFieldIds(equalityFieldIds)
-              .buildEqualityWriter();
-
-        default:
-          throw new UnsupportedOperationException("Cannot write unknown file format: " + format);
-      }
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
+    throw new UnsupportedOperationException("Cannot create equality-delete writer for generic record now.");
   }
 
   @Override
   public PositionDeleteWriter<Record> newPosDeleteWriter(EncryptedOutputFile outputFile, FileFormat format,
                                                          StructLike partition) {
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
-    try {
-      switch (format) {
-        case AVRO:
-          return Avro.writeDeletes(outputFile.encryptingOutputFile())
-              .createWriterFunc(DataWriter::create)
-              .withPartition(partition)
-              .overwrite()
-              .setAll(config)
-              .rowSchema(schema) // it's a nullable field.
-              .withSpec(spec)
-              .withKeyMetadata(outputFile.keyMetadata())
-              .buildPositionWriter();
-
-        case PARQUET:
-          return Parquet.writeDeletes(outputFile.encryptingOutputFile())
-              .createWriterFunc(GenericParquetWriter::buildWriter)
-              .withPartition(partition)
-              .overwrite()
-              .setAll(config)
-              .metricsConfig(metricsConfig)
-              .rowSchema(schema) // it's a nullable field.
-              .withSpec(spec)
-              .withKeyMetadata(outputFile.keyMetadata())
-              .buildPositionWriter();
-
-        default:
-          throw new UnsupportedOperationException("Cannot write unknown file format: " + format);
-      }
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
+    throw new UnsupportedOperationException("Cannot create pos-delete writer for generic record now.");
   }
 }
