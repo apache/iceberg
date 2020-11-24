@@ -61,11 +61,11 @@ public abstract class TestSparkReadProjection extends TestReadProjection {
   @Parameterized.Parameters(name = "format = {0}, vectorized = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-        {"parquet", false},
-        {"parquet", true},
-        {"avro", false},
-        {"orc", false},
-        {"orc", true}
+        { "parquet", false },
+        { "parquet", true },
+        { "avro", false },
+        { "orc", false },
+        { "orc", true }
     };
   }
 

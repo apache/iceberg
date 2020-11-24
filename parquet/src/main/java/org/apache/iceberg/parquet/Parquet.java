@@ -480,7 +480,7 @@ public class Parquet {
     /**
      * Restricts the read to the given range: [start, start + length).
      *
-     * @param newStart  the start position for this read
+     * @param newStart the start position for this read
      * @param newLength the length of the range this read should scan
      * @return this builder for method chaining
      */
@@ -698,8 +698,8 @@ public class Parquet {
                             Map<String, String> metadata) throws IOException {
     OutputFile file = Files.localOutput(outputFile);
     ParquetFileWriter writer = new ParquetFileWriter(
-        ParquetIO.file(file), ParquetSchemaUtil.convert(schema, "table"),
-        ParquetFileWriter.Mode.CREATE, rowGroupSize, 0);
+            ParquetIO.file(file), ParquetSchemaUtil.convert(schema, "table"),
+            ParquetFileWriter.Mode.CREATE, rowGroupSize, 0);
     writer.start();
     for (File inputFile : inputFiles) {
       writer.appendFile(ParquetIO.file(Files.localInput(inputFile)));
