@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.function.Function;
 import org.apache.avro.io.DatumWriter;
 import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
@@ -57,6 +56,8 @@ public class FlinkFileAppenderFactory implements FileAppenderFactory<RowData>, S
   private final PartitionSpec spec;
   private final List<Integer> equalityFieldIds;
 
+  private final boolean posDeleteWithRow;
+
   public FlinkFileAppenderFactory(Schema schema, RowType flinkSchema, Map<String, String> props,
                                   PartitionSpec spec, List<Integer> equalityFieldIds) {
     this.schema = schema;
@@ -64,6 +65,9 @@ public class FlinkFileAppenderFactory implements FileAppenderFactory<RowData>, S
     this.props = props;
     this.spec = spec;
     this.equalityFieldIds = equalityFieldIds;
+
+    // TODO Set this switch to true if needed.
+    this.posDeleteWithRow = false;
   }
 
   @Override
@@ -154,13 +158,13 @@ public class FlinkFileAppenderFactory implements FileAppenderFactory<RowData>, S
   public PositionDeleteWriter<RowData> newPosDeleteWriter(EncryptedOutputFile outputFile, FileFormat format,
                                                           StructLike partition) {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
+    Schema rowSchema = posDeleteWithRow ? schema : null;
     try {
       switch (format) {
         case AVRO:
-          // Produce the positional delete schema that writer will use for the file.
           Function<org.apache.avro.Schema, DatumWriter<?>> writeFunc = null;
-          if (schema != null) {
-            writeFunc = ignore -> new FlinkAvroWriter(FlinkSchemaUtil.convert(schema));
+          if (rowSchema != null) {
+            writeFunc = ignore -> new FlinkAvroWriter(FlinkSchemaUtil.convert(rowSchema));
           }
 
           return Avro.writeDeletes(outputFile.encryptingOutputFile())
@@ -168,43 +172,30 @@ public class FlinkFileAppenderFactory implements FileAppenderFactory<RowData>, S
               .withPartition(partition)
               .overwrite()
               .setAll(props)
-              .rowSchema(schema) // it's a nullable field.
+              .rowSchema(rowSchema)
               .withSpec(spec)
               .withKeyMetadata(outputFile.keyMetadata())
               .buildPositionWriter();
 
         case PARQUET:
-          RowType flinkParquetRowType = FlinkSchemaUtil.convert(DeleteUtil.posDeleteSchema(schema));
+          RowType flinkParquetRowType = FlinkSchemaUtil.convert(DeleteUtil.posDeleteSchema(rowSchema));
+
           return Parquet.writeDeletes(outputFile.encryptingOutputFile())
               .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(flinkParquetRowType, msgType))
               .withPartition(partition)
               .overwrite()
               .setAll(props)
               .metricsConfig(metricsConfig)
-              .rowSchema(schema) // it's a nullable field.
+              .rowSchema(rowSchema)
               .withSpec(spec)
               .withKeyMetadata(outputFile.keyMetadata())
-              .buildPositionWriter(RowDataPositionAccessor.INSTANCE);
+              .buildPositionWriter();
 
         default:
           throw new UnsupportedOperationException("Cannot write unknown file format: " + format);
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
-    }
-  }
-
-  private static class RowDataPositionAccessor implements Parquet.PositionAccessor<StringData, Long> {
-    private static final RowDataPositionAccessor INSTANCE = new RowDataPositionAccessor();
-
-    @Override
-    public StringData accessPath(CharSequence path) {
-      return StringData.fromString(path.toString());
-    }
-
-    @Override
-    public Long accessPos(long pos) {
-      return pos;
     }
   }
 }

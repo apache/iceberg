@@ -33,7 +33,6 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final Schema schema;
@@ -44,6 +43,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final EncryptionManager encryptionManager;
   private final long targetFileSizeBytes;
   private final FileFormat format;
+  private final List<Integer> equalityFieldIds;
   private final FileAppenderFactory<RowData> appenderFactory;
 
   private transient OutputFileFactory outputFileFactory;
@@ -66,6 +66,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.encryptionManager = encryptionManager;
     this.targetFileSizeBytes = targetFileSizeBytes;
     this.format = format;
+    this.equalityFieldIds = equalityFieldIds;
     this.appenderFactory = new FlinkFileAppenderFactory(schema, flinkSchema, tableProperties, spec, equalityFieldIds);
   }
 
@@ -79,7 +80,6 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     Preconditions.checkNotNull(outputFileFactory,
         "The outputFileFactory shouldn't be null if we have invoked the initialize().");
 
-    List<Integer> equalityFieldIds = Lists.newArrayList();
     return new RowDataTaskWriter(spec, format, appenderFactory, outputFileFactory, io, targetFileSizeBytes, schema,
         flinkSchema, equalityFieldIds);
   }

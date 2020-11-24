@@ -43,12 +43,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
+import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
+import static org.apache.iceberg.TableProperties.FORMAT_VERSION_DEFAULT;
+
 /**
  * Metadata for a table.
  */
 public class TableMetadata implements Serializable {
   static final long INITIAL_SEQUENCE_NUMBER = 0;
-  static final int DEFAULT_TABLE_FORMAT_VERSION = 1;
   static final int SUPPORTED_TABLE_FORMAT_VERSION = 2;
   static final int INITIAL_SPEC_ID = 0;
   static final int INITIAL_SORT_ORDER_ID = 1;
@@ -64,7 +66,8 @@ public class TableMetadata implements Serializable {
                                                PartitionSpec spec,
                                                String location,
                                                Map<String, String> properties) {
-    return newTableMetadata(schema, spec, SortOrder.unsorted(), location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+    int formatVersion = PropertyUtil.propertyAsInt(properties, FORMAT_VERSION, FORMAT_VERSION_DEFAULT);
+    return newTableMetadata(schema, spec, SortOrder.unsorted(), location, properties, formatVersion);
   }
 
   public static TableMetadata newTableMetadata(Schema schema,
@@ -72,14 +75,16 @@ public class TableMetadata implements Serializable {
                                                SortOrder sortOrder,
                                                String location,
                                                Map<String, String> properties) {
-    return newTableMetadata(schema, spec, sortOrder, location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+    int formatVersion = PropertyUtil.propertyAsInt(properties, FORMAT_VERSION, FORMAT_VERSION_DEFAULT);
+    return newTableMetadata(schema, spec, sortOrder, location, properties, formatVersion);
   }
 
   public static TableMetadata newTableMetadata(Schema schema,
                                                PartitionSpec spec,
                                                String location,
                                                Map<String, String> properties) {
-    return newTableMetadata(schema, spec, SortOrder.unsorted(), location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+    int formatVersion = PropertyUtil.propertyAsInt(properties, FORMAT_VERSION, FORMAT_VERSION_DEFAULT);
+    return newTableMetadata(schema, spec, SortOrder.unsorted(), location, properties, formatVersion);
   }
 
   static TableMetadata newTableMetadata(Schema schema,

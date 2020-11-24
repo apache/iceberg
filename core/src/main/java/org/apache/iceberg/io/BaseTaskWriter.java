@@ -80,10 +80,13 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   }
 
   @Override
-  public DataFile[] complete() throws IOException {
+  public WriterResult complete() throws IOException {
     close();
 
-    return completedFiles.toArray(new DataFile[0]);
+    return WriterResult.builder()
+        .addDataFiles(completedFiles)
+        .addDeleteFiles(completedDeletes)
+        .build();
   }
 
   protected abstract class BaseDeltaWriter implements Closeable {

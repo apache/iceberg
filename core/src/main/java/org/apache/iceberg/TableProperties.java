@@ -137,4 +137,7 @@ public class TableProperties {
 
   public static final String GC_ENABLED = "gc.enabled";
   public static final boolean GC_ENABLED_DEFAULT = true;
+
+  public static final String FORMAT_VERSION = "format.version";
+  public static final int FORMAT_VERSION_DEFAULT = 1;
 }
