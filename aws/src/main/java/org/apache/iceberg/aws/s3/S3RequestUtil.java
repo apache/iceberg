@@ -25,6 +25,7 @@ import org.apache.iceberg.aws.AwsProperties;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Request;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
@@ -96,5 +97,20 @@ public class S3RequestUtil {
         throw new IllegalArgumentException(
             "Cannot support given S3 encryption type: " + awsProperties.s3FileIoSseType());
     }
+  }
+
+  static void configurePermission(AwsProperties awsProperties, PutObjectRequest.Builder requestBuilder) {
+    configurePermission(awsProperties, requestBuilder::acl);
+  }
+
+  static void configurePermission(AwsProperties awsProperties, CreateMultipartUploadRequest.Builder requestBuilder) {
+    configurePermission(awsProperties, requestBuilder::acl);
+  }
+
+  @SuppressWarnings("ReturnValueIgnored")
+  static void configurePermission(
+      AwsProperties awsProperties,
+      Function<ObjectCannedACL, S3Request.Builder> aclSetter) {
+    aclSetter.apply(awsProperties.s3FileIoAcl());
   }
 }
