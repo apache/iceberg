@@ -31,6 +31,10 @@ import org.apache.spark.sql.types.StructType;
 
 /**
  * A procedure that rollbacks a table to a specific snapshot id.
+ * <p>
+ * <em>Note:</em> this procedure invalidates all cached Spark plans that reference the affected table.
+ *
+ * @see org.apache.iceberg.ManageSnapshots#rollbackTo(long)
  */
 class RollbackToSnapshotProcedure extends BaseProcedure {
 

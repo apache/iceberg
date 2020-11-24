@@ -33,6 +33,10 @@ import org.apache.spark.sql.types.StructType;
 
 /**
  * A procedure that rewrites manifests in a table.
+ * <p>
+ * <em>Note:</em> this procedure invalidates all cached Spark plans that reference the affected table.
+ *
+ * @see Actions#rewriteManifests()
  */
 class RewriteManifestsProcedure extends BaseProcedure {
 

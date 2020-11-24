@@ -31,6 +31,10 @@ import org.apache.spark.sql.types.StructType;
 
 /**
  * A procedure that sets the current snapshot in a table.
+ * <p>
+ * <em>Note:</em> this procedure invalidates all cached Spark plans that reference the affected table.
+ *
+ * @see org.apache.iceberg.ManageSnapshots#setCurrentSnapshot(long)
  */
 class SetCurrentSnapshotProcedure extends BaseProcedure {
 
