@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark.procedures;
 
+import java.sql.Timestamp;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
@@ -41,7 +42,7 @@ public class ExpireSnapshotProcedure extends BaseProcedure {
 
   private static final StructField[] OUTPUT_FIELDS = new StructField[] {
       new StructField("retain_last_num", DataTypes.IntegerType, true, Metadata.empty()),
-      new StructField("expire_timestamp", DataTypes.TimestampType, true, Metadata.empty())
+      new StructField("expire_timestamp", DataTypes.LongType, true, Metadata.empty())
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(OUTPUT_FIELDS);
