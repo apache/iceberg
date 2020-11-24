@@ -54,9 +54,9 @@ public class TestManifestReaderStats extends TableTestBase {
 
   private static final Metrics METRICS = new Metrics(3L, null,
       VALUE_COUNT, NULL_VALUE_COUNTS, NAN_VALUE_COUNTS, LOWER_BOUNDS, UPPER_BOUNDS);
-
+  private static final String FILE_PATH = "/path/to/data-a.parquet";
   private static final DataFile FILE = DataFiles.builder(SPEC)
-      .withPath("/path/to/data-a.parquet")
+      .withPath(FILE_PATH)
       .withFileSizeInBytes(10)
       .withPartitionPath("data_bucket=0") // easy way to set partition data for now
       .withRecordCount(3)
@@ -88,7 +88,7 @@ public class TestManifestReaderStats extends TableTestBase {
   public void testReadEntriesWithFilterAndSelectIncludesFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
-        .select(ImmutableSet.of("record_count"))
+        .select(ImmutableSet.of("file_path"))
         .filterRows(Expressions.equal("id", 3))) {
       CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
       ManifestEntry<DataFile> entry = entries.iterator().next();
@@ -100,7 +100,7 @@ public class TestManifestReaderStats extends TableTestBase {
   public void testReadIteratorWithFilterAndSelectDropsStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
-        .select(ImmutableSet.of("record_count"))
+        .select(ImmutableSet.of("file_path"))
         .filterRows(Expressions.equal("id", 3))) {
       DataFile entry = reader.iterator().next();
       assertStatsDropped(entry);
@@ -110,7 +110,7 @@ public class TestManifestReaderStats extends TableTestBase {
   public void testReadIteratorWithFilterAndSelectStatsIncludesFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
-        .select(ImmutableSet.of("record_count", "value_counts"))
+        .select(ImmutableSet.of("file_path", "value_counts"))
         .filterRows(Expressions.equal("id", 3))) {
       DataFile entry = reader.iterator().next();
       assertFullStats(entry);
@@ -121,26 +121,27 @@ public class TestManifestReaderStats extends TableTestBase {
   public void testReadEntriesWithSelectNotIncludeFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
-        .select(ImmutableSet.of("record_count"))) {
+        .select(ImmutableSet.of("file_path"))) {
       CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
       ManifestEntry<DataFile> entry = entries.iterator().next();
-      assertStatsDropped(entry.file());
+      assertNoStats(entry.file());
     }
   }
   @Test
   public void testReadEntriesWithSelectCertainStatNotIncludeFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
-        .select(ImmutableSet.of("record_count", "value_counts"))) {
+        .select(ImmutableSet.of("file_path", "value_counts"))) {
       DataFile dataFile = reader.iterator().next();
 
-      Assert.assertEquals(3, dataFile.recordCount());
+      Assert.assertEquals(-1, dataFile.recordCount());
       Assert.assertNull(dataFile.columnSizes());
       Assert.assertEquals(VALUE_COUNT, dataFile.valueCounts());
       Assert.assertNull(dataFile.nullValueCounts());
+      Assert.assertNull(dataFile.nanValueCounts());
       Assert.assertNull(dataFile.lowerBounds());
       Assert.assertNull(dataFile.upperBounds());
-      Assert.assertNull(dataFile.nanValueCounts());
+      Assert.assertEquals(FILE_PATH, dataFile.path()); // always select file path in all test cases
     }
   }
 
@@ -149,19 +150,35 @@ public class TestManifestReaderStats extends TableTestBase {
     Assert.assertNull(dataFile.columnSizes());
     Assert.assertEquals(VALUE_COUNT, dataFile.valueCounts());
     Assert.assertEquals(NULL_VALUE_COUNTS, dataFile.nullValueCounts());
+    Assert.assertEquals(NAN_VALUE_COUNTS, dataFile.nanValueCounts());
     Assert.assertEquals(LOWER_BOUNDS, dataFile.lowerBounds());
     Assert.assertEquals(UPPER_BOUNDS, dataFile.upperBounds());
-    Assert.assertEquals(NAN_VALUE_COUNTS, dataFile.nanValueCounts());
+
+    Assert.assertEquals(FILE_PATH, dataFile.path()); // always select file path in all test cases
   }
 
   private void assertStatsDropped(DataFile dataFile) {
-    Assert.assertEquals(3, dataFile.recordCount()); // always select record count in all test cases
+    Assert.assertEquals(3, dataFile.recordCount()); // record count is not considered as droppable stats
     Assert.assertNull(dataFile.columnSizes());
     Assert.assertNull(dataFile.valueCounts());
     Assert.assertNull(dataFile.nullValueCounts());
+    Assert.assertNull(dataFile.nanValueCounts());
     Assert.assertNull(dataFile.lowerBounds());
     Assert.assertNull(dataFile.upperBounds());
+
+    Assert.assertEquals(FILE_PATH, dataFile.path()); // always select file path in all test cases
+  }
+
+  private void assertNoStats(DataFile dataFile) {
+    Assert.assertEquals(-1L, dataFile.recordCount());
+    Assert.assertNull(dataFile.columnSizes());
+    Assert.assertNull(dataFile.valueCounts());
+    Assert.assertNull(dataFile.nullValueCounts());
     Assert.assertNull(dataFile.nanValueCounts());
+    Assert.assertNull(dataFile.lowerBounds());
+    Assert.assertNull(dataFile.upperBounds());
+
+    Assert.assertEquals(FILE_PATH, dataFile.path()); // always select file path in all test cases
   }
 
 }

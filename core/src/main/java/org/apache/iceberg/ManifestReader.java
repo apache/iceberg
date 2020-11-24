@@ -24,6 +24,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -52,8 +54,13 @@ import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 public class ManifestReader<F extends ContentFile<F>>
     extends CloseableGroup implements CloseableIterable<F> {
   static final ImmutableList<String> ALL_COLUMNS = ImmutableList.of("*");
-  static final Set<String> STATS_COLUMNS = Sets.newHashSet(
+
+  // the difference between the two stats set below is to support ContentFile.copyWithoutStats(), which
+  // still keeps record count.
+  private static final Set<String> STATS_COLUMNS = Sets.newHashSet(
       "value_counts", "null_value_counts", "nan_value_counts", "lower_bounds", "upper_bounds");
+  private static final Set<String> FULL_STATS_COLUMNS =
+      Stream.concat(STATS_COLUMNS.stream(), Stream.of("record_count")).collect(Collectors.toSet());
 
   protected enum FileType {
     DATA_FILES(GenericDataFile.class.getName()),
@@ -277,7 +284,7 @@ public class ManifestReader<F extends ContentFile<F>>
     return rowFilter != Expressions.alwaysTrue() &&
         columns != null &&
         !columns.containsAll(ManifestReader.ALL_COLUMNS) &&
-        !columns.containsAll(STATS_COLUMNS);
+        !columns.containsAll(FULL_STATS_COLUMNS);
   }
 
   static boolean dropStats(Expression rowFilter, Collection<String> columns) {
@@ -289,12 +296,12 @@ public class ManifestReader<F extends ContentFile<F>>
         Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS).isEmpty();
   }
 
-  private static Collection<String> withStatsColumns(Collection<String> columns) {
+  static Collection<String> withStatsColumns(Collection<String> columns) {
     if (columns.containsAll(ManifestReader.ALL_COLUMNS)) {
       return columns;
     } else {
       List<String> projectColumns = Lists.newArrayList(columns);
-      projectColumns.addAll(STATS_COLUMNS); // order doesn't matter
+      projectColumns.addAll(FULL_STATS_COLUMNS); // order doesn't matter
       return projectColumns;
     }
   }
