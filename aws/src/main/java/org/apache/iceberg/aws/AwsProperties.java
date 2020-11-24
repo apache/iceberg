@@ -22,6 +22,7 @@ package org.apache.iceberg.aws;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
+import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 
 public class AwsProperties {
 
@@ -104,6 +105,15 @@ public class AwsProperties {
    */
   public static final String S3FILEIO_STAGING_DIRECTORY = "s3fileio.staging.dir";
 
+  /**
+   * Used to set canned access control list for S3 client to use during write.
+   * For more details: https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html
+   * The input must be one of {@link software.amazon.awssdk.services.s3.model.ObjectCannedACL},
+   * such as 'public-read-write'
+   * If not set, ACL will not be set for requests.
+   */
+  public static final String S3FILEIO_ACL = "s3fileio.acl";
+
 
   static final int MIN_MULTIPART_UPLOAD_SIZE = 5 * 1024 * 1024;
   static final int DEFAULT_MULTIPART_SIZE = 32 * 1024 * 1024;
@@ -116,6 +126,7 @@ public class AwsProperties {
   private int s3FileIoMultiPartSize;
   private double s3FileIoMultipartThresholdFactor;
   private String s3fileIoStagingDirectory;
+  private ObjectCannedACL s3FileIoAcl;
 
   private String glueCatalogId;
   private boolean glueCatalogSkipArchive;
@@ -124,6 +135,7 @@ public class AwsProperties {
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
     this.s3FileIoSseKey = null;
     this.s3FileIoSseMd5 = null;
+    this.s3FileIoAcl = null;
 
     this.s3FileIoMultipartUploadThreads = Runtime.getRuntime().availableProcessors();
     this.s3FileIoMultiPartSize = DEFAULT_MULTIPART_SIZE;
@@ -165,6 +177,11 @@ public class AwsProperties {
 
     this.s3fileIoStagingDirectory = PropertyUtil.propertyAsString(properties, S3FILEIO_STAGING_DIRECTORY,
         System.getProperty("java.io.tmpdir"));
+
+    String aclType = properties.get(S3FILEIO_ACL);
+    this.s3FileIoAcl = ObjectCannedACL.fromValue(aclType);
+    Preconditions.checkArgument(s3FileIoAcl == null || !s3FileIoAcl.equals(ObjectCannedACL.UNKNOWN_TO_SDK_VERSION),
+        "Cannot support S3 CannedACL " + aclType);
   }
 
   public String s3FileIoSseType() {
@@ -221,5 +238,13 @@ public class AwsProperties {
 
   public String getS3fileIoStagingDirectory() {
     return s3fileIoStagingDirectory;
+  }
+
+  public ObjectCannedACL s3FileIoAcl() {
+    return this.s3FileIoAcl;
+  }
+
+  public void setS3FileIoAcl(ObjectCannedACL acl) {
+    this.s3FileIoAcl = acl;
   }
 }

@@ -203,6 +203,7 @@ class S3OutputStream extends PositionOutputStream {
     CreateMultipartUploadRequest.Builder requestBuilder = CreateMultipartUploadRequest.builder()
         .bucket(location.bucket()).key(location.key());
     S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
+    S3RequestUtil.configurePermission(awsProperties, requestBuilder);
 
     multipartUploadId = s3.createMultipartUpload(requestBuilder.build()).uploadId();
   }
@@ -309,6 +310,7 @@ class S3OutputStream extends PositionOutputStream {
           .key(location.key());
 
       S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
+      S3RequestUtil.configurePermission(awsProperties, requestBuilder);
 
       s3.putObject(requestBuilder.build(), RequestBody.fromInputStream(contentStream, contentLength));
     } else {

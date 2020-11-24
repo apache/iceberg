@@ -45,8 +45,12 @@ import software.amazon.awssdk.services.kms.model.ListAliasesRequest;
 import software.amazon.awssdk.services.kms.model.ListAliasesResponse;
 import software.amazon.awssdk.services.kms.model.ScheduleKeyDeletionRequest;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectAclRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectAclResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
+import software.amazon.awssdk.services.s3.model.Permission;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.utils.IoUtils;
@@ -175,6 +179,20 @@ public class S3FileIOTest {
     Assert.assertNull(response.serverSideEncryption());
     Assert.assertEquals(ServerSideEncryption.AES256.name(), response.sseCustomerAlgorithm());
     Assert.assertEquals(md5, response.sseCustomerKeyMD5());
+  }
+
+  @Test
+  public void testACL() throws Exception {
+    AwsProperties properties = new AwsProperties();
+    properties.setS3FileIoAcl(ObjectCannedACL.BUCKET_OWNER_FULL_CONTROL);
+    S3FileIO s3FileIO = new S3FileIO(AwsClientUtil::defaultS3Client, properties);
+    write(s3FileIO);
+    validateRead(s3FileIO);
+    GetObjectAclResponse response = s3.getObjectAcl(
+        GetObjectAclRequest.builder().bucket(bucketName).key(objectKey).build());
+    Assert.assertTrue(response.hasGrants());
+    Assert.assertEquals(1, response.grants().size());
+    Assert.assertEquals(Permission.FULL_CONTROL, response.grants().get(0).permission());
   }
 
   private void write(S3FileIO s3FileIO) throws Exception {
