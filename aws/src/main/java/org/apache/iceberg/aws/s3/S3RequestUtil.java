@@ -20,100 +20,76 @@
 package org.apache.iceberg.aws.s3;
 
 import java.util.Locale;
+import java.util.function.Function;
 import org.apache.iceberg.aws.AwsProperties;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Request;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 
 public class S3RequestUtil {
 
+  private static final Function<ServerSideEncryption, S3Request.Builder> NULL_SSE_SETTER = sse -> null;
+  private static final Function<String, S3Request.Builder> NULL_STRING_SETTER = s -> null;
+
   private S3RequestUtil() {
   }
 
   static void configureEncryption(AwsProperties awsProperties, PutObjectRequest.Builder requestBuilder) {
-    switch (awsProperties.s3FileIoSseType().toLowerCase(Locale.ENGLISH)) {
-      case AwsProperties.S3FILEIO_SSE_TYPE_NONE:
-        break;
-
-      case AwsProperties.S3FILEIO_SSE_TYPE_KMS:
-        requestBuilder.serverSideEncryption(ServerSideEncryption.AWS_KMS);
-        requestBuilder.ssekmsKeyId(awsProperties.s3FileIoSseKey());
-        break;
-
-      case AwsProperties.S3FILEIO_SSE_TYPE_S3:
-        requestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
-        break;
-
-      case AwsProperties.S3FILEIO_SSE_TYPE_CUSTOM:
-        requestBuilder.sseCustomerAlgorithm(ServerSideEncryption.AES256.name());
-        requestBuilder.sseCustomerKey(awsProperties.s3FileIoSseKey());
-        requestBuilder.sseCustomerKeyMD5(awsProperties.s3FileIoSseMd5());
-        break;
-
-      default:
-        throw new IllegalArgumentException(
-            "Cannot support given S3 encryption type: " + awsProperties.s3FileIoSseType());
-    }
+    configureEncryption(awsProperties, requestBuilder::serverSideEncryption, requestBuilder::ssekmsKeyId,
+        requestBuilder::sseCustomerAlgorithm, requestBuilder::sseCustomerKey, requestBuilder::sseCustomerKeyMD5);
   }
 
   static void configureEncryption(AwsProperties awsProperties, CreateMultipartUploadRequest.Builder requestBuilder) {
-    switch (awsProperties.s3FileIoSseType().toLowerCase(Locale.ENGLISH)) {
-      case AwsProperties.S3FILEIO_SSE_TYPE_NONE:
-        break;
-
-      case AwsProperties.S3FILEIO_SSE_TYPE_KMS:
-        requestBuilder.serverSideEncryption(ServerSideEncryption.AWS_KMS);
-        requestBuilder.ssekmsKeyId(awsProperties.s3FileIoSseKey());
-        break;
-
-      case AwsProperties.S3FILEIO_SSE_TYPE_S3:
-        requestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
-        break;
-
-      case AwsProperties.S3FILEIO_SSE_TYPE_CUSTOM:
-        requestBuilder.sseCustomerAlgorithm(ServerSideEncryption.AES256.name());
-        requestBuilder.sseCustomerKey(awsProperties.s3FileIoSseKey());
-        requestBuilder.sseCustomerKeyMD5(awsProperties.s3FileIoSseMd5());
-        break;
-
-      default:
-        throw new IllegalArgumentException(
-            "Cannot support given S3 encryption type: " + awsProperties.s3FileIoSseType());
-    }
+    configureEncryption(awsProperties, requestBuilder::serverSideEncryption, requestBuilder::ssekmsKeyId,
+        requestBuilder::sseCustomerAlgorithm, requestBuilder::sseCustomerKey, requestBuilder::sseCustomerKeyMD5);
   }
 
   static void configureEncryption(AwsProperties awsProperties, UploadPartRequest.Builder requestBuilder) {
-    switch (awsProperties.s3FileIoSseType().toLowerCase(Locale.ENGLISH)) {
-      case AwsProperties.S3FILEIO_SSE_TYPE_NONE:
-      case AwsProperties.S3FILEIO_SSE_TYPE_KMS:
-      case AwsProperties.S3FILEIO_SSE_TYPE_S3:
-        break;
-
-      case AwsProperties.S3FILEIO_SSE_TYPE_CUSTOM:
-        requestBuilder.sseCustomerAlgorithm(ServerSideEncryption.AES256.name());
-        requestBuilder.sseCustomerKey(awsProperties.s3FileIoSseKey());
-        requestBuilder.sseCustomerKeyMD5(awsProperties.s3FileIoSseMd5());
-        break;
-
-      default:
-        throw new IllegalArgumentException(
-            "Cannot support given S3 encryption type: " + awsProperties.s3FileIoSseType());
-    }
+    configureEncryption(awsProperties, NULL_SSE_SETTER, NULL_STRING_SETTER,
+        requestBuilder::sseCustomerAlgorithm, requestBuilder::sseCustomerKey, requestBuilder::sseCustomerKeyMD5);
   }
 
   static void configureEncryption(AwsProperties awsProperties, GetObjectRequest.Builder requestBuilder) {
+    configureEncryption(awsProperties, NULL_SSE_SETTER, NULL_STRING_SETTER,
+        requestBuilder::sseCustomerAlgorithm, requestBuilder::sseCustomerKey, requestBuilder::sseCustomerKeyMD5);
+  }
+
+  static void configureEncryption(AwsProperties awsProperties, HeadObjectRequest.Builder requestBuilder) {
+    configureEncryption(awsProperties, NULL_SSE_SETTER, NULL_STRING_SETTER,
+        requestBuilder::sseCustomerAlgorithm, requestBuilder::sseCustomerKey, requestBuilder::sseCustomerKeyMD5);
+  }
+
+  @SuppressWarnings("ReturnValueIgnored")
+  static void configureEncryption(
+      AwsProperties awsProperties,
+      Function<ServerSideEncryption, S3Request.Builder> encryptionSetter,
+      Function<String, S3Request.Builder> kmsKeySetter,
+      Function<String, S3Request.Builder> customAlgorithmSetter,
+      Function<String, S3Request.Builder> customKeySetter,
+      Function<String, S3Request.Builder> customMd5Setter) {
+
     switch (awsProperties.s3FileIoSseType().toLowerCase(Locale.ENGLISH)) {
       case AwsProperties.S3FILEIO_SSE_TYPE_NONE:
+        break;
+
       case AwsProperties.S3FILEIO_SSE_TYPE_KMS:
+        encryptionSetter.apply(ServerSideEncryption.AWS_KMS);
+        kmsKeySetter.apply(awsProperties.s3FileIoSseKey());
+        break;
+
       case AwsProperties.S3FILEIO_SSE_TYPE_S3:
+        encryptionSetter.apply(ServerSideEncryption.AES256);
         break;
 
       case AwsProperties.S3FILEIO_SSE_TYPE_CUSTOM:
-        requestBuilder.sseCustomerAlgorithm(ServerSideEncryption.AES256.name());
-        requestBuilder.sseCustomerKey(awsProperties.s3FileIoSseKey());
-        requestBuilder.sseCustomerKeyMD5(awsProperties.s3FileIoSseMd5());
+        // setters for SSE-C exist for all request builders, no need to check null
+        customAlgorithmSetter.apply(ServerSideEncryption.AES256.name());
+        customKeySetter.apply(awsProperties.s3FileIoSseKey());
+        customMd5Setter.apply(awsProperties.s3FileIoSseMd5());
         break;
 
       default:
