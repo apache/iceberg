@@ -22,6 +22,9 @@ package org.apache.spark.sql.connector.iceberg.catalog;
 import java.util.Objects;
 import org.apache.spark.sql.types.DataType;
 
+/**
+ * A {@link ProcedureParameter} implementation.
+ */
 class ProcedureParameterImpl implements ProcedureParameter {
   private final String name;
   private final DataType dataType;
