@@ -21,8 +21,8 @@ package org.apache.iceberg.flink;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -55,10 +55,10 @@ import org.apache.flink.util.StringUtils;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdateProperties;
@@ -75,7 +75,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.Types;
 
 /**
  * A Flink Catalog implementation that wraps an Iceberg {@link Catalog}.
@@ -626,20 +625,22 @@ public class FlinkCatalog extends AbstractCatalog {
   public List<CatalogPartitionSpec> listPartitions(ObjectPath tablePath)
       throws CatalogException {
     Table table = icebergCatalog.loadTable(toIdentifier(tablePath));
-    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-
     Set<CatalogPartitionSpec> set = Sets.newHashSet();
-    for (DataFile dataFile : dataFiles) {
-      Map<String, String> map = new HashMap<>();
-      PartitionData partitionData = (PartitionData) dataFile.partition();
-      Types.StructType structType = partitionData.getPartitionType();
-      for (int i = 0; i < partitionData.size(); i++) {
-        map.put(structType.fields().get(i).name(), partitionData.get(i).toString());
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      for (DataFile dataFile : CloseableIterable.transform(tasks, FileScanTask::file)) {
+        Map<String, String> map = Maps.newHashMap();
+        StructLike structLike = dataFile.partition();
+        PartitionSpec spec = table.specs().get(dataFile.specId());
+        for (int i = 0; i < structLike.size(); i++) {
+          map.put(spec.fields().get(i).name(), String.valueOf(structLike.get(i, Object.class)));
+        }
+        // if the table is unpartitioned table, do not add it to set
+        if (map.size() > 0) {
+          set.add(new CatalogPartitionSpec(map));
+        }
       }
-      if (map.size() > 0) {
-        set.add(new CatalogPartitionSpec(map));
-      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
     }
     return Lists.newArrayList(set);
   }
