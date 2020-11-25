@@ -21,12 +21,24 @@ package org.apache.spark.sql.catalyst.plans.logical
 
 import org.apache.spark.sql.catalyst.expressions.Expression
 
+/**
+ * A CALL statement, as parsed from SQL.
+ */
 case class CallStatement(name: Seq[String], args: Seq[CallArgument]) extends ParsedStatement
 
+/**
+ * An argument in a CALL statement.
+ */
 sealed trait CallArgument {
   def expr: Expression
 }
 
+/**
+ * An argument in a CALL statement identified by name.
+ */
 case class NamedArgument(name: String, expr: Expression) extends CallArgument
 
+/**
+ * An argument in a CALL statement identified by position.
+ */
 case class PositionalArgument(expr: Expression) extends CallArgument

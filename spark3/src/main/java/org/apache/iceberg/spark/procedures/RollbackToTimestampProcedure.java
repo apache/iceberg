@@ -32,6 +32,10 @@ import org.apache.spark.sql.types.StructType;
 
 /**
  * A procedure that rollbacks a table to a given point in time.
+ * <p>
+ * <em>Note:</em> this procedure invalidates all cached Spark plans that reference the affected table.
+ *
+ * @see org.apache.iceberg.ManageSnapshots#rollbackToTime(long)
  */
 class RollbackToTimestampProcedure extends BaseProcedure {
 
