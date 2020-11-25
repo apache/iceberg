@@ -77,6 +77,7 @@ public class TestHiveShell {
     hs2Conf.setVar(HiveConf.ConfVars.METASTOREURIS, metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREURIS));
     hs2Conf.setVar(HiveConf.ConfVars.METASTOREWAREHOUSE,
         metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREWAREHOUSE));
+//    DefaultMetricsSystem.setMiniClusterMode(true);
 
     hs2.init(hs2Conf);
     hs2.start();
