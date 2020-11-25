@@ -19,7 +19,9 @@
 
 package org.apache.iceberg.expressions;
 
+import java.util.concurrent.Callable;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
@@ -45,6 +47,8 @@ import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.predicate;
+import static org.apache.iceberg.expressions.Expressions.ref;
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.expressions.Expressions.year;
@@ -187,4 +191,44 @@ public class TestExpressionHelpers {
 
     Assert.assertEquals(expected.toString(), actual.toString());
   }
+
+  @Test
+  public void testInvalidateNaNInput() {
+    assertInvalidateNaNThrows("lessThan", () -> lessThan("a", Double.NaN));
+    assertInvalidateNaNThrows("lessThan", () -> lessThan(self("a"), Double.NaN));
+
+    assertInvalidateNaNThrows("lessThanOrEqual", () -> lessThanOrEqual("a", Double.NaN));
+    assertInvalidateNaNThrows("lessThanOrEqual", () -> lessThanOrEqual(self("a"), Double.NaN));
+
+    assertInvalidateNaNThrows("greaterThan", () -> greaterThan("a", Double.NaN));
+    assertInvalidateNaNThrows("greaterThan", () -> greaterThan(self("a"), Double.NaN));
+
+    assertInvalidateNaNThrows("greaterThanOrEqual", () -> greaterThanOrEqual("a", Double.NaN));
+    assertInvalidateNaNThrows("greaterThanOrEqual", () -> greaterThanOrEqual(self("a"), Double.NaN));
+
+    assertInvalidateNaNThrows("equal", () -> equal("a", Double.NaN));
+    assertInvalidateNaNThrows("equal", () -> equal(self("a"), Double.NaN));
+
+    assertInvalidateNaNThrows("notEqual", () -> notEqual("a", Double.NaN));
+    assertInvalidateNaNThrows("notEqual", () -> notEqual(self("a"), Double.NaN));
+
+    assertInvalidateNaNThrows("IN", () -> in("a", 1.0D, 2.0D, Double.NaN));
+    assertInvalidateNaNThrows("IN", () -> in(self("a"), 1.0D, 2.0D, Double.NaN));
+
+    assertInvalidateNaNThrows("NOT_IN", () -> notIn("a", 1.0D, 2.0D, Double.NaN));
+    assertInvalidateNaNThrows("NOT_IN", () -> notIn(self("a"), 1.0D, 2.0D, Double.NaN));
+
+    assertInvalidateNaNThrows("EQ", () -> predicate(Expression.Operation.EQ, "a", Double.NaN));
+  }
+
+  private void assertInvalidateNaNThrows(String operation, Callable<UnboundPredicate<Double>> callable) {
+    AssertHelpers.assertThrows("Should invalidate NaN input",
+        IllegalArgumentException.class, String.format("Cannot create %s predicate with NaN", operation),
+        callable);
+  }
+
+  private <T> UnboundTerm<T> self(String name) {
+    return new UnboundTransform<>(ref(name), Transforms.identity(Types.DoubleType.get()));
+  }
+
 }

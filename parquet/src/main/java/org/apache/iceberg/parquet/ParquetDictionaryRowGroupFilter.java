@@ -177,10 +177,10 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     private <T> Comparator<T> comparatorForNaNPredicate(BoundReference<T> ref) {
-      // Construct the same comparator as in ComparableLiteral.comparator, which is always null first and then use
-      // natural order.
+      // Construct the same comparator as in ComparableLiteral.comparator, ignoring null value order as dictionary
+      // cannot contain null values.
       // No need to check type: incompatible types will be handled during expression binding.
-      return Comparators.<T>nullsFirst().thenComparing(Comparators.forType(ref.type().asPrimitiveType()));
+      return Comparators.forType(ref.type().asPrimitiveType());
     }
 
     @Override

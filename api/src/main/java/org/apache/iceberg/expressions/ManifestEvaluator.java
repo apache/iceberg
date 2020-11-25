@@ -134,8 +134,7 @@ public class ManifestEvaluator {
       int pos = Accessors.toPosition(ref.accessor());
       // containsNull encodes whether at least one partition value is null, lowerBound is null if
       // all partition values are null.
-      ByteBuffer lowerBound = stats.get(pos).lowerBound();
-      if (lowerBound == null) {
+      if (stats.get(pos).containsNull() && stats.get(pos).lowerBound() == null) {
         return ROWS_CANNOT_MATCH; // all values are null
       }
 
@@ -147,8 +146,7 @@ public class ManifestEvaluator {
       int pos = Accessors.toPosition(ref.accessor());
       // containsNull encodes whether at least one partition value is null, lowerBound is null if
       // all partition values are null.
-      ByteBuffer lowerBound = stats.get(pos).lowerBound();
-      if (lowerBound == null) {
+      if (stats.get(pos).containsNull() && stats.get(pos).lowerBound() == null) {
         return ROWS_CANNOT_MATCH; // all values are null
       }
 

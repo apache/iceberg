@@ -92,7 +92,7 @@ public class TestInclusiveManifestEvaluator {
           new TestHelpers.TestFieldSummary(false,
               toByteBuffer(Types.FloatType.get(), 0F),
               toByteBuffer(Types.FloatType.get(), 20F)),
-          new TestHelpers.TestFieldSummary(false, null, null)
+          new TestHelpers.TestFieldSummary(true, null, null)
       ));
 
   @Test
