@@ -40,11 +40,7 @@ public abstract class IcebergTimestampObjectInspector extends AbstractPrimitiveJ
   private static final IcebergTimestampObjectInspector INSTANCE_WITHOUT_ZONE = new IcebergTimestampObjectInspector() {
     @Override
     LocalDateTime toLocalDateTime(Object o) {
-      if (o instanceof OffsetDateTime) {
-        return ((OffsetDateTime) o).toLocalDateTime();
-      } else {
-        return (LocalDateTime) o;
-      }
+      return (LocalDateTime) o;
     }
   };
 

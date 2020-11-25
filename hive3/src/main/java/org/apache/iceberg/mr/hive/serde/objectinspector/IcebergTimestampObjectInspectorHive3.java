@@ -43,11 +43,7 @@ public abstract class IcebergTimestampObjectInspectorHive3 extends AbstractPrimi
       new IcebergTimestampObjectInspectorHive3() {
         @Override
         LocalDateTime toLocalDateTime(Object o) {
-          if (o instanceof OffsetDateTime) {
-            return ((OffsetDateTime) o).toLocalDateTime();
-          } else {
-            return (LocalDateTime) o;
-          }
+          return (LocalDateTime) o;
         }
       };
 
