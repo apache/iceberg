@@ -27,6 +27,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.FileAppender;
@@ -73,13 +74,13 @@ public class GenericAppenderHelper {
     Preconditions.checkNotNull(table, "table not set");
     File file = tmp.newFile();
     Assert.assertTrue(file.delete());
-    return appendToLocalFile(table, file, fileFormat, partition, records);
+    return appendToLocalFile(table, file, fileFormat, partition, records, table.spec());
   }
 
   private static DataFile appendToLocalFile(
-      Table table, File file, FileFormat format, StructLike partition, List<Record> records)
+      Table table, File file, FileFormat format, StructLike partition, List<Record> records, PartitionSpec spec)
       throws IOException {
-    FileAppender<Record> appender = new GenericAppenderFactory(table.schema()).newAppender(
+    FileAppender<Record> appender = new GenericAppenderFactory(table.schema(), spec).newAppender(
         Files.localOutput(file), format);
     try (FileAppender<Record> fileAppender = appender) {
       fileAppender.addAll(records);

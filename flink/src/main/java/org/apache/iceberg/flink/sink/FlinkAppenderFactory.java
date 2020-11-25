@@ -17,99 +17,93 @@
  * under the License.
  */
 
-package org.apache.iceberg.data;
+package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.util.Map;
+import java.util.function.Function;
+import org.apache.avro.io.DatumWriter;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.avro.DataWriter;
-import org.apache.iceberg.data.orc.GenericOrcWriter;
-import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.data.FlinkAvroWriter;
+import org.apache.iceberg.flink.data.FlinkOrcWriter;
+import org.apache.iceberg.flink.data.FlinkParquetWriters;
+import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-/**
- * Factory to create a new {@link FileAppender} to write {@link Record}s.
- */
-public class GenericAppenderFactory implements FileAppenderFactory<Record> {
-
+public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Serializable {
   private final Schema schema;
+  private final RowType flinkSchema;
+  private final Map<String, String> props;
   private final PartitionSpec spec;
   private final int[] equalityFieldIds;
   private final Schema eqDeleteRowSchema;
   private final Schema posDeleteRowSchema;
-  private final Map<String, String> config = Maps.newHashMap();
 
-  public GenericAppenderFactory(Schema schema, PartitionSpec spec) {
-    this(schema, spec, null, schema, null);
+  public FlinkAppenderFactory(Schema schema, RowType flinkSchema, Map<String, String> props, PartitionSpec spec) {
+    this(schema, flinkSchema, props, spec, null, schema, null);
   }
 
-  public GenericAppenderFactory(Schema schema, PartitionSpec spec,
-                                int[] equalityFieldIds,
-                                Schema eqDeleteRowSchema,
-                                Schema posDeleteRowSchema) {
+  public FlinkAppenderFactory(Schema schema, RowType flinkSchema, Map<String, String> props,
+                              PartitionSpec spec, int[] equalityFieldIds,
+                              Schema eqDeleteRowSchema, Schema posDeleteRowSchema) {
     this.schema = schema;
+    this.flinkSchema = flinkSchema;
+    this.props = props;
     this.spec = spec;
     this.equalityFieldIds = equalityFieldIds;
     this.eqDeleteRowSchema = eqDeleteRowSchema;
     this.posDeleteRowSchema = posDeleteRowSchema;
   }
 
-  public GenericAppenderFactory set(String property, String value) {
-    config.put(property, value);
-    return this;
-  }
-
-  public GenericAppenderFactory setAll(Map<String, String> properties) {
-    config.putAll(properties);
-    return this;
-  }
-
   @Override
-  public FileAppender<Record> newAppender(OutputFile outputFile, FileFormat fileFormat) {
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
+  public FileAppender<RowData> newAppender(OutputFile outputFile, FileFormat format) {
+    MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
     try {
-      switch (fileFormat) {
+      switch (format) {
         case AVRO:
           return Avro.write(outputFile)
+              .createWriterFunc(ignore -> new FlinkAvroWriter(flinkSchema))
+              .setAll(props)
               .schema(schema)
-              .createWriterFunc(DataWriter::create)
-              .setAll(config)
-              .overwrite()
-              .build();
-
-        case PARQUET:
-          return Parquet.write(outputFile)
-              .schema(schema)
-              .createWriterFunc(GenericParquetWriter::buildWriter)
-              .setAll(config)
-              .metricsConfig(metricsConfig)
               .overwrite()
               .build();
 
         case ORC:
           return ORC.write(outputFile)
+              .createWriterFunc((iSchema, typDesc) -> FlinkOrcWriter.buildWriter(flinkSchema, iSchema))
+              .setAll(props)
               .schema(schema)
-              .createWriterFunc(GenericOrcWriter::buildWriter)
-              .setAll(config)
+              .overwrite()
+              .build();
+
+        case PARQUET:
+          return Parquet.write(outputFile)
+              .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(flinkSchema, msgType))
+              .setAll(props)
+              .metricsConfig(metricsConfig)
+              .schema(schema)
               .overwrite()
               .build();
 
         default:
-          throw new UnsupportedOperationException("Cannot write format: " + fileFormat);
+          throw new UnsupportedOperationException("Cannot write unknown file format: " + format);
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
@@ -117,41 +111,40 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   }
 
   @Override
-  public org.apache.iceberg.io.DataWriter<Record> newDataWriter(EncryptedOutputFile file, FileFormat format,
-                                                                StructLike partition) {
-    return new org.apache.iceberg.io.DataWriter<>(
+  public DataWriter<RowData> newDataWriter(EncryptedOutputFile file, FileFormat format, StructLike partition) {
+    return new DataWriter<>(
         newAppender(file.encryptingOutputFile(), format), format,
         file.encryptingOutputFile().location(), spec, partition, file.keyMetadata());
   }
 
   @Override
-  public EqualityDeleteWriter<Record> newEqDeleteWriter(EncryptedOutputFile file, FileFormat format,
-                                                        StructLike partition) {
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
+  public EqualityDeleteWriter<RowData> newEqDeleteWriter(EncryptedOutputFile outputFile, FileFormat format,
+                                                         StructLike partition) {
+    MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
     try {
       switch (format) {
         case AVRO:
-          return Avro.writeDeletes(file.encryptingOutputFile())
-              .createWriterFunc(DataWriter::create)
+          return Avro.writeDeletes(outputFile.encryptingOutputFile())
+              .createWriterFunc(ignore -> new FlinkAvroWriter(flinkSchema))
               .withPartition(partition)
               .overwrite()
-              .setAll(config)
+              .setAll(props)
               .rowSchema(eqDeleteRowSchema)
               .withSpec(spec)
-              .withKeyMetadata(file.keyMetadata())
+              .withKeyMetadata(outputFile.keyMetadata())
               .equalityFieldIds(equalityFieldIds)
               .buildEqualityWriter();
 
         case PARQUET:
-          return Parquet.writeDeletes(file.encryptingOutputFile())
-              .createWriterFunc(GenericParquetWriter::buildWriter)
+          return Parquet.writeDeletes(outputFile.encryptingOutputFile())
+              .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(flinkSchema, msgType))
               .withPartition(partition)
               .overwrite()
-              .setAll(config)
+              .setAll(props)
               .metricsConfig(metricsConfig)
               .rowSchema(eqDeleteRowSchema)
               .withSpec(spec)
-              .withKeyMetadata(file.keyMetadata())
+              .withKeyMetadata(outputFile.keyMetadata())
               .equalityFieldIds(equalityFieldIds)
               .buildEqualityWriter();
 
@@ -164,32 +157,37 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   }
 
   @Override
-  public PositionDeleteWriter<Record> newPosDeleteWriter(EncryptedOutputFile file, FileFormat format,
-                                                         StructLike partition) {
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
+  public PositionDeleteWriter<RowData> newPosDeleteWriter(EncryptedOutputFile outputFile, FileFormat format,
+                                                          StructLike partition) {
+    MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
     try {
       switch (format) {
         case AVRO:
-          return Avro.writeDeletes(file.encryptingOutputFile())
-              .createWriterFunc(DataWriter::create)
+          Function<org.apache.avro.Schema, DatumWriter<?>> writeFunc = null;
+          if (posDeleteRowSchema != null) {
+            writeFunc = ignore -> new FlinkAvroWriter(FlinkSchemaUtil.convert(posDeleteRowSchema));
+          }
+
+          return Avro.writeDeletes(outputFile.encryptingOutputFile())
+              .createWriterFunc(writeFunc)
               .withPartition(partition)
               .overwrite()
-              .setAll(config)
+              .setAll(props)
               .rowSchema(posDeleteRowSchema)
               .withSpec(spec)
-              .withKeyMetadata(file.keyMetadata())
+              .withKeyMetadata(outputFile.keyMetadata())
               .buildPositionWriter();
 
         case PARQUET:
-          return Parquet.writeDeletes(file.encryptingOutputFile())
-              .createWriterFunc(GenericParquetWriter::buildWriter)
+          return Parquet.writeDeletes(outputFile.encryptingOutputFile())
+              .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(flinkSchema, msgType))
               .withPartition(partition)
               .overwrite()
-              .setAll(config)
+              .setAll(props)
               .metricsConfig(metricsConfig)
               .rowSchema(posDeleteRowSchema)
               .withSpec(spec)
-              .withKeyMetadata(file.keyMetadata())
+              .withKeyMetadata(outputFile.keyMetadata())
               .buildPositionWriter();
 
         default:

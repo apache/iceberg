@@ -116,8 +116,8 @@ public class TestSplitScan {
     File file = temp.newFile();
     Assert.assertTrue(file.delete());
 
-    GenericAppenderFactory factory = new GenericAppenderFactory(SCHEMA).set(
-        TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, String.valueOf(SPLIT_SIZE));
+    GenericAppenderFactory factory = new GenericAppenderFactory(SCHEMA, PartitionSpec.unpartitioned())
+        .set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, String.valueOf(SPLIT_SIZE));
     try (FileAppender<Record> appender = factory.newAppender(Files.localOutput(file), fileFormat)) {
       appender.addAll(records);
     }

@@ -106,8 +106,8 @@ public abstract class TestSparkReadProjection extends TestReadProjection {
       // When tables are created, the column ids are reassigned.
       Schema tableSchema = table.schema();
 
-      try (FileAppender<Record> writer = new GenericAppenderFactory(tableSchema).newAppender(
-          localOutput(testFile), format)) {
+      try (FileAppender<Record> writer = new GenericAppenderFactory(tableSchema, table.spec())
+          .newAppender(localOutput(testFile), format)) {
         writer.add(record);
       }
 
