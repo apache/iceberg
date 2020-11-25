@@ -29,7 +29,7 @@ interface CreateAction extends Action<Long> {
    * @param properties a map of properties to be included
    * @return this for chaining
    */
-  CreateAction set(Map<String, String> properties);
+  CreateAction setAll(Map<String, String> properties);
 
   /**
    * Adds an additional property to the newly created Iceberg Table. Any properties

@@ -66,7 +66,6 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
   private static final String NAMESPACE = "default";
 
-  // Only valid for IcebergV2Catalog - Hadoop Catalog does not support Staged Tables
   @Parameterized.Parameters(name = "Catalog Name {0} - Options {2}")
   public static Object[][] parameters() {
     return new Object[][] {
