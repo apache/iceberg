@@ -19,11 +19,12 @@
 
 package org.apache.iceberg.flink;
 
-import java.util.HashMap;
 import java.util.List;
 import org.apache.flink.table.catalog.CatalogPartitionSpec;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
+import org.apache.flink.table.catalog.exceptions.TableNotPartitionedException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.After;
 import org.junit.Assert;
@@ -53,24 +54,22 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
     super.clean();
   }
 
-  @Test
-  public void testListPartitionsEmpty() throws TableNotExistException {
-    sql("CREATE TABLE %s (id int, data varchar)", tableName);
-    sql("insert into %s select 1,'a'", tableName);
+  @Test(expected = TableNotPartitionedException.class)
+  public void testListPartitionsEmpty() throws TableNotExistException, TableNotPartitionedException {
+    sql("CREATE TABLE %s (id INT, data VARCHAR)", tableName);
+    sql("INSERT INTO %s SELECT 1,'a'", tableName);
 
     ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
     FlinkCatalog flinkCatalog = (FlinkCatalog) getTableEnv().getCatalog(catalogName).get();
     flinkCatalog.loadIcebergTable(objectPath).refresh();
     List<CatalogPartitionSpec> list = flinkCatalog.listPartitions(objectPath);
-    Assert.assertEquals("Should have empty partition", 0, list.size());
   }
 
-
   @Test
-  public void testListPartitions() throws TableNotExistException {
-    sql("CREATE TABLE %s (id int, data varchar) PARTITIONED BY (data)", tableName);
-    sql("insert into %s select 1,'a'", tableName);
-    sql("insert into %s select 2,'b'", tableName);
+  public void testListPartitions() throws TableNotExistException, TableNotPartitionedException {
+    sql("CREATE TABLE %s (id INT, data VARCHAR) PARTITIONED BY (data)", tableName);
+    sql("INSERT INTO %s SELECT 1,'a'", tableName);
+    sql("INSERT INTO %s SELECT 2,'b'", tableName);
 
     ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
     FlinkCatalog flinkCatalog = (FlinkCatalog) getTableEnv().getCatalog(catalogName).get();
@@ -79,16 +78,10 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
     Assert.assertEquals("Should have 2 partition", 2, list.size());
 
     List<CatalogPartitionSpec> expected = Lists.newArrayList();
-    CatalogPartitionSpec partitionSpec1 = new CatalogPartitionSpec(new HashMap<String, String>() {{
-        put("data", "a");
-      }}
-    );
-    CatalogPartitionSpec partitionSpec2 = new CatalogPartitionSpec(new HashMap<String, String>() {{
-        put("data", "b");
-      }}
-    );
+    CatalogPartitionSpec partitionSpec1 = new CatalogPartitionSpec(ImmutableMap.of("data", "a"));
+    CatalogPartitionSpec partitionSpec2 = new CatalogPartitionSpec(ImmutableMap.of("data", "b"));
     expected.add(partitionSpec1);
     expected.add(partitionSpec2);
-    Assert.assertEquals("Should produce the expected record", list, expected);
+    Assert.assertEquals("Should produce the expected catalog partition specs.", list, expected);
   }
 }

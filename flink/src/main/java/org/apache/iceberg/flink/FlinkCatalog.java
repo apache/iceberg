@@ -21,7 +21,6 @@ package org.apache.iceberg.flink;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +46,7 @@ import org.apache.flink.table.catalog.exceptions.DatabaseNotExistException;
 import org.apache.flink.table.catalog.exceptions.FunctionNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
+import org.apache.flink.table.catalog.exceptions.TableNotPartitionedException;
 import org.apache.flink.table.catalog.stats.CatalogColumnStatistics;
 import org.apache.flink.table.catalog.stats.CatalogTableStatistics;
 import org.apache.flink.table.expressions.Expression;
@@ -623,8 +623,12 @@ public class FlinkCatalog extends AbstractCatalog {
 
   @Override
   public List<CatalogPartitionSpec> listPartitions(ObjectPath tablePath)
-      throws CatalogException, TableNotExistException {
+      throws TableNotExistException, TableNotPartitionedException, CatalogException {
     Table table = loadIcebergTable(tablePath);
+
+    if (table.spec().isUnpartitioned()) {
+      throw new TableNotPartitionedException(icebergCatalog.name(), tablePath);
+    }
     Set<CatalogPartitionSpec> set = Sets.newHashSet();
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       for (DataFile dataFile : CloseableIterable.transform(tasks, FileScanTask::file)) {
@@ -634,13 +638,10 @@ public class FlinkCatalog extends AbstractCatalog {
         for (int i = 0; i < structLike.size(); i++) {
           map.put(spec.fields().get(i).name(), String.valueOf(structLike.get(i, Object.class)));
         }
-        // if the table is unpartitioned table, do not add it to set
-        if (map.size() > 0) {
-          set.add(new CatalogPartitionSpec(map));
-        }
+        set.add(new CatalogPartitionSpec(map));
       }
     } catch (IOException e) {
-      throw new UncheckedIOException(e);
+      throw new CatalogException(String.format("Failed to list partitions of table %s", tablePath), e);
     }
     return Lists.newArrayList(set);
   }
