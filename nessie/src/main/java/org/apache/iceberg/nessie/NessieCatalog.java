@@ -25,13 +25,17 @@ import com.dremio.nessie.client.NessieConfigConstants;
 import com.dremio.nessie.error.BaseNessieClientServerException;
 import com.dremio.nessie.error.NessieConflictException;
 import com.dremio.nessie.error.NessieNotFoundException;
+import com.dremio.nessie.model.CommitMeta;
 import com.dremio.nessie.model.Contents;
+import com.dremio.nessie.model.Hash;
 import com.dremio.nessie.model.IcebergTable;
 import com.dremio.nessie.model.ImmutableDelete;
+import com.dremio.nessie.model.ImmutableHash;
 import com.dremio.nessie.model.ImmutableOperations;
 import com.dremio.nessie.model.ImmutablePut;
 import com.dremio.nessie.model.Operations;
 import com.dremio.nessie.model.Reference;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -70,7 +74,7 @@ import org.slf4j.LoggerFactory;
  * </p>
  */
 public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable, SupportsNamespaces, Configurable {
-  private static final Logger logger = LoggerFactory.getLogger(NessieCatalog.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(NessieCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
   private NessieClient client;
   private String warehouseLocation;
@@ -114,7 +118,10 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
     TableReference pti = TableReference.parse(tableIdentifier);
     UpdateableReference newReference = this.reference;
-    if (pti.reference() != null) {
+    if (pti.timestamp() != null) {
+      newReference = loadReferenceAtTime(pti.reference() == null ? this.reference.getName() : pti.reference(),
+          pti.timestamp());
+    } else if (pti.reference() != null) {
       newReference = loadReference(pti.reference());
     }
     return new NessieTableOperations(NessieUtil.toKey(pti.tableIdentifier()), newReference, client, fileIO);
@@ -143,22 +150,21 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     }
 
     // We try to drop the table. Simple retry after ref update.
-    boolean threw = true;
     try {
       Tasks.foreach(identifier)
            .retry(5)
            .stopRetryOn(NessieNotFoundException.class)
            .throwFailureWhenFinished()
            .run(this::dropTableInner, BaseNessieClientServerException.class);
-      threw = false;
+      return true;
     } catch (NessieConflictException e) {
-      logger.error("Cannot drop table: failed after retry (update ref and retry)", e);
+      LOGGER.error("Cannot drop table: failed after retry (update ref and retry)", e);
     } catch (NessieNotFoundException e) {
-      logger.error("Cannot drop table: ref is no longer valid.", e);
+      LOGGER.error("Cannot drop table: ref is no longer valid.", e);
     } catch (BaseNessieClientServerException e) {
-      logger.error("Cannot drop table: unknown error", e);
+      LOGGER.error("Cannot drop table: unknown error", e);
     }
-    return !threw;
+    return false;
   }
 
   @Override
@@ -308,6 +314,36 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     }
   }
 
+  private UpdateableReference loadReferenceAtTime(String requestedRef, Instant timestamp) {
+    try {
+      Reference ref = requestedRef == null ? client.getTreeApi().getDefaultBranch()
+          : client.getTreeApi().getReferenceByName(requestedRef);
+      if (ref instanceof Hash) {
+        LOGGER.warn("Cannot specify a hash {} and timestamp {} together. " +
+            "The timestamp is redundant and has been ignored", requestedRef, timestamp);
+        return new UpdateableReference(ref, client.getTreeApi());
+      }
+      List<CommitMeta> ops = client.getTreeApi().getCommitLog(ref.getName()).getOperations();
+      for (CommitMeta info : ops) {
+        if (info.getCommitTime() != null && Instant.ofEpochMilli(info.getCommitTime()).isBefore(timestamp)) {
+          return new UpdateableReference(ImmutableHash.builder().name(info.getHash()).build(), client.getTreeApi());
+        }
+      }
+      throw new IllegalArgumentException(String.format("Nessie ref '%s' does not exist at timestamp '%s'. " +
+          "The timestamp is before the first commit on this branch, resulting in an empty repo.",
+          requestedRef,
+          timestamp));
+    } catch (NessieNotFoundException ex) {
+      if (requestedRef != null) {
+        throw new IllegalArgumentException(String.format("Nessie ref '%s' does not exist. " +
+            "This ref must exist before creating a NessieCatalog.", requestedRef), ex);
+      }
+
+      throw new IllegalArgumentException(String.format("Nessie does not have an existing default branch." +
+              "Either configure an alternative ref via %s or create the default branch on the server.",
+          NessieClient.CONF_NESSIE_REF), ex);
+    }
+  }
 
   public void dropTableInner(TableIdentifier identifier) throws NessieConflictException, NessieNotFoundException {
     try {

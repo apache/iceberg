@@ -20,10 +20,16 @@
 package org.apache.iceberg.nessie;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.TemporalQuery;
 import org.apache.iceberg.catalog.TableIdentifier;
 
 public class TableReference {
-
+  private static final ZoneId UTC = ZoneId.of("UTC");
   private final TableIdentifier tableIdentifier;
   private final Instant timestamp;
   private final String reference;
@@ -72,8 +78,14 @@ public class TableReference {
     }
 
     if (path.contains("@") && path.contains("#")) {
-      throw new IllegalArgumentException("Invalid table name:" +
-          " # is not allowed (reference by timestamp is not supported)");
+      String[] tableRef = path.split("@");
+      if (tableRef[0].contains("#")) {
+        throw new IllegalArgumentException("Invalid table name:" +
+            " # is not allowed before @. Correct format is table@ref#timestamp");
+      }
+      TableIdentifier identifier = TableIdentifier.parse(tableRef[0]);
+      String[] timestampRef = tableRef[1].split("#");
+      return new TableReference(identifier, parseTimestamp(timestampRef[1]), timestampRef[0]);
     }
 
     if (path.contains("@")) {
@@ -83,12 +95,49 @@ public class TableReference {
     }
 
     if (path.contains("#")) {
-      throw new IllegalArgumentException("Invalid table name:" +
-          " # is not allowed (reference by timestamp is not supported)");
+      String[] tableTimestamp = path.split("#");
+      TableIdentifier identifier = TableIdentifier.parse(tableTimestamp[0]);
+      return new TableReference(identifier, parseTimestamp(tableTimestamp[1]), null);
     }
 
     TableIdentifier identifier = TableIdentifier.parse(path);
 
     return new TableReference(identifier, null, null);
   }
+
+  private enum FormatOptions {
+    DATE_TIME(DateTimeFormatter.ISO_DATE_TIME, Instant::from),
+    LOCAL_DATE_TIME(DateTimeFormatter.ISO_LOCAL_DATE_TIME, t -> LocalDateTime.from(t).atZone(UTC).toInstant()),
+    LOCAL_DATE(DateTimeFormatter.ISO_LOCAL_DATE, t -> LocalDate.from(t).atStartOfDay(UTC).toInstant());
+
+    private final DateTimeFormatter formatter;
+    private final TemporalQuery<Instant> converter;
+
+    FormatOptions(DateTimeFormatter formatter, TemporalQuery<Instant> converter) {
+      this.formatter = formatter;
+      this.converter = converter;
+    }
+
+    public Instant convert(String timestampStr) {
+      try {
+        return formatter.parse(timestampStr, converter);
+      } catch (DateTimeParseException e) {
+        return null;
+      }
+    }
+  }
+
+  private static Instant parseTimestamp(String timestamp) {
+    Instant parsed;
+    for (FormatOptions options : FormatOptions.values()) {
+      parsed = options.convert(timestamp);
+      if (parsed != null) {
+        return parsed;
+      }
+    }
+    throw new IllegalArgumentException(
+        String.format("Cannot parse timestamp: %s is not a legal format. (Use an ISO 8601 compliant string)", timestamp)
+    );
+  }
+
 }
