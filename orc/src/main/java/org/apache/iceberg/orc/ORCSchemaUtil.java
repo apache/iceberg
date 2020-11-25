@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -80,15 +80,19 @@ public final class ORCSchemaUtil {
   public static final String ICEBERG_LONG_TYPE_ATTRIBUTE = "iceberg.long-type";
   static final String ICEBERG_FIELD_LENGTH = "iceberg.length";
 
-  private static final ImmutableMap<Type.TypeID, TypeDescription.Category> TYPE_MAPPING =
-      ImmutableMap.<Type.TypeID, TypeDescription.Category>builder()
+  private static final ImmutableMultimap<Type.TypeID, TypeDescription.Category> TYPE_MAPPING =
+      ImmutableMultimap.<Type.TypeID, TypeDescription.Category>builder()
           .put(Type.TypeID.BOOLEAN, TypeDescription.Category.BOOLEAN)
+          .put(Type.TypeID.INTEGER, TypeDescription.Category.BYTE)
+          .put(Type.TypeID.INTEGER, TypeDescription.Category.SHORT)
           .put(Type.TypeID.INTEGER, TypeDescription.Category.INT)
           .put(Type.TypeID.LONG, TypeDescription.Category.LONG)
           .put(Type.TypeID.TIME, TypeDescription.Category.LONG)
           .put(Type.TypeID.FLOAT, TypeDescription.Category.FLOAT)
           .put(Type.TypeID.DOUBLE, TypeDescription.Category.DOUBLE)
           .put(Type.TypeID.DATE, TypeDescription.Category.DATE)
+          .put(Type.TypeID.STRING, TypeDescription.Category.CHAR)
+          .put(Type.TypeID.STRING, TypeDescription.Category.VARCHAR)
           .put(Type.TypeID.STRING, TypeDescription.Category.STRING)
           .put(Type.TypeID.UUID, TypeDescription.Category.BINARY)
           .put(Type.TypeID.FIXED, TypeDescription.Category.BINARY)
@@ -374,7 +378,7 @@ public final class ORCSchemaUtil {
           tsType.shouldAdjustToUTC() ? TypeDescription.Category.TIMESTAMP_INSTANT : TypeDescription.Category.TIMESTAMP,
           orcType.getCategory());
     } else {
-      return Objects.equals(TYPE_MAPPING.get(icebergType.typeId()), orcType.getCategory());
+      return TYPE_MAPPING.containsEntry(icebergType.typeId(), orcType.getCategory());
     }
   }
 
