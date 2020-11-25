@@ -623,8 +623,8 @@ public class FlinkCatalog extends AbstractCatalog {
 
   @Override
   public List<CatalogPartitionSpec> listPartitions(ObjectPath tablePath)
-      throws CatalogException {
-    Table table = icebergCatalog.loadTable(toIdentifier(tablePath));
+      throws CatalogException, TableNotExistException {
+    Table table = loadIcebergTable(tablePath);
     Set<CatalogPartitionSpec> set = Sets.newHashSet();
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       for (DataFile dataFile : CloseableIterable.transform(tasks, FileScanTask::file)) {
