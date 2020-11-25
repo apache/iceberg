@@ -62,12 +62,7 @@ public class HiveIcebergSerDe extends AbstractSerDe {
       tableSchema = SchemaParser.fromJson((String) serDeProperties.get(InputFormatConfig.TABLE_SCHEMA));
     } else {
       if (Catalogs.hiveCatalog(configuration)) {
-        tableSchema = hiveSchema(serDeProperties);
-        if (tableSchema == null) {
-          throw new SerDeException("Please provide a valid schema");
-        } else {
-          LOG.info("Using hive schema {}", SchemaParser.toJson(tableSchema));
-        }
+        tableSchema = hiveSchemaOrThrow(serDeProperties, null);
       } else {
         try {
           // always prefer the original table schema if there is one
@@ -75,13 +70,7 @@ public class HiveIcebergSerDe extends AbstractSerDe {
           LOG.info("Using schema from existing table {}", SchemaParser.toJson(tableSchema));
         } catch (Exception e) {
           // If we can not load the table try the provided hive schema
-          tableSchema = hiveSchema(serDeProperties);
-          if (tableSchema == null) {
-            throw new SerDeException("Please provide an existing table or a valid schema", e);
-          } else {
-            LOG.info("Using schema from column specification {} since table load is failed",
-                SchemaParser.toJson(tableSchema), e);
-          }
+          tableSchema = hiveSchemaOrThrow(serDeProperties, e);
         }
       }
     }
@@ -118,7 +107,16 @@ public class HiveIcebergSerDe extends AbstractSerDe {
     return inspector;
   }
 
-  private static Schema hiveSchema(Properties serDeProperties) {
+  /**
+   * Gets the hive schema from the serDeProperties, and throws an exception if it is not provided. In the later case
+   * it adds the previousException as a root cause.
+   * @param serDeProperties The source of the hive schema
+   * @param previousException If we had an exception previously
+   * @return The hive schema parsed from the serDeProperties
+   * @throws SerDeException If there is no schema information in the serDeProperties
+   */
+  private static Schema hiveSchemaOrThrow(Properties serDeProperties, Exception previousException)
+      throws SerDeException {
     // Read the configuration parameters
     String columnNames = serDeProperties.getProperty(serdeConstants.LIST_COLUMNS);
     String columnTypes = serDeProperties.getProperty(serdeConstants.LIST_COLUMN_TYPES);
@@ -126,9 +124,11 @@ public class HiveIcebergSerDe extends AbstractSerDe {
         serDeProperties.getProperty(serdeConstants.COLUMN_NAME_DELIMITER) : String.valueOf(SerDeUtils.COMMA);
     if (columnNames != null && columnTypes != null && columnNameDelimiter != null &&
         !columnNames.isEmpty() && !columnTypes.isEmpty() && !columnNameDelimiter.isEmpty()) {
-      return HiveSchemaUtil.schema(columnNames, columnTypes, columnNameDelimiter);
+      Schema hiveSchema = HiveSchemaUtil.schema(columnNames, columnTypes, columnNameDelimiter);
+      LOG.info("Using hive schema {}", SchemaParser.toJson(hiveSchema));
+      return hiveSchema;
     } else {
-      return null;
+      throw new SerDeException("Please provide an existing table or a valid schema", previousException);
     }
   }
 }
