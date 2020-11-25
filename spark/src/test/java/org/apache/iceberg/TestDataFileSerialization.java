@@ -59,7 +59,8 @@ public class TestDataFileSerialization {
   private static final Schema DATE_SCHEMA = new Schema(
       required(1, "id", Types.LongType.get()),
       optional(2, "data", Types.StringType.get()),
-      required(3, "date", Types.StringType.get()));
+      required(3, "date", Types.StringType.get()),
+      optional(4, "double", Types.DoubleType.get()));
 
   private static final PartitionSpec PARTITION_SPEC = PartitionSpec
       .builderFor(DATE_SCHEMA)
@@ -68,14 +69,17 @@ public class TestDataFileSerialization {
 
   private static final Map<Integer, Long> VALUE_COUNTS = Maps.newHashMap();
   private static final Map<Integer, Long> NULL_VALUE_COUNTS = Maps.newHashMap();
+  private static final Map<Integer, Long> NAN_VALUE_COUNTS = Maps.newHashMap();
   private static final Map<Integer, ByteBuffer> LOWER_BOUNDS = Maps.newHashMap();
   private static final Map<Integer, ByteBuffer> UPPER_BOUNDS = Maps.newHashMap();
 
   static {
     VALUE_COUNTS.put(1, 5L);
     VALUE_COUNTS.put(2, 3L);
+    VALUE_COUNTS.put(4, 2L);
     NULL_VALUE_COUNTS.put(1, 0L);
     NULL_VALUE_COUNTS.put(2, 2L);
+    NAN_VALUE_COUNTS.put(4, 1L);
     LOWER_BOUNDS.put(1, longToBuffer(0L));
     UPPER_BOUNDS.put(1, longToBuffer(4L));
   }
@@ -85,7 +89,8 @@ public class TestDataFileSerialization {
       .withPath("/path/to/data-1.parquet")
       .withFileSizeInBytes(1234)
       .withPartitionPath("date=2018-06-08")
-      .withMetrics(new Metrics(5L, null, VALUE_COUNTS, NULL_VALUE_COUNTS, LOWER_BOUNDS, UPPER_BOUNDS))
+      .withMetrics(new Metrics(
+          5L, null, VALUE_COUNTS, NULL_VALUE_COUNTS, NAN_VALUE_COUNTS, LOWER_BOUNDS, UPPER_BOUNDS))
       .withSplitOffsets(ImmutableList.of(4L))
       .withEncryptionKeyMetadata(ByteBuffer.allocate(4).putInt(34))
       .build();

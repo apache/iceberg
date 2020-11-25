@@ -37,7 +37,7 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
   GenericDeleteFile(int specId, FileContent content, String filePath, FileFormat format, PartitionData partition,
                     long fileSizeInBytes, Metrics metrics, int[] equalityFieldIds, ByteBuffer keyMetadata) {
     super(specId, content, filePath, format, partition, fileSizeInBytes, metrics.recordCount(),
-        metrics.columnSizes(), metrics.valueCounts(), metrics.nullValueCounts(),
+        metrics.columnSizes(), metrics.valueCounts(), metrics.nullValueCounts(), metrics.nanValueCounts(),
         metrics.lowerBounds(), metrics.upperBounds(), null, equalityFieldIds, keyMetadata);
   }
 

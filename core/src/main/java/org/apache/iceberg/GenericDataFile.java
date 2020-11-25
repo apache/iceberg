@@ -38,7 +38,7 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
                   long fileSizeInBytes, Metrics metrics,
                   ByteBuffer keyMetadata, List<Long> splitOffsets) {
     super(specId, FileContent.DATA, filePath, format, partition, fileSizeInBytes, metrics.recordCount(),
-        metrics.columnSizes(), metrics.valueCounts(), metrics.nullValueCounts(),
+        metrics.columnSizes(), metrics.valueCounts(), metrics.nullValueCounts(), metrics.nanValueCounts(),
         metrics.lowerBounds(), metrics.upperBounds(), splitOffsets, null, keyMetadata);
   }
 

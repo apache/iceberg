@@ -42,6 +42,7 @@ public class SparkDataFile implements DataFile {
   private final int columnSizesPosition;
   private final int valueCountsPosition;
   private final int nullValueCountsPosition;
+  private final int nanValueCountsPosition;
   private final int lowerBoundsPosition;
   private final int upperBoundsPosition;
   private final int keyMetadataPosition;
@@ -73,6 +74,7 @@ public class SparkDataFile implements DataFile {
     columnSizesPosition = positions.get("column_sizes");
     valueCountsPosition = positions.get("value_counts");
     nullValueCountsPosition = positions.get("null_value_counts");
+    nanValueCountsPosition = positions.get("nan_value_counts");
     lowerBoundsPosition = positions.get("lower_bounds");
     upperBoundsPosition = positions.get("upper_bounds");
     keyMetadataPosition = positions.get("key_metadata");
@@ -136,6 +138,11 @@ public class SparkDataFile implements DataFile {
   @Override
   public Map<Integer, Long> nullValueCounts() {
     return wrapped.isNullAt(nullValueCountsPosition) ? null : wrapped.getJavaMap(nullValueCountsPosition);
+  }
+
+  @Override
+  public Map<Integer, Long> nanValueCounts() {
+    return wrapped.isNullAt(nanValueCountsPosition) ? null : wrapped.getJavaMap(nanValueCountsPosition);
   }
 
   @Override
