@@ -32,10 +32,13 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+@RunWith(Parameterized.class)
 public abstract class TestMergingMetrics<T> {
 
   // all supported fields, except for UUID which is on deprecation path: see https://github.com/apache/iceberg/pull/1611
@@ -82,6 +85,17 @@ public abstract class TestMergingMetrics<T> {
       MAP_FIELD_2,
       STRUCT_FIELD
   );
+
+  protected final FileFormat fileFormat;
+
+  @Parameterized.Parameters(name = "fileFormat = {0}")
+  public static Object[] parameters() {
+    return new Object[] {FileFormat.PARQUET };
+  }
+
+  public TestMergingMetrics(FileFormat fileFormat) {
+    this.fileFormat = fileFormat;
+  }
 
   protected abstract FileAppender<T> writeAndGetAppender(List<Record> records) throws Exception;
 

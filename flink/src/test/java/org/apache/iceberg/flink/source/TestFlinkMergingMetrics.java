@@ -35,13 +35,17 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class TestFlinkMergingMetrics extends TestMergingMetrics<RowData> {
 
+  public TestFlinkMergingMetrics(FileFormat fileFormat) {
+    super(fileFormat);
+  }
+
   @Override
   protected FileAppender<RowData> writeAndGetAppender(List<Record> records) throws IOException {
     RowType flinkSchema = FlinkSchemaUtil.convert(SCHEMA);
 
     FileAppender<RowData> appender =
         new FlinkAppenderFactory(SCHEMA, flinkSchema, ImmutableMap.of(), PartitionSpec.unpartitioned())
-            .newAppender(org.apache.iceberg.Files.localOutput(temp.newFile()), FileFormat.PARQUET);
+            .newAppender(org.apache.iceberg.Files.localOutput(temp.newFile()), fileFormat);
     try (FileAppender<RowData> fileAppender = appender) {
       records.stream().map(r -> RowDataConverter.convert(SCHEMA, r)).forEach(fileAppender::add);
     }
