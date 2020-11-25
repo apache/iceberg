@@ -156,5 +156,5 @@ df.write
 | target-file-size-bytes | As per table property      | Overrides this table's write.target-file-size-bytes          |
 | check-nullability      | true                       | Sets the nullable check on fields                            |
 | snapshot-property._custom-key_    | null            | Adds an entry with custom-key and corresponding value in the snapshot summary  |
-| partitioned.fanout.enabled       | Table write.partitioned.fanout.enabled        | Overrides this table's write.partitioned.fanout.enabled  |
+| partitioned.fanout.enabled       | false        | Overrides this table's write.partitioned.fanout.enabled  |
 
