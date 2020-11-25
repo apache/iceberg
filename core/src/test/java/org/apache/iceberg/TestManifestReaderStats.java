@@ -24,8 +24,8 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -88,7 +88,7 @@ public class TestManifestReaderStats extends TableTestBase {
   public void testReadEntriesWithFilterAndSelectIncludesFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
-        .select(ImmutableSet.of("file_path"))
+        .select(ImmutableList.of("file_path"))
         .filterRows(Expressions.equal("id", 3))) {
       CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
       ManifestEntry<DataFile> entry = entries.iterator().next();
@@ -100,7 +100,7 @@ public class TestManifestReaderStats extends TableTestBase {
   public void testReadIteratorWithFilterAndSelectDropsStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
-        .select(ImmutableSet.of("file_path"))
+        .select(ImmutableList.of("file_path"))
         .filterRows(Expressions.equal("id", 3))) {
       DataFile entry = reader.iterator().next();
       assertStatsDropped(entry);
@@ -110,7 +110,7 @@ public class TestManifestReaderStats extends TableTestBase {
   public void testReadIteratorWithFilterAndSelectStatsIncludesFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
-        .select(ImmutableSet.of("file_path", "value_counts"))
+        .select(ImmutableList.of("file_path", "value_counts"))
         .filterRows(Expressions.equal("id", 3))) {
       DataFile entry = reader.iterator().next();
       assertFullStats(entry);
@@ -121,7 +121,7 @@ public class TestManifestReaderStats extends TableTestBase {
   public void testReadEntriesWithSelectNotIncludeFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
-        .select(ImmutableSet.of("file_path"))) {
+        .select(ImmutableList.of("file_path"))) {
       CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
       ManifestEntry<DataFile> entry = entries.iterator().next();
       assertNoStats(entry.file());
@@ -131,7 +131,7 @@ public class TestManifestReaderStats extends TableTestBase {
   public void testReadEntriesWithSelectCertainStatNotIncludeFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
-        .select(ImmutableSet.of("file_path", "value_counts"))) {
+        .select(ImmutableList.of("file_path", "value_counts"))) {
       DataFile dataFile = reader.iterator().next();
 
       Assert.assertEquals(-1, dataFile.recordCount());

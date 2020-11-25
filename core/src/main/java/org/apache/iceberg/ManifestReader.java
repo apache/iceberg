@@ -88,7 +88,7 @@ public class ManifestReader<F extends ContentFile<F>>
   private Expression partFilter = alwaysTrue();
   private Expression rowFilter = alwaysTrue();
   private Schema fileProjection = null;
-  private Collection<String> columns = null;
+  private List<String> columns = null;
   private boolean caseSensitive = true;
 
   // lazily initialized
@@ -143,7 +143,7 @@ public class ManifestReader<F extends ContentFile<F>>
     return spec;
   }
 
-  public ManifestReader<F> select(Collection<String> newColumns) {
+  public ManifestReader<F> select(List<String> newColumns) {
     Preconditions.checkState(fileProjection == null,
         "Cannot select columns using both select(String...) and project(Schema)");
     this.columns = newColumns;
@@ -296,7 +296,7 @@ public class ManifestReader<F extends ContentFile<F>>
         Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS).isEmpty();
   }
 
-  static Collection<String> withStatsColumns(Collection<String> columns) {
+  static List<String> withStatsColumns(List<String> columns) {
     if (columns.containsAll(ManifestReader.ALL_COLUMNS)) {
       return columns;
     } else {

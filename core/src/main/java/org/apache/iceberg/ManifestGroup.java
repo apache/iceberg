@@ -164,7 +164,7 @@ class ManifestGroup {
 
     boolean dropStats = ManifestReader.dropStats(dataFilter, columns);
     if (!deleteFiles.isEmpty()) {
-      select(Lists.newArrayList(ManifestReader.withStatsColumns(columns)));
+      select(ManifestReader.withStatsColumns(columns));
     }
 
     Iterable<CloseableIterable<FileScanTask>> tasks = entries((manifest, entries) -> {
