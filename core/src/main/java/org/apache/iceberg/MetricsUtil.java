@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class MetricsUtil {
@@ -29,6 +30,9 @@ public class MetricsUtil {
   private MetricsUtil() {
   }
 
+  /**
+   * Construct mapping relationship between column id to NaN value counts from input metrics and metrics config.
+   */
   public static Map<Integer, Long> getNanValueCounts(
       Stream<FieldMetrics> fieldMetrics, MetricsConfig metricsConfig, Schema inputSchema) {
     if (fieldMetrics == null || inputSchema == null) {
@@ -40,7 +44,13 @@ public class MetricsUtil {
         .collect(Collectors.toMap(FieldMetrics::id, FieldMetrics::nanValueCount));
   }
 
+  /**
+   * Extract MetricsMode for the given field id from metrics config.
+   */
   public static MetricsModes.MetricsMode getMetricsMode(Schema inputSchema, MetricsConfig metricsConfig, int fieldId) {
+    Preconditions.checkNotNull(inputSchema, "inputSchema is required");
+    Preconditions.checkNotNull(metricsConfig, "metricsConfig is required");
+
     String columnName = inputSchema.findColumnName(fieldId);
     return metricsConfig.columnMode(columnName);
   }
