@@ -84,7 +84,7 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
   protected final String[] baseNamespace;
   protected final Catalog validationCatalog;
   protected final SupportsNamespaces validationNamespaceCatalog;
-  private final Map<String, String> config = Maps.newHashMap();
+  protected final Map<String, String> config = Maps.newHashMap();
 
   protected final String flinkDatabase;
   protected final Namespace icebergNamespace;
