@@ -24,6 +24,7 @@ import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.AbstractSerDe;
+import org.apache.hadoop.hive.serde2.ColumnProjectionUtils;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.SerDeStats;
 import org.apache.hadoop.hive.serde2.SerDeUtils;
@@ -55,6 +56,10 @@ public class HiveIcebergSerDe extends AbstractSerDe {
     // executor, but serDeProperties are populated by HiveIcebergStorageHandler.configureInputJobProperties() and
     // the resulting properties are serialized and distributed to the executors
 
+    // temporarily disabling vectorization in Tez, since it doesn't work with projection pruning (fix: TEZ-4248)
+    // TODO: remove this once TEZ-4248 has been released and the Tez dependencies updated here
+    assertNotVectorizedTez(configuration);
+
     Schema tableSchema;
     if (configuration.get(InputFormatConfig.TABLE_SCHEMA) != null) {
       tableSchema = SchemaParser.fromJson(configuration.get(InputFormatConfig.TABLE_SCHEMA));
@@ -71,10 +76,21 @@ public class HiveIcebergSerDe extends AbstractSerDe {
       }
     }
 
+    String[] selectedColumns = ColumnProjectionUtils.getReadColumnNames(configuration);
+    Schema projectedSchema = selectedColumns.length > 0 ? tableSchema.select(selectedColumns) : tableSchema;
+
     try {
-      this.inspector = IcebergObjectInspector.create(tableSchema);
+      this.inspector = IcebergObjectInspector.create(projectedSchema);
     } catch (Exception e) {
       throw new SerDeException(e);
+    }
+  }
+
+  private void assertNotVectorizedTez(Configuration configuration) {
+    if ("tez".equals(configuration.get("hive.execution.engine")) &&
+        "true".equals(configuration.get("hive.vectorized.execution.enabled"))) {
+      throw new UnsupportedOperationException("Vectorized execution on Tez is currently not supported when using " +
+          "Iceberg tables. Please set hive.vectorized.execution.enabled=false and rerun the query.");
     }
   }
 
