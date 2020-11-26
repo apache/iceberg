@@ -25,19 +25,43 @@ import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotPartitionedException;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runners.Parameterized;
+
+import static org.apache.iceberg.flink.FlinkCatalogFactory.CACHE_ENABLED;
 
 public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
 
-  private String tableName = "partition_table";
+  private String tableName = "test_table";
 
-  public TestFlinkCatalogTablePartitions(String catalogName, String[] baseNamespace) {
+  private final FileFormat format;
+
+  @Parameterized.Parameters(name = "catalogName={0}, baseNamespace={1}, format={2}, cacheEnabled={3}")
+  public static Iterable<Object[]> parameters() {
+    List<Object[]> parameters = Lists.newArrayList();
+    for (FileFormat format : new FileFormat[] {FileFormat.ORC, FileFormat.AVRO, FileFormat.PARQUET}) {
+      for (Boolean cacheEnabled : new Boolean[] {true, false}) {
+        for (Object[] catalogParams : FlinkCatalogTestBase.parameters()) {
+          String catalogName = (String) catalogParams[0];
+          String[] baseNamespace = (String[]) catalogParams[1];
+          parameters.add(new Object[] {catalogName, baseNamespace, format, cacheEnabled});
+        }
+      }
+    }
+    return parameters;
+  }
+
+  public TestFlinkCatalogTablePartitions(String catalogName, String[] baseNamespace, FileFormat format,
+                                         boolean cacheEnabled) {
     super(catalogName, baseNamespace);
+    this.format = format;
+    config.put(CACHE_ENABLED, String.valueOf(cacheEnabled));
   }
 
   @Before
@@ -56,26 +80,26 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
   }
 
   @Test
-  public void testListPartitionsWithUnpartitionedTable() throws TableNotExistException, TableNotPartitionedException {
-    sql("CREATE TABLE %s (id INT, data VARCHAR)", tableName);
+  public void testListPartitionsWithUnpartitionedTable() {
+    sql("CREATE TABLE %s (id INT, data VARCHAR) with ('write.format.default'='%s')",
+        tableName, format.name());
     sql("INSERT INTO %s SELECT 1,'a'", tableName);
 
     ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
     FlinkCatalog flinkCatalog = (FlinkCatalog) getTableEnv().getCatalog(catalogName).get();
-    flinkCatalog.loadIcebergTable(objectPath).refresh();
     AssertHelpers.assertThrows("Should not list partitions for unpartitioned table.",
         TableNotPartitionedException.class, () -> flinkCatalog.listPartitions(objectPath));
   }
 
   @Test
   public void testListPartitionsWithPartitionedTable() throws TableNotExistException, TableNotPartitionedException {
-    sql("CREATE TABLE %s (id INT, data VARCHAR) PARTITIONED BY (data)", tableName);
+    sql("CREATE TABLE %s (id INT, data VARCHAR) PARTITIONED BY (data) " +
+        "with ('write.format.default'='%s')", tableName, format.name());
     sql("INSERT INTO %s SELECT 1,'a'", tableName);
     sql("INSERT INTO %s SELECT 2,'b'", tableName);
 
     ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
     FlinkCatalog flinkCatalog = (FlinkCatalog) getTableEnv().getCatalog(catalogName).get();
-    flinkCatalog.loadIcebergTable(objectPath).refresh();
     List<CatalogPartitionSpec> list = flinkCatalog.listPartitions(objectPath);
     Assert.assertEquals("Should have 2 partition", 2, list.size());
 

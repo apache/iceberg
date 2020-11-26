@@ -93,6 +93,7 @@ public class FlinkCatalog extends AbstractCatalog {
   private final String[] baseNamespace;
   private final SupportsNamespaces asNamespaceCatalog;
   private final Closeable closeable;
+  private final boolean cacheEnabled;
 
   // TODO - Update baseNamespace to use Namespace class
   // https://github.com/apache/iceberg/issues/1541
@@ -105,6 +106,7 @@ public class FlinkCatalog extends AbstractCatalog {
     super(catalogName, defaultDatabase);
     this.catalogLoader = catalogLoader;
     this.baseNamespace = baseNamespace;
+    this.cacheEnabled = cacheEnabled;
 
     Catalog originalCatalog = catalogLoader.loadCatalog();
     icebergCatalog = cacheEnabled ? CachingCatalog.wrap(originalCatalog) : originalCatalog;
@@ -308,7 +310,12 @@ public class FlinkCatalog extends AbstractCatalog {
 
   Table loadIcebergTable(ObjectPath tablePath) throws TableNotExistException {
     try {
-      return icebergCatalog.loadTable(toIdentifier(tablePath));
+      Table table = icebergCatalog.loadTable(toIdentifier(tablePath));
+      if (cacheEnabled) {
+        table.refresh();
+      }
+
+      return table;
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new TableNotExistException(getName(), tablePath, e);
     }
