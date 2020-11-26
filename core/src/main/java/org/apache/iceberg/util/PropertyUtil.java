@@ -35,6 +35,15 @@ public class PropertyUtil {
     return defaultValue;
   }
 
+  public static double propertyAsDouble(Map<String, String> properties,
+      String property, double defaultValue) {
+    String value = properties.get(property);
+    if (value != null) {
+      return Double.parseDouble(properties.get(property));
+    }
+    return defaultValue;
+  }
+
   public static int propertyAsInt(Map<String, String> properties,
                                   String property, int defaultValue) {
     String value = properties.get(property);

@@ -57,7 +57,7 @@ class S3URI {
     Preconditions.checkNotNull(location, "Location cannot be null.");
 
     this.location = location;
-    String [] schemeSplit = location.split(SCHEME_DELIM);
+    String [] schemeSplit = location.split(SCHEME_DELIM, -1);
     ValidationException.check(schemeSplit.length == 2, "Invalid S3 URI: %s", location);
 
     String scheme = schemeSplit[0];
@@ -70,27 +70,27 @@ class S3URI {
 
     // Strip query and fragment if they exist
     String path = authoritySplit[1];
-    path = path.split(QUERY_DELIM)[0];
-    path = path.split(FRAGMENT_DELIM)[0];
+    path = path.split(QUERY_DELIM, -1)[0];
+    path = path.split(FRAGMENT_DELIM, -1)[0];
     this.key = path;
   }
 
   /**
-   * @return S3 bucket
+   * Returns S3 bucket name.
    */
   public String bucket() {
     return bucket;
   }
 
   /**
-   * @return S3 key
+   * Returns S3 object key name.
    */
   public String key() {
     return key;
   }
 
-  /*
-   * @return original, unmodified location
+  /**
+   * Returns original, unmodified S3 URI location.
    */
   public String location() {
     return location;

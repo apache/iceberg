@@ -134,4 +134,7 @@ public class TableProperties {
 
   public static final String ENGINE_HIVE_ENABLED = "engine.hive.enabled";
   public static final boolean ENGINE_HIVE_ENABLED_DEFAULT = false;
+
+  public static final String GC_ENABLED = "gc.enabled";
+  public static final boolean GC_ENABLED_DEFAULT = true;
 }

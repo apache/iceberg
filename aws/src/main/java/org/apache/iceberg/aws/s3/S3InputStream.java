@@ -32,7 +32,6 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 
 class S3InputStream extends SeekableInputStream {
   private static final Logger LOG = LoggerFactory.getLogger(S3InputStream.class);
@@ -139,11 +138,7 @@ class S3InputStream extends SeekableInputStream {
         .key(location.key())
         .range(String.format("bytes=%s-", pos));
 
-    if (AwsProperties.S3FILEIO_SSE_TYPE_CUSTOM.equals(awsProperties.s3FileIoSseType())) {
-      requestBuilder.sseCustomerAlgorithm(ServerSideEncryption.AES256.name());
-      requestBuilder.sseCustomerKey(awsProperties.s3FileIoSseKey());
-      requestBuilder.sseCustomerKeyMD5(awsProperties.s3FileIoSseMd5());
-    }
+    S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
 
     closeStream();
     stream = s3.getObject(requestBuilder.build(), ResponseTransformer.toInputStream());

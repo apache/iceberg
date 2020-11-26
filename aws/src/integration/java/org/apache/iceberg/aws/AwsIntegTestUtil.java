@@ -19,7 +19,12 @@
 
 package org.apache.iceberg.aws;
 
+import java.util.List;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.services.glue.GlueClient;
+import software.amazon.awssdk.services.glue.model.DeleteDatabaseRequest;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.Delete;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
@@ -28,6 +33,8 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 
 public class AwsIntegTestUtil {
+
+  private static final Logger LOG = LoggerFactory.getLogger(AwsIntegTestUtil.class);
 
   private AwsIntegTestUtil() {
   }
@@ -52,6 +59,17 @@ public class AwsIntegTestUtil {
                 .map(obj -> ObjectIdentifier.builder().key(obj.key()).build())
                 .collect(Collectors.toList())
         ).build()).build());
+      }
+    }
+  }
+
+  public static void cleanGlueCatalog(GlueClient glue, List<String> namespaces) {
+    for (String namespace : namespaces) {
+      try {
+        // delete db also delete tables
+        glue.deleteDatabase(DeleteDatabaseRequest.builder().name(namespace).build());
+      } catch (Exception e) {
+        LOG.error("Cannot delete namespace {}", namespace, e);
       }
     }
   }

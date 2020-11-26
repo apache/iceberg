@@ -34,8 +34,10 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -52,6 +54,9 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.util.SerializableConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.iceberg.TableProperties.GC_ENABLED;
+import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 /**
  * An action that removes orphan metadata and data files by listing a given location and comparing
@@ -103,6 +108,10 @@ public class RemoveOrphanFilesAction extends BaseSparkAction<List<String>> {
     this.table = table;
     this.ops = ((HasTableOperations) table).operations();
     this.location = table.location();
+
+    ValidationException.check(
+        PropertyUtil.propertyAsBoolean(table.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
+        "Cannot remove orphan files: GC is disabled (deleting files may corrupt other tables)");
   }
 
   @Override

@@ -53,7 +53,7 @@ public class ManifestReader<F extends ContentFile<F>>
     extends CloseableGroup implements CloseableIterable<F> {
   static final ImmutableList<String> ALL_COLUMNS = ImmutableList.of("*");
   static final Set<String> STATS_COLUMNS = Sets.newHashSet(
-      "value_counts", "null_value_counts", "lower_bounds", "upper_bounds");
+      "value_counts", "null_value_counts", "nan_value_counts", "lower_bounds", "upper_bounds");
 
   protected enum FileType {
     DATA_FILES(GenericDataFile.class.getName()),

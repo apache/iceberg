@@ -20,6 +20,7 @@
 package org.apache.iceberg.aws;
 
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
+import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
@@ -44,6 +45,12 @@ public class AwsClientUtil {
 
   public static KmsClient defaultKmsClient() {
     return KmsClient.builder()
+        .httpClient(UrlConnectionHttpClient.create())
+        .build();
+  }
+
+  public static GlueClient defaultGlueClient() {
+    return GlueClient.builder()
         .httpClient(UrlConnectionHttpClient.create())
         .build();
   }

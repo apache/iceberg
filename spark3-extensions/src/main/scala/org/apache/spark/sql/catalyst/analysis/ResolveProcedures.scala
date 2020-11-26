@@ -50,8 +50,9 @@ case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with
 
     // optional params should be at the end
     procedure.parameters.sliding(2).foreach {
-      case Array(previousParam, currentParam) if previousParam.required && !currentParam.required =>
-        throw new AnalysisException("Optional parameters must be after required ones")
+      case Array(previousParam, currentParam) if !previousParam.required && currentParam.required =>
+        throw new AnalysisException(
+          s"Optional parameters must be after required ones but $currentParam is after $previousParam")
       case _ =>
     }
   }

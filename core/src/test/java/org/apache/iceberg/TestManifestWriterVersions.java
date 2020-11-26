@@ -45,7 +45,8 @@ public class TestManifestWriterVersions {
       required(1, "id", Types.LongType.get()),
       required(2, "timestamp", Types.TimestampType.withZone()),
       required(3, "category", Types.StringType.get()),
-      required(4, "data", Types.StringType.get()));
+      required(4, "data", Types.StringType.get()),
+      required(5, "double", Types.DoubleType.get()));
 
   private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
       .identity("category")
@@ -60,9 +61,10 @@ public class TestManifestWriterVersions {
   private static final PartitionData PARTITION = DataFiles.data(SPEC, "category=cheesy/timestamp_hour=10/id_bucket=3");
   private static final Metrics METRICS = new Metrics(
       1587L,
-      ImmutableMap.of(1, 15L, 2, 122L, 3, 4021L, 4, 9411L), // sizes
-      ImmutableMap.of(1, 100L, 2, 100L, 3, 100L, 4, 100L),  // value counts
-      ImmutableMap.of(1, 0L, 2, 0L, 3, 0L, 4, 0L),          // null value counts
+      ImmutableMap.of(1, 15L, 2, 122L, 3, 4021L, 4, 9411L, 5, 15L), // sizes
+      ImmutableMap.of(1, 100L, 2, 100L, 3, 100L, 4, 100L, 5, 100L),  // value counts
+      ImmutableMap.of(1, 0L, 2, 0L, 3, 0L, 4, 0L, 5, 0L), // null value counts
+      ImmutableMap.of(5, 10L), // nan value counts
       ImmutableMap.of(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1)),  // lower bounds
       ImmutableMap.of(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1))); // upper bounds
   private static final List<Long> OFFSETS = ImmutableList.of(4L);
@@ -104,7 +106,7 @@ public class TestManifestWriterVersions {
 
   @Test
   public void testV2Write() throws IOException {
-    ManifestFile manifest = writeManifest(1);
+    ManifestFile manifest = writeManifest(2);
     checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
     Assert.assertEquals("Content", ManifestContent.DATA, manifest.content());
     checkEntry(readManifest(manifest), ManifestWriter.UNASSIGNED_SEQ, FileContent.DATA);
@@ -196,6 +198,7 @@ public class TestManifestWriterVersions {
     Assert.assertEquals("Column sizes", METRICS.columnSizes(), dataFile.columnSizes());
     Assert.assertEquals("Value counts", METRICS.valueCounts(), dataFile.valueCounts());
     Assert.assertEquals("Null value counts", METRICS.nullValueCounts(), dataFile.nullValueCounts());
+    Assert.assertEquals("NaN value counts", METRICS.nanValueCounts(), dataFile.nanValueCounts());
     Assert.assertEquals("Lower bounds", METRICS.lowerBounds(), dataFile.lowerBounds());
     Assert.assertEquals("Upper bounds", METRICS.upperBounds(), dataFile.upperBounds());
     if (dataFile.content() == FileContent.EQUALITY_DELETES) {

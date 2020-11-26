@@ -22,6 +22,9 @@ package org.apache.spark.sql.connector.iceberg.catalog;
 import java.util.Objects;
 import org.apache.spark.sql.types.DataType;
 
+/**
+ * A {@link ProcedureParameter} implementation.
+ */
 class ProcedureParameterImpl implements ProcedureParameter {
   private final String name;
   private final DataType dataType;
@@ -65,5 +68,10 @@ class ProcedureParameterImpl implements ProcedureParameter {
   @Override
   public int hashCode() {
     return Objects.hash(name, dataType, required);
+  }
+
+  @Override
+  public String toString() {
+    return String.format("ProcedureParameter(name='%s', type=%s, required=%b)", name, dataType, required);
   }
 }

@@ -82,22 +82,23 @@
         <module name="AvoidStarImport"/> <!-- Java Style Guide: No wildcard imports -->
         <module name="AvoidStaticImport"> <!-- Java Style Guide: No static imports -->
             <property name="excludes" value="
+                com.google.common.base.Preconditions.*,
+                com.palantir.logsafe.Preconditions.*,
                 java.util.Collections.*,
                 java.util.stream.Collectors.*,
-                com.palantir.logsafe.Preconditions.*,
-                com.google.common.base.Preconditions.*,
                 org.apache.commons.lang3.Validate.*,
                 org.apache.iceberg.expressions.Expressions.*,
                 org.apache.iceberg.expressions.Expression.Operation.*,
+                org.apache.iceberg.NullOrder.*,
+                org.apache.iceberg.MetadataTableType.*,
+                org.apache.iceberg.SortDirection.*,
+                org.apache.iceberg.TableProperties.*,
+                org.apache.iceberg.types.Type.*,
+                org.apache.iceberg.types.Types.NestedField.*,
                 org.apache.parquet.schema.OriginalType.*,
                 org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.*,
-                org.apache.iceberg.types.Types.NestedField.*,
-                org.apache.iceberg.TableProperties.*,
-                org.apache.iceberg.NullOrder.*,
-                org.apache.iceberg.SortDirection.*,
-                org.apache.iceberg.types.Type.*,
-                org.junit.Assert.*,
-                org.apache.spark.sql.functions.*"/>
+                org.apache.spark.sql.functions.*,
+                org.junit.Assert.*"/>
         </module>
         <module name="ClassTypeParameterName"> <!-- Java Style Guide: Type variable names -->
             <property name="format" value="(^[A-Z][0-9]?)$|([A-Z][a-zA-Z0-9]*[T]$)"/>

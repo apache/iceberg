@@ -21,11 +21,14 @@ package org.apache.iceberg.data.orc;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.TimeZone;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DataTest;
@@ -38,9 +41,16 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.orc.OrcFile;
+import org.apache.orc.TypeDescription;
+import org.apache.orc.Writer;
+import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
+import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
+import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestGenericData extends DataTest {
@@ -121,6 +131,45 @@ public class TestGenericData extends DataTest {
     } finally {
       TimeZone.setDefault(currentTz);
     }
+  }
+
+  @Test
+  public void writeAndValidateExternalData() throws IOException {
+    File testFile = temp.newFile();
+    Assert.assertTrue("Delete should succeed", testFile.delete());
+
+    Configuration conf = new Configuration();
+    TypeDescription writerSchema = TypeDescription.fromString("struct<a:tinyint,b:smallint,c:char(10),d:varchar(10)>");
+    Writer writer = OrcFile.createWriter(new Path(testFile.toString()),
+        OrcFile.writerOptions(conf)
+            .setSchema(writerSchema));
+    VectorizedRowBatch batch = writerSchema.createRowBatch();
+    batch.ensureSize(1);
+    batch.size = 1;
+    ((LongColumnVector) batch.cols[0]).vector[0] = 1;
+    ((LongColumnVector) batch.cols[1]).vector[0] = 123;
+    ((BytesColumnVector) batch.cols[2]).setVal(0, "1".getBytes(StandardCharsets.UTF_8));
+    ((BytesColumnVector) batch.cols[3]).setVal(0, "123".getBytes(StandardCharsets.UTF_8));
+    writer.addRowBatch(batch);
+    writer.close();
+
+    List<Record> rows;
+    Schema readSchema = new Schema(
+        optional(1, "a", Types.IntegerType.get()),
+        optional(2, "b", Types.IntegerType.get()),
+        optional(3, "c", Types.StringType.get()),
+        optional(4, "d", Types.StringType.get())
+    );
+    try (CloseableIterable<Record> reader = ORC.read(Files.localInput(testFile))
+        .project(readSchema)
+        .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(readSchema, fileSchema))
+        .build()) {
+      rows = Lists.newArrayList(reader);
+    }
+    Assert.assertEquals(1, rows.get(0).getField("a"));
+    Assert.assertEquals(123, rows.get(0).getField("b"));
+    Assert.assertEquals("1", rows.get(0).getField("c"));
+    Assert.assertEquals("123", rows.get(0).getField("d"));
   }
 
   private void writeAndValidateRecords(Schema schema, List<Record> expected) throws IOException {
