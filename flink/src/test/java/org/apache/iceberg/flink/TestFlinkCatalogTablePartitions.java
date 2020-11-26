@@ -24,6 +24,7 @@ import org.apache.flink.table.catalog.CatalogPartitionSpec;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotPartitionedException;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.After;
@@ -54,19 +55,20 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
     super.clean();
   }
 
-  @Test(expected = TableNotPartitionedException.class)
-  public void testListPartitionsEmpty() throws TableNotExistException, TableNotPartitionedException {
+  @Test
+  public void testListPartitionsWithUnpartitionedTable() throws TableNotExistException, TableNotPartitionedException {
     sql("CREATE TABLE %s (id INT, data VARCHAR)", tableName);
     sql("INSERT INTO %s SELECT 1,'a'", tableName);
 
     ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
     FlinkCatalog flinkCatalog = (FlinkCatalog) getTableEnv().getCatalog(catalogName).get();
     flinkCatalog.loadIcebergTable(objectPath).refresh();
-    List<CatalogPartitionSpec> list = flinkCatalog.listPartitions(objectPath);
+    AssertHelpers.assertThrows("Should not list partitions for unpartitioned table.",
+        TableNotPartitionedException.class, () -> flinkCatalog.listPartitions(objectPath));
   }
 
   @Test
-  public void testListPartitions() throws TableNotExistException, TableNotPartitionedException {
+  public void testListPartitionsWithPartitionedTable() throws TableNotExistException, TableNotPartitionedException {
     sql("CREATE TABLE %s (id INT, data VARCHAR) PARTITIONED BY (data)", tableName);
     sql("INSERT INTO %s SELECT 1,'a'", tableName);
     sql("INSERT INTO %s SELECT 2,'b'", tableName);

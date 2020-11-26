@@ -629,6 +629,7 @@ public class FlinkCatalog extends AbstractCatalog {
     if (table.spec().isUnpartitioned()) {
       throw new TableNotPartitionedException(icebergCatalog.name(), tablePath);
     }
+
     Set<CatalogPartitionSpec> set = Sets.newHashSet();
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       for (DataFile dataFile : CloseableIterable.transform(tasks, FileScanTask::file)) {
@@ -643,6 +644,7 @@ public class FlinkCatalog extends AbstractCatalog {
     } catch (IOException e) {
       throw new CatalogException(String.format("Failed to list partitions of table %s", tablePath), e);
     }
+
     return Lists.newArrayList(set);
   }
 
