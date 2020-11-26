@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -35,8 +36,11 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveCatalogs;
+import org.apache.iceberg.hive.MetastoreUtil;
+import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestCatalogs;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ObjectArrays;
 import org.junit.Assert;
@@ -70,6 +74,21 @@ abstract class TestTables {
     return tables;
   }
 
+  /**
+   * The location string needed to be provided for CREATE TABLE ... commands,
+   * like "LOCATION 'file:///tmp/warehouse/default/tablename'. Empty ("") if LOCATION is not needed.
+   * @param identifier The table identifier
+   * @return The location string for create table operation
+   */
+  public abstract String locationForCreateTableSQL(TableIdentifier identifier);
+
+  /**
+   * If the {@link Catalogs#LOCATION} is needed for {@link Catalogs#loadTable(Configuration, Properties)} then this
+   * method should provide the location string. It should return <code>null</code> if the location is not needed.
+   * @param identifier The table identifier
+   * @return The location string for loadTable operation
+   */
+  public abstract String loadLocation(TableIdentifier identifier);
 
   private static class CatalogToTables implements Tables {
 
@@ -101,7 +120,8 @@ abstract class TestTables {
     private final String warehouseLocation;
 
     CustomCatalogTestTables(Configuration conf, TemporaryFolder temp) throws IOException {
-      this(conf, temp, temp.newFolder("custom", "warehouse").toString());
+      this(conf, temp, (MetastoreUtil.hive3PresentOnClasspath() ? "file:" : "") +
+          temp.newFolder("custom", "warehouse").toString());
     }
 
     CustomCatalogTestTables(Configuration conf, TemporaryFolder temp, String warehouseLocation) {
@@ -116,6 +136,16 @@ abstract class TestTables {
               TestCatalogs.CustomHadoopCatalog.WAREHOUSE_LOCATION, warehouseLocation
       );
     }
+
+    @Override
+    public String locationForCreateTableSQL(TableIdentifier identifier) {
+      return "LOCATION '" + warehouseLocation + TestTables.tablePath(identifier) + "' ";
+    }
+
+    @Override
+    public String loadLocation(TableIdentifier identifier) {
+      return warehouseLocation + TestTables.tablePath(identifier);
+    }
   }
 
   static class HadoopCatalogTestTables extends TestTables {
@@ -123,7 +153,8 @@ abstract class TestTables {
     private final String warehouseLocation;
 
     HadoopCatalogTestTables(Configuration conf, TemporaryFolder temp) throws IOException {
-      this(conf, temp, temp.newFolder("hadoop", "warehouse").toString());
+      this(conf, temp, (MetastoreUtil.hive3PresentOnClasspath() ? "file:" : "") +
+          temp.newFolder("hadoop", "warehouse").toString());
     }
 
     HadoopCatalogTestTables(Configuration conf, TemporaryFolder temp, String warehouseLocation) {
@@ -137,6 +168,14 @@ abstract class TestTables {
               InputFormatConfig.CATALOG, "hadoop",
               InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION, warehouseLocation
       );
+    }
+
+    public String locationForCreateTableSQL(TableIdentifier identifier) {
+      return "LOCATION '" + warehouseLocation + TestTables.tablePath(identifier) + "' ";
+    }
+
+    public String loadLocation(TableIdentifier identifier) {
+      return null;
     }
   }
 
@@ -160,6 +199,16 @@ abstract class TestTables {
       Assert.assertTrue(location.delete());
       return location.toString();
     }
+
+    @Override
+    public String locationForCreateTableSQL(TableIdentifier identifier) {
+      return "LOCATION '" + temp.getRoot().getPath() + tablePath(identifier) + "' ";
+    }
+
+    @Override
+    public String loadLocation(TableIdentifier identifier) {
+      return temp.getRoot().getPath() + TestTables.tablePath(identifier);
+    }
   }
 
   static class HiveTestTables extends TestTables {
@@ -172,5 +221,18 @@ abstract class TestTables {
     public Map<String, String> properties() {
       return ImmutableMap.of(InputFormatConfig.CATALOG, "hive");
     }
+
+    @Override
+    public String locationForCreateTableSQL(TableIdentifier identifier) {
+      return "";
+    }
+
+    public String loadLocation(TableIdentifier identifier) {
+      return null;
+    }
+  }
+
+  private static String tablePath(TableIdentifier identifier) {
+    return "/" + Joiner.on("/").join(identifier.namespace().levels()) + "/" + identifier.name();
   }
 }
