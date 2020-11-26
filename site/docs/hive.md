@@ -100,6 +100,7 @@ LOCATION 'hdfs://some_bucket/some_path/database_a/table_c';
 
 #### Query the Iceberg table via Hive
 TODO: why does below work if no config settings are set in Hive but fails if we add `set iceberg.mr.catalog=hadoop` like the code suggests we need to do?
+
 You should now be able to issue Hive SQL `SELECT` queries using the above table and see the results returned from the underlying Iceberg table. Both the Map Reduce and Tez query execution engines are supported.
 ```sql
 SELECT * from table_c;
