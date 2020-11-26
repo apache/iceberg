@@ -20,27 +20,25 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
-import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
-import org.apache.spark.sql.connector.catalog.TableProvider;
+import org.apache.spark.sql.connector.catalog.SupportsCatalogOptions;
 import org.apache.spark.sql.connector.expressions.Transform;
-import org.apache.spark.sql.internal.SQLConf;
-import org.apache.spark.sql.internal.StaticSQLConf;
 import org.apache.spark.sql.sources.DataSourceRegister;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import scala.collection.Seq;
 
-public class IcebergSource implements DataSourceRegister, TableProvider {
+public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions {
   @Override
   public String shortName() {
     return "iceberg";
@@ -63,81 +61,45 @@ public class IcebergSource implements DataSourceRegister, TableProvider {
 
   @Override
   public SparkTable getTable(StructType schema, Transform[] partitioning, Map<String, String> options) {
-    // Get Iceberg table from options
-    Configuration conf = SparkSession.active().sessionState().newHadoopConf();
-    Table icebergTable = getTableAndResolveHadoopConfiguration(options, conf);
-
-    // Build Spark table based on Iceberg table, and return it
-    // Eagerly refresh the table before reading to ensure views containing this table show up-to-date data
-    return new SparkTable(icebergTable, schema, true);
+    throw new UnsupportedOperationException("Cannot get table directly. This implements SupportsCatalogOptions and should be called via that interface");
   }
 
-  protected Table findTable(Map<String, String> options, Configuration conf) {
+  private Pair<String, TableIdentifier> tableIdentifier(CaseInsensitiveStringMap options) {
+    CatalogManager catalogManager = SparkSession.active().sessionState().catalogManager();
+    Namespace defaultNamespace = Namespace.of(catalogManager.currentNamespace());
     Preconditions.checkArgument(options.containsKey("path"), "Cannot open table: path is not set");
     String path = options.get("path");
-
-    if (path.contains("/")) {
-      HadoopTables tables = new HadoopTables(conf);
-      return tables.load(path);
-    } else {
-      return parsePath(path);
-    }
-  }
-
-  private Table parsePath(String path) {
-    CatalogManager catalogManager = SparkSession.active().sessionState().catalogManager();
-    String globalTempDB = SQLConf.get().getConf(StaticSQLConf.GLOBAL_TEMP_DATABASE());
-    TableIdentifier tableIdentifier = TableIdentifier.parse(path);
-
-    Identifier ident;
-    CatalogPlugin catalog;
-    if (!tableIdentifier.hasNamespace()) {
-      ident = Identifier.of(catalogManager.currentNamespace(), tableIdentifier.name());
-      catalog = catalogManager.currentCatalog();
-    } else if (tableIdentifier.namespace().levels()[0].equalsIgnoreCase(globalTempDB)) {
-      catalog = catalogManager.v2SessionCatalog();
-      ident = Identifier.of(tableIdentifier.namespace().levels(), tableIdentifier.name());
-    } else {
-      String[] namespaceLevels = tableIdentifier.namespace().levels();
-      try {
-        catalog = catalogManager.catalog(namespaceLevels[0]);
-        ident = Identifier.of(Arrays.copyOfRange(namespaceLevels, 1, namespaceLevels.length), tableIdentifier.name());
-      } catch (Exception e) {
-        catalog = catalogManager.currentCatalog();
-        ident = Identifier.of(tableIdentifier.namespace().levels(), tableIdentifier.name());
-      }
-    }
     try {
-      if (catalog instanceof TableCatalog) {
-        org.apache.spark.sql.connector.catalog.Table table = ((TableCatalog) catalog).loadTable(ident);
-        if (table instanceof SparkTable) {
-          return ((SparkTable) table).table();
+      List<String> ident = scala.collection.JavaConverters.seqAsJavaList(SparkSession.active().sessionState().sqlParser().parseMultipartIdentifier(path));
+      if (ident.size() == 1) {
+        return Pair.of(null, TableIdentifier.of(defaultNamespace, ident.get(0)));
+      } else if (ident.size() == 2) {
+        if (catalogManager.isCatalogRegistered(ident.get(0))) {
+          return Pair.of(ident.get(0), TableIdentifier.of(defaultNamespace, ident.get(1))); //todo what if path?
+        } else {
+          return Pair.of(null, TableIdentifier.of(ident.toArray(new String[0])));
+        }
+      } else {
+        if (catalogManager.isCatalogRegistered(ident.get(0))) {
+          return Pair.of(ident.get(0), TableIdentifier.of(ident.subList(1, ident.size()).toArray(new String[0])));
+        } else {
+          return Pair.of(null, TableIdentifier.of(ident.toArray(new String[0])));
         }
       }
-    } catch (NoSuchTableException e) {
-      // pass
+    } catch (ParseException e) {
+      throw new RuntimeException(e);
     }
-    return null;
   }
 
-  private Table getTableAndResolveHadoopConfiguration(Map<String, String> options, Configuration conf) {
-    // Overwrite configurations from the Spark Context with configurations from the options.
-    mergeIcebergHadoopConfs(conf, options);
-
-    Table table = findTable(options, conf);
-
-    // Set confs from table properties
-    mergeIcebergHadoopConfs(conf, table.properties());
-
-    // Re-overwrite values set in options and table properties but were not in the environment.
-    mergeIcebergHadoopConfs(conf, options);
-
-    return table;
+  @Override
+  public Identifier extractIdentifier(CaseInsensitiveStringMap options) {
+    TableIdentifier tableIdentifier = tableIdentifier(options).second();
+    return Identifier.of(tableIdentifier.namespace().levels(), tableIdentifier.name());
   }
 
-  private static void mergeIcebergHadoopConfs(Configuration baseConf, Map<String, String> options) {
-    options.keySet().stream()
-        .filter(key -> key.startsWith("hadoop."))
-        .forEach(key -> baseConf.set(key.replaceFirst("hadoop.", ""), options.get(key)));
+  @Override
+  public String extractCatalog(CaseInsensitiveStringMap options) {
+    String catalogName = tableIdentifier(options).first();
+    return (catalogName == null) ? SupportsCatalogOptions.super.extractCatalog(options) : catalogName;
   }
 }
