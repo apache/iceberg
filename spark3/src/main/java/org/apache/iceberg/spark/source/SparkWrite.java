@@ -429,16 +429,12 @@ class SparkWrite {
       SparkAppenderFactory appenderFactory = new SparkAppenderFactory(properties, writeSchema, dsSchema);
       if (spec.fields().isEmpty()) {
         return new Unpartitioned3Writer(spec, format, appenderFactory, fileFactory, io.value(), targetFileSize);
+      } else if (partitionedFanoutEnabled) {
+        return new PartitionedFanout3Writer(
+            spec, format, appenderFactory, fileFactory, io.value(), targetFileSize, writeSchema, dsSchema);
       } else {
-        if (partitionedFanoutEnabled) {
-          return new PartitionedFanout3Writer(
-              spec, format, appenderFactory, fileFactory, io.value(), targetFileSize, writeSchema,
-              dsSchema);
-        } else {
-          return new Partitioned3Writer(
-              spec, format, appenderFactory, fileFactory, io.value(), targetFileSize, writeSchema,
-              dsSchema);
-        }
+        return new Partitioned3Writer(
+            spec, format, appenderFactory, fileFactory, io.value(), targetFileSize, writeSchema, dsSchema);
       }
     }
   }
@@ -476,8 +472,8 @@ class SparkWrite {
   private static class PartitionedFanout3Writer extends SparkPartitionedFanoutWriter
       implements DataWriter<InternalRow> {
     PartitionedFanout3Writer(PartitionSpec spec, FileFormat format, SparkAppenderFactory appenderFactory,
-        OutputFileFactory fileFactory, FileIO io, long targetFileSize,
-        Schema schema, StructType sparkSchema) {
+                             OutputFileFactory fileFactory, FileIO io, long targetFileSize,
+                             Schema schema, StructType sparkSchema) {
       super(spec, format, appenderFactory, fileFactory, io, targetFileSize, schema, sparkSchema);
     }
 

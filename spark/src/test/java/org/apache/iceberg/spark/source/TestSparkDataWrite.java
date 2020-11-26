@@ -54,6 +54,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 
 @RunWith(Parameterized.class)
 public abstract class TestSparkDataWrite {
+
   private static final Configuration CONF = new Configuration();
   private final FileFormat format;
   private static SparkSession spark = null;
@@ -67,7 +68,7 @@ public abstract class TestSparkDataWrite {
 
   @Parameterized.Parameters(name = "format = {0}")
   public static Object[] parameters() {
-    return new Object[] { "parquet", "avro", "orc" };
+    return new Object[]{"parquet", "avro", "orc"};
   }
 
   @BeforeClass
@@ -115,7 +116,8 @@ public abstract class TestSparkDataWrite {
         .format("iceberg")
         .load(location.toString());
 
-    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class))
+        .collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
     for (ManifestFile manifest : table.currentSnapshot().allManifests()) {
@@ -181,7 +183,8 @@ public abstract class TestSparkDataWrite {
         .format("iceberg")
         .load(location.toString());
 
-    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class))
+        .collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
   }
@@ -231,7 +234,8 @@ public abstract class TestSparkDataWrite {
         .format("iceberg")
         .load(location.toString());
 
-    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class))
+        .collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
   }
@@ -272,7 +276,8 @@ public abstract class TestSparkDataWrite {
         .format("iceberg")
         .load(location.toString());
 
-    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class))
+        .collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
   }
@@ -309,7 +314,8 @@ public abstract class TestSparkDataWrite {
         .format("iceberg")
         .load(location.toString());
 
-    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class))
+        .collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
 
@@ -322,18 +328,24 @@ public abstract class TestSparkDataWrite {
     // TODO: ORC file now not support target file size
     if (!format.equals(FileFormat.ORC)) {
       Assert.assertEquals("Should have 4 DataFiles", 4, files.size());
-      Assert.assertTrue("All DataFiles contain 1000 rows", files.stream().allMatch(d -> d.recordCount() == 1000));
+      Assert.assertTrue("All DataFiles contain 1000 rows",
+          files.stream().allMatch(d -> d.recordCount() == 1000));
     }
   }
 
   @Test
   public void testPartitionedCreateWithTargetFileSizeViaOption() throws IOException {
-    partitionedCreateWithTargetFileSizeViaOption(false);
+    partitionedCreateWithTargetFileSizeViaOption(IcebergOptionsType.NONE);
   }
 
   @Test
   public void testPartitionedFanoutCreateWithTargetFileSizeViaOption() throws IOException {
-    partitionedCreateWithTargetFileSizeViaOption(true);
+    partitionedCreateWithTargetFileSizeViaOption(IcebergOptionsType.TABLE);
+  }
+
+  @Test
+  public void testPartitionedFanoutCreateWithTargetFileSizeViaOption2() throws IOException {
+    partitionedCreateWithTargetFileSizeViaOption(IcebergOptionsType.JOB);
   }
 
   @Test
@@ -369,7 +381,8 @@ public abstract class TestSparkDataWrite {
         .format("iceberg")
         .load(location.toString());
 
-    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class))
+        .collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
   }
@@ -412,7 +425,8 @@ public abstract class TestSparkDataWrite {
         .format("iceberg")
         .load(location.toString());
 
-    List<ThreeColumnRecord> actual = result.orderBy("c1").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
+    List<ThreeColumnRecord> actual = result.orderBy("c1").as(Encoders.bean(ThreeColumnRecord.class))
+        .collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
   }
@@ -446,7 +460,8 @@ public abstract class TestSparkDataWrite {
         .where("id = 1");
     query.createOrReplaceTempView("tmp");
 
-    List<SimpleRecord> actual1 = spark.table("tmp").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> actual1 = spark.table("tmp").as(Encoders.bean(SimpleRecord.class))
+        .collectAsList();
     List<SimpleRecord> expected1 = Lists.newArrayList(
         new SimpleRecord(1, "a")
     );
@@ -459,7 +474,8 @@ public abstract class TestSparkDataWrite {
         .mode("append")
         .save(location.toString());
 
-    List<SimpleRecord> actual2 = spark.table("tmp").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> actual2 = spark.table("tmp").as(Encoders.bean(SimpleRecord.class))
+        .collectAsList();
     List<SimpleRecord> expected2 = Lists.newArrayList(
         new SimpleRecord(1, "a"),
         new SimpleRecord(1, "a")
@@ -468,18 +484,14 @@ public abstract class TestSparkDataWrite {
     Assert.assertEquals("Result rows should match", expected2, actual2);
   }
 
-  public void partitionedCreateWithTargetFileSizeViaOption(boolean fanoutEnable) throws IOException {
+  public void partitionedCreateWithTargetFileSizeViaOption(IcebergOptionsType option)
+      throws IOException {
     File parent = temp.newFolder(format.toString());
     File location = new File(parent, "test");
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
     Table table = tables.create(SCHEMA, spec, location.toString());
-    if (fanoutEnable) {
-      table.updateProperties()
-          .set(WRITE_PARTITIONED_FANOUT_ENABLED, "true")
-          .commit();
-    }
 
     List<SimpleRecord> expected = Lists.newArrayListWithCapacity(8000);
     for (int i = 0; i < 2000; i++) {
@@ -491,20 +503,35 @@ public abstract class TestSparkDataWrite {
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
-    if (!fanoutEnable) {
-      df.select("id", "data").sort("data").write()
-          .format("iceberg")
-          .option("write-format", format.toString())
-          .mode("append")
-          .option("target-file-size-bytes", 4) // ~4 bytes; low enough to trigger
-          .save(location.toString());
-    } else {
-      df.select("id", "data").write()
-          .format("iceberg")
-          .option("write-format", format.toString())
-          .mode("append")
-          .option("target-file-size-bytes", 4) // ~4 bytes; low enough to trigger
-          .save(location.toString());
+    switch (option) {
+      case NONE:
+        df.select("id", "data").sort("data").write()
+            .format("iceberg")
+            .option("write-format", format.toString())
+            .mode("append")
+            .option("target-file-size-bytes", 4) // ~4 bytes; low enough to trigger
+            .save(location.toString());
+        break;
+      case TABLE:
+        table.updateProperties().set(WRITE_PARTITIONED_FANOUT_ENABLED, "true").commit();
+        df.select("id", "data").write()
+            .format("iceberg")
+            .option("write-format", format.toString())
+            .mode("append")
+            .option("target-file-size-bytes", 4) // ~4 bytes; low enough to trigger
+            .save(location.toString());
+        break;
+      case JOB:
+        df.select("id", "data").write()
+            .format("iceberg")
+            .option("write-format", format.toString())
+            .mode("append")
+            .option("target-file-size-bytes", 4) // ~4 bytes; low enough to trigger
+            .option("partitioned.fanout.enabled", true)
+            .save(location.toString());
+        break;
+      default:
+        break;
     }
 
     table.refresh();
@@ -513,7 +540,8 @@ public abstract class TestSparkDataWrite {
         .format("iceberg")
         .load(location.toString());
 
-    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class))
+        .collectAsList();
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
 
@@ -526,7 +554,14 @@ public abstract class TestSparkDataWrite {
     // TODO: ORC file now not support target file size
     if (!format.equals(FileFormat.ORC)) {
       Assert.assertEquals("Should have 8 DataFiles", 8, files.size());
-      Assert.assertTrue("All DataFiles contain 1000 rows", files.stream().allMatch(d -> d.recordCount() == 1000));
+      Assert.assertTrue("All DataFiles contain 1000 rows",
+          files.stream().allMatch(d -> d.recordCount() == 1000));
     }
+  }
+
+  public enum IcebergOptionsType {
+    NONE,
+    TABLE,
+    JOB
   }
 }

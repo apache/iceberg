@@ -68,7 +68,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.summary.partition-limit      | 0                  | Includes partition-level summary stats in snapshot summaries if the changed partition count is less than this limit |
 | write.metadata.delete-after-commit.enabled | false      | Controls whether to delete the oldest version metadata files after commit |
 | write.metadata.previous-versions-max       | 100        | The max number of previous version metadata files to keep before deleting after commit |
-| write.partitioned.fanout.writer       | false        | Enables Partitioned-Fanout-Writer writes |
+| write.partitioned.fanout.enabled       | false        | Enables Partitioned-Fanout-Writer writes |
 
 ### Table behavior properties
 
