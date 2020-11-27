@@ -102,7 +102,7 @@ public class SparkCatalog extends BaseCatalog {
 
     String catalogImpl = options.get(CatalogProperties.CATALOG_IMPL);
     if (catalogImpl != null) {
-      return CatalogUtil.loadCatalog(catalogImpl, name, options, conf);
+      return new HadoopDelegatedCatalog(CatalogUtil.loadCatalog(catalogImpl, name, options, conf), conf);
     }
 
     String catalogType = options.getOrDefault(ICEBERG_CATALOG_TYPE, ICEBERG_CATALOG_TYPE_HIVE);
@@ -111,7 +111,7 @@ public class SparkCatalog extends BaseCatalog {
         int clientPoolSize = options.getInt(CatalogProperties.HIVE_CLIENT_POOL_SIZE,
             CatalogProperties.HIVE_CLIENT_POOL_SIZE_DEFAULT);
         String uri = options.get(CatalogProperties.HIVE_URI);
-        return new HiveCatalog(name, uri, clientPoolSize, conf);
+        return new HadoopDelegatedCatalog(new HiveCatalog(name, uri, clientPoolSize, conf), conf);
 
       case ICEBERG_CATALOG_TYPE_HADOOP:
         String warehouseLocation = options.get(CatalogProperties.WAREHOUSE_LOCATION);
