@@ -24,9 +24,13 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -88,6 +92,31 @@ public class CatalogUtil {
         .noRetry().suppressFailureWhenFinished()
         .onFailure((list, exc) -> LOG.warn("Delete failed for metadata file: {}", list, exc))
         .run(io::deleteFile);
+  }
+
+  /**
+   * Drops all useless table directories.
+   *
+   * @param io a FileIO to use for deletes
+   * @param tableBaseLocation table base location
+   */
+  public static void dropTableBaseLocation(FileIO io, String tableBaseLocation) {
+    try {
+      if (io instanceof HadoopFileIO) {
+        HadoopFileIO hadoopFileIO = (HadoopFileIO) io;
+        Configuration conf = hadoopFileIO.conf();
+        Path path = new Path(tableBaseLocation);
+        FileSystem fs = Util.getFs(path, conf);
+
+        // Because it might be a partitioned table, there might be a partition path below the base path,
+        // so we need to delete recursively
+        fs.delete(path, true);
+      } else {
+        io.deleteFile(tableBaseLocation);
+      }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to drop table base location: %s", tableBaseLocation);
+    }
   }
 
   @SuppressWarnings("DangerousStringInternUsage")

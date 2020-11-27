@@ -168,6 +168,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
       if (purge && lastMetadata != null) {
         CatalogUtil.dropTableData(ops.io(), lastMetadata);
+        CatalogUtil.dropTableBaseLocation(ops.io(), lastMetadata.location());
       }
 
       LOG.info("Dropped table: {}", identifier);
