@@ -88,22 +88,25 @@ SELECT * from table_b;
 Iceberg tables created using `HadoopCatalog` are stored entirely in a directory in a filesytem like HDFS. 
 
 ##### Create an Iceberg table
-The first step is to create an Iceberg table using the Spark/Java/Python API and `HadoopCatalog`. For the purposes of this documentation we will assume that the table is called `database_a.table_c` and that the table location is `hdfs://some_path/database_a/table_c`.
+The first step is to create an Iceberg table using the Spark/Java/Python API and `HadoopCatalog`. For the purposes of this documentation we will assume that the fully qualified table identifier is `database_a.table_c` and that the Hadoop Catalog warehouse location is `hdfs://some_bucket/path_to_hadoop_warehouse`. Iceberg will therefore create the table at the location `hdfs://some_bucket/path_to_hadoop_warehouse/database_a/table_c`.
 
 ##### Create a Hive table
 Now overlay a Hive table on top of this Iceberg table by issuing Hive DDL like so:
 ```sql
-CREATE EXTERNAL TABLE table_a 
+CREATE EXTERNAL TABLE database_a.table_c 
 STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' 
-LOCATION 'hdfs://some_bucket/some_path/database_a/table_c';
+LOCATION 'hdfs://some_bucket/path_to_hadoop_warehouse/database_a/table_c'
+TBLPROPERTIES ('iceberg.mr.catalog'='hadoop', 'iceberg.mr.catalog.hadoop.warehouse.location'='hdfs://some_bucket/path_to_hadoop_warehouse')
+;
 ```
+Note that the Hive database and table name *must* match the values used in the Iceberg `TableIdentifier` when the table was created. 
+
+It is possible to omit either or both of the table properties but instead you will then need to set these when reading from the table. Generally it is recommended to set them at table creation time so you can query tables created by different catalogs. 
 
 #### Query the Iceberg table via Hive
-TODO: why does below work if no config settings are set in Hive but fails if we add `set iceberg.mr.catalog=hadoop` like the code suggests we need to do?
-
 You should now be able to issue Hive SQL `SELECT` queries using the above table and see the results returned from the underlying Iceberg table. Both the Map Reduce and Tez query execution engines are supported.
 ```sql
-SELECT * from table_c;
+SELECT * from database_a.table_c;
 ```
 
 ### Features
