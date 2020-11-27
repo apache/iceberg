@@ -45,7 +45,7 @@ LOCATION 'hdfs://some_bucket/some_path/table_a';
 ```
 
 #### Query the Iceberg table via Hive
-You should now be able to issue Hive SQL `SELECT` queries using the above table and see the results returned from the underlying Iceberg table. Both the Map Reduce and Tez query execution engines are supported.
+You should now be able to issue Hive SQL `SELECT` queries using the above table and see the results returned from the underlying Iceberg table.
 ```sql
 SELECT * from table_a;
 ```
@@ -79,7 +79,7 @@ In order to query a Hive table created by either of the HiveCatalog methods desc
 ```sql
 SET iceberg.mr.catalog=hive;
 ```
-You should now be able to issue Hive SQL `SELECT` queries using the above table and see the results returned from the underlying Iceberg table. Both the Map Reduce and Tez query execution engines are supported.
+You should now be able to issue Hive SQL `SELECT` queries using the above table and see the results returned from the underlying Iceberg table.
 ```sql
 SELECT * from table_b;
 ```
@@ -106,7 +106,7 @@ Note that the Hive database and table name *must* match the values used in the I
 It is possible to omit either or both of the table properties but instead you will then need to set these when reading from the table. Generally it is recommended to set them at table creation time so you can query tables created by different catalogs. 
 
 #### Query the Iceberg table via Hive
-You should now be able to issue Hive SQL `SELECT` queries using the above table and see the results returned from the underlying Iceberg table. Both the Map Reduce and Tez query execution engines are supported.
+You should now be able to issue Hive SQL `SELECT` queries using the above table and see the results returned from the underlying Iceberg table.
 ```sql
 SELECT * from database_a.table_c;
 ```
@@ -118,3 +118,6 @@ Pushdown of the Hive SQL `WHERE` clause has been implemented so that these filte
 
 #### Column Projection
 Columns from the Hive SQL `SELECT` clause are projected down to the Iceberg readers to reduce the number of columns read.
+
+#### Hive Query Engines
+Both the Map Reduce and Tez query execution engines are supported.
