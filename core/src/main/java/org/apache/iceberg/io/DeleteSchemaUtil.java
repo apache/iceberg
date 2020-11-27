@@ -31,7 +31,7 @@ public class DeleteSchemaUtil {
     return new Schema(
         MetadataColumns.DELETE_FILE_PATH,
         MetadataColumns.DELETE_FILE_POS,
-        Types.NestedField.optional(
+        Types.NestedField.required(
             MetadataColumns.DELETE_FILE_ROW_FIELD_ID, "row", rowSchema.asStruct(),
             MetadataColumns.DELETE_FILE_ROW_DOC));
   }

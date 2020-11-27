@@ -60,9 +60,7 @@ public class TestGenericAppenderFactory extends TestAppenderFactory<Record> {
   @Override
   protected StructLikeSet expectedRowSet(Iterable<Record> records) {
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
-    for (Record record : records) {
-      set.add(record);
-    }
+    records.forEach(set::add);
     return set;
   }
 

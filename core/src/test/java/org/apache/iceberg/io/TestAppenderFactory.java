@@ -99,9 +99,8 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
 
   protected abstract StructLikeSet actualRowSet(String... columns) throws IOException;
 
-
   private OutputFileFactory createFileFactory() {
-    return new OutputFileFactory(SPEC, format, table.locationProvider(), table.io(),
+    return new OutputFileFactory(table.spec(), format, table.locationProvider(), table.io(),
         table.encryption(), 1, 1);
   }
 
@@ -110,8 +109,7 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
       return null;
     }
 
-    Record record = GenericRecord.create(table.spec().schema())
-        .copy(ImmutableMap.of("data", "aaa"));
+    Record record = GenericRecord.create(table.spec().schema()).copy(ImmutableMap.of("data", "aaa"));
 
     PartitionKey partitionKey = new PartitionKey(table.spec(), table.schema());
     partitionKey.partition(record);
@@ -119,57 +117,55 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     return partitionKey;
   }
 
+  private List<T> testRowSet() {
+    return Lists.newArrayList(
+        createRow(1, "aaa"),
+        createRow(2, "bbb"),
+        createRow(3, "ccc"),
+        createRow(4, "ddd"),
+        createRow(5, "eee")
+    );
+  }
+
+  private DataFile prepareDataFile(List<T> rowSet, FileAppenderFactory<T> appenderFactory,
+                                   OutputFileFactory outputFileFactory) throws IOException {
+    DataWriter<T> writer = appenderFactory.newDataWriter(outputFileFactory.newOutputFile(), format, partition);
+    try (DataWriter<T> closeableWriter = writer) {
+      for (T row : rowSet) {
+        closeableWriter.add(row);
+      }
+    }
+
+    return writer.toDataFile();
+  }
+
   @Test
   public void testDataWriter() throws IOException {
     FileAppenderFactory<T> appenderFactory = createAppenderFactory(null, null, null);
     OutputFileFactory outputFileFactory = createFileFactory();
 
-    List<T> records = Lists.newArrayList(
-        createRow(1, "aaa"),
-        createRow(2, "bbb"),
-        createRow(3, "ccc"),
-        createRow(4, "ddd"),
-        createRow(5, "eee")
-    );
-
-    DataWriter<T> writer = appenderFactory.newDataWriter(outputFileFactory.newOutputFile(), format, partition);
-    try (DataWriter<T> closeableWriter = writer) {
-      for (T record : records) {
-        closeableWriter.add(record);
-      }
-    }
+    List<T> rowSet = testRowSet();
+    DataFile dataFile = prepareDataFile(rowSet, appenderFactory, outputFileFactory);
 
     table.newRowDelta()
-        .addRows(writer.toDataFile())
+        .addRows(dataFile)
         .commit();
 
-    Assert.assertEquals("Should have the expected records.", expectedRowSet(records), actualRowSet("*"));
+    Assert.assertEquals("Should have the expected records.", expectedRowSet(rowSet), actualRowSet("*"));
   }
 
   @Test
   public void testEqDeleteWriter() throws IOException {
     List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().findField("id").fieldId());
-    FileAppenderFactory<T> appenderFactory =
-        createAppenderFactory(equalityFieldIds, table.schema().select("id"), null);
+    FileAppenderFactory<T> appenderFactory = createAppenderFactory(equalityFieldIds,
+        table.schema().select("id"), null);
     OutputFileFactory outputFileFactory = createFileFactory();
 
-    List<T> records = Lists.newArrayList(
-        createRow(1, "aaa"),
-        createRow(2, "bbb"),
-        createRow(3, "ccc"),
-        createRow(4, "ddd"),
-        createRow(5, "eee")
-    );
-
-    DataWriter<T> writer = appenderFactory.newDataWriter(outputFileFactory.newOutputFile(), format, partition);
-    try (DataWriter<T> closeableWriter = writer) {
-      for (T record : records) {
-        closeableWriter.add(record);
-      }
-    }
+    List<T> rowSet = testRowSet();
+    DataFile dataFile = prepareDataFile(rowSet, appenderFactory, outputFileFactory);
 
     table.newRowDelta()
-        .addRows(writer.toDataFile())
+        .addRows(dataFile)
         .commit();
 
     List<T> deletes = Lists.newArrayList(
@@ -200,21 +196,8 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     FileAppenderFactory<T> appenderFactory = createAppenderFactory(null, null, null);
     OutputFileFactory outputFileFactory = createFileFactory();
 
-    List<T> records = Lists.newArrayList(
-        createRow(1, "aaa"),
-        createRow(2, "bbb"),
-        createRow(3, "ccc"),
-        createRow(4, "ddd"),
-        createRow(5, "eee")
-    );
-
-    DataWriter<T> writer = appenderFactory.newDataWriter(outputFileFactory.newOutputFile(), format, partition);
-    try (DataWriter<T> closeableWriter = writer) {
-      for (T record : records) {
-        closeableWriter.add(record);
-      }
-    }
-    DataFile dataFile = writer.toDataFile();
+    List<T> rowSet = testRowSet();
+    DataFile dataFile = prepareDataFile(rowSet, appenderFactory, outputFileFactory);
 
     List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
         Pair.of(dataFile.path(), 0L),
@@ -249,26 +232,13 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     FileAppenderFactory<T> appenderFactory = createAppenderFactory(null, null, table.schema());
     OutputFileFactory outputFileFactory = createFileFactory();
 
-    List<T> records = Lists.newArrayList(
-        createRow(1, "aaa"),
-        createRow(2, "bbb"),
-        createRow(3, "ccc"),
-        createRow(4, "ddd"),
-        createRow(5, "eee")
-    );
-
-    DataWriter<T> writer = appenderFactory.newDataWriter(outputFileFactory.newOutputFile(), format, partition);
-    try (DataWriter<T> closeableWriter = writer) {
-      for (T record : records) {
-        closeableWriter.add(record);
-      }
-    }
-    DataFile dataFile = writer.toDataFile();
+    List<T> rowSet = testRowSet();
+    DataFile dataFile = prepareDataFile(rowSet, appenderFactory, outputFileFactory);
 
     List<PositionDelete<T>> deletes = Lists.newArrayList(
-        new PositionDelete<T>().set(dataFile.path(), 0, records.get(0)),
-        new PositionDelete<T>().set(dataFile.path(), 2, records.get(2)),
-        new PositionDelete<T>().set(dataFile.path(), 4, records.get(4))
+        new PositionDelete<T>().set(dataFile.path(), 0, rowSet.get(0)),
+        new PositionDelete<T>().set(dataFile.path(), 2, rowSet.get(2)),
+        new PositionDelete<T>().set(dataFile.path(), 4, rowSet.get(4))
     );
 
     PositionDeleteWriter<T> eqDeleteWriter =

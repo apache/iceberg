@@ -163,13 +163,8 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     try {
       switch (format) {
         case AVRO:
-          Function<org.apache.avro.Schema, DatumWriter<?>> writeFunc = null;
-          if (posDeleteRowSchema != null) {
-            writeFunc = ignore -> new FlinkAvroWriter(FlinkSchemaUtil.convert(posDeleteRowSchema));
-          }
-
           return Avro.writeDeletes(outputFile.encryptingOutputFile())
-              .createWriterFunc(writeFunc)
+              .createWriterFunc(ignore -> new FlinkAvroWriter(FlinkSchemaUtil.convert(posDeleteRowSchema)))
               .withPartition(partition)
               .overwrite()
               .setAll(props)
