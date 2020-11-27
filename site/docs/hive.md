@@ -96,7 +96,9 @@ Now overlay a Hive table on top of this Iceberg table by issuing Hive DDL like s
 CREATE EXTERNAL TABLE database_a.table_c 
 STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' 
 LOCATION 'hdfs://some_bucket/path_to_hadoop_warehouse/database_a/table_c'
-TBLPROPERTIES ('iceberg.mr.catalog'='hadoop', 'iceberg.mr.catalog.hadoop.warehouse.location'='hdfs://some_bucket/path_to_hadoop_warehouse')
+TBLPROPERTIES (
+  'iceberg.mr.catalog'='hadoop', 
+  'iceberg.mr.catalog.hadoop.warehouse.location'='hdfs://some_bucket/path_to_hadoop_warehouse')
 ;
 ```
 Note that the Hive database and table name *must* match the values used in the Iceberg `TableIdentifier` when the table was created. 
