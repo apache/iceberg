@@ -33,7 +33,6 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
-import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RewriteManifests;
 import org.apache.iceberg.Snapshot;
@@ -66,6 +65,8 @@ import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.iceberg.MetadataTableType.ENTRIES;
 
 /**
  * An action that rewrites manifests in a distributed manner and co-locates metadata for partitions.
@@ -202,9 +203,7 @@ public class RewriteManifestsAction
         .createDataset(Lists.transform(manifests, ManifestFile::path), Encoders.STRING())
         .toDF("manifest");
 
-    String entriesMetadataTable = metadataTableName(MetadataTableType.ENTRIES);
-    Dataset<Row> manifestEntryDF = spark.read().format("iceberg")
-        .load(entriesMetadataTable)
+    Dataset<Row> manifestEntryDF = BaseSparkAction.loadMetadataTable(spark, table.name(), table().location(), ENTRIES)
         .filter("status < 2") // select only live entries
         .selectExpr("input_file_name() as manifest", "snapshot_id", "sequence_number", "data_file");
 

@@ -30,6 +30,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -51,6 +52,8 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.GC_ENABLED;
+import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 @SuppressWarnings("UnnecessaryAnonymousClass")
 class RemoveSnapshots implements ExpireSnapshots {
@@ -78,6 +81,10 @@ class RemoveSnapshots implements ExpireSnapshots {
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
     this.base = ops.current();
+
+    ValidationException.check(
+        PropertyUtil.propertyAsBoolean(base.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
+        "Cannot expire snapshots: GC is disabled (deleting files may corrupt other tables)");
   }
 
   @Override

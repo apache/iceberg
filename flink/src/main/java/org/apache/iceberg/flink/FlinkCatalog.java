@@ -46,15 +46,19 @@ import org.apache.flink.table.catalog.exceptions.DatabaseNotExistException;
 import org.apache.flink.table.catalog.exceptions.FunctionNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
+import org.apache.flink.table.catalog.exceptions.TableNotPartitionedException;
 import org.apache.flink.table.catalog.stats.CatalogColumnStatistics;
 import org.apache.flink.table.catalog.stats.CatalogTableStatistics;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.factories.TableFactory;
 import org.apache.flink.util.StringUtils;
 import org.apache.iceberg.CachingCatalog;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdateProperties;
@@ -65,6 +69,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -88,6 +93,7 @@ public class FlinkCatalog extends AbstractCatalog {
   private final String[] baseNamespace;
   private final SupportsNamespaces asNamespaceCatalog;
   private final Closeable closeable;
+  private final boolean cacheEnabled;
 
   // TODO - Update baseNamespace to use Namespace class
   // https://github.com/apache/iceberg/issues/1541
@@ -100,6 +106,7 @@ public class FlinkCatalog extends AbstractCatalog {
     super(catalogName, defaultDatabase);
     this.catalogLoader = catalogLoader;
     this.baseNamespace = baseNamespace;
+    this.cacheEnabled = cacheEnabled;
 
     Catalog originalCatalog = catalogLoader.loadCatalog();
     icebergCatalog = cacheEnabled ? CachingCatalog.wrap(originalCatalog) : originalCatalog;
@@ -303,7 +310,12 @@ public class FlinkCatalog extends AbstractCatalog {
 
   Table loadIcebergTable(ObjectPath tablePath) throws TableNotExistException {
     try {
-      return icebergCatalog.loadTable(toIdentifier(tablePath));
+      Table table = icebergCatalog.loadTable(toIdentifier(tablePath));
+      if (cacheEnabled) {
+        table.refresh();
+      }
+
+      return table;
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new TableNotExistException(getName(), tablePath, e);
     }
@@ -618,8 +630,29 @@ public class FlinkCatalog extends AbstractCatalog {
 
   @Override
   public List<CatalogPartitionSpec> listPartitions(ObjectPath tablePath)
-      throws CatalogException {
-    throw new UnsupportedOperationException();
+      throws TableNotExistException, TableNotPartitionedException, CatalogException {
+    Table table = loadIcebergTable(tablePath);
+
+    if (table.spec().isUnpartitioned()) {
+      throw new TableNotPartitionedException(icebergCatalog.name(), tablePath);
+    }
+
+    Set<CatalogPartitionSpec> set = Sets.newHashSet();
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      for (DataFile dataFile : CloseableIterable.transform(tasks, FileScanTask::file)) {
+        Map<String, String> map = Maps.newHashMap();
+        StructLike structLike = dataFile.partition();
+        PartitionSpec spec = table.specs().get(dataFile.specId());
+        for (int i = 0; i < structLike.size(); i++) {
+          map.put(spec.fields().get(i).name(), String.valueOf(structLike.get(i, Object.class)));
+        }
+        set.add(new CatalogPartitionSpec(map));
+      }
+    } catch (IOException e) {
+      throw new CatalogException(String.format("Failed to list partitions of table %s", tablePath), e);
+    }
+
+    return Lists.newArrayList(set);
   }
 
   @Override

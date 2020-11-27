@@ -54,6 +54,7 @@ public class FileMetadata {
     private Map<Integer, Long> columnSizes = null;
     private Map<Integer, Long> valueCounts = null;
     private Map<Integer, Long> nullValueCounts = null;
+    private Map<Integer, Long> nanValueCounts = null;
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
     private ByteBuffer keyMetadata = null;
@@ -76,6 +77,7 @@ public class FileMetadata {
       this.columnSizes = null;
       this.valueCounts = null;
       this.nullValueCounts = null;
+      this.nanValueCounts = null;
       this.lowerBounds = null;
       this.upperBounds = null;
     }
@@ -93,6 +95,7 @@ public class FileMetadata {
       this.columnSizes = toCopy.columnSizes();
       this.valueCounts = toCopy.valueCounts();
       this.nullValueCounts = toCopy.nullValueCounts();
+      this.nanValueCounts = toCopy.nanValueCounts();
       this.lowerBounds = toCopy.lowerBounds();
       this.upperBounds = toCopy.upperBounds();
       this.keyMetadata = toCopy.keyMetadata() == null ? null
@@ -179,6 +182,7 @@ public class FileMetadata {
       this.columnSizes = metrics.columnSizes();
       this.valueCounts = metrics.valueCounts();
       this.nullValueCounts = metrics.nullValueCounts();
+      this.nanValueCounts = metrics.nanValueCounts();
       this.lowerBounds = metrics.lowerBounds();
       this.upperBounds = metrics.upperBounds();
       return this;
@@ -206,7 +210,7 @@ public class FileMetadata {
       return new GenericDeleteFile(
           specId, content, filePath, format, isPartitioned ? DataFiles.copy(spec, partitionData) : null,
           fileSizeInBytes, new Metrics(
-          recordCount, columnSizes, valueCounts, nullValueCounts, lowerBounds, upperBounds),
+          recordCount, columnSizes, valueCounts, nullValueCounts, nanValueCounts, lowerBounds, upperBounds),
           equalityFieldIds, keyMetadata);
     }
   }

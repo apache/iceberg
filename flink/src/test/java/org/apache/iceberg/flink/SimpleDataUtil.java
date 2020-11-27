@@ -46,9 +46,9 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.HashMultiset;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 
@@ -130,7 +130,7 @@ public class SimpleDataUtil {
     table.refresh();
     try (CloseableIterable<Record> iterable = IcebergGenerics.read(table).build()) {
       Assert.assertEquals("Should produce the expected record",
-          Sets.newHashSet(expected), Sets.newHashSet(iterable));
+          HashMultiset.create(expected), HashMultiset.create(iterable));
     }
   }
 

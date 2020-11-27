@@ -39,7 +39,7 @@ dependencies {
 The following section will break down the different areas of Iceberg explored in the examples, with links to the code and extra information that could be useful for new users. 
 
 ### Writing data to tables
-There are multiple ways of creating tables with Iceberg, including using the Hive Metastore to keep track of tables ([HiveCatalog](https://iceberg.apache.org/api-quickstart/#using-a-hive-catalog)), or using HDFS / your local file system ([HadoopTables](https://iceberg.apache.org/api-quickstart/#using-hadoop-tables)) to store the tables. However, it should be noted that directory tables (such as those using `HadoopTables`)  don’t support all catalog operations, like rename and therefore use the `Tables` interface instead of the `Catalog` interface.
+There are multiple ways of creating tables with Iceberg, including using the Hive Metastore to keep track of tables ([HiveCatalog](https://iceberg.apache.org/java-api-quickstart/#using-a-hive-catalog)), or using HDFS / your local file system ([HadoopTables](https://iceberg.apache.org/java-api-quickstart/#using-hadoop-tables)) to store the tables. However, it should be noted that directory tables (such as those using `HadoopTables`)  don’t support all catalog operations, like rename and therefore use the `Tables` interface instead of the `Catalog` interface.
 It should be noted that `HadoopTables` _shouldn’t_ be used with file systems that do not support atomic rename as Iceberg depends on this to synchronize concurrent commits. 
 To limit complexity, these examples create tables on your local file system using the `HadoopTables` class.
 

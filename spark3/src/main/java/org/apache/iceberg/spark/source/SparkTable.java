@@ -25,6 +25,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -43,9 +44,13 @@ import org.apache.spark.sql.connector.write.WriteBuilder;
 import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     SupportsRead, SupportsWrite, SupportsDelete {
+
+  private static final Logger LOG = LoggerFactory.getLogger(SparkTable.class);
 
   private static final Set<String> RESERVED_PROPERTIES = Sets.newHashSet("provider", "format", "current-snapshot-id");
   private static final Set<TableCapability> CAPABILITIES = ImmutableSet.of(
@@ -158,6 +163,11 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   @Override
   public void deleteWhere(Filter[] filters) {
     Expression deleteExpr = SparkFilters.convert(filters);
+
+    if (deleteExpr == Expressions.alwaysFalse()) {
+      LOG.info("Skipping the delete operation as the condition is always false");
+      return;
+    }
 
     try {
       icebergTable.newDelete()

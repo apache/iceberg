@@ -21,6 +21,7 @@ package org.apache.iceberg.aws.s3;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -29,7 +30,11 @@ import software.amazon.awssdk.services.s3.S3Client;
 
 public class S3OutputFile extends BaseS3File implements OutputFile {
   public S3OutputFile(S3Client client, S3URI uri) {
-    super(client, uri);
+    this(client, uri, new AwsProperties());
+  }
+
+  public S3OutputFile(S3Client client, S3URI uri, AwsProperties awsProperties) {
+    super(client, uri, awsProperties);
   }
 
   /**
@@ -50,7 +55,7 @@ public class S3OutputFile extends BaseS3File implements OutputFile {
   @Override
   public PositionOutputStream createOrOverwrite() {
     try {
-      return new S3OutputStream(client(), uri());
+      return new S3OutputStream(client(), uri(), awsProperties());
     } catch (IOException e) {
       throw new UncheckedIOException("Filed to create output stream for location: " + uri(), e);
     }
@@ -58,6 +63,6 @@ public class S3OutputFile extends BaseS3File implements OutputFile {
 
   @Override
   public InputFile toInputFile() {
-    return new S3InputFile(client(), uri());
+    return new S3InputFile(client(), uri(), awsProperties());
   }
 }

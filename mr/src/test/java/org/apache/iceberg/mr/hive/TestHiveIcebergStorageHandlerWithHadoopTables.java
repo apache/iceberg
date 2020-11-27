@@ -28,9 +28,4 @@ public class TestHiveIcebergStorageHandlerWithHadoopTables extends HiveIcebergSt
   public TestTables testTables(Configuration conf, TemporaryFolder temp) {
     return new TestTables.HadoopTestTables(conf, temp);
   }
-
-  @Override
-  protected String locationForCreateTable(String tempDirName, String tableName) {
-    return tempDirName + "/default/" + tableName;
-  }
 }

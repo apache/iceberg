@@ -177,6 +177,6 @@ def test_case_insensitive_int_not_eq_rewritten(inc_man_spec, inc_man_file, val, 
     (85, True)])
 def test_case_sensitive_int_not_eq_rewritten(inc_man_spec, inc_man_file, val, expected):
     with pytest.raises(ValidationException):
-        InclusiveManifestEvaluator(inc_man_spec,
-                                   Expressions.not_(Expressions.equal("ID", val)),
-                                   case_sensitive=True).eval(inc_man_file) == expected
+        assert InclusiveManifestEvaluator(inc_man_spec,
+                                          Expressions.not_(Expressions.equal("ID", val)),
+                                          case_sensitive=True).eval(inc_man_file) == expected

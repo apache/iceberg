@@ -20,7 +20,9 @@
 package org.apache.iceberg.mr.hive;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,9 +43,12 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Util;
@@ -66,6 +71,7 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.junit.runners.Parameterized.Parameter;
 import static org.junit.runners.Parameterized.Parameters;
@@ -77,14 +83,15 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   public TemporaryFolder temp = new TemporaryFolder();
 
   private static final Schema CUSTOMER_SCHEMA = new Schema(
-          required(1, "customer_id", Types.LongType.get()),
-          required(2, "first_name", Types.StringType.get())
+          optional(1, "customer_id", Types.LongType.get()),
+          optional(2, "first_name", Types.StringType.get()),
+          optional(3, "last_name", Types.StringType.get())
   );
 
   private static final List<Record> CUSTOMER_RECORDS = TestHelper.RecordsBuilder.newInstance(CUSTOMER_SCHEMA)
-          .add(0L, "Alice")
-          .add(1L, "Bob")
-          .add(2L, "Trudy")
+          .add(0L, "Alice", "Brown")
+          .add(1L, "Bob", "Green")
+          .add(2L, "Trudy", "Pink")
           .build();
 
   private static final Schema ORDER_SCHEMA = new Schema(
@@ -102,6 +109,37 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   private static final PartitionSpec IDENTITY_SPEC =
       PartitionSpec.builderFor(CUSTOMER_SCHEMA).identity("customer_id").build();
+
+  private static final Schema COMPLEX_SCHEMA = new Schema(
+      optional(1, "id", Types.LongType.get()),
+      optional(2, "name", Types.StringType.get()),
+      optional(3, "employee_info", Types.StructType.of(
+          optional(7, "employer", Types.StringType.get()),
+          optional(8, "id", Types.LongType.get()),
+          optional(9, "address", Types.StringType.get())
+      )),
+      optional(4, "places_lived", Types.ListType.ofOptional(10, Types.StructType.of(
+          optional(11, "street", Types.StringType.get()),
+          optional(12, "city", Types.StringType.get()),
+          optional(13, "country", Types.StringType.get())
+      ))),
+      optional(5, "memorable_moments", Types.MapType.ofOptional(14, 15,
+          Types.StringType.get(),
+          Types.StructType.of(
+              optional(16, "year", Types.IntegerType.get()),
+              optional(17, "place", Types.StringType.get()),
+              optional(18, "details", Types.StringType.get())
+          ))),
+      optional(6, "current_address", Types.StructType.of(
+          optional(19, "street_address", Types.StructType.of(
+              optional(22, "street_number", Types.IntegerType.get()),
+              optional(23, "street_name", Types.StringType.get()),
+              optional(24, "street_type", Types.StringType.get())
+          )),
+          optional(20, "country", Types.StringType.get()),
+          optional(21, "postal_code", Types.StringType.get())
+      ))
+  );
 
   private static final Set<String> IGNORED_PARAMS =
       ImmutableSet.of("bucketing_version", StatsSetupConst.ROW_COUNT,
@@ -146,6 +184,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   public static void beforeClass() {
     shell = new TestHiveShell();
     shell.setHiveConfValue("hive.notification.event.poll.interval", "-1");
+    shell.setHiveConfValue("hive.tez.exec.print.summary", "true");
     shell.start();
   }
 
@@ -164,6 +203,11 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     shell.setHiveSessionValue("hive.execution.engine", executionEngine);
     shell.setHiveSessionValue("hive.jar.directory", temp.getRoot().getAbsolutePath());
     shell.setHiveSessionValue("tez.staging-dir", temp.getRoot().getAbsolutePath());
+    // temporarily disabling vectorization in Tez, since it doesn't work with projection pruning (fix: TEZ-4248)
+    // TODO: remove this once TEZ-4248 has been released and the Tez dependencies updated here
+    if (executionEngine.equals("tez")) {
+      shell.setHiveSessionValue("hive.vectorized.execution.enabled", "false");
+    }
   }
 
   @After
@@ -192,17 +236,18 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     List<Object[]> rows = shell.executeStatement("SELECT * FROM default.customers");
 
     Assert.assertEquals(3, rows.size());
-    Assert.assertArrayEquals(new Object[] {0L, "Alice"}, rows.get(0));
-    Assert.assertArrayEquals(new Object[] {1L, "Bob"}, rows.get(1));
-    Assert.assertArrayEquals(new Object[] {2L, "Trudy"}, rows.get(2));
+    Assert.assertArrayEquals(new Object[] {0L, "Alice", "Brown"}, rows.get(0));
+    Assert.assertArrayEquals(new Object[] {1L, "Bob", "Green"}, rows.get(1));
+    Assert.assertArrayEquals(new Object[] {2L, "Trudy", "Pink"}, rows.get(2));
 
     // Adding the ORDER BY clause will cause Hive to spawn a local MR job this time.
-    List<Object[]> descRows = shell.executeStatement("SELECT * FROM default.customers ORDER BY customer_id DESC");
+    List<Object[]> descRows =
+        shell.executeStatement("SELECT first_name, customer_id FROM default.customers ORDER BY customer_id DESC");
 
     Assert.assertEquals(3, descRows.size());
-    Assert.assertArrayEquals(new Object[] {2L, "Trudy"}, descRows.get(0));
-    Assert.assertArrayEquals(new Object[] {1L, "Bob"}, descRows.get(1));
-    Assert.assertArrayEquals(new Object[] {0L, "Alice"}, descRows.get(2));
+    Assert.assertArrayEquals(new Object[] {"Trudy", 2L}, descRows.get(0));
+    Assert.assertArrayEquals(new Object[] {"Bob", 1L}, descRows.get(1));
+    Assert.assertArrayEquals(new Object[] {"Alice", 0L}, descRows.get(2));
   }
 
   @Test
@@ -219,6 +264,39 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Assert.assertArrayEquals(new Object[] {0L, "Alice", 100L, 11.11d}, rows.get(0));
     Assert.assertArrayEquals(new Object[] {0L, "Alice", 101L, 22.22d}, rows.get(1));
     Assert.assertArrayEquals(new Object[] {1L, "Bob", 102L, 33.33d}, rows.get(2));
+  }
+
+  @Test
+  public void testDecimalTableWithPredicateLiterals() throws IOException {
+    Schema schema = new Schema(required(1, "decimal_field", Types.DecimalType.of(7, 2)));
+    List<Record> records = TestHelper.RecordsBuilder.newInstance(schema)
+            .add(new BigDecimal("85.00"))
+            .add(new BigDecimal("100.56"))
+            .add(new BigDecimal("100.57"))
+            .build();
+    createTable("dec_test", schema, records);
+
+    // Use integer literal in predicate
+    List<Object[]> rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field >= 85");
+    Assert.assertEquals(3, rows.size());
+    Assert.assertArrayEquals(new Object[] {"85.00"}, rows.get(0));
+    Assert.assertArrayEquals(new Object[] {"100.56"}, rows.get(1));
+    Assert.assertArrayEquals(new Object[] {"100.57"}, rows.get(2));
+
+    // Use decimal literal in predicate with smaller scale than schema type definition
+    rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field > 99.1");
+    Assert.assertEquals(2, rows.size());
+    Assert.assertArrayEquals(new Object[] {"100.56"}, rows.get(0));
+    Assert.assertArrayEquals(new Object[] {"100.57"}, rows.get(1));
+
+    // Use decimal literal in predicate with higher scale than schema type definition
+    rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field > 100.565");
+    Assert.assertEquals(1, rows.size());
+    Assert.assertArrayEquals(new Object[] {"100.57"}, rows.get(0));
+
+    // Use decimal literal in predicate with the same scale as schema type definition
+    rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field > 640.34");
+    Assert.assertEquals(0, rows.size());
   }
 
   @Test
@@ -260,23 +338,17 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   @Test
   public void testCreateDropTable() throws TException, IOException, InterruptedException {
-    // We need the location for HadoopTable based tests only
-    String location = locationForCreateTable(temp.getRoot().getPath(), "customers");
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+
     shell.executeStatement("CREATE EXTERNAL TABLE customers " +
         "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
-        (location != null ? "LOCATION '" + location + "' " : "") +
+        testTables.locationForCreateTableSQL(identifier) +
         "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" + SchemaParser.toJson(CUSTOMER_SCHEMA) + "', " +
         "'" + InputFormatConfig.PARTITION_SPEC + "'='" + PartitionSpecParser.toJson(IDENTITY_SPEC) + "', " +
         "'dummy'='test')");
 
-    Properties properties = new Properties();
-    properties.put(Catalogs.NAME, TableIdentifier.of("default", "customers").toString());
-    if (location != null) {
-      properties.put(Catalogs.LOCATION, location);
-    }
-
     // Check the Iceberg table data
-    org.apache.iceberg.Table icebergTable = Catalogs.loadTable(shell.getHiveConf(), properties);
+    org.apache.iceberg.Table icebergTable = loadTable(identifier);
     Assert.assertEquals(CUSTOMER_SCHEMA.asStruct(), icebergTable.schema().asStruct());
     Assert.assertEquals(IDENTITY_SPEC, icebergTable.spec());
 
@@ -313,7 +385,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       // Check if the table was really dropped even from the Catalog
       AssertHelpers.assertThrows("should throw exception", NoSuchTableException.class,
           "Table does not exist", () -> {
-            Catalogs.loadTable(shell.getHiveConf(), properties);
+            loadTable(identifier);
           }
       );
     } else {
@@ -332,7 +404,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       // Check if we drop an exception when trying to load the table
       AssertHelpers.assertThrows("should throw exception", NoSuchTableException.class,
           "Table does not exist", () -> {
-            Catalogs.loadTable(shell.getHiveConf(), properties);
+            loadTable(identifier);
           }
       );
 
@@ -349,21 +421,15 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   @Test
   public void testCreateTableWithoutSpec() throws TException, InterruptedException {
-    // We need the location for HadoopTable based tests only
-    String location = locationForCreateTable(temp.getRoot().getPath(), "customers");
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+
     shell.executeStatement("CREATE EXTERNAL TABLE customers " +
         "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
-        (location != null ? "LOCATION '" + location + "' " : "") +
+        testTables.locationForCreateTableSQL(identifier) +
         "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" + SchemaParser.toJson(CUSTOMER_SCHEMA) + "')");
 
-    Properties properties = new Properties();
-    properties.put(Catalogs.NAME, TableIdentifier.of("default", "customers").toString());
-    if (location != null) {
-      properties.put(Catalogs.LOCATION, location);
-    }
-
     // Check the Iceberg table partition data
-    org.apache.iceberg.Table icebergTable = Catalogs.loadTable(shell.getHiveConf(), properties);
+    org.apache.iceberg.Table icebergTable = loadTable(identifier);
     Assert.assertEquals(SPEC, icebergTable.spec());
 
     // Check the HMS table parameters
@@ -385,22 +451,17 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   @Test
   public void testCreateTableWithUnpartitionedSpec() throws TException, InterruptedException {
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+
     // We need the location for HadoopTable based tests only
-    String location = locationForCreateTable(temp.getRoot().getPath(), "customers");
     shell.executeStatement("CREATE EXTERNAL TABLE customers " +
         "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
-        (location != null ? "LOCATION '" + location + "' " : "") +
+        testTables.locationForCreateTableSQL(identifier) +
         "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" + SchemaParser.toJson(CUSTOMER_SCHEMA) + "', " +
         "'" + InputFormatConfig.PARTITION_SPEC + "'='" + PartitionSpecParser.toJson(SPEC) + "')");
 
-    Properties properties = new Properties();
-    properties.put(Catalogs.NAME, TableIdentifier.of("default", "customers").toString());
-    if (location != null) {
-      properties.put(Catalogs.LOCATION, location);
-    }
-
     // Check the Iceberg table partition data
-    org.apache.iceberg.Table icebergTable = Catalogs.loadTable(shell.getHiveConf(), properties);
+    org.apache.iceberg.Table icebergTable = loadTable(identifier);
     Assert.assertEquals(SPEC, icebergTable.spec());
 
     // Check the HMS table parameters
@@ -421,25 +482,19 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   @Test
   public void testDeleteBackingTable() throws TException, IOException, InterruptedException {
-    // We need the location for HadoopTable based tests only
-    String location = locationForCreateTable(temp.getRoot().getPath(), "customers");
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+
     shell.executeStatement("CREATE EXTERNAL TABLE customers " +
         "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
-        (location != null ? "LOCATION '" + location + "' " : "") +
+        testTables.locationForCreateTableSQL(identifier) +
         "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" + SchemaParser.toJson(CUSTOMER_SCHEMA) + "', " +
         "'" + InputFormatConfig.EXTERNAL_TABLE_PURGE + "'='FALSE')");
-
-    Properties properties = new Properties();
-    properties.put(Catalogs.NAME, TableIdentifier.of("default", "customers").toString());
-    if (location != null) {
-      properties.put(Catalogs.LOCATION, location);
-    }
 
     if (!Catalogs.hiveCatalog(shell.getHiveConf())) {
       shell.executeStatement("DROP TABLE customers");
 
       // Check if the table remains
-      Catalogs.loadTable(shell.getHiveConf(), properties);
+      loadTable(identifier);
     } else {
       // Check the HMS table parameters
       org.apache.hadoop.hive.metastore.api.Table hmsTable =
@@ -452,7 +507,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       // Check if we drop an exception when trying to drop the table
       AssertHelpers.assertThrows("should throw exception", NoSuchTableException.class,
           "Table does not exist", () -> {
-            Catalogs.loadTable(shell.getHiveConf(), properties);
+            loadTable(identifier);
           }
       );
 
@@ -465,29 +520,29 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   @Test
   public void testCreateTableError() {
-    String location = locationForCreateTable(temp.getRoot().getPath(), "customers");
+    TableIdentifier identifier = TableIdentifier.of("default", "withShell2");
 
     // Wrong schema
     AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
         "Unrecognized token 'WrongSchema'", () -> {
           shell.executeStatement("CREATE EXTERNAL TABLE withShell2 " +
               "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
-              (location != null ? "LOCATION '" + location + "' " : "") +
+              testTables.locationForCreateTableSQL(identifier) +
               "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='WrongSchema')");
         }
     );
 
     // Missing schema, we try to get the schema from the table and fail
     AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
-        "Please provide an existing table or a valid schema", () -> {
+        "Please provide ", () -> {
           shell.executeStatement("CREATE EXTERNAL TABLE withShell2 " +
               "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
-              (location != null ? "LOCATION '" + location + "' " : ""));
+              testTables.locationForCreateTableSQL(identifier));
         }
     );
 
-    if (location != null) {
-      // Missing location
+    if (!testTables.locationForCreateTableSQL(identifier).isEmpty()) {
+      // Only test this if the location is required
       AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
           "Table location not set", () -> {
             shell.executeStatement("CREATE EXTERNAL TABLE withShell2 " +
@@ -502,7 +557,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   @Test
   public void testCreateTableAboveExistingTable() throws TException, IOException, InterruptedException {
     // Create the Iceberg table
-    createIcebergTable("customers", CUSTOMER_SCHEMA, Collections.emptyList());
+    createIcebergTable("customers", COMPLEX_SCHEMA, Collections.emptyList());
 
     if (Catalogs.hiveCatalog(shell.getHiveConf())) {
 
@@ -516,18 +571,9 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
           }
       );
     } else {
-      // We need the location for HadoopTable based tests only
-      String location = locationForCreateTable(temp.getRoot().getPath(), "customers");
-
       shell.executeStatement("CREATE EXTERNAL TABLE customers " +
           "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
-          (location != null ? "LOCATION '" + location + "'" : ""));
-
-      Properties properties = new Properties();
-      properties.put(Catalogs.NAME, TableIdentifier.of("default", "customers").toString());
-      if (location != null) {
-        properties.put(Catalogs.LOCATION, location);
-      }
+          testTables.locationForCreateTableSQL(TableIdentifier.of("default", "customers")));
 
       // Check the HMS table parameters
       org.apache.hadoop.hive.metastore.api.Table hmsTable =
@@ -543,6 +589,179 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
           hmsTable.getParameters().get(hive_metastoreConstants.META_TABLE_STORAGE));
       Assert.assertEquals(BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(),
           hmsTable.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP));
+    }
+  }
+
+  @Test
+  public void testColumnSelection() throws IOException {
+    createTable("customers", CUSTOMER_SCHEMA, CUSTOMER_RECORDS);
+
+    List<Object[]> outOfOrderColumns = shell
+            .executeStatement("SELECT first_name, customer_id, last_name FROM default.customers");
+
+    Assert.assertEquals(3, outOfOrderColumns.size());
+    Assert.assertArrayEquals(new Object[] {"Alice", 0L, "Brown"}, outOfOrderColumns.get(0));
+    Assert.assertArrayEquals(new Object[] {"Bob", 1L, "Green"}, outOfOrderColumns.get(1));
+    Assert.assertArrayEquals(new Object[] {"Trudy", 2L, "Pink"}, outOfOrderColumns.get(2));
+
+    List<Object[]> allButFirstColumn = shell.executeStatement("SELECT first_name, last_name FROM default.customers");
+
+    Assert.assertEquals(3, allButFirstColumn.size());
+    Assert.assertArrayEquals(new Object[] {"Alice", "Brown"}, allButFirstColumn.get(0));
+    Assert.assertArrayEquals(new Object[] {"Bob", "Green"}, allButFirstColumn.get(1));
+    Assert.assertArrayEquals(new Object[] {"Trudy", "Pink"}, allButFirstColumn.get(2));
+
+    List<Object[]> allButMiddleColumn = shell.executeStatement("SELECT customer_id, last_name FROM default.customers");
+
+    Assert.assertEquals(3, allButMiddleColumn.size());
+    Assert.assertArrayEquals(new Object[] {0L, "Brown"}, allButMiddleColumn.get(0));
+    Assert.assertArrayEquals(new Object[] {1L, "Green"}, allButMiddleColumn.get(1));
+    Assert.assertArrayEquals(new Object[] {2L, "Pink"}, allButMiddleColumn.get(2));
+
+    List<Object[]> allButLastColumn = shell.executeStatement("SELECT customer_id, first_name FROM default.customers");
+
+    Assert.assertEquals(3, allButLastColumn.size());
+    Assert.assertArrayEquals(new Object[] {0L, "Alice"}, allButLastColumn.get(0));
+    Assert.assertArrayEquals(new Object[] {1L, "Bob"}, allButLastColumn.get(1));
+    Assert.assertArrayEquals(new Object[] {2L, "Trudy"}, allButLastColumn.get(2));
+  }
+
+  @Test
+  public void selectSameColumnTwice() throws IOException {
+    createTable("customers", CUSTOMER_SCHEMA, CUSTOMER_RECORDS);
+
+    List<Object[]> columns = shell.executeStatement("SELECT first_name, first_name FROM default.customers");
+
+    Assert.assertEquals(3, columns.size());
+    Assert.assertArrayEquals(new Object[] {"Alice", "Alice"}, columns.get(0));
+    Assert.assertArrayEquals(new Object[] {"Bob", "Bob"}, columns.get(1));
+    Assert.assertArrayEquals(new Object[] {"Trudy", "Trudy"}, columns.get(2));
+  }
+
+  @Test
+  public void testCreateTableWithColumnSpecification() throws IOException {
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+
+    shell.executeStatement("CREATE EXTERNAL TABLE customers (customer_id BIGINT, first_name STRING, last_name STRING)" +
+        " STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+        testTables.locationForCreateTableSQL(identifier));
+
+    // Check the Iceberg table data
+    org.apache.iceberg.Table icebergTable = loadTable(identifier);
+    Assert.assertEquals(CUSTOMER_SCHEMA.asStruct(), icebergTable.schema().asStruct());
+    Assert.assertEquals(SPEC, icebergTable.spec());
+
+    appendIcebergTable(icebergTable, fileFormat, null, CUSTOMER_RECORDS);
+
+    List<Object[]> descRows = shell.executeStatement("SELECT * FROM default.customers ORDER BY customer_id DESC");
+
+    Assert.assertEquals(3, descRows.size());
+    Assert.assertArrayEquals(new Object[] {2L, "Trudy", "Pink"}, descRows.get(0));
+    Assert.assertArrayEquals(new Object[] {1L, "Bob", "Green"}, descRows.get(1));
+    Assert.assertArrayEquals(new Object[] {0L, "Alice", "Brown"}, descRows.get(2));
+  }
+
+  @Test
+  public void testCreateTableWithColumnSpecificationPartitioned() {
+    AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
+        "currently not supported", () -> {
+          shell.executeStatement("CREATE EXTERNAL TABLE customers (customer_id BIGINT) " +
+              "PARTITIONED BY (first_name STRING) " +
+              "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+              testTables.locationForCreateTableSQL(TableIdentifier.of("default", "customers")));
+        }
+    );
+  }
+
+  @Test
+  public void testCreatePartitionedTable() throws IOException {
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    PartitionSpec spec = PartitionSpec.builderFor(CUSTOMER_SCHEMA).identity("first_name").build();
+
+    shell.executeStatement("CREATE EXTERNAL TABLE customers " +
+        "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+        testTables.locationForCreateTableSQL(identifier) +
+        "TBLPROPERTIES ('" + InputFormatConfig.PARTITION_SPEC + "'='" + PartitionSpecParser.toJson(spec) + "', " +
+        "'" + InputFormatConfig.TABLE_SCHEMA + "'='" + SchemaParser.toJson(CUSTOMER_SCHEMA) + "')");
+
+    org.apache.iceberg.Table icebergTable = loadTable(identifier);
+    Assert.assertEquals(CUSTOMER_SCHEMA.asStruct(), icebergTable.schema().asStruct());
+    Assert.assertEquals(spec, icebergTable.spec());
+
+    appendIcebergTable(icebergTable, fileFormat, Row.of("Alice"), Arrays.asList(CUSTOMER_RECORDS.get(0)));
+    appendIcebergTable(icebergTable, fileFormat, Row.of("Bob"), Arrays.asList(CUSTOMER_RECORDS.get(1)));
+    appendIcebergTable(icebergTable, fileFormat, Row.of("Trudy"), Arrays.asList(CUSTOMER_RECORDS.get(2)));
+
+    List<Object[]> descRows = shell.executeStatement("SELECT * FROM default.customers ORDER BY customer_id DESC");
+
+    Assert.assertEquals(3, descRows.size());
+    Assert.assertArrayEquals(new Object[] {2L, "Trudy", "Pink"}, descRows.get(0));
+    Assert.assertArrayEquals(new Object[] {1L, "Bob", "Green"}, descRows.get(1));
+    Assert.assertArrayEquals(new Object[] {0L, "Alice", "Brown"}, descRows.get(2));
+  }
+
+  @Test
+  public void testCreateTableWithColumnSpecificationHierarchy() {
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+
+    shell.executeStatement("CREATE EXTERNAL TABLE customers (" +
+        "id BIGINT, name STRING, " +
+        "employee_info STRUCT < employer: STRING, id: BIGINT, address: STRING >, " +
+        "places_lived ARRAY < STRUCT <street: STRING, city: STRING, country: STRING >>, " +
+        "memorable_moments MAP < STRING, STRUCT < year: INT, place: STRING, details: STRING >>, " +
+        "current_address STRUCT < street_address: STRUCT " +
+        "<street_number: INT, street_name: STRING, street_type: STRING>, country: STRING, postal_code: STRING >) " +
+        "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+        testTables.locationForCreateTableSQL(identifier));
+
+    // Check the Iceberg table data
+    org.apache.iceberg.Table icebergTable = loadTable(identifier);
+    Assert.assertEquals(COMPLEX_SCHEMA.asStruct(), icebergTable.schema().asStruct());
+  }
+
+  @Test
+  public void testCreateTableWithAllSupportedTypes() {
+    TableIdentifier identifier = TableIdentifier.of("default", "all_types");
+    Schema allSupportedSchema = new Schema(
+        optional(1, "t_float", Types.FloatType.get()),
+        optional(2, "t_double", Types.DoubleType.get()),
+        optional(3, "t_boolean", Types.BooleanType.get()),
+        optional(4, "t_int", Types.IntegerType.get()),
+        optional(5, "t_bigint", Types.LongType.get()),
+        optional(6, "t_binary", Types.BinaryType.get()),
+        optional(7, "t_string", Types.StringType.get()),
+        optional(8, "t_timestamp", Types.TimestampType.withoutZone()),
+        optional(9, "t_date", Types.DateType.get()),
+        optional(10, "t_decimal", Types.DecimalType.of(3, 2))
+    );
+
+    // Intentionally adding some mixed letters to test that we handle them correctly
+    shell.executeStatement("CREATE EXTERNAL TABLE all_types (" +
+        "t_Float FLOaT, t_dOuble DOUBLE, t_boolean BOOLEAN, t_int INT, t_bigint BIGINT, t_binary BINARY, " +
+        "t_string STRING, t_timestamp TIMESTAMP, t_date DATE, t_decimal DECIMAL(3,2)) " +
+        "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+        testTables.locationForCreateTableSQL(identifier));
+
+    // Check the Iceberg table data
+    org.apache.iceberg.Table icebergTable = loadTable(identifier);
+    Assert.assertEquals(allSupportedSchema.asStruct(), icebergTable.schema().asStruct());
+  }
+
+  @Test
+  public void testCreateTableWithNotSupportedTypes() {
+    TableIdentifier identifier = TableIdentifier.of("default", "not_supported_types");
+    // Can not create INTERVAL types from normal create table, so leave them out from this test
+    String[] notSupportedTypes = new String[] { "TINYINT", "SMALLINT", "VARCHAR(1)", "CHAR(1)" };
+
+    for (String notSupportedType : notSupportedTypes) {
+      AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
+          "Unsupported Hive type", () -> {
+            shell.executeStatement("CREATE EXTERNAL TABLE not_supported_types " +
+                "(not_supported " + notSupportedType + ") " +
+                "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+                testTables.locationForCreateTableSQL(identifier));
+          }
+      );
     }
   }
 
@@ -566,6 +785,273 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     return table;
   }
 
+  @Test
+  public void testArrayOfPrimitivesInTable() throws IOException {
+    Schema schema =
+            new Schema(required(1, "arrayofprimitives", Types.ListType.ofRequired(2, Types.IntegerType.get())));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "arraytable");
+    // access a single element from the array
+    for (int i = 0; i < records.size(); i++) {
+      List<?> expectedList = (List<?>) records.get(i).getField("arrayofprimitives");
+      for (int j = 0; j < expectedList.size(); j++) {
+        List<Object[]> queryResult = shell.executeStatement(
+                String.format("SELECT arrayofprimitives[%d] FROM default.arraytable " + "LIMIT 1 OFFSET %d", j, i));
+        Assert.assertEquals(expectedList.get(j), queryResult.get(0)[0]);
+      }
+    }
+  }
+
+  @Test
+  public void testArrayOfArraysInTable() throws IOException {
+    Schema schema =
+            new Schema(
+                    required(1, "arrayofarrays",
+                            Types.ListType.ofRequired(2, Types.ListType.ofRequired(3, Types.DateType.get()))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "arraytable");
+    // access an element from a matrix
+    for (int i = 0; i < records.size(); i++) {
+      List<?> expectedList = (List<?>) records.get(i).getField("arrayofarrays");
+      for (int j = 0; j < expectedList.size(); j++) {
+        List<?> expectedInnerList = (List<?>) expectedList.get(j);
+        for (int k = 0; k < expectedInnerList.size(); k++) {
+          List<Object[]> queryResult = shell.executeStatement(
+                  String.format("SELECT arrayofarrays[%d][%d] FROM default.arraytable " + "LIMIT 1 OFFSET %d",
+                          j, k, i));
+          Assert.assertEquals(expectedInnerList.get(k).toString(), queryResult.get(0)[0]);
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testArrayOfMapsInTable() throws IOException {
+    Schema schema =
+            new Schema(required(1, "arrayofmaps", Types.ListType
+                    .ofRequired(2, Types.MapType.ofRequired(3, 4, Types.StringType.get(),
+                            Types.BooleanType.get()))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "arraytable");
+    // access an element from a map in an array
+    for (int i = 0; i < records.size(); i++) {
+      List<?> expectedList = (List<?>) records.get(i).getField("arrayofmaps");
+      for (int j = 0; j < expectedList.size(); j++) {
+        Map<?, ?> expectedMap = (Map<?, ?>) expectedList.get(j);
+        for (Map.Entry<?, ?> entry : expectedMap.entrySet()) {
+          List<Object[]> queryResult = shell.executeStatement(String
+                  .format("SELECT arrayofmaps[%d][\"%s\"] FROM default.arraytable LIMIT 1 OFFSET %d", j,
+                          entry.getKey(), i));
+          Assert.assertEquals(entry.getValue(), queryResult.get(0)[0]);
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testArrayOfStructsInTable() throws IOException {
+    Schema schema =
+            new Schema(
+                    required(1, "arrayofstructs", Types.ListType.ofRequired(2, Types.StructType
+                            .of(required(3, "something", Types.DoubleType.get()), required(4, "someone",
+                                    Types.LongType.get()), required(5, "somewhere", Types.StringType.get())))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "arraytable");
+    // access an element from a struct in an array
+    for (int i = 0; i < records.size(); i++) {
+      List<?> expectedList = (List<?>) records.get(i).getField("arrayofstructs");
+      for (int j = 0; j < expectedList.size(); j++) {
+        List<Object[]> queryResult = shell.executeStatement(String.format("SELECT arrayofstructs[%d].something, " +
+                "arrayofstructs[%d].someone, arrayofstructs[%d].somewhere FROM default.arraytable LIMIT 1 " +
+                "OFFSET %d", j, j, j, i));
+        GenericRecord genericRecord = (GenericRecord) expectedList.get(j);
+        Assert.assertEquals(genericRecord.getField("something"), queryResult.get(0)[0]);
+        Assert.assertEquals(genericRecord.getField("someone"), queryResult.get(0)[1]);
+        Assert.assertEquals(genericRecord.getField("somewhere"), queryResult.get(0)[2]);
+      }
+    }
+  }
+
+  @Test
+  public void testMapOfPrimitivesInTable() throws IOException {
+    Schema schema = new Schema(
+            required(1, "mapofprimitives", Types.MapType.ofRequired(2, 3, Types.StringType.get(),
+                    Types.IntegerType.get())));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "maptable");
+    // access a single value from the map
+    for (int i = 0; i < records.size(); i++) {
+      Map<?, ?> expectedMap = (Map<?, ?>) records.get(i).getField("mapofprimitives");
+      for (Map.Entry<?, ?> entry : expectedMap.entrySet()) {
+        List<Object[]> queryResult = shell.executeStatement(String
+                .format("SELECT mapofprimitives[\"%s\"] " + "FROM default.maptable LIMIT 1 OFFSET %d", entry.getKey(),
+                        i));
+        Assert.assertEquals(entry.getValue(), queryResult.get(0)[0]);
+      }
+    }
+  }
+
+  @Test
+  public void testMapOfArraysInTable() throws IOException {
+    Schema schema = new Schema(
+            required(1, "mapofarrays",
+                    Types.MapType.ofRequired(2, 3, Types.StringType.get(), Types.ListType.ofRequired(4,
+                            Types.DateType.get()))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "maptable");
+    // access a single element from a list in a map
+    for (int i = 0; i < records.size(); i++) {
+      Map<?, ?> expectedMap = (Map<?, ?>) records.get(i).getField("mapofarrays");
+      for (Map.Entry<?, ?> entry : expectedMap.entrySet()) {
+        List<?> expectedList = (List<?>) entry.getValue();
+        for (int j = 0; j < expectedList.size(); j++) {
+          List<Object[]> queryResult = shell.executeStatement(String
+                  .format("SELECT mapofarrays[\"%s\"]" + "[%d] FROM maptable LIMIT 1 OFFSET %d", entry.getKey(), j, i));
+          Assert.assertEquals(expectedList.get(j).toString(), queryResult.get(0)[0]);
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testMapOfMapsInTable() throws IOException {
+    Schema schema = new Schema(
+            required(1, "mapofmaps", Types.MapType.ofRequired(2, 3, Types.StringType.get(),
+                    Types.MapType.ofRequired(4, 5, Types.StringType.get(), Types.StringType.get()))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "maptable");
+    // access a single element from a map in a map
+    for (int i = 0; i < records.size(); i++) {
+      Map<?, ?> expectedMap = (Map<?, ?>) records.get(i).getField("mapofmaps");
+      for (Map.Entry<?, ?> entry : expectedMap.entrySet()) {
+        Map<?, ?> expectedInnerMap = (Map<?, ?>) entry.getValue();
+        for (Map.Entry<?, ?> innerEntry : expectedInnerMap.entrySet()) {
+          List<Object[]> queryResult = shell.executeStatement(String
+                  .format("SELECT mapofmaps[\"%s\"]" + "[\"%s\"] FROM maptable LIMIT 1 OFFSET %d", entry.getKey(),
+                          innerEntry.getKey(), i));
+          Assert.assertEquals(innerEntry.getValue(), queryResult.get(0)[0]);
+        }
+      }
+    }
+  }
+
+  @Test
+  public void testMapOfStructsInTable() throws IOException {
+    Schema schema = new Schema(
+            required(1, "mapofstructs", Types.MapType.ofRequired(2, 3, Types.StringType.get(),
+                    Types.StructType.of(required(4, "something", Types.DoubleType.get()),
+                            required(5, "someone", Types.LongType.get()),
+                            required(6, "somewhere", Types.StringType.get())))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "maptable");
+    // access a single element from a struct in a map
+    for (int i = 0; i < records.size(); i++) {
+      Map<?, ?> expectedMap = (Map<?, ?>) records.get(i).getField("mapofstructs");
+      for (Map.Entry<?, ?> entry : expectedMap.entrySet()) {
+        List<Object[]> queryResult = shell.executeStatement(String.format("SELECT mapofstructs[\"%s\"].something, " +
+                "mapofstructs[\"%s\"].someone, mapofstructs[\"%s\"].somewhere FROM default.maptable LIMIT 1 " +
+                "OFFSET %d", entry.getKey(), entry.getKey(), entry.getKey(), i));
+        GenericRecord genericRecord = (GenericRecord) entry.getValue();
+        Assert.assertEquals(genericRecord.getField("something"), queryResult.get(0)[0]);
+        Assert.assertEquals(genericRecord.getField("someone"), queryResult.get(0)[1]);
+        Assert.assertEquals(genericRecord.getField("somewhere"), queryResult.get(0)[2]);
+      }
+    }
+  }
+
+  @Test
+  public void testStructOfPrimitivesInTable() throws IOException {
+    Schema schema = new Schema(required(1, "structofprimitives",
+            Types.StructType.of(required(2, "key", Types.StringType.get()), required(3, "value",
+                    Types.IntegerType.get()))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "structtable");
+    // access a single value in a struct
+    for (int i = 0; i < records.size(); i++) {
+      GenericRecord expectedStruct = (GenericRecord) records.get(i).getField("structofprimitives");
+      List<Object[]> queryResult = shell.executeStatement(String.format(
+              "SELECT structofprimitives.key, structofprimitives.value FROM default.structtable LIMIT 1 OFFSET %d", i));
+      Assert.assertEquals(expectedStruct.getField("key"), queryResult.get(0)[0]);
+      Assert.assertEquals(expectedStruct.getField("value"), queryResult.get(0)[1]);
+    }
+  }
+
+  @Test
+  public void testStructOfArraysInTable() throws IOException {
+    Schema schema = new Schema(
+            required(1, "structofarrays", Types.StructType
+                    .of(required(2, "names", Types.ListType.ofRequired(3, Types.StringType.get())),
+                            required(4, "birthdays", Types.ListType.ofRequired(5,
+                                    Types.DateType.get())))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "structtable");
+    // access an element of an array inside a struct
+    for (int i = 0; i < records.size(); i++) {
+      GenericRecord expectedStruct = (GenericRecord) records.get(i).getField("structofarrays");
+      List<?> expectedList = (List<?>) expectedStruct.getField("names");
+      for (int j = 0; j < expectedList.size(); j++) {
+        List<Object[]> queryResult = shell.executeStatement(
+                String.format("SELECT structofarrays.names[%d] FROM default.structtable LIMIT 1 OFFSET %d", j, i));
+        Assert.assertEquals(expectedList.get(j), queryResult.get(0)[0]);
+      }
+      expectedList = (List<?>) expectedStruct.getField("birthdays");
+      for (int j = 0; j < expectedList.size(); j++) {
+        List<Object[]> queryResult = shell.executeStatement(
+                String.format("SELECT structofarrays.birthdays[%d] FROM default.structtable LIMIT 1 OFFSET %d", j, i));
+        Assert.assertEquals(expectedList.get(j).toString(), queryResult.get(0)[0]);
+      }
+    }
+  }
+
+  @Test
+  public void testStructOfMapsInTable() throws IOException {
+    Schema schema = new Schema(
+            required(1, "structofmaps", Types.StructType
+                    .of(required(2, "map1", Types.MapType.ofRequired(3, 4,
+                            Types.StringType.get(), Types.StringType.get())), required(5, "map2",
+                            Types.MapType.ofRequired(6, 7, Types.StringType.get(),
+                                    Types.IntegerType.get())))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "structtable");
+    // access a map entry inside a struct
+    for (int i = 0; i < records.size(); i++) {
+      GenericRecord expectedStruct = (GenericRecord) records.get(i).getField("structofmaps");
+      Map<?, ?> expectedMap = (Map<?, ?>) expectedStruct.getField("map1");
+      for (Map.Entry<?, ?> entry : expectedMap.entrySet()) {
+        List<Object[]> queryResult = shell.executeStatement(String
+                .format("SELECT structofmaps.map1[\"%s\"] from default.structtable LIMIT 1 OFFSET %d", entry.getKey(),
+                        i));
+        Assert.assertEquals(entry.getValue(), queryResult.get(0)[0]);
+      }
+      expectedMap = (Map<?, ?>) expectedStruct.getField("map2");
+      for (Map.Entry<?, ?> entry : expectedMap.entrySet()) {
+        List<Object[]> queryResult = shell.executeStatement(String
+                .format("SELECT structofmaps.map2[\"%s\"] from default.structtable LIMIT 1 OFFSET %d", entry.getKey(),
+                        i));
+        Assert.assertEquals(entry.getValue(), queryResult.get(0)[0]);
+      }
+    }
+  }
+
+  @Test
+  public void testStructOfStructsInTable() throws IOException {
+    Schema schema = new Schema(
+            required(1, "structofstructs", Types.StructType.of(required(2, "struct1", Types.StructType
+                    .of(required(3, "key", Types.StringType.get()), required(4, "value",
+                            Types.IntegerType.get()))))));
+    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "structtable");
+    // access a struct element inside a struct
+    for (int i = 0; i < records.size(); i++) {
+      GenericRecord expectedStruct = (GenericRecord) records.get(i).getField("structofstructs");
+      GenericRecord expectedInnerStruct = (GenericRecord) expectedStruct.getField("struct1");
+      List<Object[]> queryResult = shell.executeStatement(String.format(
+              "SELECT structofstructs.struct1.key, structofstructs.struct1.value FROM default.structtable " +
+                      "LIMIT 1 OFFSET %d", i));
+      Assert.assertEquals(expectedInnerStruct.getField("key"), queryResult.get(0)[0]);
+      Assert.assertEquals(expectedInnerStruct.getField("value"), queryResult.get(0)[1]);
+    }
+  }
+
+  protected void appendIcebergTable(Table table, FileFormat format, StructLike partition, List<Record> records)
+      throws IOException {
+    TestHelper helper = new TestHelper(
+        shell.getHiveConf(), null, null, null, null, format, temp);
+
+    helper.setTable(table);
+    if (!records.isEmpty()) {
+      helper.appendToTable(helper.writeFile(partition, records));
+    }
+  }
+
   protected void createHiveTable(String tableName, String location) {
     shell.executeStatement(String.format(
             "CREATE TABLE default.%s " +
@@ -574,7 +1060,30 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
             tableName, HiveIcebergStorageHandler.class.getName(), location));
   }
 
-  protected String locationForCreateTable(String tempDirName, String tableName) {
+  private Table loadTable(TableIdentifier identifier) {
+    Properties properties = new Properties();
+    properties.put(Catalogs.NAME, identifier.toString());
+    String expectedLocation = testTables.loadLocation(identifier);
+    if (expectedLocation != null) {
+      properties.put(Catalogs.LOCATION, expectedLocation);
+    }
+
+    // Check the Iceberg table data
+    return Catalogs.loadTable(shell.getHiveConf(), properties);
+  }
+
+  protected String locationForCreateTableSQL(TemporaryFolder root, String tableName) {
+    return "LOCATION '" + root.getRoot().getPath() + "/hadoop/warehouse/default/" + tableName + "' ";
+  }
+
+  protected String loadLocation(TemporaryFolder root, String tableName) {
     return null;
+  }
+
+  private List<Record> createTableWithGeneratedRecords(Schema schema, int numRecords, long seed, String tableName)
+          throws IOException {
+    List<Record> records = TestHelper.generateRandomRecords(schema, numRecords, seed);
+    createTable(tableName, schema, records);
+    return records;
   }
 }

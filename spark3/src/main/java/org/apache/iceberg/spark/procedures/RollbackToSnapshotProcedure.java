@@ -22,7 +22,6 @@ package org.apache.iceberg.spark.procedures;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.types.DataTypes;
@@ -32,6 +31,10 @@ import org.apache.spark.sql.types.StructType;
 
 /**
  * A procedure that rollbacks a table to a specific snapshot id.
+ * <p>
+ * <em>Note:</em> this procedure invalidates all cached Spark plans that reference the affected table.
+ *
+ * @see org.apache.iceberg.ManageSnapshots#rollbackTo(long)
  */
 class RollbackToSnapshotProcedure extends BaseProcedure {
 
@@ -82,11 +85,7 @@ class RollbackToSnapshotProcedure extends BaseProcedure {
           .rollbackTo(snapshotId)
           .commit();
 
-      Object[] outputValues = new Object[OUTPUT_TYPE.size()];
-      outputValues[0] = previousSnapshot.snapshotId();
-      outputValues[1] = snapshotId;
-      GenericInternalRow outputRow = new GenericInternalRow(outputValues);
-
+      InternalRow outputRow = newInternalRow(previousSnapshot.snapshotId(), snapshotId);
       return new InternalRow[]{outputRow};
     });
   }

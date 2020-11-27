@@ -461,10 +461,7 @@ class Literals {
       switch (type.typeId()) {
         case DECIMAL:
           // do not change decimal scale
-          if (value().scale() == ((Types.DecimalType) type).scale()) {
-            return (Literal<T>) this;
-          }
-          return null;
+          return (Literal<T>) this;
         default:
           return null;
       }
@@ -517,12 +514,9 @@ class Literals {
           return (Literal<T>) new UUIDLiteral(UUID.fromString(value().toString()));
 
         case DECIMAL:
-          int scale = ((Types.DecimalType) type).scale();
+          // do not change decimal scale
           BigDecimal decimal = new BigDecimal(value().toString());
-          if (scale == decimal.scale()) {
-            return (Literal<T>) new DecimalLiteral(decimal);
-          }
-          return null;
+          return (Literal<T>) new DecimalLiteral(decimal);
 
         default:
           return null;

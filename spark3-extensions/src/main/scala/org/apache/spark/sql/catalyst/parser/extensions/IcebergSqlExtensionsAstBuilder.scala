@@ -30,17 +30,26 @@ import scala.collection.JavaConverters._
 
 class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergSqlExtensionsBaseVisitor[AnyRef] {
 
-  override def visitCall(ctx: CallContext): LogicalPlan = {
+  /**
+   * Create a [[CallStatement]] for a stored procedure call.
+   */
+  override def visitCall(ctx: CallContext): CallStatement = withOrigin(ctx) {
     val name = ctx.multipartIdentifier.parts.asScala.map(_.getText)
     val args = ctx.callArgument.asScala.map(typedVisit[CallArgument])
     CallStatement(name, args)
   }
 
+  /**
+   * Create a positional argument in a stored procedure call.
+   */
   override def visitPositionalArgument(ctx: PositionalArgumentContext): CallArgument = withOrigin(ctx) {
     val expr = typedVisit[Expression](ctx.expression)
     PositionalArgument(expr)
   }
 
+  /**
+   * Create a named argument in a stored procedure call.
+   */
   override def visitNamedArgument(ctx: NamedArgumentContext): CallArgument = withOrigin(ctx) {
     val name = ctx.identifier.getText
     val expr = typedVisit[Expression](ctx.expression)

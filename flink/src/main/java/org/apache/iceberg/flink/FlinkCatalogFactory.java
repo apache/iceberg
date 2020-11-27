@@ -66,6 +66,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
   public static final String HIVE_CONF_DIR = "hive-conf-dir";
   public static final String DEFAULT_DATABASE = "default-database";
   public static final String BASE_NAMESPACE = "base-namespace";
+  public static final String CACHE_ENABLED = "cache-enabled";
 
   /**
    * Create an Iceberg {@link org.apache.iceberg.catalog.Catalog} loader to be used by this Flink catalog adapter.
@@ -117,6 +118,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
     properties.add(CatalogProperties.WAREHOUSE_LOCATION);
     properties.add(CatalogProperties.HIVE_URI);
     properties.add(CatalogProperties.HIVE_CLIENT_POOL_SIZE);
+    properties.add(CACHE_ENABLED);
     return properties;
   }
 
@@ -131,7 +133,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
     String[] baseNamespace = properties.containsKey(BASE_NAMESPACE) ?
         Splitter.on('.').splitToList(properties.get(BASE_NAMESPACE)).toArray(new String[0]) :
         new String[0];
-    boolean cacheEnabled = Boolean.parseBoolean(properties.getOrDefault("cache-enabled", "true"));
+    boolean cacheEnabled = Boolean.parseBoolean(properties.getOrDefault(CACHE_ENABLED, "true"));
     return new FlinkCatalog(name, defaultDatabase, baseNamespace, catalogLoader, cacheEnabled);
   }
 

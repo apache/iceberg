@@ -25,7 +25,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.parser.ParserInterface;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -47,6 +49,15 @@ abstract class BaseProcedure implements Procedure {
   }
 
   protected <T> T modifyIcebergTable(String namespace, String tableName, Function<org.apache.iceberg.Table, T> func) {
+    return execute(namespace, tableName, true, func);
+  }
+
+  protected <T> T withIcebergTable(String namespace, String tableName, Function<org.apache.iceberg.Table, T> func) {
+    return execute(namespace, tableName, false, func);
+  }
+
+  private <T> T execute(String namespace, String tableName, boolean refreshSparkCache,
+                        Function<org.apache.iceberg.Table, T> func) {
     Preconditions.checkArgument(namespace != null && !namespace.isEmpty(), "Namespace cannot be empty");
     Preconditions.checkArgument(tableName != null && !tableName.isEmpty(), "Table name cannot be empty");
 
@@ -56,7 +67,9 @@ abstract class BaseProcedure implements Procedure {
 
     T result = func.apply(icebergTable);
 
-    refreshSparkCache(ident, sparkTable);
+    if (refreshSparkCache) {
+      refreshSparkCache(ident, sparkTable);
+    }
 
     return result;
   }
@@ -98,6 +111,10 @@ abstract class BaseProcedure implements Procedure {
     CacheManager cacheManager = spark.sharedState().cacheManager();
     DataSourceV2Relation relation = DataSourceV2Relation.create(table, Option.apply(tableCatalog), Option.apply(ident));
     cacheManager.recacheByPlan(spark, relation);
+  }
+
+  protected InternalRow newInternalRow(Object... values) {
+    return new GenericInternalRow(values);
   }
 
   protected abstract static class Builder<T extends BaseProcedure> implements ProcedureBuilder {

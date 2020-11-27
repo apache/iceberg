@@ -29,7 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * This class defines different metrics modes, which allow users to control the collection of
- * value_counts, null_value_counts, lower_bounds, upper_bounds for different columns in metadata.
+ * value_counts, null_value_counts, nan_value_counts, lower_bounds, upper_bounds for different columns in metadata.
  */
 public class MetricsModes {
 
@@ -60,7 +60,7 @@ public class MetricsModes {
   }
 
   /**
-   * Under this mode, value_counts, null_value_counts, lower_bounds, upper_bounds are not persisted.
+   * Under this mode, value_counts, null_value_counts, nan_value_counts, lower_bounds, upper_bounds are not persisted.
    */
   public static class None extends ProxySerializableMetricsMode {
     private static final None INSTANCE = new None();
@@ -76,7 +76,7 @@ public class MetricsModes {
   }
 
   /**
-   * Under this mode, only value_counts, null_value_counts are persisted.
+   * Under this mode, only value_counts, null_value_counts, nan_value_counts are persisted.
    */
   public static class Counts extends ProxySerializableMetricsMode {
     private static final Counts INSTANCE = new Counts();
@@ -92,7 +92,8 @@ public class MetricsModes {
   }
 
   /**
-   * Under this mode, value_counts, null_value_counts and truncated lower_bounds, upper_bounds are persisted.
+   * Under this mode, value_counts, null_value_counts, nan_value_counts
+   * and truncated lower_bounds, upper_bounds are persisted.
    */
   public static class Truncate extends ProxySerializableMetricsMode {
     private final int length;
@@ -133,7 +134,8 @@ public class MetricsModes {
   }
 
   /**
-   * Under this mode, value_counts, null_value_counts and full lower_bounds, upper_bounds are persisted.
+   * Under this mode, value_counts, null_value_counts, nan_value_counts
+   * and full lower_bounds, upper_bounds are persisted.
    */
   public static class Full extends ProxySerializableMetricsMode {
     private static final Full INSTANCE = new Full();

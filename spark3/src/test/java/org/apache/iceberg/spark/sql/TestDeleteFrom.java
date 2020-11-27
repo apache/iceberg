@@ -21,7 +21,9 @@ package org.apache.iceberg.spark.sql;
 
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.junit.After;
 import org.junit.Assert;
@@ -91,5 +93,24 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
     } finally {
       spark.conf().set("spark.sql.shuffle.partitions", originalParallelism);
     }
+  }
+
+  @Test
+  public void testDeleteFromWhereFalse() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals("Should have 1 snapshot", 1, Iterables.size(table.snapshots()));
+
+    sql("DELETE FROM %s WHERE false", tableName);
+
+    table.refresh();
+
+    Assert.assertEquals("Delete should not produce a new snapshot", 1, Iterables.size(table.snapshots()));
   }
 }

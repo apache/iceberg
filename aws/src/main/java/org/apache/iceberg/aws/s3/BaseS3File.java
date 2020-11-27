@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.aws.s3;
 
+import org.apache.iceberg.aws.AwsProperties;
 import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
@@ -28,11 +29,17 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 abstract class BaseS3File {
   private final S3Client client;
   private final S3URI uri;
+  private final AwsProperties awsProperties;
   private HeadObjectResponse metadata;
 
   BaseS3File(S3Client client, S3URI uri) {
+    this(client, uri, new AwsProperties());
+  }
+
+  BaseS3File(S3Client client, S3URI uri, AwsProperties awsProperties) {
     this.client = client;
     this.uri = uri;
+    this.awsProperties = awsProperties;
   }
 
   public String location() {
@@ -45,6 +52,10 @@ abstract class BaseS3File {
 
   S3URI uri() {
     return uri;
+  }
+
+  public AwsProperties awsProperties() {
+    return awsProperties;
   }
 
   /**
@@ -66,10 +77,11 @@ abstract class BaseS3File {
 
   protected HeadObjectResponse getObjectMetadata() throws S3Exception {
     if (metadata == null) {
-      metadata = client().headObject(HeadObjectRequest.builder()
+      HeadObjectRequest.Builder requestBuilder = HeadObjectRequest.builder()
           .bucket(uri().bucket())
-          .key(uri().key())
-          .build());
+          .key(uri().key());
+      S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
+      metadata = client().headObject(requestBuilder.build());
     }
 
     return metadata;
