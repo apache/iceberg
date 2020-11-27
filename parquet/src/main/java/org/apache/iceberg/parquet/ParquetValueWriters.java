@@ -561,18 +561,41 @@ public class ParquetValueWriters {
     }
   }
 
+  public interface PathPosAccessor<PATH, POS> {
+    PATH accessPath(CharSequence path);
+
+    POS accessPos(Long pos);
+  }
+
+  public static class IdentifyPathPosAccessor implements PathPosAccessor<CharSequence, Long> {
+    public static final PathPosAccessor<CharSequence, Long> INSTANCE = new IdentifyPathPosAccessor();
+
+    @Override
+    public CharSequence accessPath(CharSequence path) {
+      return path;
+    }
+
+    @Override
+    public Long accessPos(Long pos) {
+      return pos;
+    }
+  }
+
   public static class PositionDeleteStructWriter<R> extends StructWriter<PositionDelete<R>> {
-    public PositionDeleteStructWriter(StructWriter<?> replacedWriter) {
+    private final PathPosAccessor<?, ?> accessor;
+
+    public PositionDeleteStructWriter(StructWriter<?> replacedWriter, PathPosAccessor<?, ?> accessor) {
       super(Arrays.asList(replacedWriter.writers));
+      this.accessor = accessor;
     }
 
     @Override
     protected Object get(PositionDelete<R> delete, int index) {
       switch (index) {
         case 0:
-          return delete.path();
+          return accessor.accessPath(delete.path());
         case 1:
-          return delete.pos();
+          return accessor.accessPos(delete.pos());
         case 2:
           return delete.row();
       }

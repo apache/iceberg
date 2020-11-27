@@ -378,8 +378,8 @@ public class Parquet {
           appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata, equalityFieldIds);
     }
 
-
-    public <T> PositionDeleteWriter<T> buildPositionWriter() throws IOException {
+    public <T> PositionDeleteWriter<T> buildPositionWriter(ParquetValueWriters.PathPosAccessor<?, ?> accessor)
+        throws IOException {
       Preconditions.checkState(equalityFieldIds == null, "Cannot create position delete file using delete field ids");
 
       meta("delete-type", "position");
@@ -391,7 +391,7 @@ public class Parquet {
         appenderBuilder.createWriterFunc(parquetSchema -> {
           ParquetValueWriter<?> writer = createWriterFunc.apply(parquetSchema);
           if (writer instanceof StructWriter) {
-            return new PositionDeleteStructWriter<T>((StructWriter<?>) writer);
+            return new PositionDeleteStructWriter<T>((StructWriter<?>) writer, accessor);
           } else {
             throw new UnsupportedOperationException("Cannot wrap writer for position deletes: " + writer.getClass());
           }
@@ -401,11 +401,16 @@ public class Parquet {
         appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
 
         appenderBuilder.createWriterFunc(parquetSchema ->
-            new PositionDeleteStructWriter<T>((StructWriter<?>) GenericParquetWriter.buildWriter(parquetSchema)));
+            new PositionDeleteStructWriter<T>((StructWriter<?>) GenericParquetWriter.buildWriter(parquetSchema),
+                ParquetValueWriters.IdentifyPathPosAccessor.INSTANCE));
       }
 
       return new PositionDeleteWriter<>(
           appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata);
+    }
+
+    public <T> PositionDeleteWriter<T> buildPositionWriter() throws IOException {
+      return buildPositionWriter(ParquetValueWriters.IdentifyPathPosAccessor.INSTANCE);
     }
   }
 
