@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.mr.hive;
+package org.apache.iceberg.hive;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,6 +26,7 @@ import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
@@ -69,24 +70,33 @@ public class TestHiveSchemaUtil {
       ))
   );
 
+  private static final List<FieldSchema> COMPLEX_COLUMNS = ImmutableList.of(
+      new FieldSchema("id", "bigint", ""),
+      new FieldSchema("name", "string", ""),
+      new FieldSchema("employee_info", "struct<employer:string,id:bigint,address:string>", ""),
+      new FieldSchema("places_lived", "array<struct<street:string,city:string,country:string>>", ""),
+      new FieldSchema("memorable_moments", "map<string,struct<year:int,place:string,details:string>>", ""),
+      new FieldSchema("current_address", "struct<street_address:struct<street_number:int,street_name:string," +
+          "street_type:string>,country:string,postal_code:string>", ""));
+
   @Test
-  public void testSimpleSchemaConvert() {
-    Schema schema = HiveSchemaUtil.schema("customer_id,first_name", "bigint:string", ",");
+  public void testSimpleIcebergSchemaConvert() {
+    Schema schema = HiveTypeConverter.icebergSchema("customer_id,first_name", "bigint:string", ",");
     Assert.assertEquals(SIMPLE_SCHEMA.asStruct(), schema.asStruct());
   }
 
   @Test
-  public void testSimpleSchemaConvertFromType() {
+  public void testSimpleIcebergSchemaConvertFromType() {
     List<FieldSchema> fields = new ArrayList<>();
     fields.add(new FieldSchema("customer_id", serdeConstants.BIGINT_TYPE_NAME, ""));
     fields.add(new FieldSchema("first_name", serdeConstants.STRING_TYPE_NAME, ""));
-    Schema schema = HiveSchemaUtil.schema(fields);
+    Schema schema = HiveTypeConverter.icebergSchema(fields);
     Assert.assertEquals(SIMPLE_SCHEMA.asStruct(), schema.asStruct());
   }
 
   @Test
-  public void testComplexSchemaConvert() {
-    Schema schema = HiveSchemaUtil.schema(
+  public void testComplexIcebergSchemaConvert() {
+    Schema schema = HiveTypeConverter.icebergSchema(
         "id,name,employee_info,places_lived,memorable_moments,current_address",
         "bigint:string:" +
             "struct<employer:string,id:bigint,address:string>:" +
@@ -99,8 +109,8 @@ public class TestHiveSchemaUtil {
   }
 
   @Test
-  public void testSchemaConvertForEveryPrimitiveType() {
-    Schema schemaWithEveryType = HiveSchemaUtil.schema(getSupportedFieldSchemas());
+  public void testIcebergSchemaConvertForEveryPrimitiveType() {
+    Schema schemaWithEveryType = HiveTypeConverter.icebergSchema(getSupportedFieldSchemas());
     Assert.assertEquals(getSchemaWithSupportedTypes().asStruct(), schemaWithEveryType.asStruct());
   }
 
@@ -109,10 +119,25 @@ public class TestHiveSchemaUtil {
     for (FieldSchema notSupportedField : getNotSupportedFieldSchemas()) {
       AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
           "Unsupported Hive type", () -> {
-            HiveSchemaUtil.schema(new ArrayList<>(Arrays.asList(notSupportedField)));
+            HiveTypeConverter.icebergSchema(new ArrayList<>(Arrays.asList(notSupportedField)));
           }
       );
     }
+  }
+
+  @Test
+  public void testSimpleHiveSchemaConvert() {
+    List<FieldSchema> columns = HiveTypeConverter.hiveSchema(SIMPLE_SCHEMA);
+    List<FieldSchema> expectedFields = new ArrayList<>();
+    expectedFields.add(new FieldSchema("customer_id", serdeConstants.BIGINT_TYPE_NAME, ""));
+    expectedFields.add(new FieldSchema("first_name", serdeConstants.STRING_TYPE_NAME, ""));
+    Assert.assertEquals(expectedFields, columns);
+  }
+
+  @Test
+  public void testComplexHiveSchemaConvert() {
+    List<FieldSchema> columns = HiveTypeConverter.hiveSchema(COMPLEX_SCHEMA);
+    Assert.assertEquals(COMPLEX_COLUMNS, columns);
   }
 
   protected List<FieldSchema> getSupportedFieldSchemas() {

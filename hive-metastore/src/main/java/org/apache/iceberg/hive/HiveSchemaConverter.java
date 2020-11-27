@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.mr.hive;
+package org.apache.iceberg.hive;
 
 import java.util.ArrayList;
 import java.util.List;

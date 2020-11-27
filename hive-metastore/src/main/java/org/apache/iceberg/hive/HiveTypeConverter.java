@@ -19,7 +19,14 @@
 
 package org.apache.iceberg.hive;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -30,7 +37,52 @@ public final class HiveTypeConverter {
 
   }
 
-  public static String convert(Type type) {
+  /**
+   * Converts the Iceberg schema to a Hive schema.
+   * @param schema The original Iceberg schema to convert
+   * @return The Hive column list generated from the Iceberg schema
+   */
+  public static List<FieldSchema> hiveSchema(Schema schema) {
+    return schema.columns().stream()
+        .map(col -> new FieldSchema(col.name(), HiveTypeConverter.convert(col.type()), ""))
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * Converts the list of Hive FieldSchemas to an Iceberg schema.
+   * <p>
+   * The list should contain the columns and the partition columns as well.
+   * @param fieldSchemas The list of the columns
+   * @return An equivalent Iceberg Schema
+   */
+  public static Schema icebergSchema(List<FieldSchema> fieldSchemas) {
+    List<String> names = new ArrayList<>(fieldSchemas.size());
+    List<TypeInfo> typeInfos = new ArrayList<>(fieldSchemas.size());
+
+    for (FieldSchema col : fieldSchemas) {
+      names.add(col.getName());
+      typeInfos.add(TypeInfoUtils.getTypeInfoFromTypeString(col.getType()));
+    }
+
+    return HiveSchemaConverter.convert(names, typeInfos);
+  }
+
+  /**
+   * Converts the Hive properties defining the columns to an Iceberg schema.
+   * @param columnNames The property containing the column names
+   * @param columnTypes The property containing the column types
+   * @param columnNameDelimiter The name delimiter
+   * @return The Iceberg schema
+   */
+  public static Schema icebergSchema(String columnNames, String columnTypes, String columnNameDelimiter) {
+    // Parse the configuration parameters
+    List<String> names = new ArrayList<>();
+    Collections.addAll(names, columnNames.split(columnNameDelimiter));
+
+    return HiveSchemaConverter.convert(names, TypeInfoUtils.getTypeInfosFromTypeString(columnTypes));
+  }
+
+  private static String convert(Type type) {
     switch (type.typeId()) {
       case BOOLEAN:
         return "boolean";
