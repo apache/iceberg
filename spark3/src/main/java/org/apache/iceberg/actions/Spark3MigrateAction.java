@@ -33,11 +33,13 @@ import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
+import org.apache.spark.sql.connector.catalog.CatalogV2Implicits;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.StagedTable;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import scala.Some;
 import scala.collection.JavaConverters;
 
 /**
@@ -96,7 +98,8 @@ class Spark3MigrateAction extends Spark3CreateAction {
 
       LOG.info("Beginning migration of {} using metadata location {}", sourceTableName(), stagingLocation);
 
-      TableIdentifier v1BackupIdentifier = Spark3Util.toTableIdentifier(backupIdentifier);
+      Some<String> backupNamespace = Some.apply(backupIdentifier.namespace()[0]);
+      TableIdentifier v1BackupIdentifier = new TableIdentifier(backupIdentifier.name(), backupNamespace);
       SparkTableUtil.importSparkTable(spark(), v1BackupIdentifier, icebergTable, stagingLocation);
 
       stagedTable.commitStagedChanges();

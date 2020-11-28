@@ -40,9 +40,12 @@ import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
+import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.catalyst.analysis.NoSuchDatabaseException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.catalog.CatalogTable;
+import org.apache.spark.sql.catalyst.parser.ParseException;
+import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.junit.After;
 import org.junit.Assert;
@@ -52,6 +55,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runners.Parameterized;
+import scala.Some;
 import scala.collection.Seq;
 
 public class TestCreateActions extends SparkCatalogTestBase {
@@ -266,17 +270,19 @@ public class TestCreateActions extends SparkCatalogTestBase {
     assertIsolatedSnapshot(source, dest);
   }
 
-  private SparkTable loadTable(String name) throws NoSuchTableException {
+  private SparkTable loadTable(String name) throws NoSuchTableException, ParseException {
     return (SparkTable) catalog.loadTable(Spark3Util.catalogAndIdentifier(spark, name).identifier());
   }
 
-  private CatalogTable loadSessionTable(String name) throws NoSuchTableException, NoSuchDatabaseException {
-    return spark.sessionState().catalog()
-        .getTableMetadata(Spark3Util.toTableIdentifier(Spark3Util.catalogAndIdentifier(spark, name).identifier()));
+  private CatalogTable loadSessionTable(String name)
+      throws NoSuchTableException, NoSuchDatabaseException, ParseException {
+    Identifier identifier = Spark3Util.catalogAndIdentifier(spark, name).identifier();
+    Some<String> namespace = Some.apply(identifier.namespace()[0]);
+    return spark.sessionState().catalog().getTableMetadata(new TableIdentifier(identifier.name(), namespace));
   }
 
   private void createSourceTable(String createStatement, String tableName)
-      throws IOException, NoSuchTableException, NoSuchDatabaseException {
+      throws IOException, NoSuchTableException, NoSuchDatabaseException, ParseException {
     File location = temp.newFolder();
     spark.sql(String.format(createStatement, tableName, location));
     CatalogTable table = loadSessionTable(tableName);
@@ -288,7 +294,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
   // Counts the number of files in the source table, makes sure the same files exist in the destination table
   private void assertMigratedFileCount(CreateAction migrateAction, String source, String dest)
-      throws NoSuchTableException, NoSuchDatabaseException {
+      throws NoSuchTableException, NoSuchDatabaseException, ParseException {
     CatalogTable sourceTable = loadSessionTable(source);
     Path sourceDir = Paths.get(sourceTable.location());
     List<File> files = FileUtils.listFiles(sourceDir.toFile(), TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE)
