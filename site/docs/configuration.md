@@ -96,6 +96,13 @@ The following properties from the Hadoop configuration are used by the Hive Meta
 | iceberg.hive.client-pool-size      | 5                | The size of the Hive client pool when tracking tables in HMS  |
 | iceberg.hive.lock-timeout-ms       | 180000 (3 min)   | Maximum time in milliseconds to acquire a lock                |
 
+The following properties from the Hadoop configuration are used by Hadoop Tables
+
+| Property                                      | Default  | Description                                                            |
+| --------------------------------------------- | -------- | ---------------------------------------------------------------------- |
+| iceberg.engine.hadoop.`SCHEME`.atomic.write   | false    | Controls whether atomic write will be used instead of atomic rename. `SCHEME` is the scheme used, e.g. `{hdfs, cos}`    |
+
+
 ## Spark configuration
 
 ### Catalogs
