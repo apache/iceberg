@@ -181,9 +181,9 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
       } else if (
           logical instanceof LogicalTypes.TimestampMillis ||
           logical instanceof LogicalTypes.TimestampMicros) {
-        if(AvroSchemaUtil.isTimestamptz(primitive)){
+        if (AvroSchemaUtil.isTimestamptz(primitive)) {
           return Types.TimestampType.withZone();
-        }else{
+        } else {
           return Types.TimestampType.withoutZone();
         }
 
