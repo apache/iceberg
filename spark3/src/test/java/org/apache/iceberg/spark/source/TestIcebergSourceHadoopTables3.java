@@ -19,13 +19,19 @@
 
 package org.apache.iceberg.spark.source;
 
+import java.util.Collections;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.spark.HadoopDelegatedCatalog;
+import org.apache.iceberg.spark.SparkTestBase;
 import org.junit.BeforeClass;
 
 public class TestIcebergSourceHadoopTables3 extends TestIcebergSourceHadoopTables {
+
+  private static HadoopDelegatedCatalog catalog = new HadoopDelegatedCatalog(SparkTestBase.catalog, spark.sessionState().newHadoopConf());
 
   @BeforeClass
   public static void setupCatalog() {
@@ -34,13 +40,12 @@ public class TestIcebergSourceHadoopTables3 extends TestIcebergSourceHadoopTable
 
   @Override
   public Table createTable(TableIdentifier ident, Schema schema, PartitionSpec spec) {
-    return TestIcebergSourceHadoopTables3.catalog.createTable(ident, schema, spec);
+    return TestIcebergSourceHadoopTables3.catalog.createTable(TableIdentifier.of(tableLocation), schema, spec);
   }
 
   @Override
   public Table loadTable(TableIdentifier ident, String entriesSuffix) {
-    TableIdentifier identifier = TableIdentifier.of(ident.namespace().level(0), ident.name(), entriesSuffix);
-    return TestIcebergSourceHadoopTables3.catalog.loadTable(identifier);
+    return TestIcebergSourceHadoopTables3.catalog.loadTable(TableIdentifier.parse(loadLocation(ident, entriesSuffix)));
   }
 
   @Override

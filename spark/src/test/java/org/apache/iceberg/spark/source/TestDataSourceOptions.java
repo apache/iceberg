@@ -57,7 +57,7 @@ public abstract class TestDataSourceOptions {
       optional(1, "id", Types.IntegerType.get()),
       optional(2, "data", Types.StringType.get())
   );
-  private static SparkSession spark = null;
+  protected static SparkSession spark = null;
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();

@@ -25,14 +25,17 @@ public final class SetupSourceCatalog {
   }
 
   public static void setupSparkCatalog(SparkSession spark) {
-    // Spark will delete tables using v1, leaving the cache out of sync
+    setupSparkCatalog(spark, SparkSessionCatalog.class.getName());
+  }
+
+  public static void setupSparkCatalog(SparkSession spark, String catalogName) {
     ImmutableMap<String, String> config = ImmutableMap.of(
         "type", "hive",
         "default-namespace", "default",
         "parquet-enabled", "true",
-        "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
+        "cache-enabled", "false"
     );
-    ((SparkSession)spark).conf().set("spark.sql.catalog.spark_catalog", SparkSessionCatalog.class.getName());
-    config.forEach((key, value) -> ((SparkSession)spark).conf().set("spark.sql.catalog.spark_catalog." + key, value));
+    spark.conf().set("spark.sql.catalog.spark_catalog", catalogName);
+    config.forEach((key, value) -> spark.conf().set("spark.sql.catalog.spark_catalog." + key, value));
   }
 }

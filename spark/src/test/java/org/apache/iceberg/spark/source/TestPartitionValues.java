@@ -95,7 +95,7 @@ public abstract class TestPartitionValues {
       .identity("data")
       .build();
 
-  private static SparkSession spark = null;
+  protected static SparkSession spark = null;
 
   @BeforeClass
   public static void startSpark() {

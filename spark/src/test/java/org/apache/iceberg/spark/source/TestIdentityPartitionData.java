@@ -24,15 +24,19 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.hive.HiveCatalog;
+import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
+import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -47,6 +51,8 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+
+import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 
 @RunWith(Parameterized.class)
 public abstract class TestIdentityPartitionData  {
@@ -72,11 +78,17 @@ public abstract class TestIdentityPartitionData  {
     this.vectorized = vectorized;
   }
 
-  private static SparkSession spark = null;
+  protected static TestHiveMetastore metastore = null;
+  protected static HiveConf hiveConf = null;
+  protected static SparkSession spark = null;
 
   @BeforeClass
   public static void startSpark() {
-    TestIdentityPartitionData.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    metastore = new TestHiveMetastore();
+    metastore.start();
+    hiveConf = metastore.hiveConf();
+    TestIdentityPartitionData.spark = SparkSession.builder().master("local[2]").config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
+        .enableHiveSupport().getOrCreate();
   }
 
   @AfterClass
@@ -84,6 +96,8 @@ public abstract class TestIdentityPartitionData  {
     SparkSession currentSpark = TestIdentityPartitionData.spark;
     TestIdentityPartitionData.spark = null;
     currentSpark.stop();
+    metastore.stop();
+    metastore = null;
   }
 
   private static final Schema LOG_SCHEMA = new Schema(

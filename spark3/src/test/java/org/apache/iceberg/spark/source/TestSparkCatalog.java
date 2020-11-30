@@ -14,26 +14,19 @@
 
 package org.apache.iceberg.spark.source;
 
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.spark.sql.connector.catalog.CatalogManager;
+import org.apache.iceberg.spark.SparkSessionCatalog;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.Identifier;
-import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
+import org.apache.spark.sql.connector.catalog.Table;
+import org.apache.spark.sql.connector.catalog.TableCatalog;
 
-public class TestIcebergSource extends IcebergSource {
-  @Override
-  public String shortName() {
-    return "iceberg-test";
-  }
+public class TestSparkCatalog<T extends TableCatalog & SupportsNamespaces> extends SparkSessionCatalog<T> {
 
   @Override
-  public Identifier extractIdentifier(CaseInsensitiveStringMap options) {
-    TableIdentifier ti = TableIdentifier.parse(options.get("iceberg.table.name"));
-    return Identifier.of(ti.namespace().levels(), ti.name());
+  public Table loadTable(Identifier ident) throws NoSuchTableException {
+    return new SparkTable(TestTables.load(TableIdentifier.of(Namespace.of(ident.namespace()), ident.name()).toString()), false);
   }
-
-  @Override
-  public String extractCatalog(CaseInsensitiveStringMap options) {
-    return CatalogManager.SESSION_CATALOG_NAME();
-  }
-
 }

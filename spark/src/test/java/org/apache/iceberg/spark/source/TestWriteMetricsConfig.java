@@ -72,7 +72,7 @@ public abstract class TestWriteMetricsConfig {
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
-  private static SparkSession spark = null;
+  protected static SparkSession spark = null;
   private static JavaSparkContext sc = null;
 
   @BeforeClass

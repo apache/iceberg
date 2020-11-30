@@ -26,13 +26,21 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkSessionCatalog;
+import org.apache.iceberg.spark.source.SetupSourceCatalog;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
+
+  @BeforeClass
+  public static void setupCatalog() {
+    SetupSourceCatalog.setupSparkCatalog(spark);
+  }
+
   @Test
   public void testSparkCatalogTable() throws Exception {
     spark.conf().set("spark.sql.catalog.mycat", "org.apache.iceberg.spark.SparkCatalog");

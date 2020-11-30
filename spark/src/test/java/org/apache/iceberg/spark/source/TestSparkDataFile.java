@@ -99,7 +99,7 @@ public abstract class TestSparkDataFile {
       .bucket("dec_38_10", 2)
       .build();
 
-  private static SparkSession spark;
+  protected static SparkSession spark;
   private static JavaSparkContext sparkContext = null;
 
   @BeforeClass

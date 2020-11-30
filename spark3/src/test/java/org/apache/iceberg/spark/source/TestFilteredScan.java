@@ -113,6 +113,11 @@ public class TestFilteredScan {
   private static SparkSession spark = null;
 
   @BeforeClass
+  public static void setupCatalog() {
+    SetupSourceCatalog.setupSparkCatalog(spark);
+  }
+
+  @BeforeClass
   public static void startSpark() {
     TestFilteredScan.spark = SparkSession.builder().master("local[2]").getOrCreate();
 

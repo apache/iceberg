@@ -80,7 +80,7 @@ public abstract class TestForwardCompatibility {
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
-  private static SparkSession spark = null;
+  protected static SparkSession spark = null;
 
   @BeforeClass
   public static void startSpark() {

@@ -19,7 +19,14 @@
 
 package org.apache.iceberg.spark.source;
 
+import org.junit.BeforeClass;
+
 public class TestSparkReadProjection3 extends TestSparkReadProjection {
+  @BeforeClass
+  public static void setupCatalog() {
+    SetupSourceCatalog.setupSparkCatalog(spark, TestSparkCatalog.class.getName());
+  }
+
   public TestSparkReadProjection3(String format, boolean vectorized) {
     super(format, vectorized);
   }

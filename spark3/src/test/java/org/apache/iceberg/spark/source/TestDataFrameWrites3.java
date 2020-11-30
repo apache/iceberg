@@ -19,7 +19,14 @@
 
 package org.apache.iceberg.spark.source;
 
+import org.junit.BeforeClass;
+
 public class TestDataFrameWrites3 extends TestDataFrameWrites {
+  @BeforeClass
+  public static void setupCatalog() {
+    SetupSourceCatalog.setupSparkCatalog(spark);
+  }
+
   public TestDataFrameWrites3(String format) {
     super(format);
   }

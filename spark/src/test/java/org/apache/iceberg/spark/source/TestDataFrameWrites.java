@@ -85,7 +85,7 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
     this.format = format;
   }
 
-  private static SparkSession spark = null;
+  protected static SparkSession spark = null;
   private static JavaSparkContext sc = null;
 
   private Map<String, String> tableProperties;

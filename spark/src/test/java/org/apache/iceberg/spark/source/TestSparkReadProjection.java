@@ -56,7 +56,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 @RunWith(Parameterized.class)
 public abstract class TestSparkReadProjection extends TestReadProjection {
 
-  private static SparkSession spark = null;
+  protected static SparkSession spark = null;
 
   @Parameterized.Parameters(name = "format = {0}, vectorized = {1}")
   public static Object[][] parameters() {

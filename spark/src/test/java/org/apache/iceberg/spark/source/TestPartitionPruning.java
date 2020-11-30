@@ -94,7 +94,7 @@ public abstract class TestPartitionPruning {
     this.vectorized = vectorized;
   }
 
-  private static SparkSession spark = null;
+  protected static SparkSession spark = null;
   private static JavaSparkContext sparkContext = null;
 
   private static Transform<Object, Integer> bucketTransform = Transforms.bucket(Types.IntegerType.get(), 3);

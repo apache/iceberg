@@ -19,7 +19,15 @@
 
 package org.apache.iceberg.spark.source;
 
+import org.junit.BeforeClass;
+
 public class TestPartitionValues3 extends TestPartitionValues {
+
+  @BeforeClass
+  public static void setupCatalog() {
+    SetupSourceCatalog.setupSparkCatalog(spark);
+  }
+
   public TestPartitionValues3(String format, boolean vectorized) {
     super(format, vectorized);
   }

@@ -19,5 +19,12 @@
 
 package org.apache.iceberg.spark.source;
 
+import org.junit.BeforeClass;
+
 public class TestAvroScan3 extends TestAvroScan {
+  @BeforeClass
+  public static void setupCatalog() {
+    SetupSourceCatalog.setupSparkCatalog(spark);
+  }
+
 }
