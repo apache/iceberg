@@ -445,7 +445,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     if (Catalogs.hiveCatalog(shell.getHiveConf())) {
       Assert.assertEquals(7, hmsParams.size());
     } else {
-      Assert.assertEquals(6, hmsParams.size());
+      Assert.assertEquals(5, hmsParams.size());
     }
   }
 
@@ -476,7 +476,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     if (Catalogs.hiveCatalog(shell.getHiveConf())) {
       Assert.assertEquals(7, hmsParams.size());
     } else {
-      Assert.assertEquals(6, hmsParams.size());
+      Assert.assertEquals(5, hmsParams.size());
     }
   }
 
