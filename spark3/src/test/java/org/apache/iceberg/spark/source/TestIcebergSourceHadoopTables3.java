@@ -23,8 +23,14 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.junit.BeforeClass;
 
 public class TestIcebergSourceHadoopTables3 extends TestIcebergSourceHadoopTables {
+
+  @BeforeClass
+  public static void setupCatalog() {
+    SetupSourceCatalog.setupSparkCatalog(spark);
+  }
 
   @Override
   public Table createTable(TableIdentifier ident, Schema schema, PartitionSpec spec) {
