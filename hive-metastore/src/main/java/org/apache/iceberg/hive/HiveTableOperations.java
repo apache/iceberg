@@ -59,6 +59,7 @@ import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -138,7 +139,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
-    boolean hiveEngineEnabled = hiveEngineEnabled(metadata, conf);
 
     boolean threw = true;
     boolean updateHiveTable = false;
@@ -161,6 +161,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         tbl = newHmsTable();
         LOG.debug("Committing new table: {}", fullName);
       }
+
+      boolean hiveEngineEnabled = hiveEngineEnabled(metadata, tbl.getParameters(), conf);
 
       tbl.setSd(storageDescriptor(metadata, hiveEngineEnabled)); // set to pickup any schema changes
 
@@ -265,8 +267,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     if (hiveEngineEnabled) {
       parameters.put(hive_metastoreConstants.META_TABLE_STORAGE,
           "org.apache.iceberg.mr.hive.HiveIcebergStorageHandler");
+      parameters.put(ConfigProperties.ENGINE_HIVE_ENABLED, "TRUE");
     } else {
       parameters.remove(hive_metastoreConstants.META_TABLE_STORAGE);
+      parameters.put(ConfigProperties.ENGINE_HIVE_ENABLED, "FALSE");
     }
 
     tbl.setParameters(parameters);
@@ -366,18 +370,25 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
    * The decision is made like this:
    * <ol>
    * <li>Table property value {@link TableProperties#ENGINE_HIVE_ENABLED}
-   * <li>If the table property is not set then check the hive-site.xml property value
+   * <li>If the table property is not set then check hive metastore TABLE_PARAMS value
    * {@link ConfigProperties#ENGINE_HIVE_ENABLED}
+   * <li>If the table property is not set and hive metastore TABLE_PARAMS is not set
+   * then check the hive-site.xml property value{@link ConfigProperties#ENGINE_HIVE_ENABLED}
    * <li>If none of the above is enabled then use the default value {@link TableProperties#ENGINE_HIVE_ENABLED_DEFAULT}
    * </ol>
    * @param metadata Table metadata to use
+   * @param parameters Hive table parameters to use
    * @param conf The hive configuration to use
    * @return if the hive engine related values should be enabled or not
    */
-  private static boolean hiveEngineEnabled(TableMetadata metadata, Configuration conf) {
+  private static boolean hiveEngineEnabled(TableMetadata metadata, Map<String, String> parameters, Configuration conf) {
     if (metadata.properties().get(TableProperties.ENGINE_HIVE_ENABLED) != null) {
       // We know that the property is set, so default value will not be used,
       return metadata.propertyAsBoolean(TableProperties.ENGINE_HIVE_ENABLED, false);
+    }
+
+    if (parameters.get(ConfigProperties.ENGINE_HIVE_ENABLED) != null) {
+      return PropertyUtil.propertyAsBoolean(parameters, ConfigProperties.ENGINE_HIVE_ENABLED, false);
     }
 
     return conf.getBoolean(ConfigProperties.ENGINE_HIVE_ENABLED, TableProperties.ENGINE_HIVE_ENABLED_DEFAULT);
