@@ -367,7 +367,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     }
 
     // General metadata checks
-    Assert.assertEquals(6, hmsParams.size());
+    Assert.assertEquals(7, hmsParams.size());
     Assert.assertEquals("test", hmsParams.get("dummy"));
     Assert.assertEquals("TRUE", hmsParams.get(InputFormatConfig.EXTERNAL_TABLE_PURGE));
     Assert.assertEquals("TRUE", hmsParams.get("EXTERNAL"));
@@ -443,9 +443,9 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Assert.assertNull(hmsParams.get(InputFormatConfig.PARTITION_SPEC));
 
     if (Catalogs.hiveCatalog(shell.getHiveConf())) {
-      Assert.assertEquals(6, hmsParams.size());
+      Assert.assertEquals(7, hmsParams.size());
     } else {
-      Assert.assertEquals(5, hmsParams.size());
+      Assert.assertEquals(6, hmsParams.size());
     }
   }
 
@@ -474,9 +474,9 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     // Just check that the PartitionSpec is not set in the metadata
     Assert.assertNull(hmsParams.get(InputFormatConfig.PARTITION_SPEC));
     if (Catalogs.hiveCatalog(shell.getHiveConf())) {
-      Assert.assertEquals(6, hmsParams.size());
+      Assert.assertEquals(7, hmsParams.size());
     } else {
-      Assert.assertEquals(5, hmsParams.size());
+      Assert.assertEquals(6, hmsParams.size());
     }
   }
 
