@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hive.service.cli.CLIService;
 import org.apache.hive.service.cli.HiveSQLException;
 import org.apache.hive.service.cli.OperationHandle;
@@ -77,6 +78,9 @@ public class TestHiveShell {
     hs2Conf.setVar(HiveConf.ConfVars.METASTOREURIS, metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREURIS));
     hs2Conf.setVar(HiveConf.ConfVars.METASTOREWAREHOUSE,
         metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREWAREHOUSE));
+
+    // Initializing RpcMetrics in a single JVM multiple times can cause issues
+    DefaultMetricsSystem.setMiniClusterMode(true);
 
     hs2.init(hs2Conf);
     hs2.start();
