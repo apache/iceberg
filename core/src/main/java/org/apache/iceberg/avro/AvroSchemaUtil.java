@@ -107,10 +107,14 @@ public class AvroSchemaUtil {
 
   public static boolean isTimestamptz(Schema schema) {
     LogicalType logicalType = schema.getLogicalType();
-    if (logicalType != null && logicalType instanceof LogicalTypes.TimestampMicros) {
+    if (logicalType instanceof LogicalTypes.TimestampMillis || logicalType instanceof LogicalTypes.TimestampMicros) {
       // timestamptz is adjusted to UTC
       Object value = schema.getObjectProp(ADJUST_TO_UTC_PROP);
-      if (value instanceof Boolean) {
+
+      if (value == null) {
+        // not all avro timestamp logical types will have the adjust_to_utc prop, default to timestamp without timezone
+        return false;
+      } else if (value instanceof Boolean) {
         return (Boolean) value;
       } else if (value instanceof String) {
         return Boolean.parseBoolean((String) value);

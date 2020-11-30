@@ -86,6 +86,16 @@ public class TestSchemaConversions {
     }
   }
 
+  @Test
+  public void testAvroToIcebergTimestampTypeWithoutAdjustToUTC() {
+    // Not included in the primitives test because there is not a way to round trip the avro<->iceberg conversion
+    // This is because iceberg types can only can encode adjust-to-utc=true|false but not a missing adjust-to-utc
+    Type expectedIcebergType = Types.TimestampType.withoutZone();
+    Schema avroType = LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
+
+    Assert.assertEquals(expectedIcebergType, AvroSchemaUtil.convert(avroType));
+  }
+
   private Schema addAdjustToUtc(Schema schema, boolean adjustToUTC) {
     schema.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, adjustToUTC);
     return schema;
