@@ -112,7 +112,7 @@ public class AvroSchemaUtil {
       Object value = schema.getObjectProp(ADJUST_TO_UTC_PROP);
 
       if (value == null) {
-        // not all avro timestamp logical types will have the adjust_to_utc prop, default to not timestamptz
+        // not all avro timestamp logical types will have the adjust_to_utc prop, default to timestamp without timezone
         return false;
       } else if (value instanceof Boolean) {
         return (Boolean) value;
