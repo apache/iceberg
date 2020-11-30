@@ -100,9 +100,9 @@ public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<
 
   @Override
   public void putAll(Map<? extends StructLike, ? extends T> keyValues) {
-    if (keyValues != null && !keyValues.isEmpty()) {
-      for (Map.Entry<? extends StructLike, ? extends T> pair : keyValues.entrySet()) {
-        wrapperMap.put(StructLikeWrapper.forType(type).set(pair.getKey()), pair.getValue());
+    if (keyValues.size() > 0) {
+      for (Map.Entry<? extends StructLike, ? extends T> e : keyValues.entrySet()) {
+        wrapperMap.put(StructLikeWrapper.forType(type).set(e.getKey()), e.getValue());
       }
     }
   }
@@ -130,9 +130,8 @@ public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<
   public Set<Entry<StructLike, T>> entrySet() {
     Set<Entry<StructLike, T>> entrySet = Sets.newHashSet();
     for (Entry<StructLikeWrapper, T> entry : wrapperMap.entrySet()) {
-      entrySet.add(new StructLikeEntry(entry));
+      entrySet.add(new StructLikeEntry<>(entry));
     }
-
     return entrySet;
   }
 
@@ -156,7 +155,11 @@ public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<
 
     @Override
     public int hashCode() {
-      return inner.getKey().hashCode();
+      int hashCode = getKey().hashCode();
+      if (getValue() != null) {
+        hashCode ^= getValue().hashCode();
+      }
+      return hashCode;
     }
 
     @Override
