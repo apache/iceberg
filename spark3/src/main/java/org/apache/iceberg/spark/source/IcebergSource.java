@@ -19,24 +19,25 @@
 
 package org.apache.iceberg.spark.source;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
+import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.SupportsCatalogOptions;
+import org.apache.spark.sql.connector.catalog.Table;
+import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.sources.DataSourceRegister;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
-import scala.collection.Seq;
 
 public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions {
   @Override
@@ -60,8 +61,19 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
   }
 
   @Override
-  public SparkTable getTable(StructType schema, Transform[] partitioning, Map<String, String> options) {
-    throw new UnsupportedOperationException("Cannot get table directly. This implements SupportsCatalogOptions and should be called via that interface");
+  public Table getTable(StructType schema, Transform[] partitioning, Map<String, String> options) {
+    String catalogName = extractCatalog(new CaseInsensitiveStringMap(options));
+    Identifier ident = extractIdentifier(new CaseInsensitiveStringMap(options));
+    CatalogManager catalogManager = SparkSession.active().sessionState().catalogManager();
+    CatalogPlugin catalog = catalogManager.catalog(catalogName);
+    try {
+      if (catalog instanceof TableCatalog) {
+        return ((TableCatalog) catalog).loadTable(ident);
+      }
+    } catch (NoSuchTableException e) {
+      throw new org.apache.iceberg.exceptions.NoSuchTableException(e, "Cannot find table for %s.", ident);
+    }
+    throw new org.apache.iceberg.exceptions.NoSuchTableException("Cannot find table for %s.", ident);
   }
 
   private Pair<String, TableIdentifier> tableIdentifier(CaseInsensitiveStringMap options) {
@@ -69,25 +81,30 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
     Namespace defaultNamespace = Namespace.of(catalogManager.currentNamespace());
     Preconditions.checkArgument(options.containsKey("path"), "Cannot open table: path is not set");
     String path = options.get("path");
+    List<String> ident;
     try {
-      List<String> ident = scala.collection.JavaConverters.seqAsJavaList(SparkSession.active().sessionState().sqlParser().parseMultipartIdentifier(path));
-      if (ident.size() == 1) {
-        return Pair.of(null, TableIdentifier.of(defaultNamespace, ident.get(0)));
-      } else if (ident.size() == 2) {
-        if (catalogManager.isCatalogRegistered(ident.get(0))) {
-          return Pair.of(ident.get(0), TableIdentifier.of(defaultNamespace, ident.get(1))); //todo what if path?
-        } else {
-          return Pair.of(null, TableIdentifier.of(ident.toArray(new String[0])));
-        }
-      } else {
-        if (catalogManager.isCatalogRegistered(ident.get(0))) {
-          return Pair.of(ident.get(0), TableIdentifier.of(ident.subList(1, ident.size()).toArray(new String[0])));
-        } else {
-          return Pair.of(null, TableIdentifier.of(ident.toArray(new String[0])));
-        }
-      }
+      ident = scala.collection.JavaConverters.seqAsJavaList(SparkSession.active().sessionState().sqlParser().parseMultipartIdentifier(path));
     } catch (ParseException e) {
-      throw new RuntimeException(e);
+      try {
+        ident = scala.collection.JavaConverters.seqAsJavaList(SparkSession.active().sessionState().sqlParser().parseMultipartIdentifier(String.format("`%s`", path)));
+      } catch (ParseException ignored) {
+        throw new RuntimeException(e);
+      }
+    }
+    if (ident.size() == 1) {
+      return Pair.of(null, TableIdentifier.of(defaultNamespace, ident.get(0)));
+    } else if (ident.size() == 2) {
+      if (catalogManager.isCatalogRegistered(ident.get(0))) {
+        return Pair.of(ident.get(0), TableIdentifier.of(defaultNamespace, ident.get(1))); //todo what if path?
+      } else {
+        return Pair.of(null, TableIdentifier.of(ident.toArray(new String[0])));
+      }
+    } else {
+      if (catalogManager.isCatalogRegistered(ident.get(0))) {
+        return Pair.of(ident.get(0), TableIdentifier.of(ident.subList(1, ident.size()).toArray(new String[0])));
+      } else {
+        return Pair.of(null, TableIdentifier.of(ident.toArray(new String[0])));
+      }
     }
   }
 
