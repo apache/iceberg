@@ -270,7 +270,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       parameters.put(ConfigProperties.ENGINE_HIVE_ENABLED, "TRUE");
     } else {
       parameters.remove(hive_metastoreConstants.META_TABLE_STORAGE);
-      parameters.put(ConfigProperties.ENGINE_HIVE_ENABLED, "FALSE");
+      parameters.remove(ConfigProperties.ENGINE_HIVE_ENABLED);
     }
 
     tbl.setParameters(parameters);
