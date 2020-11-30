@@ -79,7 +79,7 @@ public interface TransactionalCatalog extends Catalog, AutoCloseable {
    * Aborts the set of operations here and makes this TransactionalCatalog inoperable.
    *
    * <p>Once called, no further operations can be done against this catalog. If any
-   * operations are attempted, {$link IllegalStateException} will be thrown.
+   * operations are attempted, {@link IllegalStateException} will be thrown.
    */
   void rollback();
 
@@ -87,7 +87,7 @@ public interface TransactionalCatalog extends Catalog, AutoCloseable {
    * Commit the pending changes from all nested transactions against the Catalog.
    *
    * <p>Once called, no further operations can be done against this catalog. If any
-   * operations are attempted, {$link IllegalStateException} will be thrown.
+   * operations are attempted, {@link IllegalStateException} will be thrown.
    *
    * @throws CommitFailedException If the updates cannot be committed due to conflicts.
    */
@@ -99,6 +99,7 @@ public interface TransactionalCatalog extends Catalog, AutoCloseable {
    *
    * @throws CommitFailedException If the updates cannot be committed due to conflicts.
    */
+  @Override
   default void close() {
     commit();
   }

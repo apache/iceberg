@@ -93,7 +93,7 @@ public interface SupportsCatalogTransactions {
   }
 
   /**
-   * Start a new transaction and return a {@TransactionalCatalog} that supports
+   * Start a new transaction and return a {@link TransactionalCatalog} that supports
    * cross table operations. If a {@link Catalog} supports {@link OPTIMISTIC}
    * locking mode, this will use that mode. If it only supports {@link PESSIMISTIC},
    * it will use that mode with default values for lock times.
