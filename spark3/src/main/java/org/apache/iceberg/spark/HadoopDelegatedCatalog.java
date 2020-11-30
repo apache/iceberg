@@ -1,15 +1,20 @@
 /*
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package org.apache.iceberg.spark;
@@ -65,7 +70,11 @@ public class HadoopDelegatedCatalog implements Catalog, SupportsNamespaces {
   }
 
   @Override
-  public Table createTable(TableIdentifier identifier, Schema schema, PartitionSpec spec, String location, Map<String, String> properties) {
+  public Table createTable(TableIdentifier identifier,
+                           Schema schema,
+                           PartitionSpec spec,
+                           String location,
+                           Map<String, String> properties) {
     return buildTable(identifier, schema)
         .withPartitionSpec(spec)
         .withLocation(location)
@@ -74,7 +83,11 @@ public class HadoopDelegatedCatalog implements Catalog, SupportsNamespaces {
   }
 
   @Override
-  public Transaction newCreateTableTransaction(TableIdentifier identifier, Schema schema, PartitionSpec spec, String location, Map<String, String> properties) {
+  public Transaction newCreateTableTransaction(TableIdentifier identifier,
+                                               Schema schema,
+                                               PartitionSpec spec,
+                                               String location,
+                                               Map<String, String> properties) {
     return buildTable(identifier, schema)
         .withPartitionSpec(spec)
         .withLocation(location)
@@ -83,7 +96,12 @@ public class HadoopDelegatedCatalog implements Catalog, SupportsNamespaces {
   }
 
   @Override
-  public Transaction newReplaceTableTransaction(TableIdentifier identifier, Schema schema, PartitionSpec spec, String location, Map<String, String> properties, boolean orCreate) {
+  public Transaction newReplaceTableTransaction(TableIdentifier identifier,
+                                                Schema schema,
+                                                PartitionSpec spec,
+                                                String location,
+                                                Map<String, String> properties,
+                                                boolean orCreate) {
     TableBuilder tableBuilder = buildTable(identifier, schema)
         .withPartitionSpec(spec)
         .withLocation(location)
@@ -103,7 +121,8 @@ public class HadoopDelegatedCatalog implements Catalog, SupportsNamespaces {
 
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
-    return isHadoopTable(identifier) ? tables.dropTable(identifier.name(), purge) : delegate.dropTable(identifier, purge);
+    return isHadoopTable(identifier) ? tables.dropTable(identifier.name(), purge) :
+        delegate.dropTable(identifier, purge);
   }
 
   @Override
@@ -150,12 +169,14 @@ public class HadoopDelegatedCatalog implements Catalog, SupportsNamespaces {
 
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException {
-    return delegateAsSupportsNamespace(delegate).map(x -> x.listNamespaces(namespace)).orElseGet(Collections::emptyList);
+    return delegateAsSupportsNamespace(delegate).map(x -> x.listNamespaces(namespace))
+        .orElseGet(Collections::emptyList);
   }
 
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
-    return delegateAsSupportsNamespace(delegate).map(x -> x.loadNamespaceMetadata(namespace)).orElseGet(Collections::emptyMap);
+    return delegateAsSupportsNamespace(delegate).map(x -> x.loadNamespaceMetadata(namespace))
+        .orElseGet(Collections::emptyMap);
   }
 
   @Override
@@ -170,7 +191,8 @@ public class HadoopDelegatedCatalog implements Catalog, SupportsNamespaces {
 
   @Override
   public boolean removeProperties(Namespace namespace, Set<String> properties) throws NoSuchNamespaceException {
-    return delegateAsSupportsNamespace(delegate).map(x -> x.removeProperties(namespace, properties)).orElse(false);
+    return delegateAsSupportsNamespace(delegate).map(x -> x.removeProperties(namespace, properties))
+        .orElse(false);
   }
 
   public static Optional<SupportsNamespaces> delegateAsSupportsNamespace(Catalog delegate) {
@@ -238,12 +260,13 @@ public class HadoopDelegatedCatalog implements Catalog, SupportsNamespaces {
       }
       Map<String, String> tableProps = propertiesBuilder.build();
       PartitionSpec partitionSpec = spec == null ? PartitionSpec.unpartitioned() : spec;
-      SortOrder sortOrder = this.sortOrder == null ? SortOrder.unsorted() : this.sortOrder;
-      TableMetadata metadata = TableMetadata.newTableMetadata(schema, partitionSpec, sortOrder, location, tableProps);
+      SortOrder order = this.sortOrder == null ? SortOrder.unsorted() : this.sortOrder;
+      TableMetadata metadata = TableMetadata.newTableMetadata(schema, partitionSpec, order, location, tableProps);
       return Transactions.createTableTransaction(identifier.toString(), ops, metadata);
     }
 
     private static final String METADATA_JSON = "metadata.json";
+
     TableOperations newTableOps(String location) {
       if (location.contains(METADATA_JSON)) {
         return new StaticTableOperations(location, new HadoopFileIO(tables.getConf()));
