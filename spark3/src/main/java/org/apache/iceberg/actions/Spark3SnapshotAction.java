@@ -116,6 +116,7 @@ class Spark3SnapshotAction extends Spark3CreateAction {
   private Map<String, String> buildPropertyMap() {
     ImmutableMap.Builder<String, String> propBuilder = ImmutableMap.<String, String>builder()
         .put(TableCatalog.PROP_PROVIDER, "iceberg")
+        .put(TableProperties.GC_ENABLED, "false")
         .putAll(JavaConverters.mapAsJavaMapConverter(v1SourceTable().properties()).asJava())
         .putAll(additionalProperties());
 
