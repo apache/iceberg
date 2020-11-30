@@ -405,14 +405,16 @@ public class HiveTableTest extends HiveTableBaseTest {
           hmsTable.getSd().getInputFormat());
       Assert.assertEquals("org.apache.iceberg.mr.hive.HiveIcebergOutputFormat",
           hmsTable.getSd().getOutputFormat());
-      Assert.assertEquals("TRUE", hmsTable.getParameters().get(ConfigProperties.ENGINE_HIVE_ENABLED));
+      Assert.assertEquals("TRUE",
+          hmsTable.getParameters().getOrDefault(ConfigProperties.ENGINE_HIVE_ENABLED, "FALSE"));
     } else {
       Assert.assertNull(hmsTable.getParameters().get(hive_metastoreConstants.META_TABLE_STORAGE));
       Assert.assertEquals("org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe",
           hmsTable.getSd().getSerdeInfo().getSerializationLib());
       Assert.assertEquals("org.apache.hadoop.mapred.FileInputFormat", hmsTable.getSd().getInputFormat());
       Assert.assertEquals("org.apache.hadoop.mapred.FileOutputFormat", hmsTable.getSd().getOutputFormat());
-      Assert.assertEquals("FALSE", hmsTable.getParameters().get(ConfigProperties.ENGINE_HIVE_ENABLED));
+      Assert.assertEquals("FALSE",
+          hmsTable.getParameters().getOrDefault(ConfigProperties.ENGINE_HIVE_ENABLED, "FALSE"));
     }
   }
 }
