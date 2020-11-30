@@ -364,10 +364,12 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       Assert.assertTrue(hmsParams.get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP)
           .startsWith(icebergTable.location()));
       hmsParams.remove(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
+      Assert.assertEquals(7, hmsParams.size());
+    } else {
+      Assert.assertEquals(6, hmsParams.size());
     }
 
     // General metadata checks
-    Assert.assertEquals(7, hmsParams.size());
     Assert.assertEquals("test", hmsParams.get("dummy"));
     Assert.assertEquals("TRUE", hmsParams.get(InputFormatConfig.EXTERNAL_TABLE_PURGE));
     Assert.assertEquals("TRUE", hmsParams.get("EXTERNAL"));
