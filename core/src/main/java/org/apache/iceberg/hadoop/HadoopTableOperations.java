@@ -68,7 +68,7 @@ public class HadoopTableOperations implements TableOperations {
   private volatile Integer version = null;
   private volatile boolean shouldRefresh = true;
 
-  protected HadoopTableOperations(Path location, FileIO fileIO, Configuration conf) {
+  public HadoopTableOperations(Path location, FileIO fileIO, Configuration conf) {
     this.conf = conf;
     this.location = location;
     this.fileIO = fileIO;
