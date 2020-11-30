@@ -133,7 +133,7 @@ public interface Transaction {
   /**
    * Apply the pending changes from all actions and commit.
    *
-   * <p>If this a nested transaction within a {@link TransactionalCatalog}, this will only
+   * <p>If this is a nested transaction within a {@link TransactionalCatalog}, this will only
    * validate that the transaction can still apply. The changes are not completed until the
    * the commit is called on the {@link TransactionalCatalog}.
    *

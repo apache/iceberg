@@ -45,8 +45,8 @@ import org.apache.iceberg.exceptions.CommitFailedException;
  * <p>When one of the items above occurs, the transaction is no longer valid. Further use
  * of the transaction will result in a {@link IllegalStateException} being thrown.
  *
- * <p>Nested transactions such creating a new table may fail within a transaction. Those
- * failures alone do not necessarily result in a failure of the Catalog-level transaction.
+ * <p>Nested transactions such as creating a new table may fail. Those failures alone do
+ * not necessarily result in a failure of the catalog-level transaction.
  *
  */
 public interface TransactionalCatalog extends Catalog, AutoCloseable {
