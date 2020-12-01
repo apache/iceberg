@@ -19,17 +19,13 @@
 
 package org.apache.iceberg.flink.sink;
 
-import java.io.IOException;
 import java.util.List;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.data.IcebergGenerics;
-import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.SimpleDataUtil;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.TestAppenderFactory;
 import org.apache.iceberg.util.ArrayUtil;
@@ -63,15 +59,6 @@ public class TestFlinkAppenderFactory extends TestAppenderFactory<RowData> {
     for (RowData row : rows) {
       RowDataWrapper wrapper = new RowDataWrapper(rowType, table.schema().asStruct());
       set.add(wrapper.wrap(row));
-    }
-    return set;
-  }
-
-  @Override
-  protected StructLikeSet actualRowSet(String... columns) throws IOException {
-    StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
-    try (CloseableIterable<Record> reader = IcebergGenerics.read(table).select(columns).build()) {
-      reader.forEach(set::add);
     }
     return set;
   }

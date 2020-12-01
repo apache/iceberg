@@ -32,6 +32,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
@@ -107,7 +108,13 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
 
   protected abstract StructLikeSet expectedRowSet(Iterable<T> records) throws IOException;
 
-  protected abstract StructLikeSet actualRowSet(String... columns) throws IOException;
+  private StructLikeSet actualRowSet(String... columns) throws IOException {
+    StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
+    try (CloseableIterable<Record> reader = IcebergGenerics.read(table).select(columns).build()) {
+      reader.forEach(set::add);
+    }
+    return set;
+  }
 
   private PartitionKey createPartitionKey() {
     if (table.spec().isUnpartitioned()) {

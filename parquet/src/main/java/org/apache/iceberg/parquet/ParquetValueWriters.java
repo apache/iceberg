@@ -27,6 +27,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.FieldMetrics;
@@ -561,41 +562,21 @@ public class ParquetValueWriters {
     }
   }
 
-  public interface PathPosAccessor<PATH, POS> {
-    PATH accessPath(CharSequence path);
-
-    POS accessPos(Long pos);
-  }
-
-  public static class IdentifyPathPosAccessor implements PathPosAccessor<CharSequence, Long> {
-    public static final PathPosAccessor<CharSequence, Long> INSTANCE = new IdentifyPathPosAccessor();
-
-    @Override
-    public CharSequence accessPath(CharSequence path) {
-      return path;
-    }
-
-    @Override
-    public Long accessPos(Long pos) {
-      return pos;
-    }
-  }
-
   public static class PositionDeleteStructWriter<R> extends StructWriter<PositionDelete<R>> {
-    private final PathPosAccessor<?, ?> accessor;
+    private final Function<CharSequence, ?> pathTransformFunc;
 
-    public PositionDeleteStructWriter(StructWriter<?> replacedWriter, PathPosAccessor<?, ?> accessor) {
+    public PositionDeleteStructWriter(StructWriter<?> replacedWriter, Function<CharSequence, ?> pathTransformFunc) {
       super(Arrays.asList(replacedWriter.writers));
-      this.accessor = accessor;
+      this.pathTransformFunc = pathTransformFunc;
     }
 
     @Override
     protected Object get(PositionDelete<R> delete, int index) {
       switch (index) {
         case 0:
-          return accessor.accessPath(delete.path());
+          return pathTransformFunc.apply(delete.path());
         case 1:
-          return accessor.accessPos(delete.pos());
+          return delete.pos();
         case 2:
           return delete.row();
       }

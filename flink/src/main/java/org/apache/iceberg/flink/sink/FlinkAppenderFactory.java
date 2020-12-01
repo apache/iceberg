@@ -46,7 +46,6 @@ import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.parquet.ParquetValueWriters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Serializable {
@@ -211,27 +210,14 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .rowSchema(posDeleteRowSchema)
               .withSpec(spec)
               .withKeyMetadata(outputFile.keyMetadata())
-              .buildPositionWriter(FlinkPosPathAccessor.INSTANCE);
+              .transformPaths(path -> StringData.fromString(path.toString()))
+              .buildPositionWriter();
 
         default:
           throw new UnsupportedOperationException("Cannot write pos-deletes for unsupported file format: " + format);
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
-    }
-  }
-
-  private static class FlinkPosPathAccessor implements ParquetValueWriters.PathPosAccessor<StringData, Long> {
-    private static final ParquetValueWriters.PathPosAccessor<StringData, Long> INSTANCE = new FlinkPosPathAccessor();
-
-    @Override
-    public StringData accessPath(CharSequence path) {
-      return StringData.fromString(path.toString());
-    }
-
-    @Override
-    public Long accessPos(Long pos) {
-      return pos;
     }
   }
 }

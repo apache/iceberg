@@ -280,6 +280,7 @@ public class Parquet {
     private StructLike partition = null;
     private EncryptionKeyMetadata keyMetadata = null;
     private int[] equalityFieldIds = null;
+    private Function<CharSequence, ?> pathTransformFunc = t -> t;
 
     private DeleteWriteBuilder(OutputFile file) {
       this.appenderBuilder = write(file);
@@ -359,6 +360,11 @@ public class Parquet {
       return this;
     }
 
+    public DeleteWriteBuilder transformPaths(Function<CharSequence, ?> newPathTransformFunc) {
+      this.pathTransformFunc = newPathTransformFunc;
+      return this;
+    }
+
     public <T> EqualityDeleteWriter<T> buildEqualityWriter() throws IOException {
       Preconditions.checkState(rowSchema != null, "Cannot create equality delete file without a schema`");
       Preconditions.checkState(equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
@@ -378,7 +384,7 @@ public class Parquet {
           appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata, equalityFieldIds);
     }
 
-    public <T> PositionDeleteWriter<T> buildPositionWriter(ParquetValueWriters.PathPosAccessor<?, ?> accessor)
+    public <T> PositionDeleteWriter<T> buildPositionWriter()
         throws IOException {
       Preconditions.checkState(equalityFieldIds == null, "Cannot create position delete file using delete field ids");
 
@@ -391,7 +397,7 @@ public class Parquet {
         appenderBuilder.createWriterFunc(parquetSchema -> {
           ParquetValueWriter<?> writer = createWriterFunc.apply(parquetSchema);
           if (writer instanceof StructWriter) {
-            return new PositionDeleteStructWriter<T>((StructWriter<?>) writer, accessor);
+            return new PositionDeleteStructWriter<T>((StructWriter<?>) writer, pathTransformFunc);
           } else {
             throw new UnsupportedOperationException("Cannot wrap writer for position deletes: " + writer.getClass());
           }
@@ -402,15 +408,11 @@ public class Parquet {
 
         appenderBuilder.createWriterFunc(parquetSchema ->
             new PositionDeleteStructWriter<T>((StructWriter<?>) GenericParquetWriter.buildWriter(parquetSchema),
-                ParquetValueWriters.IdentifyPathPosAccessor.INSTANCE));
+                t -> t));
       }
 
       return new PositionDeleteWriter<>(
           appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata);
-    }
-
-    public <T> PositionDeleteWriter<T> buildPositionWriter() throws IOException {
-      return buildPositionWriter(ParquetValueWriters.IdentifyPathPosAccessor.INSTANCE);
     }
   }
 

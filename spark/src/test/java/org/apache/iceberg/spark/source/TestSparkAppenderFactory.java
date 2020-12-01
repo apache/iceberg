@@ -19,12 +19,8 @@
 
 package org.apache.iceberg.spark.source;
 
-import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.data.IcebergGenerics;
-import org.apache.iceberg.data.Record;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.TestAppenderFactory;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -66,15 +62,6 @@ public class TestSparkAppenderFactory extends TestAppenderFactory<InternalRow> {
     for (InternalRow row : rows) {
       InternalRowWrapper wrapper = new InternalRowWrapper(sparkType);
       set.add(wrapper.wrap(row));
-    }
-    return set;
-  }
-
-  @Override
-  protected StructLikeSet actualRowSet(String... columns) throws IOException {
-    StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
-    try (CloseableIterable<Record> reader = IcebergGenerics.read(table).select(columns).build()) {
-      reader.forEach(set::add);
     }
     return set;
   }

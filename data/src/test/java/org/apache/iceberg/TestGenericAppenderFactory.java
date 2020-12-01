@@ -19,22 +19,16 @@
 
 package org.apache.iceberg;
 
-import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.TestAppenderFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.StructLikeSet;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
-@RunWith(Parameterized.class)
 public class TestGenericAppenderFactory extends TestAppenderFactory<Record> {
 
   private final GenericRecord gRecord;
@@ -61,15 +55,6 @@ public class TestGenericAppenderFactory extends TestAppenderFactory<Record> {
   protected StructLikeSet expectedRowSet(Iterable<Record> records) {
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
     records.forEach(set::add);
-    return set;
-  }
-
-  @Override
-  protected StructLikeSet actualRowSet(String... columns) throws IOException {
-    StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
-    try (CloseableIterable<Record> reader = IcebergGenerics.read(table).select(columns).build()) {
-      reader.forEach(set::add);
-    }
     return set;
   }
 }

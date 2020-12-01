@@ -39,7 +39,6 @@ import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.parquet.ParquetValueWriters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkAvroWriter;
@@ -197,7 +196,8 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
               .withSpec(spec)
               .withPartition(partition)
               .withKeyMetadata(file.keyMetadata())
-              .buildPositionWriter(SparkPosPathAccessor.INSTANCE);
+              .transformPaths(path -> UTF8String.fromString(path.toString()))
+              .buildPositionWriter();
 
         case AVRO:
           return Avro.writeDeletes(file.encryptingOutputFile())
@@ -216,20 +216,6 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
 
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to create new equality delete writer", e);
-    }
-  }
-
-  private static class SparkPosPathAccessor implements ParquetValueWriters.PathPosAccessor<UTF8String, Long> {
-    private static final SparkPosPathAccessor INSTANCE = new SparkPosPathAccessor();
-
-    @Override
-    public UTF8String accessPath(CharSequence path) {
-      return UTF8String.fromString(path.toString());
-    }
-
-    @Override
-    public Long accessPos(Long pos) {
-      return pos;
     }
   }
 }
