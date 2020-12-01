@@ -105,10 +105,6 @@ public class TestBranchVisibility extends BaseTestIceberg {
     updateSchema(testCatalog, tableIdentifier2);
     String mainHash = tree.getReferenceByName("main").getHash();
 
-    Instant commitBeforeTime = Instant.now().plusSeconds(1); // plus 1 second as a buffer for fast tests
-    String time = DateTimeFormatter.ISO_LOCAL_DATE_TIME.withZone(ZoneId.from(ZoneOffset.UTC)).format(commitBeforeTime);
-    String trimmedTime = time.substring(0, 19);
-
     // asking for table@branch gives expected regardless of catalog
     Assert.assertEquals(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@test")),
         metadataLocation(testCatalog, tableIdentifier1));
@@ -117,6 +113,17 @@ public class TestBranchVisibility extends BaseTestIceberg {
     Assert.assertEquals(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@" + mainHash)),
         metadataLocation(testCatalog, tableIdentifier1));
 
+
+  }
+
+  @Test
+  public void testCatalogWithTimestamps() throws InterruptedException, NessieNotFoundException {
+    updateSchema(testCatalog, tableIdentifier2);
+
+    Instant commitBeforeTime = Instant.now().plusSeconds(1); // plus 1 second as a buffer for fast tests
+    String time = DateTimeFormatter.ISO_LOCAL_DATE_TIME.withZone(ZoneId.from(ZoneOffset.UTC)).format(commitBeforeTime);
+    String trimmedTime = time.substring(0, 19);
+
     // asking for table#timestamp gives expected regardless of catalog
     Assert.assertEquals(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1#" + trimmedTime)),
         metadataLocation(testCatalog, tableIdentifier1));
@@ -124,6 +131,19 @@ public class TestBranchVisibility extends BaseTestIceberg {
     // asking for table@branch#timestamp gives expected regardless of catalog
     Assert.assertEquals(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@test#" + trimmedTime)),
         metadataLocation(testCatalog, tableIdentifier1));
+
+    updateSchema(testCatalog, tableIdentifier2);
+    Thread.sleep(2000);
+    updateSchema(testCatalog, tableIdentifier2);
+    String mainHash = tree.getReferenceByName("main").getHash();
+    commitBeforeTime = Instant.now().plusSeconds(1); // plus 1 second as a buffer for fast tests
+    time = DateTimeFormatter.ISO_LOCAL_DATE_TIME.withZone(ZoneId.from(ZoneOffset.UTC)).format(commitBeforeTime);
+    trimmedTime = time.substring(0, 19);
+    Thread.sleep(2000);
+    updateSchema(testCatalog, tableIdentifier2);
+    // asking for table#timestamp gives expected regardless of catalog
+    Assert.assertEquals(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1#" + trimmedTime)),
+        metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@" + mainHash)));
   }
 
   @Test

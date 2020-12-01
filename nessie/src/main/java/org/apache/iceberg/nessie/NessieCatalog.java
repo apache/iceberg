@@ -79,7 +79,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   private NessieClient client;
   private String warehouseLocation;
   private Configuration config;
-  private UpdateableReference reference;
+  private RefreshableReference reference;
   private String name;
   private FileIO fileIO;
 
@@ -117,7 +117,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
     TableReference pti = TableReference.parse(tableIdentifier);
-    UpdateableReference newReference = this.reference;
+    RefreshableReference newReference = this.reference;
     if (pti.timestamp() != null) {
       newReference = loadReferenceAtTime(pti.reference() == null ? this.reference.getName() : pti.reference(),
           pti.timestamp());
@@ -297,11 +297,11 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     }
   }
 
-  private UpdateableReference loadReference(String requestedRef) {
+  private RefreshableReference loadReference(String requestedRef) {
     try {
       Reference ref = requestedRef == null ? client.getTreeApi().getDefaultBranch()
           : client.getTreeApi().getReferenceByName(requestedRef);
-      return new UpdateableReference(ref, client.getTreeApi());
+      return new RefreshableReference(ref, client.getTreeApi());
     } catch (NessieNotFoundException ex) {
       if (requestedRef != null) {
         throw new IllegalArgumentException(String.format("Nessie ref '%s' does not exist. " +
@@ -314,19 +314,19 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     }
   }
 
-  private UpdateableReference loadReferenceAtTime(String requestedRef, Instant timestamp) {
+  private RefreshableReference loadReferenceAtTime(String requestedRef, Instant timestamp) {
     try {
       Reference ref = requestedRef == null ? client.getTreeApi().getDefaultBranch()
           : client.getTreeApi().getReferenceByName(requestedRef);
       if (ref instanceof Hash) {
-        LOGGER.warn("Cannot specify a hash {} and timestamp {} together. " +
-            "The timestamp is redundant and has been ignored", requestedRef, timestamp);
-        return new UpdateableReference(ref, client.getTreeApi());
+        throw new IllegalArgumentException(String.format("Cannot specify a hash %s and timestamp %s together. " +
+            "The timestamp is redundant and has been ignored", requestedRef, timestamp));
       }
       List<CommitMeta> ops = client.getTreeApi().getCommitLog(ref.getName()).getOperations();
+
       for (CommitMeta info : ops) {
         if (info.getCommitTime() != null && Instant.ofEpochMilli(info.getCommitTime()).isBefore(timestamp)) {
-          return new UpdateableReference(ImmutableHash.builder().name(info.getHash()).build(), client.getTreeApi());
+          return new RefreshableReference(ImmutableHash.builder().name(info.getHash()).build(), client.getTreeApi());
         }
       }
       throw new IllegalArgumentException(String.format("Nessie ref '%s' does not exist at timestamp '%s'. " +
