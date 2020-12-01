@@ -99,13 +99,14 @@ public abstract class TestSparkDataFile {
       .bucket("dec_38_10", 2)
       .build();
 
-  protected static SparkSession spark;
+  private static SparkSession spark;
   private static JavaSparkContext sparkContext = null;
 
   @BeforeClass
   public static void startSpark() {
     TestSparkDataFile.spark = SparkSession.builder().master("local[2]").getOrCreate();
     TestSparkDataFile.sparkContext = new JavaSparkContext(spark.sparkContext());
+    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   @AfterClass

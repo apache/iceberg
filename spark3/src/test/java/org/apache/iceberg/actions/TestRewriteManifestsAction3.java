@@ -19,15 +19,7 @@
 
 package org.apache.iceberg.actions;
 
-import org.apache.iceberg.spark.source.SetupSourceCatalog;
-import org.junit.BeforeClass;
-
 public class TestRewriteManifestsAction3 extends TestRewriteManifestsAction {
-  @BeforeClass
-  public static void setupCatalog() {
-    SetupSourceCatalog.setupSparkCatalog(spark);
-  }
-
   public TestRewriteManifestsAction3(String snapshotIdInheritanceEnabled) {
     super(snapshotIdInheritanceEnabled);
   }

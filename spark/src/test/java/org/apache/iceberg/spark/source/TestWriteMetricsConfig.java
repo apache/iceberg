@@ -72,13 +72,14 @@ public abstract class TestWriteMetricsConfig {
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
-  protected static SparkSession spark = null;
+  private static SparkSession spark = null;
   private static JavaSparkContext sc = null;
 
   @BeforeClass
   public static void startSpark() {
     TestWriteMetricsConfig.spark = SparkSession.builder().master("local[2]").getOrCreate();
     TestWriteMetricsConfig.sc = new JavaSparkContext(spark.sparkContext());
+    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   @AfterClass

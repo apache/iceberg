@@ -54,11 +54,12 @@ public abstract class TestAvroScan extends AvroDataTest {
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
-  protected static SparkSession spark = null;
+  private static SparkSession spark = null;
 
   @BeforeClass
   public static void startSpark() {
     TestAvroScan.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   @AfterClass

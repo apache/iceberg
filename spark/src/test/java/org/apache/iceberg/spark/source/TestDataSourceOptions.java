@@ -57,7 +57,7 @@ public abstract class TestDataSourceOptions {
       optional(1, "id", Types.IntegerType.get()),
       optional(2, "data", Types.StringType.get())
   );
-  protected static SparkSession spark = null;
+  private static SparkSession spark = null;
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -65,6 +65,7 @@ public abstract class TestDataSourceOptions {
   @BeforeClass
   public static void startSpark() {
     TestDataSourceOptions.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   @AfterClass

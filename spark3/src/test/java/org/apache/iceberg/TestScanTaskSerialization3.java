@@ -19,12 +19,5 @@
 
 package org.apache.iceberg;
 
-import org.apache.iceberg.spark.source.SetupSourceCatalog;
-import org.junit.BeforeClass;
-
 public class TestScanTaskSerialization3 extends TestScanTaskSerialization {
-  @BeforeClass
-  public static void setupCatalog() {
-    SetupSourceCatalog.setupSparkCatalog(spark);
-  }
 }

@@ -19,12 +19,5 @@
 
 package org.apache.iceberg.spark.source;
 
-import org.junit.BeforeClass;
-
 public class TestDataSourceOptions3 extends TestDataSourceOptions {
-  @BeforeClass
-  public static void setupCatalog() {
-    SetupSourceCatalog.setupSparkCatalog(spark);
-  }
-
 }

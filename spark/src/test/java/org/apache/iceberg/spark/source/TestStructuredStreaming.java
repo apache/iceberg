@@ -56,7 +56,7 @@ public abstract class TestStructuredStreaming {
       optional(1, "id", Types.IntegerType.get()),
       optional(2, "data", Types.StringType.get())
   );
-  protected static SparkSession spark = null;
+  private static SparkSession spark = null;
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -69,6 +69,7 @@ public abstract class TestStructuredStreaming {
         .master("local[2]")
         .config("spark.sql.shuffle.partitions", 4)
         .getOrCreate();
+    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   @AfterClass

@@ -19,12 +19,5 @@
 
 package org.apache.iceberg.actions;
 
-import org.apache.iceberg.spark.source.SetupSourceCatalog;
-import org.junit.BeforeClass;
-
 public class TestRewriteDataFilesAction3 extends TestRewriteDataFilesAction {
-  @BeforeClass
-  public static void setupCatalog() {
-    SetupSourceCatalog.setupSparkCatalog(spark);
-  }
 }

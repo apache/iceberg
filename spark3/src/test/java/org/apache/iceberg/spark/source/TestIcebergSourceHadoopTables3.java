@@ -19,11 +19,9 @@
 
 package org.apache.iceberg.spark.source;
 
-import java.util.Collections;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.spark.HadoopDelegatedCatalog;
 import org.apache.iceberg.spark.SparkTestBase;
@@ -31,7 +29,8 @@ import org.junit.BeforeClass;
 
 public class TestIcebergSourceHadoopTables3 extends TestIcebergSourceHadoopTables {
 
-  private static HadoopDelegatedCatalog catalog = new HadoopDelegatedCatalog(SparkTestBase.catalog, spark.sessionState().newHadoopConf());
+  private static HadoopDelegatedCatalog catalog = new HadoopDelegatedCatalog(SparkTestBase.catalog,
+      spark.sessionState().newHadoopConf());
 
   @BeforeClass
   public static void setupCatalog() {

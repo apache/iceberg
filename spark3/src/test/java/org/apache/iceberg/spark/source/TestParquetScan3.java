@@ -19,16 +19,7 @@
 
 package org.apache.iceberg.spark.source;
 
-import org.junit.BeforeClass;
-
 public class TestParquetScan3 extends TestParquetScan {
-
-  @BeforeClass
-  public static void setupCatalog() {
-    SetupSourceCatalog.setupSparkCatalog(spark);
-  }
-
-
   public TestParquetScan3(boolean vectorized) {
     super(vectorized);
   }

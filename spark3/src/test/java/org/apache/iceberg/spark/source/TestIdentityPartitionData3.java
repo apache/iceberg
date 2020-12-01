@@ -19,15 +19,7 @@
 
 package org.apache.iceberg.spark.source;
 
-import org.junit.BeforeClass;
-
 public class TestIdentityPartitionData3 extends TestIdentityPartitionData {
-
-  @BeforeClass
-  public static void setupCatalog() {
-    SetupSourceCatalog.setupSparkCatalog(spark);
-  }
-
   public TestIdentityPartitionData3(String format, boolean vectorized) {
     super(format, vectorized);
   }

@@ -23,17 +23,10 @@ import java.util.List;
 import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.execution.streaming.MemoryStream;
-import org.junit.BeforeClass;
 import scala.Option;
 import scala.collection.JavaConversions;
 
 public class TestForwardCompatibility3 extends TestForwardCompatibility {
-
-  @BeforeClass
-  public static void setupCatalog() {
-    SetupSourceCatalog.setupSparkCatalog(spark);
-  }
-
   @Override
   protected <T> MemoryStream<T> newMemoryStream(int id, SQLContext sqlContext, Encoder<T> encoder) {
     return new MemoryStream<>(id, sqlContext, Option.empty(), encoder);

@@ -57,7 +57,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 public abstract class TestSparkDataWrite {
   private static final Configuration CONF = new Configuration();
   private final FileFormat format;
-  protected static SparkSession spark = null;
+  private static SparkSession spark = null;
   private static final Schema SCHEMA = new Schema(
       optional(1, "id", Types.IntegerType.get()),
       optional(2, "data", Types.StringType.get())
@@ -74,6 +74,7 @@ public abstract class TestSparkDataWrite {
   @BeforeClass
   public static void startSpark() {
     TestSparkDataWrite.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   @AfterClass

@@ -85,7 +85,7 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
     this.format = format;
   }
 
-  protected static SparkSession spark = null;
+  private static SparkSession spark = null;
   private static JavaSparkContext sc = null;
 
   private Map<String, String> tableProperties;
@@ -121,6 +121,7 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
   public static void startSpark() {
     TestDataFrameWrites.spark = SparkSession.builder().master("local[2]").getOrCreate();
     TestDataFrameWrites.sc = new JavaSparkContext(spark.sparkContext());
+    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   @AfterClass

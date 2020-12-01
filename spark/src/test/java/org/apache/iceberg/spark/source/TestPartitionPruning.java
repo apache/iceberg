@@ -94,7 +94,7 @@ public abstract class TestPartitionPruning {
     this.vectorized = vectorized;
   }
 
-  protected static SparkSession spark = null;
+  private static SparkSession spark = null;
   private static JavaSparkContext sparkContext = null;
 
   private static Transform<Object, Integer> bucketTransform = Transforms.bucket(Types.IntegerType.get(), 3);
@@ -116,6 +116,7 @@ public abstract class TestPartitionPruning {
     spark.udf().register("hour", (Timestamp ts) -> hourTransform.apply(
         org.apache.spark.sql.catalyst.util.DateTimeUtils.fromJavaTimestamp(ts)),
         DataTypes.IntegerType);
+    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   @AfterClass

@@ -113,11 +113,6 @@ public class TestFilteredScan {
   private static SparkSession spark = null;
 
   @BeforeClass
-  public static void setupCatalog() {
-    SetupSourceCatalog.setupSparkCatalog(spark);
-  }
-
-  @BeforeClass
   public static void startSpark() {
     TestFilteredScan.spark = SparkSession.builder().master("local[2]").getOrCreate();
 
@@ -137,6 +132,7 @@ public class TestFilteredScan {
 
     spark.udf().register("data_ident", (UDF1<String, String>) data -> data, StringType$.MODULE$);
     spark.udf().register("id_ident", (UDF1<Long, Long>) id -> id, LongType$.MODULE$);
+    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   @AfterClass

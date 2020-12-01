@@ -19,14 +19,5 @@
 
 package org.apache.iceberg.actions;
 
-import org.apache.iceberg.spark.source.SetupSourceCatalog;
-import org.junit.BeforeClass;
-
 public class TestExpireSnapshotsAction3 extends TestExpireSnapshotsAction {
-
-  @BeforeClass
-  public static void setupCatalog() {
-    SetupSourceCatalog.setupSparkCatalog(spark);
-  }
-
 }

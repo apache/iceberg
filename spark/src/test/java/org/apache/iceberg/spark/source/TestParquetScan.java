@@ -58,11 +58,12 @@ import static org.apache.iceberg.Files.localOutput;
 public abstract class TestParquetScan extends AvroDataTest {
   private static final Configuration CONF = new Configuration();
 
-  protected static SparkSession spark = null;
+  private static SparkSession spark = null;
 
   @BeforeClass
   public static void startSpark() {
     TestParquetScan.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   @AfterClass

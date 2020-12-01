@@ -19,15 +19,7 @@
 
 package org.apache.iceberg.spark.source;
 
-import org.junit.BeforeClass;
-
 public class TestPartitionPruning3 extends TestPartitionPruning {
-
-  @BeforeClass
-  public static void setupCatalog() {
-    SetupSourceCatalog.setupSparkCatalog(spark);
-  }
-
   public TestPartitionPruning3(String format, boolean vectorized) {
     super(format, vectorized);
   }
