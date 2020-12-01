@@ -144,7 +144,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   public EqualityDeleteWriter<InternalRow> newEqDeleteWriter(EncryptedOutputFile file, FileFormat format,
                                                              StructLike partition) {
     Preconditions.checkState(equalityFieldIds != null && equalityFieldIds.length > 0,
-        "Equality field ids shouldn't be null when creating equality-delete writer");
+        "Equality field ids shouldn't be null or empty when creating equality-delete writer");
     Preconditions.checkNotNull(eqDeleteRowSchema,
         "Equality delete row schema shouldn't be null when creating equality-delete writer");
 
