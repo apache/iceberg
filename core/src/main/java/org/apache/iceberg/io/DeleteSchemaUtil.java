@@ -27,7 +27,7 @@ public class DeleteSchemaUtil {
   private DeleteSchemaUtil() {
   }
 
-  public static Schema pathPosSchema(Schema rowSchema) {
+  private static Schema pathPosSchema(Schema rowSchema) {
     return new Schema(
         MetadataColumns.DELETE_FILE_PATH,
         MetadataColumns.DELETE_FILE_POS,
