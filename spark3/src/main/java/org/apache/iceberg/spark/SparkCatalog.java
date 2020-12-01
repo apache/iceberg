@@ -36,6 +36,7 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -89,6 +90,7 @@ public class SparkCatalog extends BaseCatalog {
   private boolean cacheEnabled = true;
   private SupportsNamespaces asNamespaceCatalog = null;
   private String[] defaultNamespace = null;
+  private HadoopTables tables;
 
   /**
    * Build an Iceberg {@link Catalog} to be used by this Spark catalog adapter.
@@ -102,7 +104,7 @@ public class SparkCatalog extends BaseCatalog {
 
     String catalogImpl = options.get(CatalogProperties.CATALOG_IMPL);
     if (catalogImpl != null) {
-      return new HadoopDelegatedCatalog(CatalogUtil.loadCatalog(catalogImpl, name, options, conf), conf);
+      return CatalogUtil.loadCatalog(catalogImpl, name, options, conf);
     }
 
     String catalogType = options.getOrDefault(ICEBERG_CATALOG_TYPE, ICEBERG_CATALOG_TYPE_HIVE);
@@ -111,7 +113,7 @@ public class SparkCatalog extends BaseCatalog {
         int clientPoolSize = options.getInt(CatalogProperties.HIVE_CLIENT_POOL_SIZE,
             CatalogProperties.HIVE_CLIENT_POOL_SIZE_DEFAULT);
         String uri = options.get(CatalogProperties.HIVE_URI);
-        return new HadoopDelegatedCatalog(new HiveCatalog(name, uri, clientPoolSize, conf), conf);
+        return new HiveCatalog(name, uri, clientPoolSize, conf);
 
       case ICEBERG_CATALOG_TYPE_HADOOP:
         String warehouseLocation = options.get(CatalogProperties.WAREHOUSE_LOCATION);
@@ -135,7 +137,9 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public SparkTable loadTable(Identifier ident) throws NoSuchTableException {
     try {
-      Table icebergTable = icebergCatalog.loadTable(buildIdentifier(ident));
+      TableIdentifier tableIdentifier = buildIdentifier(ident);
+      Table icebergTable = isHadoopTable(tableIdentifier) ? tables.load(tableIdentifier.name()) :
+          icebergCatalog.loadTable(buildIdentifier(ident));
       return new SparkTable(icebergTable, !cacheEnabled);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
@@ -147,13 +151,23 @@ public class SparkCatalog extends BaseCatalog {
                                 Transform[] transforms,
                                 Map<String, String> properties) throws TableAlreadyExistsException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
+    TableIdentifier tableIdentifier = buildIdentifier(ident);
     try {
-      Table icebergTable = icebergCatalog.createTable(
-          buildIdentifier(ident),
-          icebergSchema,
-          Spark3Util.toPartitionSpec(icebergSchema, transforms),
-          properties.get("location"),
-          Spark3Util.rebuildCreateProperties(properties));
+      Table icebergTable;
+      if (isHadoopTable(tableIdentifier)) {
+        icebergTable = tables.create(icebergSchema,
+            Spark3Util.toPartitionSpec(icebergSchema, transforms),
+            Spark3Util.rebuildCreateProperties(properties),
+            tableIdentifier.name()
+        );
+      } else {
+        icebergTable = icebergCatalog.createTable(
+            buildIdentifier(ident),
+            icebergSchema,
+            Spark3Util.toPartitionSpec(icebergSchema, transforms),
+            properties.get("location"),
+            Spark3Util.rebuildCreateProperties(properties));
+      }
       return new SparkTable(icebergTable, !cacheEnabled);
     } catch (AlreadyExistsException e) {
       throw new TableAlreadyExistsException(ident);
@@ -165,6 +179,7 @@ public class SparkCatalog extends BaseCatalog {
                                  Map<String, String> properties) throws TableAlreadyExistsException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
     try {
+      // can't stage a hadoop table
       return new StagedSparkTable(icebergCatalog.newCreateTableTransaction(
           buildIdentifier(ident),
           icebergSchema,
@@ -181,6 +196,7 @@ public class SparkCatalog extends BaseCatalog {
                                   Map<String, String> properties) throws NoSuchTableException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
     try {
+      // can't stage a hadoop table
       return new StagedSparkTable(icebergCatalog.newReplaceTableTransaction(
           buildIdentifier(ident),
           icebergSchema,
@@ -197,6 +213,7 @@ public class SparkCatalog extends BaseCatalog {
   public StagedTable stageCreateOrReplace(Identifier ident, StructType schema, Transform[] transforms,
                                           Map<String, String> properties) {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
+    // can't stage a hadoop table
     return new StagedSparkTable(icebergCatalog.newReplaceTableTransaction(
         buildIdentifier(ident),
         icebergSchema,
@@ -236,7 +253,9 @@ public class SparkCatalog extends BaseCatalog {
     }
 
     try {
-      Table table = icebergCatalog.loadTable(buildIdentifier(ident));
+      TableIdentifier tableIdentifier = buildIdentifier(ident);
+      Table table = isHadoopTable(tableIdentifier) ? tables.load(tableIdentifier.name()) :
+          icebergCatalog.loadTable(tableIdentifier);
       commitChanges(table, setLocation, setSnapshotId, pickSnapshotId, propertyChanges, schemaChanges);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
@@ -248,7 +267,9 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public boolean dropTable(Identifier ident) {
     try {
-      return icebergCatalog.dropTable(buildIdentifier(ident), true);
+      TableIdentifier tableIdentifier = buildIdentifier(ident);
+      return isHadoopTable(tableIdentifier) ? tables.dropTable(tableIdentifier.name()) :
+          icebergCatalog.dropTable(tableIdentifier);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       return false;
     }
@@ -257,6 +278,7 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public void renameTable(Identifier from, Identifier to) throws NoSuchTableException, TableAlreadyExistsException {
     try {
+      // can't rename hadoop tables
       icebergCatalog.renameTable(buildIdentifier(from), buildIdentifier(to));
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(from);
@@ -268,7 +290,10 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public void invalidateTable(Identifier ident) {
     try {
-      icebergCatalog.loadTable(buildIdentifier(ident)).refresh();
+      TableIdentifier tableIdentifier = buildIdentifier(ident);
+      Table table = isHadoopTable(tableIdentifier) ? tables.load(tableIdentifier.name()) :
+          icebergCatalog.loadTable(tableIdentifier);
+      table.refresh();
     } catch (org.apache.iceberg.exceptions.NoSuchTableException ignored) {
       // ignore if the table doesn't exist, it is not cached
     }
@@ -276,6 +301,7 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public Identifier[] listTables(String[] namespace) {
+    // todo no way to identify if this is a path and we should use tables instead of catalog.
     return icebergCatalog.listTables(Namespace.of(namespace)).stream()
         .map(ident -> Identifier.of(ident.namespace().levels(), ident.name()))
         .toArray(Identifier[]::new);
@@ -400,6 +426,7 @@ public class SparkCatalog extends BaseCatalog {
     Catalog catalog = buildIcebergCatalog(name, options);
 
     this.catalogName = name;
+    this.tables = new HadoopTables(SparkSession.active().sessionState().newHadoopConf());
     this.icebergCatalog = cacheEnabled ? CachingCatalog.wrap(catalog) : catalog;
     if (catalog instanceof SupportsNamespaces) {
       this.asNamespaceCatalog = (SupportsNamespaces) catalog;
@@ -452,5 +479,14 @@ public class SparkCatalog extends BaseCatalog {
     }
 
     transaction.commitTransaction();
+  }
+
+  // todo I really don't like this check. fragile.
+  protected static boolean isHadoopTable(String location) {
+    return location.contains("/");
+  }
+
+  protected static boolean isHadoopTable(TableIdentifier identifier) {
+    return isHadoopTable(identifier.name());
   }
 }
