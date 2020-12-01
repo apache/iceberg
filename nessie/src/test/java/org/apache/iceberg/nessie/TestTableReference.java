@@ -50,7 +50,25 @@ public class TestTableReference {
     String path = "foo#2020-10-22";
     TableReference pti = TableReference.parse(path);
     Assert.assertEquals("foo", pti.tableIdentifier().name());
-    Assert.assertEquals(Instant.parse("2020-10-22T00:00:00.000Z"), pti.timestamp());
+    Assert.assertEquals(Instant.parse("2020-10-22T23:59:59.999999Z"), pti.timestamp());
+    Assert.assertNull(pti.reference());
+  }
+
+  @Test
+  public void timestampMonthOnly() {
+    String path = "foo#2020-10";
+    TableReference pti = TableReference.parse(path);
+    Assert.assertEquals("foo", pti.tableIdentifier().name());
+    Assert.assertEquals(Instant.parse("2020-10-31T23:59:59.999999Z"), pti.timestamp());
+    Assert.assertNull(pti.reference());
+  }
+
+  @Test
+  public void timestampYearOnly() {
+    String path = "foo#2020";
+    TableReference pti = TableReference.parse(path);
+    Assert.assertEquals("foo", pti.tableIdentifier().name());
+    Assert.assertEquals(Instant.parse("2020-12-31T23:59:59.999999Z"), pti.timestamp());
     Assert.assertNull(pti.reference());
   }
 

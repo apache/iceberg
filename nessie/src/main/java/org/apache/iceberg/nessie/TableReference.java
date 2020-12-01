@@ -23,8 +23,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalQuery;
 import org.apache.iceberg.catalog.TableIdentifier;
 
@@ -106,19 +108,19 @@ public class TableReference {
   }
 
   private enum FormatOptions {
-    DATE_TIME(DateTimeFormatter.ISO_DATE_TIME, Instant::from),
-    LOCAL_DATE_TIME(DateTimeFormatter.ISO_LOCAL_DATE_TIME, t -> LocalDateTime.from(t).atZone(UTC).toInstant()),
-    LOCAL_DATE(DateTimeFormatter.ISO_LOCAL_DATE, t -> LocalDate.from(t).atStartOfDay(UTC).toInstant());
+    DATE_TIME(DateTimeFormatter.ISO_DATE_TIME, ZonedDateTime::from),
+    LOCAL_DATE_TIME(DateTimeFormatter.ISO_LOCAL_DATE_TIME, t -> LocalDateTime.from(t).atZone(UTC)),
+    LOCAL_DATE(DateTimeFormatter.ISO_LOCAL_DATE, t -> LocalDate.from(t).atStartOfDay(UTC));
 
     private final DateTimeFormatter formatter;
-    private final TemporalQuery<Instant> converter;
+    private final TemporalQuery<ZonedDateTime> converter;
 
-    FormatOptions(DateTimeFormatter formatter, TemporalQuery<Instant> converter) {
+    FormatOptions(DateTimeFormatter formatter, TemporalQuery<ZonedDateTime> converter) {
       this.formatter = formatter;
       this.converter = converter;
     }
 
-    public Instant convert(String timestampStr) {
+    public ZonedDateTime convert(String timestampStr) {
       try {
         return formatter.parse(timestampStr, converter);
       } catch (DateTimeParseException e) {
@@ -128,11 +130,11 @@ public class TableReference {
   }
 
   private static Instant parseTimestamp(String timestamp) {
-    Instant parsed;
+    ZonedDateTime parsed;
     for (FormatOptions options : FormatOptions.values()) {
-      parsed = options.convert(timestamp);
+      parsed = options.convert(modifyTimestamp(timestamp));
       if (parsed != null) {
-        return parsed;
+        return endOfPeriod(parsed, timestamp).toInstant();
       }
     }
     throw new IllegalArgumentException(
@@ -140,4 +142,34 @@ public class TableReference {
     );
   }
 
+  private static String modifyTimestamp(String timestamp) {
+    if (timestamp.length() == 7) {
+      //only month. add a day
+      return String.format("%s-01", timestamp);
+    } else if (timestamp.length() == 4) {
+      //only year. add a month and day
+      return String.format("%s-01-01", timestamp);
+    } else {
+      return timestamp;
+    }
+  }
+
+  private static ZonedDateTime endOfPeriod(ZonedDateTime instant, String timestamp) {
+    if (timestamp.length() == 10) {
+      //only date. Move to end of day
+      return endOfPeriod(instant, ChronoUnit.DAYS);
+    } else if (timestamp.length() == 7) {
+      //only month. Move to end of month
+      return endOfPeriod(instant, ChronoUnit.MONTHS);
+    } else if (timestamp.length() == 4) {
+      //only month. Move to end of month
+      return endOfPeriod(instant, ChronoUnit.YEARS);
+    } else {
+      return instant;
+    }
+  }
+
+  private static ZonedDateTime endOfPeriod(ZonedDateTime instant, ChronoUnit unit) {
+    return instant.plus(1, unit).minus(1, ChronoUnit.MICROS);
+  }
 }
