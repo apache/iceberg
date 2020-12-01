@@ -234,8 +234,12 @@ public class TestCreateTable extends SparkCatalogTestBase {
     Assert.assertEquals("Should have a custom table location",
         location, table.location());
 
-//    catalogLocation = String.format("`%s`", catalogName.equals("spark_catalog") ? "" : catalogName,  location);
-    sql("DROP TABLE %s", catalogLocation);
+    if (catalogName.equals("spark_catalog")) {
+      // Session Catalog doesn't support DROP on V2 tables
+      catalog.dropTable(TableIdentifier.of("iceberg", location));
+    } else{
+      sql("DROP TABLE %s", catalogLocation);
+    }
   }
 
   @Test
