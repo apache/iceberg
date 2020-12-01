@@ -34,11 +34,13 @@ import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.NaNUtil;
 
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.in;
+import static org.apache.iceberg.expressions.Expressions.isNaN;
 import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
@@ -96,7 +98,8 @@ public class HiveIcebergFilterFactory {
     String column = leaf.getColumnName();
     switch (leaf.getOperator()) {
       case EQUALS:
-        return equal(column, leafToLiteral(leaf));
+        Object literal = leafToLiteral(leaf);
+        return NaNUtil.isNaN(literal) ? isNaN(column) : equal(column, literal);
       case LESS_THAN:
         return lessThan(column, leafToLiteral(leaf));
       case LESS_THAN_EQUALS:
