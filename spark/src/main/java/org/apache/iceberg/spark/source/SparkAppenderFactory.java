@@ -61,6 +61,10 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   private StructType eqDeleteSparkType = null;
   private StructType posDeleteSparkType = null;
 
+  SparkAppenderFactory(Map<String, String> properties, Schema writeSchema, StructType dsSchema) {
+    this(properties, writeSchema, dsSchema, PartitionSpec.unpartitioned(), null, null, null);
+  }
+
   SparkAppenderFactory(Map<String, String> properties, Schema writeSchema, StructType dsSchema, PartitionSpec spec) {
     this(properties, writeSchema, dsSchema, spec, null, null, null);
   }
@@ -140,6 +144,11 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   @Override
   public EqualityDeleteWriter<InternalRow> newEqDeleteWriter(EncryptedOutputFile file, FileFormat format,
                                                              StructLike partition) {
+    Preconditions.checkState(equalityFieldIds != null && equalityFieldIds.length > 0,
+        "Equality field ids shouldn't be null when creating equality-delete writer");
+    Preconditions.checkNotNull(eqDeleteRowSchema,
+        "Equality delete row schema shouldn't be null when creating equality-delete writer");
+
     try {
       switch (format) {
         case PARQUET:
@@ -165,7 +174,8 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
               .buildEqualityWriter();
 
         default:
-          throw new UnsupportedOperationException("Cannot write unsupported format: " + format);
+          throw new UnsupportedOperationException(
+              "Cannot write equality-deletes for unsupported file format: " + format);
       }
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to create new equality delete writer", e);
@@ -200,7 +210,8 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
               .buildPositionWriter();
 
         default:
-          throw new UnsupportedOperationException("Cannot write unsupported format: " + format);
+          throw new UnsupportedOperationException(
+              "Cannot write pos-deletes for unsupported file format: " + format);
       }
 
     } catch (IOException e) {

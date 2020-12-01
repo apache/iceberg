@@ -39,6 +39,7 @@ import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
@@ -53,8 +54,12 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   private final Schema posDeleteRowSchema;
   private final Map<String, String> config = Maps.newHashMap();
 
+  public GenericAppenderFactory(Schema schema) {
+    this(schema, PartitionSpec.unpartitioned(), null, null, null);
+  }
+
   public GenericAppenderFactory(Schema schema, PartitionSpec spec) {
-    this(schema, spec, null, schema, null);
+    this(schema, spec, null, null, null);
   }
 
   public GenericAppenderFactory(Schema schema, PartitionSpec spec,
@@ -109,7 +114,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
               .build();
 
         default:
-          throw new UnsupportedOperationException("Cannot write format: " + fileFormat);
+          throw new UnsupportedOperationException("Cannot write unknown file format: " + fileFormat);
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
@@ -127,6 +132,11 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   @Override
   public EqualityDeleteWriter<Record> newEqDeleteWriter(EncryptedOutputFile file, FileFormat format,
                                                         StructLike partition) {
+    Preconditions.checkState(equalityFieldIds != null && equalityFieldIds.length > 0,
+        "Equality field ids shouldn't be null when creating equality-delete writer");
+    Preconditions.checkNotNull(eqDeleteRowSchema,
+        "Equality delete row schema shouldn't be null when creating equality-delete writer");
+
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
     try {
       switch (format) {
@@ -156,7 +166,8 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
               .buildEqualityWriter();
 
         default:
-          throw new UnsupportedOperationException("Cannot write unknown file format: " + format);
+          throw new UnsupportedOperationException(
+              "Cannot write equality-deletes for unsupported file format: " + format);
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
@@ -193,7 +204,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
               .buildPositionWriter();
 
         default:
-          throw new UnsupportedOperationException("Cannot write unknown file format: " + format);
+          throw new UnsupportedOperationException("Cannot write pos-deletes for unsupported file format: " + format);
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);

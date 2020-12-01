@@ -62,7 +62,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   private RowType posDeleteFlinkSchema = null;
 
   public FlinkAppenderFactory(Schema schema, RowType flinkSchema, Map<String, String> props, PartitionSpec spec) {
-    this(schema, flinkSchema, props, spec, null, schema, null);
+    this(schema, flinkSchema, props, spec, null, null, null);
   }
 
   public FlinkAppenderFactory(Schema schema, RowType flinkSchema, Map<String, String> props,
@@ -141,6 +141,11 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   @Override
   public EqualityDeleteWriter<RowData> newEqDeleteWriter(EncryptedOutputFile outputFile, FileFormat format,
                                                          StructLike partition) {
+    Preconditions.checkState(equalityFieldIds != null && equalityFieldIds.length > 0,
+        "Equality field ids shouldn't be null when creating equality-delete writer");
+    Preconditions.checkNotNull(eqDeleteRowSchema,
+        "Equality delete row schema shouldn't be null when creating equality-delete writer");
+
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
     try {
       switch (format) {
@@ -170,7 +175,8 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .buildEqualityWriter();
 
         default:
-          throw new UnsupportedOperationException("Cannot write unknown file format: " + format);
+          throw new UnsupportedOperationException(
+              "Cannot write equality-deletes for unsupported file format: " + format);
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
@@ -208,7 +214,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .buildPositionWriter(FlinkPosPathAccessor.INSTANCE);
 
         default:
-          throw new UnsupportedOperationException("Cannot write unknown file format: " + format);
+          throw new UnsupportedOperationException("Cannot write pos-deletes for unsupported file format: " + format);
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
