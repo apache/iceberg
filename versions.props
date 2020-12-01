@@ -31,3 +31,4 @@ org.apache.hive:hive-service = 2.3.8
 org.apache.tez:tez-dag = 0.8.4
 org.apache.tez:tez-mapreduce = 0.8.4
 com.adobe.testing:s3mock-junit4 = 2.1.28
+com.h2database:* = 1.4.200
