@@ -33,21 +33,17 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class TestStructLikeMap {
+  private static final Types.StructType STRUCT_TYPE = Types.StructType.of(
+      Types.NestedField.required(1, "id", Types.IntegerType.get()),
+      Types.NestedField.optional(2, "data", Types.LongType.get())
+  );
 
   @Test
-  public void testSimpleData() {
-    Types.StructType structType = Types.StructType.of(
-        Types.NestedField.required(1, "id", Types.IntegerType.get()),
-        Types.NestedField.optional(2, "data", Types.LongType.get())
-    );
-    Record gRecord = GenericRecord.create(structType);
+  public void testSingleRecord() {
+    Record gRecord = GenericRecord.create(STRUCT_TYPE);
     Record record1 = gRecord.copy(ImmutableMap.of("id", 1, "data", "aaa"));
-    Record record2 = gRecord.copy(ImmutableMap.of("id", 2, "data", "bbb"));
-    Record record3 = gRecord.copy();
-    record3.setField("id", 3);
-    record3.setField("data", null);
 
-    Map<StructLike, String> map = StructLikeMap.create(structType);
+    Map<StructLike, String> map = StructLikeMap.create(STRUCT_TYPE);
     Assert.assertEquals(0, map.size());
 
     map.put(record1, "1-aaa");
@@ -72,8 +68,21 @@ public class TestStructLikeMap {
       Assert.assertEquals("1-aaa", entry.getValue());
       break;
     }
+  }
 
-    map.putAll(ImmutableMap.of(record2, "2-bbb", record3, "3-null"));
+  @Test
+  public void testMultipleRecord() {
+    Record gRecord = GenericRecord.create(STRUCT_TYPE);
+    Record record1 = gRecord.copy(ImmutableMap.of("id", 1, "data", "aaa"));
+    Record record2 = gRecord.copy(ImmutableMap.of("id", 2, "data", "bbb"));
+    Record record3 = gRecord.copy();
+    record3.setField("id", 3);
+    record3.setField("data", null);
+
+    Map<StructLike, String> map = StructLikeMap.create(STRUCT_TYPE);
+    Assert.assertEquals(0, map.size());
+
+    map.putAll(ImmutableMap.of(record1, "1-aaa", record2, "2-bbb", record3, "3-null"));
     Assert.assertEquals(3, map.size());
     Assert.assertTrue(map.containsKey(record1));
     Assert.assertTrue(map.containsKey(record2));
@@ -85,17 +94,15 @@ public class TestStructLikeMap {
     Assert.assertEquals("2-bbb", map.get(record2));
     Assert.assertEquals("3-null", map.get(record3));
 
-    keySet = map.keySet();
+    Set<StructLike> keySet = map.keySet();
     Assert.assertEquals(3, keySet.size());
-    Assert.assertTrue(keySet.contains(record1));
-    Assert.assertTrue(keySet.contains(record2));
-    Assert.assertTrue(keySet.contains(record3));
+    Assert.assertEquals(ImmutableSet.of(record1, record2, record3), keySet);
 
-    values = map.values();
+    Collection<String> values = map.values();
     Assert.assertEquals(3, values.size());
     Assert.assertEquals(ImmutableSet.of("1-aaa", "2-bbb", "3-null"), Sets.newHashSet(values));
 
-    entrySet = map.entrySet();
+    Set<Map.Entry<StructLike, String>> entrySet = map.entrySet();
     Assert.assertEquals(3, entrySet.size());
     Set<StructLike> structLikeSet = Sets.newHashSet();
     Set<String> valueSet = Sets.newHashSet();
@@ -105,5 +112,21 @@ public class TestStructLikeMap {
     }
     Assert.assertEquals(ImmutableSet.of(record1, record2, record3), structLikeSet);
     Assert.assertEquals(ImmutableSet.of("1-aaa", "2-bbb", "3-null"), valueSet);
+  }
+
+  @Test
+  public void testRemove() {
+    Record gRecord = GenericRecord.create(STRUCT_TYPE);
+    Record record = gRecord.copy(ImmutableMap.of("id", 1, "data", "aaa"));
+
+    Map<StructLike, String> map = StructLikeMap.create(STRUCT_TYPE);
+    map.put(record, "1-aaa");
+    Assert.assertEquals(1, map.size());
+    Assert.assertEquals("1-aaa", map.get(record));
+    Assert.assertEquals("1-aaa", map.remove(record));
+    Assert.assertEquals(0, map.size());
+
+    map.put(record, "1-aaa");
+    Assert.assertEquals("1-aaa", map.get(record));
   }
 }
