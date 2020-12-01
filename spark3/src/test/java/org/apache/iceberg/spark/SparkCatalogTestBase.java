@@ -88,7 +88,7 @@ public abstract class SparkCatalogTestBase extends SparkTestBase {
     this.catalogName = catalogName;
     this.validationCatalog = catalogName.equals("testhadoop") ?
         new HadoopCatalog(spark.sessionState().newHadoopConf(), "file:" + warehouse) :
-        new HadoopDelegatedCatalog(catalog, spark.sessionState().newHadoopConf());
+        catalog;
     this.validationNamespaceCatalog = (SupportsNamespaces) validationCatalog;
 
     spark.conf().set("spark.sql.catalog." + catalogName, implementation);
