@@ -73,4 +73,5 @@ PIG:
   - pig/**/*
 AWS:
   - aws/**/*
-
+NESSIE:
+  - nessie/**/*
