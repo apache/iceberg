@@ -144,10 +144,10 @@ public class TableReference {
 
   private static String modifyTimestamp(String timestamp) {
     if (timestamp.length() == 7) {
-      //only month. add a day
+      // only month. add a day
       return String.format("%s-01", timestamp);
     } else if (timestamp.length() == 4) {
-      //only year. add a month and day
+      // only year. add a month and day
       return String.format("%s-01-01", timestamp);
     } else {
       return timestamp;
@@ -156,13 +156,13 @@ public class TableReference {
 
   private static ZonedDateTime endOfPeriod(ZonedDateTime instant, String timestamp) {
     if (timestamp.length() == 10) {
-      //only date. Move to end of day
+      // only date. Move to end of day
       return endOfPeriod(instant, ChronoUnit.DAYS);
     } else if (timestamp.length() == 7) {
-      //only month. Move to end of month
+      // only month. Move to end of month
       return endOfPeriod(instant, ChronoUnit.MONTHS);
     } else if (timestamp.length() == 4) {
-      //only month. Move to end of month
+      // only month. Move to end of month
       return endOfPeriod(instant, ChronoUnit.YEARS);
     } else {
       return instant;
