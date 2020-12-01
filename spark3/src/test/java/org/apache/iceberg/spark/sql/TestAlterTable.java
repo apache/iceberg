@@ -26,6 +26,7 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
@@ -98,7 +99,7 @@ public class TestAlterTable extends SparkCatalogTestBase {
     Assume.assumeTrue(
         "Cannot set custom locations for Hadoop catalog tables",
         !(validationCatalog instanceof HadoopCatalog));
-
+    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
     File tableLocation = temp.newFolder();
     Assert.assertTrue(tableLocation.delete());
 
@@ -120,7 +121,7 @@ public class TestAlterTable extends SparkCatalogTestBase {
         NestedField.optional(2, "data", Types.StringType.get()));
 
     Assert.assertEquals("Schema should match expected",
-        expectedSchema, validationCatalog.loadTable(TableIdentifier.of("iceberg", location)).schema().asStruct());
+        expectedSchema, tables.load(location).schema().asStruct());
 
     sql("ALTER TABLE %s ADD COLUMN point.z double COMMENT 'May be null' FIRST", catalogLocation);
 

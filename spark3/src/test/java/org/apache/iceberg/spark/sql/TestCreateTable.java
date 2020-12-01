@@ -28,6 +28,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
@@ -206,7 +207,7 @@ public class TestCreateTable extends SparkCatalogTestBase {
     Assume.assumeTrue(
         "Cannot set custom locations for Hadoop catalog tables",
         !(validationCatalog instanceof HadoopCatalog));
-
+    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
     Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
 
     File tableLocation = temp.newFolder();
@@ -221,7 +222,7 @@ public class TestCreateTable extends SparkCatalogTestBase {
         "USING iceberg",
         catalogLocation);
 
-    Table table = validationCatalog.loadTable(TableIdentifier.of("iceberg", location));
+    Table table = tables.load(location);
     Assert.assertNotNull("Should load the new table", table);
 
     StructType expectedSchema = StructType.of(
