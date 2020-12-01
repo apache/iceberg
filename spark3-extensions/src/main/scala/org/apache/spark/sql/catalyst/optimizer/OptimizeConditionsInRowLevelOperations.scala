@@ -35,12 +35,13 @@ object OptimizeConditionsInRowLevelOperations extends Rule[LogicalPlan] {
       d.copy(condition = Some(optimizedCond))
   }
 
-  private def optimizeCondition(condition: Expression, targetTable: LogicalPlan): Expression = {
+  private def optimizeCondition(cond: Expression, table: LogicalPlan): Expression = {
     val optimizer = SparkSession.active.sessionState.optimizer
-    optimizer.execute(Filter(condition, targetTable)) match {
+    optimizer.execute(Filter(cond, table)) match {
       case Filter(optimizedCondition, _) => optimizedCondition
       case _: LocalRelation => Literal.FalseLiteral
       case _: DataSourceV2ScanRelation => Literal.TrueLiteral
+      case _ => cond
     }
   }
 }

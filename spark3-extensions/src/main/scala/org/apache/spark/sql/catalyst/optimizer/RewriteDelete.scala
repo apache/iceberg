@@ -45,7 +45,7 @@ object RewriteDelete extends Rule[LogicalPlan] with PredicateHelper with Logging
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     // don't rewrite deletes that can be answered by passing filters to deleteWhere in SupportsDelete
-    case d @ DeleteFromTable(r: DataSourceV2Relation, Some(cond)) if isDeleteWhereCase(r, cond) =>
+    case d @ DeleteFromTable(r: DataSourceV2Relation, Some(cond)) if isMetadataDelete(r, cond) =>
       d
 
     // rewrite all operations that require reading the table to delete records
@@ -59,9 +59,9 @@ object RewriteDelete extends Rule[LogicalPlan] with PredicateHelper with Logging
       val remainingRowFilter = Not(EqualNullSafe(cond, Literal(true, BooleanType)))
       val remainingRowsPlan = Filter(remainingRowFilter, scanPlan)
 
-      val batchWrite = mergeBuilder.asWriteBuilder.buildForBatch()
+      val mergeWrite = mergeBuilder.asWriteBuilder.buildForBatch()
       val writePlan = buildWritePlan(remainingRowsPlan, r.output)
-      ReplaceData(r, batchWrite, writePlan)
+      ReplaceData(r, mergeWrite, writePlan)
   }
 
   private def buildScanPlan(
@@ -107,7 +107,7 @@ object RewriteDelete extends Rule[LogicalPlan] with PredicateHelper with Logging
     Project(output, sort)
   }
 
-  private def isDeleteWhereCase(relation: DataSourceV2Relation, cond: Expression): Boolean = {
+  private def isMetadataDelete(relation: DataSourceV2Relation, cond: Expression): Boolean = {
     relation.table match {
       case t: ExtendedSupportsDelete if !SubqueryExpression.hasSubquery(cond) =>
         val predicates = splitConjunctivePredicates(cond)

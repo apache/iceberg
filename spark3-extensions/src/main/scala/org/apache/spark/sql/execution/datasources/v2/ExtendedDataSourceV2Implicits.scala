@@ -31,7 +31,7 @@ object ExtendedDataSourceV2Implicits {
         case support: SupportsMerge =>
           support
         case _ =>
-          throw new AnalysisException(s"Table does not support row level operations: ${table.name}")
+          throw new AnalysisException(s"Table does not support updates and deletes: ${table.name}")
       }
     }
   }
