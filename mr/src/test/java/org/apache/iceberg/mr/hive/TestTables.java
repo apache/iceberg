@@ -44,6 +44,7 @@ import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestCatalogs;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ObjectArrays;
 import org.junit.Assert;
@@ -94,11 +95,13 @@ abstract class TestTables {
   /**
    * If creating the Hive table independently is needed for the given Catalog then this should return the Hive SQL
    * string which is needed to be executed.
-   * @param identifier The table identifier (the namespace should be "default")
+   * @param identifier The table identifier (the namespace should be non-empty and single level)
    * @return The SQL string - which should be executed, null - if it is not needed.
    */
   public String createHiveTableSQL(TableIdentifier identifier) {
-    return String.format("CREATE TABLE default.%s STORED BY '%s' %s", identifier.name(),
+    Preconditions.checkArgument(!identifier.namespace().isEmpty(), "Namespace should not be empty");
+    Preconditions.checkArgument(identifier.namespace().levels().length == 1, "Namespace should be single level");
+    return String.format("CREATE TABLE %s.%s STORED BY '%s' %s", identifier.namespace(), identifier.name(),
         HiveIcebergStorageHandler.class.getName(), locationForCreateTableSQL(identifier));
   }
 
@@ -114,7 +117,8 @@ abstract class TestTables {
 
   /**
    * Creates a Hive test table. Creates the Iceberg table/data and creates the corresponding Hive table as well when
-   * needed. The table will be in the 'default' database.
+   * needed. The table will be in the 'default' database. The table will be populated with the provided List of
+   * {@link Record}s.
    * @param shell The HiveShell used for Hive table creation
    * @param tableName The name of the test table
    * @param schema The schema used for the table creation
@@ -133,18 +137,18 @@ abstract class TestTables {
 
   /**
    * Creates a Hive test table. Creates the Iceberg table/data and creates the corresponding Hive table as well when
-   * needed. The table will be in the 'default' database.
+   * needed. The table will be in the 'default' database. The table will be populated with the provided with randomly
+   * generated {@link Record}s.
    * @param shell The HiveShell used for Hive table creation
    * @param tableName The name of the test table
    * @param schema The schema used for the table creation
    * @param fileFormat The file format used for writing the data
    * @param numRecords The number of records should be generated and stored in the table
-   * @param seed The seed used for the random record generation
    * @throws IOException If there is an error writing data
    */
   public List<Record> createTableWithGeneratedRecords(TestHiveShell shell, String tableName, Schema schema,
-      FileFormat fileFormat, int numRecords, long seed) throws IOException {
-    List<Record> records = TestHelper.generateRandomRecords(schema, numRecords, seed);
+      FileFormat fileFormat, int numRecords) throws IOException {
+    List<Record> records = TestHelper.generateRandomRecords(schema, numRecords, 0L);
     createTable(shell, tableName, schema, fileFormat, records);
     return records;
   }

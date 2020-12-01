@@ -74,10 +74,10 @@ import static org.junit.runners.Parameterized.Parameters;
 
 @RunWith(Parameterized.class)
 public class TestHiveIcebergStorageHandler {
-  private static final FileFormat[] fileFormats =
+  private static final FileFormat[] FILE_FORMATS =
       new FileFormat[] {FileFormat.AVRO, FileFormat.ORC, FileFormat.PARQUET};
 
-  private static final String[] executionEngines = new String[] {"mr", "tez"};
+  private static final String[] EXECUTION_ENGINES = new String[] {"mr", "tez"};
 
   private static final Schema CUSTOMER_SCHEMA = new Schema(
           optional(1, "customer_id", Types.LongType.get()),
@@ -153,10 +153,10 @@ public class TestHiveIcebergStorageHandler {
     String javaVersion = System.getProperty("java.specification.version");
 
     Collection<Object[]> testParams = new ArrayList<>();
-    for (FileFormat fileFormat : fileFormats) {
-      for (String engine : executionEngines) {
+    for (FileFormat fileFormat : FILE_FORMATS) {
+      for (String engine : EXECUTION_ENGINES) {
         // include Tez tests only for Java 8
-        if (javaVersion.equals("1.8")) {
+        if (javaVersion.equals("1.8") || "mr".equals(engine)) {
           for (TestTables.TestTableType testTableType : TestTables.ALL_TABLE_TYPES) {
             testParams.add(new Object[] {fileFormat, engine, testTableType});
           }
@@ -776,7 +776,7 @@ public class TestHiveIcebergStorageHandler {
   public void testArrayOfPrimitivesInTable() throws IOException {
     Schema schema =
             new Schema(required(1, "arrayofprimitives", Types.ListType.ofRequired(2, Types.IntegerType.get())));
-    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "arraytable", schema, fileFormat, 1, 0L);
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "arraytable", schema, fileFormat, 1);
     // access a single element from the array
     for (int i = 0; i < records.size(); i++) {
       List<?> expectedList = (List<?>) records.get(i).getField("arrayofprimitives");
@@ -794,7 +794,7 @@ public class TestHiveIcebergStorageHandler {
             new Schema(
                     required(1, "arrayofarrays",
                             Types.ListType.ofRequired(2, Types.ListType.ofRequired(3, Types.DateType.get()))));
-    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "arraytable", schema, fileFormat, 1, 0L);
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "arraytable", schema, fileFormat, 1);
     // access an element from a matrix
     for (int i = 0; i < records.size(); i++) {
       List<?> expectedList = (List<?>) records.get(i).getField("arrayofarrays");
@@ -816,7 +816,7 @@ public class TestHiveIcebergStorageHandler {
             new Schema(required(1, "arrayofmaps", Types.ListType
                     .ofRequired(2, Types.MapType.ofRequired(3, 4, Types.StringType.get(),
                             Types.BooleanType.get()))));
-    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "arraytable", schema, fileFormat, 1, 0L);
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "arraytable", schema, fileFormat, 1);
     // access an element from a map in an array
     for (int i = 0; i < records.size(); i++) {
       List<?> expectedList = (List<?>) records.get(i).getField("arrayofmaps");
@@ -839,7 +839,7 @@ public class TestHiveIcebergStorageHandler {
                     required(1, "arrayofstructs", Types.ListType.ofRequired(2, Types.StructType
                             .of(required(3, "something", Types.DoubleType.get()), required(4, "someone",
                                     Types.LongType.get()), required(5, "somewhere", Types.StringType.get())))));
-    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "arraytable", schema, fileFormat, 1, 0L);
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "arraytable", schema, fileFormat, 1);
     // access an element from a struct in an array
     for (int i = 0; i < records.size(); i++) {
       List<?> expectedList = (List<?>) records.get(i).getField("arrayofstructs");
@@ -860,7 +860,7 @@ public class TestHiveIcebergStorageHandler {
     Schema schema = new Schema(
             required(1, "mapofprimitives", Types.MapType.ofRequired(2, 3, Types.StringType.get(),
                     Types.IntegerType.get())));
-    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "maptable", schema, fileFormat, 1, 0L);
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "maptable", schema, fileFormat, 1);
     // access a single value from the map
     for (int i = 0; i < records.size(); i++) {
       Map<?, ?> expectedMap = (Map<?, ?>) records.get(i).getField("mapofprimitives");
@@ -879,7 +879,7 @@ public class TestHiveIcebergStorageHandler {
             required(1, "mapofarrays",
                     Types.MapType.ofRequired(2, 3, Types.StringType.get(), Types.ListType.ofRequired(4,
                             Types.DateType.get()))));
-    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "maptable", schema, fileFormat, 1, 0L);
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "maptable", schema, fileFormat, 1);
     // access a single element from a list in a map
     for (int i = 0; i < records.size(); i++) {
       Map<?, ?> expectedMap = (Map<?, ?>) records.get(i).getField("mapofarrays");
@@ -899,7 +899,7 @@ public class TestHiveIcebergStorageHandler {
     Schema schema = new Schema(
             required(1, "mapofmaps", Types.MapType.ofRequired(2, 3, Types.StringType.get(),
                     Types.MapType.ofRequired(4, 5, Types.StringType.get(), Types.StringType.get()))));
-    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "maptable", schema, fileFormat, 1, 0L);
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "maptable", schema, fileFormat, 1);
     // access a single element from a map in a map
     for (int i = 0; i < records.size(); i++) {
       Map<?, ?> expectedMap = (Map<?, ?>) records.get(i).getField("mapofmaps");
@@ -922,7 +922,7 @@ public class TestHiveIcebergStorageHandler {
                     Types.StructType.of(required(4, "something", Types.DoubleType.get()),
                             required(5, "someone", Types.LongType.get()),
                             required(6, "somewhere", Types.StringType.get())))));
-    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "maptable", schema, fileFormat, 1, 0L);
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "maptable", schema, fileFormat, 1);
     // access a single element from a struct in a map
     for (int i = 0; i < records.size(); i++) {
       Map<?, ?> expectedMap = (Map<?, ?>) records.get(i).getField("mapofstructs");
@@ -943,7 +943,7 @@ public class TestHiveIcebergStorageHandler {
     Schema schema = new Schema(required(1, "structofprimitives",
             Types.StructType.of(required(2, "key", Types.StringType.get()), required(3, "value",
                     Types.IntegerType.get()))));
-    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "structtable", schema, fileFormat, 1, 0L);
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "structtable", schema, fileFormat, 1);
     // access a single value in a struct
     for (int i = 0; i < records.size(); i++) {
       GenericRecord expectedStruct = (GenericRecord) records.get(i).getField("structofprimitives");
@@ -961,7 +961,7 @@ public class TestHiveIcebergStorageHandler {
                     .of(required(2, "names", Types.ListType.ofRequired(3, Types.StringType.get())),
                             required(4, "birthdays", Types.ListType.ofRequired(5,
                                     Types.DateType.get())))));
-    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "structtable", schema, fileFormat, 1, 0L);
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "structtable", schema, fileFormat, 1);
     // access an element of an array inside a struct
     for (int i = 0; i < records.size(); i++) {
       GenericRecord expectedStruct = (GenericRecord) records.get(i).getField("structofarrays");
@@ -988,7 +988,7 @@ public class TestHiveIcebergStorageHandler {
                             Types.StringType.get(), Types.StringType.get())), required(5, "map2",
                             Types.MapType.ofRequired(6, 7, Types.StringType.get(),
                                     Types.IntegerType.get())))));
-    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "structtable", schema, fileFormat, 1, 0L);
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "structtable", schema, fileFormat, 1);
     // access a map entry inside a struct
     for (int i = 0; i < records.size(); i++) {
       GenericRecord expectedStruct = (GenericRecord) records.get(i).getField("structofmaps");
@@ -1015,7 +1015,7 @@ public class TestHiveIcebergStorageHandler {
             required(1, "structofstructs", Types.StructType.of(required(2, "struct1", Types.StructType
                     .of(required(3, "key", Types.StringType.get()), required(4, "value",
                             Types.IntegerType.get()))))));
-    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "structtable", schema, fileFormat, 1, 0L);
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "structtable", schema, fileFormat, 1);
     // access a struct element inside a struct
     for (int i = 0; i < records.size(); i++) {
       GenericRecord expectedStruct = (GenericRecord) records.get(i).getField("structofstructs");
