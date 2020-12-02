@@ -93,8 +93,9 @@ abstract class TestTables {
   public abstract String locationForCreateTableSQL(TableIdentifier identifier);
 
   /**
-   * If creating the Hive table independently is needed for the given Catalog then this should return the Hive SQL
-   * string which is needed to be executed.
+   * If an independent Hive table creation is needed for the given Catalog then this should return the Hive SQL
+   * string which we have to execute. Overridden for HiveCatalog where the Hive table is immediately created
+   * during the Iceberg table creation so no extra sql execution is required.
    * @param identifier The table identifier (the namespace should be non-empty and single level)
    * @return The SQL string - which should be executed, null - if it is not needed.
    */
