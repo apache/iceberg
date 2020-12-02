@@ -94,7 +94,7 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
    */
   override def parsePlan(sqlText: String): LogicalPlan = {
     val sqlTextAfterSubstitution = substitutor.substitute(sqlText)
-    if (sqlTextAfterSubstitution.toLowerCase(Locale.ROOT).stripLeading().startsWith("call")) {
+    if (sqlTextAfterSubstitution.toLowerCase(Locale.ROOT).trim().startsWith("call")) {
       parse(sqlTextAfterSubstitution) { parser => astBuilder.visit(parser.singleStatement()) }.asInstanceOf[LogicalPlan]
     } else {
       delegate.parsePlan(sqlText)
