@@ -28,15 +28,15 @@ import java.nio.ByteBuffer;
  * This wrapper ensures that metrics not being updated by those writers will not be incorrectly used, by throwing
  * exceptions when they are accessed.
  */
-public class NaNOnlyFieldMetrics extends FieldMetrics {
+public class NaNFieldMetrics extends FieldMetrics {
 
   /**
    * Constructor for creating a FieldMetrics with only NaN counter.
    * @param id field id being tracked by the writer
    * @param nanValueCount number of NaN values, will only be non-0 for double or float field.
    */
-  public NaNOnlyFieldMetrics(int id,
-                             long nanValueCount) {
+  public NaNFieldMetrics(int id,
+                         long nanValueCount) {
     super(id, 0L, 0L, nanValueCount, null, null);
   }
 
