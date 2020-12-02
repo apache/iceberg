@@ -300,7 +300,7 @@ class Writer implements DataSourceWriter {
     public WriterCommitMessage commit() throws IOException {
       close();
 
-      return new TaskCommit(complete());
+      return new TaskCommit(complete().dataFiles());
     }
   }
 
@@ -316,7 +316,7 @@ class Writer implements DataSourceWriter {
     public WriterCommitMessage commit() throws IOException {
       close();
 
-      return new TaskCommit(complete());
+      return new TaskCommit(complete().dataFiles());
     }
   }
 
@@ -335,7 +335,7 @@ class Writer implements DataSourceWriter {
     public WriterCommitMessage commit() throws IOException {
       close();
 
-      return new TaskCommit(complete());
+      return new TaskCommit(complete().dataFiles());
     }
   }
 }

@@ -61,6 +61,10 @@ public class EqualityDeleteWriter<T> implements Closeable {
     appender.add(row);
   }
 
+  public long length() {
+    return appender.length();
+  }
+
   @Override
   public void close() throws IOException {
     if (deleteFile == null) {

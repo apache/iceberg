@@ -73,7 +73,7 @@ public abstract class PartitionedWriter<T> extends BaseTaskWriter<T> {
       currentWriter = new RollingFileWriter(currentKey);
     }
 
-    currentWriter.add(row);
+    currentWriter.write(row);
   }
 
   @Override
