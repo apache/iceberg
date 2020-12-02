@@ -383,7 +383,7 @@ public class Spark3Util {
 
   public static boolean isVectorizationEnabled(Map<String, String> properties, CaseInsensitiveStringMap readOptions) {
     String batchReadsSessionConf = SparkSession.active().conf()
-        .get("spark.iceberg.vectorization.enabled", null);
+        .get("spark.sql.iceberg.vectorization.enabled", null);
     if (batchReadsSessionConf != null) {
       return Boolean.valueOf(batchReadsSessionConf);
     }

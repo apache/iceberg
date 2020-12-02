@@ -157,7 +157,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     this.encryptionManager = encryptionManager;
     this.caseSensitive = caseSensitive;
     String batchReadsSessionConf = SparkSession.active().conf()
-        .get("spark.iceberg.vectorization.enabled", null);
+        .get("spark.sql.iceberg.vectorization.enabled", null);
     if (batchReadsSessionConf != null) {
       this.batchReadsEnabled = Boolean.valueOf(batchReadsSessionConf);
     } else {
