@@ -280,7 +280,7 @@ public class Parquet {
     private StructLike partition = null;
     private EncryptionKeyMetadata keyMetadata = null;
     private int[] equalityFieldIds = null;
-    private Function<CharSequence, ?> pathTransformFunc = t -> t;
+    private Function<CharSequence, ?> pathTransformFunc = Function.identity();
 
     private DeleteWriteBuilder(OutputFile file) {
       this.appenderBuilder = write(file);
@@ -384,8 +384,7 @@ public class Parquet {
           appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata, equalityFieldIds);
     }
 
-    public <T> PositionDeleteWriter<T> buildPositionWriter()
-        throws IOException {
+    public <T> PositionDeleteWriter<T> buildPositionWriter() throws IOException {
       Preconditions.checkState(equalityFieldIds == null, "Cannot create position delete file using delete field ids");
 
       meta("delete-type", "position");
@@ -408,7 +407,7 @@ public class Parquet {
 
         appenderBuilder.createWriterFunc(parquetSchema ->
             new PositionDeleteStructWriter<T>((StructWriter<?>) GenericParquetWriter.buildWriter(parquetSchema),
-                t -> t));
+                Function.identity()));
       }
 
       return new PositionDeleteWriter<>(
