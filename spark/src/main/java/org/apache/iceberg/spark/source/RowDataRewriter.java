@@ -99,7 +99,7 @@ public class RowDataRewriter implements Serializable {
         task, schema, schema, nameMapping, io.value(), encryptionManager.value(), caseSensitive);
 
     StructType structType = SparkSchemaUtil.convert(schema);
-    SparkAppenderFactory appenderFactory = new SparkAppenderFactory(properties, schema, structType);
+    SparkAppenderFactory appenderFactory = new SparkAppenderFactory(properties, schema, structType, spec);
     OutputFileFactory fileFactory = new OutputFileFactory(
         spec, format, locations, io.value(), encryptionManager.value(), partitionId, taskId);
 

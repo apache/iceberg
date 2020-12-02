@@ -39,7 +39,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.flink.sink.RowDataTaskWriterFactory;
+import org.apache.iceberg.flink.sink.FlinkAppenderFactory;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
@@ -102,8 +102,8 @@ public class SimpleDataUtil {
     Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
 
     RowType flinkSchema = FlinkSchemaUtil.convert(schema);
-    FileAppenderFactory<RowData> appenderFactory = new RowDataTaskWriterFactory.FlinkFileAppenderFactory(schema,
-        flinkSchema, ImmutableMap.of());
+    FileAppenderFactory<RowData> appenderFactory =
+        new FlinkAppenderFactory(schema, flinkSchema, ImmutableMap.of(), spec);
 
     FileAppender<RowData> appender = appenderFactory.newAppender(fromPath(path, conf), fileFormat);
     try (FileAppender<RowData> closeableAppender = appender) {

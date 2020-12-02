@@ -19,34 +19,22 @@
 
 package org.apache.iceberg.flink.sink;
 
-import java.io.IOException;
-import java.io.Serializable;
-import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.flink.RowDataWrapper;
-import org.apache.iceberg.flink.data.FlinkAvroWriter;
-import org.apache.iceberg.flink.data.FlinkOrcWriter;
-import org.apache.iceberg.flink.data.FlinkParquetWriters;
-import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitionedFanoutWriter;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.UnpartitionedWriter;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
@@ -79,7 +67,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.encryptionManager = encryptionManager;
     this.targetFileSizeBytes = targetFileSizeBytes;
     this.format = format;
-    this.appenderFactory = new FlinkFileAppenderFactory(schema, flinkSchema, tableProperties);
+    this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, tableProperties, spec);
   }
 
   @Override
@@ -117,56 +105,6 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     protected PartitionKey partition(RowData row) {
       partitionKey.partition(rowDataWrapper.wrap(row));
       return partitionKey;
-    }
-  }
-
-  public static class FlinkFileAppenderFactory implements FileAppenderFactory<RowData>, Serializable {
-    private final Schema schema;
-    private final RowType flinkSchema;
-    private final Map<String, String> props;
-
-    public FlinkFileAppenderFactory(Schema schema, RowType flinkSchema, Map<String, String> props) {
-      this.schema = schema;
-      this.flinkSchema = flinkSchema;
-      this.props = props;
-    }
-
-    @Override
-    public FileAppender<RowData> newAppender(OutputFile outputFile, FileFormat format) {
-      MetricsConfig metricsConfig = MetricsConfig.fromProperties(props);
-      try {
-        switch (format) {
-          case AVRO:
-            return Avro.write(outputFile)
-                .createWriterFunc(ignore -> new FlinkAvroWriter(flinkSchema))
-                .setAll(props)
-                .schema(schema)
-                .overwrite()
-                .build();
-
-          case ORC:
-            return ORC.write(outputFile)
-                .createWriterFunc((iSchema, typDesc) -> FlinkOrcWriter.buildWriter(flinkSchema, iSchema))
-                .setAll(props)
-                .schema(schema)
-                .overwrite()
-                .build();
-
-          case PARQUET:
-            return Parquet.write(outputFile)
-                .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(flinkSchema, msgType))
-                .setAll(props)
-                .metricsConfig(metricsConfig)
-                .schema(schema)
-                .overwrite()
-                .build();
-
-          default:
-            throw new UnsupportedOperationException("Cannot write unknown file format: " + format);
-        }
-      } catch (IOException e) {
-        throw new UncheckedIOException(e);
-      }
     }
   }
 }

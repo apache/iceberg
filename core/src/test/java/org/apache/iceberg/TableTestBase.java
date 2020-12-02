@@ -50,7 +50,7 @@ public class TableTestBase {
   );
 
   // Partition spec used to create tables
-  static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
+  protected static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
       .bucket("data", 16)
       .build();
 
@@ -104,8 +104,8 @@ public class TableTestBase {
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
-  File tableDir = null;
-  File metadataDir = null;
+  protected File tableDir = null;
+  protected File metadataDir = null;
   public TestTables.TestTable table = null;
 
   protected final int formatVersion;
@@ -143,7 +143,7 @@ public class TableTestBase {
         !name.startsWith("snap") && Files.getFileExtension(name).equalsIgnoreCase("avro")));
   }
 
-  TestTables.TestTable create(Schema schema, PartitionSpec spec) {
+  protected TestTables.TestTable create(Schema schema, PartitionSpec spec) {
     return TestTables.create(tableDir, "test", schema, spec, formatVersion);
   }
 

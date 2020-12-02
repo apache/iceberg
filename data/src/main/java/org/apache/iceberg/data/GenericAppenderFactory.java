@@ -24,16 +24,22 @@ import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
@@ -42,10 +48,29 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
   private final Schema schema;
+  private final PartitionSpec spec;
+  private final int[] equalityFieldIds;
+  private final Schema eqDeleteRowSchema;
+  private final Schema posDeleteRowSchema;
   private final Map<String, String> config = Maps.newHashMap();
 
   public GenericAppenderFactory(Schema schema) {
+    this(schema, PartitionSpec.unpartitioned(), null, null, null);
+  }
+
+  public GenericAppenderFactory(Schema schema, PartitionSpec spec) {
+    this(schema, spec, null, null, null);
+  }
+
+  public GenericAppenderFactory(Schema schema, PartitionSpec spec,
+                                int[] equalityFieldIds,
+                                Schema eqDeleteRowSchema,
+                                Schema posDeleteRowSchema) {
     this.schema = schema;
+    this.spec = spec;
+    this.equalityFieldIds = equalityFieldIds;
+    this.eqDeleteRowSchema = eqDeleteRowSchema;
+    this.posDeleteRowSchema = posDeleteRowSchema;
   }
 
   public GenericAppenderFactory set(String property, String value) {
@@ -89,7 +114,97 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
               .build();
 
         default:
-          throw new UnsupportedOperationException("Cannot write format: " + fileFormat);
+          throw new UnsupportedOperationException("Cannot write unknown file format: " + fileFormat);
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  @Override
+  public org.apache.iceberg.io.DataWriter<Record> newDataWriter(EncryptedOutputFile file, FileFormat format,
+                                                                StructLike partition) {
+    return new org.apache.iceberg.io.DataWriter<>(
+        newAppender(file.encryptingOutputFile(), format), format,
+        file.encryptingOutputFile().location(), spec, partition, file.keyMetadata());
+  }
+
+  @Override
+  public EqualityDeleteWriter<Record> newEqDeleteWriter(EncryptedOutputFile file, FileFormat format,
+                                                        StructLike partition) {
+    Preconditions.checkState(equalityFieldIds != null && equalityFieldIds.length > 0,
+        "Equality field ids shouldn't be null or empty when creating equality-delete writer");
+    Preconditions.checkNotNull(eqDeleteRowSchema,
+        "Equality delete row schema shouldn't be null when creating equality-delete writer");
+
+    MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
+    try {
+      switch (format) {
+        case AVRO:
+          return Avro.writeDeletes(file.encryptingOutputFile())
+              .createWriterFunc(DataWriter::create)
+              .withPartition(partition)
+              .overwrite()
+              .setAll(config)
+              .rowSchema(eqDeleteRowSchema)
+              .withSpec(spec)
+              .withKeyMetadata(file.keyMetadata())
+              .equalityFieldIds(equalityFieldIds)
+              .buildEqualityWriter();
+
+        case PARQUET:
+          return Parquet.writeDeletes(file.encryptingOutputFile())
+              .createWriterFunc(GenericParquetWriter::buildWriter)
+              .withPartition(partition)
+              .overwrite()
+              .setAll(config)
+              .metricsConfig(metricsConfig)
+              .rowSchema(eqDeleteRowSchema)
+              .withSpec(spec)
+              .withKeyMetadata(file.keyMetadata())
+              .equalityFieldIds(equalityFieldIds)
+              .buildEqualityWriter();
+
+        default:
+          throw new UnsupportedOperationException(
+              "Cannot write equality-deletes for unsupported file format: " + format);
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  @Override
+  public PositionDeleteWriter<Record> newPosDeleteWriter(EncryptedOutputFile file, FileFormat format,
+                                                         StructLike partition) {
+    MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
+    try {
+      switch (format) {
+        case AVRO:
+          return Avro.writeDeletes(file.encryptingOutputFile())
+              .createWriterFunc(DataWriter::create)
+              .withPartition(partition)
+              .overwrite()
+              .setAll(config)
+              .rowSchema(posDeleteRowSchema)
+              .withSpec(spec)
+              .withKeyMetadata(file.keyMetadata())
+              .buildPositionWriter();
+
+        case PARQUET:
+          return Parquet.writeDeletes(file.encryptingOutputFile())
+              .createWriterFunc(GenericParquetWriter::buildWriter)
+              .withPartition(partition)
+              .overwrite()
+              .setAll(config)
+              .metricsConfig(metricsConfig)
+              .rowSchema(posDeleteRowSchema)
+              .withSpec(spec)
+              .withKeyMetadata(file.keyMetadata())
+              .buildPositionWriter();
+
+        default:
+          throw new UnsupportedOperationException("Cannot write pos-deletes for unsupported file format: " + format);
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
