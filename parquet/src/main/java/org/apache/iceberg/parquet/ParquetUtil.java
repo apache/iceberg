@@ -113,7 +113,7 @@ public class ParquetUtil {
 
         increment(columnSizes, fieldId, column.getTotalSize());
 
-        MetricsMode metricsMode = MetricsUtil.getMetricsMode(fileSchema, metricsConfig, fieldId);
+        MetricsMode metricsMode = MetricsUtil.metricsMode(fileSchema, metricsConfig, fieldId);
         if (metricsMode == MetricsModes.None.get()) {
           continue;
         }
@@ -148,7 +148,7 @@ public class ParquetUtil {
     }
 
     return new Metrics(rowCount, columnSizes, valueCounts, nullValueCounts,
-        MetricsUtil.getNanValueCounts(fieldMetrics, metricsConfig, fileSchema),
+        MetricsUtil.createNanValueCounts(fieldMetrics, metricsConfig, fileSchema),
         toBufferMap(fileSchema, lowerBounds), toBufferMap(fileSchema, upperBounds));
   }
 
