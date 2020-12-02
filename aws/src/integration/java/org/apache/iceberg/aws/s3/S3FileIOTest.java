@@ -91,6 +91,26 @@ public class S3FileIOTest {
   }
 
   @Test
+  public void testExists_noFile() {
+    S3FileIO s3FileIO = new S3FileIO(AwsClientUtil::defaultS3Client);
+    InputFile file = s3FileIO.newInputFile(objectUri);
+    Assert.assertFalse("file should not exist", file.exists());
+  }
+
+  @Test
+  public void testExists_multipleFilesSamePrefix() {
+    s3.putObject(PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
+        RequestBody.fromBytes(contentBytes));
+    s3.putObject(PutObjectRequest.builder().bucket(bucketName).key(objectKey + "suffix").build(),
+        RequestBody.fromBytes(new byte[1024 * 1024]));
+    S3FileIO s3FileIO = new S3FileIO(AwsClientUtil::defaultS3Client);
+    InputFile file = s3FileIO.newInputFile(objectUri);
+    Assert.assertTrue("file should exist", file.exists());
+    Assert.assertEquals("List results are always returned in UTF-8 binary order",
+        contentBytes.length, file.getLength());
+  }
+
+  @Test
   public void testNewInputStream() throws Exception {
     s3.putObject(PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
         RequestBody.fromBytes(contentBytes));

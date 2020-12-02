@@ -40,7 +40,7 @@ public class S3InputFile extends BaseS3File implements InputFile {
    */
   @Override
   public long getLength() {
-    return getObjectMetadata().contentLength();
+    return getObjectMetadata().size();
   }
 
   @Override
