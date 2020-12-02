@@ -39,21 +39,21 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 class Deserializer {
-  private FiledDeserializer mainDeserializer;
+  private FieldDeserializer fieldDeserializer;
 
   Deserializer(Schema schema, ObjectInspector fieldInspector) throws SerDeException {
-    this.mainDeserializer = deserializer(schema.asStruct(), fieldInspector);
+    this.fieldDeserializer = deserializer(schema.asStruct(), fieldInspector);
   }
 
   Record deserialize(Object data) {
-    return (Record) mainDeserializer.value(data);
+    return (Record) fieldDeserializer.value(data);
   }
 
-  private interface FiledDeserializer {
+  private interface FieldDeserializer {
     Object value(Object object);
   }
 
-  private static FiledDeserializer deserializer(Type type, ObjectInspector fieldInspector) throws SerDeException {
+  private static FieldDeserializer deserializer(Type type, ObjectInspector fieldInspector) throws SerDeException {
     switch (type.typeId()) {
       case BOOLEAN:
         return o -> ((BooleanObjectInspector) fieldInspector).get(o);
@@ -87,20 +87,20 @@ class Deserializer {
     }
   }
 
-  private static class StructDeserializer implements FiledDeserializer {
-    private final FiledDeserializer[] filedDeserializers;
+  private static class StructDeserializer implements FieldDeserializer {
+    private final FieldDeserializer[] fieldDeserializers;
     private final StructObjectInspector fieldInspector;
     private final Types.StructType type;
 
     private StructDeserializer(Types.StructType type, StructObjectInspector fieldInspector) throws SerDeException {
       List<? extends StructField> structFields = fieldInspector.getAllStructFieldRefs();
       List<Types.NestedField> nestedFields = type.fields();
-      this.filedDeserializers = new FiledDeserializer[structFields.size()];
+      this.fieldDeserializers = new FieldDeserializer[structFields.size()];
       this.fieldInspector = fieldInspector;
       this.type = type;
 
-      for (int i = 0; i < filedDeserializers.length; i++) {
-        filedDeserializers[i] =
+      for (int i = 0; i < fieldDeserializers.length; i++) {
+        fieldDeserializers[i] =
             deserializer(nestedFields.get(i).type(), structFields.get(i).getFieldObjectInspector());
       }
     }
@@ -114,10 +114,12 @@ class Deserializer {
       List<Object> data = fieldInspector.getStructFieldsDataAsList(object);
       Record result = GenericRecord.create(type);
 
-      for (int i = 0; i < filedDeserializers.length; i++) {
+      for (int i = 0; i < fieldDeserializers.length; i++) {
         Object fieldValue = data.get(i);
         if (fieldValue != null) {
-          result.set(i, filedDeserializers[i].value(fieldValue));
+          result.set(i, fieldDeserializers[i].value(fieldValue));
+        } else {
+          result.set(i, null);
         }
       }
 

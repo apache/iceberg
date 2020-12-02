@@ -26,9 +26,11 @@ import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspect
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hive.MetastoreUtil;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -95,5 +97,19 @@ public class TestDeserializer {
 
     // Check null record as well
     Assert.assertNull(deserializer.deserialize(null));
+  }
+
+  @Test(expected = SerDeException.class)
+  public void testSerDeException() throws SerDeException {
+    Schema unsupported = new Schema(
+        optional(1, "time_type", Types.TimeType.get())
+    );
+    StandardStructObjectInspector objectInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
+        Arrays.asList("time_type"),
+        Arrays.asList(
+            PrimitiveObjectInspectorFactory.writableStringObjectInspector
+        ));
+
+    new Deserializer(unsupported, objectInspector);
   }
 }

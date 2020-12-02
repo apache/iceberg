@@ -38,7 +38,7 @@ public abstract class IcebergTimestampObjectInspector extends AbstractPrimitiveJ
     }
 
     @Override
-    public Object getIcebergObject(Object o) {
+    public OffsetDateTime getIcebergObject(Object o) {
       return o == null ? null :
           OffsetDateTime.ofInstant(((TimestampWritable) o).getTimestamp().toInstant(), ZoneId.of("UTC"));
     }
