@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.hive;
 
+import com.google.common.collect.Maps;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +55,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.SortDirection.ASC;
+import static org.apache.iceberg.TableProperties.TABLE_DROP_BASE_PATH_ENABLED;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestHiveCatalog extends HiveMetastoreTest {
@@ -386,7 +388,9 @@ public class TestHiveCatalog extends HiveMetastoreTest {
         required(1, "id", Types.LongType.get())).fields());
 
     catalog.createNamespace(namespace, meta);
-    Table table = catalog.createTable(identifier, schema);
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(TABLE_DROP_BASE_PATH_ENABLED, "true");
+    Table table = catalog.createTable(identifier, schema, PartitionSpec.unpartitioned(), null, properties);
     Map<String, String> nameMata = catalog.loadNamespaceMetadata(namespace);
     Assert.assertEquals("apache", nameMata.get("owner"));
     Assert.assertEquals("iceberg", nameMata.get("group"));
@@ -397,6 +401,31 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     Configuration conf = new Configuration();
     FileSystem fs = Util.getFs(new Path(location), conf);
     Assert.assertFalse(fs.isDirectory(new Path(location)));
+
+    Assert.assertTrue("Should fail to drop namespace if it is not empty",
+        catalog.dropNamespace(namespace));
+  }
+
+  @Test
+  public void testDropTableAndNotDropDirectories() throws TException, IOException {
+    Namespace namespace = Namespace.of("dbname_drop");
+    TableIdentifier identifier = TableIdentifier.of(namespace, "table");
+    Schema schema = new Schema(Types.StructType.of(
+        required(1, "id", Types.LongType.get())).fields());
+
+    catalog.createNamespace(namespace, meta);
+    Table table = catalog.createTable(identifier, schema);
+    Map<String, String> nameMata = catalog.loadNamespaceMetadata(namespace);
+    Assert.assertEquals("apache", nameMata.get("owner"));
+    Assert.assertEquals("iceberg", nameMata.get("group"));
+
+    String location = table.location();
+    Assert.assertTrue(catalog.dropTable(identifier, true));
+
+    Configuration conf = new Configuration();
+    FileSystem fs = Util.getFs(new Path(location), conf);
+    // location not delete.
+    Assert.assertTrue(fs.isDirectory(new Path(location)));
 
     Assert.assertTrue("Should fail to drop namespace if it is not empty",
         catalog.dropNamespace(namespace));
@@ -431,7 +460,7 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
   private String defaultUri(Namespace namespace) throws TException {
     return metastoreClient.getConfigValue(
-        "hive.metastore.warehouse.dir", "") +  "/" + namespace.level(0) + ".db";
+        "hive.metastore.warehouse.dir", "") + "/" + namespace.level(0) + ".db";
   }
 
 }
