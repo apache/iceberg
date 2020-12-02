@@ -21,12 +21,16 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplacePartitions;
@@ -62,6 +66,8 @@ import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.iceberg.IsolationLevel.SERIALIZABLE;
+import static org.apache.iceberg.IsolationLevel.SNAPSHOT;
 import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
@@ -133,6 +139,10 @@ class SparkWrite {
 
   BatchWrite asOverwriteByFilter(Expression overwriteExpr) {
     return new OverwriteByFilter(overwriteExpr);
+  }
+
+  BatchWrite asCopyOnWriteMergeWrite(SparkMergeScan scan, IsolationLevel isolationLevel) {
+    return new CopyOnWriteMergeWrite(scan, isolationLevel);
   }
 
   StreamingWrite asStreamingAppend() {
@@ -275,6 +285,84 @@ class SparkWrite {
       }
 
       String commitMsg = String.format("overwrite by filter %s with %d new data files", overwriteExpr, numFiles);
+      commitOperation(overwriteFiles, commitMsg);
+    }
+  }
+
+  private class CopyOnWriteMergeWrite extends BaseBatchWrite {
+    private final SparkMergeScan scan;
+    private final IsolationLevel isolationLevel;
+
+    private CopyOnWriteMergeWrite(SparkMergeScan scan, IsolationLevel isolationLevel) {
+      this.scan = scan;
+      this.isolationLevel = isolationLevel;
+    }
+
+    private List<DataFile> overwrittenFiles() {
+      return scan.files().stream().map(FileScanTask::file).collect(Collectors.toList());
+    }
+
+    private Expression conflictDetectionFilter() {
+      // the list of filter expressions may be empty but is never null
+      List<Expression> scanFilterExpressions = scan.filterExpressions();
+
+      Expression filter = Expressions.alwaysTrue();
+
+      for (Expression expr : scanFilterExpressions) {
+        filter = Expressions.and(filter, expr);
+      }
+
+      return filter;
+    }
+
+    @Override
+    public void commit(WriterCommitMessage[] messages) {
+      OverwriteFiles overwriteFiles = table.newOverwrite();
+
+      List<DataFile> overwrittenFiles = overwrittenFiles();
+      int numOverwrittenFiles = overwrittenFiles.size();
+      for (DataFile overwrittenFile : overwrittenFiles) {
+        overwriteFiles.deleteFile(overwrittenFile);
+      }
+
+      int numAddedFiles = 0;
+      for (DataFile file : files(messages)) {
+        numAddedFiles += 1;
+        overwriteFiles.addFile(file);
+      }
+
+      if (isolationLevel == SERIALIZABLE) {
+        commitWithSerializableIsolation(overwriteFiles, numOverwrittenFiles, numAddedFiles);
+      } else if (isolationLevel == SNAPSHOT) {
+        commitWithSnapshotIsolation(overwriteFiles, numOverwrittenFiles, numAddedFiles);
+      } else {
+        throw new IllegalArgumentException("Unsupported isolation level: " + isolationLevel);
+      }
+    }
+
+    private void commitWithSerializableIsolation(OverwriteFiles overwriteFiles,
+                                                 int numOverwrittenFiles,
+                                                 int numAddedFiles) {
+      Long scanSnapshotId = scan.snapshotId();
+      if (scanSnapshotId != null) {
+        overwriteFiles.validateFromSnapshot(scanSnapshotId);
+      }
+
+      Expression conflictDetectionFilter = conflictDetectionFilter();
+      overwriteFiles.validateNoConflictingAppends(conflictDetectionFilter);
+
+      String commitMsg = String.format(
+          "overwrite of %d data files with %d new data files, scanSnapshotId: %d, conflictDetectionFilter: %s",
+          numOverwrittenFiles, numAddedFiles, scanSnapshotId, conflictDetectionFilter);
+      commitOperation(overwriteFiles, commitMsg);
+    }
+
+    private void commitWithSnapshotIsolation(OverwriteFiles overwriteFiles,
+                                             int numOverwrittenFiles,
+                                             int numAddedFiles) {
+      String commitMsg = String.format(
+          "overwrite of %d data files with %d new data files",
+          numOverwrittenFiles, numAddedFiles);
       commitOperation(overwriteFiles, commitMsg);
     }
   }
