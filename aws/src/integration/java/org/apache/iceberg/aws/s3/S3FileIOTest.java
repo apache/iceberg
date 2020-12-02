@@ -98,6 +98,15 @@ public class S3FileIOTest {
   }
 
   @Test
+  public void testExists_wrongFileSamePrefix() {
+    s3.putObject(PutObjectRequest.builder().bucket(bucketName).key(objectKey + "suffix").build(),
+        RequestBody.fromBytes(contentBytes));
+    S3FileIO s3FileIO = new S3FileIO(AwsClientUtil::defaultS3Client);
+    InputFile file = s3FileIO.newInputFile(objectUri);
+    Assert.assertFalse("file should not exist", file.exists());
+  }
+
+  @Test
   public void testExists_multipleFilesSamePrefix() {
     s3.putObject(PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
         RequestBody.fromBytes(contentBytes));

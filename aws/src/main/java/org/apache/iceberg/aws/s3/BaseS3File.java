@@ -83,7 +83,17 @@ abstract class BaseS3File {
           .prefix(uri().key())
           .maxKeys(1)
           .build());
-      metadata = response.hasContents() ? response.contents().get(0) : null;
+
+      if (!response.hasContents()) {
+        metadata = null;
+      } else {
+        S3Object s3Object = response.contents().get(0);
+        if (uri().key().equals(s3Object.key())) {
+          metadata = s3Object;
+        } else {
+          metadata = null;
+        }
+      }
     }
 
     return metadata;
