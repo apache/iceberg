@@ -34,7 +34,6 @@ import org.apache.spark.sql.SparkSession;
 public final class SetupSourceCatalog {
 
   private SetupSourceCatalog() {
-
   }
 
   public static void setupSparkCatalog(SparkSession spark) {

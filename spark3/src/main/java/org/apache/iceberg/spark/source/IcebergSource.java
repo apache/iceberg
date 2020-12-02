@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark.source;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
@@ -78,6 +79,7 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
 
   private Pair<String, TableIdentifier> tableIdentifier(CaseInsensitiveStringMap options) {
     CatalogManager catalogManager = SparkSession.active().sessionState().catalogManager();
+    String currentCatalogName = catalogManager.currentCatalog().name();
     Namespace defaultNamespace = Namespace.of(catalogManager.currentNamespace());
     Preconditions.checkArgument(options.containsKey("path"), "Cannot open table: path is not set");
     String path = options.get("path");
@@ -85,25 +87,23 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
     try {
       ident = scala.collection.JavaConverters.seqAsJavaList(SparkSession.active().sessionState().sqlParser().parseMultipartIdentifier(path));
     } catch (ParseException e) {
-      try {
-        ident = scala.collection.JavaConverters.seqAsJavaList(SparkSession.active().sessionState().sqlParser().parseMultipartIdentifier(String.format("`%s`", path)));
-      } catch (ParseException ignored) {
-        throw new RuntimeException(e);
-      }
+      ident = new ArrayList<>();
+      ident.add(path);
     }
+
     if (ident.size() == 1) {
-      return Pair.of(null, TableIdentifier.of(defaultNamespace, ident.get(0)));
+      return Pair.of(currentCatalogName, TableIdentifier.of(defaultNamespace, ident.get(0)));
     } else if (ident.size() == 2) {
       if (catalogManager.isCatalogRegistered(ident.get(0))) {
-        return Pair.of(ident.get(0), TableIdentifier.of(defaultNamespace, ident.get(1))); //todo what if path?
+        return Pair.of(ident.get(0), TableIdentifier.of(ident.get(1)));
       } else {
-        return Pair.of(null, TableIdentifier.of(ident.toArray(new String[0])));
+        return Pair.of(currentCatalogName, TableIdentifier.of(ident.toArray(new String[0])));
       }
     } else {
       if (catalogManager.isCatalogRegistered(ident.get(0))) {
         return Pair.of(ident.get(0), TableIdentifier.of(ident.subList(1, ident.size()).toArray(new String[0])));
       } else {
-        return Pair.of(null, TableIdentifier.of(ident.toArray(new String[0])));
+        return Pair.of(currentCatalogName, TableIdentifier.of(ident.toArray(new String[0])));
       }
     }
   }
@@ -116,7 +116,6 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
 
   @Override
   public String extractCatalog(CaseInsensitiveStringMap options) {
-    String catalogName = tableIdentifier(options).first();
-    return (catalogName == null) ? SupportsCatalogOptions.super.extractCatalog(options) : catalogName;
+    return tableIdentifier(options).first();
   }
 }

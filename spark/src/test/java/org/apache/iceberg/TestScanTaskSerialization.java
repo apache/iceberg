@@ -62,7 +62,6 @@ public abstract class TestScanTaskSerialization extends SparkTestBase {
       optional(3, "c3", Types.StringType.get())
   );
 
-
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
