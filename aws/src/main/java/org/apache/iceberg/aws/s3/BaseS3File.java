@@ -24,6 +24,7 @@ import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 abstract class BaseS3File {
@@ -77,6 +78,12 @@ abstract class BaseS3File {
 
   protected HeadObjectResponse getObjectMetadata() throws S3Exception {
     if (metadata == null) {
+      // list object to force strong consistency
+      client().listObjectsV2(ListObjectsV2Request.builder()
+          .bucket(uri().bucket())
+          .prefix(uri().key())
+          .build());
+
       HeadObjectRequest.Builder requestBuilder = HeadObjectRequest.builder()
           .bucket(uri().bucket())
           .key(uri().key());
