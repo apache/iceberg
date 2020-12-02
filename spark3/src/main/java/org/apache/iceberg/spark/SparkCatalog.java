@@ -178,14 +178,24 @@ public class SparkCatalog extends BaseCatalog {
   public StagedTable stageCreate(Identifier ident, StructType schema, Transform[] transforms,
                                  Map<String, String> properties) throws TableAlreadyExistsException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
+    TableIdentifier tableIdentifier = buildIdentifier(ident);
     try {
-      // can't stage a hadoop table
-      return new StagedSparkTable(icebergCatalog.newCreateTableTransaction(
-          buildIdentifier(ident),
-          icebergSchema,
-          Spark3Util.toPartitionSpec(icebergSchema, transforms),
-          properties.get("location"),
-          Spark3Util.rebuildCreateProperties(properties)));
+      Transaction transaction;
+      if (isHadoopTable(tableIdentifier)) {
+        transaction = tables.newCreateTableTransaction(
+            tableIdentifier.name(),
+            icebergSchema,
+            Spark3Util.toPartitionSpec(icebergSchema, transforms),
+            Spark3Util.rebuildCreateProperties(properties));
+      } else {
+        transaction = icebergCatalog.newCreateTableTransaction(
+            tableIdentifier,
+            icebergSchema,
+            Spark3Util.toPartitionSpec(icebergSchema, transforms),
+            properties.get("location"),
+            Spark3Util.rebuildCreateProperties(properties));
+      }
+      return new StagedSparkTable(transaction);
     } catch (AlreadyExistsException e) {
       throw new TableAlreadyExistsException(ident);
     }
@@ -195,15 +205,26 @@ public class SparkCatalog extends BaseCatalog {
   public StagedTable stageReplace(Identifier ident, StructType schema, Transform[] transforms,
                                   Map<String, String> properties) throws NoSuchTableException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
+    TableIdentifier tableIdentifier = buildIdentifier(ident);
     try {
-      // can't stage a hadoop table
-      return new StagedSparkTable(icebergCatalog.newReplaceTableTransaction(
-          buildIdentifier(ident),
-          icebergSchema,
-          Spark3Util.toPartitionSpec(icebergSchema, transforms),
-          properties.get("location"),
-          Spark3Util.rebuildCreateProperties(properties),
-          false /* do not create */));
+      Transaction transaction;
+      if (isHadoopTable(tableIdentifier)) {
+        transaction = tables.newReplaceTableTransaction(
+            tableIdentifier.name(),
+            icebergSchema,
+            Spark3Util.toPartitionSpec(icebergSchema, transforms),
+            Spark3Util.rebuildCreateProperties(properties),
+            false /* do not create */);
+      } else {
+        transaction = icebergCatalog.newReplaceTableTransaction(
+            tableIdentifier,
+            icebergSchema,
+            Spark3Util.toPartitionSpec(icebergSchema, transforms),
+            properties.get("location"),
+            Spark3Util.rebuildCreateProperties(properties),
+            false /* do not create */);
+      }
+      return new StagedSparkTable(transaction);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
     }
@@ -213,14 +234,25 @@ public class SparkCatalog extends BaseCatalog {
   public StagedTable stageCreateOrReplace(Identifier ident, StructType schema, Transform[] transforms,
                                           Map<String, String> properties) {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
-    // can't stage a hadoop table
-    return new StagedSparkTable(icebergCatalog.newReplaceTableTransaction(
-        buildIdentifier(ident),
-        icebergSchema,
-        Spark3Util.toPartitionSpec(icebergSchema, transforms),
-        properties.get("location"),
-        Spark3Util.rebuildCreateProperties(properties),
-        true /* create or replace */));
+    TableIdentifier tableIdentifier = buildIdentifier(ident);
+    Transaction transaction;
+    if (isHadoopTable(tableIdentifier)) {
+      transaction = tables.newReplaceTableTransaction(
+          tableIdentifier.name(),
+          icebergSchema,
+          Spark3Util.toPartitionSpec(icebergSchema, transforms),
+          Spark3Util.rebuildCreateProperties(properties),
+          true /* create or replace */);
+    } else {
+      transaction = icebergCatalog.newReplaceTableTransaction(
+          tableIdentifier,
+          icebergSchema,
+          Spark3Util.toPartitionSpec(icebergSchema, transforms),
+          properties.get("location"),
+          Spark3Util.rebuildCreateProperties(properties),
+          true /* create or replace */);
+    }
+    return new StagedSparkTable(transaction);
   }
 
   @Override
@@ -301,7 +333,7 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public Identifier[] listTables(String[] namespace) {
-    // todo no way to identify if this is a path and we should use tables instead of catalog.
+    // no way to identify if this is a path and we should use tables instead of catalog.
     return icebergCatalog.listTables(Namespace.of(namespace)).stream()
         .map(ident -> Identifier.of(ident.namespace().levels(), ident.name()))
         .toArray(Identifier[]::new);

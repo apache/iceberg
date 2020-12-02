@@ -237,7 +237,7 @@ public class TestCreateTable extends SparkCatalogTestBase {
 
     if (catalogName.equals("spark_catalog")) {
       // Session Catalog doesn't support DROP on V2 tables
-      catalog.dropTable(TableIdentifier.of("iceberg", location));
+      catalog.dropTable(TableIdentifier.of(location));
     } else {
       sql("DROP TABLE %s", catalogLocation);
     }

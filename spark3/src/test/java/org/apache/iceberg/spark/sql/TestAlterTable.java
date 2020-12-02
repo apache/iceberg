@@ -135,11 +135,11 @@ public class TestAlterTable extends SparkCatalogTestBase {
         NestedField.optional(2, "data", Types.StringType.get()));
 
     Assert.assertEquals("Schema should match expected",
-        expectedSchema2, validationCatalog.loadTable(TableIdentifier.of("iceberg", location)).schema().asStruct());
+        expectedSchema2, tables.load(location).schema().asStruct());
 
     if (catalogName.equals("spark_catalog")) {
       // Session Catalog doesn't support DROP on V2 tables
-      catalog.dropTable(TableIdentifier.of("iceberg", location));
+      catalog.dropTable(TableIdentifier.of(location));
     } else {
       sql("DROP TABLE %s", catalogLocation);
     }
