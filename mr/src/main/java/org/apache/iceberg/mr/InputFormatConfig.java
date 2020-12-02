@@ -52,6 +52,9 @@ public class InputFormatConfig {
   public static final String SELECTED_COLUMNS = "iceberg.mr.selected.columns";
   public static final String EXTERNAL_TABLE_PURGE = "external.table.purge";
 
+  public static final String COMMIT_THREAD_POOL_SIZE = "iceberg.mr.commit.thread.pool.size";
+  public static final int COMMIT_THREAD_POOL_SIZE_DEFAULT = 10;
+
   public static final String CATALOG_NAME = "iceberg.catalog";
   public static final String HADOOP_CATALOG = "hadoop.catalog";
   public static final String HADOOP_TABLES = "hadoop.tables";
