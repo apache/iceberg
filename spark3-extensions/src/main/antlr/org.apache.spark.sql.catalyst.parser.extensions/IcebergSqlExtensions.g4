@@ -67,7 +67,6 @@ singleStatement
 
 statement
     : CALL multipartIdentifier '(' (callArgument (',' callArgument)*)? ')'   #call
-    | .*?                                                                    #nonIcebergCommand
     ;
 
 callArgument
