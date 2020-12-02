@@ -48,6 +48,14 @@ abstract class BaseProcedure implements Procedure {
     this.tableCatalog = tableCatalog;
   }
 
+  protected SparkSession spark() {
+    return this.spark;
+  }
+
+  protected TableCatalog tableCatalog() {
+    return this.tableCatalog;
+  }
+
   protected <T> T modifyIcebergTable(Identifier ident, Function<org.apache.iceberg.Table, T> func) {
     return execute(ident, true, func);
   }
@@ -70,21 +78,23 @@ abstract class BaseProcedure implements Procedure {
   }
 
   protected Identifier toIdentifier(String identifierAsString, String argName) {
+    CatalogAndIdentifier catalogAndIdentifier = toCatalogAndIdentifer(identifierAsString, argName, tableCatalog);
+
+    Preconditions.checkArgument(
+        catalogAndIdentifier.catalog().equals(tableCatalog),
+        "Cannot run procedure in catalog '%s': '%s' is a table in catalog '%s'",
+        tableCatalog.name(), identifierAsString, catalogAndIdentifier.catalog().name());
+
+    return catalogAndIdentifier.identifier();
+  }
+
+  protected CatalogAndIdentifier toCatalogAndIdentifer(String identifierAsString, String argName,
+                                                       CatalogPlugin catalog) {
     Preconditions.checkArgument(identifierAsString != null && !identifierAsString.isEmpty(),
         "Cannot handle an empty identifier for argument %s", argName);
 
-    CatalogAndIdentifier catalogAndIdentifier = Spark3Util.catalogAndIdentifier(
-        "identifier for arg " + argName, spark, identifierAsString, tableCatalog);
-
-    CatalogPlugin catalog = catalogAndIdentifier.catalog();
-    Identifier identifier = catalogAndIdentifier.identifier();
-
-    Preconditions.checkArgument(
-        catalog.equals(tableCatalog),
-        "Cannot run procedure in catalog '%s': '%s' is a table in catalog '%s'",
-        tableCatalog.name(), identifierAsString, catalog.name());
-
-    return identifier;
+    return Spark3Util.catalogAndIdentifier(
+        "identifier for arg " + argName, spark, identifierAsString, catalog);
   }
 
   protected SparkTable loadSparkTable(Identifier ident) {

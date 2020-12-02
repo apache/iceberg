@@ -46,11 +46,11 @@ import scala.collection.JavaConverters;
  * previously referred to a non-iceberg table will refer to the newly migrated iceberg
  * table.
  */
-class Spark3MigrateAction extends Spark3CreateAction {
+public class Spark3MigrateAction extends Spark3CreateAction {
   private static final Logger LOG = LoggerFactory.getLogger(Spark3MigrateAction.class);
   private static final String BACKUP_SUFFIX = "_BACKUP_";
 
-  Spark3MigrateAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableName) {
+  public Spark3MigrateAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableName) {
     super(spark, sourceCatalog, sourceTableName, sourceCatalog, sourceTableName);
   }
 

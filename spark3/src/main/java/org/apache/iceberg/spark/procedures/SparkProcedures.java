@@ -48,6 +48,8 @@ public class SparkProcedures {
     mapBuilder.put("rewrite_manifests", RewriteManifestsProcedure::builder);
     mapBuilder.put("remove_orphan_files", RemoveOrphanFilesProcedure::builder);
     mapBuilder.put("expire_snapshots", ExpireSnapshotsProcedure::builder);
+    mapBuilder.put("migrate", MigrateProcedure::builder);
+    mapBuilder.put("snapshot", SnapshotProcedure::builder);
     return mapBuilder.build();
   }
 
