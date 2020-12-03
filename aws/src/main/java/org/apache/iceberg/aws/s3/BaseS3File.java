@@ -22,15 +22,16 @@ package org.apache.iceberg.aws.s3;
 import org.apache.iceberg.aws.AwsProperties;
 import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
-import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 abstract class BaseS3File {
   private final S3Client client;
   private final S3URI uri;
   private final AwsProperties awsProperties;
-  private HeadObjectResponse metadata;
+  private S3Object metadata;
 
   BaseS3File(S3Client client, S3URI uri) {
     this(client, uri, new AwsProperties());
@@ -75,13 +76,24 @@ abstract class BaseS3File {
     }
   }
 
-  protected HeadObjectResponse getObjectMetadata() throws S3Exception {
+  protected S3Object getObjectMetadata() throws S3Exception {
     if (metadata == null) {
-      HeadObjectRequest.Builder requestBuilder = HeadObjectRequest.builder()
+      ListObjectsV2Response response = client().listObjectsV2(ListObjectsV2Request.builder()
           .bucket(uri().bucket())
-          .key(uri().key());
-      S3RequestUtil.configureEncryption(awsProperties, requestBuilder);
-      metadata = client().headObject(requestBuilder.build());
+          .prefix(uri().key())
+          .maxKeys(1)
+          .build());
+
+      if (!response.hasContents()) {
+        metadata = null;
+      } else {
+        S3Object s3Object = response.contents().get(0);
+        if (uri().key().equals(s3Object.key())) {
+          metadata = s3Object;
+        } else {
+          metadata = null;
+        }
+      }
     }
 
     return metadata;

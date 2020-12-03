@@ -26,16 +26,20 @@ import java.io.OutputStream;
 import java.util.Random;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.SerializationUtils;
+import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -64,6 +68,10 @@ public class S3FileIOTest {
 
     InputFile in = s3FileIO.newInputFile(location);
     assertFalse(in.exists());
+    AssertHelpers.assertThrows("get length should throw exception",
+        NotFoundException.class,
+        "Cannot retrieve file length because file s3://bucket/path/to/file.txt does not exist",
+        in::getLength);
 
     OutputFile out = s3FileIO.newOutputFile(location);
     try (OutputStream os = out.createOrOverwrite()) {
@@ -82,6 +90,31 @@ public class S3FileIOTest {
     s3FileIO.deleteFile(in);
 
     assertFalse(s3FileIO.newInputFile(location).exists());
+  }
+
+  @Test
+  public void testExists_wrongFileWithSamePrefix() {
+    String location = "s3://bucket/file.txt";
+    byte [] data = new byte[1024 * 1024];
+    random.nextBytes(data);
+    s3.get().putObject(PutObjectRequest.builder().bucket("bucket").key("file.txt.dup").build(),
+        RequestBody.fromBytes(data));
+    InputFile in = s3FileIO.newInputFile(location);
+    assertFalse("file should not exist", in.exists());
+  }
+
+  @Test
+  public void testExists_multipleFilesSamePrefix() {
+    String location = "s3://bucket/file.txt";
+    byte [] data = new byte[1024 * 1024];
+    random.nextBytes(data);
+    s3.get().putObject(PutObjectRequest.builder().bucket("bucket").key("file.txt.dup").build(),
+        RequestBody.fromBytes(new byte[1024 * 1024 * 2]));
+    s3.get().putObject(PutObjectRequest.builder().bucket("bucket").key("file.txt").build(),
+        RequestBody.fromBytes(data));
+    InputFile in = s3FileIO.newInputFile(location);
+    assertTrue("file should exist", in.exists());
+    assertEquals("List results are always returned in UTF-8 binary order", data.length, in.getLength());
   }
 
   @Test
