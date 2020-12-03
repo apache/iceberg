@@ -179,13 +179,5 @@ abstract class Spark3CreateAction implements CreateAction {
     return (StagingTableCatalog) catalog;
   }
 
-  private CatalogPlugin checkSourceCatalog(CatalogPlugin catalog) {
-    // Currently the Import code relies on being able to look up the table in the session code
-    if (!(catalog instanceof SparkSessionCatalog)) {
-      throw new IllegalArgumentException(String.format(
-          "Cannot create an Iceberg table from a non-Session Catalog table. " +
-              "Found %s of class %s as the source catalog o", catalog.name(), catalog.getClass().getName()));
-    }
-    return catalog;
-  }
+  protected abstract CatalogPlugin checkSourceCatalog(CatalogPlugin catalog);
 }

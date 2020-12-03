@@ -127,4 +127,15 @@ class Spark3SnapshotAction extends Spark3CreateAction {
 
     return propBuilder.build();
   }
+
+  @Override
+  protected CatalogPlugin checkSourceCatalog(CatalogPlugin catalog) {
+    // Currently the Import code relies on being able to look up the table in the session code
+    if (!(catalog.name().equals("spark_catalog"))) {
+      throw new IllegalArgumentException(String.format(
+          "Cannot snapshot a table that isn't in spark_catalog, the session catalog. " +
+              "Found source catalog %s", catalog.name()));
+    }
+    return catalog;
+  }
 }

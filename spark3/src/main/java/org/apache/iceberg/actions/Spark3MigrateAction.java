@@ -25,6 +25,7 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.SparkSession;
@@ -128,5 +129,16 @@ class Spark3MigrateAction extends Spark3CreateAction {
     long numMigratedFiles = Long.valueOf(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
     LOG.info("Successfully loaded Iceberg metadata for {} files", numMigratedFiles);
     return numMigratedFiles;
+  }
+
+  @Override
+  protected CatalogPlugin checkSourceCatalog(CatalogPlugin catalog) {
+    // Currently the Import code relies on being able to look up the table in the session code
+    if (!(catalog instanceof SparkSessionCatalog)) {
+      throw new IllegalArgumentException(String.format(
+          "Cannot migrate a table from a non-Iceberg Spark Session Catalog. " +
+              "Found %s of class %s as the source catalog.", catalog.name(), catalog.getClass().getName()));
+    }
+    return catalog;
   }
 }
