@@ -36,6 +36,7 @@ import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.UnknownDBException;
 import org.apache.iceberg.BaseMetastoreCatalog;
+import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.TableMetadata;
@@ -117,9 +118,12 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     String database = namespace.level(0);
 
     try {
-      List<String> tables = clients.run(client -> client.getAllTables(database));
-      List<TableIdentifier> tableIdentifiers = tables.stream()
-          .map(t -> TableIdentifier.of(namespace, t))
+      List<String> tableNames = clients.run(client -> client.getAllTables(database));
+      List<Table> tableObjects = clients.run(client -> client.getTableObjectsByName(database, tableNames));
+      List<TableIdentifier> tableIdentifiers = tableObjects.stream()
+          .filter(table -> table.getParameters() == null ? false : BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE
+              .equalsIgnoreCase(table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP)))
+          .map(table -> TableIdentifier.of(namespace, table.getTableName()))
           .collect(Collectors.toList());
 
       LOG.debug("Listing of namespace: {} resulted in the following tables: {}", namespace, tableIdentifiers);
