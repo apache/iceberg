@@ -79,19 +79,7 @@ case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with
 
     nameToArgMap.foreach { case (name, arg) =>
       val position = nameToPositionMap(name)
-      val param = params(position)
-      val paramType = param.dataType
-      val argType = arg.expr.dataType
-
-      if (paramType != argType && !Cast.canUpCast(argType, paramType)) {
-        throw new AnalysisException(s"Wrong arg type for ${param.name}: expected $paramType but got $argType")
-      }
-
-      if (paramType != argType) {
-        argExprs(position) = Cast(arg.expr, paramType)
-      } else {
-        argExprs(position) = arg.expr
-      }
+      argExprs(position) = arg.expr
     }
 
     // assign nulls to optional params that were not set

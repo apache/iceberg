@@ -258,7 +258,7 @@ public class TestRollbackToSnapshotProcedure extends SparkExtensionsTestBase {
         () -> sql("CALL %s.system.rollback_to_snapshot(table => 't', snapshot_id => 1L)", catalogName));
 
     AssertHelpers.assertThrows("Should reject calls with invalid arg types",
-        AnalysisException.class, "Wrong arg type for snapshot_id: expected LongType",
+        AnalysisException.class, "Wrong arg type for snapshot_id: cannot cast",
         () -> sql("CALL %s.system.rollback_to_snapshot('n', 't', 2.2)", catalogName));
 
     AssertHelpers.assertThrows("Should reject empty namespace",

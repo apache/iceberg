@@ -266,7 +266,7 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
         () -> sql("CALL %s.system.rollback_to_timestamp('n', 't', %s, 1L)", catalogName, timestamp));
 
     AssertHelpers.assertThrows("Should reject calls with invalid arg types",
-        AnalysisException.class, "Wrong arg type for timestamp: expected TimestampType",
+        AnalysisException.class, "Wrong arg type for timestamp: cannot cast",
         () -> sql("CALL %s.system.rollback_to_timestamp('n', 't', 2.2)", catalogName));
 
     AssertHelpers.assertThrows("Should reject empty namespace",
