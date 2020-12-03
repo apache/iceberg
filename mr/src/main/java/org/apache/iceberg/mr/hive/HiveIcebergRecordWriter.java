@@ -44,7 +44,6 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mr.mapred.Container;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,10 +82,9 @@ class HiveIcebergRecordWriter extends org.apache.hadoop.mapreduce.RecordWriter<N
 
   @Override
   public void write(Writable row) {
-    Preconditions.checkArgument(row instanceof Container);
-
     Record record = ((Container<Record>) row).get();
 
+    // Update the current key with the record, so we do not create a new object for every record
     currentKey.partition(record);
 
     AppenderWrapper currentAppender = openAppenders.get(currentKey);
