@@ -144,6 +144,6 @@ public class TableProperties {
   public static final String MAX_SNAPSHOT_AGE_MS = "history.expire.max-snapshot-age-ms";
   public static final long MAX_SNAPSHOT_AGE_MS_DEFAULT = 5 * 24 * 60 * 60 * 1000; // 5 days
 
-  public static final String RETAIN_MIN_NUM_SNAPSHOTS = "history.expire.min-snapshots-to-keep";
-  public static final int RETAIN_MIN_NUM_SNAPSHOTS_DEFAULT = 1;
+  public static final String MIN_SNAPSHOTS_TO_KEEP = "history.expire.min-snapshots-to-keep";
+  public static final int MIN_SNAPSHOTS_TO_KEEP_DEFAULT = 1;
 }

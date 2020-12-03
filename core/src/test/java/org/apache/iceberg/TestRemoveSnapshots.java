@@ -1078,7 +1078,7 @@ public class TestRemoveSnapshots extends TableTestBase {
     Assert.assertEquals("Expected 3 snapshots", 3, Iterables.size(table.snapshots()));
 
     table.updateProperties()
-        .set(TableProperties.RETAIN_MIN_NUM_SNAPSHOTS, "3")
+        .set(TableProperties.MIN_SNAPSHOTS_TO_KEEP, "3")
         .commit();
 
     Set<String> deletedFiles = Sets.newHashSet();
