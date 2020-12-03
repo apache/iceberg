@@ -26,6 +26,8 @@ import java.io.OutputStream;
 import java.util.Random;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.SerializationUtils;
+import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -66,6 +68,10 @@ public class S3FileIOTest {
 
     InputFile in = s3FileIO.newInputFile(location);
     assertFalse(in.exists());
+    AssertHelpers.assertThrows("get length should throw exception",
+        NotFoundException.class,
+        "Cannot retrieve file length because file s3://bucket/path/to/file.txt does not exist",
+        in::getLength);
 
     OutputFile out = s3FileIO.newOutputFile(location);
     try (OutputStream os = out.createOrOverwrite()) {

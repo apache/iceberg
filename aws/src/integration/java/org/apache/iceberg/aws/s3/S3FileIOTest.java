@@ -29,9 +29,11 @@ import java.util.Base64;
 import java.util.UUID;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.aws.AwsClientUtil;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.junit.AfterClass;
@@ -95,6 +97,10 @@ public class S3FileIOTest {
     S3FileIO s3FileIO = new S3FileIO(AwsClientUtil::defaultS3Client);
     InputFile file = s3FileIO.newInputFile(objectUri);
     Assert.assertFalse("file should not exist", file.exists());
+    AssertHelpers.assertThrows("get length should throw exception",
+        NotFoundException.class,
+        String.format("Cannot retrieve file length because file %s does not exist", objectUri),
+        file::getLength);
   }
 
   @Test

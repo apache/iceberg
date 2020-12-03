@@ -20,6 +20,7 @@
 package org.apache.iceberg.aws.s3;
 
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -40,6 +41,10 @@ public class S3InputFile extends BaseS3File implements InputFile {
    */
   @Override
   public long getLength() {
+    if (!exists()) {
+      throw new NotFoundException("Cannot retrieve file length because file %s does not exist", uri());
+    }
+
     return getObjectMetadata().size();
   }
 
