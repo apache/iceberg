@@ -72,8 +72,10 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
         return ((TableCatalog) catalog).loadTable(ident);
       }
     } catch (NoSuchTableException e) {
+      // throwing an iceberg NoSuchTableException because the Spark one is typed and cant be thrown from this interface
       throw new org.apache.iceberg.exceptions.NoSuchTableException(e, "Cannot find table for %s.", ident);
     }
+    // throwing an iceberg NoSuchTableException because the Spark one is typed and cant be thrown from this interface
     throw new org.apache.iceberg.exceptions.NoSuchTableException("Cannot find table for %s.", ident);
   }
 
