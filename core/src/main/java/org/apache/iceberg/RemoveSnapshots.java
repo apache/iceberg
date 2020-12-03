@@ -54,6 +54,10 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
+import static org.apache.iceberg.TableProperties.MAX_SNAPSHOT_AGE_MS;
+import static org.apache.iceberg.TableProperties.MAX_SNAPSHOT_AGE_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.MIN_SNAPSHOTS_TO_KEEP;
+import static org.apache.iceberg.TableProperties.MIN_SNAPSHOTS_TO_KEEP_DEFAULT;
 
 @SuppressWarnings("UnnecessaryAnonymousClass")
 class RemoveSnapshots implements ExpireSnapshots {
@@ -71,16 +75,27 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   private final TableOperations ops;
   private final Set<Long> idsToRemove = Sets.newHashSet();
-  private final Set<Long> idsToRetain = Sets.newHashSet();
   private boolean cleanExpiredFiles = true;
   private TableMetadata base;
-  private Long expireOlderThan = null;
+  private long expireOlderThan;
+  private int minNumSnapshots;
   private Consumer<String> deleteFunc = defaultDelete;
   private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
 
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
     this.base = ops.current();
+
+    long maxSnapshotAgeMs = PropertyUtil.propertyAsLong(
+        base.properties(),
+        MAX_SNAPSHOT_AGE_MS,
+        MAX_SNAPSHOT_AGE_MS_DEFAULT);
+    this.expireOlderThan = System.currentTimeMillis() - maxSnapshotAgeMs;
+
+    this.minNumSnapshots = PropertyUtil.propertyAsInt(
+        base.properties(),
+        MIN_SNAPSHOTS_TO_KEEP,
+        MIN_SNAPSHOTS_TO_KEEP_DEFAULT);
 
     ValidationException.check(
         PropertyUtil.propertyAsBoolean(base.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
@@ -111,14 +126,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   public ExpireSnapshots retainLast(int numSnapshots) {
     Preconditions.checkArgument(1 <= numSnapshots,
             "Number of snapshots to retain must be at least 1, cannot be: %s", numSnapshots);
-    idsToRetain.clear();
-    List<Long> ancestorIds = SnapshotUtil.ancestorIds(base.currentSnapshot(), base::snapshot);
-    if (numSnapshots >= ancestorIds.size()) {
-      idsToRetain.addAll(ancestorIds);
-    } else {
-      idsToRetain.addAll(ancestorIds.subList(0, numSnapshots));
-    }
-
+    this.minNumSnapshots = numSnapshots;
     return this;
   }
 
@@ -146,10 +154,17 @@ class RemoveSnapshots implements ExpireSnapshots {
   private TableMetadata internalApply() {
     this.base = ops.refresh();
 
+    Set<Long> idsToRetain = Sets.newHashSet();
+    List<Long> ancestorIds = SnapshotUtil.ancestorIds(base.currentSnapshot(), base::snapshot);
+    if (minNumSnapshots >= ancestorIds.size()) {
+      idsToRetain.addAll(ancestorIds);
+    } else {
+      idsToRetain.addAll(ancestorIds.subList(0, minNumSnapshots));
+    }
+
     TableMetadata updateMeta = base.removeSnapshotsIf(snapshot ->
         idsToRemove.contains(snapshot.snapshotId()) ||
-        (expireOlderThan != null && snapshot.timestampMillis() < expireOlderThan &&
-            !idsToRetain.contains(snapshot.snapshotId())));
+        (snapshot.timestampMillis() < expireOlderThan && !idsToRetain.contains(snapshot.snapshotId())));
     List<Snapshot> updateSnapshots = updateMeta.snapshots();
     List<Snapshot> baseSnapshots = base.snapshots();
     return updateSnapshots.size() != baseSnapshots.size() ? updateMeta : base;
