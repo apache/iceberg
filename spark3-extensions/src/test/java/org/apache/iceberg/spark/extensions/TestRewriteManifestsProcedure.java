@@ -128,6 +128,29 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testRewriteManifestsCaseInsensitiveArgs() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)", tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Assert.assertEquals("Must have 2 manifest", 2, table.currentSnapshot().allManifests().size());
+
+    List<Object[]> output = sql(
+        "CALL %s.system.rewrite_manifests(usE_cAcHiNg => false, nAmeSpaCe => '%s', tAbLe => '%s')",
+        catalogName, tableIdent.namespace(), tableIdent.name());
+    assertEquals("Procedure output must match",
+        ImmutableList.of(row(2, 1)),
+        output);
+
+    table.refresh();
+
+    Assert.assertEquals("Must have 1 manifests", 1, table.currentSnapshot().allManifests().size());
+  }
+
+  @Test
   public void testInvalidRewriteManifestsCases() {
     AssertHelpers.assertThrows("Should not allow mixed args",
         AnalysisException.class, "Named and positional arguments cannot be mixed",
@@ -152,5 +175,9 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows("Should reject empty table name",
         IllegalArgumentException.class, "Table name cannot be empty",
         () -> sql("CALL %s.system.rewrite_manifests('n', '')", catalogName));
+
+    AssertHelpers.assertThrows("Should reject duplicate arg names name",
+        AnalysisException.class, "Duplicate procedure argument: table",
+        () -> sql("CALL %s.system.rewrite_manifests(table => 't', tAbLe => 't')", catalogName));
   }
 }

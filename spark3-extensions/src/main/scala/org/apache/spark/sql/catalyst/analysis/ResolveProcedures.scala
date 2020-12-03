@@ -19,12 +19,13 @@
 
 package org.apache.spark.sql.catalyst.analysis
 
+import java.util.Locale
 import org.apache.spark.sql.{AnalysisException, SparkSession}
-import org.apache.spark.sql.catalyst.expressions.{Cast, Expression, Literal}
+import org.apache.spark.sql.catalyst.expressions.{Expression, Literal}
 import org.apache.spark.sql.catalyst.plans.logical.{Call, CallArgument, CallStatement, LogicalPlan, NamedArgument, PositionalArgument}
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.connector.catalog.{CatalogManager, CatalogPlugin, LookupCatalog}
-import org.apache.spark.sql.connector.iceberg.catalog.{Procedure, ProcedureCatalog, ProcedureParameter}
+import org.apache.spark.sql.connector.iceberg.catalog.{ProcedureCatalog, ProcedureParameter}
 import scala.collection.Seq
 
 case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with LookupCatalog {
@@ -34,13 +35,18 @@ case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     case CallStatement(CatalogAndIdentifier(catalog, ident), args) =>
       val procedure = catalog.asProcedureCatalog.loadProcedure(ident)
-      validateParams(procedure)
-      Call(procedure, args = buildArgExprs(procedure, args))
+
+      val params = procedure.parameters
+      val normalizedParams = normalizeParams(params)
+      validateParams(normalizedParams)
+
+      val normalizedArgs = normalizeArgs(args)
+      Call(procedure, args = buildArgExprs(normalizedParams, normalizedArgs))
   }
 
-  private def validateParams(procedure: Procedure): Unit = {
+  private def validateParams(params: Seq[ProcedureParameter]): Unit = {
     // should not be any duplicate param names
-    val duplicateParamNames = procedure.parameters.groupBy(_.name).collect {
+    val duplicateParamNames = params.groupBy(_.name).collect {
       case (name, matchingParams) if matchingParams.length > 1 => name
     }
 
@@ -49,16 +55,17 @@ case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with
     }
 
     // optional params should be at the end
-    procedure.parameters.sliding(2).foreach {
-      case Array(previousParam, currentParam) if !previousParam.required && currentParam.required =>
+    params.sliding(2).foreach {
+      case Seq(previousParam, currentParam) if !previousParam.required && currentParam.required =>
         throw new AnalysisException(
           s"Optional parameters must be after required ones but $currentParam is after $previousParam")
       case _ =>
     }
   }
 
-  private def buildArgExprs(procedure: Procedure, args: Seq[CallArgument]): Seq[Expression] = {
-    val params = procedure.parameters
+  private def buildArgExprs(
+      params: Seq[ProcedureParameter],
+      args: Seq[CallArgument]): Seq[Expression] = {
 
     // build a map of declared parameter names to their positions
     val nameToPositionMap = params.map(_.name).zipWithIndex.toMap
@@ -142,6 +149,24 @@ case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with
       val param = params(position)
       param.name -> arg
     }.toMap
+  }
+
+  private def normalizeParams(params: Seq[ProcedureParameter]): Seq[ProcedureParameter] = {
+    params.map {
+      case param if param.required =>
+        val normalizedName = param.name.toLowerCase(Locale.ROOT)
+        ProcedureParameter.required(normalizedName, param.dataType)
+      case param =>
+        val normalizedName = param.name.toLowerCase(Locale.ROOT)
+        ProcedureParameter.optional(normalizedName, param.dataType)
+    }
+  }
+
+  private def normalizeArgs(args: Seq[CallArgument]): Seq[CallArgument] = {
+    args.map {
+      case a @ NamedArgument(name, _) => a.copy(name = name.toLowerCase(Locale.ROOT))
+      case other => other
+    }
   }
 
   implicit class CatalogHelper(plugin: CatalogPlugin) {
