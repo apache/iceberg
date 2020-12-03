@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.actions.Actions;
 import org.apache.iceberg.actions.RemoveOrphanFilesAction;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -46,8 +47,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
       ProcedureParameter.required("table", DataTypes.StringType),
       ProcedureParameter.optional("older_than", DataTypes.TimestampType),
       ProcedureParameter.optional("location", DataTypes.StringType),
-      ProcedureParameter.optional("dry_run", DataTypes.BooleanType),
-      ProcedureParameter.optional("validate_interval", DataTypes.BooleanType)
+      ProcedureParameter.optional("dry_run", DataTypes.BooleanType)
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
@@ -83,16 +83,17 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
     String tableName = args.getString(1);
     Long olderThanMillis = args.isNullAt(2) ? null : DateTimeUtils.toMillis(args.getLong(2));
     String location = args.isNullAt(3) ? null : args.getString(3);
-    boolean dryRun = !args.isNullAt(4) && args.getBoolean(4);
-    boolean validateInterval = args.isNullAt(5) || args.getBoolean(5);
+    boolean dryRun = args.isNullAt(4) ? false : args.getBoolean(4);
 
     return withIcebergTable(namespace, tableName, table -> {
-      Actions actions = Actions.forTable(table);
+      SparkSession spark = SparkSession.active();
+      Actions actions = Actions.forTable(spark, table);
 
       RemoveOrphanFilesAction action = actions.removeOrphanFiles();
 
       if (olderThanMillis != null) {
-        if (validateInterval) {
+        boolean isTesting = Boolean.parseBoolean(spark.conf().get("spark.testing", "false"));
+        if (!isTesting) {
           validateInterval(olderThanMillis);
         }
         action.olderThan(olderThanMillis);
@@ -124,8 +125,8 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
           "Cannot remove orphan files with an interval less than 24 hours. Executing this " +
           "procedure with a short interval may corrupt the table if other operations are happening " +
           "at the same time. If you are absolutely confident that no concurrent operations will be " +
-          "affected by removing orphan files with such a short interval, you can call this procedure " +
-          "with 'validate_interval' as false.");
+          "affected by removing orphan files with such a short interval, you can use the Action API " +
+          "to remove orphan files with an arbitrary interval.");
     }
   }
 

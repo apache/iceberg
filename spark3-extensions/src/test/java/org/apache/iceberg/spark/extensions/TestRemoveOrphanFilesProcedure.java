@@ -19,17 +19,26 @@
 
 package org.apache.iceberg.spark.extensions;
 
-import java.time.LocalDateTime;
+import java.io.IOException;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.junit.After;
+import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
+
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
 
   public TestRemoveOrphanFilesProcedure(String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
@@ -37,12 +46,8 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
 
   @After
   public void removeTable() {
-    if (catalogName.equals("spark_catalog")) {
-      // Spark will drop the table using v1 without cleaning the table location
-      validationCatalog.dropTable(tableIdent);
-    } else {
-      sql("DROP TABLE IF EXISTS %s", tableName);
-    }
+    sql("DROP TABLE IF EXISTS %s", tableName);
+    sql("DROP TABLE IF EXISTS p", tableName);
   }
 
   @Test
@@ -60,22 +65,122 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testRemoveOrphanFilesWithTooShortInterval() {
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+  public void testRemoveOrphanFilesInDataFolder() throws IOException {
+    if (catalogName.equals("testhadoop")) {
+      sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    } else {
+      // give a fresh location to Hive tables as Spark will not clean up the table location
+      // correctly while dropping tables through spark_catalog
+      sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg LOCATION '%s'",
+          tableName, temp.newFolder());
+    }
 
-    AssertHelpers.assertThrows("Should reject too short interval",
-        IllegalArgumentException.class, "Cannot remove orphan files with an interval less than",
-        () -> sql("CALL %s.system.remove_orphan_files('%s', '%s', TIMESTAMP '%s')",
-            catalogName, tableIdent.namespace(), tableIdent.name(), LocalDateTime.now()));
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
 
-    List<Object[]> output = sql(
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    String metadataLocation = table.location() + "/metadata";
+    String dataLocation = table.location() + "/data";
+
+    // produce orphan files in the data location using parquet
+    sql("CREATE TABLE p (id bigint) USING parquet LOCATION '%s'", dataLocation);
+    sql("INSERT INTO TABLE p VALUES (1)");
+
+    // wait to ensure files are old enough
+    waitUntilAfter(System.currentTimeMillis());
+
+    Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
+
+    // check for orphans in the metadata folder
+    List<Object[]> output1 = sql(
         "CALL %s.system.remove_orphan_files(" +
             "namespace => '%s'," +
             "table => '%s'," +
             "older_than => TIMESTAMP '%s'," +
-            "validate_interval => false)",
-        catalogName, tableIdent.namespace(), tableIdent.name(), LocalDateTime.now());
-    assertEquals("Procedure output must match", ImmutableList.of(), output);
+            "location => '%s')",
+        catalogName, tableIdent.namespace(), tableIdent.name(), currentTimestamp, metadataLocation);
+    assertEquals("Should be no orphan files in the metadata folder", ImmutableList.of(), output1);
+
+    // check for orphans in the table location
+    List<Object[]> output2 = sql(
+        "CALL %s.system.remove_orphan_files(" +
+            "namespace => '%s'," +
+            "table => '%s'," +
+            "older_than => TIMESTAMP '%s')",
+        catalogName, tableIdent.namespace(), tableIdent.name(), currentTimestamp);
+    Assert.assertEquals("Should be orphan files in the data folder", 1, output2.size());
+
+    // the previous call should have deleted all orphan files
+    List<Object[]> output3 = sql(
+        "CALL %s.system.remove_orphan_files(" +
+            "namespace => '%s'," +
+            "table => '%s'," +
+            "older_than => TIMESTAMP '%s')",
+        catalogName, tableIdent.namespace(), tableIdent.name(), currentTimestamp);
+    Assert.assertEquals("Should be no more orphan files in the data folder", 0, output3.size());
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1L, "a"), row(2L, "b")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testRemoveOrphanFilesDryRun() throws IOException {
+    if (catalogName.equals("testhadoop")) {
+      sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    } else {
+      // give a fresh location to Hive tables as Spark will not clean up the table location
+      // correctly while dropping tables through spark_catalog
+      sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg LOCATION '%s'",
+          tableName, temp.newFolder());
+    }
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    // produce orphan files in the table location using parquet
+    sql("CREATE TABLE p (id bigint) USING parquet LOCATION '%s'", table.location());
+    sql("INSERT INTO TABLE p VALUES (1)");
+
+    // wait to ensure files are old enough
+    waitUntilAfter(System.currentTimeMillis());
+
+    Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
+
+    // check for orphans without deleting
+    List<Object[]> output1 = sql(
+        "CALL %s.system.remove_orphan_files(" +
+            "namespace => '%s'," +
+            "table => '%s'," +
+            "older_than => TIMESTAMP '%s'," +
+            "dry_run => true)",
+        catalogName, tableIdent.namespace(), tableIdent.name(), currentTimestamp);
+    Assert.assertEquals("Should be one orphan files", 1, output1.size());
+
+    // actually delete orphans
+    List<Object[]> output2 = sql(
+        "CALL %s.system.remove_orphan_files(" +
+            "namespace => '%s'," +
+            "table => '%s'," +
+            "older_than => TIMESTAMP '%s')",
+        catalogName, tableIdent.namespace(), tableIdent.name(), currentTimestamp);
+    Assert.assertEquals("Should be one orphan files", 1, output2.size());
+
+    // the previous call should have deleted all orphan files
+    List<Object[]> output3 = sql(
+        "CALL %s.system.remove_orphan_files(" +
+            "namespace => '%s'," +
+            "table => '%s'," +
+            "older_than => TIMESTAMP '%s')",
+        catalogName, tableIdent.namespace(), tableIdent.name(), currentTimestamp);
+    Assert.assertEquals("Should be no more orphan files", 0, output3.size());
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1L, "a"), row(2L, "b")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @Test
