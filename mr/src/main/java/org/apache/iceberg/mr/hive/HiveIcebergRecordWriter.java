@@ -123,7 +123,7 @@ class HiveIcebergRecordWriter extends org.apache.hadoop.mapreduce.RecordWriter<N
           .onFailure((file, exception) -> LOG.debug("Failed on to remove file {} on abort", file, exception))
           .run(io::deleteFile);
     }
-    LOG.info("IcebergRecordWriter is closed. Created {} files", closedFileData);
+    LOG.info("IcebergRecordWriter is closed. Created {} files", closedFileData.values());
   }
 
   @Override

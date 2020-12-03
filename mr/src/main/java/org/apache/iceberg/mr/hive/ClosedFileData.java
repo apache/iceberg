@@ -26,7 +26,7 @@ import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
- * Class for storing the data file properties which are needed for an Icebreg commit.
+ * Class for storing the data file properties which are needed for an Iceberg commit.
  * <ul>
  *   <li>Partition key
  *   <li>File name
@@ -39,14 +39,14 @@ final class ClosedFileData implements Serializable {
   private final PartitionKey partitionKey;
   private final String fileName;
   private final FileFormat fileFormat;
-  private final Long length;
+  private final Long fileSize;
   private final Metrics metrics;
 
-  ClosedFileData(PartitionKey partitionKey, String fileName, FileFormat fileFormat, Long length, Metrics metrics) {
+  ClosedFileData(PartitionKey partitionKey, String fileName, FileFormat fileFormat, Long fileSize, Metrics metrics) {
     this.partitionKey = partitionKey;
     this.fileName = fileName;
     this.fileFormat = fileFormat;
-    this.length = length;
+    this.fileSize = fileSize;
     this.metrics = metrics;
   }
 
@@ -62,8 +62,12 @@ final class ClosedFileData implements Serializable {
     return fileFormat;
   }
 
-  Long length() {
-    return length;
+  /**
+   * File size in bytes.
+   * @return The size
+   */
+  Long fileSize() {
+    return fileSize;
   }
 
   Metrics metrics() {
@@ -76,7 +80,7 @@ final class ClosedFileData implements Serializable {
         .add("partitionKey", partitionKey)
         .add("fileName", fileName)
         .add("fileFormat", fileFormat)
-        .add("length", length)
+        .add("fileSize", fileSize)
         .add("metrics", metrics)
         .toString();
   }

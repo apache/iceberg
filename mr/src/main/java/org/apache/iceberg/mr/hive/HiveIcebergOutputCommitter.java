@@ -80,7 +80,7 @@ public final class HiveIcebergOutputCommitter extends OutputCommitter {
   @Override
   public void commitTask(TaskAttemptContext context) throws IOException {
     TaskAttemptID attemptID = context.getTaskAttemptID();
-    String commitFileLocation = LocationHelper.generateToCommitFileLocation(context.getJobConf(), attemptID);
+    String fileForCommitLocation = LocationHelper.generateFileForCommitLocation(context.getJobConf(), attemptID);
     HiveIcebergRecordWriter writer = HiveIcebergRecordWriter.removeWriter(attemptID);
 
     Set<ClosedFileData> closedFiles = Collections.emptySet();
@@ -88,8 +88,8 @@ public final class HiveIcebergOutputCommitter extends OutputCommitter {
       closedFiles = writer.closedFileData();
     }
 
-    // Create the committed file for the task
-    createToCommitFile(closedFiles, commitFileLocation, new HadoopFileIO(context.getJobConf()));
+    // Creating the file containing the descriptor(s) for the file(s) written by this task
+    createFileForCommit(closedFiles, fileForCommitLocation, new HadoopFileIO(context.getJobConf()));
   }
 
   @Override
@@ -110,7 +110,7 @@ public final class HiveIcebergOutputCommitter extends OutputCommitter {
     Table table = Catalogs.loadTable(conf);
 
     long startTime = System.currentTimeMillis();
-    LOG.info("Committing job is started for {} using {} expecting {} file(s)", table,
+    LOG.info("Committing job has started for table: {}, using location: {}, expecting {} file(s).", table,
         LocationHelper.generateJobLocation(conf, jobContext.getJobID()), expectedFiles);
 
     ExecutorService executor = null;
@@ -132,8 +132,8 @@ public final class HiveIcebergOutputCommitter extends OutputCommitter {
           .executeWith(executor)
           .retry(3)
           .run(taskId -> {
-            String taskFileName = LocationHelper.generateToCommitFileLocation(conf, jobContext.getJobID(), taskId);
-            Set<ClosedFileData> closedFiles = readToCommitFile(taskFileName, table.io());
+            String taskFileName = LocationHelper.generateFileForCommitLocation(conf, jobContext.getJobID(), taskId);
+            Set<ClosedFileData> closedFiles = readFileForCommit(taskFileName, table.io());
 
             // If the data is not empty add to the table
             if (!closedFiles.isEmpty()) {
@@ -141,7 +141,7 @@ public final class HiveIcebergOutputCommitter extends OutputCommitter {
                 DataFiles.Builder builder = DataFiles.builder(table.spec())
                     .withPath(file.fileName())
                     .withFormat(file.fileFormat())
-                    .withFileSizeInBytes(file.length())
+                    .withFileSizeInBytes(file.fileSize())
                     .withPartition(file.partitionKey())
                     .withMetrics(file.metrics());
                 dataFiles.add(builder.build());
@@ -158,11 +158,10 @@ public final class HiveIcebergOutputCommitter extends OutputCommitter {
           addedFiles.add(dataFile.path().toString());
         });
         append.commit();
-        LOG.info("Commit for Iceberg write taken {} ms for {} with file(s) {}",
-            System.currentTimeMillis() - startTime, table, addedFiles);
+        LOG.info("Commit took {} ms for table: {} with file(s): {}", System.currentTimeMillis() - startTime, table,
+            addedFiles);
       } else {
-        LOG.info("Commit for Iceberg write taken {} ms for {} with no new files",
-            System.currentTimeMillis() - startTime, table);
+        LOG.info("Commit took {} ms for table: {} with no new files", System.currentTimeMillis() - startTime, table);
       }
 
       // Calling super to cleanupJob if something more is needed
@@ -180,7 +179,8 @@ public final class HiveIcebergOutputCommitter extends OutputCommitter {
     String location = LocationHelper.generateJobLocation(jobContext.getJobConf(), jobContext.getJobID());
     LOG.info("Job {} is aborted. Cleaning job location {}", jobContext.getJobID(), location);
 
-    // Remove the result directory for the failed job
+    // Remove the result directory for the failed job.
+    // Intentionally used foreach on a single item. Using the Tasks API here only for the retry capability.
     Tasks.foreach(location)
         .retry(3)
         .suppressFailureWhenFinished()
@@ -197,21 +197,21 @@ public final class HiveIcebergOutputCommitter extends OutputCommitter {
     cleanupJob(jobContext);
   }
 
-  private static void createToCommitFile(Set<ClosedFileData> closedFiles, String location, FileIO io)
+  private static void createFileForCommit(Set<ClosedFileData> closedFiles, String location, FileIO io)
       throws IOException {
 
-    OutputFile commitFile = io.newOutputFile(location);
-    ObjectOutputStream oos = new ObjectOutputStream(commitFile.createOrOverwrite());
-    oos.writeObject(closedFiles);
-    oos.close();
-    LOG.debug("Iceberg committed file is created {}", commitFile);
+    OutputFile fileForCommit = io.newOutputFile(location);
+    try (ObjectOutputStream oos = new ObjectOutputStream(fileForCommit.createOrOverwrite())) {
+      oos.writeObject(closedFiles);
+    }
+    LOG.debug("Iceberg committed file is created {}", fileForCommit);
   }
 
-  private static Set<ClosedFileData> readToCommitFile(String toCommitFileLocation, FileIO io) {
-    try (ObjectInputStream ois = new ObjectInputStream(io.newInputFile(toCommitFileLocation).newStream())) {
+  private static Set<ClosedFileData> readFileForCommit(String fileForCommitLocation, FileIO io) {
+    try (ObjectInputStream ois = new ObjectInputStream(io.newInputFile(fileForCommitLocation).newStream())) {
       return (Set<ClosedFileData>) ois.readObject();
     } catch (ClassNotFoundException | IOException e) {
-      throw new NotFoundException("Can not read or parse committed file: %s", toCommitFileLocation);
+      throw new NotFoundException("Can not read or parse committed file: %s", fileForCommitLocation);
     }
   }
 }

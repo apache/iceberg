@@ -26,7 +26,7 @@ import org.apache.hadoop.mapreduce.JobID;
 import org.apache.iceberg.mr.InputFormatConfig;
 
 class LocationHelper {
-  private static final String TO_COMMIT_EXTENSION = ".toCommit";
+  private static final String FOR_COMMIT_EXTENSION = ".forCommit";
 
   private LocationHelper() {
   }
@@ -68,25 +68,25 @@ class LocationHelper {
   /**
    * Generates file location based on the task configuration and a specific task id.
    * This file will be used to store the data required to generate the Iceberg commit.
-   * Currently it uses QUERY_LOCATION/jobId/task-[0..numTasks].toCommit.
+   * Currently it uses QUERY_LOCATION/jobId/task-[0..numTasks).forCommit.
    * @param conf The job's configuration
    * @param jobId The jobId for the task
    * @param taskId The taskId for the commit file
    * @return The file to store the results
    */
-  static String generateToCommitFileLocation(Configuration conf, JobID jobId, int taskId) {
-    return generateJobLocation(conf, jobId) + "/task-" + taskId + TO_COMMIT_EXTENSION;
+  static String generateFileForCommitLocation(Configuration conf, JobID jobId, int taskId) {
+    return generateJobLocation(conf, jobId) + "/task-" + taskId + FOR_COMMIT_EXTENSION;
   }
 
   /**
    * Generates file location location based on the task configuration.
    * This file will be used to store the data required to generate the Iceberg commit.
-   * Currently it uses QUERY_LOCATION/jobId/task-[0..numTasks].committed.
+   * Currently it uses QUERY_LOCATION/jobId/task-[0..numTasks).forCommit.
    * @param conf The job's configuration
    * @param taskAttemptId The TaskAttemptID for the task
    * @return The file to store the results
    */
-  static String generateToCommitFileLocation(Configuration conf, TaskAttemptID taskAttemptId) {
-    return generateToCommitFileLocation(conf, taskAttemptId.getJobID(), taskAttemptId.getTaskID().getId());
+  static String generateFileForCommitLocation(Configuration conf, TaskAttemptID taskAttemptId) {
+    return generateFileForCommitLocation(conf, taskAttemptId.getJobID(), taskAttemptId.getTaskID().getId());
   }
 }
