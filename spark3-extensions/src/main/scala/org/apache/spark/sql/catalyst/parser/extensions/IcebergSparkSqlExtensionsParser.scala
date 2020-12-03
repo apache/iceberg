@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.catalyst.parser.extensions
 
+import java.util.Locale
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
@@ -93,11 +94,10 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
    */
   override def parsePlan(sqlText: String): LogicalPlan = {
     val sqlTextAfterSubstitution = substitutor.substitute(sqlText)
-    parse(sqlTextAfterSubstitution) { parser =>
-      astBuilder.visit(parser.singleStatement()) match {
-        case plan: LogicalPlan => plan
-        case _ => delegate.parsePlan(sqlText)
-      }
+    if (sqlTextAfterSubstitution.toLowerCase(Locale.ROOT).trim().startsWith("call")) {
+      parse(sqlTextAfterSubstitution) { parser => astBuilder.visit(parser.singleStatement()) }.asInstanceOf[LogicalPlan]
+    } else {
+      delegate.parsePlan(sqlText)
     }
   }
 

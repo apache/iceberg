@@ -56,9 +56,6 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     NamedArgument(name, expr)
   }
 
-  // return null for any statement we cannot handle so it can be parsed with the main Spark parser
-  override def visitNonIcebergCommand(ctx: NonIcebergCommandContext): LogicalPlan = null
-
   override def visitSingleStatement(ctx: SingleStatementContext): LogicalPlan = withOrigin(ctx) {
     visit(ctx.statement).asInstanceOf[LogicalPlan]
   }
