@@ -156,10 +156,15 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     this.io = io;
     this.encryptionManager = encryptionManager;
     this.caseSensitive = caseSensitive;
-
-    this.batchReadsEnabled = options.get("vectorization-enabled").map(Boolean::parseBoolean).orElseGet(() ->
-        PropertyUtil.propertyAsBoolean(table.properties(),
-            TableProperties.PARQUET_VECTORIZATION_ENABLED, TableProperties.PARQUET_VECTORIZATION_ENABLED_DEFAULT));
+    String batchReadsSessionConf = SparkSession.active().conf()
+        .get("spark.sql.iceberg.vectorization.enabled", null);
+    if (batchReadsSessionConf != null) {
+      this.batchReadsEnabled = Boolean.valueOf(batchReadsSessionConf);
+    } else {
+      this.batchReadsEnabled = options.get("vectorization-enabled").map(Boolean::parseBoolean).orElseGet(() ->
+          PropertyUtil.propertyAsBoolean(table.properties(), TableProperties.PARQUET_VECTORIZATION_ENABLED,
+              TableProperties.PARQUET_VECTORIZATION_ENABLED_DEFAULT));
+    }
     this.batchSize = options.get("batch-size").map(Integer::parseInt).orElseGet(() ->
         PropertyUtil.propertyAsInt(table.properties(),
           TableProperties.PARQUET_BATCH_SIZE, TableProperties.PARQUET_BATCH_SIZE_DEFAULT));
