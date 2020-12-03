@@ -28,6 +28,7 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.NaNUtil;
 
 class PartitionSummary {
   private final PartitionFieldStats<?>[] fields;
@@ -64,6 +65,7 @@ class PartitionSummary {
     private final Comparator<T> comparator;
 
     private boolean containsNull = false;
+    private boolean containsNaN = false;
     private T min = null;
     private T max = null;
 
@@ -73,7 +75,7 @@ class PartitionSummary {
     }
 
     public PartitionFieldSummary toSummary() {
-      return new GenericPartitionFieldSummary(containsNull,
+      return new GenericPartitionFieldSummary(containsNull, containsNaN,
           min != null ? Conversions.toByteBuffer(type, min) : null,
           max != null ? Conversions.toByteBuffer(type, max) : null);
     }
@@ -81,6 +83,8 @@ class PartitionSummary {
     void update(T value) {
       if (value == null) {
         this.containsNull = true;
+      } else if (NaNUtil.isNaN(value)) {
+        this.containsNaN = true;
       } else if (min == null) {
         this.min = value;
         this.max = value;

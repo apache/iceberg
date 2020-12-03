@@ -41,6 +41,7 @@ public class GenericPartitionFieldSummary
 
   // data fields
   private boolean containsNull = false;
+  private boolean containsNaN = false;
   private byte[] lowerBound = null;
   private byte[] upperBound = null;
 
@@ -72,10 +73,11 @@ public class GenericPartitionFieldSummary
     }
   }
 
-  public GenericPartitionFieldSummary(boolean containsNull, ByteBuffer lowerBound,
+  public GenericPartitionFieldSummary(boolean containsNull, boolean containsNaN, ByteBuffer lowerBound,
                                       ByteBuffer upperBound) {
     this.avroSchema = AVRO_SCHEMA;
     this.containsNull = containsNull;
+    this.containsNaN = containsNaN;
     this.lowerBound = ByteBuffers.toByteArray(lowerBound);
     this.upperBound = ByteBuffers.toByteArray(upperBound);
     this.fromProjectionPos = null;
@@ -89,6 +91,7 @@ public class GenericPartitionFieldSummary
   private GenericPartitionFieldSummary(GenericPartitionFieldSummary toCopy) {
     this.avroSchema = toCopy.avroSchema;
     this.containsNull = toCopy.containsNull;
+    this.containsNaN = toCopy.containsNaN;
     this.lowerBound = toCopy.lowerBound == null ? null : Arrays.copyOf(toCopy.lowerBound, toCopy.lowerBound.length);
     this.upperBound = toCopy.upperBound == null ? null : Arrays.copyOf(toCopy.upperBound, toCopy.upperBound.length);
     this.fromProjectionPos = toCopy.fromProjectionPos;
@@ -103,6 +106,11 @@ public class GenericPartitionFieldSummary
   @Override
   public boolean containsNull() {
     return containsNull;
+  }
+
+  @Override
+  public boolean containsNaN() {
+    return containsNaN;
   }
 
   @Override
@@ -136,8 +144,10 @@ public class GenericPartitionFieldSummary
       case 0:
         return containsNull;
       case 1:
-        return lowerBound();
+        return containsNaN;
       case 2:
+        return lowerBound();
+      case 3:
         return upperBound();
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
@@ -157,9 +167,12 @@ public class GenericPartitionFieldSummary
         this.containsNull = (Boolean) value;
         return;
       case 1:
-        this.lowerBound = ByteBuffers.toByteArray((ByteBuffer) value);
+        this.containsNaN = (Boolean) value;
         return;
       case 2:
+        this.lowerBound = ByteBuffers.toByteArray((ByteBuffer) value);
+        return;
+      case 3:
         this.upperBound = ByteBuffers.toByteArray((ByteBuffer) value);
         return;
       default:
@@ -186,6 +199,7 @@ public class GenericPartitionFieldSummary
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("contains_null", containsNull)
+        .add("contains_nan", containsNaN)
         .add("lower_bound", lowerBound)
         .add("upper_bound", upperBound)
         .toString();

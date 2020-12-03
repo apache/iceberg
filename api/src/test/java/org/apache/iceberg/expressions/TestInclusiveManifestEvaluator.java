@@ -85,14 +85,14 @@ public class TestInclusiveManifestEvaluator {
 
   private static final ManifestFile FILE = new TestHelpers.TestManifestFile("manifest-list.avro",
       1024, 0, System.currentTimeMillis(), 5, 10, 0, ImmutableList.of(
-          new TestHelpers.TestFieldSummary(false, INT_MIN, INT_MAX),
-          new TestHelpers.TestFieldSummary(true, null, null),
-          new TestHelpers.TestFieldSummary(true, STRING_MIN, STRING_MAX),
-          new TestHelpers.TestFieldSummary(false, STRING_MIN, STRING_MAX),
-          new TestHelpers.TestFieldSummary(false,
+          new TestHelpers.TestFieldSummary(false, false, INT_MIN, INT_MAX),
+          new TestHelpers.TestFieldSummary(true, false, null, null),
+          new TestHelpers.TestFieldSummary(true, false, STRING_MIN, STRING_MAX),
+          new TestHelpers.TestFieldSummary(false, false, STRING_MIN, STRING_MAX),
+          new TestHelpers.TestFieldSummary(false, false,
               toByteBuffer(Types.FloatType.get(), 0F),
               toByteBuffer(Types.FloatType.get(), 20F)),
-          new TestHelpers.TestFieldSummary(true, null, null)
+          new TestHelpers.TestFieldSummary(true, false, null, null)
       ));
 
   @Test

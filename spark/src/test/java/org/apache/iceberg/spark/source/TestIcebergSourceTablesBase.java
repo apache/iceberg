@@ -682,7 +682,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "manifests_test");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
     Table manifestTable = loadTable(tableIdentifier, "manifests");
-    Dataset<Row> df1 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
+    Dataset<Row> df1 = spark.createDataFrame(
+        Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(null, "b")), SimpleRecord.class);
 
     df1.select("id", "data").write()
         .format("iceberg")
@@ -710,7 +711,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("deleted_data_files_count", manifest.deletedFilesCount())
             .set("partition_summaries", Lists.transform(manifest.partitions(), partition ->
                 summaryBuilder
-                    .set("contains_null", false)
+                    .set("contains_null", true)
+                    .set("contains_nan", false)
                     .set("lower_bound", "1")
                     .set("upper_bound", "1")
                     .build()
@@ -765,6 +767,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .set("partition_summaries", Lists.transform(manifest.partitions(), partition ->
                 summaryBuilder
                     .set("contains_null", false)
+                    .set("contains_nan", false)
                     .set("lower_bound", "1")
                     .set("upper_bound", "1")
                     .build()
