@@ -48,6 +48,10 @@ import org.apache.iceberg.exceptions.CommitFailedException;
  * <p>Nested transactions such as creating a new table may fail. Those failures alone do
  * not necessarily result in a failure of the catalog-level transaction.
  *
+ * <p>Implementations of {@code TransactionalCatalog} are responsible for monitoring all
+ * table level operations that are spawned from this catalog and ensure that all nested
+ * transactions that are completed successfully are either exposed atomically or not.
+ *
  */
 public interface TransactionalCatalog extends Catalog, AutoCloseable {
 
