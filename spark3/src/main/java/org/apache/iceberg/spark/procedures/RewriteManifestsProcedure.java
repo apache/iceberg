@@ -48,8 +48,8 @@ class RewriteManifestsProcedure extends BaseProcedure {
 
   // counts are not nullable since the action result is never null
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
-      new StructField("num_rewritten_manifests", DataTypes.IntegerType, false, Metadata.empty()),
-      new StructField("num_added_manifests", DataTypes.IntegerType, false, Metadata.empty())
+      new StructField("rewritten_manifests_count", DataTypes.IntegerType, false, Metadata.empty()),
+      new StructField("added_manifests_count", DataTypes.IntegerType, false, Metadata.empty())
   });
 
   public static ProcedureBuilder builder() {
