@@ -14,6 +14,10 @@
 
 package org.apache.iceberg.spark;
 
+/**
+ * Spark DF write options
+ */
 public class SparkWriteOptions {
+    // Overrides table property write.spark.partitioned.fanout.enabled(default: false)
     public static final String FANOUT_ENABLED = "fanout-enabled";
 }
