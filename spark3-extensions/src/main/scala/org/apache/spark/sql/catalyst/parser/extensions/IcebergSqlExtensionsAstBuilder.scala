@@ -21,11 +21,12 @@ package org.apache.spark.sql.catalyst.parser.extensions
 
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.tree.{ParseTree, TerminalNode}
-import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.expressions.{Expression, Literal}
 import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.parser.ParserUtils._
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser._
 import org.apache.spark.sql.catalyst.plans.logical.{CallArgument, CallStatement, LogicalPlan, NamedArgument, PositionalArgument}
+import org.apache.spark.sql.types.{ArrayType, StringType}
 import scala.collection.JavaConverters._
 
 class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergSqlExtensionsBaseVisitor[AnyRef] {
@@ -61,12 +62,18 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
   }
 
   override def visitExpression(ctx: ExpressionContext): Expression = {
-    // reconstruct the SQL string and parse it using the main Spark parser
-    // while we can avoid the logic to build Spark expressions, we still have to parse them
-    // we cannot call ctx.getText directly since it will not render spaces correctly
-    // that's why we need to recurse down the tree in reconstructSqlString
-    val sqlString = reconstructSqlString(ctx)
-    delegate.parseExpression(sqlString)
+    Option(ctx.multipartIdentifier) match {
+      case Some(multipart) =>
+        Literal.create(multipart.parts.asScala.map(_.getText).toArray, ArrayType(StringType))
+
+      case _ =>
+        // reconstruct the SQL string and parse it using the main Spark parser
+        // while we can avoid the logic to build Spark expressions, we still have to parse them
+        // we cannot call ctx.getText directly since it will not render spaces correctly
+        // that's why we need to recurse down the tree in reconstructSqlString
+        val sqlString = reconstructSqlString(ctx)
+        delegate.parseExpression(sqlString)
+    }
   }
 
   private def reconstructSqlString(ctx: ParserRuleContext): String = {

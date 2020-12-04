@@ -130,6 +130,27 @@ public class TestCallStatementParser {
   }
 
   @Test
+  public void testCallWithPositionalMultipartIdentifier() throws ParseException {
+    CallStatement call = (CallStatement) parser.parsePlan("CALL cat.system.func(prod.`a.b`.table)");
+    Assert.assertEquals(ImmutableList.of("cat", "system", "func"), JavaConverters.seqAsJavaList(call.name()));
+
+    Assert.assertEquals(1, call.args().size());
+
+    checkArg(call, 0, new String[] { "prod", "a.b", "table" }, DataTypes.createArrayType(DataTypes.StringType));
+  }
+
+  @Test
+  public void testCallWithNamedMultipartIdentifier() throws ParseException {
+    CallStatement call = (CallStatement) parser.parsePlan("CALL cat.system.func(source_table => prod.`a.b`.table)");
+    Assert.assertEquals(ImmutableList.of("cat", "system", "func"), JavaConverters.seqAsJavaList(call.name()));
+
+    Assert.assertEquals(1, call.args().size());
+
+    checkArg(call, 0, "source_table",
+        new String[] { "prod", "a.b", "table" }, DataTypes.createArrayType(DataTypes.StringType));
+  }
+
+  @Test
   public void testCallParseError() {
     AssertHelpers.assertThrows("Should fail with a sensible parse error", ParseException.class,
         "missing '(' at 'radish'",

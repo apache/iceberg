@@ -76,6 +76,7 @@ callArgument
 
 expression
     : constant
+    | multipartIdentifier
     ;
 
 constant
