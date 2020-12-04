@@ -58,8 +58,6 @@ import org.slf4j.LoggerFactory;
 public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
     implements OneInputStreamOperator<FlinkInputSplit, RowData> {
 
-  private static final long serialVersionUID = 1L;
-
   private static final Logger LOG = LoggerFactory.getLogger(StreamingReaderOperator.class);
   private final MailboxExecutorImpl executor;
   private FlinkInputFormat format;
@@ -69,12 +67,12 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
   private transient ListState<FlinkInputSplit> checkpointState;
   private transient Queue<FlinkInputSplit> splits;
 
-  private StreamingReaderOperator(
-      FlinkInputFormat format, ProcessingTimeService timeService, MailboxExecutor mailboxExecutor) {
+  private StreamingReaderOperator(FlinkInputFormat format, ProcessingTimeService timeService,
+                                  MailboxExecutor mailboxExecutor) {
     this.format = Preconditions.checkNotNull(format, "The InputFormat should not be null.");
     this.processingTimeService = timeService;
-    this.executor = (MailboxExecutorImpl) Preconditions.checkNotNull(
-        mailboxExecutor, "The mailboxExecutor should not be null.");
+    this.executor = (MailboxExecutorImpl) Preconditions.checkNotNull(mailboxExecutor,
+        "The mailboxExecutor should not be null.");
   }
 
   @Override
@@ -188,8 +186,6 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
 
   private static class OperatorFactory extends AbstractStreamOperatorFactory<RowData>
       implements YieldingOperatorFactory<RowData>, OneInputStreamOperatorFactory<FlinkInputSplit, RowData> {
-
-    private static final long serialVersionUID = 1L;
 
     private final FlinkInputFormat format;
 

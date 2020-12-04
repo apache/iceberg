@@ -112,7 +112,9 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
     checkpointLock = ctx.getCheckpointLock();
     while (isRunning) {
       synchronized (checkpointLock) {
-        monitorAndForwardSplits(ctx);
+        if (isRunning) {
+          monitorAndForwardSplits(ctx);
+        }
       }
       Thread.sleep(ctxt.monitorInterval().toMillis());
     }
