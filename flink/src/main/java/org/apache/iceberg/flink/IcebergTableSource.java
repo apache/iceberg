@@ -45,8 +45,8 @@ public class IcebergTableSource
   private final TableSchema schema;
   private final Map<String, String> properties;
   private final int[] projectedFields;
-  private boolean isLimitPushDown = false;
-  private long limit = -1L;
+  private final boolean isLimitPushDown;
+  private final long limit;
 
   public IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> properties) {
     this(loader, schema, properties, null, false, -1);
@@ -109,7 +109,7 @@ public class IcebergTableSource
     }
 
     if (isLimitPushDown) {
-      explain += String.format(", LimitPushDown %s, Limit %d", isLimitPushDown, limit);
+      explain += String.format(", LimitPushDown : %d", limit);
     }
 
     return TableConnectorUtils.generateRuntimeName(getClass(), getTableSchema().getFieldNames()) + explain;

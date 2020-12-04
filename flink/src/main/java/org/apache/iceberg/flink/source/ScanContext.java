@@ -61,8 +61,6 @@ class ScanContext implements Serializable {
   private static final ConfigOption<Long> SPLIT_FILE_OPEN_COST =
       ConfigOptions.key("split-file-open-cost").longType().defaultValue(null);
 
-  private static final ConfigOption<Long> LIMIT = ConfigOptions.key("limit").longType().defaultValue(-1L);
-
   private final boolean caseSensitive;
   private final Long snapshotId;
   private final Long startSnapshotId;
@@ -88,7 +86,7 @@ class ScanContext implements Serializable {
     this.nameMapping = null;
     this.projectedSchema = null;
     this.filterExpressions = null;
-    this.limit = -1L;
+    this.limit = null;
   }
 
   private ScanContext(boolean caseSensitive, Long snapshotId, Long startSnapshotId, Long endSnapshotId,

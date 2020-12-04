@@ -21,6 +21,8 @@ package org.apache.iceberg.flink;
 
 
 import java.util.List;
+import org.apache.flink.table.api.SqlParserException;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.After;
@@ -29,8 +31,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
-import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
 public class TestFlinkTableSource extends FlinkCatalogTestBase {
@@ -62,7 +62,7 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
     sql("CREATE DATABASE %s", flinkDatabase);
     sql("USE CATALOG %s", catalogName);
     sql("USE %s", DATABASE);
-    sql("CREATE TABLE %s (id INT, data VARCHAR) with ('write.format.default'='%s')", TABLE_NAME, format.name());
+    sql("CREATE TABLE %s (id INT, data VARCHAR) WITH ('write.format.default'='%s')", TABLE_NAME, format.name());
   }
 
   @After
@@ -78,11 +78,28 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
 
     String querySql = String.format("SELECT * FROM %s LIMIT 1", TABLE_NAME);
     String explain = getTableEnv().explainSql(querySql);
-    String expectedExplain = "LimitPushDown true, Limit 1";
-    assertTrue("explain should contains LimitPushDown", explain.contains(expectedExplain));
-
+    String expectedExplain = "LimitPushDown : 1";
+    Assert.assertTrue("explain should contains LimitPushDown", explain.contains(expectedExplain));
     List<Object[]> result = sql(querySql);
     Assert.assertEquals("should have 1 record", 1, result.size());
     Assert.assertArrayEquals("Should produce the expected records", result.get(0), new Object[] {1, "a"});
+
+    AssertHelpers.assertThrows("Invalid limit number: -1 ", SqlParserException.class,
+        () -> sql("SELECT * FROM %s LIMIT -1", TABLE_NAME));
+
+    Assert.assertEquals("should have 0 record", 0, sql("SELECT * FROM %s LIMIT 0", TABLE_NAME).size());
+
+    String sqlLimitExceed = String.format("SELECT * FROM %s LIMIT 3", TABLE_NAME);
+    List<Object[]> resultExceed = sql(sqlLimitExceed);
+    Assert.assertEquals("should have 2 record", 2, resultExceed.size());
+    List expectedList = Lists.newArrayList();
+    expectedList.add(new Object[] {1, "a"});
+    expectedList.add(new Object[] {2, "b"});
+    Assert.assertArrayEquals("Should produce the expected records", resultExceed.toArray(), expectedList.toArray());
+
+    String sqlMixed = String.format("SELECT * FROM %s WHERE id = 1 LIMIT 2", TABLE_NAME);
+    List<Object[]> mixedResult = sql(sqlMixed);
+    Assert.assertEquals("should have 1 record", 1, mixedResult.size());
+    Assert.assertArrayEquals("Should produce the expected records", mixedResult.get(0), new Object[] {1, "a"});
   }
 }
