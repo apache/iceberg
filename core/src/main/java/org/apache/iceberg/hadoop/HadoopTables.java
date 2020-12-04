@@ -21,6 +21,7 @@ package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.Map;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
@@ -291,15 +292,21 @@ public class HadoopTables implements Tables, Configurable {
    *
    * This check has two steps:
    *   1. is the name of the identifier an absolute path.
-   *   2. does the identifier have a namespace. Namespaces are not allowed on path based tables and will throw
+   *   2. does the identifier have a namespace.
+   *      if the namepsace is the currentNamespace than we can ignore (coming from SessionCatalog)
+   *      else Namespaces are not allowed on path based tables and will throw
    *
    */
-  public static boolean isHadoopTable(TableIdentifier identifier) {
+  public static boolean isHadoopTable(TableIdentifier identifier, String[] currentNamespace) {
     boolean isPath = isHadoopTable(identifier.name());
-    if (identifier.hasNamespace() && isPath) {
+    if (isPath && identifier.hasNamespace() && !Arrays.equals(identifier.namespace().levels(), currentNamespace)) {
       throw new UnsupportedOperationException(String.format("Cannot have a namespace on a path based table. Either " +
           "remove namespace %s or replace path %s with a table name", identifier.namespace(), identifier.name()));
     }
     return isPath;
+  }
+
+  public static boolean isHadoopTable(TableIdentifier identifier) {
+    return isHadoopTable(identifier, new String[0]);
   }
 }

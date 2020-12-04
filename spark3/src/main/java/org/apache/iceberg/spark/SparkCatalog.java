@@ -134,11 +134,16 @@ public class SparkCatalog extends BaseCatalog {
     return TableIdentifier.of(Namespace.of(identifier.namespace()), identifier.name());
   }
 
+  private String[] currentNamespace() {
+    return SparkSession.active().sessionState().catalogManager().currentNamespace();
+  }
+
   @Override
   public SparkTable loadTable(Identifier ident) throws NoSuchTableException {
     try {
       TableIdentifier tableIdentifier = buildIdentifier(ident);
-      Table icebergTable = HadoopTables.isHadoopTable(tableIdentifier) ? tables.load(tableIdentifier.name()) :
+      Table icebergTable = HadoopTables.isHadoopTable(tableIdentifier, currentNamespace()) ?
+          tables.load(tableIdentifier.name()) :
           icebergCatalog.loadTable(buildIdentifier(ident));
       return new SparkTable(icebergTable, !cacheEnabled);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
@@ -154,7 +159,7 @@ public class SparkCatalog extends BaseCatalog {
     TableIdentifier tableIdentifier = buildIdentifier(ident);
     try {
       Table icebergTable;
-      if (HadoopTables.isHadoopTable(tableIdentifier)) {
+      if (HadoopTables.isHadoopTable(tableIdentifier, currentNamespace())) {
         icebergTable = tables.create(icebergSchema,
             Spark3Util.toPartitionSpec(icebergSchema, transforms),
             Spark3Util.rebuildCreateProperties(properties),
@@ -181,7 +186,7 @@ public class SparkCatalog extends BaseCatalog {
     TableIdentifier tableIdentifier = buildIdentifier(ident);
     try {
       Transaction transaction;
-      if (HadoopTables.isHadoopTable(tableIdentifier)) {
+      if (HadoopTables.isHadoopTable(tableIdentifier, currentNamespace())) {
         transaction = tables.newCreateTableTransaction(
             tableIdentifier.name(),
             icebergSchema,
@@ -208,7 +213,7 @@ public class SparkCatalog extends BaseCatalog {
     TableIdentifier tableIdentifier = buildIdentifier(ident);
     try {
       Transaction transaction;
-      if (HadoopTables.isHadoopTable(tableIdentifier)) {
+      if (HadoopTables.isHadoopTable(tableIdentifier, currentNamespace())) {
         transaction = tables.newReplaceTableTransaction(
             tableIdentifier.name(),
             icebergSchema,
@@ -236,7 +241,7 @@ public class SparkCatalog extends BaseCatalog {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
     TableIdentifier tableIdentifier = buildIdentifier(ident);
     Transaction transaction;
-    if (HadoopTables.isHadoopTable(tableIdentifier)) {
+    if (HadoopTables.isHadoopTable(tableIdentifier, currentNamespace())) {
       transaction = tables.newReplaceTableTransaction(
           tableIdentifier.name(),
           icebergSchema,
@@ -286,7 +291,8 @@ public class SparkCatalog extends BaseCatalog {
 
     try {
       TableIdentifier tableIdentifier = buildIdentifier(ident);
-      Table table = HadoopTables.isHadoopTable(tableIdentifier) ? tables.load(tableIdentifier.name()) :
+      Table table = HadoopTables.isHadoopTable(tableIdentifier, currentNamespace()) ?
+          tables.load(tableIdentifier.name()) :
           icebergCatalog.loadTable(tableIdentifier);
       commitChanges(table, setLocation, setSnapshotId, pickSnapshotId, propertyChanges, schemaChanges);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
@@ -300,7 +306,8 @@ public class SparkCatalog extends BaseCatalog {
   public boolean dropTable(Identifier ident) {
     try {
       TableIdentifier tableIdentifier = buildIdentifier(ident);
-      return HadoopTables.isHadoopTable(tableIdentifier) ? tables.dropTable(tableIdentifier.name()) :
+      return HadoopTables.isHadoopTable(tableIdentifier, currentNamespace()) ?
+          tables.dropTable(tableIdentifier.name()) :
           icebergCatalog.dropTable(tableIdentifier);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       return false;
@@ -323,7 +330,8 @@ public class SparkCatalog extends BaseCatalog {
   public void invalidateTable(Identifier ident) {
     try {
       TableIdentifier tableIdentifier = buildIdentifier(ident);
-      Table table = HadoopTables.isHadoopTable(tableIdentifier) ? tables.load(tableIdentifier.name()) :
+      Table table = HadoopTables.isHadoopTable(tableIdentifier, currentNamespace()) ?
+          tables.load(tableIdentifier.name()) :
           icebergCatalog.loadTable(tableIdentifier);
       table.refresh();
     } catch (org.apache.iceberg.exceptions.NoSuchTableException ignored) {
