@@ -83,8 +83,8 @@ public class Actions {
   }
 
   /**
-   * Converts the provided table into an Iceberg table in place. The table will no longer be represented by it's
-   * previous provider in the session catalog and a new metadata directory will be created at the table's location.
+   * Converts the provided table into an Iceberg table in place. The table will no longer be accessible by it's
+   * previous implementation
    *
    * @param tableName Table to be converted
    * @return {@link CreateAction} to perform migration
@@ -100,7 +100,7 @@ public class Actions {
   }
 
   /**
-   * Converts the provided table into an Iceberg table in place. The table will no longer be accesible by it's
+   * Converts the provided table into an Iceberg table in place. The table will no longer be accessible by it's
    * previous implementation
    *
    * @param tableName Table to be converted
@@ -124,9 +124,9 @@ public class Actions {
    *
    * @param sourceTable Original table which is the basis for the new Iceberg table
    * @param destTable   New Iceberg table being created
-   * @return {@link CreateAction} to perform snapshot
+   * @return {@link SnapshotAction} to perform snapshot
    */
-  public static CreateAction snapshot(SparkSession spark, String sourceTable, String destTable) {
+  public static SnapshotAction snapshot(SparkSession spark, String sourceTable, String destTable) {
     try {
       return DynMethods.builder("snapshot")
           .impl(implClass(), SparkSession.class, String.class, String.class).buildStaticChecked()
@@ -143,54 +143,13 @@ public class Actions {
    *
    * @param sourceTable Original table which is the basis for the new Iceberg table
    * @param destTable   New Iceberg table being created
-   * @return {@link CreateAction} to perform snapshot
+   * @return {@link SnapshotAction} to perform snapshot
    */
-  public static CreateAction snapshot(String sourceTable, String destTable) {
+  public static SnapshotAction snapshot(String sourceTable, String destTable) {
     try {
       return DynMethods.builder("snapshot")
           .impl(implClass(), String.class, String.class).buildStaticChecked()
           .invoke(sourceTable, destTable);
-    } catch (NoSuchMethodException ex) {
-      throw new UnsupportedOperationException("Snapshot is not implemented for this version of Spark");
-    }
-  }
-
-  /**
-   * Creates an independent Iceberg table based on a given table. The new Iceberg table can be altered, appended or
-   * deleted without causing any change to the original. New data and metadata will be created in the
-   * new location passed to this method.
-   *
-   * @param sourceTable Original table which is the basis for the new Iceberg table
-   * @param destTable   New Iceberg table being created
-   * @param location Location for metadata and new data for the new table
-   * @return {@link CreateAction} to perform snapshot
-   */
-  public static CreateAction snapshot(String sourceTable, String destTable, String location) {
-    try {
-      return DynMethods.builder("snapshot")
-          .impl(implClass(), String.class, String.class, String.class).buildStaticChecked()
-          .invoke(sourceTable, destTable, location);
-    } catch (NoSuchMethodException ex) {
-      throw new UnsupportedOperationException("Snapshot is not implemented for this version of Spark");
-    }
-  }
-
-  /**
-   * Creates an independent Iceberg table based on a given table. The new Iceberg table can be altered, appended or
-   * deleted without causing any change to the original. New data and metadata will be created in the
-   * new location passed to this method.
-   *
-   * @param spark Spark session used for action
-   * @param sourceTable Original table which is the basis for the new Iceberg table
-   * @param destTable   New Iceberg table being created
-   * @param location Location for metadata and new data for the new table
-   * @return {@link CreateAction} to perform snapshot
-   */
-  public static CreateAction snapshot(SparkSession spark, String sourceTable, String destTable, String location) {
-    try {
-      return DynMethods.builder("snapshot")
-          .impl(implClass(), SparkSession.class, String.class, String.class, String.class).buildStaticChecked()
-          .invoke(spark, sourceTable, destTable, location);
     } catch (NoSuchMethodException ex) {
       throw new UnsupportedOperationException("Snapshot is not implemented for this version of Spark");
     }

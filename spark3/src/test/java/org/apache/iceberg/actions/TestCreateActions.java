@@ -175,7 +175,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("test_snapshot_partitioned_table");
     String dest = destName("iceberg_snapshot_partitioned");
     createSourceTable(CREATE_PARTITIONED_PARQUET, source);
-    assertMigratedFileCount(Actions.snapshot(source, dest, location.toString()), source, dest);
+    assertMigratedFileCount(Actions.snapshot(source, dest).withLocation(location.toString()), source, dest);
     assertIsolatedSnapshot(source, dest);
   }
 
@@ -187,7 +187,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("test_snapshot_unpartitioned_table");
     String dest = destName("iceberg_snapshot_unpartitioned");
     createSourceTable(CREATE_PARQUET, source);
-    assertMigratedFileCount(Actions.snapshot(source, dest, location.toString()), source, dest);
+    assertMigratedFileCount(Actions.snapshot(source, dest).withLocation(location.toString()), source, dest);
     assertIsolatedSnapshot(source, dest);
   }
 
@@ -199,7 +199,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("snapshot_hive_table");
     String dest = destName("iceberg_snapshot_hive_table");
     createSourceTable(CREATE_HIVE_EXTERNAL_PARQUET, source);
-    assertMigratedFileCount(Actions.snapshot(source, dest, location.toString()), source, dest);
+    assertMigratedFileCount(Actions.snapshot(source, dest).withLocation(location.toString()), source, dest);
     assertIsolatedSnapshot(source, dest);
   }
 
@@ -219,7 +219,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("snapshot_managed_hive_table");
     String dest = destName("iceberg_snapshot_managed_hive_table");
     createSourceTable(CREATE_HIVE_PARQUET, source);
-    assertMigratedFileCount(Actions.snapshot(source, dest, location.toString()), source, dest);
+    assertMigratedFileCount(Actions.snapshot(source, dest).withLocation(location.toString()), source, dest);
     assertIsolatedSnapshot(source, dest);
   }
 
@@ -230,7 +230,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("migrate_managed_hive_table");
     String dest = destName("iceberg_migrate_managed_hive_table");
     createSourceTable(CREATE_HIVE_PARQUET, source);
-    assertMigratedFileCount(Actions.snapshot(source, dest, location.toString()), source, dest);
+    assertMigratedFileCount(Actions.snapshot(source, dest).withLocation(location.toString()), source, dest);
   }
 
   @Test
@@ -245,7 +245,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
       spark.sql(String.format("ALTER TABLE %s SET TBLPROPERTIES (\"%s\" = \"%s\")",
           source, keyValue.getKey(), keyValue.getValue()));
     }
-    assertMigratedFileCount(Actions.snapshot(source, dest).set("dogs", "sundance"), source, dest);
+    assertMigratedFileCount(Actions.snapshot(source, dest).withProperty("dogs", "sundance"), source, dest);
     SparkTable table = loadTable(dest);
 
     Map<String, String> expectedProps = Maps.newHashMap();

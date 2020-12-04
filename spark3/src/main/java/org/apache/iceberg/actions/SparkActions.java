@@ -45,50 +45,29 @@ public class SparkActions extends Actions {
     return new Spark3MigrateAction(spark, catalogAndIdentifier.catalog(), catalogAndIdentifier.identifier());
   }
 
-  public static CreateAction snapshot(String sourceId, String destId) {
+  public static SnapshotAction snapshot(String sourceId, String destId) {
     return snapshot(SparkSession.active(), sourceId, destId);
   }
 
-  public static CreateAction snapshot(SparkSession spark, String sourceId, String destId) {
+  public static SnapshotAction snapshot(SparkSession spark, String sourceId, String destId) {
     Spark3Util.CatalogAndIdentifier sourceIdent;
+
     try {
       sourceIdent = Spark3Util.catalogAndIdentifier(spark, sourceId);
     } catch (ParseException e) {
       throw new IllegalArgumentException("Cannot parse snapshot source", e);
     }
+
     Spark3Util.CatalogAndIdentifier destIdent;
     try {
       destIdent = Spark3Util.catalogAndIdentifier(spark, destId);
     } catch (ParseException e) {
       throw new IllegalArgumentException("Cannot parse snapshot target", e);
     }
+
     Preconditions.checkArgument(sourceIdent != destIdent || sourceIdent.catalog() != destIdent.catalog(),
         "Cannot create a snapshot with the same name as the source of the snapshot.");
     return new Spark3SnapshotAction(spark, sourceIdent.catalog(), sourceIdent.identifier(), destIdent.catalog(),
         destIdent.identifier());
-  }
-
-  public static CreateAction snapshot(String sourceId, String destId, String location) {
-    return snapshot(SparkSession.active(), sourceId, destId, location);
-  }
-
-  public static CreateAction snapshot(SparkSession spark, String sourceId, String destId, String location) {
-    Spark3Util.CatalogAndIdentifier sourceIdent;
-    try {
-      sourceIdent = Spark3Util.catalogAndIdentifier(spark, sourceId);
-    } catch (ParseException e) {
-      throw new IllegalArgumentException("Cannot parse snapshot source", e);
-    }
-    Spark3Util.CatalogAndIdentifier destIdent;
-    try {
-      destIdent = Spark3Util.catalogAndIdentifier(spark, destId);
-    } catch (ParseException e) {
-      throw new IllegalArgumentException("Cannot parse snapshot target", e);
-    }
-
-    Preconditions.checkArgument(sourceIdent != destIdent || sourceIdent.catalog() != destIdent.catalog(),
-        "Cannot create a snapshot with the same name as the source of the snapshot.");
-    return new Spark3SnapshotAction(spark, sourceIdent.catalog(), sourceIdent.identifier(), destIdent.catalog(),
-        destIdent.identifier(), location);
   }
 }

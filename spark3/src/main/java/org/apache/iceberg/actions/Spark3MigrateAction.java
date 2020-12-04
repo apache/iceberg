@@ -19,17 +19,18 @@
 
 package org.apache.iceberg.actions;
 
+import java.util.HashMap;
 import java.util.Map;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
+import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
@@ -72,13 +73,13 @@ class Spark3MigrateAction extends Spark3CreateAction {
     }
 
     StagedTable stagedTable = null;
+    boolean threw = true;
     try {
-      Map<String, String> newTableProperties = new ImmutableMap.Builder<String, String>()
-          .put(TableCatalog.PROP_PROVIDER, "iceberg")
-          .putAll(JavaConverters.mapAsJavaMapConverter(v1SourceTable().properties()).asJava())
-          .putAll(tableLocationProperties(sourceTableLocation()))
-          .putAll(additionalProperties())
-          .build();
+      Map<String, String> newTableProperties = new HashMap<>();
+      newTableProperties.put(TableCatalog.PROP_PROVIDER, "iceberg");
+      newTableProperties.putAll(JavaConverters.mapAsJavaMapConverter(v1SourceTable().properties()).asJava());
+      newTableProperties.putAll(tableLocationProperties(sourceTableLocation()));
+      newTableProperties.putAll(additionalProperties());
 
       stagedTable = destCatalog().stageCreate(Identifier.of(
           destTableName().namespace(),
@@ -89,11 +90,11 @@ class Spark3MigrateAction extends Spark3CreateAction {
 
       icebergTable = ((SparkTable) stagedTable).table();
 
-      if (!icebergTable.properties().containsKey(TableProperties.DEFAULT_NAME_MAPPING)) {
-        applyDefaultTableNameMapping(icebergTable);
+      if (!stagedTable.properties().containsKey(TableProperties.DEFAULT_NAME_MAPPING)) {
+        assignDefaultTableNameMapping(icebergTable);
       }
 
-      String stagingLocation = icebergTable.location() + "/" + ICEBERG_METADATA_FOLDER;
+      String stagingLocation = stagedTable.properties().get(TableProperties.WRITE_METADATA_LOCATION);
 
       LOG.info("Beginning migration of {} using metadata location {}", sourceTableName(), stagingLocation);
 
@@ -102,27 +103,37 @@ class Spark3MigrateAction extends Spark3CreateAction {
       SparkTableUtil.importSparkTable(spark(), v1BackupIdentifier, icebergTable, stagingLocation);
 
       stagedTable.commitStagedChanges();
-    } catch (Exception e) {
-      LOG.error("Error when attempting perform migration changes, aborting table creation and restoring backup", e);
+      threw = false;
 
-      try {
-        if (stagedTable != null) {
-          stagedTable.abortStagedChanges();
+    } catch (TableAlreadyExistsException tableAlreadyExistsException) {
+      throw new IllegalArgumentException("Cannot migrate because a table was created with the same name as the " +
+          "original was created after we renamed the original table to a backup identifier.",
+          tableAlreadyExistsException);
+    } catch (NoSuchNamespaceException noSuchNamespaceException) {
+      throw new IllegalArgumentException("Cannot migrate because the namespace for the table no longer exists after" +
+          "we renamed the original table to a backup identifier.",
+          noSuchNamespaceException);
+    } finally {
+
+      if (threw) {
+        LOG.error("Error when attempting perform migration changes, aborting table creation and restoring backup.");
+        try {
+          destCatalog().renameTable(backupIdentifier, sourceTableName());
+        } catch (NoSuchTableException nstException) {
+          throw new IllegalArgumentException("Cannot restore backup, the backup cannot be found", nstException);
+        } catch (TableAlreadyExistsException taeException) {
+          throw new IllegalArgumentException(String.format("Cannot restore backup, a table with the original name " +
+              "exists. The backup can be found with the name %s", backupIdentifier.toString()), taeException);
         }
-      } catch (Exception abortException) {
-        LOG.error("Unable to abort staged changes", abortException);
-      }
 
-      try {
-        destCatalog().renameTable(backupIdentifier, sourceTableName());
-      } catch (NoSuchTableException nstException) {
-        throw new IllegalArgumentException("Cannot restore backup, the backup cannot be found", nstException);
-      } catch (TableAlreadyExistsException taeException) {
-        throw new IllegalArgumentException(String.format("Cannot restore backup, a table with the original name " +
-            "exists. The backup can be found with the name %s", backupIdentifier.toString()), taeException);
+        try {
+          if (stagedTable != null) {
+            stagedTable.abortStagedChanges();
+          }
+        } catch (Exception abortException) {
+          LOG.error("Unable to abort staged changes", abortException);
+        }
       }
-
-      throw new RuntimeException(e);
     }
 
     Snapshot snapshot = icebergTable.currentSnapshot();
@@ -132,13 +143,13 @@ class Spark3MigrateAction extends Spark3CreateAction {
   }
 
   @Override
-  protected CatalogPlugin checkSourceCatalog(CatalogPlugin catalog) {
+  protected TableCatalog checkSourceCatalog(CatalogPlugin catalog) {
     // Currently the Import code relies on being able to look up the table in the session code
     if (!(catalog instanceof SparkSessionCatalog)) {
       throw new IllegalArgumentException(String.format(
           "Cannot migrate a table from a non-Iceberg Spark Session Catalog. " +
               "Found %s of class %s as the source catalog.", catalog.name(), catalog.getClass().getName()));
     }
-    return catalog;
+    return (TableCatalog) catalog;
   }
 }

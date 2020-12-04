@@ -22,7 +22,6 @@ package org.apache.iceberg.actions;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.mapping.MappingUtil;
@@ -32,9 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkCatalog;
-import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkSessionCatalog;
-import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.catalog.CatalogTable;
@@ -57,39 +54,31 @@ abstract class Spark3CreateAction implements CreateAction {
   private final CatalogTable sourceCatalogTable;
   private final String sourceTableLocation;
   private final CatalogPlugin sourceCatalog;
-  private final Identifier sourceTableName;
-  private final PartitionSpec sourcePartitionSpec;
+  private final Identifier sourceTableIdent;
 
   // Destination Fields
   private final StagingTableCatalog destCatalog;
-  private final Identifier destTableName;
+  private final Identifier destTableIdent;
 
   // Optional Parameters for destination
   private Map<String, String> additionalProperties = Maps.newHashMap();
 
-  Spark3CreateAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableName,
-                       CatalogPlugin destCatalog,  Identifier destTableName) {
+  Spark3CreateAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent,
+                       CatalogPlugin destCatalog, Identifier destTableIdent) {
 
     this.spark = spark;
     this.sourceCatalog = checkSourceCatalog(sourceCatalog);
-    this.sourceTableName = sourceTableName;
+    this.sourceTableIdent = sourceTableIdent;
     this.destCatalog = checkDestinationCatalog(destCatalog);
-    this.destTableName = destTableName;
+    this.destTableIdent = destTableIdent;
 
     try {
-      String sourceString = String.join(".", sourceTableName.namespace()) + "." + sourceTableName.name();
-      sourcePartitionSpec = SparkSchemaUtil.specForTable(spark, sourceString);
-    } catch (AnalysisException e) {
-      throw new IllegalArgumentException("Cannot determining partitioning of " + sourceTableName.toString(), e);
-    }
-
-    try {
-      this.sourceTable = (V1Table) ((TableCatalog) sourceCatalog).loadTable(sourceTableName);
+      this.sourceTable = (V1Table) ((TableCatalog) sourceCatalog).loadTable(sourceTableIdent);
       this.sourceCatalogTable = sourceTable.v1Table();
     } catch (NoSuchTableException e) {
-      throw new IllegalArgumentException(String.format("Cannot not find source table %s", sourceTableName), e);
+      throw new IllegalArgumentException(String.format("Cannot not find source table %s", sourceTableIdent), e);
     } catch (ClassCastException e) {
-      throw new IllegalArgumentException(String.format("Cannot use a non-v1 table %s as a source", sourceTableName), e);
+      throw new IllegalArgumentException(String.format("Cannot use non-v1 table %s as a source", sourceTableIdent), e);
     }
     validateSourceTable(sourceCatalogTable);
 
@@ -97,13 +86,13 @@ abstract class Spark3CreateAction implements CreateAction {
   }
 
   @Override
-  public CreateAction setAll(Map<String, String> properties) {
+  public CreateAction withProperties(Map<String, String> properties) {
     this.additionalProperties.putAll(properties);
     return this;
   }
 
   @Override
-  public CreateAction set(String key, String value) {
+  public CreateAction withProperty(String key, String value) {
     this.additionalProperties.put(key, value);
     return this;
   }
@@ -125,7 +114,7 @@ abstract class Spark3CreateAction implements CreateAction {
   }
 
   protected Identifier sourceTableName() {
-    return sourceTableName;
+    return sourceTableIdent;
   }
 
   protected Transform[] sourcePartitionSpec() {
@@ -137,7 +126,7 @@ abstract class Spark3CreateAction implements CreateAction {
   }
 
   protected Identifier destTableName() {
-    return destTableName;
+    return destTableIdent;
   }
 
   protected Map<String, String> additionalProperties() {
@@ -164,7 +153,7 @@ abstract class Spark3CreateAction implements CreateAction {
     );
   }
 
-  protected static void applyDefaultTableNameMapping(Table table) {
+  protected static void assignDefaultTableNameMapping(Table table) {
     NameMapping nameMapping = MappingUtil.create(table.schema());
     String nameMappingJson = NameMappingParser.toJson(nameMapping);
     table.updateProperties().set(TableProperties.DEFAULT_NAME_MAPPING, nameMappingJson).commit();
@@ -179,5 +168,5 @@ abstract class Spark3CreateAction implements CreateAction {
     return (StagingTableCatalog) catalog;
   }
 
-  protected abstract CatalogPlugin checkSourceCatalog(CatalogPlugin catalog);
+  protected abstract TableCatalog checkSourceCatalog(CatalogPlugin catalog);
 }
