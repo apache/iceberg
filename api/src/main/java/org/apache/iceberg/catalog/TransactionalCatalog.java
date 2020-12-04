@@ -98,14 +98,25 @@ public interface TransactionalCatalog extends Catalog, AutoCloseable {
   void commit();
 
   /**
-   * A shortcut for {@link commit} that allows users to use this catalog in try-with-resources
-   * block.
+   * Close out all resources associated with a transaction.
    *
-   * @throws CommitFailedException If the updates cannot be committed due to conflicts.
+   * <p>This will do a conditional rollback if neither {@code commit} nor {@code rollback}
+   * were called. Standard usage looks like:
+   * <pre>
+   * try(TransactionalCatalog tx = catalog.createTransaction(IsolationLevel.READ_COMMITTED)) {
+   *  doOp1(tx);
+   *  doOp2(tx);
+   *  tx.commit();
+   * }
+   * </pre>
+   * This pattern is designed such that if {@code doOp1()} or {@code doOp2()} throw an exception,
+   * the transaction will be automatically rolled back. If both operations complete successfully,
+   * the close will only close any remaining open resources associated with the transaction.
    */
   @Override
   default void close() {
     commit();
+    close();
   }
 
 }
