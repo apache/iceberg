@@ -52,7 +52,7 @@ object RewriteDelete extends Rule[LogicalPlan] with PredicateHelper with Logging
     case DeleteFromTable(r: DataSourceV2Relation, Some(cond)) =>
       // TODO: do a switch based on whether we get BatchWrite or DeltaBatchWrite
       val writeInfo = newWriteInfo(r.schema)
-      val mergeBuilder = r.table.asMergeable.newMergeBuilder(writeInfo)
+      val mergeBuilder = r.table.asMergeable.newMergeBuilder("delete", writeInfo)
 
       val scanPlan = buildScanPlan(r.table, r.output, mergeBuilder, cond)
 

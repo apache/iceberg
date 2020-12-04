@@ -146,4 +146,10 @@ public class TableProperties {
 
   public static final String MIN_SNAPSHOTS_TO_KEEP = "history.expire.min-snapshots-to-keep";
   public static final int MIN_SNAPSHOTS_TO_KEEP_DEFAULT = 1;
+
+  public static final String DELETE_ISOLATION_LEVEL = "write.delete.isolation-level";
+  public static final String DELETE_ISOLATION_LEVEL_DEFAULT = "serializable";
+
+  public static final String DELETE_MODE = "write.delete.mode";
+  public static final String DELETE_MODE_DEFAULT = "copy-on-write";
 }
