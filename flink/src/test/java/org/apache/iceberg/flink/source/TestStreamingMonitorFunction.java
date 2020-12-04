@@ -22,7 +22,6 @@ package org.apache.iceberg.flink.source;
 import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.flink.core.testutils.OneShotLatch;
@@ -66,7 +65,7 @@ public class TestStreamingMonitorFunction {
   }
 
   private StreamingMonitorFunction create() {
-    return new StreamingMonitorFunction(TableLoader.fromHadoopTable(location), SCHEMA, Collections.emptyList(),
+    return new StreamingMonitorFunction(TableLoader.fromHadoopTable(location),
         ScanContext.builder().monitorInterval(Duration.ofMillis(100)).build());
   }
 

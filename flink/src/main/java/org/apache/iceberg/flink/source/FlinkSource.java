@@ -89,7 +89,7 @@ public class FlinkSource {
     }
 
     public Builder filters(List<Expression> filters) {
-      ctxtBuilder.filterExpression(filters);
+      ctxtBuilder.filters(filters);
       return this;
     }
 
@@ -182,9 +182,9 @@ public class FlinkSource {
       }
 
       if (projectedSchema == null) {
-        ctxtBuilder.projectedSchema(icebergSchema);
+        ctxtBuilder.project(icebergSchema);
       } else {
-        ctxtBuilder.projectedSchema(FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
+        ctxtBuilder.project(FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
       }
 
       return new FlinkInputFormat(tableLoader, icebergSchema, io, encryption, ctxtBuilder.build());
@@ -195,14 +195,13 @@ public class FlinkSource {
       FlinkInputFormat format = buildFormat();
 
       ScanContext ctxt = ctxtBuilder.build();
-      TypeInformation<RowData> typeInfo = RowDataTypeInfo.of(FlinkSchemaUtil.convert(ctxt.projectedSchema()));
+      TypeInformation<RowData> typeInfo = RowDataTypeInfo.of(FlinkSchemaUtil.convert(ctxt.project()));
 
       if (isBounded(ctxt)) {
         return env.createInput(format, typeInfo);
       } else {
         OneInputStreamOperatorFactory<FlinkInputSplit, RowData> factory = StreamingReaderOperator.factory(format);
-        StreamingMonitorFunction function = new StreamingMonitorFunction(tableLoader,
-            ctxt.projectedSchema(), ctxt.filterExpressions(), ctxt);
+        StreamingMonitorFunction function = new StreamingMonitorFunction(tableLoader, ctxt);
 
         String monitorFunctionName = String.format("Iceberg table (%s) monitor", table);
         String readerOperatorName = String.format("Iceberg table (%s) reader", table);

@@ -62,10 +62,10 @@ class ScanContext implements Serializable {
   private static final ConfigOption<Long> SPLIT_FILE_OPEN_COST =
       ConfigOptions.key("split-file-open-cost").longType().defaultValue(null);
 
-  public static final ConfigOption<Boolean> STREAMING =
+  private static final ConfigOption<Boolean> STREAMING =
       ConfigOptions.key("streaming").booleanType().defaultValue(false);
 
-  public static final ConfigOption<Duration> MONITOR_INTERVAL =
+  private static final ConfigOption<Duration> MONITOR_INTERVAL =
       ConfigOptions.key("monitor-interval").durationType().defaultValue(Duration.ofSeconds(10));
 
   private final boolean caseSensitive;
@@ -80,32 +80,14 @@ class ScanContext implements Serializable {
   private final Duration monitorInterval;
 
   private final String nameMapping;
-  private final Schema projectedSchema;
-  private final List<Expression> filterExpressions;
+  private final Schema schema;
+  private final List<Expression> filters;
   private final Long limit;
-
-  ScanContext() {
-    this.caseSensitive = CASE_SENSITIVE.defaultValue();
-    this.snapshotId = SNAPSHOT_ID.defaultValue();
-    this.startSnapshotId = START_SNAPSHOT_ID.defaultValue();
-    this.endSnapshotId = END_SNAPSHOT_ID.defaultValue();
-    this.asOfTimestamp = AS_OF_TIMESTAMP.defaultValue();
-    this.splitSize = SPLIT_SIZE.defaultValue();
-    this.splitLookback = SPLIT_LOOKBACK.defaultValue();
-    this.splitOpenFileCost = SPLIT_FILE_OPEN_COST.defaultValue();
-    this.isStreaming = STREAMING.defaultValue();
-    this.monitorInterval = MONITOR_INTERVAL.defaultValue();
-
-    this.nameMapping = null;
-    this.projectedSchema = null;
-    this.filterExpressions = null;
-    this.limit = null;
-  }
 
   private ScanContext(boolean caseSensitive, Long snapshotId, Long startSnapshotId, Long endSnapshotId,
                       Long asOfTimestamp, Long splitSize, Integer splitLookback, Long splitOpenFileCost,
                       boolean isStreaming, Duration monitorInterval, String nameMapping,
-                      Schema projectedSchema, List<Expression> filterExpressions, Long limit) {
+                      Schema schema, List<Expression> filters, Long limit) {
     this.caseSensitive = caseSensitive;
     this.snapshotId = snapshotId;
     this.startSnapshotId = startSnapshotId;
@@ -118,8 +100,8 @@ class ScanContext implements Serializable {
     this.monitorInterval = monitorInterval;
 
     this.nameMapping = nameMapping;
-    this.projectedSchema = projectedSchema;
-    this.filterExpressions = filterExpressions;
+    this.schema = schema;
+    this.filters = filters;
     this.limit = limit;
   }
 
@@ -167,12 +149,12 @@ class ScanContext implements Serializable {
     return nameMapping;
   }
 
-  Schema projectedSchema() {
-    return projectedSchema;
+  Schema project() {
+    return schema;
   }
 
-  List<Expression> filterExpressions() {
-    return filterExpressions;
+  List<Expression> filters() {
+    return filters;
   }
 
   long limit() {
@@ -187,10 +169,13 @@ class ScanContext implements Serializable {
         .endSnapshotId(newEndSnapshotId)
         .asOfTimestamp(null)
         .splitSize(splitSize)
+        .splitLookback(splitLookback)
         .splitOpenFileCost(splitOpenFileCost)
-        .nameMapping(nameMapping)
         .streaming(isStreaming)
         .monitorInterval(monitorInterval)
+        .nameMapping(nameMapping)
+        .project(schema)
+        .filters(filters)
         .build();
   }
 
@@ -202,10 +187,13 @@ class ScanContext implements Serializable {
         .endSnapshotId(null)
         .asOfTimestamp(null)
         .splitSize(splitSize)
+        .splitLookback(splitLookback)
         .splitOpenFileCost(splitOpenFileCost)
-        .nameMapping(nameMapping)
         .streaming(isStreaming)
         .monitorInterval(monitorInterval)
+        .nameMapping(nameMapping)
+        .project(schema)
+        .filters(filters)
         .build();
   }
 
@@ -214,19 +202,19 @@ class ScanContext implements Serializable {
   }
 
   static class Builder {
-    private boolean caseSensitive;
-    private Long snapshotId;
-    private Long startSnapshotId;
-    private Long endSnapshotId;
-    private Long asOfTimestamp;
-    private Long splitSize;
-    private Integer splitLookback;
-    private Long splitOpenFileCost;
-    private boolean isStreaming;
-    private Duration monitorInterval;
+    private boolean caseSensitive = CASE_SENSITIVE.defaultValue();
+    private Long snapshotId = SNAPSHOT_ID.defaultValue();
+    private Long startSnapshotId = START_SNAPSHOT_ID.defaultValue();
+    private Long endSnapshotId = END_SNAPSHOT_ID.defaultValue();
+    private Long asOfTimestamp = AS_OF_TIMESTAMP.defaultValue();
+    private Long splitSize = SPLIT_SIZE.defaultValue();
+    private Integer splitLookback = SPLIT_LOOKBACK.defaultValue();
+    private Long splitOpenFileCost = SPLIT_FILE_OPEN_COST.defaultValue();
+    private boolean isStreaming = STREAMING.defaultValue();
+    private Duration monitorInterval = MONITOR_INTERVAL.defaultValue();
     private String nameMapping;
     private Schema projectedSchema;
-    private List<Expression> filterExpressions;
+    private List<Expression> filters;
     private Long limit;
 
     private Builder() {
@@ -287,13 +275,13 @@ class ScanContext implements Serializable {
       return this;
     }
 
-    Builder projectedSchema(Schema newProjectedSchema) {
+    Builder project(Schema newProjectedSchema) {
       this.projectedSchema = newProjectedSchema;
       return this;
     }
 
-    Builder filterExpression(List<Expression> newFilterExpressions) {
-      this.filterExpressions = newFilterExpressions;
+    Builder filters(List<Expression> newFilters) {
+      this.filters = newFilters;
       return this;
     }
 
@@ -306,12 +294,11 @@ class ScanContext implements Serializable {
       Configuration config = new Configuration();
       properties.forEach(config::setString);
 
-      return new Builder()
+      return this.useSnapshotId(config.get(SNAPSHOT_ID))
           .caseSensitive(config.get(CASE_SENSITIVE))
-          .useSnapshotId(config.get(SNAPSHOT_ID))
+          .asOfTimestamp(config.get(AS_OF_TIMESTAMP))
           .startSnapshotId(config.get(START_SNAPSHOT_ID))
           .endSnapshotId(config.get(END_SNAPSHOT_ID))
-          .asOfTimestamp(config.get(AS_OF_TIMESTAMP))
           .splitSize(config.get(SPLIT_SIZE))
           .splitLookback(config.get(SPLIT_LOOKBACK))
           .splitOpenFileCost(config.get(SPLIT_FILE_OPEN_COST))
@@ -321,8 +308,7 @@ class ScanContext implements Serializable {
     public ScanContext build() {
       return new ScanContext(caseSensitive, snapshotId, startSnapshotId,
           endSnapshotId, asOfTimestamp, splitSize, splitLookback,
-          splitOpenFileCost, isStreaming, monitorInterval, nameMapping, projectedSchema,
-          filterExpressions, limit);
+          splitOpenFileCost, isStreaming, monitorInterval, nameMapping, projectedSchema, filters, limit);
     }
   }
 }
