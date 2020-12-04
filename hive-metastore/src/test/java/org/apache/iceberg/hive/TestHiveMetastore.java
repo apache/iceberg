@@ -84,7 +84,7 @@ public class TestHiveMetastore {
   private ExecutorService executorService;
   private TServer server;
   private HiveMetaStore.HMSHandler baseHandler;
-  private HiveClientPool clientPool;
+  protected HiveClientPool clientPool; // Exposed for testing.
 
   /**
    * Starts a TestHiveMetastore with the default connection pool size (5).

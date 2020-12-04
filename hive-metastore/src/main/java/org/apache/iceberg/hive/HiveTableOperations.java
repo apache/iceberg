@@ -23,15 +23,19 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.EnvironmentContext;
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.LockComponent;
 import org.apache.hadoop.hive.metastore.api.LockLevel;
 import org.apache.hadoop.hive.metastore.api.LockRequest;
@@ -44,6 +48,7 @@ import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynMethods;
@@ -55,6 +60,7 @@ import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.Tasks;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,8 +72,14 @@ import org.slf4j.LoggerFactory;
 public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HiveTableOperations.class);
 
-  private static final String HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
-  private static final long HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
+  private static final String HIVE_ACQUIRE_LOCK_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
+  private static final String HIVE_LOCK_CHECK_MIN_WAIT_MS = "iceberg.hive.lock-check-min-wait-ms";
+  private static final String HIVE_LOCK_CHECK_MAX_WAIT_MS = "iceberg.hive.lock-check-max-wait-ms";
+  private static final String HIVE_LOCK_CHECK_BACKOFF_SCALE_FACTOR = "iceberg.hive.lock-check-backoff-scale-factor";
+  private static final long HIVE_ACQUIRE_LOCK_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
+  private static final long HIVE_LOCK_CHECK_MIN_WAIT_MS_DEFAULT = 50; // 50 milliseconds
+  private static final long HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT = 5 * 1000; // 5 seconds
+  private static final double HIVE_LOCK_CHECK_BACKOFF_SCALE_FACTOR_DEFAULT = 1.5;
   private static final DynMethods.UnboundMethod ALTER_TABLE = DynMethods.builder("alter_table")
       .impl(HiveMetaStoreClient.class, "alter_table_with_environmentContext",
           String.class, String.class, Table.class, EnvironmentContext.class)
@@ -75,16 +87,27 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
           String.class, String.class, Table.class, EnvironmentContext.class)
       .build();
 
+  protected static class WaitingForLockException extends RuntimeException {
+    public WaitingForLockException(String message) {
+      super(message);
+    }
+  }
+
+  private static final WaitingForLockException WAITING_FOR_LOCK_EXCEPTION =
+      new WaitingForLockException("waiting for lock");
   private final HiveClientPool metaClients;
   private final String fullName;
   private final String database;
   private final String tableName;
   private final Configuration conf;
   private final long lockAcquireTimeout;
+  private final long lockCheckMinWaitTime;
+  private final long lockCheckMaxWaitTime;
+  private final double lockCheckBackoffScaleFactor;
   private final FileIO fileIO;
 
   protected HiveTableOperations(Configuration conf, HiveClientPool metaClients, FileIO fileIO,
-                                String catalogName, String database, String table) {
+      String catalogName, String database, String table) {
     this.conf = conf;
     this.metaClients = metaClients;
     this.fileIO = fileIO;
@@ -92,7 +115,14 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     this.database = database;
     this.tableName = table;
     this.lockAcquireTimeout =
-        conf.getLong(HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS, HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT);
+        conf.getLong(HIVE_ACQUIRE_LOCK_TIMEOUT_MS, HIVE_ACQUIRE_LOCK_TIMEOUT_MS_DEFAULT);
+    this.lockCheckMinWaitTime =
+        conf.getLong(HIVE_LOCK_CHECK_MIN_WAIT_MS, HIVE_LOCK_CHECK_MIN_WAIT_MS_DEFAULT);
+    this.lockCheckMaxWaitTime =
+        conf.getLong(HIVE_LOCK_CHECK_MAX_WAIT_MS, HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT);
+    this.lockCheckBackoffScaleFactor =
+        conf.getDouble(HIVE_LOCK_CHECK_BACKOFF_SCALE_FACTOR, HIVE_LOCK_CHECK_BACKOFF_SCALE_FACTOR_DEFAULT);
+
   }
 
   @Override
@@ -294,32 +324,57 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         System.getProperty("user.name"),
         InetAddress.getLocalHost().getHostName());
     LockResponse lockResponse = metaClients.run(client -> client.lock(lockRequest));
-    LockState state = lockResponse.getState();
+    AtomicReference<LockState> state = new AtomicReference<>(lockResponse.getState());
     long lockId = lockResponse.getLockid();
 
     final long start = System.currentTimeMillis();
     long duration = 0;
     boolean timeout = false;
-    while (!timeout && state.equals(LockState.WAITING)) {
-      lockResponse = metaClients.run(client -> client.checkLock(lockId));
-      state = lockResponse.getState();
 
-      // check timeout
-      duration = System.currentTimeMillis() - start;
-      if (duration > lockAcquireTimeout) {
+    if (state.get().equals(LockState.WAITING)) {
+      try {
+        Tasks.foreach(lockId)
+            .retry(Integer.MAX_VALUE - 100) // Endless retries bound by timeouts. Tasks.retry adds 1 for "first try".
+            .exponentialBackoff(
+                lockCheckMinWaitTime,
+                lockCheckMaxWaitTime,
+                lockAcquireTimeout,
+                lockCheckBackoffScaleFactor)
+            .throwFailureWhenFinished()
+            .onlyRetryOn(WaitingForLockException.class)
+            .run(id -> {
+              try {
+                LockResponse response = metaClients.run(client -> client.checkLock(id));
+                LockState newState = response.getState();
+                state.set(newState);
+                if (newState.equals(LockState.WAITING)) {
+                  throw WAITING_FOR_LOCK_EXCEPTION;
+                }
+              } catch (InterruptedException | TException e) {
+                throw new Tasks.UnrecoverableException(e);
+              }
+            });
+      } catch (WaitingForLockException waitingForLockException) {
         timeout = true;
-      } else {
-        Thread.sleep(50);
+        duration = System.currentTimeMillis() - start;
+      } catch (Tasks.UnrecoverableException wrappedException) {
+        if (wrappedException.getCause() instanceof TException) {
+          throw (TException) wrappedException.getCause();
+        } else if (wrappedException.getCause() instanceof InterruptedException) {
+          throw (InterruptedException) wrappedException.getCause();
+        } else {
+          throw wrappedException;
+        }
       }
     }
 
     // timeout and do not have lock acquired
-    if (timeout && !state.equals(LockState.ACQUIRED)) {
+    if (timeout && !state.get().equals(LockState.ACQUIRED)) {
       throw new CommitFailedException("Timed out after %s ms waiting for lock on %s.%s",
           duration, database, tableName);
     }
 
-    if (!state.equals(LockState.ACQUIRED)) {
+    if (!state.get().equals(LockState.ACQUIRED)) {
       throw new CommitFailedException("Could not acquire the lock on %s.%s, " +
           "lock request ended in state %s", database, tableName, state);
     }
