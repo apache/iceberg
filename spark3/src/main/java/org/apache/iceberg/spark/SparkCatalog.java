@@ -64,6 +64,8 @@ import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
+import static org.apache.iceberg.hadoop.HadoopTables.isHadoopTable;
+
 /**
  * A Spark TableCatalog implementation that wraps an Iceberg {@link Catalog}.
  * <p>
@@ -513,12 +515,4 @@ public class SparkCatalog extends BaseCatalog {
     transaction.commitTransaction();
   }
 
-  // todo I really don't like this check. fragile.
-  protected static boolean isHadoopTable(String location) {
-    return location.contains("/");
-  }
-
-  protected static boolean isHadoopTable(TableIdentifier identifier) {
-    return isHadoopTable(identifier.name());
-  }
 }
