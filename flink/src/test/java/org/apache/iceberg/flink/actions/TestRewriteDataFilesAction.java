@@ -23,6 +23,7 @@ package org.apache.iceberg.flink.actions;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -46,6 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -306,14 +308,14 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
    */
   @Test
   public void testRewriteAvoidRepeateCompress() throws IOException {
-    if (!format.equals(FileFormat.ORC)) {
-      List<Record> expected = Lists.newArrayList();
-      Schema schema = icebergTableUnPartitioned.schema();
-      GenericAppenderFactory genericAppenderFactory = new GenericAppenderFactory(schema);
-      File file = temp.newFile();
-      FileAppender<Record> fileAppender = genericAppenderFactory.newAppender(Files.localOutput(file), format);
+    Assume.assumeFalse("ORC does not support getting length when file is opening", format.equals(FileFormat.ORC));
+    List<Record> expected = Lists.newArrayList();
+    Schema schema = icebergTableUnPartitioned.schema();
+    GenericAppenderFactory genericAppenderFactory = new GenericAppenderFactory(schema);
+    File file = temp.newFile();
+    int count = 0;
+    try (FileAppender<Record> fileAppender = genericAppenderFactory.newAppender(Files.localOutput(file), format)) {
       long filesize = 20000;
-      int count = 0;
       for (; fileAppender.length() < filesize; count++) {
         Record record = RECORD.copy();
         record.setField("id", count);
@@ -321,49 +323,52 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
         fileAppender.add(record);
         expected.add(record);
       }
-      fileAppender.close();
-
-      DataFile dataFile = DataFiles.builder(icebergTableUnPartitioned.spec())
-          .withPath(file.getAbsolutePath())
-          .withFileSizeInBytes(file.length())
-          .withFormat(format)
-          .withRecordCount(count)
-          .build();
-
-      icebergTableUnPartitioned.newAppend()
-          .appendFile(dataFile)
-          .commit();
-
-      sql("INSERT INTO %s SELECT 1,'a' ", TABLE_NAME_UNPARTITIONED);
-      sql("INSERT INTO %s SELECT 2,'b' ", TABLE_NAME_UNPARTITIONED);
-
-      icebergTableUnPartitioned.refresh();
-
-      CloseableIterable<FileScanTask> tasks = icebergTableUnPartitioned.newScan().planFiles();
-      List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-      Assert.assertEquals("Should have 3 data files before rewrite", 3, dataFiles.size());
-
-      Actions actions = Actions.forTable(icebergTableUnPartitioned);
-
-      long targetSizeInBytes = file.length() + 10;
-      RewriteDataFilesActionResult result = actions
-          .rewriteDataFiles()
-          .targetSizeInBytes(targetSizeInBytes)
-          .splitOpenFileCost(1)
-          .execute();
-      Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
-      Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
-
-      icebergTableUnPartitioned.refresh();
-
-      CloseableIterable<FileScanTask> tasks1 = icebergTableUnPartitioned.newScan().planFiles();
-      List<DataFile> dataFiles1 = Lists.newArrayList(CloseableIterable.transform(tasks1, FileScanTask::file));
-      Assert.assertEquals("Should have 2 data files after rewrite", 2, dataFiles1.size());
-
-      // Assert the table records as expected.
-      expected.add(SimpleDataUtil.createRecord(1, "a"));
-      expected.add(SimpleDataUtil.createRecord(2, "b"));
-      SimpleDataUtil.assertTableRecords(icebergTableUnPartitioned, expected);
     }
+
+    DataFile dataFile = DataFiles.builder(icebergTableUnPartitioned.spec())
+        .withPath(file.getAbsolutePath())
+        .withFileSizeInBytes(file.length())
+        .withFormat(format)
+        .withRecordCount(count)
+        .build();
+
+    icebergTableUnPartitioned.newAppend()
+        .appendFile(dataFile)
+        .commit();
+
+    sql("INSERT INTO %s SELECT 1,'a' ", TABLE_NAME_UNPARTITIONED);
+    sql("INSERT INTO %s SELECT 2,'b' ", TABLE_NAME_UNPARTITIONED);
+
+    icebergTableUnPartitioned.refresh();
+
+    CloseableIterable<FileScanTask> tasks = icebergTableUnPartitioned.newScan().planFiles();
+    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
+    Assert.assertEquals("Should have 3 data files before rewrite", 3, dataFiles.size());
+
+    Actions actions = Actions.forTable(icebergTableUnPartitioned);
+
+    long targetSizeInBytes = file.length() + 10;
+    RewriteDataFilesActionResult result = actions
+        .rewriteDataFiles()
+        .targetSizeInBytes(targetSizeInBytes)
+        .splitOpenFileCost(1)
+        .execute();
+    Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
+    Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
+
+    icebergTableUnPartitioned.refresh();
+
+    CloseableIterable<FileScanTask> tasks1 = icebergTableUnPartitioned.newScan().planFiles();
+    List<DataFile> dataFilesRewrited = Lists.newArrayList(CloseableIterable.transform(tasks1, FileScanTask::file));
+    Assert.assertEquals("Should have 2 data files after rewrite", 2, dataFilesRewrited.size());
+
+    // the biggest file do not be rewrited
+    List rewritedDataFileNames = dataFilesRewrited.stream().map(df -> df.path()).collect(Collectors.toList());
+    Assert.assertTrue(rewritedDataFileNames.contains(file.getAbsolutePath()));
+
+    // Assert the table records as expected.
+    expected.add(SimpleDataUtil.createRecord(1, "a"));
+    expected.add(SimpleDataUtil.createRecord(2, "b"));
+    SimpleDataUtil.assertTableRecords(icebergTableUnPartitioned, expected);
   }
 }
