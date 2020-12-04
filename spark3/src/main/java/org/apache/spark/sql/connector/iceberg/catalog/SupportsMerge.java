@@ -26,8 +26,8 @@ import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 /**
  * A mix-in interface for Table to indicate that it supports row-level operations.
  * <p>
- * This adds {@link #newMergeBuilder(LogicalWriteInfo)} that is used to create a scan and a write
- * for a row-level operation.
+ * This adds {@link #newMergeBuilder(String, LogicalWriteInfo)} that is used to create a scan and
+ * a write for a row-level operation.
  */
 public interface SupportsMerge extends Table {
   /**
@@ -37,5 +37,5 @@ public interface SupportsMerge extends Table {
    * @param info write info
    * @return a merge builder
    */
-  MergeBuilder newMergeBuilder(LogicalWriteInfo info);
+  MergeBuilder newMergeBuilder(String operation, LogicalWriteInfo info);
 }

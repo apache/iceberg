@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -36,6 +37,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.util.PropertyUtil;
@@ -76,7 +78,6 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
     this.table = table;
     this.ignoreResiduals = ignoreResiduals;
     this.expectedSchema = expectedSchema;
-    this.snapshotId = Spark3Util.propertyAsLong(options, "snapshot-id", null);
 
     Map<String, String> props = table.properties();
 
@@ -89,10 +90,11 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
     long tableOpenFileCost = PropertyUtil.propertyAsLong(props, SPLIT_OPEN_FILE_COST, SPLIT_OPEN_FILE_COST_DEFAULT);
     this.splitOpenFileCost = Spark3Util.propertyAsLong(options, "file-open-cost", tableOpenFileCost);
 
-    if (snapshotId == null) {
-      // init files with an empty list if the snapshot id is not set to avoid picking any concurrent changes
-      files = Collections.emptyList();
-    }
+    Preconditions.checkArgument(!options.containsKey("snapshot-id"), "Cannot have snapshot-id in options");
+    Snapshot currentSnapshot = table.currentSnapshot();
+    this.snapshotId = currentSnapshot != null ? currentSnapshot.snapshotId() : null;
+    // init files with an empty list if the table is empty to avoid picking any concurrent changes
+    this.files = currentSnapshot == null ? Collections.emptyList() : null;
   }
 
   Long snapshotId() {

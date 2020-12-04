@@ -51,8 +51,8 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableProperties.WRITE_ROW_LEVEL_MODE;
-import static org.apache.iceberg.TableProperties.WRITE_ROW_LEVEL_MODE_DEFAULT;
+import static org.apache.iceberg.TableProperties.DELETE_MODE;
+import static org.apache.iceberg.TableProperties.DELETE_MODE_DEFAULT;
 
 public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     SupportsRead, SupportsWrite, ExtendedSupportsDelete, SupportsMerge {
@@ -168,10 +168,19 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   }
 
   @Override
-  public MergeBuilder newMergeBuilder(LogicalWriteInfo info) {
-    String mode = icebergTable.properties().getOrDefault(WRITE_ROW_LEVEL_MODE, WRITE_ROW_LEVEL_MODE_DEFAULT);
-    ValidationException.check(mode.equals("copy-on-write"), "Unsupported row operations mode: %s", mode);
-    return new SparkMergeBuilder(sparkSession(), icebergTable, info);
+  public MergeBuilder newMergeBuilder(String operation, LogicalWriteInfo info) {
+    String mode = getRowLevelOperationMode(operation);
+    ValidationException.check(mode.equals("copy-on-write"), "Unsupported mode for %s: %s", operation, mode);
+    return new SparkMergeBuilder(sparkSession(), icebergTable, operation, info);
+  }
+
+  private String getRowLevelOperationMode(String operation) {
+    Map<String, String> props = icebergTable.properties();
+    if (operation.equalsIgnoreCase("delete")) {
+      return props.getOrDefault(DELETE_MODE, DELETE_MODE_DEFAULT);
+    } else {
+      throw new IllegalArgumentException("Unsupported operation: " + operation);
+    }
   }
 
   @Override
@@ -196,6 +205,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   private boolean requiresRewrite(Filter filter, Schema schema, Set<Integer> identitySourceIds) {
     // TODO: handle dots correctly via v2references
+    // TODO: detect more cases that don't require rewrites
     Set<String> filterRefs = Sets.newHashSet(filter.references());
     return filterRefs.stream().anyMatch(ref -> {
       Types.NestedField field = schema.findField(ref);

@@ -32,6 +32,6 @@ public class TestCopyOnWriteDelete extends TestDelete {
 
   @Override
   protected Map<String, String> extraTableProperties() {
-    return ImmutableMap.of(TableProperties.WRITE_ROW_LEVEL_MODE, "copy-on-write");
+    return ImmutableMap.of(TableProperties.DELETE_MODE, "copy-on-write");
   }
 }

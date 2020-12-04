@@ -67,7 +67,8 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
             ImmutableMap.of(
                 "type", "hive",
                 "default-namespace", "default",
-                "parquet-enabled", "true",
+                "clients", "1",
+                "parquet-enabled", "false",
                 "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
             ),
             "avro",

@@ -19,21 +19,20 @@
 
 package org.apache.iceberg.spark.source;
 
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import org.apache.arrow.util.Preconditions;
 import org.apache.iceberg.IsolationLevel;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.iceberg.write.MergeBuilder;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.WriteBuilder;
-import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+
+import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
+import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL_DEFAULT;
 
 class SparkMergeBuilder implements MergeBuilder {
 
@@ -47,16 +46,21 @@ class SparkMergeBuilder implements MergeBuilder {
   private Scan configuredScan;
   private WriteBuilder lazyWriteBuilder;
 
-  SparkMergeBuilder(SparkSession spark, Table table, LogicalWriteInfo writeInfo) {
+  SparkMergeBuilder(SparkSession spark, Table table, String operation, LogicalWriteInfo writeInfo) {
     this.spark = spark;
     this.table = table;
     this.writeInfo = writeInfo;
+    this.isolationLevel = getIsolationLevel(table.properties(), operation);
+  }
 
-    String isolationLevelAsString = table.properties().getOrDefault(
-        TableProperties.WRITE_ISOLATION_LEVEL,
-        TableProperties.WRITE_ISOLATION_LEVEL_DEFAULT
-    ).toUpperCase(Locale.ROOT);
-    this.isolationLevel = IsolationLevel.valueOf(isolationLevelAsString);
+  private IsolationLevel getIsolationLevel(Map<String, String> props, String operation) {
+    String isolationLevelAsString;
+    if (operation.equalsIgnoreCase("delete")) {
+      isolationLevelAsString = props.getOrDefault(DELETE_ISOLATION_LEVEL, DELETE_ISOLATION_LEVEL_DEFAULT);
+    } else {
+      throw new IllegalArgumentException("Unsupported operation: " + operation);
+    }
+    return IsolationLevel.valueOf(isolationLevelAsString.toUpperCase(Locale.ROOT));
   }
 
   @Override
@@ -66,7 +70,7 @@ class SparkMergeBuilder implements MergeBuilder {
 
   private ScanBuilder scanBuilder() {
     if (lazyScanBuilder == null) {
-      SparkScanBuilder scanBuilder = new SparkScanBuilder(spark, table, scanOptions()) {
+      SparkScanBuilder scanBuilder = new SparkScanBuilder(spark, table, writeInfo.options()) {
         public Scan build() {
           Scan scan = super.buildMergeScan();
           SparkMergeBuilder.this.configuredScan = scan;
@@ -78,19 +82,6 @@ class SparkMergeBuilder implements MergeBuilder {
     }
 
     return lazyScanBuilder;
-  }
-
-  private CaseInsensitiveStringMap scanOptions() {
-    Snapshot currentSnapshot = table.currentSnapshot();
-
-    if (currentSnapshot == null) {
-      return CaseInsensitiveStringMap.empty();
-    }
-
-    // set the snapshot id in the scan so that we can fetch it in the write
-    Map<String, String> scanOptions = new HashMap<>(writeInfo.options());
-    scanOptions.put("snapshot-id", String.valueOf(currentSnapshot.snapshotId()));
-    return new CaseInsensitiveStringMap(scanOptions);
   }
 
   @Override
