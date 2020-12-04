@@ -22,7 +22,6 @@ package org.apache.iceberg.io;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -120,13 +119,11 @@ class SortedPosDeleteWriter<T> implements Closeable {
     PositionDeleteWriter<T> writer = appenderFactory.newPosDeleteWriter(outputFile, format, partition);
     try (PositionDeleteWriter<T> closeableWriter = writer) {
       // Sort all the paths.
-      CharSequence[] paths = new CharSequence[posDeletes.size()];
-      int index = 0;
+      List<CharSequence> paths = Lists.newArrayListWithCapacity(posDeletes.keySet().size());
       for (CharSequenceWrapper charSequenceWrapper : posDeletes.keySet()) {
-        paths[index] = charSequenceWrapper.get();
-        index += 1;
+        paths.add(charSequenceWrapper.get());
       }
-      Arrays.sort(paths, Comparators.charSequences());
+      paths.sort(Comparators.charSequences());
 
       // Write all the sorted <path, pos, row> triples.
       for (CharSequence path : paths) {

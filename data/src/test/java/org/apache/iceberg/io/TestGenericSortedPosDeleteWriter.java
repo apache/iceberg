@@ -141,7 +141,7 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
 
     SortedPosDeleteWriter<Record> writer = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, null, 100);
     try (SortedPosDeleteWriter<Record> closeableWriter = writer) {
-      for (int index = 0; index < rowSet.size(); index += 2) {
+      for (int index = rowSet.size() - 1; index >= 0; index -= 2) {
         closeableWriter.delete(dataFile.path(), index);
       }
     }
@@ -190,7 +190,7 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
 
     SortedPosDeleteWriter<Record> writer = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, null, 100);
     try (SortedPosDeleteWriter<Record> closeableWriter = writer) {
-      for (int index = 0; index < rowSet.size(); index += 2) {
+      for (int index = rowSet.size() - 1; index >= 0; index -= 2) {
         closeableWriter.delete(dataFile.path(), index, rowSet.get(index)); // Write deletes with row.
       }
     }
@@ -253,8 +253,8 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
 
     SortedPosDeleteWriter<Record> writer = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, null, 50);
     try (SortedPosDeleteWriter<Record> closeableWriter = writer) {
-      for (int pos = 0; pos < 100; pos++) {
-        for (int fileIndex = 0; fileIndex < 5; fileIndex++) {
+      for (int pos = 0; pos < 100; pos++) { // Delete in DESC order.
+        for (int fileIndex = 4; fileIndex >= 0; fileIndex--) {
           closeableWriter.delete(dataFiles.get(fileIndex).path(), pos);
         }
       }
