@@ -33,15 +33,20 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+
+import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+
+import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -562,7 +567,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // delete thread
     Future<?> deleteFuture = executorService.submit(() -> {
-      for (int numOperations = 0; numOperations < 20; numOperations++) {
+      for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
         while (barrier.get() < numOperations * 2) {
           sleep(10);
         }
@@ -573,7 +578,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // append thread
     Future<?> appendFuture = executorService.submit(() -> {
-      for (int numOperations = 0; numOperations < 20; numOperations++) {
+      for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
         while (barrier.get() < numOperations * 2) {
           sleep(10);
         }
@@ -586,8 +591,12 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       deleteFuture.get();
       Assert.fail("Expected a validation exception");
     } catch (ExecutionException e) {
-      String errMsg = e.getCause().getCause().getMessage();
-      Assert.assertTrue(errMsg.contains("Found conflicting files"));
+      Throwable sparkException = e.getCause();
+      Assert.assertThat(sparkException, CoreMatchers.instanceOf(SparkException.class));
+      Throwable validationException = sparkException.getCause();
+      Assert.assertThat(validationException, CoreMatchers.instanceOf(ValidationException.class));
+      String errMsg = validationException.getMessage();
+      Assert.assertThat(errMsg, CoreMatchers.containsString("Found conflicting files that can contain"));
     } finally {
       appendFuture.cancel(true);
     }
