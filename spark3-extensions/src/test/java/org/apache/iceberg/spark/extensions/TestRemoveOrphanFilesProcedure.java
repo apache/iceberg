@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
@@ -34,6 +35,9 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+
+import static org.apache.iceberg.TableProperties.GC_ENABLED;
+import static org.apache.iceberg.TableProperties.WRITE_AUDIT_PUBLISH_ENABLED;
 
 public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
 
@@ -57,7 +61,7 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
     List<Object[]> output = sql(
         "CALL %s.system.remove_orphan_files('%s', '%s')",
         catalogName, tableIdent.namespace(), tableIdent.name());
-    assertEquals("Procedure output must match", ImmutableList.of(), output);
+    assertEquals("Should be no orphan files", ImmutableList.of(), output);
 
     assertEquals("Should have no rows",
         ImmutableList.of(),
@@ -181,6 +185,37 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1L, "a"), row(2L, "b")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testRemoveOrphanFilesGCDisabled() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' 'false')", tableName, GC_ENABLED);
+
+    AssertHelpers.assertThrows("Should reject call",
+        ValidationException.class, "Cannot remove orphan files: GC is disabled",
+        () -> sql("CALL %s.system.remove_orphan_files('%s', '%s')", catalogName,
+            tableIdent.namespace(), tableIdent.name()));
+  }
+
+  @Test
+  public void testRemoveOrphanFilesWap() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' 'true')", tableName, WRITE_AUDIT_PUBLISH_ENABLED);
+
+    spark.conf().set("spark.wap.id", "1");
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    assertEquals("Should not see rows from staged snapshot",
+        ImmutableList.of(),
+        sql("SELECT * FROM %s", tableName));
+
+    List<Object[]> output = sql(
+        "CALL %s.system.remove_orphan_files('%s', '%s')",
+        catalogName, tableIdent.namespace(), tableIdent.name());
+    assertEquals("Should be no orphan files", ImmutableList.of(), output);
   }
 
   @Test
