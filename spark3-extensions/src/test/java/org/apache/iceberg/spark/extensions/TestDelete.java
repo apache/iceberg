@@ -554,6 +554,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
   @Test
   public synchronized void testDeleteWithSerializableIsolation() throws InterruptedException {
+    // cannot run tests with concurrency for Hadoop tables without atomic renames
+    Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+
     createAndInitUnpartitionedTable();
 
     sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tableName, DELETE_ISOLATION_LEVEL, "serializable");
@@ -605,6 +608,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
   @Test
   public synchronized void testDeleteWithSnapshotIsolation() throws InterruptedException, ExecutionException {
+    // cannot run tests with concurrency for Hadoop tables without atomic renames
+    Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+
     createAndInitUnpartitionedTable();
 
     sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tableName, DELETE_ISOLATION_LEVEL, "snapshot");
