@@ -518,6 +518,9 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   @Override
   protected void finalize() throws Throwable {
     super.finalize();
+    // todo it is possible that the Catalog is gc-ed before child table operations are done w/ the clients object.
+    // The closing of the HiveCatalog should take that into account and child TableOperations should own the clients obj
+    // or the TabaleOperations should be explicitly closed and the Catalog can't be gc-ed/closed till all children are.
     if (!closed) {
       close(); // releasing resources is more important than printing the warning
       String trace = Joiner.on("\n\t").join(
