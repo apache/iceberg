@@ -40,6 +40,22 @@ import org.apache.spark.sql.sources.DataSourceRegister;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
+/**
+ * The IcebergSource loads/writes tables with format "iceberg". It can load paths and tables.
+ *
+ * How paths/tables are loaded when using spark.read().format("iceberg").path(table)
+ *
+ *  table = "file:/absolute/path/to/table" -> loads a HadoopTable at given path
+ *  table = "file:/relative/path/to/table" -> fails to load table. Must use absolute path
+ *  table = "catalog.`file:/absolute/path/to/table`" -> loads a HadoopTable at given path using settings from 'catalog'
+ *  table = "catalog.namespace.`file:/absolute/path/to/table`" -> fails. Namespace doesn't exist for paths
+ *  table = "tablename" -> loads currentCatalog.defaultNamespace.tablename
+ *  table = "xxx.tablename" -> if xxx is a catalog load "tablename" from the specified catalog. Otherwise
+ *          load "xxx.tablename" from current catalog
+ *  table = "xxx.yyy.tablename" -> if xxx is a catalog load "yyy.tablename" from the specified catalog. Otherwise
+ *          load "xxx.yyy.tablename" from current catalog
+ *
+ */
 public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions {
   @Override
   public String shortName() {
@@ -95,12 +111,6 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
 
     if (ident.size() == 1) {
       return Pair.of(currentCatalogName, TableIdentifier.of(defaultNamespace, ident.get(0)));
-    } else if (ident.size() == 2) {
-      if (catalogManager.isCatalogRegistered(ident.get(0))) {
-        return Pair.of(ident.get(0), TableIdentifier.of(ident.get(1)));
-      } else {
-        return Pair.of(currentCatalogName, TableIdentifier.of(ident.toArray(new String[0])));
-      }
     } else {
       if (catalogManager.isCatalogRegistered(ident.get(0))) {
         return Pair.of(ident.get(0), TableIdentifier.of(ident.subList(1, ident.size()).toArray(new String[0])));

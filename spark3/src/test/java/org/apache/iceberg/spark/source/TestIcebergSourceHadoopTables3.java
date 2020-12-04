@@ -23,14 +23,10 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.spark.HadoopDelegatedCatalog;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.junit.BeforeClass;
 
 public class TestIcebergSourceHadoopTables3 extends TestIcebergSourceHadoopTables {
-
-  private static HadoopDelegatedCatalog catalog = new HadoopDelegatedCatalog(SparkTestBase.catalog,
-      spark.sessionState().newHadoopConf());
 
   @BeforeClass
   public static void setupCatalog() {
@@ -39,12 +35,12 @@ public class TestIcebergSourceHadoopTables3 extends TestIcebergSourceHadoopTable
 
   @Override
   public Table createTable(TableIdentifier ident, Schema schema, PartitionSpec spec) {
-    return TestIcebergSourceHadoopTables3.catalog.createTable(TableIdentifier.of(tableLocation), schema, spec);
+    return SparkTestBase.catalog.createTable(TableIdentifier.of(tableLocation), schema, spec);
   }
 
   @Override
   public Table loadTable(TableIdentifier ident, String entriesSuffix) {
-    return TestIcebergSourceHadoopTables3.catalog.loadTable(TableIdentifier.parse(loadLocation(ident, entriesSuffix)));
+    return SparkTestBase.catalog.loadTable(TableIdentifier.parse(loadLocation(ident, entriesSuffix)));
   }
 
   @Override
