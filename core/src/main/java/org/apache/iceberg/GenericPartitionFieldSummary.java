@@ -41,7 +41,7 @@ public class GenericPartitionFieldSummary
 
   // data fields
   private boolean containsNull = false;
-  private boolean containsNaN = false;
+  private Boolean containsNaN = null;
   private byte[] lowerBound = null;
   private byte[] upperBound = null;
 
@@ -73,7 +73,7 @@ public class GenericPartitionFieldSummary
     }
   }
 
-  public GenericPartitionFieldSummary(boolean containsNull, boolean containsNaN, ByteBuffer lowerBound,
+  public GenericPartitionFieldSummary(boolean containsNull, Boolean containsNaN, ByteBuffer lowerBound,
                                       ByteBuffer upperBound) {
     this.avroSchema = AVRO_SCHEMA;
     this.containsNull = containsNull;
@@ -109,7 +109,7 @@ public class GenericPartitionFieldSummary
   }
 
   @Override
-  public boolean containsNaN() {
+  public Boolean containsNaN() {
     return containsNaN;
   }
 

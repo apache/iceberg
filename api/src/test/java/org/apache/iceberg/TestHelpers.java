@@ -167,7 +167,7 @@ public class TestHelpers {
     }
 
     @Override
-    public boolean containsNaN() {
+    public Boolean containsNaN() {
       return containsNaN;
     }
 

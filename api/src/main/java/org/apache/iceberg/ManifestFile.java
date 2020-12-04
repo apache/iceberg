@@ -55,7 +55,7 @@ public interface ManifestFile {
       "Deleted rows count");
   Types.StructType PARTITION_SUMMARY_TYPE = Types.StructType.of(
       required(509, "contains_null", Types.BooleanType.get(), "True if any file has a null partition value"),
-      required(518, "contains_nan", Types.BooleanType.get(), "True if any file has a nan partition value"),
+      optional(518, "contains_nan", Types.BooleanType.get(), "True if any file has a nan partition value"),
       optional(510, "lower_bound", Types.BinaryType.get(), "Partition lower bound for all files"),
       optional(511, "upper_bound", Types.BinaryType.get(), "Partition upper bound for all files")
   );
@@ -202,8 +202,9 @@ public interface ManifestFile {
 
     /**
      * Returns true if at least one data file in the manifest has a nan value for the field.
+     * Null if this information doesn't exist.
      */
-    boolean containsNaN();
+    Boolean containsNaN();
 
     /**
      * Returns a ByteBuffer that contains a serialized bound lower than all values of the field.
