@@ -68,7 +68,7 @@ public abstract class TestSparkDataWrite {
 
   @Parameterized.Parameters(name = "format = {0}")
   public static Object[] parameters() {
-    return new Object[] { "parquet", "avro", "orc"};
+    return new Object[] { "parquet", "avro", "orc" };
   }
 
   @BeforeClass

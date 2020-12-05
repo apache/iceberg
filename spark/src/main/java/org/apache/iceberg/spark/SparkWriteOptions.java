@@ -27,6 +27,6 @@ public class SparkWriteOptions {
   private SparkWriteOptions() {
   }
 
-  // Overrides table property write.spark.partitioned.fanout.enabled(default: false)
+  // Overrides table property write.spark.fanout.enabled(default: false)
   public static final String FANOUT_ENABLED = "fanout-enabled";
 }
