@@ -41,6 +41,10 @@ class TypeID(Enum):
 
 
 class Type(object):
+    length: int
+    scale: int
+    precision: int
+
     def __init__(self):
         pass
 

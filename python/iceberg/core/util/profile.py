@@ -15,24 +15,22 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from iceberg.core.filesystem import FileSystem
+from contextlib import contextmanager
+import logging
+import time
+
+_logger = logging.getLogger(__name__)
 
 
-class InputFile(object):
-    fs: 'FileSystem'
-    path: str
-
-    def get_length(self):
-        raise NotImplementedError()
-
-    def new_stream(self):
-        raise NotImplementedError()
-
-    def location(self):
-        raise NotImplementedError()
-
-    def new_fo(self):
-        raise NotImplementedError()
+@contextmanager
+def profile(label, stats_dict=None):
+    if stats_dict is None:
+        _logger.debug('PROFILE: %s starting' % label)
+    start = time.time()
+    yield
+    took = int((time.time() - start) * 1000)
+    if stats_dict is None:
+        _logger.debug('PROFILE: %s completed in %dms' % (label, took))
+    else:
+        stats_dict[label] = stats_dict.get(label, 0) + took

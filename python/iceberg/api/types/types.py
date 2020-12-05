@@ -310,10 +310,11 @@ class FixedType(PrimitiveType):
         return FixedType(length)
 
     def __init__(self, length):
-        self.length = length
+        self._length = length
 
+    @property
     def length(self):
-        return self.length
+        return self._length
 
     @property
     def type_id(self):
@@ -409,6 +410,8 @@ class DecimalType(PrimitiveType):
 
 
 class NestedField():
+    length: int
+
     @staticmethod
     def optional(id, name, type_var, doc=None):
         return NestedField(True, id, name, type_var, doc=doc)

@@ -17,10 +17,14 @@
 
 __all__ = ["AlreadyExistsException",
            "CommitFailedException",
+           "FileSystemNotFound",
+           "InvalidCastException",
            "NoSuchTableException",
            "ValidationException"]
 
 from .exceptions import (AlreadyExistsException,
                          CommitFailedException,
+                         FileSystemNotFound,
+                         InvalidCastException,
                          NoSuchTableException,
                          ValidationException)

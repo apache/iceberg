@@ -29,7 +29,6 @@ setup(
     install_requires=['botocore',
                       'boto3',
                       'fastavro',
-                      'fastparquet>=0.3.1',
                       'hmsclient',
                       'mmh3',
                       'pyparsing',
@@ -38,7 +37,7 @@ setup(
                       'requests',
                       'retrying',
                       'pandas',
-                      'pyarrow'
+                      'pyarrow>=2.0.0'
                       ],
     extras_require={
         "dev": [
