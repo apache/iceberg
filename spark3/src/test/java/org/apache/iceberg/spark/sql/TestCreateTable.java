@@ -26,9 +26,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
-import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
@@ -200,47 +198,6 @@ public class TestCreateTable extends SparkCatalogTestBase {
         table.properties().get(TableProperties.DEFAULT_FILE_FORMAT));
     Assert.assertEquals("Should have a custom table location",
         location, table.location());
-  }
-
-  @Test
-  public void testCreateTablePath() throws Exception {
-    Assume.assumeTrue(
-        "Cannot set custom locations for Hadoop catalog tables",
-        !(validationCatalog instanceof HadoopCatalog));
-    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
-    Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
-
-    File tableLocation = temp.newFolder();
-    Assert.assertTrue(tableLocation.delete());
-
-    String location = "file:" + tableLocation.toString();
-    String catalogLocation = String.format("%s`%s`",
-        catalogName.equals("spark_catalog") ? "" : catalogName + ".",  location);
-
-    sql("CREATE TABLE %s " +
-        "(id BIGINT NOT NULL, data STRING) " +
-        "USING iceberg",
-        catalogLocation);
-
-    Table table = tables.load(location);
-    Assert.assertNotNull("Should load the new table", table);
-
-    StructType expectedSchema = StructType.of(
-        NestedField.required(1, "id", Types.LongType.get()),
-        NestedField.optional(2, "data", Types.StringType.get()));
-    Assert.assertEquals("Should have the expected schema", expectedSchema, table.schema().asStruct());
-    Assert.assertEquals("Should not be partitioned", 0, table.spec().fields().size());
-    Assert.assertNull("Should not have the default format set",
-        table.properties().get(TableProperties.DEFAULT_FILE_FORMAT));
-    Assert.assertEquals("Should have a custom table location",
-        location, table.location());
-
-    if (catalogName.equals("spark_catalog")) {
-      // Session Catalog doesn't support DROP on V2 tables
-      catalog.dropTable(TableIdentifier.of(location));
-    } else {
-      sql("DROP TABLE %s", catalogLocation);
-    }
   }
 
   @Test

@@ -19,14 +19,11 @@
 
 package org.apache.iceberg.spark.sql;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
-import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
@@ -91,58 +88,6 @@ public class TestAlterTable extends SparkCatalogTestBase {
 
     Assert.assertEquals("Schema should match expected",
         expectedSchema2, validationCatalog.loadTable(tableIdent).schema().asStruct());
-  }
-
-
-  @Test
-  public void testAddColumnPath() throws IOException {
-    Assume.assumeTrue(
-        "Cannot set custom locations for Hadoop catalog tables",
-        !(validationCatalog instanceof HadoopCatalog));
-    HadoopTables tables = new HadoopTables(spark.sessionState().newHadoopConf());
-    File tableLocation = temp.newFolder();
-    Assert.assertTrue(tableLocation.delete());
-
-    String location = "file:" + tableLocation.toString();
-    String catalogLocation = String.format("%s`%s`",
-        catalogName.equals("spark_catalog") ? "" : catalogName + ".",  location);
-
-
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", catalogLocation);
-
-    sql("ALTER TABLE %s ADD COLUMN point struct<x: double NOT NULL, y: double NOT NULL> AFTER id", catalogLocation);
-
-    Types.StructType expectedSchema = Types.StructType.of(
-        NestedField.required(1, "id", Types.LongType.get()),
-        NestedField.optional(3, "point", Types.StructType.of(
-            NestedField.required(4, "x", Types.DoubleType.get()),
-            NestedField.required(5, "y", Types.DoubleType.get())
-        )),
-        NestedField.optional(2, "data", Types.StringType.get()));
-
-    Assert.assertEquals("Schema should match expected",
-        expectedSchema, tables.load(location).schema().asStruct());
-
-    sql("ALTER TABLE %s ADD COLUMN point.z double COMMENT 'May be null' FIRST", catalogLocation);
-
-    Types.StructType expectedSchema2 = Types.StructType.of(
-        NestedField.required(1, "id", Types.LongType.get()),
-        NestedField.optional(3, "point", Types.StructType.of(
-            NestedField.optional(6, "z", Types.DoubleType.get(), "May be null"),
-            NestedField.required(4, "x", Types.DoubleType.get()),
-            NestedField.required(5, "y", Types.DoubleType.get())
-        )),
-        NestedField.optional(2, "data", Types.StringType.get()));
-
-    Assert.assertEquals("Schema should match expected",
-        expectedSchema2, tables.load(location).schema().asStruct());
-
-    if (catalogName.equals("spark_catalog")) {
-      // Session Catalog doesn't support DROP on V2 tables
-      catalog.dropTable(TableIdentifier.of(location));
-    } else {
-      sql("DROP TABLE %s", catalogLocation);
-    }
   }
 
   @Test

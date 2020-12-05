@@ -21,7 +21,6 @@ package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.Map;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
@@ -40,7 +39,6 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Tables;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -277,36 +275,5 @@ public class HadoopTables implements Tables, Configurable {
   @Override
   public Configuration getConf() {
     return conf;
-  }
-
-
-  /**
-   * Check to see if the location is a potential Hadoop table by checking if its an absolute path on some filesystem.
-   */
-  public static boolean isHadoopTable(String location) {
-    return new Path(location).isAbsolute();
-  }
-
-  /**
-   * Check to see if identifier is a potential Hadoop table.
-   *
-   * This check has two steps:
-   *   1. is the name of the identifier an absolute path.
-   *   2. does the identifier have a namespace.
-   *      if the namepsace is the currentNamespace than we can ignore (coming from SessionCatalog)
-   *      else Namespaces are not allowed on path based tables and will throw
-   *
-   */
-  public static boolean isHadoopTable(TableIdentifier identifier, String[] currentNamespace) {
-    boolean isPath = isHadoopTable(identifier.name());
-    if (isPath && identifier.hasNamespace() && !Arrays.equals(identifier.namespace().levels(), currentNamespace)) {
-      throw new UnsupportedOperationException(String.format("Cannot have a namespace on a path based table. Either " +
-          "remove namespace %s or replace path %s with a table name", identifier.namespace(), identifier.name()));
-    }
-    return isPath;
-  }
-
-  public static boolean isHadoopTable(TableIdentifier identifier) {
-    return isHadoopTable(identifier, new String[0]);
   }
 }
