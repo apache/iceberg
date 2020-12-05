@@ -34,6 +34,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -49,7 +50,7 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.TableProperties.WRITE_PARTITIONED_FANOUT_ENABLED;
+import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 @RunWith(Parameterized.class)
@@ -502,7 +503,7 @@ public abstract class TestSparkDataWrite {
             .save(location.toString());
         break;
       case TABLE:
-        table.updateProperties().set(WRITE_PARTITIONED_FANOUT_ENABLED, "true").commit();
+        table.updateProperties().set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true").commit();
         df.select("id", "data").write()
             .format("iceberg")
             .option("write-format", format.toString())
@@ -516,7 +517,7 @@ public abstract class TestSparkDataWrite {
             .option("write-format", format.toString())
             .mode("append")
             .option("target-file-size-bytes", 4) // ~4 bytes; low enough to trigger
-            .option("partitioned.fanout.enabled", true)
+            .option(SparkWriteOptions.FANOUT_ENABLED, true)
             .save(location.toString());
         break;
       default:

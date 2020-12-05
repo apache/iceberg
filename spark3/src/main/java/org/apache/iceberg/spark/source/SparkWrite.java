@@ -50,6 +50,7 @@ import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.broadcast.Broadcast;
@@ -78,8 +79,8 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
-import static org.apache.iceberg.TableProperties.WRITE_PARTITIONED_FANOUT_ENABLED;
-import static org.apache.iceberg.TableProperties.WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT;
+import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
+import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
@@ -124,9 +125,9 @@ class SparkWrite {
     this.targetFileSize = writeInfo.options().getLong("target-file-size-bytes", tableTargetFileSize);
 
     boolean tablePartitionedFanoutEnabled = PropertyUtil.propertyAsBoolean(
-        table.properties(), WRITE_PARTITIONED_FANOUT_ENABLED, WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT);
+        table.properties(), SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT);
     this.partitionedFanoutEnabled = writeInfo.options()
-        .getBoolean("partitioned.fanout.enabled", tablePartitionedFanoutEnabled);
+        .getBoolean(SparkWriteOptions.FANOUT_ENABLED, tablePartitionedFanoutEnabled);
   }
 
   BatchWrite asBatchAppend() {

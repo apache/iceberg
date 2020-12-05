@@ -108,8 +108,8 @@ public class RowDataRewriter implements Serializable {
       writer = new UnpartitionedWriter<>(spec, format, appenderFactory, fileFactory, io.value(),
           Long.MAX_VALUE);
     } else if (PropertyUtil.propertyAsBoolean(properties,
-        TableProperties.WRITE_PARTITIONED_FANOUT_ENABLED,
-        TableProperties.WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT)) {
+        TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED,
+        TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT)) {
       writer = new SparkPartitionedFanoutWriter(
           spec, format, appenderFactory, fileFactory, io.value(), Long.MAX_VALUE, schema,
           structType);
