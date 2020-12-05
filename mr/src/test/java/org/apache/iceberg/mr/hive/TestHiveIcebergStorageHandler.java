@@ -28,10 +28,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.common.StatsSetupConst;
@@ -43,8 +41,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.StructLike;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -77,10 +73,11 @@ import static org.junit.runners.Parameterized.Parameter;
 import static org.junit.runners.Parameterized.Parameters;
 
 @RunWith(Parameterized.class)
-public abstract class HiveIcebergStorageHandlerBaseTest {
+public class TestHiveIcebergStorageHandler {
+  private static final FileFormat[] FILE_FORMATS =
+      new FileFormat[] {FileFormat.AVRO, FileFormat.ORC, FileFormat.PARQUET};
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  private static final String[] EXECUTION_ENGINES = new String[] {"mr", "tez"};
 
   private static final Schema CUSTOMER_SCHEMA = new Schema(
           optional(1, "customer_id", Types.LongType.get()),
@@ -145,40 +142,46 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       ImmutableSet.of("bucketing_version", StatsSetupConst.ROW_COUNT,
           StatsSetupConst.RAW_DATA_SIZE, StatsSetupConst.TOTAL_SIZE, StatsSetupConst.NUM_FILES, "numFilesErasureCoded");
 
-  private static TestHiveShell shell;
-
   private static final List<Type> SUPPORTED_TYPES =
           ImmutableList.of(Types.BooleanType.get(), Types.IntegerType.get(), Types.LongType.get(),
                   Types.FloatType.get(), Types.DoubleType.get(), Types.DateType.get(), Types.TimestampType.withZone(),
                   Types.TimestampType.withoutZone(), Types.StringType.get(), Types.BinaryType.get(),
                   Types.DecimalType.of(3, 1));
 
-  private TestTables testTables;
-
-  public abstract TestTables testTables(Configuration conf, TemporaryFolder tmp) throws IOException;
-
-  @Parameters(name = "fileFormat={0}, engine={1}")
+  @Parameters(name = "fileFormat={0}, engine={1}, catalog={2}")
   public static Collection<Object[]> parameters() {
-    Collection<Object[]> testParams = new ArrayList<>();
-    testParams.add(new Object[] { FileFormat.PARQUET, "mr" });
-    testParams.add(new Object[] { FileFormat.ORC, "mr" });
-    testParams.add(new Object[] { FileFormat.AVRO, "mr" });
-
-    // include Tez tests only for Java 8
     String javaVersion = System.getProperty("java.specification.version");
-    if (javaVersion.equals("1.8")) {
-      testParams.add(new Object[] { FileFormat.PARQUET, "tez" });
-      testParams.add(new Object[] { FileFormat.ORC, "tez" });
-      testParams.add(new Object[] { FileFormat.AVRO, "tez" });
+
+    Collection<Object[]> testParams = new ArrayList<>();
+    for (FileFormat fileFormat : FILE_FORMATS) {
+      for (String engine : EXECUTION_ENGINES) {
+        // include Tez tests only for Java 8
+        if (javaVersion.equals("1.8") || "mr".equals(engine)) {
+          for (TestTables.TestTableType testTableType : TestTables.ALL_TABLE_TYPES) {
+            testParams.add(new Object[] {fileFormat, engine, testTableType});
+          }
+        }
+      }
     }
+
     return testParams;
   }
+
+  private static TestHiveShell shell;
+
+  private TestTables testTables;
 
   @Parameter(0)
   public FileFormat fileFormat;
 
   @Parameter(1)
   public String executionEngine;
+
+  @Parameter(2)
+  public TestTables.TestTableType testTableType;
+
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
 
   @BeforeClass
   public static void beforeClass() {
@@ -196,7 +199,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   @Before
   public void before() throws IOException {
     shell.openSession();
-    testTables = testTables(shell.metastore().hiveConf(), temp);
+    testTables = testTableType.instance(shell.metastore().hiveConf(), temp);
     for (Map.Entry<String, String> property : testTables.properties().entrySet()) {
       shell.setHiveSessionValue(property.getKey(), property.getValue());
     }
@@ -222,7 +225,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   @Test
   public void testScanEmptyTable() throws IOException {
     Schema emptySchema = new Schema(required(1, "empty", Types.StringType.get()));
-    createTable("empty", emptySchema, ImmutableList.of());
+    testTables.createTable(shell, "empty", emptySchema, fileFormat, ImmutableList.of());
 
     List<Object[]> rows = shell.executeStatement("SELECT * FROM default.empty");
     Assert.assertEquals(0, rows.size());
@@ -230,7 +233,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   @Test
   public void testScanTable() throws IOException {
-    createTable("customers", CUSTOMER_SCHEMA, CUSTOMER_RECORDS);
+    testTables.createTable(shell, "customers", CUSTOMER_SCHEMA, fileFormat, CUSTOMER_RECORDS);
 
     // Single fetch task: no MR job.
     List<Object[]> rows = shell.executeStatement("SELECT * FROM default.customers");
@@ -252,8 +255,8 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   @Test
   public void testJoinTables() throws IOException {
-    createTable("customers", CUSTOMER_SCHEMA, CUSTOMER_RECORDS);
-    createTable("orders", ORDER_SCHEMA, ORDER_RECORDS);
+    testTables.createTable(shell, "customers", CUSTOMER_SCHEMA, fileFormat, CUSTOMER_RECORDS);
+    testTables.createTable(shell, "orders", ORDER_SCHEMA, fileFormat, ORDER_RECORDS);
 
     List<Object[]> rows = shell.executeStatement(
             "SELECT c.customer_id, c.first_name, o.order_id, o.total " +
@@ -274,7 +277,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
             .add(new BigDecimal("100.56"))
             .add(new BigDecimal("100.57"))
             .build();
-    createTable("dec_test", schema, records);
+    testTables.createTable(shell, "dec_test", schema, fileFormat, records);
 
     // Use integer literal in predicate
     List<Object[]> rows = shell.executeStatement("SELECT * FROM default.dec_test where decimal_field >= 85");
@@ -309,7 +312,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       Schema schema = new Schema(required(1, columnName, type));
       List<Record> records = TestHelper.generateRandomRecords(schema, 1, 0L);
 
-      createTable(tableName, schema, records);
+      testTables.createTable(shell, tableName, schema, fileFormat, records);
       List<Object[]> queryResult = shell.executeStatement("select s." + columnName + ", h." + columnName +
               " from default." + tableName + " s join default." + tableName + " h on h." + columnName + "=s." +
               columnName);
@@ -328,7 +331,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       Schema schema = new Schema(required(1, columnName, type));
       List<Record> records = TestHelper.generateRandomRecords(schema, 4, 0L);
       int size = records.stream().map(r -> r.getField(columnName)).collect(Collectors.toSet()).size();
-      createTable(tableName, schema, records);
+      testTables.createTable(shell, tableName, schema, fileFormat, records);
       List<Object[]> queryResult = shell.executeStatement("select count(distinct(" + columnName +
               ")) from default." + tableName);
       int distincIds = ((Long) queryResult.get(0)[0]).intValue();
@@ -348,7 +351,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         "'dummy'='test')");
 
     // Check the Iceberg table data
-    org.apache.iceberg.Table icebergTable = loadTable(identifier);
+    org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
     Assert.assertEquals(CUSTOMER_SCHEMA.asStruct(), icebergTable.schema().asStruct());
     Assert.assertEquals(IDENTITY_SPEC, icebergTable.spec());
 
@@ -385,7 +388,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       // Check if the table was really dropped even from the Catalog
       AssertHelpers.assertThrows("should throw exception", NoSuchTableException.class,
           "Table does not exist", () -> {
-            loadTable(identifier);
+            testTables.loadTable(identifier);
           }
       );
     } else {
@@ -404,7 +407,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       // Check if we drop an exception when trying to load the table
       AssertHelpers.assertThrows("should throw exception", NoSuchTableException.class,
           "Table does not exist", () -> {
-            loadTable(identifier);
+            testTables.loadTable(identifier);
           }
       );
 
@@ -429,7 +432,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" + SchemaParser.toJson(CUSTOMER_SCHEMA) + "')");
 
     // Check the Iceberg table partition data
-    org.apache.iceberg.Table icebergTable = loadTable(identifier);
+    org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
     Assert.assertEquals(SPEC, icebergTable.spec());
 
     // Check the HMS table parameters
@@ -461,7 +464,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         "'" + InputFormatConfig.PARTITION_SPEC + "'='" + PartitionSpecParser.toJson(SPEC) + "')");
 
     // Check the Iceberg table partition data
-    org.apache.iceberg.Table icebergTable = loadTable(identifier);
+    org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
     Assert.assertEquals(SPEC, icebergTable.spec());
 
     // Check the HMS table parameters
@@ -494,7 +497,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       shell.executeStatement("DROP TABLE customers");
 
       // Check if the table remains
-      loadTable(identifier);
+      testTables.loadTable(identifier);
     } else {
       // Check the HMS table parameters
       org.apache.hadoop.hive.metastore.api.Table hmsTable =
@@ -507,7 +510,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       // Check if we drop an exception when trying to drop the table
       AssertHelpers.assertThrows("should throw exception", NoSuchTableException.class,
           "Table does not exist", () -> {
-            loadTable(identifier);
+            testTables.loadTable(identifier);
           }
       );
 
@@ -557,7 +560,8 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
   @Test
   public void testCreateTableAboveExistingTable() throws TException, IOException, InterruptedException {
     // Create the Iceberg table
-    createIcebergTable("customers", COMPLEX_SCHEMA, Collections.emptyList());
+    testTables.createIcebergTable(shell.getHiveConf(), "customers", COMPLEX_SCHEMA, FileFormat.PARQUET,
+        Collections.emptyList());
 
     if (Catalogs.hiveCatalog(shell.getHiveConf())) {
 
@@ -594,7 +598,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   @Test
   public void testColumnSelection() throws IOException {
-    createTable("customers", CUSTOMER_SCHEMA, CUSTOMER_RECORDS);
+    testTables.createTable(shell, "customers", CUSTOMER_SCHEMA, fileFormat, CUSTOMER_RECORDS);
 
     List<Object[]> outOfOrderColumns = shell
             .executeStatement("SELECT first_name, customer_id, last_name FROM default.customers");
@@ -628,7 +632,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
 
   @Test
   public void selectSameColumnTwice() throws IOException {
-    createTable("customers", CUSTOMER_SCHEMA, CUSTOMER_RECORDS);
+    testTables.createTable(shell, "customers", CUSTOMER_SCHEMA, fileFormat, CUSTOMER_RECORDS);
 
     List<Object[]> columns = shell.executeStatement("SELECT first_name, first_name FROM default.customers");
 
@@ -647,11 +651,11 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         testTables.locationForCreateTableSQL(identifier));
 
     // Check the Iceberg table data
-    org.apache.iceberg.Table icebergTable = loadTable(identifier);
+    org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
     Assert.assertEquals(CUSTOMER_SCHEMA.asStruct(), icebergTable.schema().asStruct());
     Assert.assertEquals(SPEC, icebergTable.spec());
 
-    appendIcebergTable(icebergTable, fileFormat, null, CUSTOMER_RECORDS);
+    testTables.appendIcebergTable(shell.getHiveConf(), icebergTable, fileFormat, null, CUSTOMER_RECORDS);
 
     List<Object[]> descRows = shell.executeStatement("SELECT * FROM default.customers ORDER BY customer_id DESC");
 
@@ -684,13 +688,16 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         "TBLPROPERTIES ('" + InputFormatConfig.PARTITION_SPEC + "'='" + PartitionSpecParser.toJson(spec) + "', " +
         "'" + InputFormatConfig.TABLE_SCHEMA + "'='" + SchemaParser.toJson(CUSTOMER_SCHEMA) + "')");
 
-    org.apache.iceberg.Table icebergTable = loadTable(identifier);
+    org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
     Assert.assertEquals(CUSTOMER_SCHEMA.asStruct(), icebergTable.schema().asStruct());
     Assert.assertEquals(spec, icebergTable.spec());
 
-    appendIcebergTable(icebergTable, fileFormat, Row.of("Alice"), Arrays.asList(CUSTOMER_RECORDS.get(0)));
-    appendIcebergTable(icebergTable, fileFormat, Row.of("Bob"), Arrays.asList(CUSTOMER_RECORDS.get(1)));
-    appendIcebergTable(icebergTable, fileFormat, Row.of("Trudy"), Arrays.asList(CUSTOMER_RECORDS.get(2)));
+    testTables.appendIcebergTable(shell.getHiveConf(), icebergTable, fileFormat, Row.of("Alice"),
+        Arrays.asList(CUSTOMER_RECORDS.get(0)));
+    testTables.appendIcebergTable(shell.getHiveConf(), icebergTable, fileFormat, Row.of("Bob"),
+        Arrays.asList(CUSTOMER_RECORDS.get(1)));
+    testTables.appendIcebergTable(shell.getHiveConf(), icebergTable, fileFormat, Row.of("Trudy"),
+        Arrays.asList(CUSTOMER_RECORDS.get(2)));
 
     List<Object[]> descRows = shell.executeStatement("SELECT * FROM default.customers ORDER BY customer_id DESC");
 
@@ -715,7 +722,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         testTables.locationForCreateTableSQL(identifier));
 
     // Check the Iceberg table data
-    org.apache.iceberg.Table icebergTable = loadTable(identifier);
+    org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
     Assert.assertEquals(COMPLEX_SCHEMA.asStruct(), icebergTable.schema().asStruct());
   }
 
@@ -743,7 +750,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
         testTables.locationForCreateTableSQL(identifier));
 
     // Check the Iceberg table data
-    org.apache.iceberg.Table icebergTable = loadTable(identifier);
+    org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
     Assert.assertEquals(allSupportedSchema.asStruct(), icebergTable.schema().asStruct());
   }
 
@@ -765,31 +772,11 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     }
   }
 
-  protected void createTable(String tableName, Schema schema, List<Record> records)
-          throws IOException {
-    Table table = createIcebergTable(tableName, schema, records);
-    createHiveTable(tableName, table.location());
-  }
-
-  protected Table createIcebergTable(String tableName, Schema schema, List<Record> records)
-          throws IOException {
-    String identifier = testTables.identifier("default." + tableName);
-    TestHelper helper = new TestHelper(
-            shell.metastore().hiveConf(), testTables.tables(), identifier, schema, SPEC, fileFormat, temp);
-    Table table = helper.createTable();
-
-    if (!records.isEmpty()) {
-      helper.appendToTable(helper.writeFile(null, records));
-    }
-
-    return table;
-  }
-
   @Test
   public void testArrayOfPrimitivesInTable() throws IOException {
     Schema schema =
             new Schema(required(1, "arrayofprimitives", Types.ListType.ofRequired(2, Types.IntegerType.get())));
-    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "arraytable");
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "arraytable", schema, fileFormat, 1);
     // access a single element from the array
     for (int i = 0; i < records.size(); i++) {
       List<?> expectedList = (List<?>) records.get(i).getField("arrayofprimitives");
@@ -807,7 +794,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
             new Schema(
                     required(1, "arrayofarrays",
                             Types.ListType.ofRequired(2, Types.ListType.ofRequired(3, Types.DateType.get()))));
-    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "arraytable");
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "arraytable", schema, fileFormat, 1);
     // access an element from a matrix
     for (int i = 0; i < records.size(); i++) {
       List<?> expectedList = (List<?>) records.get(i).getField("arrayofarrays");
@@ -829,7 +816,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
             new Schema(required(1, "arrayofmaps", Types.ListType
                     .ofRequired(2, Types.MapType.ofRequired(3, 4, Types.StringType.get(),
                             Types.BooleanType.get()))));
-    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "arraytable");
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "arraytable", schema, fileFormat, 1);
     // access an element from a map in an array
     for (int i = 0; i < records.size(); i++) {
       List<?> expectedList = (List<?>) records.get(i).getField("arrayofmaps");
@@ -852,7 +839,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
                     required(1, "arrayofstructs", Types.ListType.ofRequired(2, Types.StructType
                             .of(required(3, "something", Types.DoubleType.get()), required(4, "someone",
                                     Types.LongType.get()), required(5, "somewhere", Types.StringType.get())))));
-    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "arraytable");
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "arraytable", schema, fileFormat, 1);
     // access an element from a struct in an array
     for (int i = 0; i < records.size(); i++) {
       List<?> expectedList = (List<?>) records.get(i).getField("arrayofstructs");
@@ -873,7 +860,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Schema schema = new Schema(
             required(1, "mapofprimitives", Types.MapType.ofRequired(2, 3, Types.StringType.get(),
                     Types.IntegerType.get())));
-    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "maptable");
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "maptable", schema, fileFormat, 1);
     // access a single value from the map
     for (int i = 0; i < records.size(); i++) {
       Map<?, ?> expectedMap = (Map<?, ?>) records.get(i).getField("mapofprimitives");
@@ -892,7 +879,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
             required(1, "mapofarrays",
                     Types.MapType.ofRequired(2, 3, Types.StringType.get(), Types.ListType.ofRequired(4,
                             Types.DateType.get()))));
-    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "maptable");
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "maptable", schema, fileFormat, 1);
     // access a single element from a list in a map
     for (int i = 0; i < records.size(); i++) {
       Map<?, ?> expectedMap = (Map<?, ?>) records.get(i).getField("mapofarrays");
@@ -912,7 +899,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Schema schema = new Schema(
             required(1, "mapofmaps", Types.MapType.ofRequired(2, 3, Types.StringType.get(),
                     Types.MapType.ofRequired(4, 5, Types.StringType.get(), Types.StringType.get()))));
-    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "maptable");
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "maptable", schema, fileFormat, 1);
     // access a single element from a map in a map
     for (int i = 0; i < records.size(); i++) {
       Map<?, ?> expectedMap = (Map<?, ?>) records.get(i).getField("mapofmaps");
@@ -935,7 +922,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
                     Types.StructType.of(required(4, "something", Types.DoubleType.get()),
                             required(5, "someone", Types.LongType.get()),
                             required(6, "somewhere", Types.StringType.get())))));
-    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "maptable");
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "maptable", schema, fileFormat, 1);
     // access a single element from a struct in a map
     for (int i = 0; i < records.size(); i++) {
       Map<?, ?> expectedMap = (Map<?, ?>) records.get(i).getField("mapofstructs");
@@ -956,7 +943,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
     Schema schema = new Schema(required(1, "structofprimitives",
             Types.StructType.of(required(2, "key", Types.StringType.get()), required(3, "value",
                     Types.IntegerType.get()))));
-    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "structtable");
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "structtable", schema, fileFormat, 1);
     // access a single value in a struct
     for (int i = 0; i < records.size(); i++) {
       GenericRecord expectedStruct = (GenericRecord) records.get(i).getField("structofprimitives");
@@ -974,7 +961,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
                     .of(required(2, "names", Types.ListType.ofRequired(3, Types.StringType.get())),
                             required(4, "birthdays", Types.ListType.ofRequired(5,
                                     Types.DateType.get())))));
-    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "structtable");
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "structtable", schema, fileFormat, 1);
     // access an element of an array inside a struct
     for (int i = 0; i < records.size(); i++) {
       GenericRecord expectedStruct = (GenericRecord) records.get(i).getField("structofarrays");
@@ -1001,7 +988,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
                             Types.StringType.get(), Types.StringType.get())), required(5, "map2",
                             Types.MapType.ofRequired(6, 7, Types.StringType.get(),
                                     Types.IntegerType.get())))));
-    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "structtable");
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "structtable", schema, fileFormat, 1);
     // access a map entry inside a struct
     for (int i = 0; i < records.size(); i++) {
       GenericRecord expectedStruct = (GenericRecord) records.get(i).getField("structofmaps");
@@ -1028,7 +1015,7 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
             required(1, "structofstructs", Types.StructType.of(required(2, "struct1", Types.StructType
                     .of(required(3, "key", Types.StringType.get()), required(4, "value",
                             Types.IntegerType.get()))))));
-    List<Record> records = createTableWithGeneratedRecords(schema, 1, 0L, "structtable");
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "structtable", schema, fileFormat, 1);
     // access a struct element inside a struct
     for (int i = 0; i < records.size(); i++) {
       GenericRecord expectedStruct = (GenericRecord) records.get(i).getField("structofstructs");
@@ -1039,51 +1026,5 @@ public abstract class HiveIcebergStorageHandlerBaseTest {
       Assert.assertEquals(expectedInnerStruct.getField("key"), queryResult.get(0)[0]);
       Assert.assertEquals(expectedInnerStruct.getField("value"), queryResult.get(0)[1]);
     }
-  }
-
-  protected void appendIcebergTable(Table table, FileFormat format, StructLike partition, List<Record> records)
-      throws IOException {
-    TestHelper helper = new TestHelper(
-        shell.getHiveConf(), null, null, null, null, format, temp);
-
-    helper.setTable(table);
-    if (!records.isEmpty()) {
-      helper.appendToTable(helper.writeFile(partition, records));
-    }
-  }
-
-  protected void createHiveTable(String tableName, String location) {
-    shell.executeStatement(String.format(
-            "CREATE TABLE default.%s " +
-            "STORED BY '%s' " +
-            "LOCATION '%s'",
-            tableName, HiveIcebergStorageHandler.class.getName(), location));
-  }
-
-  private Table loadTable(TableIdentifier identifier) {
-    Properties properties = new Properties();
-    properties.put(Catalogs.NAME, identifier.toString());
-    String expectedLocation = testTables.loadLocation(identifier);
-    if (expectedLocation != null) {
-      properties.put(Catalogs.LOCATION, expectedLocation);
-    }
-
-    // Check the Iceberg table data
-    return Catalogs.loadTable(shell.getHiveConf(), properties);
-  }
-
-  protected String locationForCreateTableSQL(TemporaryFolder root, String tableName) {
-    return "LOCATION '" + root.getRoot().getPath() + "/hadoop/warehouse/default/" + tableName + "' ";
-  }
-
-  protected String loadLocation(TemporaryFolder root, String tableName) {
-    return null;
-  }
-
-  private List<Record> createTableWithGeneratedRecords(Schema schema, int numRecords, long seed, String tableName)
-          throws IOException {
-    List<Record> records = TestHelper.generateRandomRecords(schema, numRecords, seed);
-    createTable(tableName, schema, records);
-    return records;
   }
 }
