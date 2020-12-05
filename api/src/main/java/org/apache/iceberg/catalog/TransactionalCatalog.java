@@ -114,9 +114,6 @@ public interface TransactionalCatalog extends Catalog, AutoCloseable {
    * the close will only close any remaining open resources associated with the transaction.
    */
   @Override
-  default void close() {
-    commit();
-    close();
-  }
+  void close();
 
 }

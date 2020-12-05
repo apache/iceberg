@@ -60,12 +60,12 @@ public interface SupportsCatalogTransactions {
     READ_COMMITTED,
 
     /**
-     * Reading the same table multiple times will result in the same view of that table.
-     * Different tables may come from different snapshots. A commit can be completed as
-     * long as any tables changed externally do not conflict with any writes within this
-     * transaction.
+     * Reading the same table multiple times within the same transaction will result in
+     * the same version of that table. Different tables may come from different snapshots.
+     * A commit can be completed as long as any tables changed externally do not conflict
+     * with any writes within this transaction.
      */
-    REPEATED_READ,
+    REPEATABLE_READ,
 
     /**
      * A commit will only succeed if there have been no meaningful changes to data read during
@@ -74,8 +74,9 @@ public interface SupportsCatalogTransactions {
      * consistent for all tables to a single point in time (or single snapshot of the database).
      * Additionally, it implies additional requirements around the successful completion of a
      * write. In order for a write to complete, any entities read during this transaction are also
-     * blocked from changing (via another transaction) post-read in ways that would influence the
-     * writes of this operation. This is also sometimes called snapshot isolation.
+     * disallowed from changing (via another transaction) post-read in ways that would influence the
+     * writes of this operation. This isolation level encompasses all the standard guarantees of
+     * snapshot isolation.
      */
     SERIALIZABLE;
 
