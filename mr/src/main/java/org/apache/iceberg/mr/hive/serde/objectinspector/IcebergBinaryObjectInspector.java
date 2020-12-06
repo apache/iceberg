@@ -28,7 +28,7 @@ import org.apache.hadoop.io.BytesWritable;
 import org.apache.iceberg.util.ByteBuffers;
 
 public abstract class IcebergBinaryObjectInspector extends AbstractPrimitiveJavaObjectInspector
-    implements BinaryObjectInspector, IcebergWriteObjectInspector {
+    implements BinaryObjectInspector, WriteObjectInspector {
 
   private static final IcebergBinaryObjectInspector BYTE_ARRAY = new IcebergBinaryObjectInspector() {
     @Override
@@ -37,7 +37,7 @@ public abstract class IcebergBinaryObjectInspector extends AbstractPrimitiveJava
     }
 
     @Override
-    public byte[] getIcebergObject(Object o) {
+    public byte[] convert(Object o) {
       return o == null ? null : ((BytesWritable) o).getBytes();
     }
   };
@@ -49,7 +49,7 @@ public abstract class IcebergBinaryObjectInspector extends AbstractPrimitiveJava
     }
 
     @Override
-    public ByteBuffer getIcebergObject(Object o) {
+    public ByteBuffer convert(Object o) {
       return o == null ? null : ByteBuffer.wrap(((BytesWritable) o).getBytes());
     }
   };

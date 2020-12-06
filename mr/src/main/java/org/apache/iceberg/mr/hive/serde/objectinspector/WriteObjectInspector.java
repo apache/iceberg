@@ -19,6 +19,6 @@
 
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
-public interface IcebergWriteObjectInspector {
-  Object getIcebergObject(Object value);
+public interface WriteObjectInspector {
+  Object convert(Object value);
 }

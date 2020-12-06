@@ -33,7 +33,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspe
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergWriteObjectInspector;
+import org.apache.iceberg.mr.hive.serde.objectinspector.WriteObjectInspector;
 import org.apache.iceberg.schema.SchemaWithPartnerVisitor;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.Types.ListType;
@@ -108,7 +108,7 @@ class Deserializer {
         case BINARY:
         case DECIMAL:
           // Iceberg specific conversions
-          return o -> ((IcebergWriteObjectInspector) inspector).getIcebergObject(o);
+          return o -> ((WriteObjectInspector) inspector).convert(o);
         case TIME:
         default:
           throw new IllegalArgumentException("Unsupported column type: " + type);

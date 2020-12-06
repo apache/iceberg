@@ -31,7 +31,7 @@ import org.apache.hadoop.hive.serde2.typeinfo.DecimalTypeInfo;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public final class IcebergDecimalObjectInspector extends AbstractPrimitiveJavaObjectInspector
-    implements HiveDecimalObjectInspector, IcebergWriteObjectInspector {
+    implements HiveDecimalObjectInspector, WriteObjectInspector {
 
   private static final Cache<Integer, IcebergDecimalObjectInspector> CACHE = Caffeine.newBuilder()
           .expireAfterAccess(10, TimeUnit.MINUTES)
@@ -79,7 +79,7 @@ public final class IcebergDecimalObjectInspector extends AbstractPrimitiveJavaOb
   }
 
   @Override
-  public BigDecimal getIcebergObject(Object o) {
+  public BigDecimal convert(Object o) {
     return o == null ? null : ((HiveDecimalWritable) o).getHiveDecimal().bigDecimalValue();
   }
 }
