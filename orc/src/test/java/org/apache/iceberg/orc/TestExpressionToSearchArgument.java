@@ -51,11 +51,13 @@ import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.in;
+import static org.apache.iceberg.expressions.Expressions.isNaN;
 import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
+import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -75,7 +77,9 @@ public class TestExpressionToSearchArgument {
         required(8, "time", Types.TimeType.get()),
         required(9, "tsTz", Types.TimestampType.withZone()),
         required(10, "ts", Types.TimestampType.withoutZone()),
-        required(11, "decimal", Types.DecimalType.of(38, 2))
+        required(11, "decimal", Types.DecimalType.of(38, 2)),
+        required(12, "float2", Types.FloatType.get()),
+        required(13, "double2", Types.DoubleType.get())
     );
 
     Expression expr = and(
@@ -86,7 +90,8 @@ public class TestExpressionToSearchArgument {
         and(
             and(equal("boolean", true), notEqual("string", "test")),
             and(in("decimal", BigDecimal.valueOf(-12345, 2), BigDecimal.valueOf(12345, 2)), notIn("time", 100L, 200L))
-        )
+        ),
+        and(isNaN("float2"), notNaN("double2"))
     );
     Expression boundFilter = Binder.bind(schema.asStruct(), expr, true);
     SearchArgument expected = SearchArgumentFactory.newBuilder()
@@ -99,6 +104,8 @@ public class TestExpressionToSearchArgument {
         .startOr().isNull("`string`", Type.STRING).startNot().equals("`string`", Type.STRING, "test").end().end()
         .in("`decimal`", Type.DECIMAL, new HiveDecimalWritable("-123.45"), new HiveDecimalWritable("123.45"))
         .startOr().isNull("`time`", Type.LONG).startNot().in("`time`", Type.LONG, 100L, 200L).end().end()
+        .equals("`float2`", Type.FLOAT, Double.NaN)
+        .startOr().isNull("`double2`", Type.FLOAT).startNot().equals("`double2`", Type.FLOAT, Double.NaN).end().end()
         .end()
         .build();
 
@@ -178,17 +185,19 @@ public class TestExpressionToSearchArgument {
   public void testNestedPrimitives() {
     Schema schema = new Schema(
         optional(1, "struct", Types.StructType.of(
-            required(2, "long", Types.LongType.get())
+            required(2, "long", Types.LongType.get()),
+            required(11, "float", Types.FloatType.get())
         )),
         optional(3, "list", Types.ListType.ofRequired(4, Types.LongType.get())),
-        optional(5, "map", Types.MapType.ofRequired(6, 7, Types.LongType.get(), Types.LongType.get())),
+        optional(5, "map", Types.MapType.ofRequired(6, 7, Types.LongType.get(), Types.DoubleType.get())),
         optional(8, "listOfStruct", Types.ListType.ofRequired(9, Types.StructType.of(
             required(10, "long", Types.LongType.get()))))
     );
 
     Expression expr = and(
         and(equal("struct.long", 1), equal("list.element", 2)),
-        and(equal("map.key", 3), equal("listOfStruct.long", 4))
+        and(equal("map.key", 3), equal("listOfStruct.long", 4)),
+        and(isNaN("map.value"), notNaN("struct.float"))
     );
     Expression boundFilter = Binder.bind(schema.asStruct(), expr, true);
     SearchArgument expected = SearchArgumentFactory.newBuilder()
@@ -197,7 +206,13 @@ public class TestExpressionToSearchArgument {
         .equals("`list`.`_elem`", Type.LONG, 2L)
         .equals("`map`.`_key`", Type.LONG, 3L)
         .equals("`listOfStruct`.`_elem`.`long`", Type.LONG, 4L)
-        .end()
+        .equals("`map`.`_value`", Type.FLOAT, Double.NaN)
+        .startOr()
+        .isNull("`struct`.`float`", Type.FLOAT)
+        .startNot().equals("`struct`.`float`", Type.FLOAT, Double.NaN)
+        .end() // not
+        .end() // or
+        .end() // and
         .build();
 
     SearchArgument actual = ExpressionToSearchArgument.convert(boundFilter, ORCSchemaUtil.convert(schema));

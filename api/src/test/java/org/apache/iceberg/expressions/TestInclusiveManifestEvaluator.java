@@ -36,12 +36,14 @@ import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.in;
+import static org.apache.iceberg.expressions.Expressions.isNaN;
 import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
+import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
@@ -54,7 +56,9 @@ public class TestInclusiveManifestEvaluator {
       required(1, "id", Types.IntegerType.get()),
       optional(4, "all_nulls", Types.StringType.get()),
       optional(5, "some_nulls", Types.StringType.get()),
-      optional(6, "no_nulls", Types.StringType.get())
+      optional(6, "no_nulls", Types.StringType.get()),
+      optional(7, "float", Types.FloatType.get()),
+      optional(8, "all_nulls_double", Types.DoubleType.get())
   );
 
   private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
@@ -63,6 +67,8 @@ public class TestInclusiveManifestEvaluator {
       .identity("all_nulls")
       .identity("some_nulls")
       .identity("no_nulls")
+      .identity("float")
+      .identity("all_nulls_double")
       .build();
 
   private static final int INT_MIN_VALUE = 30;
@@ -82,7 +88,12 @@ public class TestInclusiveManifestEvaluator {
           new TestHelpers.TestFieldSummary(false, INT_MIN, INT_MAX),
           new TestHelpers.TestFieldSummary(true, null, null),
           new TestHelpers.TestFieldSummary(true, STRING_MIN, STRING_MAX),
-          new TestHelpers.TestFieldSummary(false, STRING_MIN, STRING_MAX)));
+          new TestHelpers.TestFieldSummary(false, STRING_MIN, STRING_MAX),
+          new TestHelpers.TestFieldSummary(false,
+              toByteBuffer(Types.FloatType.get(), 0F),
+              toByteBuffer(Types.FloatType.get(), 20F)),
+          new TestHelpers.TestFieldSummary(true, null, null)
+      ));
 
   @Test
   public void testAllNulls() {
@@ -112,6 +123,24 @@ public class TestInclusiveManifestEvaluator {
   }
 
   @Test
+  public void testIsNaN() {
+    boolean shouldRead = ManifestEvaluator.forRowFilter(isNaN("float"), SPEC, true).eval(FILE);
+    Assert.assertTrue("Should read: no information on if there are nan value in float column", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(isNaN("all_nulls_double"), SPEC, true).eval(FILE);
+    Assert.assertFalse("Should skip: all null column doesn't contain nan value", shouldRead);
+  }
+
+  @Test
+  public void testNotNaN() {
+    boolean shouldRead = ManifestEvaluator.forRowFilter(notNaN("float"), SPEC, true).eval(FILE);
+    Assert.assertTrue("Should read: no information on if there are nan value in float column", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(notNaN("all_nulls_double"), SPEC, true).eval(FILE);
+    Assert.assertTrue("Should read: all null column contains non nan value", shouldRead);
+  }
+
+  @Test
   public void testMissingColumn() {
     AssertHelpers.assertThrows("Should complain about missing column in expression",
         ValidationException.class, "Cannot find field 'missing'",
@@ -123,7 +152,8 @@ public class TestInclusiveManifestEvaluator {
     Expression[] exprs = new Expression[] {
         lessThan("id", 5), lessThanOrEqual("id", 30), equal("id", 70),
         greaterThan("id", 78), greaterThanOrEqual("id", 90), notEqual("id", 101),
-        isNull("id"), notNull("id"), startsWith("all_nulls", "a")
+        isNull("id"), notNull("id"), startsWith("all_nulls", "a"),
+        isNaN("float"), notNaN("float")
     };
 
     for (Expression expr : exprs) {

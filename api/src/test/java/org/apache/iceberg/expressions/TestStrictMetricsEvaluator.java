@@ -26,6 +26,7 @@ import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.TestHelpers.TestDataFile;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.StringType;
 import org.junit.Assert;
@@ -36,12 +37,14 @@ import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.in;
+import static org.apache.iceberg.expressions.Expressions.isNaN;
 import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
+import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
@@ -56,7 +59,14 @@ public class TestStrictMetricsEvaluator {
       optional(4, "all_nulls", StringType.get()),
       optional(5, "some_nulls", StringType.get()),
       optional(6, "no_nulls", StringType.get()),
-      required(7, "always_5", IntegerType.get())
+      required(7, "always_5", IntegerType.get()),
+      optional(8, "all_nans", Types.DoubleType.get()),
+      optional(9, "some_nans", Types.FloatType.get()),
+      optional(10, "no_nans", Types.FloatType.get()),
+      optional(11, "all_nulls_double", Types.DoubleType.get()),
+      optional(12, "all_nans_v1_stats", Types.FloatType.get()),
+      optional(13, "nan_and_null_only", Types.DoubleType.get()),
+      optional(14, "no_nan_stats", Types.DoubleType.get())
   );
 
   private static final int INT_MIN_VALUE = 30;
@@ -64,35 +74,59 @@ public class TestStrictMetricsEvaluator {
 
   private static final DataFile FILE = new TestDataFile("file.avro", Row.of(), 50,
       // any value counts, including nulls
-      ImmutableMap.of(
-          4, 50L,
-          5, 50L,
-          6, 50L),
+      ImmutableMap.<Integer, Long>builder()
+          .put(4, 50L)
+          .put(5, 50L)
+          .put(6, 50L)
+          .put(8, 50L)
+          .put(9, 50L)
+          .put(10, 50L)
+          .put(11, 50L)
+          .put(12, 50L)
+          .put(13, 50L)
+          .put(14, 50L)
+          .build(),
       // null value counts
+      ImmutableMap.<Integer, Long>builder()
+          .put(4, 50L)
+          .put(5, 10L)
+          .put(6, 0L)
+          .put(11, 50L)
+          .put(12, 0L)
+          .put(13, 1L)
+          .build(),
+  // nan value counts
       ImmutableMap.of(
-          4, 50L,
-          5, 10L,
-          6, 0L),
+          8, 50L,
+          9, 10L,
+          10, 0L),
       // lower bounds
       ImmutableMap.of(
           1, toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
-          7, toByteBuffer(IntegerType.get(), 5)),
+          7, toByteBuffer(IntegerType.get(), 5),
+          12, toByteBuffer(Types.FloatType.get(), Float.NaN),
+          13, toByteBuffer(Types.DoubleType.get(), Double.NaN)),
       // upper bounds
       ImmutableMap.of(
           1, toByteBuffer(IntegerType.get(), INT_MAX_VALUE),
-          7, toByteBuffer(IntegerType.get(), 5)));
+          7, toByteBuffer(IntegerType.get(), 5),
+          12, toByteBuffer(Types.FloatType.get(), Float.NaN),
+          13, toByteBuffer(Types.DoubleType.get(), Double.NaN)));
 
   private static final DataFile FILE_2 = new TestDataFile("file_2.avro", Row.of(), 50,
       // any value counts, including nulls
       ImmutableMap.of(
           4, 50L,
           5, 50L,
-          6, 50L),
+          6, 50L,
+          8, 50L),
       // null value counts
       ImmutableMap.of(
           4, 50L,
           5, 10L,
           6, 0L),
+      // nan value counts
+      null,
       // lower bounds
       ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")),
       // upper bounds
@@ -109,6 +143,8 @@ public class TestStrictMetricsEvaluator {
           4, 50L,
           5, 10L,
           6, 0L),
+      // nan value counts
+      null,
       // lower bounds
       ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")),
       // upper bounds
@@ -160,6 +196,54 @@ public class TestStrictMetricsEvaluator {
   }
 
   @Test
+  public void testIsNaN() {
+    boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("all_nans")).eval(FILE);
+    Assert.assertTrue("Should match: all values are nan", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("some_nans")).eval(FILE);
+    Assert.assertFalse("Should not match: at least one non-nan value in some nan column", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("no_nans")).eval(FILE);
+    Assert.assertFalse("Should not match: at least one non-nan value in no nan column", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("all_nulls_double")).eval(FILE);
+    Assert.assertFalse("Should not match: at least one non-nan value in all null column", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("no_nan_stats")).eval(FILE);
+    Assert.assertFalse("Should not match: cannot determine without nan stats", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("all_nans_v1_stats")).eval(FILE);
+    Assert.assertFalse("Should not match: cannot determine without nan stats", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, isNaN("nan_and_null_only")).eval(FILE);
+    Assert.assertFalse("Should not match: null values are not nan", shouldRead);
+  }
+
+  @Test
+  public void testNotNaN() {
+    boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("all_nans")).eval(FILE);
+    Assert.assertFalse("Should not match: all values are nan", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("some_nans")).eval(FILE);
+    Assert.assertFalse("Should not match: at least one nan value in some nan column", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("no_nans")).eval(FILE);
+    Assert.assertTrue("Should match: no value is nan", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("all_nulls_double")).eval(FILE);
+    Assert.assertTrue("Should match: no nan value in all null column", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("no_nan_stats")).eval(FILE);
+    Assert.assertFalse("Should not match: cannot determine without nan stats", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("all_nans_v1_stats")).eval(FILE);
+    Assert.assertFalse("Should not match: all values are nan", shouldRead);
+
+    shouldRead = new StrictMetricsEvaluator(SCHEMA, notNaN("nan_and_null_only")).eval(FILE);
+    Assert.assertFalse("Should not match: null values are not nan", shouldRead);
+  }
+
+  @Test
   public void testRequiredColumn() {
     boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, notNull("required")).eval(FILE);
     Assert.assertTrue("Should match: required columns are always non-null", shouldRead);
@@ -182,7 +266,7 @@ public class TestStrictMetricsEvaluator {
     Expression[] exprs = new Expression[] {
         lessThan("no_stats", 5), lessThanOrEqual("no_stats", 30), equal("no_stats", 70),
         greaterThan("no_stats", 78), greaterThanOrEqual("no_stats", 90), notEqual("no_stats", 101),
-        isNull("no_stats"), notNull("no_stats")
+        isNull("no_stats"), notNull("no_stats"), isNaN("all_nans"), notNaN("all_nans")
     };
 
     for (Expression expr : exprs) {
@@ -198,7 +282,7 @@ public class TestStrictMetricsEvaluator {
     Expression[] exprs = new Expression[] {
         lessThan("id", 5), lessThanOrEqual("id", 30), equal("id", 70), greaterThan("id", 78),
         greaterThanOrEqual("id", 90), notEqual("id", 101), isNull("some_nulls"),
-        notNull("some_nulls")
+        notNull("some_nulls"), isNaN("all_nans"), notNaN("all_nans")
     };
 
     for (Expression expr : exprs) {

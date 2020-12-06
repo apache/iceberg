@@ -47,9 +47,9 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetMetricsRowGroupFilter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.DoubleType;
 import org.apache.iceberg.types.Types.FloatType;
 import org.apache.iceberg.types.Types.IntegerType;
-import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.orc.OrcFile;
 import org.apache.orc.Reader;
@@ -73,12 +73,14 @@ import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.in;
+import static org.apache.iceberg.expressions.Expressions.isNaN;
 import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
+import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
@@ -106,14 +108,17 @@ public class TestMetricsRowGroupFilter {
       required(1, "id", IntegerType.get()),
       optional(2, "no_stats_parquet", StringType.get()),
       required(3, "required", StringType.get()),
-      optional(4, "all_nulls", LongType.get()),
+      optional(4, "all_nulls", DoubleType.get()),
       optional(5, "some_nulls", StringType.get()),
       optional(6, "no_nulls", StringType.get()),
       optional(7, "struct_not_null", structFieldType),
       optional(9, "not_in_file", FloatType.get()),
       optional(10, "str", StringType.get()),
       optional(11, "map_not_null",
-          Types.MapType.ofRequired(12, 13, StringType.get(), IntegerType.get()))
+          Types.MapType.ofRequired(12, 13, StringType.get(), IntegerType.get())),
+      optional(14, "all_nans", DoubleType.get()),
+      optional(15, "some_nans", FloatType.get()),
+      optional(16, "no_nans", DoubleType.get())
   );
 
   private static final Types.StructType _structFieldType =
@@ -123,11 +128,14 @@ public class TestMetricsRowGroupFilter {
       required(1, "_id", IntegerType.get()),
       optional(2, "_no_stats_parquet", StringType.get()),
       required(3, "_required", StringType.get()),
-      optional(4, "_all_nulls", LongType.get()),
+      optional(4, "_all_nulls", DoubleType.get()),
       optional(5, "_some_nulls", StringType.get()),
       optional(6, "_no_nulls", StringType.get()),
       optional(7, "_struct_not_null", _structFieldType),
-      optional(10, "_str", StringType.get())
+      optional(10, "_str", StringType.get()),
+      optional(14, "_all_nans", Types.DoubleType.get()),
+      optional(15, "_some_nans", FloatType.get()),
+      optional(16, "_no_nans", Types.DoubleType.get())
   );
 
   private static final String TOO_LONG_FOR_STATS_PARQUET;
@@ -184,6 +192,9 @@ public class TestMetricsRowGroupFilter {
         record.setField("_some_nulls", (i % 10 == 0) ? null : "some"); // includes some null values
         record.setField("_no_nulls", ""); // optional, but always non-null
         record.setField("_str", i + "str" + i);
+        record.setField("_all_nans", Double.NaN); // never non-nan
+        record.setField("_some_nans", (i % 10 == 0) ? Float.NaN : 2F); // includes some nan values
+        record.setField("_no_nans", 3D); // optional, but always non-nan
 
         GenericRecord structNotNull = GenericRecord.create(_structFieldType);
         structNotNull.setField("_int_field", INT_MIN_VALUE + i);
@@ -223,6 +234,9 @@ public class TestMetricsRowGroupFilter {
         builder.set("_all_nulls", null); // never non-null
         builder.set("_some_nulls", (i % 10 == 0) ? null : "some"); // includes some null values
         builder.set("_no_nulls", ""); // optional, but always non-null
+        builder.set("_all_nans", Double.NaN); // never non-nan
+        builder.set("_some_nans", (i % 10 == 0) ? Float.NaN : 2F); // includes some nan values
+        builder.set("_no_nans", 3D); // optional, but always non-nan
         builder.set("_str", i + "str" + i);
 
         Record structNotNull = new Record(structSchema);
@@ -279,6 +293,37 @@ public class TestMetricsRowGroupFilter {
 
     shouldRead = shouldRead(isNull("struct_not_null"));
     Assert.assertTrue("Should read: struct type is not skipped", shouldRead);
+  }
+
+  @Test
+  public void testIsNaN() {
+    boolean shouldRead = shouldRead(isNaN("all_nans"));
+    Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
+
+    shouldRead = shouldRead(isNaN("some_nans"));
+    Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
+
+    shouldRead = shouldRead(isNaN("no_nans"));
+    Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
+
+    shouldRead = shouldRead(isNaN("all_nulls"));
+    Assert.assertFalse("Should skip: all null column will not contain nan value", shouldRead);
+  }
+
+  @Test
+  public void testNotNaN() {
+    boolean shouldRead = shouldRead(notNaN("all_nans"));
+    Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
+
+    shouldRead = shouldRead(notNaN("some_nans"));
+    Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
+
+    shouldRead = shouldRead(notNaN("no_nans"));
+    Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
+
+    shouldRead = shouldRead(notNaN("all_nulls"));
+    Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
+
   }
 
   @Test

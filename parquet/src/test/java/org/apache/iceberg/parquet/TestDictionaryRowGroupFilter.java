@@ -36,6 +36,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.DoubleType;
 import org.apache.iceberg.types.Types.FloatType;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.LongType;
@@ -56,12 +57,14 @@ import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.in;
+import static org.apache.iceberg.expressions.Expressions.isNaN;
 import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
+import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
@@ -82,7 +85,10 @@ public class TestDictionaryRowGroupFilter {
       optional(6, "no_nulls", StringType.get()),
       optional(7, "non_dict", StringType.get()),
       optional(8, "struct_not_null", structFieldType),
-      optional(10, "not_in_file", FloatType.get())
+      optional(10, "not_in_file", FloatType.get()),
+      optional(11, "all_nans", DoubleType.get()),
+      optional(12, "some_nans", FloatType.get()),
+      optional(13, "no_nans", DoubleType.get())
   );
 
   private static final Types.StructType _structFieldType =
@@ -96,7 +102,11 @@ public class TestDictionaryRowGroupFilter {
       optional(5, "_some_nulls", StringType.get()),
       optional(6, "_no_nulls", StringType.get()),
       optional(7, "_non_dict", StringType.get()),
-      optional(8, "_struct_not_null", _structFieldType)
+      optional(8, "_struct_not_null", _structFieldType),
+      optional(11, "_all_nans", DoubleType.get()),
+      optional(12, "_some_nans", FloatType.get()),
+      optional(13, "_no_nans", DoubleType.get())
+
   );
 
   private static final String TOO_LONG_FOR_STATS;
@@ -143,6 +153,9 @@ public class TestDictionaryRowGroupFilter {
           builder.set("_some_nulls", (i % 10 == 0) ? null : "some"); // includes some null values
           builder.set("_no_nulls", ""); // optional, but always non-null
           builder.set("_non_dict", UUID.randomUUID().toString()); // not dictionary-encoded
+          builder.set("_all_nans", Double.NaN); // never non-nan
+          builder.set("_some_nans", (i % 10 == 0) ? Float.NaN : 2F); // includes some nan values
+          builder.set("_no_nans", 3D); // optional, but always non-nan
 
           Record structNotNull = new Record(structSchema);
           structNotNull.put("_int_field", INT_MIN_VALUE + i);
@@ -243,6 +256,36 @@ public class TestDictionaryRowGroupFilter {
     shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, isNull("required"))
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
     Assert.assertFalse("Should skip: required columns are always non-null", shouldRead);
+  }
+
+  @Test
+  public void testIsNaNs() {
+    boolean shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, isNaN("all_nans"))
+        .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    Assert.assertTrue("Should read: all_nans column will contain NaN", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, isNaN("some_nans"))
+        .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    Assert.assertTrue("Should read: some_nans column will contain NaN", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, isNaN("no_nans"))
+        .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    Assert.assertFalse("Should skip: no_nans column will not contain NaN", shouldRead);
+  }
+
+  @Test
+  public void testNotNaNs() {
+    boolean shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notNaN("all_nans"))
+        .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    Assert.assertFalse("Should skip: all_nans column will not contain non-NaN", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notNaN("some_nans"))
+        .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    Assert.assertTrue("Should read: some_nans column will contain non-NaN", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, notNaN("no_nans"))
+        .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    Assert.assertTrue("Should read: no_nans column will contain non-NaN", shouldRead);
   }
 
   @Test

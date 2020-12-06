@@ -23,6 +23,7 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
@@ -35,11 +36,13 @@ import static org.apache.iceberg.expressions.Expression.Operation.EQ;
 import static org.apache.iceberg.expressions.Expression.Operation.GT;
 import static org.apache.iceberg.expressions.Expression.Operation.GT_EQ;
 import static org.apache.iceberg.expressions.Expression.Operation.IN;
+import static org.apache.iceberg.expressions.Expression.Operation.IS_NAN;
 import static org.apache.iceberg.expressions.Expression.Operation.IS_NULL;
 import static org.apache.iceberg.expressions.Expression.Operation.LT;
 import static org.apache.iceberg.expressions.Expression.Operation.LT_EQ;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_EQ;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_IN;
+import static org.apache.iceberg.expressions.Expression.Operation.NOT_NAN;
 import static org.apache.iceberg.expressions.Expression.Operation.NOT_NULL;
 import static org.apache.iceberg.expressions.Expressions.ref;
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -319,6 +322,65 @@ public class TestPredicateBinding {
   }
 
   @Test
+  public void testIsNaN() {
+    // double
+    StructType struct = StructType.of(optional(21, "d", Types.DoubleType.get()));
+
+    UnboundPredicate<?> unbound = new UnboundPredicate<>(IS_NAN, ref("d"));
+    Expression expr = unbound.bind(struct);
+    BoundPredicate<?> bound = assertAndUnwrap(expr);
+    Assert.assertEquals("Should use the same operation", IS_NAN, bound.op());
+    Assert.assertEquals("Should use the correct field", 21, bound.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound.isUnaryPredicate());
+
+    // float
+    struct = StructType.of(optional(21, "f", Types.FloatType.get()));
+
+    unbound = new UnboundPredicate<>(IS_NAN, ref("f"));
+    expr = unbound.bind(struct);
+    bound = assertAndUnwrap(expr);
+    Assert.assertEquals("Should use the same operation", IS_NAN, bound.op());
+    Assert.assertEquals("Should use the correct field", 21, bound.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound.isUnaryPredicate());
+
+    // string (non-compatible)
+    StructType strStruct = StructType.of(optional(21, "s", Types.StringType.get()));
+    AssertHelpers.assertThrows("Should complain about incompatible type binding",
+        ValidationException.class, "IsNaN cannot be used with a non-floating-point column",
+        () -> new UnboundPredicate<>(IS_NAN, ref("s")).bind(strStruct));
+  }
+
+  @Test
+  public void testNotNaN() {
+    // double
+    StructType struct = StructType.of(optional(21, "d", Types.DoubleType.get()));
+
+    UnboundPredicate<?> unbound = new UnboundPredicate<>(NOT_NAN, ref("d"));
+    Expression expr = unbound.bind(struct);
+    BoundPredicate<?> bound = assertAndUnwrap(expr);
+    Assert.assertEquals("Should use the same operation", NOT_NAN, bound.op());
+    Assert.assertEquals("Should use the correct field", 21, bound.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound.isUnaryPredicate());
+
+    // float
+    struct = StructType.of(optional(21, "f", Types.FloatType.get()));
+
+    unbound = new UnboundPredicate<>(NOT_NAN, ref("f"));
+    expr = unbound.bind(struct);
+    bound = assertAndUnwrap(expr);
+    Assert.assertEquals("Should use the same operation", NOT_NAN, bound.op());
+    Assert.assertEquals("Should use the correct field", 21, bound.ref().fieldId());
+    Assert.assertTrue("Should be a unary predicate", bound.isUnaryPredicate());
+
+    // string (non-compatible)
+    StructType strStruct = StructType.of(optional(21, "s", Types.StringType.get()));
+    AssertHelpers.assertThrows("Should complain about incompatible type binding",
+        ValidationException.class, "NotNaN cannot be used with a non-floating-point column",
+        () -> new UnboundPredicate<>(NOT_NAN, ref("s")).bind(strStruct));
+
+  }
+
+  @Test
   public void testInPredicateBinding() {
     StructType struct = StructType.of(
         required(10, "x", Types.IntegerType.get()),
@@ -391,6 +453,7 @@ public class TestPredicateBinding {
     Assert.assertEquals("Should reference correct field ID", 14, bound.ref().fieldId());
     Assert.assertEquals("Should change the IN operation to EQ", EQ, bound.op());
   }
+
 
   @Test
   public void testInPredicateBindingConversionDedupToEq() {

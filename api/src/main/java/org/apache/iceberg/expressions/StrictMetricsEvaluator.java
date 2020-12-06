@@ -57,10 +57,10 @@ public class StrictMetricsEvaluator {
   }
 
   /**
-   * Test whether the file may contain records that match the expression.
+   * Test whether all records within the file match the expression.
    *
    * @param file a data file
-   * @return false if the file cannot contain rows that match the expression, true otherwise.
+   * @return false if the file may contain any row that doesn't match the expression, true otherwise.
    */
   public boolean eval(ContentFile<?> file) {
     // TODO: detect the case where a column is missing from the file using file's max field id.
@@ -73,6 +73,7 @@ public class StrictMetricsEvaluator {
   private class MetricsEvalVisitor extends BoundExpressionVisitor<Boolean> {
     private Map<Integer, Long> valueCounts = null;
     private Map<Integer, Long> nullCounts = null;
+    private Map<Integer, Long> nanCounts = null;
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
 
@@ -83,6 +84,7 @@ public class StrictMetricsEvaluator {
 
       this.valueCounts = file.valueCounts();
       this.nullCounts = file.nullValueCounts();
+      this.nanCounts = file.nanValueCounts();
       this.lowerBounds = file.lowerBounds();
       this.upperBounds = file.upperBounds();
 
@@ -118,7 +120,7 @@ public class StrictMetricsEvaluator {
     public <T> Boolean isNull(BoundReference<T> ref) {
       // no need to check whether the field is required because binding evaluates that case
       // if the column has any non-null values, the expression does not match
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
       Preconditions.checkNotNull(struct.field(id),
           "Cannot filter by nested column: %s", schema.findField(id));
 
@@ -133,11 +135,37 @@ public class StrictMetricsEvaluator {
     public <T> Boolean notNull(BoundReference<T> ref) {
       // no need to check whether the field is required because binding evaluates that case
       // if the column has any null values, the expression does not match
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
       Preconditions.checkNotNull(struct.field(id),
           "Cannot filter by nested column: %s", schema.findField(id));
 
       if (nullCounts != null && nullCounts.containsKey(id) && nullCounts.get(id) == 0) {
+        return ROWS_MUST_MATCH;
+      }
+
+      return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean isNaN(BoundReference<T> ref) {
+      int id = ref.fieldId();
+
+      if (containsNaNsOnly(id)) {
+        return ROWS_MUST_MATCH;
+      }
+
+      return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notNaN(BoundReference<T> ref) {
+      int id = ref.fieldId();
+
+      if (nanCounts != null && nanCounts.containsKey(id) && nanCounts.get(id) == 0) {
+        return ROWS_MUST_MATCH;
+      }
+
+      if (containsNullsOnly(id)) {
         return ROWS_MUST_MATCH;
       }
 
@@ -382,6 +410,11 @@ public class StrictMetricsEvaluator {
       return valueCounts != null && valueCounts.containsKey(id) &&
           nullCounts != null && nullCounts.containsKey(id) &&
           valueCounts.get(id) - nullCounts.get(id) == 0;
+    }
+
+    private boolean containsNaNsOnly(Integer id) {
+      return nanCounts != null && nanCounts.containsKey(id) &&
+          valueCounts != null && nanCounts.get(id).equals(valueCounts.get(id));
     }
   }
 }

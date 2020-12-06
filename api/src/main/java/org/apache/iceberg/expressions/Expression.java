@@ -30,6 +30,8 @@ public interface Expression extends Serializable {
     FALSE,
     IS_NULL,
     NOT_NULL,
+    IS_NAN,
+    NOT_NAN,
     LT,
     LT_EQ,
     GT,
@@ -52,6 +54,10 @@ public interface Expression extends Serializable {
           return Operation.NOT_NULL;
         case NOT_NULL:
           return Operation.IS_NULL;
+        case IS_NAN:
+          return Operation.NOT_NAN;
+        case NOT_NAN:
+          return Operation.IS_NAN;
         case LT:
           return Operation.GT_EQ;
         case LT_EQ:

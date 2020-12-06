@@ -27,6 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.CharSequenceSet;
 
@@ -127,9 +128,25 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
           return Expressions.alwaysTrue();
         }
         return new BoundUnaryPredicate<>(Operation.NOT_NULL, boundTerm);
+      case IS_NAN:
+        if (floatingType(boundTerm.type().typeId())) {
+          return new BoundUnaryPredicate<>(Operation.IS_NAN, boundTerm);
+        } else {
+          throw new ValidationException("IsNaN cannot be used with a non-floating-point column");
+        }
+      case NOT_NAN:
+        if (floatingType(boundTerm.type().typeId())) {
+          return new BoundUnaryPredicate<>(Operation.NOT_NAN, boundTerm);
+        } else {
+          throw new ValidationException("NotNaN cannot be used with a non-floating-point column");
+        }
       default:
-        throw new ValidationException("Operation must be IS_NULL or NOT_NULL");
+        throw new ValidationException("Operation must be IS_NULL, NOT_NULL, IS_NAN, or NOT_NAN");
     }
+  }
+
+  private boolean floatingType(Type.TypeID typeID) {
+    return Type.TypeID.DOUBLE.equals(typeID) || Type.TypeID.FLOAT.equals(typeID);
   }
 
   private Expression bindLiteralOperation(BoundTerm<T> boundTerm) {
@@ -210,6 +227,10 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
         return "is_null(" + term() + ")";
       case NOT_NULL:
         return "not_null(" + term() + ")";
+      case IS_NAN:
+        return "is_nan(" + term() + ")";
+      case NOT_NAN:
+        return "not_nan(" + term() + ")";
       case LT:
         return term() + " < " + literal();
       case LT_EQ:

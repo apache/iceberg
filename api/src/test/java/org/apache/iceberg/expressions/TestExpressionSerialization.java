@@ -48,6 +48,8 @@ public class TestExpressionSerialization {
         Expressions.notEqual("col", "abc"),
         Expressions.notNull("maybeNull"),
         Expressions.isNull("maybeNull2"),
+        Expressions.isNaN("maybeNaN"),
+        Expressions.notNaN("maybeNaN2"),
         Expressions.not(Expressions.greaterThan("a", 10)),
         Expressions.and(Expressions.greaterThanOrEqual("a", 0), Expressions.lessThan("a", 3)),
         Expressions.or(Expressions.lessThan("a", 0), Expressions.greaterThan("a", 10)),
@@ -132,7 +134,8 @@ public class TestExpressionSerialization {
       return false;
     }
 
-    if (left.op() == Operation.IS_NULL || left.op() == Operation.NOT_NULL) {
+    if (left.op() == Operation.IS_NULL || left.op() == Operation.NOT_NULL ||
+        left.op() == Operation.IS_NAN || left.op() == Operation.NOT_NAN) {
       return true;
     }
 

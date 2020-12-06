@@ -123,6 +123,37 @@ class ExpressionToSearchArgument extends ExpressionVisitors.BoundVisitor<Express
   }
 
   @Override
+  public <T> Action isNaN(Bound<T> expr) {
+    return () -> this.builder.equals(
+        idToColumnName.get(expr.ref().fieldId()),
+        type(expr.ref().type()),
+        literal(expr.ref().type(), getNaNForType(expr.ref().type())));
+  }
+
+  private Object getNaNForType(Type type) {
+    switch (type.typeId()) {
+      case FLOAT:
+        return Float.NaN;
+      case DOUBLE:
+        return Double.NaN;
+      default:
+        throw new IllegalArgumentException("Cannot get NaN value for type " + type.typeId());
+    }
+  }
+
+  @Override
+  public <T> Action notNaN(Bound<T> expr) {
+    return () -> {
+      this.builder.startOr();
+      isNull(expr).invoke();
+      this.builder.startNot();
+      isNaN(expr).invoke();
+      this.builder.end(); // end NOT
+      this.builder.end(); // end OR
+    };
+  }
+
+  @Override
   public <T> Action lt(Bound<T> expr, Literal<T> lit) {
     return () -> this.builder.lessThan(idToColumnName.get(expr.ref().fieldId()),
         type(expr.ref().type()),

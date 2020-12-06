@@ -38,12 +38,14 @@ import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.in;
+import static org.apache.iceberg.expressions.Expressions.isNaN;
 import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
+import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.predicate;
@@ -59,7 +61,10 @@ public class TestEvaluator {
           Types.NestedField.required(17, "s2", Types.StructType.of(
               Types.NestedField.required(18, "s3", Types.StructType.of(
                   Types.NestedField.required(19, "s4", Types.StructType.of(
-                      Types.NestedField.required(20, "i", Types.IntegerType.get()))))))))));
+                      Types.NestedField.required(20, "i", Types.IntegerType.get()))))))))),
+      optional(21, "s5", Types.StructType.of(
+          Types.NestedField.required(22, "s6", Types.StructType.of(
+              Types.NestedField.required(23, "f", Types.FloatType.get()))))));
 
   @Test
   public void testLessThan() {
@@ -254,6 +259,32 @@ public class TestEvaluator {
             TestHelpers.Row.of(
                 TestHelpers.Row.of(
                     TestHelpers.Row.of(3)))))));
+  }
+
+  @Test
+  public void testIsNan() {
+    Evaluator evaluator = new Evaluator(STRUCT, isNaN("y"));
+    Assert.assertTrue("NaN is NaN", evaluator.eval(TestHelpers.Row.of(1, Double.NaN, 3)));
+    Assert.assertFalse("2 is not NaN", evaluator.eval(TestHelpers.Row.of(1, 2.0, 3)));
+
+    Evaluator structEvaluator = new Evaluator(STRUCT, isNaN("s5.s6.f"));
+    Assert.assertTrue("NaN is NaN", structEvaluator.eval(TestHelpers.Row.of(1, 2, 3, null,
+        TestHelpers.Row.of(TestHelpers.Row.of(Float.NaN)))));
+    Assert.assertFalse("4F is not NaN", structEvaluator.eval(TestHelpers.Row.of(1, 2, 3, null,
+        TestHelpers.Row.of(TestHelpers.Row.of(4F)))));
+  }
+
+  @Test
+  public void testNotNaN() {
+    Evaluator evaluator = new Evaluator(STRUCT, notNaN("y"));
+    Assert.assertFalse("NaN is NaN", evaluator.eval(TestHelpers.Row.of(1, Double.NaN, 3)));
+    Assert.assertTrue("2 is not NaN", evaluator.eval(TestHelpers.Row.of(1, 2.0, 3)));
+
+    Evaluator structEvaluator = new Evaluator(STRUCT, notNaN("s5.s6.f"));
+    Assert.assertFalse("NaN is NaN", structEvaluator.eval(TestHelpers.Row.of(1, 2, 3, null,
+        TestHelpers.Row.of(TestHelpers.Row.of(Float.NaN)))));
+    Assert.assertTrue("4F is not NaN", structEvaluator.eval(TestHelpers.Row.of(1, 2, 3, null,
+        TestHelpers.Row.of(TestHelpers.Row.of(4F)))));
   }
 
   @Test

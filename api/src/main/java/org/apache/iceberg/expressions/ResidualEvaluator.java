@@ -28,6 +28,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.util.NaNUtil;
 
 /**
  * Finds the residuals for an {@link Expression} the partitions in the given {@link PartitionSpec}.
@@ -150,6 +151,16 @@ public class ResidualEvaluator implements Serializable {
     @Override
     public <T> Expression notNull(BoundReference<T> ref) {
       return (ref.eval(struct) != null) ? alwaysTrue() : alwaysFalse();
+    }
+
+    @Override
+    public <T> Expression isNaN(BoundReference<T> ref) {
+      return NaNUtil.isNaN(ref.eval(struct)) ? alwaysTrue() : alwaysFalse();
+    }
+
+    @Override
+    public <T> Expression notNaN(BoundReference<T> ref) {
+      return NaNUtil.isNaN(ref.eval(struct)) ? alwaysFalse() : alwaysTrue();
     }
 
     @Override

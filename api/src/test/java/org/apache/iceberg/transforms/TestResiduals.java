@@ -42,8 +42,10 @@ import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.in;
+import static org.apache.iceberg.expressions.Expressions.isNaN;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.notIn;
+import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.or;
 
 public class TestResiduals {
@@ -153,7 +155,9 @@ public class TestResiduals {
         Expressions.notNull("c"),
         Expressions.isNull("d"),
         Expressions.in("e", 1, 2, 3),
-        Expressions.notIn("f", 1, 2, 3)
+        Expressions.notIn("f", 1, 2, 3),
+        Expressions.notNaN("g"),
+        Expressions.isNaN("h"),
     };
 
     for (Expression expr : expressions) {
@@ -233,6 +237,78 @@ public class TestResiduals {
 
     residual = resEval.residualFor(Row.of(20170815));
     Assert.assertEquals("Residual should be alwaysFalse", alwaysFalse(), residual);
+  }
+
+  @Test
+  public void testIsNaN() {
+    Schema schema = new Schema(
+        Types.NestedField.optional(50, "double", Types.DoubleType.get()),
+        Types.NestedField.optional(51, "float", Types.FloatType.get())
+    );
+
+    // test double field
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .identity("double")
+        .build();
+
+    ResidualEvaluator resEval = ResidualEvaluator.of(spec,
+        isNaN("double"), true);
+
+    Expression residual = resEval.residualFor(Row.of(Double.NaN));
+    Assert.assertEquals("Residual should be alwaysTrue", alwaysTrue(), residual);
+
+    residual = resEval.residualFor(Row.of(2D));
+    Assert.assertEquals("Residual should be alwaysFalse", alwaysFalse(), residual);
+
+    // test float field
+    spec = PartitionSpec.builderFor(schema)
+        .identity("float")
+        .build();
+
+    resEval = ResidualEvaluator.of(spec,
+        isNaN("float"), true);
+
+    residual = resEval.residualFor(Row.of(Float.NaN));
+    Assert.assertEquals("Residual should be alwaysTrue", alwaysTrue(), residual);
+
+    residual = resEval.residualFor(Row.of(3F));
+    Assert.assertEquals("Residual should be alwaysFalse", alwaysFalse(), residual);
+  }
+
+  @Test
+  public void testNotNaN() {
+    Schema schema = new Schema(
+        Types.NestedField.optional(50, "double", Types.DoubleType.get()),
+        Types.NestedField.optional(51, "float", Types.FloatType.get())
+    );
+
+    // test double field
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .identity("double")
+        .build();
+
+    ResidualEvaluator resEval = ResidualEvaluator.of(spec,
+        notNaN("double"), true);
+
+    Expression residual = resEval.residualFor(Row.of(Double.NaN));
+    Assert.assertEquals("Residual should be alwaysFalse", alwaysFalse(), residual);
+
+    residual = resEval.residualFor(Row.of(2D));
+    Assert.assertEquals("Residual should be alwaysTrue", alwaysTrue(), residual);
+
+    // test float field
+    spec = PartitionSpec.builderFor(schema)
+        .identity("float")
+        .build();
+
+    resEval = ResidualEvaluator.of(spec,
+        notNaN("float"), true);
+
+    residual = resEval.residualFor(Row.of(Float.NaN));
+    Assert.assertEquals("Residual should be alwaysFalse", alwaysFalse(), residual);
+
+    residual = resEval.residualFor(Row.of(3F));
+    Assert.assertEquals("Residual should be alwaysTrue", alwaysTrue(), residual);
   }
 
   @Test

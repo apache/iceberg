@@ -26,6 +26,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.NaNUtil;
 
 /**
  * Factory methods for creating {@link Expression expressions}.
@@ -123,51 +124,79 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.NOT_NULL, expr);
   }
 
+  public static <T> UnboundPredicate<T> isNaN(String name) {
+    return new UnboundPredicate<>(Expression.Operation.IS_NAN, ref(name));
+  }
+
+  public static <T> UnboundPredicate<T> isNaN(UnboundTerm<T> expr) {
+    return new UnboundPredicate<>(Expression.Operation.IS_NAN, expr);
+  }
+
+  public static <T> UnboundPredicate<T> notNaN(String name) {
+    return new UnboundPredicate<>(Expression.Operation.NOT_NAN, ref(name));
+  }
+
+  public static <T> UnboundPredicate<T> notNaN(UnboundTerm<T> expr) {
+    return new UnboundPredicate<>(Expression.Operation.NOT_NAN, expr);
+  }
+
   public static <T> UnboundPredicate<T> lessThan(String name, T value) {
+    validateInput("lessThan", value);
     return new UnboundPredicate<>(Expression.Operation.LT, ref(name), value);
   }
 
   public static <T> UnboundPredicate<T> lessThan(UnboundTerm<T> expr, T value) {
+    validateInput("lessThan", value);
     return new UnboundPredicate<>(Expression.Operation.LT, expr, value);
   }
 
   public static <T> UnboundPredicate<T> lessThanOrEqual(String name, T value) {
+    validateInput("lessThanOrEqual", value);
     return new UnboundPredicate<>(Expression.Operation.LT_EQ, ref(name), value);
   }
 
   public static <T> UnboundPredicate<T> lessThanOrEqual(UnboundTerm<T> expr, T value) {
+    validateInput("lessThanOrEqual", value);
     return new UnboundPredicate<>(Expression.Operation.LT_EQ, expr, value);
   }
 
   public static <T> UnboundPredicate<T> greaterThan(String name, T value) {
+    validateInput("greaterThan", value);
     return new UnboundPredicate<>(Expression.Operation.GT, ref(name), value);
   }
 
   public static <T> UnboundPredicate<T> greaterThan(UnboundTerm<T> expr, T value) {
+    validateInput("greaterThan", value);
     return new UnboundPredicate<>(Expression.Operation.GT, expr, value);
   }
 
   public static <T> UnboundPredicate<T> greaterThanOrEqual(String name, T value) {
+    validateInput("greaterThanOrEqual", value);
     return new UnboundPredicate<>(Expression.Operation.GT_EQ, ref(name), value);
   }
 
   public static <T> UnboundPredicate<T> greaterThanOrEqual(UnboundTerm<T> expr, T value) {
+    validateInput("greaterThanOrEqual", value);
     return new UnboundPredicate<>(Expression.Operation.GT_EQ, expr, value);
   }
 
   public static <T> UnboundPredicate<T> equal(String name, T value) {
+    validateInput("equal", value);
     return new UnboundPredicate<>(Expression.Operation.EQ, ref(name), value);
   }
 
   public static <T> UnboundPredicate<T> equal(UnboundTerm<T> expr, T value) {
+    validateInput("equal", value);
     return new UnboundPredicate<>(Expression.Operation.EQ, expr, value);
   }
 
   public static <T> UnboundPredicate<T> notEqual(String name, T value) {
+    validateInput("notEqual", value);
     return new UnboundPredicate<>(Expression.Operation.NOT_EQ, ref(name), value);
   }
 
   public static <T> UnboundPredicate<T> notEqual(UnboundTerm<T> expr, T value) {
+    validateInput("notEqual", value);
     return new UnboundPredicate<>(Expression.Operation.NOT_EQ, expr, value);
   }
 
@@ -216,27 +245,41 @@ public class Expressions {
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name, T value) {
+    validateInput(op.toString(), value);
     return predicate(op, name, Literals.from(value));
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name, Literal<T> lit) {
-    Preconditions.checkArgument(op != Operation.IS_NULL && op != Operation.NOT_NULL,
+    Preconditions.checkArgument(
+        op != Operation.IS_NULL && op != Operation.NOT_NULL && op != Operation.IS_NAN && op != Operation.NOT_NAN,
         "Cannot create %s predicate inclusive a value", op);
     return new UnboundPredicate<T>(op, ref(name), lit);
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name, Iterable<T> values) {
+    validateInput(op.toString(), values);
     return predicate(op, ref(name), values);
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, String name) {
-    Preconditions.checkArgument(op == Operation.IS_NULL || op == Operation.NOT_NULL,
+    Preconditions.checkArgument(
+        op == Operation.IS_NULL || op == Operation.NOT_NULL || op == Operation.IS_NAN || op == Operation.NOT_NAN,
         "Cannot create %s predicate without a value", op);
     return new UnboundPredicate<>(op, ref(name));
   }
 
   private static <T> UnboundPredicate<T> predicate(Operation op, UnboundTerm<T> expr, Iterable<T> values) {
+    validateInput(op.toString(), values);
     return new UnboundPredicate<>(op, expr, values);
+  }
+
+  private static <T> void validateInput(String op, T value) {
+    Preconditions.checkArgument(!NaNUtil.isNaN(value), String.format("Cannot create %s predicate with NaN", op));
+  }
+
+  private static <T> void validateInput(String op, Iterable<T> values) {
+    Preconditions.checkArgument(Lists.newArrayList(values).stream().noneMatch(NaNUtil::isNaN),
+        String.format("Cannot create %s predicate with NaN", op));
   }
 
   public static True alwaysTrue() {

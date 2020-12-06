@@ -181,6 +181,22 @@ class ParquetFilters {
         return FilterApi.eq(col, null);
       case NOT_NULL:
         return FilterApi.notEq(col, null);
+      case IS_NAN:
+        if (col.getColumnType().equals(Double.class)) {
+          return FilterApi.eq(col, (C) (Double) Double.NaN);
+        } else if (col.getColumnType().equals(Float.class)) {
+          return FilterApi.eq(col, (C) (Float) Float.NaN);
+        } else {
+          return AlwaysFalse.INSTANCE;
+        }
+      case NOT_NAN:
+        if (col.getColumnType().equals(Double.class)) {
+          return FilterApi.notEq(col, (C) (Double) Double.NaN);
+        } else if (col.getColumnType().equals(Float.class)) {
+          return FilterApi.notEq(col, (C) (Float) Float.NaN);
+        } else {
+          return AlwaysTrue.INSTANCE;
+        }
       case EQ:
         return FilterApi.eq(col, value);
       case NOT_EQ:
