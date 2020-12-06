@@ -50,6 +50,7 @@ import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergBinaryObjectInspe
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDecimalObjectInspector;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.UUIDUtil;
 import org.junit.Assert;
 
@@ -137,11 +138,11 @@ public class HiveIcebergTestUtils {
   }
 
   public static List<Object> valuesForTestRecord(Record record) {
-    ByteBuffer byteBuffer = record.get(11, ByteBuffer.class);
-    byte[] bytes = new byte[byteBuffer.remaining()];
-    byteBuffer.mark();
-    byteBuffer.get(bytes);
-    byteBuffer.reset();
+//    ByteBuffer byteBuffer = record.get(11, ByteBuffer.class);
+//    byte[] bytes = new byte[byteBuffer.remaining()];
+//    byteBuffer.mark();
+//    byteBuffer.get(bytes);
+//    byteBuffer.reset();
 
     return Arrays.asList(
         new BooleanWritable(Boolean.TRUE),
@@ -157,7 +158,7 @@ public class HiveIcebergTestUtils {
         new Text(record.get(8, String.class)),
         new Text(record.get(9, UUID.class).toString()),
         new BytesWritable(record.get(10, byte[].class)),
-        new BytesWritable(bytes),
+        new BytesWritable(ByteBuffers.toByteArray(record.get(11, ByteBuffer.class))),
         new HiveDecimalWritable(HiveDecimal.create(record.get(12, BigDecimal.class)))
     );
   }

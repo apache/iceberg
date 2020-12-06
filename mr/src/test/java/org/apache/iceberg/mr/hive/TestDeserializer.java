@@ -20,12 +20,15 @@
 package org.apache.iceberg.mr.hive;
 
 import java.util.Arrays;
-import org.apache.hadoop.hive.serde2.SerDeException;
+import java.util.Collections;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.MapWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -51,10 +54,12 @@ public class TestDeserializer {
               PrimitiveObjectInspectorFactory.writableStringObjectInspector
           ));
 
-
   @Test
-  public void testSimpleDeserialize() throws SerDeException {
-    Deserializer deserializer = new Deserializer(CUSTOMER_SCHEMA, CUSTOMER_OBJECT_INSPECTOR);
+  public void testStructDeserialize() {
+    Deserializer deserializer = new Deserializer.Builder()
+        .schema(CUSTOMER_SCHEMA)
+        .inspector(CUSTOMER_OBJECT_INSPECTOR)
+        .build();
 
     Record expected = GenericRecord.create(CUSTOMER_SCHEMA);
     expected.set(0, 1L);
@@ -66,12 +71,74 @@ public class TestDeserializer {
   }
 
   @Test
-  public void testDeserializeEverySupportedType() throws SerDeException {
-    // No test yet for Hive3 (Date/Timestamp creation)
-    Assume.assumeFalse(MetastoreUtil.hive3PresentOnClasspath());
+  public void testMapDeserialize() {
+    Schema schema = new Schema(
+        optional(1, "map_type", Types.MapType.ofOptional(2, 3,
+            Types.LongType.get(),
+            Types.StringType.get()
+        ))
+    );
 
-    Deserializer deserializer = new Deserializer(HiveIcebergTestUtils.FULL_SCHEMA,
-        HiveIcebergTestUtils.FULL_SCHEMA_OBJECT_INSPECTOR);
+    ObjectInspector inspector = ObjectInspectorFactory.getStandardStructObjectInspector(
+        Arrays.asList("map_type"),
+        Arrays.asList(
+            ObjectInspectorFactory.getStandardMapObjectInspector(
+                PrimitiveObjectInspectorFactory.writableLongObjectInspector,
+                PrimitiveObjectInspectorFactory.writableStringObjectInspector
+            )
+        ));
+
+    Deserializer deserializer = new Deserializer.Builder()
+        .schema(schema)
+        .inspector(inspector)
+        .build();
+
+    Record expected = GenericRecord.create(schema);
+    expected.set(0, Collections.singletonMap(1L, "Taylor"));
+
+    MapWritable map = new MapWritable();
+    map.put(new LongWritable(1L), new Text("Taylor"));
+    Object[] data = new Object[] { map };
+    Record actual = deserializer.deserialize(data);
+
+    Assert.assertEquals(expected, actual);
+  }
+
+  @Test
+  public void testListDeserialize() {
+    Schema schema = new Schema(
+        optional(1, "list_type", Types.ListType.ofOptional(2, Types.LongType.get()))
+    );
+
+    ObjectInspector inspector = ObjectInspectorFactory.getStandardStructObjectInspector(
+        Arrays.asList("list_type"),
+        Arrays.asList(
+            ObjectInspectorFactory.getStandardListObjectInspector(
+                PrimitiveObjectInspectorFactory.writableLongObjectInspector)
+        ));
+
+    Deserializer deserializer = new Deserializer.Builder()
+        .schema(schema)
+        .inspector(inspector)
+        .build();
+
+    Record expected = GenericRecord.create(schema);
+    expected.set(0, Collections.singletonList(1L));
+
+    Object[] data = new Object[] { new Object[] { new LongWritable(1L) } };
+    Record actual = deserializer.deserialize(data);
+
+    Assert.assertEquals(expected, actual);
+  }
+
+  @Test
+  public void testDeserializeEverySupportedType() {
+    Assume.assumeFalse("No test yet for Hive3 (Date/Timestamp creation)", MetastoreUtil.hive3PresentOnClasspath());
+
+    Deserializer deserializer = new Deserializer.Builder()
+        .schema(HiveIcebergTestUtils.FULL_SCHEMA)
+        .inspector(HiveIcebergTestUtils.FULL_SCHEMA_OBJECT_INSPECTOR)
+        .build();
 
     Record expected = HiveIcebergTestUtils.getTestRecord(false);
     Record actual = deserializer.deserialize(HiveIcebergTestUtils.valuesForTestRecord(expected));
@@ -80,9 +147,11 @@ public class TestDeserializer {
   }
 
   @Test
-  public void testNullDeserialize() throws SerDeException {
-    Deserializer deserializer = new Deserializer(HiveIcebergTestUtils.FULL_SCHEMA,
-        HiveIcebergTestUtils.FULL_SCHEMA_OBJECT_INSPECTOR);
+  public void testNullDeserialize() {
+    Deserializer deserializer = new Deserializer.Builder()
+        .schema(HiveIcebergTestUtils.FULL_SCHEMA)
+        .inspector(HiveIcebergTestUtils.FULL_SCHEMA_OBJECT_INSPECTOR)
+        .build();
 
     Record expected = HiveIcebergTestUtils.getNullTestRecord();
 
@@ -97,8 +166,8 @@ public class TestDeserializer {
     Assert.assertNull(deserializer.deserialize(null));
   }
 
-  @Test(expected = SerDeException.class)
-  public void testSerDeException() throws SerDeException {
+  @Test
+  public void testUnsupportedType() {
     Schema unsupported = new Schema(
         optional(1, "time_type", Types.TimeType.get())
     );
@@ -108,6 +177,13 @@ public class TestDeserializer {
             PrimitiveObjectInspectorFactory.writableStringObjectInspector
         ));
 
-    new Deserializer(unsupported, objectInspector);
+    AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
+        "Unsupported column type", () -> {
+          new Deserializer.Builder()
+              .schema(unsupported)
+              .inspector(objectInspector)
+              .build();
+        }
+    );
   }
 }
