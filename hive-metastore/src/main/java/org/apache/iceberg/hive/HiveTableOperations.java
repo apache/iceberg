@@ -271,7 +271,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private StorageDescriptor storageDescriptor(TableMetadata metadata, boolean hiveEngineEnabled) {
 
     final StorageDescriptor storageDescriptor = new StorageDescriptor();
-    storageDescriptor.setCols(HiveTypeConverter.hiveSchema(metadata.schema()));
+    storageDescriptor.setCols(HiveSchemaUtil.convert(metadata.schema()));
     storageDescriptor.setLocation(metadata.location());
     SerDeInfo serDeInfo = new SerDeInfo();
     if (hiveEngineEnabled) {
