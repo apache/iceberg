@@ -175,6 +175,31 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
   }
 
   @Test
+  public void testSortedPosDeleteWithSchemaAndNullRow() throws IOException {
+    List<Record> rowSet = Lists.newArrayList(
+        createRow(0, "aaa"),
+        createRow(1, "bbb"),
+        createRow(2, "ccc")
+    );
+
+    // Create a FileAppenderFactory which requires pos-delete row schema.
+    FileAppenderFactory<Record> appenderFactory = new GenericAppenderFactory(table.schema(), table.spec(),
+        null, null, table.schema());
+    DataFile dataFile = prepareDataFile(appenderFactory, rowSet);
+
+    try (SortedPosDeleteWriter<Record> writer = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format,
+        null, 100)) {
+      boolean caughtError = false;
+      try {
+        writer.delete(dataFile.path(), 0L);
+      } catch (Exception e) {
+        caughtError = true;
+      }
+      Assert.assertTrue("Should fail because the appender are required non-null rows to write", caughtError);
+    }
+  }
+
+  @Test
   public void testSortedPosDeleteWithRow() throws IOException {
     List<Record> rowSet = Lists.newArrayList(
         createRow(0, "aaa"),
@@ -253,7 +278,7 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
 
     SortedPosDeleteWriter<Record> writer = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, null, 50);
     try (SortedPosDeleteWriter<Record> closeableWriter = writer) {
-      for (int pos = 0; pos < 100; pos++) { // Delete in DESC order.
+      for (int pos = 0; pos < 100; pos++) {
         for (int fileIndex = 4; fileIndex >= 0; fileIndex--) {
           closeableWriter.delete(dataFiles.get(fileIndex).path(), pos);
         }

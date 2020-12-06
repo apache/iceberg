@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -32,8 +33,6 @@ import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Multimap;
-import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.CharSequenceWrapper;
@@ -41,8 +40,7 @@ import org.apache.iceberg.util.CharSequenceWrapper;
 class SortedPosDeleteWriter<T> implements Closeable {
   private static final long DEFAULT_RECORDS_NUM_THRESHOLD = 100_000L;
 
-  private final Multimap<CharSequenceWrapper, PosValue<T>> posDeletes =
-      Multimaps.newMultimap(Maps.newHashMap(), Lists::newArrayList);
+  private final Map<CharSequenceWrapper, List<PosRow<T>>> posDeletes = Maps.newHashMap();
   private final List<DeleteFile> completedFiles = Lists.newArrayList();
   private final Set<CharSequence> referencedDataFiles = CharSequenceSet.empty();
   private final CharSequenceWrapper wrapper = CharSequenceWrapper.wrap(null);
@@ -79,12 +77,18 @@ class SortedPosDeleteWriter<T> implements Closeable {
   }
 
   public void delete(CharSequence path, long pos, T row) {
-    posDeletes.put(CharSequenceWrapper.wrap(path), PosValue.of(pos, row));
+    List<PosRow<T>> posRows = posDeletes.get(wrapper.set(path));
+    if (posRows != null) {
+      posRows.add(PosRow.of(pos, row));
+    } else {
+      posDeletes.put(CharSequenceWrapper.wrap(path), Lists.newArrayList(PosRow.of(pos, row)));
+    }
+
     records += 1;
 
     // TODO Flush buffer based on the policy that checking whether whole heap memory size exceed the threshold.
     if (records >= recordsNumThreshold) {
-      flushBuffer();
+      flushDeletes();
     }
   }
 
@@ -100,10 +104,10 @@ class SortedPosDeleteWriter<T> implements Closeable {
 
   @Override
   public void close() throws IOException {
-    flushBuffer();
+    flushDeletes();
   }
 
-  private void flushBuffer() {
+  private void flushDeletes() {
     if (posDeletes.isEmpty()) {
       return;
     }
@@ -127,10 +131,10 @@ class SortedPosDeleteWriter<T> implements Closeable {
 
       // Write all the sorted <path, pos, row> triples.
       for (CharSequence path : paths) {
-        List<PosValue<T>> positions = (List<PosValue<T>>) posDeletes.get(wrapper.set(path));
-        positions.sort(Comparator.comparingLong(PosValue::pos));
+        List<PosRow<T>> positions = posDeletes.get(wrapper.set(path));
+        positions.sort(Comparator.comparingLong(PosRow::pos));
 
-        positions.forEach(posValue -> closeableWriter.delete(path, posValue.pos(), posValue.row()));
+        positions.forEach(posRow -> closeableWriter.delete(path, posRow.pos(), posRow.row()));
       }
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to write the sorted path/pos pairs to pos-delete file: " +
@@ -148,15 +152,15 @@ class SortedPosDeleteWriter<T> implements Closeable {
     completedFiles.add(writer.toDeleteFile());
   }
 
-  private static class PosValue<R> {
+  private static class PosRow<R> {
     private final long pos;
     private final R row;
 
-    static <R> PosValue<R> of(long pos, R row) {
-      return new PosValue<>(pos, row);
+    static <R> PosRow<R> of(long pos, R row) {
+      return new PosRow<>(pos, row);
     }
 
-    private PosValue(long pos, R row) {
+    private PosRow(long pos, R row) {
       this.pos = pos;
       this.row = row;
     }
