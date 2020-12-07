@@ -28,39 +28,35 @@ import java.nio.ByteBuffer;
  * This wrapper ensures that metrics not being updated by those writers will not be incorrectly used, by throwing
  * exceptions when they are accessed.
  */
-public class NaNFieldMetrics extends FieldMetrics {
+public class FloatFieldMetrics extends FieldMetrics {
 
   /**
    * Constructor for creating a FieldMetrics with only NaN counter.
    * @param id field id being tracked by the writer
    * @param nanValueCount number of NaN values, will only be non-0 for double or float field.
    */
-  public NaNFieldMetrics(int id,
-                         long nanValueCount) {
+  public FloatFieldMetrics(int id,
+                           long nanValueCount) {
     super(id, 0L, 0L, nanValueCount, null, null);
   }
 
   @Override
   public long valueCount() {
-    throw new IllegalStateException(
-        "Shouldn't access valueCount() within NaNOnlyFieldMetrics, as this metric is tracked in file statistics. ");
+    throw new IllegalStateException("Shouldn't access this method, as this metric is tracked in file statistics. ");
   }
 
   @Override
   public long nullValueCount() {
-    throw new IllegalStateException(
-        "Shouldn't access nullValueCount() within NaNOnlyFieldMetrics, as this metric is tracked in file statistics. ");
+    throw new IllegalStateException("Shouldn't access this method, as this metric is tracked in file statistics. ");
   }
 
   @Override
   public ByteBuffer lowerBound() {
-    throw new IllegalStateException(
-        "Shouldn't access lowerBound() within NaNOnlyFieldMetrics, as this metric is tracked in file statistics. ");
+    throw new IllegalStateException("Shouldn't access this method, as this metric is tracked in file statistics. ");
   }
 
   @Override
   public ByteBuffer upperBound() {
-    throw new IllegalStateException(
-        "Shouldn't access upperBound() within NaNOnlyFieldMetrics, as this metric is tracked in file statistics. ");
+    throw new IllegalStateException("Shouldn't access this method, as this metric is tracked in file statistics. ");
   }
 }
