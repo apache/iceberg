@@ -19,13 +19,6 @@
 
 package org.apache.iceberg.mr.hive;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.Serializable;
-import java.util.Base64;
 import java.util.Map;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
@@ -51,6 +44,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
+import org.apache.iceberg.mr.SerializationUtil;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 
 public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, HiveStorageHandler {
@@ -149,47 +143,47 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
 
   /**
    * Returns the Table FileIO serialized to the configuration.
-   * @param configuration The configuration used to get the data from
+   * @param config The configuration used to get the data from
    * @return The Table FileIO object
    */
-  public static FileIO io(Configuration configuration) {
-    return (FileIO) get(configuration, InputFormatConfig.FILE_IO);
+  public static FileIO io(Configuration config) {
+    return SerializationUtil.deserializeFromBase64(config.get(InputFormatConfig.FILE_IO));
   }
 
   /**
    * Returns the Table LocationProvider serialized to the configuration.
-   * @param configuration The configuration used to get the data from
+   * @param config The configuration used to get the data from
    * @return The Table LocationProvider object
    */
-  public static LocationProvider location(Configuration configuration) {
-    return (LocationProvider) get(configuration, InputFormatConfig.LOCATION_PROVIDER);
+  public static LocationProvider location(Configuration config) {
+    return SerializationUtil.deserializeFromBase64(config.get(InputFormatConfig.LOCATION_PROVIDER));
   }
 
   /**
    * Returns the Table EncryptionManager serialized to the configuration.
-   * @param configuration The configuration used to get the data from
+   * @param config The configuration used to get the data from
    * @return The Table EncryptionManager object
    */
-  public static EncryptionManager encryption(Configuration configuration) {
-    return (EncryptionManager) get(configuration, InputFormatConfig.ENCRYPTION_MANAGER);
+  public static EncryptionManager encryption(Configuration config) {
+    return SerializationUtil.deserializeFromBase64(config.get(InputFormatConfig.ENCRYPTION_MANAGER));
   }
 
   /**
    * Returns the Table Schema serialized to the configuration.
-   * @param configuration The configuration used to get the data from
+   * @param config The configuration used to get the data from
    * @return The Table Schema object
    */
-  public static Schema schema(Configuration configuration) {
-    return SchemaParser.fromJson(configuration.get(InputFormatConfig.TABLE_SCHEMA));
+  public static Schema schema(Configuration config) {
+    return SchemaParser.fromJson(config.get(InputFormatConfig.TABLE_SCHEMA));
   }
 
   /**
    * Returns the Table PartitionSpec serialized to the configuration.
-   * @param configuration The configuration used to get the data from
+   * @param config The configuration used to get the data from
    * @return The Table PartitionSpec object
    */
-  public static PartitionSpec spec(Configuration configuration) {
-    return PartitionSpecParser.fromJson(schema(configuration), configuration.get(InputFormatConfig.PARTITION_SPEC));
+  public static PartitionSpec spec(Configuration config) {
+    return PartitionSpecParser.fromJson(schema(config), config.get(InputFormatConfig.PARTITION_SPEC));
   }
 
   /**
@@ -203,36 +197,17 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
    *   <li>- Location provider used for file generation</li>
    *   <li>- Encryption manager for encryption handling</li>
    * </ul>
-   * @param configuration The target configuration to store to
+   * @param config The target configuration to store to
    * @param table The table which we want to store to the configuration
    */
   @VisibleForTesting
-  static void put(Configuration configuration, Table table) {
-    configuration.set(InputFormatConfig.TABLE_LOCATION, table.location());
-    configuration.set(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(table.schema()));
-    configuration.set(InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(table.spec()));
+  static void put(Configuration config, Table table) {
+    config.set(InputFormatConfig.TABLE_LOCATION, table.location());
+    config.set(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(table.schema()));
+    config.set(InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(table.spec()));
 
-    put(configuration, InputFormatConfig.FILE_IO, table.io());
-    put(configuration, InputFormatConfig.LOCATION_PROVIDER, table.locationProvider());
-    put(configuration, InputFormatConfig.ENCRYPTION_MANAGER, table.encryption());
-  }
-
-  private static void put(Configuration configuration, String key, Serializable object) {
-    try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-         ObjectOutputStream oos = new ObjectOutputStream(baos)) {
-      oos.writeObject(object);
-      configuration.set(key, Base64.getEncoder().encodeToString(baos.toByteArray()));
-    } catch (IOException ioe) {
-      throw new RuntimeException(String.format("Error serializing %s to configuration", object), ioe);
-    }
-  }
-
-  private static Object get(Configuration configuration, String key) {
-    byte [] data = Base64.getDecoder().decode(configuration.get(key));
-    try (ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(data))) {
-      return ois.readObject();
-    } catch (Exception e) {
-      throw new RuntimeException(String.format("Error reading %s from configuration", key), e);
-    }
+    config.set(InputFormatConfig.FILE_IO, SerializationUtil.serializeToBase64(table.io()));
+    config.set(InputFormatConfig.LOCATION_PROVIDER, SerializationUtil.serializeToBase64(table.locationProvider()));
+    config.set(InputFormatConfig.ENCRYPTION_MANAGER, SerializationUtil.serializeToBase64(table.encryption()));
   }
 }

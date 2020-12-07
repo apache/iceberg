@@ -85,7 +85,7 @@ class HiveIcebergRecordWriter extends PartitionedFanoutWriter<Record>
 
   @Override
   public void close(boolean abort) throws IOException {
-    DataFile[] dataFiles = super.complete();
+    DataFile[] dataFiles = super.dataFiles();
 
     // If abort then remove the unnecessary files
     if (abort) {
