@@ -539,7 +539,7 @@ class SparkWrite {
     public WriterCommitMessage commit() throws IOException {
       this.close();
 
-      return new TaskCommit(complete());
+      return new TaskCommit(dataFiles());
     }
   }
 
@@ -554,7 +554,7 @@ class SparkWrite {
     public WriterCommitMessage commit() throws IOException {
       this.close();
 
-      return new TaskCommit(complete());
+      return new TaskCommit(dataFiles());
     }
   }
 
@@ -570,7 +570,7 @@ class SparkWrite {
     public WriterCommitMessage commit() throws IOException {
       this.close();
 
-      return new TaskCommit(complete());
+      return new TaskCommit(dataFiles());
     }
   }
 }

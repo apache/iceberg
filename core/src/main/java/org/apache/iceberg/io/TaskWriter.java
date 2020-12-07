@@ -22,6 +22,7 @@ package org.apache.iceberg.io;
 import java.io.Closeable;
 import java.io.IOException;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * The writer interface could accept records and provide the generated data files.
@@ -43,9 +44,22 @@ public interface TaskWriter<T> extends Closeable {
   void abort() throws IOException;
 
   /**
-   * Close the writer and get the completed data files.
+   * Close the writer and get the completed data files, it requires that the task writer would produce data files only.
    *
    * @return the completed data files of this task writer.
    */
-  DataFile[] complete() throws IOException;
+  default DataFile[] dataFiles() throws IOException {
+    WriteResult result = complete();
+    Preconditions.checkArgument(result.deleteFiles() == null || result.deleteFiles().length == 0,
+        "Should have no delete files in this write result.");
+
+    return result.dataFiles();
+  }
+
+  /**
+   * Close the writer and get the completed data and delete files.
+   *
+   * @return the completed data and delete files of this task writer.
+   */
+  WriteResult complete() throws IOException;
 }

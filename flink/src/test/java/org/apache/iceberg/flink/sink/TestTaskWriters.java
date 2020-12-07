@@ -94,13 +94,13 @@ public class TestTaskWriters {
     try (TaskWriter<RowData> taskWriter = createTaskWriter(TARGET_FILE_SIZE)) {
       taskWriter.close();
 
-      DataFile[] dataFiles = taskWriter.complete();
+      DataFile[] dataFiles = taskWriter.dataFiles();
       Assert.assertNotNull(dataFiles);
       Assert.assertEquals(0, dataFiles.length);
 
       // Close again.
       taskWriter.close();
-      dataFiles = taskWriter.complete();
+      dataFiles = taskWriter.dataFiles();
       Assert.assertNotNull(dataFiles);
       Assert.assertEquals(0, dataFiles.length);
     }
@@ -115,7 +115,7 @@ public class TestTaskWriters {
       taskWriter.close(); // The second close
 
       int expectedFiles = partitioned ? 2 : 1;
-      DataFile[] dataFiles = taskWriter.complete();
+      DataFile[] dataFiles = taskWriter.dataFiles();
       Assert.assertEquals(expectedFiles, dataFiles.length);
 
       FileSystem fs = FileSystem.get(CONF);
@@ -132,7 +132,7 @@ public class TestTaskWriters {
       taskWriter.write(SimpleDataUtil.createRowData(2, "world"));
 
       taskWriter.abort();
-      DataFile[] dataFiles = taskWriter.complete();
+      DataFile[] dataFiles = taskWriter.dataFiles();
 
       int expectedFiles = partitioned ? 2 : 1;
       Assert.assertEquals(expectedFiles, dataFiles.length);
@@ -152,11 +152,11 @@ public class TestTaskWriters {
       taskWriter.write(SimpleDataUtil.createRowData(3, "c"));
       taskWriter.write(SimpleDataUtil.createRowData(4, "d"));
 
-      DataFile[] dataFiles = taskWriter.complete();
+      DataFile[] dataFiles = taskWriter.dataFiles();
       int expectedFiles = partitioned ? 4 : 1;
       Assert.assertEquals(expectedFiles, dataFiles.length);
 
-      dataFiles = taskWriter.complete();
+      dataFiles = taskWriter.dataFiles();
       Assert.assertEquals(expectedFiles, dataFiles.length);
 
       FileSystem fs = FileSystem.get(CONF);
@@ -200,7 +200,7 @@ public class TestTaskWriters {
         taskWriter.write(row);
       }
 
-      DataFile[] dataFiles = taskWriter.complete();
+      DataFile[] dataFiles = taskWriter.dataFiles();
       Assert.assertEquals(8, dataFiles.length);
 
       AppendFiles appendFiles = table.newAppend();
@@ -223,7 +223,7 @@ public class TestTaskWriters {
       }
 
       taskWriter.close();
-      DataFile[] dataFiles = taskWriter.complete();
+      DataFile[] dataFiles = taskWriter.dataFiles();
       AppendFiles appendFiles = table.newAppend();
       for (DataFile dataFile : dataFiles) {
         appendFiles.appendFile(dataFile);

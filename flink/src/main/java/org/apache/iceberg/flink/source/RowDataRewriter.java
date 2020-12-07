@@ -131,7 +131,7 @@ public class RowDataRewriter {
           RowData rowData = iterator.next();
           writer.write(rowData);
         }
-        return Lists.newArrayList(writer.complete());
+        return Lists.newArrayList(writer.dataFiles());
       } catch (Throwable originalThrowable) {
         try {
           LOG.error("Aborting commit for  (subTaskId {}, attemptId {})", subTaskId, attemptId);

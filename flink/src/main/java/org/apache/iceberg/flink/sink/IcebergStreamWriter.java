@@ -62,7 +62,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
   @Override
   public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
     // close all open files and emit files to downstream committer operator
-    for (DataFile dataFile : writer.complete()) {
+    for (DataFile dataFile : writer.dataFiles()) {
       emit(dataFile);
     }
 
@@ -87,7 +87,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
   public void endInput() throws IOException {
     // For bounded stream, it may don't enable the checkpoint mechanism so we'd better to emit the remaining
     // data files to downstream before closing the writer so that we won't miss any of them.
-    for (DataFile dataFile : writer.complete()) {
+    for (DataFile dataFile : writer.dataFiles()) {
       emit(dataFile);
     }
   }
