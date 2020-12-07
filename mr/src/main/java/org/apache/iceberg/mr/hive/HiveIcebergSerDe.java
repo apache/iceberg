@@ -19,6 +19,9 @@
 
 package org.apache.iceberg.mr.hive;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Properties;
 import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
@@ -29,9 +32,11 @@ import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.SerDeStats;
 import org.apache.hadoop.hive.serde2.SerDeUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.hadoop.io.Writable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.hive.HiveSchemaUtil;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
@@ -136,7 +141,11 @@ public class HiveIcebergSerDe extends AbstractSerDe {
         serDeProperties.getProperty(serdeConstants.COLUMN_NAME_DELIMITER) : String.valueOf(SerDeUtils.COMMA);
     if (columnNames != null && columnTypes != null && columnNameDelimiter != null &&
         !columnNames.isEmpty() && !columnTypes.isEmpty() && !columnNameDelimiter.isEmpty()) {
-      Schema hiveSchema = HiveSchemaUtil.schema(columnNames, columnTypes, columnNameDelimiter);
+      // Parse the configuration parameters
+      List<String> names = new ArrayList<>();
+      Collections.addAll(names, columnNames.split(columnNameDelimiter));
+
+      Schema hiveSchema = HiveSchemaUtil.convert(names, TypeInfoUtils.getTypeInfosFromTypeString(columnTypes));
       LOG.info("Using hive schema {}", SchemaParser.toJson(hiveSchema));
       return hiveSchema;
     } else {

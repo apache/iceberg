@@ -19,18 +19,79 @@
 
 package org.apache.iceberg.hive;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 
-public final class HiveTypeConverter {
+public final class HiveSchemaUtil {
 
-  private HiveTypeConverter() {
-
+  private HiveSchemaUtil() {
   }
 
-  public static String convert(Type type) {
+  /**
+   * Converts the Iceberg schema to a Hive schema (list of FieldSchema objects).
+   * @param schema The original Iceberg schema to convert
+   * @return The Hive column list generated from the Iceberg schema
+   */
+  public static List<FieldSchema> convert(Schema schema) {
+    return schema.columns().stream()
+        .map(col -> new FieldSchema(col.name(), convertToTypeString(col.type()), ""))
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * Converts a Hive schema (list of FieldSchema objects) to an Iceberg schema.
+   * @param fieldSchemas The list of the columns
+   * @return An equivalent Iceberg Schema
+   */
+  public static Schema convert(List<FieldSchema> fieldSchemas) {
+    List<String> names = new ArrayList<>(fieldSchemas.size());
+    List<TypeInfo> typeInfos = new ArrayList<>(fieldSchemas.size());
+
+    for (FieldSchema col : fieldSchemas) {
+      names.add(col.getName());
+      typeInfos.add(TypeInfoUtils.getTypeInfoFromTypeString(col.getType()));
+    }
+
+    return HiveSchemaConverter.convert(names, typeInfos);
+  }
+
+  /**
+   * Converts the Hive list of column names and column types to an Iceberg schema.
+   * @param names The list of the Hive column names
+   * @param types The list of the Hive column types
+   * @return The Iceberg schema
+   */
+  public static Schema convert(List<String> names, List<TypeInfo> types) {
+    return HiveSchemaConverter.convert(names, types);
+  }
+
+  /**
+   * Converts an Iceberg type to a Hive TypeInfo object.
+   * @param type The Iceberg type
+   * @return The Hive type
+   */
+  public static TypeInfo convert(Type type) {
+    return TypeInfoUtils.getTypeInfoFromTypeString(convertToTypeString(type));
+  }
+
+  /**
+   * Converts a Hive typeInfo object to an Iceberg type.
+   * @param typeInfo The Hive type
+   * @return The Iceberg type
+   */
+  public static Type convert(TypeInfo typeInfo) {
+    return HiveSchemaConverter.convert(typeInfo);
+  }
+
+  private static String convertToTypeString(Type type) {
     switch (type.typeId()) {
       case BOOLEAN:
         return "boolean";
@@ -57,7 +118,6 @@ public final class HiveTypeConverter {
         return "binary";
       case DECIMAL:
         final Types.DecimalType decimalType = (Types.DecimalType) type;
-        // TODO may be just decimal?
         return String.format("decimal(%s,%s)", decimalType.precision(), decimalType.scale());
       case STRUCT:
         final Types.StructType structType = type.asStructType();

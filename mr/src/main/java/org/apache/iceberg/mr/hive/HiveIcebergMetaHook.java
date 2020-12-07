@@ -36,6 +36,7 @@ import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.hive.HiveSchemaUtil;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
@@ -196,7 +197,7 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
     if (properties.getProperty(InputFormatConfig.TABLE_SCHEMA) != null) {
       return SchemaParser.fromJson(properties.getProperty(InputFormatConfig.TABLE_SCHEMA));
     } else {
-      return HiveSchemaUtil.schema(hmsTable.getSd().getCols());
+      return HiveSchemaUtil.convert(hmsTable.getSd().getCols());
     }
   }
 

@@ -17,15 +17,20 @@
  * under the License.
  */
 
-package org.apache.iceberg.mr.hive;
+package org.apache.iceberg.hive;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.serde.serdeConstants;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
@@ -33,12 +38,12 @@ import org.junit.Test;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TestHiveSchemaUtil {
-  private static final Schema SIMPLE_SCHEMA = new Schema(
+  private static final Schema SIMPLE_ICEBERG_SCHEMA = new Schema(
       optional(0, "customer_id", Types.LongType.get()),
       optional(1, "first_name", Types.StringType.get())
   );
 
-  private static final Schema COMPLEX_SCHEMA = new Schema(
+  private static final Schema COMPLEX_ICEBERG_SCHEMA = new Schema(
       optional(0, "id", Types.LongType.get()),
       optional(1, "name", Types.StringType.get()),
       optional(2, "employee_info", Types.StructType.of(
@@ -69,38 +74,43 @@ public class TestHiveSchemaUtil {
       ))
   );
 
+  private static final List<FieldSchema> SIMPLE_HIVE_SCHEMA = ImmutableList.of(
+      new FieldSchema("customer_id", serdeConstants.BIGINT_TYPE_NAME, ""),
+      new FieldSchema("first_name", serdeConstants.STRING_TYPE_NAME, "")
+  );
+
+  private static final List<FieldSchema> COMPLEX_HIVE_SCHEMA = ImmutableList.of(
+      new FieldSchema("id", "bigint", ""),
+      new FieldSchema("name", "string", ""),
+      new FieldSchema("employee_info", "struct<employer:string,id:bigint,address:string>", ""),
+      new FieldSchema("places_lived", "array<struct<street:string,city:string,country:string>>", ""),
+      new FieldSchema("memorable_moments", "map<string,struct<year:int,place:string,details:string>>", ""),
+      new FieldSchema("current_address", "struct<street_address:struct<street_number:int,street_name:string," +
+          "street_type:string>,country:string,postal_code:string>", "")
+  );
+
   @Test
-  public void testSimpleSchemaConvert() {
-    Schema schema = HiveSchemaUtil.schema("customer_id,first_name", "bigint:string", ",");
-    Assert.assertEquals(SIMPLE_SCHEMA.asStruct(), schema.asStruct());
+  public void testSimpleSchemaConvertToIcebergSchema() {
+    Assert.assertEquals(SIMPLE_ICEBERG_SCHEMA.asStruct(), HiveSchemaUtil.convert(SIMPLE_HIVE_SCHEMA).asStruct());
   }
 
   @Test
-  public void testSimpleSchemaConvertFromType() {
-    List<FieldSchema> fields = new ArrayList<>();
-    fields.add(new FieldSchema("customer_id", serdeConstants.BIGINT_TYPE_NAME, ""));
-    fields.add(new FieldSchema("first_name", serdeConstants.STRING_TYPE_NAME, ""));
-    Schema schema = HiveSchemaUtil.schema(fields);
-    Assert.assertEquals(SIMPLE_SCHEMA.asStruct(), schema.asStruct());
+  public void testSimpleSchemaConvertToIcebergSchemaFromNameAndTypeLists() {
+    List<String> names = SIMPLE_HIVE_SCHEMA.stream().map(field -> field.getName()).collect(Collectors.toList());
+    List<TypeInfo> types = SIMPLE_HIVE_SCHEMA.stream()
+        .map(field -> TypeInfoUtils.getTypeInfoFromTypeString(field.getType()))
+        .collect(Collectors.toList());
+    Assert.assertEquals(SIMPLE_ICEBERG_SCHEMA.asStruct(), HiveSchemaUtil.convert(names, types).asStruct());
   }
 
   @Test
-  public void testComplexSchemaConvert() {
-    Schema schema = HiveSchemaUtil.schema(
-        "id,name,employee_info,places_lived,memorable_moments,current_address",
-        "bigint:string:" +
-            "struct<employer:string,id:bigint,address:string>:" +
-            "array<struct<street:string,city:string,country:string>>:" +
-            "map<string,struct<year:int,place:string,details:string>>:" +
-            "struct<street_address:struct<street_number:int,street_name:string,street_type:string>," +
-                "country:string,postal_code:string>",
-        ",");
-    Assert.assertEquals(COMPLEX_SCHEMA.asStruct(), schema.asStruct());
+  public void testComplexSchemaConvertToIcebergSchema() {
+    Assert.assertEquals(COMPLEX_ICEBERG_SCHEMA.asStruct(), HiveSchemaUtil.convert(COMPLEX_HIVE_SCHEMA).asStruct());
   }
 
   @Test
-  public void testSchemaConvertForEveryPrimitiveType() {
-    Schema schemaWithEveryType = HiveSchemaUtil.schema(getSupportedFieldSchemas());
+  public void testSchemaConvertToIcebergSchemaForEveryPrimitiveType() {
+    Schema schemaWithEveryType = HiveSchemaUtil.convert(getSupportedFieldSchemas());
     Assert.assertEquals(getSchemaWithSupportedTypes().asStruct(), schemaWithEveryType.asStruct());
   }
 
@@ -109,9 +119,37 @@ public class TestHiveSchemaUtil {
     for (FieldSchema notSupportedField : getNotSupportedFieldSchemas()) {
       AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
           "Unsupported Hive type", () -> {
-            HiveSchemaUtil.schema(new ArrayList<>(Arrays.asList(notSupportedField)));
+            HiveSchemaUtil.convert(new ArrayList<>(Arrays.asList(notSupportedField)));
           }
       );
+    }
+  }
+
+  @Test
+  public void testSimpleSchemaConvertToHiveSchema() {
+    Assert.assertEquals(SIMPLE_HIVE_SCHEMA, HiveSchemaUtil.convert(SIMPLE_ICEBERG_SCHEMA));
+  }
+
+  @Test
+  public void testComplexSchemaConvertToHiveSchema() {
+    Assert.assertEquals(COMPLEX_HIVE_SCHEMA, HiveSchemaUtil.convert(COMPLEX_ICEBERG_SCHEMA));
+  }
+
+  @Test
+  public void testSimpleTypeAndTypeInfoConvert() {
+    // Test for every supported type
+    List<FieldSchema> fieldSchemas = getSupportedFieldSchemas();
+    List<Types.NestedField> nestedFields = getSchemaWithSupportedTypes().columns();
+    for (int i = 0; i < fieldSchemas.size(); ++i) {
+      checkConvert(TypeInfoUtils.getTypeInfoFromTypeString(fieldSchemas.get(i).getType()), nestedFields.get(i).type());
+    }
+  }
+
+  @Test
+  public void testComplexTypeAndTypeInfoConvert() {
+    for (int i = 0; i < COMPLEX_HIVE_SCHEMA.size(); ++i) {
+      checkConvert(TypeInfoUtils.getTypeInfoFromTypeString(COMPLEX_HIVE_SCHEMA.get(i).getType()),
+          COMPLEX_ICEBERG_SCHEMA.columns().get(i).type());
     }
   }
 
@@ -153,5 +191,35 @@ public class TestHiveSchemaUtil {
         optional(7, "c_timestamp", Types.TimestampType.withoutZone()),
         optional(8, "c_date", Types.DateType.get()),
         optional(9, "c_decimal", Types.DecimalType.of(38, 10)));
+  }
+
+  /**
+   * Check conversion for 1-on-1 mappings
+   * @param typeInfo Hive type
+   * @param type Iceberg type
+   */
+  private void checkConvert(TypeInfo typeInfo, Type type) {
+    // Convert to TypeInfo
+    Assert.assertEquals(typeInfo, HiveSchemaUtil.convert(type));
+    // Convert to Type
+    assertEquals(type, HiveSchemaUtil.convert(typeInfo));
+  }
+
+  /**
+   * Compares the nested types without checking the ids.
+   * @param expected The expected types to compare
+   * @param actual The actual types to compare
+   */
+  private void assertEquals(Type expected, Type actual) {
+    if (actual.isPrimitiveType()) {
+      Assert.assertEquals(expected, actual);
+    } else {
+      List<Types.NestedField> expectedFields = ((Type.NestedType) expected).fields();
+      List<Types.NestedField> actualFields = ((Type.NestedType) actual).fields();
+      for (int i = 0; i < expectedFields.size(); ++i) {
+        assertEquals(expectedFields.get(i).type(), actualFields.get(i).type());
+        Assert.assertEquals(expectedFields.get(i).name(), actualFields.get(i).name());
+      }
+    }
   }
 }
