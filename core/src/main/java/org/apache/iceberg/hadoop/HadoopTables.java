@@ -275,6 +275,8 @@ public class HadoopTables implements Tables, Configurable {
 
     @Override
     public Catalog.TableBuilder withLocation(String newLocation) {
+      Preconditions.checkArgument(location.equals(newLocation), String.format("Table location %s differs from the" +
+          " table location (%s) from the PathIdentifier", newLocation, location));
       return this;
     }
 
