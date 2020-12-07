@@ -20,157 +20,87 @@
 package org.apache.iceberg.mr.hive;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.ql.exec.FileSinkOperator;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TaskAttemptID;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.hadoop.HadoopFileIO;
-import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.io.PartitionedFanoutWriter;
 import org.apache.iceberg.mr.mapred.Container;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class HiveIcebergRecordWriter extends org.apache.hadoop.mapreduce.RecordWriter<NullWritable, Container>
-    implements FileSinkOperator.RecordWriter, org.apache.hadoop.mapred.RecordWriter<NullWritable, Container> {
+class HiveIcebergRecordWriter extends PartitionedFanoutWriter<Record>
+    implements FileSinkOperator.RecordWriter, org.apache.hadoop.mapred.RecordWriter<NullWritable, Container<Record>> {
   private static final Logger LOG = LoggerFactory.getLogger(HiveIcebergRecordWriter.class);
+
+  // The current key is reused at every write to avoid unnecessary object creation
+  private final PartitionKey currentKey;
+  private final FileIO io;
 
   // <TaskAttemptId, HiveIcebergRecordWriter> map to store the active writers
   // Stored in concurrent map, since some executor engines can share containers
-  private static Map<TaskAttemptID, HiveIcebergRecordWriter> writers = new ConcurrentHashMap<>();
-
-  private final FileIO io;
-  private final String location;
-  private final FileFormat fileFormat;
-  private final GenericAppenderFactory appenderFactory;
-  // The current key is reused at every write to avoid unnecessary object creation
-  private final PartitionKey currentKey;
-  // Data for every partition is written to a different appender
-  // This map stores the open appenders for the given partition key
-  private final Map<PartitionKey, AppenderWrapper> openAppenders = new HashMap<>();
-  // When the appenders are closed the file data needed for the Iceberg commit is stored and accessible through
-  // this map
-  private final Map<PartitionKey, ClosedFileData> closedFileData = new HashMap<>();
-
-  HiveIcebergRecordWriter(TaskAttemptID taskAttemptID, Configuration conf, String location, FileFormat fileFormat,
-                          Schema schema, PartitionSpec spec) {
-    this.io = new HadoopFileIO(conf);
-    this.location = location;
-    this.fileFormat = fileFormat;
-    this.appenderFactory = new GenericAppenderFactory(schema);
-    this.currentKey = new PartitionKey(spec, schema);
-    writers.put(taskAttemptID, this);
-    LOG.info("IcebergRecordWriter is created in {} with {}", location, fileFormat);
-  }
-
-  @Override
-  public void write(Writable row) {
-    Record record = ((Container<Record>) row).get();
-
-    // Update the current key with the record, so we do not create a new object for every record
-    currentKey.partition(record);
-
-    AppenderWrapper currentAppender = openAppenders.get(currentKey);
-    if (currentAppender == null) {
-      currentAppender = getAppender();
-      openAppenders.put(currentKey.copy(), currentAppender);
-    }
-
-    currentAppender.appender.add(record);
-  }
-
-  @Override
-  public void write(NullWritable key, Container value) {
-    write(value);
-  }
-
-  @Override
-  public void close(boolean abort) throws IOException {
-    // Close the open appenders and store the closed file data
-    for (PartitionKey key : openAppenders.keySet()) {
-      AppenderWrapper wrapper = openAppenders.get(key);
-      wrapper.close();
-      closedFileData.put(key,
-          new ClosedFileData(key, wrapper.location, fileFormat, wrapper.length(), wrapper.metrics()));
-    }
-
-    openAppenders.clear();
-
-    // If abort then remove the unnecessary files
-    if (abort) {
-      Tasks.foreach(closedFileData.values().stream().map(ClosedFileData::fileName).iterator())
-          .retry(3)
-          .suppressFailureWhenFinished()
-          .onFailure((file, exception) -> LOG.debug("Failed on to remove file {} on abort", file, exception))
-          .run(io::deleteFile);
-    }
-    LOG.info("IcebergRecordWriter is closed. Created {} files", closedFileData.values());
-  }
-
-  @Override
-  public void close(org.apache.hadoop.mapreduce.TaskAttemptContext context) throws IOException {
-    close(false);
-  }
-
-  @Override
-  public void close(Reporter reporter) throws IOException {
-    close(false);
-  }
-
-  public Set<ClosedFileData> closedFileData() {
-    return new HashSet<>(closedFileData.values());
-  }
+  private static final Map<TaskAttemptID, HiveIcebergRecordWriter> writers = new ConcurrentHashMap<>();
 
   static HiveIcebergRecordWriter removeWriter(TaskAttemptID taskAttemptID) {
     return writers.remove(taskAttemptID);
   }
 
-  private AppenderWrapper getAppender() {
-    String dataFileLocation = location + "." + UUID.randomUUID();
-    OutputFile dataFile = io.newOutputFile(dataFileLocation);
-
-    FileAppender<Record> appender = appenderFactory.newAppender(dataFile, fileFormat);
-
-    LOG.info("New AppenderWrapper is created for {} with {}", dataFileLocation, fileFormat);
-    return new AppenderWrapper(appender, dataFileLocation);
+  HiveIcebergRecordWriter(Schema schema, PartitionSpec spec, FileFormat format,
+      FileAppenderFactory<Record> appenderFactory, OutputFileFactory fileFactory, FileIO io, long targetFileSize,
+      TaskAttemptID taskAttemptID) {
+    super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+    this.io = io;
+    this.currentKey = new PartitionKey(spec, schema);
+    writers.put(taskAttemptID, this);
   }
 
-  private static final class AppenderWrapper {
-    private final FileAppender<Record> appender;
-    private final String location;
+  @Override
+  protected PartitionKey partition(Record row) {
+    currentKey.partition(row);
+    return currentKey;
+  }
 
-    AppenderWrapper(FileAppender<Record> appender, String location) {
-      this.appender = appender;
-      this.location = location;
+  @Override
+  public void write(Writable row) throws IOException {
+    super.write(((Container<Record>) row).get());
+  }
+
+  @Override
+  public void write(NullWritable key, Container value) throws IOException {
+    write(value);
+  }
+
+  @Override
+  public void close(boolean abort) throws IOException {
+    DataFile[] dataFiles = super.complete();
+
+    // If abort then remove the unnecessary files
+    if (abort) {
+      Tasks.foreach(dataFiles)
+          .retry(3)
+          .suppressFailureWhenFinished()
+          .onFailure((file, exception) -> LOG.debug("Failed on to remove file {} on abort", file, exception))
+          .run(dataFile -> io.deleteFile(dataFile.path().toString()));
     }
 
-    public long length() {
-      return appender.length();
-    }
+    LOG.info("IcebergRecordWriter is closed with abort={}. Created {} files", abort, dataFiles.length);
+  }
 
-    public Metrics metrics() {
-      return appender.metrics();
-    }
-
-    public void close() throws IOException {
-      appender.close();
-    }
+  @Override
+  public void close(Reporter reporter) throws IOException {
+    close(false);
   }
 }

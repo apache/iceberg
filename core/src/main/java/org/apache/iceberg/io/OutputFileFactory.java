@@ -52,7 +52,7 @@ public class OutputFileFactory {
     this.taskId = taskId;
   }
 
-  private String generateFilename() {
+  protected String generateFilename() {
     return format.addExtension(
         String.format("%05d-%d-%s-%05d", partitionId, taskId, uuid, fileCount.incrementAndGet()));
   }
@@ -72,5 +72,17 @@ public class OutputFileFactory {
     String newDataLocation = locations.newDataLocation(spec, key, generateFilename());
     OutputFile rawOutputFile = io.newOutputFile(newDataLocation);
     return encryptionManager.encrypt(rawOutputFile);
+  }
+
+  protected FileFormat format() {
+    return format;
+  }
+
+  protected String uuid() {
+    return uuid;
+  }
+
+  protected int nextCount() {
+    return fileCount.incrementAndGet();
   }
 }
