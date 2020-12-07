@@ -28,8 +28,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
@@ -117,7 +115,7 @@ public class TestBaseTaskWriter extends TableTestBase {
       records.add(createRecord(i, "aaa"));
     }
 
-    WriteResult result;
+    List<Path> files;
     try (TestTaskWriter taskWriter = createTaskWriter(4)) {
       for (Record record : records) {
         taskWriter.write(record);
@@ -128,25 +126,17 @@ public class TestBaseTaskWriter extends TableTestBase {
       taskWriter.close();
 
       // Assert the current data file count.
-      List<Path> files = Files.list(Paths.get(tableDir.getPath(), "data"))
+      files = Files.list(Paths.get(tableDir.getPath(), "data"))
           .filter(p -> !p.toString().endsWith(".crc"))
           .collect(Collectors.toList());
       Assert.assertEquals("Should have 4 files but the files are: " + files, 4, files.size());
 
       // Abort to clean all delete files and data files.
       taskWriter.abort();
-
-      // Complete again to get all results.
-      result = taskWriter.complete();
     }
-    Assert.assertEquals(2, result.deleteFiles().length);
-    Assert.assertEquals(2, result.dataFiles().length);
 
-    for (DeleteFile deleteFile : result.deleteFiles()) {
-      Assert.assertFalse(Files.exists(Paths.get(deleteFile.path().toString())));
-    }
-    for (DataFile dataFile : result.dataFiles()) {
-      Assert.assertFalse(Files.exists(Paths.get(dataFile.path().toString())));
+    for (Path path : files) {
+      Assert.assertFalse(Files.exists(path));
     }
   }
 
