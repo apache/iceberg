@@ -32,11 +32,12 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hive.HiveCatalogs;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.spark.SparkConf;
 import org.apache.spark.sql.SparkSession;
 
 public final class CustomCatalogs {
-  private static final Cache<String, Catalog> CATALOG_CACHE = Caffeine.newBuilder().build();
+  private static final Cache<String, Catalog> CATALOG_CACHE = Caffeine.newBuilder().softValues().build();
 
   public static final String ICEBERG_CATALOG_PREFIX = "spark.sql.catalog.iceberg.";
   public static final String ICEBERG_CATALOG_TYPE = "type";
@@ -49,10 +50,9 @@ public final class CustomCatalogs {
   /**
    * Build an Iceberg {@link Catalog} to be used by this Spark source adapter.
    *
-   * The cache is required to ensure the catalog isn't garbage collected and related resources closed before the
-   * catalog's resources are finished being used. This tends to occur when HiveCatalog is finalized but the hive client
-   * pool is still being used by child HiveTableOperations. The cache layer should be removed once Hive catalogs
-   * keep track of their resources correctly.
+   * The cache is to facilitate reuse of catalogs, especially if wrapped in CachingCatalog. For non-Hive catalogs all
+   * custom parameters passed to the catalog are considered in the cache key. Hive catalogs only cache based on
+   * the Metastore URIs as per previous behaviour.
    *
    * @param options options from Spark
    * @return an Iceberg catalog
@@ -91,6 +91,7 @@ public final class CustomCatalogs {
     }
   }
 
+  @VisibleForTesting
   static void clearCache() {
     CATALOG_CACHE.invalidateAll();
   }
