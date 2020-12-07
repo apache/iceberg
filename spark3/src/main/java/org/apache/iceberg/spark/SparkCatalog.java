@@ -288,7 +288,6 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public Identifier[] listTables(String[] namespace) {
-    // no way to identify if this is a path and we should use tables instead of catalog.
     return icebergCatalog.listTables(Namespace.of(namespace)).stream()
         .map(ident -> Identifier.of(ident.namespace().levels(), ident.name()))
         .toArray(Identifier[]::new);
