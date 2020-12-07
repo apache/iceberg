@@ -233,7 +233,7 @@ public class CachingCatalog implements Catalog {
       // committed. when the transaction commits, invalidate the table in the cache if it is present.
       return CommitCallbackTransaction.addCallback(
           innerBuilder.replaceTransaction(),
-          () -> tableCache.invalidate(canonicalizeIdentifier(ident)));
+          () -> invalidate(canonicalizeIdentifier(ident)));
     }
 
     @Override
@@ -242,7 +242,7 @@ public class CachingCatalog implements Catalog {
       // committed. when the transaction commits, invalidate the table in the cache if it is present.
       return CommitCallbackTransaction.addCallback(
           innerBuilder.createOrReplaceTransaction(),
-          () -> tableCache.invalidate(canonicalizeIdentifier(ident)));
+          () -> invalidate(canonicalizeIdentifier(ident)));
     }
   }
 }
