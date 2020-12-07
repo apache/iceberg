@@ -187,16 +187,14 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
         null, null, table.schema());
     DataFile dataFile = prepareDataFile(appenderFactory, rowSet);
 
-    try (SortedPosDeleteWriter<Record> writer = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format,
-        null, 100)) {
-      boolean caughtError = false;
-      try {
-        writer.delete(dataFile.path(), 0L);
-      } catch (Exception e) {
-        caughtError = true;
-      }
-      Assert.assertTrue("Should fail because the appender are required non-null rows to write", caughtError);
+    SortedPosDeleteWriter<Record> writer = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, null, 1);
+    boolean caughtError = false;
+    try {
+      writer.delete(dataFile.path(), 0L);
+    } catch (Exception e) {
+      caughtError = true;
     }
+    Assert.assertTrue("Should fail because the appender are required non-null rows to write", caughtError);
   }
 
   @Test
