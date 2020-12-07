@@ -26,16 +26,18 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.spark.sql.connector.catalog.Identifier;
 
 public class PathIdentifier implements Identifier {
+  private static final Splitter SPLIT = Splitter.on("/");
+  private static final Joiner JOIN = Joiner.on("/");
   private final String[] namespace;
   private final String location;
   private final String name;
 
   public PathIdentifier(String location) {
     this.location = location;
-    List<String> pathParts = Splitter.on("/").splitToList(location);
+    List<String> pathParts = SPLIT.splitToList(location);
     name = Iterables.getLast(pathParts);
     namespace = pathParts.size() > 1 ?
-        new String[]{Joiner.on("/").join(pathParts.subList(0, pathParts.size() - 1).toArray(new String[0]))} :
+        new String[]{JOIN.join(pathParts.subList(0, pathParts.size() - 1))} :
         new String[0];
   }
 
