@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
@@ -134,17 +135,10 @@ public class SparkCatalog extends BaseCatalog {
     return TableIdentifier.of(Namespace.of(identifier.namespace()), identifier.name());
   }
 
-  private static boolean isPathIdentifier(Identifier ident) {
-    return ident instanceof PathIdentifier;
-  }
-
   @Override
   public SparkTable loadTable(Identifier ident) throws NoSuchTableException {
     try {
-      TableIdentifier tableIdentifier = buildIdentifier(ident);
-      Table icebergTable = isPathIdentifier(ident) ?
-          tables.load(tableIdentifier.name()) :
-          icebergCatalog.loadTable(buildIdentifier(ident));
+      Table icebergTable = pathOrTable(ident, tables::load, icebergCatalog::loadTable);
       return new SparkTable(icebergTable, !cacheEnabled);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
@@ -156,23 +150,16 @@ public class SparkCatalog extends BaseCatalog {
                                 Transform[] transforms,
                                 Map<String, String> properties) throws TableAlreadyExistsException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
-    TableIdentifier tableIdentifier = buildIdentifier(ident);
     try {
-      Table icebergTable;
-      if (isPathIdentifier(ident)) {
-        icebergTable = tables.create(icebergSchema,
-            Spark3Util.toPartitionSpec(icebergSchema, transforms),
-            Spark3Util.rebuildCreateProperties(properties),
-            tableIdentifier.name()
-        );
-      } else {
-        icebergTable = icebergCatalog.createTable(
-            buildIdentifier(ident),
-            icebergSchema,
-            Spark3Util.toPartitionSpec(icebergSchema, transforms),
-            properties.get("location"),
-            Spark3Util.rebuildCreateProperties(properties));
-      }
+      Catalog.TableBuilder builder = pathOrTable(ident,
+          i -> tables.buildTable(i, icebergSchema),
+          i -> icebergCatalog.buildTable(i, icebergSchema));
+
+      Table icebergTable = builder
+          .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
+          .withLocation(properties.get("location"))
+          .withProperties(Spark3Util.rebuildCreateProperties(properties))
+          .create();
       return new SparkTable(icebergTable, !cacheEnabled);
     } catch (AlreadyExistsException e) {
       throw new TableAlreadyExistsException(ident);
@@ -183,23 +170,14 @@ public class SparkCatalog extends BaseCatalog {
   public StagedTable stageCreate(Identifier ident, StructType schema, Transform[] transforms,
                                  Map<String, String> properties) throws TableAlreadyExistsException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
-    TableIdentifier tableIdentifier = buildIdentifier(ident);
     try {
-      Transaction transaction;
-      if (isPathIdentifier(ident)) {
-        transaction = tables.newCreateTableTransaction(
-            tableIdentifier.name(),
-            icebergSchema,
-            Spark3Util.toPartitionSpec(icebergSchema, transforms),
-            Spark3Util.rebuildCreateProperties(properties));
-      } else {
-        transaction = icebergCatalog.newCreateTableTransaction(
-            tableIdentifier,
-            icebergSchema,
-            Spark3Util.toPartitionSpec(icebergSchema, transforms),
-            properties.get("location"),
-            Spark3Util.rebuildCreateProperties(properties));
-      }
+      Catalog.TableBuilder builder = pathOrTable(ident,
+          i -> tables.buildTable(i, icebergSchema),
+          i -> icebergCatalog.buildTable(i, icebergSchema));
+      Transaction transaction = builder.withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
+          .withLocation(properties.get("location"))
+          .withProperties(Spark3Util.rebuildCreateProperties(properties))
+          .createTransaction();
       return new StagedSparkTable(transaction);
     } catch (AlreadyExistsException e) {
       throw new TableAlreadyExistsException(ident);
@@ -210,25 +188,14 @@ public class SparkCatalog extends BaseCatalog {
   public StagedTable stageReplace(Identifier ident, StructType schema, Transform[] transforms,
                                   Map<String, String> properties) throws NoSuchTableException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
-    TableIdentifier tableIdentifier = buildIdentifier(ident);
     try {
-      Transaction transaction;
-      if (isPathIdentifier(ident)) {
-        transaction = tables.newReplaceTableTransaction(
-            tableIdentifier.name(),
-            icebergSchema,
-            Spark3Util.toPartitionSpec(icebergSchema, transforms),
-            Spark3Util.rebuildCreateProperties(properties),
-            false /* do not create */);
-      } else {
-        transaction = icebergCatalog.newReplaceTableTransaction(
-            tableIdentifier,
-            icebergSchema,
-            Spark3Util.toPartitionSpec(icebergSchema, transforms),
-            properties.get("location"),
-            Spark3Util.rebuildCreateProperties(properties),
-            false /* do not create */);
-      }
+      Catalog.TableBuilder builder = pathOrTable(ident,
+          i -> tables.buildTable(i, icebergSchema),
+          i -> icebergCatalog.buildTable(i, icebergSchema));
+      Transaction transaction = builder.withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
+          .withLocation(properties.get("location"))
+          .withProperties(Spark3Util.rebuildCreateProperties(properties))
+          .replaceTransaction();
       return new StagedSparkTable(transaction);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
@@ -239,24 +206,13 @@ public class SparkCatalog extends BaseCatalog {
   public StagedTable stageCreateOrReplace(Identifier ident, StructType schema, Transform[] transforms,
                                           Map<String, String> properties) {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
-    TableIdentifier tableIdentifier = buildIdentifier(ident);
-    Transaction transaction;
-    if (isPathIdentifier(ident)) {
-      transaction = tables.newReplaceTableTransaction(
-          tableIdentifier.name(),
-          icebergSchema,
-          Spark3Util.toPartitionSpec(icebergSchema, transforms),
-          Spark3Util.rebuildCreateProperties(properties),
-          true /* create or replace */);
-    } else {
-      transaction = icebergCatalog.newReplaceTableTransaction(
-          tableIdentifier,
-          icebergSchema,
-          Spark3Util.toPartitionSpec(icebergSchema, transforms),
-          properties.get("location"),
-          Spark3Util.rebuildCreateProperties(properties),
-          true /* create or replace */);
-    }
+    Catalog.TableBuilder builder = pathOrTable(ident,
+        i -> tables.buildTable(i, icebergSchema),
+        i -> icebergCatalog.buildTable(i, icebergSchema));
+    Transaction transaction = builder.withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
+        .withLocation(properties.get("location"))
+        .withProperties(Spark3Util.rebuildCreateProperties(properties))
+        .createOrReplaceTransaction();
     return new StagedSparkTable(transaction);
   }
 
@@ -290,10 +246,7 @@ public class SparkCatalog extends BaseCatalog {
     }
 
     try {
-      TableIdentifier tableIdentifier = buildIdentifier(ident);
-      Table table = isPathIdentifier(ident) ?
-          tables.load(tableIdentifier.name()) :
-          icebergCatalog.loadTable(tableIdentifier);
+      Table table = pathOrTable(ident, tables::load, icebergCatalog::loadTable);
       commitChanges(table, setLocation, setSnapshotId, pickSnapshotId, propertyChanges, schemaChanges);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
@@ -305,10 +258,7 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public boolean dropTable(Identifier ident) {
     try {
-      TableIdentifier tableIdentifier = buildIdentifier(ident);
-      return isPathIdentifier(ident) ?
-          tables.dropTable(tableIdentifier.name()) :
-          icebergCatalog.dropTable(tableIdentifier);
+      return pathOrTable(ident, tables::dropTable, icebergCatalog::dropTable);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       return false;
     }
@@ -317,7 +267,8 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public void renameTable(Identifier from, Identifier to) throws NoSuchTableException, TableAlreadyExistsException {
     try {
-      // can't rename hadoop tables
+      checkNotPathIdentifier(from, "renameTable");
+      checkNotPathIdentifier(to, "renameTable");
       icebergCatalog.renameTable(buildIdentifier(from), buildIdentifier(to));
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(from);
@@ -329,11 +280,7 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public void invalidateTable(Identifier ident) {
     try {
-      TableIdentifier tableIdentifier = buildIdentifier(ident);
-      Table table = isPathIdentifier(ident) ?
-          tables.load(tableIdentifier.name()) :
-          icebergCatalog.loadTable(tableIdentifier);
-      table.refresh();
+      pathOrTable(ident, tables::load, icebergCatalog::loadTable).refresh();
     } catch (org.apache.iceberg.exceptions.NoSuchTableException ignored) {
       // ignore if the table doesn't exist, it is not cached
     }
@@ -521,4 +468,20 @@ public class SparkCatalog extends BaseCatalog {
     transaction.commitTransaction();
   }
 
+  private static boolean isPathIdentifier(Identifier ident) {
+    return ident instanceof PathIdentifier;
+  }
+
+  private static void checkNotPathIdentifier(Identifier identifier, String method) {
+    if (identifier instanceof PathIdentifier) {
+      throw new IllegalArgumentException(String.format("Cannot pass path based identifier to %s method. %s is a path.",
+          method, identifier));
+    }
+  }
+
+  private <T> T pathOrTable(Identifier ident, Function<String, T> path, Function<TableIdentifier, T> table) {
+    return isPathIdentifier(ident) ?
+        path.apply(((PathIdentifier) ident).location()) :
+        table.apply(buildIdentifier(ident));
+  }
 }

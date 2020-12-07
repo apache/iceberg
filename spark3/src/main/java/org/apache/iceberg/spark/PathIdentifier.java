@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark;
 
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -33,7 +34,8 @@ public class PathIdentifier implements Identifier {
     this.location = location;
     List<String> pathParts = Splitter.on("/").splitToList(location);
     name = Iterables.getLast(pathParts);
-    namespace = pathParts.size() > 1 ? pathParts.subList(0, pathParts.size() - 1).toArray(new String[0]) :
+    namespace = pathParts.size() > 1 ?
+        new String[]{Joiner.on("/").join(pathParts.subList(0, pathParts.size() - 1).toArray(new String[0]))} :
         new String[0];
   }
 

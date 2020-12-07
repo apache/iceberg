@@ -39,6 +39,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Tables;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -133,15 +134,10 @@ public class HadoopTables implements Tables, Configurable {
   @Override
   public Table create(Schema schema, PartitionSpec spec, SortOrder order,
                       Map<String, String> properties, String location) {
-    TableOperations ops = newTableOps(location);
-    if (ops.current() != null) {
-      throw new AlreadyExistsException("Table already exists at location: %s", location);
-    }
-
-    TableMetadata metadata = tableMetadata(schema, spec, order, properties, location);
-    ops.commit(null, metadata);
-
-    return new BaseTable(ops, location);
+    return buildTable(location, schema).withPartitionSpec(spec)
+        .withSortOrder(order)
+        .withProperties(properties)
+        .create();
   }
 
   /**
@@ -210,7 +206,7 @@ public class HadoopTables implements Tables, Configurable {
   /**
    * Start a transaction to create a table.
    *
-   * @param identifier a location for the table
+   * @param location a location for the table
    * @param schema a schema
    * @param spec a partition spec
    * @param properties a string map of table properties
@@ -218,23 +214,17 @@ public class HadoopTables implements Tables, Configurable {
    * @throws AlreadyExistsException if the table already exists
    */
   public Transaction newCreateTableTransaction(
-      String identifier,
+      String location,
       Schema schema,
       PartitionSpec spec,
       Map<String, String> properties) {
-    TableOperations ops = newTableOps(identifier);
-    if (ops.current() != null) {
-      throw new AlreadyExistsException("Table already exists: %s", identifier);
-    }
-
-    TableMetadata metadata = tableMetadata(schema, spec, null, properties, identifier);
-    return Transactions.createTableTransaction(identifier, ops, metadata);
+    return buildTable(location, schema).withPartitionSpec(spec).withProperties(properties).createTransaction();
   }
 
   /**
    * Start a transaction to replace a table.
    *
-   * @param identifier a location for the table
+   * @param location a location for the table
    * @param schema a schema
    * @param spec a partition spec
    * @param properties a string map of table properties
@@ -243,27 +233,119 @@ public class HadoopTables implements Tables, Configurable {
    * @throws NoSuchTableException if the table doesn't exist and orCreate is false
    */
   public Transaction newReplaceTableTransaction(
-      String identifier,
+      String location,
       Schema schema,
       PartitionSpec spec,
       Map<String, String> properties,
       boolean orCreate) {
-    TableOperations ops = newTableOps(identifier);
-    if (!orCreate && ops.current() == null) {
-      throw new NoSuchTableException("No such table: %s", identifier);
+
+
+    Catalog.TableBuilder builder = buildTable(location, schema).withPartitionSpec(spec).withProperties(properties);
+    return orCreate ? builder.createOrReplaceTransaction() : builder.replaceTransaction();
+  }
+
+  public Catalog.TableBuilder buildTable(String location, Schema schema) {
+    return new HadoopTableBuilder(location, schema);
+  }
+
+  private class HadoopTableBuilder implements Catalog.TableBuilder {
+    private final String location;
+    private final Schema schema;
+    private final ImmutableMap.Builder<String, String> propertiesBuilder = ImmutableMap.builder();
+    private PartitionSpec spec = PartitionSpec.unpartitioned();
+    private SortOrder sortOrder = SortOrder.unsorted();
+
+
+    HadoopTableBuilder(String location, Schema schema) {
+      this.location = location;
+      this.schema = schema;
     }
 
-    TableMetadata metadata;
-    if (ops.current() != null) {
-      metadata = ops.current().buildReplacement(schema, spec, SortOrder.unsorted(), identifier, properties);
-    } else {
-      metadata = tableMetadata(schema, spec, null, properties, identifier);
+    @Override
+    public Catalog.TableBuilder withPartitionSpec(PartitionSpec newSpec) {
+      this.spec = newSpec != null ? newSpec : PartitionSpec.unpartitioned();
+      return this;
     }
 
-    if (orCreate) {
-      return Transactions.createOrReplaceTableTransaction(identifier, ops, metadata);
-    } else {
-      return Transactions.replaceTableTransaction(identifier, ops, metadata);
+    @Override
+    public Catalog.TableBuilder withSortOrder(SortOrder newSortOrder) {
+      this.sortOrder = newSortOrder != null ? newSortOrder : SortOrder.unsorted();
+      return this;
+    }
+
+    @Override
+    public Catalog.TableBuilder withLocation(String newLocation) {
+      return this;
+    }
+
+    @Override
+    public Catalog.TableBuilder withProperties(Map<String, String> properties) {
+      if (properties != null) {
+        propertiesBuilder.putAll(properties);
+      }
+      return this;
+    }
+
+    @Override
+    public Catalog.TableBuilder withProperty(String key, String value) {
+      propertiesBuilder.put(key, value);
+      return this;
+    }
+
+    @Override
+    public Table create() {
+      TableOperations ops = newTableOps(location);
+      if (ops.current() != null) {
+        throw new AlreadyExistsException("Table already exists at location: %s", location);
+      }
+
+      Map<String, String> properties = propertiesBuilder.build();
+      TableMetadata metadata = tableMetadata(schema, spec, sortOrder, properties, location);
+      ops.commit(null, metadata);
+      return new BaseTable(ops, location);
+    }
+
+    @Override
+    public Transaction createTransaction() {
+      TableOperations ops = newTableOps(location);
+      if (ops.current() != null) {
+        throw new AlreadyExistsException("Table already exists: %s", location);
+      }
+
+      Map<String, String> properties = propertiesBuilder.build();
+      TableMetadata metadata = tableMetadata(schema, spec, null, properties, location);
+      return Transactions.createTableTransaction(location, ops, metadata);
+    }
+
+    @Override
+    public Transaction replaceTransaction() {
+      return newReplaceTableTransaction(false);
+    }
+
+    @Override
+    public Transaction createOrReplaceTransaction() {
+      return newReplaceTableTransaction(true);
+    }
+
+    private Transaction newReplaceTableTransaction(boolean orCreate) {
+      TableOperations ops = newTableOps(location);
+      if (!orCreate && ops.current() == null) {
+        throw new NoSuchTableException("No such table: %s", location);
+      }
+
+      Map<String, String> properties = propertiesBuilder.build();
+      TableMetadata metadata;
+      if (ops.current() != null) {
+        metadata = ops.current().buildReplacement(schema, spec, SortOrder.unsorted(), location, properties);
+      } else {
+        metadata = tableMetadata(schema, spec, null, properties, location);
+      }
+
+      if (orCreate) {
+        return Transactions.createOrReplaceTableTransaction(location, ops, metadata);
+      } else {
+        return Transactions.replaceTableTransaction(location, ops, metadata);
+      }
     }
   }
 
