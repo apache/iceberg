@@ -58,7 +58,11 @@ public class TestInclusiveManifestEvaluator {
       optional(5, "some_nulls", Types.StringType.get()),
       optional(6, "no_nulls", Types.StringType.get()),
       optional(7, "float", Types.FloatType.get()),
-      optional(8, "all_nulls_double", Types.DoubleType.get())
+      optional(8, "all_nulls_double", Types.DoubleType.get()),
+      optional(9, "no_nans", Types.FloatType.get()),
+      optional(10, "all_nans", Types.DoubleType.get()),
+      optional(11, "both_nan_and_null", Types.FloatType.get()),
+      optional(12, "no_nan_or_null", Types.DoubleType.get())
   );
 
   private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
@@ -69,6 +73,10 @@ public class TestInclusiveManifestEvaluator {
       .identity("no_nulls")
       .identity("float")
       .identity("all_nulls_double")
+      .identity("no_nans")
+      .identity("all_nans")
+      .identity("both_nan_and_null")
+      .identity("no_nan_or_null")
       .build();
 
   private static final int INT_MIN_VALUE = 30;
@@ -85,14 +93,20 @@ public class TestInclusiveManifestEvaluator {
 
   private static final ManifestFile FILE = new TestHelpers.TestManifestFile("manifest-list.avro",
       1024, 0, System.currentTimeMillis(), 5, 10, 0, ImmutableList.of(
-          new TestHelpers.TestFieldSummary(false, false, INT_MIN, INT_MAX),
-          new TestHelpers.TestFieldSummary(true, false, null, null),
-          new TestHelpers.TestFieldSummary(true, false, STRING_MIN, STRING_MAX),
-          new TestHelpers.TestFieldSummary(false, false, STRING_MIN, STRING_MAX),
-          new TestHelpers.TestFieldSummary(false, false,
+          new TestHelpers.TestFieldSummary(false, INT_MIN, INT_MAX),
+          new TestHelpers.TestFieldSummary(true, null, null),
+          new TestHelpers.TestFieldSummary(true, STRING_MIN, STRING_MAX),
+          new TestHelpers.TestFieldSummary(false, STRING_MIN, STRING_MAX),
+          new TestHelpers.TestFieldSummary(false,
               toByteBuffer(Types.FloatType.get(), 0F),
               toByteBuffer(Types.FloatType.get(), 20F)),
-          new TestHelpers.TestFieldSummary(true, false, null, null)
+          new TestHelpers.TestFieldSummary(true, null, null),
+          new TestHelpers.TestFieldSummary(true, false, null, null),
+          new TestHelpers.TestFieldSummary(false, true, null, null),
+          new TestHelpers.TestFieldSummary(true, true, null, null),
+          new TestHelpers.TestFieldSummary(false, false,
+              toByteBuffer(Types.FloatType.get(), 0F),
+              toByteBuffer(Types.FloatType.get(), 20F))
       ));
 
   @Test
@@ -120,6 +134,9 @@ public class TestInclusiveManifestEvaluator {
 
     shouldRead = ManifestEvaluator.forRowFilter(isNull("no_nulls"), SPEC, true).eval(FILE);
     Assert.assertFalse("Should skip: non-null column contains no null values", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(isNull("both_nan_and_null"), SPEC, true).eval(FILE);
+    Assert.assertTrue("Should read: both_nan_and_null column contains no null values", shouldRead);
   }
 
   @Test
@@ -129,6 +146,18 @@ public class TestInclusiveManifestEvaluator {
 
     shouldRead = ManifestEvaluator.forRowFilter(isNaN("all_nulls_double"), SPEC, true).eval(FILE);
     Assert.assertFalse("Should skip: all null column doesn't contain nan value", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(isNaN("no_nans"), SPEC, true).eval(FILE);
+    Assert.assertFalse("Should skip: no nan column doesn't contain nan value", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(isNaN("all_nans"), SPEC, true).eval(FILE);
+    Assert.assertTrue("Should read: all_nans column contains nan value", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(isNaN("both_nan_and_null"), SPEC, true).eval(FILE);
+    Assert.assertTrue("Should read: both_nan_and_null column contains nan value", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(isNaN("no_nan_or_null"), SPEC, true).eval(FILE);
+    Assert.assertFalse("Should skip: no_nan_or_null column doesn't contain nan value", shouldRead);
   }
 
   @Test
@@ -138,6 +167,18 @@ public class TestInclusiveManifestEvaluator {
 
     shouldRead = ManifestEvaluator.forRowFilter(notNaN("all_nulls_double"), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: all null column contains non nan value", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(notNaN("no_nans"), SPEC, true).eval(FILE);
+    Assert.assertTrue("Should read: no_nans column contains non nan value", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(notNaN("all_nans"), SPEC, true).eval(FILE);
+    Assert.assertFalse("Should skip: all nans column doesn't contain non nan value", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(notNaN("both_nan_and_null"), SPEC, true).eval(FILE);
+    Assert.assertTrue("Should read: both_nan_and_null nans column contains non nan value", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(notNaN("no_nan_or_null"), SPEC, true).eval(FILE);
+    Assert.assertTrue("Should read: no_nan_or_null column contains non nan value", shouldRead);
   }
 
   @Test

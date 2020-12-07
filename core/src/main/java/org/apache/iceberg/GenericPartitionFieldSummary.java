@@ -28,6 +28,7 @@ import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData.SchemaConstructable;
 import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
@@ -73,11 +74,22 @@ public class GenericPartitionFieldSummary
     }
   }
 
-  public GenericPartitionFieldSummary(boolean containsNull, Boolean containsNaN, ByteBuffer lowerBound,
-                                      ByteBuffer upperBound) {
+  public GenericPartitionFieldSummary(boolean containsNull, boolean containsNaN, ByteBuffer lowerBound,
+                               ByteBuffer upperBound) {
     this.avroSchema = AVRO_SCHEMA;
     this.containsNull = containsNull;
     this.containsNaN = containsNaN;
+    this.lowerBound = ByteBuffers.toByteArray(lowerBound);
+    this.upperBound = ByteBuffers.toByteArray(upperBound);
+    this.fromProjectionPos = null;
+  }
+
+  // for testing backward compatibility only
+  @VisibleForTesting
+  GenericPartitionFieldSummary(boolean containsNull, ByteBuffer lowerBound,
+                                      ByteBuffer upperBound) {
+    this.avroSchema = AVRO_SCHEMA;
+    this.containsNull = containsNull;
     this.lowerBound = ByteBuffers.toByteArray(lowerBound);
     this.upperBound = ByteBuffers.toByteArray(upperBound);
     this.fromProjectionPos = null;

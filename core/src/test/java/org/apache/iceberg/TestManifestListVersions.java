@@ -218,7 +218,7 @@ public class TestManifestListVersions {
     ByteBuffer secondSummaryUpperBound = Conversions.toByteBuffer(Types.IntegerType.get(), 200);
 
     List<ManifestFile.PartitionFieldSummary> partitionFieldSummaries = Lists.newArrayList(
-        new GenericPartitionFieldSummary(false, null, firstSummaryLowerBound, firstSummaryUpperBound),
+        new GenericPartitionFieldSummary(false, firstSummaryLowerBound, firstSummaryUpperBound),
         new GenericPartitionFieldSummary(true, false, secondSummaryLowerBound, secondSummaryUpperBound));
     ManifestFile manifest = new GenericManifestFile(
         PATH, LENGTH, SPEC_ID, ManifestContent.DATA, SEQ_NUM, MIN_SEQ_NUM, SNAPSHOT_ID,
