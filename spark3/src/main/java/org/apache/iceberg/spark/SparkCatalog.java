@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
@@ -138,7 +137,7 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public SparkTable loadTable(Identifier ident) throws NoSuchTableException {
     try {
-      Table icebergTable = pathOrTable(ident, tables::load, icebergCatalog::loadTable);
+      Table icebergTable = load(ident);
       return new SparkTable(icebergTable, !cacheEnabled);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
@@ -151,10 +150,7 @@ public class SparkCatalog extends BaseCatalog {
                                 Map<String, String> properties) throws TableAlreadyExistsException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
     try {
-      Catalog.TableBuilder builder = pathOrTable(ident,
-          i -> tables.buildTable(i, icebergSchema),
-          i -> icebergCatalog.buildTable(i, icebergSchema));
-
+      Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
       Table icebergTable = builder
           .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
           .withLocation(properties.get("location"))
@@ -171,9 +167,7 @@ public class SparkCatalog extends BaseCatalog {
                                  Map<String, String> properties) throws TableAlreadyExistsException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
     try {
-      Catalog.TableBuilder builder = pathOrTable(ident,
-          i -> tables.buildTable(i, icebergSchema),
-          i -> icebergCatalog.buildTable(i, icebergSchema));
+      Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
       Transaction transaction = builder.withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
           .withLocation(properties.get("location"))
           .withProperties(Spark3Util.rebuildCreateProperties(properties))
@@ -189,9 +183,7 @@ public class SparkCatalog extends BaseCatalog {
                                   Map<String, String> properties) throws NoSuchTableException {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
     try {
-      Catalog.TableBuilder builder = pathOrTable(ident,
-          i -> tables.buildTable(i, icebergSchema),
-          i -> icebergCatalog.buildTable(i, icebergSchema));
+      Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
       Transaction transaction = builder.withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
           .withLocation(properties.get("location"))
           .withProperties(Spark3Util.rebuildCreateProperties(properties))
@@ -206,9 +198,7 @@ public class SparkCatalog extends BaseCatalog {
   public StagedTable stageCreateOrReplace(Identifier ident, StructType schema, Transform[] transforms,
                                           Map<String, String> properties) {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
-    Catalog.TableBuilder builder = pathOrTable(ident,
-        i -> tables.buildTable(i, icebergSchema),
-        i -> icebergCatalog.buildTable(i, icebergSchema));
+    Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
     Transaction transaction = builder.withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
         .withLocation(properties.get("location"))
         .withProperties(Spark3Util.rebuildCreateProperties(properties))
@@ -246,7 +236,7 @@ public class SparkCatalog extends BaseCatalog {
     }
 
     try {
-      Table table = pathOrTable(ident, tables::load, icebergCatalog::loadTable);
+      Table table = load(ident);
       commitChanges(table, setLocation, setSnapshotId, pickSnapshotId, propertyChanges, schemaChanges);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
@@ -258,7 +248,9 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public boolean dropTable(Identifier ident) {
     try {
-      return pathOrTable(ident, tables::dropTable, icebergCatalog::dropTable);
+      return isPathIdentifier(ident) ?
+          tables.dropTable(((PathIdentifier) ident).location()) :
+          icebergCatalog.dropTable(buildIdentifier(ident));
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       return false;
     }
@@ -280,7 +272,7 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public void invalidateTable(Identifier ident) {
     try {
-      pathOrTable(ident, tables::load, icebergCatalog::loadTable).refresh();
+      load(ident).refresh();
     } catch (org.apache.iceberg.exceptions.NoSuchTableException ignored) {
       // ignore if the table doesn't exist, it is not cached
     }
@@ -478,9 +470,15 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
-  private <T> T pathOrTable(Identifier ident, Function<String, T> path, Function<TableIdentifier, T> table) {
+  private Table load(Identifier ident) {
     return isPathIdentifier(ident) ?
-        path.apply(((PathIdentifier) ident).location()) :
-        table.apply(buildIdentifier(ident));
+        tables.load(((PathIdentifier) ident).location()) :
+        icebergCatalog.loadTable(buildIdentifier(ident));
+  }
+
+  private Catalog.TableBuilder newBuilder(Identifier ident, Schema schema) {
+    return isPathIdentifier(ident) ?
+        tables.buildTable(((PathIdentifier) ident).location(), schema) :
+        icebergCatalog.buildTable(buildIdentifier(ident), schema);
   }
 }
