@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark.extensions;
 
+import java.io.IOException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -29,6 +30,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.junit.After;
@@ -170,5 +172,19 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows("Should reject calls without empty table identifier",
         IllegalArgumentException.class, "Cannot handle an empty identifier",
         () -> sql("CALL %s.system.expire_snapshots('')", catalogName));
+  }
+
+  @Test
+  public void testResolvingTableInAnotherCatalog() throws IOException {
+    String anotherCatalog = "another_" + catalogName;
+    spark.conf().set("spark.sql.catalog." + anotherCatalog, SparkCatalog.class.getName());
+    spark.conf().set("spark.sql.catalog." + anotherCatalog + ".type", "hadoop");
+    spark.conf().set("spark.sql.catalog." + anotherCatalog + ".warehouse", "file:" + temp.newFolder().toString());
+    spark.sql(String.format("CREATE TABLE %s.%s (id bigint NOT NULL, data string) USING iceberg", anotherCatalog,
+        tableIdent));
+
+    AssertHelpers.assertThrows("Should reject calls for a table in another catalog",
+        IllegalArgumentException.class, "Cannot run procedure in catalog",
+        () -> sql("CALL %s.system.expire_snapshots('%s')", catalogName, anotherCatalog + "." + tableName));
   }
 }

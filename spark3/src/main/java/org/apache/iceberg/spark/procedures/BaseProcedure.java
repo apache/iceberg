@@ -79,9 +79,13 @@ abstract class BaseProcedure implements Procedure {
     try {
       catalogAndIdentifier = Spark3Util.catalogAndIdentifier(spark, identifierAsString, tableCatalog);
     } catch (ParseException e) {
-      throw new IllegalArgumentException(String.format("Cannot parse identifier [%s] for argument %s",
+      throw new IllegalArgumentException(String.format("Cannot parse identifier '%s' for argument %s",
           identifierAsString, argName), e);
     }
+
+    Preconditions.checkArgument(catalogAndIdentifier.catalog().equals(tableCatalog), "Cannot run procedure" +
+        " in catalog '%s': Argument %s was set to '%s' which resolves to a table in a different catalog '%s'",
+        tableCatalog.name(), argName, identifierAsString, catalogAndIdentifier.catalog().name());
 
     return catalogAndIdentifier.identifier();
   }
