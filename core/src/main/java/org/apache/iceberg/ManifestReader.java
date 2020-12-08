@@ -53,8 +53,6 @@ public class ManifestReader<F extends ContentFile<F>>
     extends CloseableGroup implements CloseableIterable<F> {
   static final ImmutableList<String> ALL_COLUMNS = ImmutableList.of("*");
 
-  // the difference between the two stats set below is to support ContentFile.copyWithoutStats(), which
-  // still keeps record count.
   private static final Set<String> STATS_COLUMNS = Sets.newHashSet(
       "value_counts", "null_value_counts", "nan_value_counts", "lower_bounds", "upper_bounds", "record_count");
 
@@ -285,7 +283,9 @@ public class ManifestReader<F extends ContentFile<F>>
 
   static boolean dropStats(Expression rowFilter, Collection<String> columns) {
     // Make sure we only drop all stats if we had projected all stats
-    // We do not drop stats even if we had partially added some stats columns
+    // We do not drop stats even if we had partially added some stats columns, except for record_count column.
+    // Since we don't want to keep stats map which could be huge in size just because we select record_count, which
+    // is a primitive type.
     if (rowFilter != Expressions.alwaysTrue() && columns != null &&
         !columns.containsAll(ManifestReader.ALL_COLUMNS)) {
       Set<String> interaction = Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS);
