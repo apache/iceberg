@@ -101,7 +101,7 @@ public class TestHiveIcebergOutputCommitter {
     List<Record> expected = writeRecords(1, 0, true, false, conf);
     committer.commitJob(new JobContextImpl(conf, JOB_ID));
 
-    HiveIcebergTestUtils.validateFiles(table, QUERY_ID, JOB_ID, 1);
+    HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 1);
     HiveIcebergTestUtils.validateData(table, expected, 0);
   }
 
@@ -113,7 +113,7 @@ public class TestHiveIcebergOutputCommitter {
     List<Record> expected = writeRecords(1, 0, true, false, conf);
     committer.commitJob(new JobContextImpl(conf, JOB_ID));
 
-    HiveIcebergTestUtils.validateFiles(table, QUERY_ID, JOB_ID, 3);
+    HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 3);
     HiveIcebergTestUtils.validateData(table, expected, 0);
   }
 
@@ -125,7 +125,7 @@ public class TestHiveIcebergOutputCommitter {
     List<Record> expected = writeRecords(2, 0, true, false, conf);
     committer.commitJob(new JobContextImpl(conf, JOB_ID));
 
-    HiveIcebergTestUtils.validateFiles(table, QUERY_ID, JOB_ID, 2);
+    HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 2);
     HiveIcebergTestUtils.validateData(table, expected, 0);
   }
 
@@ -137,7 +137,7 @@ public class TestHiveIcebergOutputCommitter {
     List<Record> expected = writeRecords(2, 0, true, false, conf);
     committer.commitJob(new JobContextImpl(conf, JOB_ID));
 
-    HiveIcebergTestUtils.validateFiles(table, QUERY_ID, JOB_ID, 6);
+    HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 6);
     HiveIcebergTestUtils.validateData(table, expected, 0);
   }
 
@@ -149,19 +149,19 @@ public class TestHiveIcebergOutputCommitter {
 
     // Write records and abort the tasks
     writeRecords(2, 0, false, true, conf);
-    HiveIcebergTestUtils.validateFiles(table, QUERY_ID, JOB_ID, 0);
+    HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 0);
     HiveIcebergTestUtils.validateData(table, Collections.emptyList(), 0);
 
     // Write records but do not abort the tasks
     // The data files remain since we can not identify them but should not be read
     writeRecords(2, 1, false, false, conf);
-    HiveIcebergTestUtils.validateFiles(table, QUERY_ID, JOB_ID, 2);
+    HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 2);
     HiveIcebergTestUtils.validateData(table, Collections.emptyList(), 0);
 
     // Write and commit the records
     List<Record> expected = writeRecords(2, 2, true, false, conf);
     committer.commitJob(new JobContextImpl(conf, JOB_ID));
-    HiveIcebergTestUtils.validateFiles(table, QUERY_ID, JOB_ID, 4);
+    HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 4);
     HiveIcebergTestUtils.validateData(table, expected, 0);
   }
 
@@ -173,7 +173,7 @@ public class TestHiveIcebergOutputCommitter {
     writeRecords(1, 0, true, false, conf);
     committer.abortJob(new JobContextImpl(conf, JOB_ID), JobStatus.State.FAILED);
 
-    HiveIcebergTestUtils.validateFiles(table, QUERY_ID, JOB_ID, 0);
+    HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 0);
     HiveIcebergTestUtils.validateData(table, Collections.emptyList(), 0);
   }
 
@@ -218,7 +218,8 @@ public class TestHiveIcebergOutputCommitter {
       List<Record> records = TestHelper.generateRandomRecords(schema, RECORD_NUM, i + attemptNum);
       TaskAttemptID taskId = new TaskAttemptID(JOB_ID.getJtIdentifier(), JOB_ID.getId(), TaskType.MAP, i, attemptNum);
       OutputFileFactory outputFileFactory =
-          new HiveOutputFileFactory(spec, FileFormat.PARQUET, location, io, encryption, taskId);
+          new OutputFileFactory(spec, FileFormat.PARQUET, location, io, encryption, taskId.getTaskID().getId(),
+              attemptNum, QUERY_ID + "-" + JOB_ID);
       HiveIcebergRecordWriter testWriter = new HiveIcebergRecordWriter(schema, spec, FileFormat.PARQUET,
           new GenericAppenderFactory(schema), outputFileFactory, io, TARGET_FILE_SIZE, taskId);
 

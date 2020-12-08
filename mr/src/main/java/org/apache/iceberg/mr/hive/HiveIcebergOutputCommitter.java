@@ -28,13 +28,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.JobContext;
 import org.apache.hadoop.mapred.OutputCommitter;
 import org.apache.hadoop.mapred.TaskAttemptContext;
 import org.apache.hadoop.mapred.TaskAttemptID;
+import org.apache.hadoop.mapreduce.JobID;
 import org.apache.hadoop.mapreduce.TaskType;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
@@ -45,6 +48,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -55,6 +59,8 @@ import org.slf4j.LoggerFactory;
  * Currently independent of the Hive ACID transactions.
  */
 public final class HiveIcebergOutputCommitter extends OutputCommitter {
+  private static final String FOR_COMMIT_EXTENSION = ".forCommit";
+
   private static final Logger LOG = LoggerFactory.getLogger(HiveIcebergOutputCommitter.class);
 
   @Override
@@ -82,7 +88,7 @@ public final class HiveIcebergOutputCommitter extends OutputCommitter {
   @Override
   public void commitTask(TaskAttemptContext context) throws IOException {
     TaskAttemptID attemptID = context.getTaskAttemptID();
-    String fileForCommitLocation = LocationHelper.generateFileForCommitLocation(context.getJobConf(),
+    String fileForCommitLocation = generateFileForCommitLocation(context.getJobConf(),
         attemptID.getJobID(), attemptID.getTaskID().getId());
     HiveIcebergRecordWriter writer = HiveIcebergRecordWriter.removeWriter(attemptID);
 
@@ -124,7 +130,7 @@ public final class HiveIcebergOutputCommitter extends OutputCommitter {
 
     long startTime = System.currentTimeMillis();
     LOG.info("Committing job has started for table: {}, using location: {}", table,
-        LocationHelper.generateJobLocation(conf, jobContext.getJobID()));
+        generateJobLocation(conf, jobContext.getJobID()));
 
     FileIO io = HiveIcebergStorageHandler.io(jobContext.getJobConf());
     List<DataFile> dataFiles = dataFiles(jobContext, io, true);
@@ -153,7 +159,7 @@ public final class HiveIcebergOutputCommitter extends OutputCommitter {
    */
   @Override
   public void abortJob(JobContext jobContext, int status) throws IOException {
-    String location = LocationHelper.generateJobLocation(jobContext.getJobConf(), jobContext.getJobID());
+    String location = generateJobLocation(jobContext.getJobConf(), jobContext.getJobID());
     LOG.info("Job {} is aborted. Cleaning job location {}", jobContext.getJobID(), location);
 
     FileIO io = HiveIcebergStorageHandler.io(jobContext.getJobConf());
@@ -177,7 +183,7 @@ public final class HiveIcebergOutputCommitter extends OutputCommitter {
    * @throws IOException if there is a failure deleting the files
    */
   private void cleanup(JobContext jobContext) throws IOException {
-    String location = LocationHelper.generateJobLocation(jobContext.getJobConf(), jobContext.getJobID());
+    String location = generateJobLocation(jobContext.getJobConf(), jobContext.getJobID());
     LOG.info("Cleaning for job: {} on location: {}", jobContext.getJobID(), location);
 
     // Remove the job's temp directory recursively.
@@ -226,7 +232,7 @@ public final class HiveIcebergOutputCommitter extends OutputCommitter {
           .executeWith(executor)
           .retry(3)
           .run(taskId -> {
-            String taskFileName = LocationHelper.generateFileForCommitLocation(conf, jobContext.getJobID(), taskId);
+            String taskFileName = generateFileForCommitLocation(conf, jobContext.getJobID(), taskId);
             dataFiles.addAll(Arrays.asList(readFileForCommit(taskFileName, io)));
           });
 
@@ -236,6 +242,33 @@ public final class HiveIcebergOutputCommitter extends OutputCommitter {
         executor.shutdown();
       }
     }
+  }
+
+  /**
+   * Generates the job temp location based on the job configuration.
+   * Currently it uses QUERY_LOCATION-jobId.
+   * @param conf The job's configuration
+   * @param jobId The JobID for the task
+   * @return The file to store the results
+   */
+  @VisibleForTesting
+  static String generateJobLocation(Configuration conf, JobID jobId) {
+    String tableLocation = conf.get(InputFormatConfig.TABLE_LOCATION);
+    String queryId = conf.get(HiveConf.ConfVars.HIVEQUERYID.varname);
+    return tableLocation + "/temp/" + queryId + "-" + jobId;
+  }
+
+  /**
+   * Generates file location based on the task configuration and a specific task id.
+   * This file will be used to store the data required to generate the Iceberg commit.
+   * Currently it uses QUERY_LOCATION-jobId/task-[0..numTasks).forCommit.
+   * @param conf The job's configuration
+   * @param jobId The jobId for the task
+   * @param taskId The taskId for the commit file
+   * @return The file to store the results
+   */
+  private static String generateFileForCommitLocation(Configuration conf, JobID jobId, int taskId) {
+    return generateJobLocation(conf, jobId) + "/task-" + taskId + FOR_COMMIT_EXTENSION;
   }
 
   private static void createFileForCommit(DataFile[] closedFiles, String location, FileIO io)
