@@ -28,21 +28,25 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalQuery;
+import java.util.List;
 import java.util.Optional;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class TableReference {
   private static final Logger LOGGER = LoggerFactory.getLogger(TableReference.class);
   private static final ZoneId UTC = ZoneId.of("UTC");
+  private static final Splitter REF = Splitter.on("@");
+  private static final Splitter TIMESTAMP = Splitter.on("#");
 
-  private static DynMethods.StaticMethod SPARK_SESSION_METHOD;
-  private static DynMethods.UnboundMethod SPARK_CONTEXT_METHOD;
-  private static DynMethods.UnboundMethod SPARK_CONF_METHOD;
-  private static DynMethods.UnboundMethod SPARK_CONF_GET_METHOD;
-  private static Boolean SPARK_AVAILABLE = null;
+  private static DynMethods.StaticMethod sparkSessionMethod;
+  private static DynMethods.UnboundMethod sparkContextMethod;
+  private static DynMethods.UnboundMethod sparkConfMethod;
+  private static DynMethods.UnboundMethod sparkConfGetMethod;
+  private static Boolean sparkAvailable = null;
   private final TableIdentifier tableIdentifier;
   private final Instant timestamp;
   private final String reference;
@@ -83,34 +87,34 @@ public class TableReference {
    */
   public static TableReference parse(String path) {
     // I am assuming tables can't have @ or # symbols
-    if (path.split("@").length > 2) {
+    if (REF.splitToList(path).size() > 2) {
       throw new IllegalArgumentException(String.format("Can only reference one branch in %s", path));
     }
-    if (path.split("#").length > 2) {
+    if (TIMESTAMP.splitToList(path).size() > 2) {
       throw new IllegalArgumentException(String.format("Can only reference one timestamp in %s", path));
     }
 
     if (path.contains("@") && path.contains("#")) {
-      String[] tableRef = path.split("@");
-      if (tableRef[0].contains("#")) {
+      List<String> tableRef = REF.splitToList(path);
+      if (tableRef.get(0).contains("#")) {
         throw new IllegalArgumentException("Invalid table name:" +
             " # is not allowed before @. Correct format is table@ref#timestamp");
       }
-      TableIdentifier identifier = TableIdentifier.parse(tableRef[0]);
-      String[] timestampRef = tableRef[1].split("#");
-      return new TableReference(identifier, parseTimestamp(timestampRef[1]), timestampRef[0]);
+      TableIdentifier identifier = TableIdentifier.parse(tableRef.get(0));
+      List<String> timestampRef = TIMESTAMP.splitToList(tableRef.get(1));
+      return new TableReference(identifier, parseTimestamp(timestampRef.get(1)), timestampRef.get(0));
     }
 
     if (path.contains("@")) {
-      String[] tableRef = path.split("@");
-      TableIdentifier identifier = TableIdentifier.parse(tableRef[0]);
-      return new TableReference(identifier, null, tableRef[1]);
+      List<String> tableRef = REF.splitToList(path);
+      TableIdentifier identifier = TableIdentifier.parse(tableRef.get(0));
+      return new TableReference(identifier, null, tableRef.get(1));
     }
 
     if (path.contains("#")) {
-      String[] tableTimestamp = path.split("#");
-      TableIdentifier identifier = TableIdentifier.parse(tableTimestamp[0]);
-      return new TableReference(identifier, parseTimestamp(tableTimestamp[1]), null);
+      List<String> tableTimestamp = TIMESTAMP.splitToList(path);
+      TableIdentifier identifier = TableIdentifier.parse(tableTimestamp.get(0));
+      return new TableReference(identifier, parseTimestamp(tableTimestamp.get(1)), null);
     }
 
     TableIdentifier identifier = TableIdentifier.parse(path);
@@ -189,26 +193,26 @@ public class TableReference {
   }
 
   private static Optional<String> sparkTimezone() {
-    if (SPARK_AVAILABLE != null) {
+    if (sparkAvailable != null) {
       try {
-        SPARK_SESSION_METHOD = DynMethods.builder("active")
+        sparkSessionMethod = DynMethods.builder("active")
             .impl("org.apache.spark.sql.SparkSession").buildStatic();
-        SPARK_CONTEXT_METHOD = DynMethods.builder("sparkContext")
+        sparkContextMethod = DynMethods.builder("sparkContext")
             .impl("org.apache.spark.sql.SparkSession").build();
-        SPARK_CONF_METHOD = DynMethods.builder("conf")
+        sparkConfMethod = DynMethods.builder("conf")
             .impl("org.apache.spark.SparkContext").build();
-        SPARK_CONF_GET_METHOD = DynMethods.builder("get")
+        sparkConfGetMethod = DynMethods.builder("get")
             .impl("org.apache.spark.SparkConf").build();
-        SPARK_AVAILABLE = true;
+        sparkAvailable = true;
       } catch (RuntimeException e) {
-        SPARK_AVAILABLE = false; // spark not on classpath
+        sparkAvailable = false; // spark not on classpath
       }
     }
-    if (SPARK_AVAILABLE != null && SPARK_AVAILABLE) {
+    if (sparkAvailable != null && sparkAvailable) {
       try {
-        Object sparkContext = SPARK_CONTEXT_METHOD.bind(SPARK_SESSION_METHOD.invoke()).invoke();
-        Object sparkConf = SPARK_CONF_METHOD.bind(sparkContext).invoke();
-        return Optional.ofNullable(SPARK_CONF_GET_METHOD.bind(sparkConf).invoke("spark.sql.session.timeZone"));
+        Object sparkContext = sparkContextMethod.bind(sparkSessionMethod.invoke()).invoke();
+        Object sparkConf = sparkConfMethod.bind(sparkContext).invoke();
+        return Optional.ofNullable(sparkConfGetMethod.bind(sparkConf).invoke("spark.sql.session.timeZone"));
       } catch (RuntimeException e) {
         // we may fail to get Spark timezone, we don't want to crash over that so just log and continue.
         LOGGER.warn("Cannot find Spark timezone. Using UTC instead.", e);
