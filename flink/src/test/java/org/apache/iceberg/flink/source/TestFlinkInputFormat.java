@@ -100,6 +100,33 @@ public class TestFlinkInputFormat extends TestFlinkScan {
     assertRows(result, expected);
   }
 
+  @Test
+  public void testBasicProjection() throws IOException {
+    Schema writeSchema = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.optional(1, "data", Types.StringType.get()),
+        Types.NestedField.optional(2, "time", Types.TimestampType.withZone())
+    );
+
+    Table table = catalog.createTable(TableIdentifier.of("default", "t"), writeSchema);
+
+    List<Record> writeRecords = RandomGenericData.generate(writeSchema, 2, 0L);
+    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(writeRecords);
+
+    TableSchema projectedSchema = TableSchema.builder()
+        .field("id", DataTypes.BIGINT())
+        .field("data", DataTypes.STRING())
+        .build();
+    List<Row> result = runFormat(FlinkSource.forRowData().tableLoader(loader()).project(projectedSchema).buildFormat());
+
+    List<Row> expected = Lists.newArrayList();
+    for (Record record : writeRecords) {
+      expected.add(Row.of(record.get(0), record.get(1)));
+    }
+
+    assertRows(result, expected);
+  }
+
   private List<Row> runFormat(FlinkInputFormat inputFormat) throws IOException {
     RowType rowType = FlinkSchemaUtil.convert(inputFormat.projectedSchema());
     return TestHelpers.readRows(inputFormat, rowType);
