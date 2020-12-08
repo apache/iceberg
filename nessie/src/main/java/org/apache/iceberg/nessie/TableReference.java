@@ -28,10 +28,21 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalQuery;
+import java.util.Optional;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.common.DynMethods;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class TableReference {
+  private static final Logger LOGGER = LoggerFactory.getLogger(TableReference.class);
   private static final ZoneId UTC = ZoneId.of("UTC");
+
+  private static DynMethods.StaticMethod SPARK_SESSION_METHOD;
+  private static DynMethods.UnboundMethod SPARK_CONTEXT_METHOD;
+  private static DynMethods.UnboundMethod SPARK_CONF_METHOD;
+  private static DynMethods.UnboundMethod SPARK_CONF_GET_METHOD;
+  private static Boolean SPARK_AVAILABLE = null;
   private final TableIdentifier tableIdentifier;
   private final Instant timestamp;
   private final String reference;
@@ -109,8 +120,8 @@ public class TableReference {
 
   private enum FormatOptions {
     DATE_TIME(DateTimeFormatter.ISO_DATE_TIME, ZonedDateTime::from),
-    LOCAL_DATE_TIME(DateTimeFormatter.ISO_LOCAL_DATE_TIME, t -> LocalDateTime.from(t).atZone(UTC)),
-    LOCAL_DATE(DateTimeFormatter.ISO_LOCAL_DATE, t -> LocalDate.from(t).atStartOfDay(UTC));
+    LOCAL_DATE_TIME(DateTimeFormatter.ISO_LOCAL_DATE_TIME, t -> LocalDateTime.from(t).atZone(sparkTimezoneOrUTC())),
+    LOCAL_DATE(DateTimeFormatter.ISO_LOCAL_DATE, t -> LocalDate.from(t).atStartOfDay(sparkTimezoneOrUTC()));
 
     private final DateTimeFormatter formatter;
     private final TemporalQuery<ZonedDateTime> converter;
@@ -171,5 +182,38 @@ public class TableReference {
 
   private static ZonedDateTime endOfPeriod(ZonedDateTime instant, ChronoUnit unit) {
     return instant.plus(1, unit).minus(1, ChronoUnit.MICROS);
+  }
+
+  private static ZoneId sparkTimezoneOrUTC() {
+    return sparkTimezone().map(ZoneId::of).orElse(UTC);
+  }
+
+  private static Optional<String> sparkTimezone() {
+    if (SPARK_AVAILABLE != null) {
+      try {
+        SPARK_SESSION_METHOD = DynMethods.builder("active")
+            .impl("org.apache.spark.sql.SparkSession").buildStatic();
+        SPARK_CONTEXT_METHOD = DynMethods.builder("sparkContext")
+            .impl("org.apache.spark.sql.SparkSession").build();
+        SPARK_CONF_METHOD = DynMethods.builder("conf")
+            .impl("org.apache.spark.SparkContext").build();
+        SPARK_CONF_GET_METHOD = DynMethods.builder("get")
+            .impl("org.apache.spark.SparkConf").build();
+        SPARK_AVAILABLE = true;
+      } catch (RuntimeException e) {
+        SPARK_AVAILABLE = false; // spark not on classpath
+      }
+    }
+    if (SPARK_AVAILABLE != null && SPARK_AVAILABLE) {
+      try {
+        Object sparkContext = SPARK_CONTEXT_METHOD.bind(SPARK_SESSION_METHOD.invoke()).invoke();
+        Object sparkConf = SPARK_CONF_METHOD.bind(sparkContext).invoke();
+        return Optional.ofNullable(SPARK_CONF_GET_METHOD.bind(sparkConf).invoke("spark.sql.session.timeZone"));
+      } catch (RuntimeException e) {
+        // we may fail to get Spark timezone, we don't want to crash over that so just log and continue.
+        LOGGER.warn("Cannot find Spark timezone. Using UTC instead.", e);
+      }
+    }
+    return Optional.empty();
   }
 }
