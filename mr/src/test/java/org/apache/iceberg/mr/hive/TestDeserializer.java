@@ -55,6 +55,30 @@ public class TestDeserializer {
           ));
 
   @Test
+  public void testSchemaDeserialize() {
+    StandardStructObjectInspector schemaObjectInspector =
+        ObjectInspectorFactory.getStandardStructObjectInspector(
+            Arrays.asList("0:col1", "1:col2"),
+            Arrays.asList(
+                PrimitiveObjectInspectorFactory.writableLongObjectInspector,
+                PrimitiveObjectInspectorFactory.writableStringObjectInspector
+            ));
+
+    Deserializer deserializer = new Deserializer.Builder()
+        .schema(CUSTOMER_SCHEMA)
+        .inspector(schemaObjectInspector)
+        .build();
+
+    Record expected = GenericRecord.create(CUSTOMER_SCHEMA);
+    expected.set(0, 1L);
+    expected.set(1, "Bob");
+
+    Record actual = deserializer.deserialize(new Object[] { new LongWritable(1L), new Text("Bob") });
+
+    Assert.assertEquals(expected, actual);
+  }
+
+  @Test
   public void testStructDeserialize() {
     Deserializer deserializer = new Deserializer.Builder()
         .schema(CUSTOMER_SCHEMA)

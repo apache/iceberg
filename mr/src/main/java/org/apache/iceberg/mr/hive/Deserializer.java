@@ -28,6 +28,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.apache.iceberg.Schema;
@@ -45,6 +46,10 @@ import org.apache.iceberg.types.Types.StructType;
 class Deserializer {
   private FieldDeserializer fieldDeserializer;
 
+  /**
+   * Builder to create a Deserializer instance.
+   * Requires an Iceberg Schema and the Hive ObjectInspector for converting the data.
+   */
   static class Builder {
     private Schema schema;
     private ObjectInspector inspector;
@@ -64,6 +69,11 @@ class Deserializer {
     }
   }
 
+  /**
+   * Deserializes the Hive result object to an Iceberg record using the provided ObjectInspectors.
+   * @param data The Hive data to deserialize
+   * @return The resulting Iceberg Record
+   */
   Record deserialize(Object data) {
     return (Record) fieldDeserializer.value(data);
   }
@@ -75,7 +85,8 @@ class Deserializer {
   private static class DeserializerVisitor extends SchemaWithPartnerVisitor<ObjectInspector, FieldDeserializer> {
 
     public static FieldDeserializer visit(Schema schema, ObjectInspector objectInspector) {
-      return visit(schema, objectInspector, new DeserializerVisitor(), new PartnerObjectInspectorByNameAccessors());
+      return visit(schema, new FixNameMappingObjectInspector(schema, objectInspector), new DeserializerVisitor(),
+          new PartnerObjectInspectorByNameAccessors());
     }
 
     @Override
@@ -205,5 +216,56 @@ class Deserializer {
 
   private interface FieldDeserializer {
     Object value(Object object);
+  }
+
+  /**
+   * Hive query results schema column names do not match the target Iceberg column names.
+   * Instead we have to rely on the column order. To keep the other parts of the code generic we fix this with a
+   * wrapper around the ObjectInspector. This wrapper uses the Iceberg schema column names instead of the Hive column
+   * names for {@link #getStructFieldRef(String) getStructFieldRef}
+   */
+  private static class FixNameMappingObjectInspector extends StructObjectInspector {
+    private final StructObjectInspector innerInspector;
+    private final Map<String, StructField> nameMap;
+
+    private FixNameMappingObjectInspector(Schema schema, ObjectInspector inspector) {
+      this.nameMap = new HashMap<>(schema.columns().size());
+      this.innerInspector = (StructObjectInspector) inspector;
+      List<? extends StructField> fields = innerInspector.getAllStructFieldRefs();
+
+      for (int i = 0; i < schema.columns().size(); ++i) {
+        nameMap.put(schema.columns().get(i).name(), fields.get(i));
+      }
+    }
+
+    @Override
+    public List<? extends StructField> getAllStructFieldRefs() {
+      return innerInspector.getAllStructFieldRefs();
+    }
+
+    @Override
+    public StructField getStructFieldRef(String fieldName) {
+      return nameMap.get(fieldName);
+    }
+
+    @Override
+    public Object getStructFieldData(Object data, StructField fieldRef) {
+      return innerInspector.getStructFieldData(data, fieldRef);
+    }
+
+    @Override
+    public List<Object> getStructFieldsDataAsList(Object data) {
+      return innerInspector.getStructFieldsDataAsList(data);
+    }
+
+    @Override
+    public String getTypeName() {
+      return innerInspector.getTypeName();
+    }
+
+    @Override
+    public Category getCategory() {
+      return innerInspector.getCategory();
+    }
   }
 }
