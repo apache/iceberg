@@ -24,8 +24,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Function;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionKey;
@@ -44,7 +46,9 @@ import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.StructLikeSet;
+import org.apache.iceberg.util.StructProjection;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -60,7 +64,8 @@ public class TestTaskDeltaWriter extends TableTestBase {
   private final GenericRecord gRecord = GenericRecord.create(SCHEMA);
 
   private OutputFileFactory fileFactory = null;
-  private FileAppenderFactory<Record> appenderFactory = null;
+  private int idFieldId;
+  private int dataFieldId;
 
   @Parameterized.Parameters(name = "FileFormat = {0}")
   public static Object[][] parameters() {
@@ -86,10 +91,8 @@ public class TestTaskDeltaWriter extends TableTestBase {
     this.fileFactory = new OutputFileFactory(table.spec(), format, table.locationProvider(), table.io(),
         table.encryption(), 1, 1);
 
-    int firstFieldId = table.schema().findField("id").fieldId();
-    int secondFieldId = table.schema().findField("data").fieldId();
-    this.appenderFactory = new GenericAppenderFactory(table.schema(), table.spec(),
-        new int[] {firstFieldId, secondFieldId}, table.schema(), null);
+    this.idFieldId = table.schema().findField("id").fieldId();
+    this.dataFieldId = table.schema().findField("data").fieldId();
 
     table.updateProperties()
         .defaultFormat(format)
@@ -102,7 +105,10 @@ public class TestTaskDeltaWriter extends TableTestBase {
 
   @Test
   public void testPureInsert() throws IOException {
-    GenericTaskDeltaWriter deltaWriter = createTaskWriter(TARGET_FILE_SIZE);
+    List<Integer> eqDeleteFieldIds = Lists.newArrayList(idFieldId, dataFieldId);
+    Schema eqDeleteSchema = table.schema();
+
+    GenericTaskDeltaWriter deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteSchema);
     List<Record> expected = Lists.newArrayList();
     for (int i = 0; i < 20; i++) {
       Record record = createRecord(i, String.format("val-%d", i));
@@ -117,7 +123,7 @@ public class TestTaskDeltaWriter extends TableTestBase {
     commitTransaction(result);
     Assert.assertEquals("Should have expected records", expectedRowSet(expected), actualRowSet("*"));
 
-    deltaWriter = createTaskWriter(TARGET_FILE_SIZE);
+    deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteSchema);
     for (int i = 20; i < 30; i++) {
       Record record = createRecord(i, String.format("val-%d", i));
       expected.add(record);
@@ -133,7 +139,10 @@ public class TestTaskDeltaWriter extends TableTestBase {
 
   @Test
   public void testUpsertSameRow() throws IOException {
-    GenericTaskDeltaWriter deltaWriter = createTaskWriter(TARGET_FILE_SIZE);
+    List<Integer> eqDeleteFieldIds = Lists.newArrayList(idFieldId, dataFieldId);
+    Schema eqDeleteSchema = table.schema();
+
+    GenericTaskDeltaWriter deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteSchema);
 
     Record record = createRecord(1, "aaa");
     deltaWriter.write(record);
@@ -154,7 +163,7 @@ public class TestTaskDeltaWriter extends TableTestBase {
 
     // Check records in the eq-delete file.
     DeleteFile eqDeleteFile = result.deleteFiles()[0];
-    Assert.assertEquals(ImmutableList.of(record, record), readRecordsAsList(table.schema(), eqDeleteFile.path()));
+    Assert.assertEquals(ImmutableList.of(record, record), readRecordsAsList(eqDeleteSchema, eqDeleteFile.path()));
 
     // Check records in the pos-delete file.
     DeleteFile posDeleteFile = result.deleteFiles()[1];
@@ -164,13 +173,95 @@ public class TestTaskDeltaWriter extends TableTestBase {
         posRecord.copy("file_path", dataFile.path(), "pos", 1L)
     ), readRecordsAsList(DeleteSchemaUtil.pathPosSchema(), posDeleteFile.path()));
 
-    deltaWriter = createTaskWriter(TARGET_FILE_SIZE);
+    deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteSchema);
     deltaWriter.delete(record);
     result = deltaWriter.complete();
     Assert.assertEquals("Should have 0 data file.", 0, result.dataFiles().length);
     Assert.assertEquals("Should have 1 eq-delete file", 1, result.deleteFiles().length);
     commitTransaction(result);
     Assert.assertEquals("Should have no record", expectedRowSet(ImmutableList.of()), actualRowSet("*"));
+  }
+
+  @Test
+  public void testUpsertByDataField() throws IOException {
+    List<Integer> eqDeleteFieldIds = Lists.newArrayList(dataFieldId);
+    Schema eqDeleteSchema = table.schema().select("data");
+
+    GenericTaskDeltaWriter deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteSchema);
+    deltaWriter.write(createRecord(1, "aaa"));
+    deltaWriter.write(createRecord(2, "bbb"));
+    deltaWriter.write(createRecord(3, "aaa"));
+    deltaWriter.write(createRecord(3, "ccc"));
+    deltaWriter.write(createRecord(4, "ccc"));
+
+    // Commit the 1th transaction.
+    WriteResult result = deltaWriter.complete();
+    Assert.assertEquals("Should have a data file", 1, result.dataFiles().length);
+    Assert.assertEquals("Should have a pos-delete file for deduplication purpose", 1, result.deleteFiles().length);
+    Assert.assertEquals("Should be pos-delete file", FileContent.POSITION_DELETES, result.deleteFiles()[0].content());
+    commitTransaction(result);
+
+    Assert.assertEquals("Should have expected records", expectedRowSet(ImmutableList.of(
+        createRecord(2, "bbb"),
+        createRecord(3, "aaa"),
+        createRecord(4, "ccc")
+    )), actualRowSet("*"));
+
+    // Start the 2th transaction.
+    deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteSchema);
+    GenericRecord keyRecord = GenericRecord.create(eqDeleteSchema);
+    Function<String, Record> keyFunc = data -> keyRecord.copy("data", data);
+
+    // UPSERT <3,'aaa'> to <5,'aaa'>
+    deltaWriter.delete(keyFunc.apply("aaa"));
+    deltaWriter.write(createRecord(5, "aaa"));
+
+    // UPSERT <5,'aaa'> to <6,'aaa'>
+    deltaWriter.delete(keyFunc.apply("aaa"));
+    deltaWriter.write(createRecord(6, "aaa"));
+
+    // UPSERT <4,'ccc'> to <7,'ccc'>
+    deltaWriter.delete(keyFunc.apply("ccc"));
+    deltaWriter.write(createRecord(7, "ccc"));
+
+    // DELETE <2, 'bbb'>
+    deltaWriter.delete(keyFunc.apply("bbb"));
+
+    // Commit the 2th transaction.
+    result = deltaWriter.complete();
+    Assert.assertEquals(1, result.dataFiles().length);
+    Assert.assertEquals(2, result.deleteFiles().length);
+    commitTransaction(result);
+
+    Assert.assertEquals("Should have expected records", expectedRowSet(ImmutableList.of(
+        createRecord(6, "aaa"),
+        createRecord(7, "ccc")
+    )), actualRowSet("*"));
+
+    // Check records in the data file.
+    DataFile dataFile = result.dataFiles()[0];
+    Assert.assertEquals(ImmutableList.of(
+        createRecord(5, "aaa"),
+        createRecord(6, "aaa"),
+        createRecord(7, "ccc")
+    ), readRecordsAsList(table.schema(), dataFile.path()));
+
+    // Check records in the eq-delete file.
+    DeleteFile eqDeleteFile = result.deleteFiles()[0];
+    Assert.assertEquals(ImmutableList.of(
+        keyFunc.apply("aaa"),
+        keyFunc.apply("aaa"),
+        keyFunc.apply("ccc"),
+        keyFunc.apply("bbb")
+    ), readRecordsAsList(eqDeleteSchema, eqDeleteFile.path()));
+
+    // Check records in the pos-delete file.
+    DeleteFile posDeleteFile = result.deleteFiles()[1];
+    Schema posDeleteSchema = DeleteSchemaUtil.pathPosSchema();
+    GenericRecord posRecord = GenericRecord.create(posDeleteSchema);
+    Assert.assertEquals(ImmutableList.of(
+        posRecord.copy("file_path", dataFile.path(), "pos", 0L)
+    ), readRecordsAsList(posDeleteSchema, posDeleteFile.path()));
   }
 
   private void commitTransaction(WriteResult result) {
@@ -194,19 +285,21 @@ public class TestTaskDeltaWriter extends TableTestBase {
     return set;
   }
 
-  private GenericTaskDeltaWriter createTaskWriter(long targetFileSize) {
-    return new GenericTaskDeltaWriter(table.schema(), table.spec(), format, appenderFactory, fileFactory, table.io(),
-        targetFileSize);
+  private GenericTaskDeltaWriter createTaskWriter(List<Integer> equalityFieldIds, Schema eqDeleteSchema) {
+    FileAppenderFactory<Record> appenderFactory = new GenericAppenderFactory(table.schema(), table.spec(),
+        ArrayUtil.toIntArray(equalityFieldIds), eqDeleteSchema, null);
+    return new GenericTaskDeltaWriter(table.schema(), eqDeleteSchema, table.spec(), format, appenderFactory,
+        fileFactory, table.io(), TARGET_FILE_SIZE);
   }
 
   private static class GenericTaskDeltaWriter extends BaseTaskWriter<Record> {
     private final GenericDeltaWriter deltaWriter;
 
-    private GenericTaskDeltaWriter(Schema eqDeleteSchema, PartitionSpec spec, FileFormat format,
+    private GenericTaskDeltaWriter(Schema schema, Schema eqDeleteSchema, PartitionSpec spec, FileFormat format,
                                    FileAppenderFactory<Record> appenderFactory,
                                    OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
       super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
-      this.deltaWriter = new GenericDeltaWriter(null, eqDeleteSchema);
+      this.deltaWriter = new GenericDeltaWriter(null, schema, eqDeleteSchema);
     }
 
     @Override
@@ -224,9 +317,11 @@ public class TestTaskDeltaWriter extends TableTestBase {
     }
 
     private class GenericDeltaWriter extends BaseDeltaWriter {
+      private final StructProjection structProjection;
 
-      private GenericDeltaWriter(PartitionKey partition, Schema eqDeleteSchema) {
+      private GenericDeltaWriter(PartitionKey partition, Schema schema, Schema eqDeleteSchema) {
         super(partition, eqDeleteSchema);
+        this.structProjection = StructProjection.create(schema, eqDeleteSchema);
       }
 
       @Override
@@ -235,8 +330,8 @@ public class TestTaskDeltaWriter extends TableTestBase {
       }
 
       @Override
-      protected StructLike asCopiedStructLike(Record row) {
-        return row.copy();
+      protected StructLike asCopiedKey(Record row) {
+        return structProjection.copy().wrap(row);
       }
     }
   }

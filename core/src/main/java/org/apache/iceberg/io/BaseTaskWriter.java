@@ -83,10 +83,11 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
    * Base delta writer to write both insert records and equality-deletes.
    */
   protected abstract class BaseDeltaWriter implements Closeable {
-    private final RollingFileWriter dataWriter;
-    private final RollingEqDeleteWriter eqDeleteWriter;
-    private final SortedPosDeleteWriter<T> posDeleteWriter;
-    private final StructLikeMap<PathOffset> insertedRowMap;
+    private RollingFileWriter dataWriter;
+    private RollingEqDeleteWriter eqDeleteWriter;
+    private SortedPosDeleteWriter<T> posDeleteWriter;
+    private StructLikeMap<PathOffset> insertedRowMap;
+
 
     public BaseDeltaWriter(PartitionKey partition, Schema eqDeleteSchema) {
       Preconditions.checkNotNull(eqDeleteSchema, "equality-delete schema could not be null.");
@@ -99,14 +100,17 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       this.posDeleteWriter = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, partition);
     }
 
-    protected abstract StructLike asStructLike(T row);
+    /**
+     * Make the generic data could be read as a {@link StructLike}.
+     */
+    protected abstract StructLike asStructLike(T data);
 
-    protected abstract StructLike asCopiedStructLike(T row);
+    protected abstract StructLike asCopiedKey(T row);
 
     public void write(T row) throws IOException {
       PathOffset pathOffset = PathOffset.of(dataWriter.currentPath(), dataWriter.currentRows());
 
-      StructLike copiedKey = asCopiedStructLike(row);
+      StructLike copiedKey = asCopiedKey(row);
       // Adding a pos-delete to replace the old filePos.
       PathOffset previous = insertedRowMap.put(copiedKey, pathOffset);
       if (previous != null) {
@@ -117,29 +121,47 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       dataWriter.write(row);
     }
 
-    public void delete(T row) throws IOException {
-      StructLike key = asStructLike(row);
-      PathOffset previous = insertedRowMap.remove(key);
+    /**
+     * Delete the rows with the given key.
+     *
+     * @param key is the projected values which could be write to eq-delete file directly.
+     */
+    public void delete(T key) throws IOException {
+      StructLike structLikeKey = asStructLike(key);
+      PathOffset previous = insertedRowMap.remove(structLikeKey);
 
       if (previous != null) {
         // TODO attach the previous row if has a positional-delete row schema in appender factory.
         posDeleteWriter.delete(previous.path, previous.rowOffset, null);
       }
 
-      eqDeleteWriter.write(row);
+      eqDeleteWriter.write(key);
     }
 
     @Override
     public void close() throws IOException {
       // Close data writer and add completed data files.
-      dataWriter.close();
+      if (dataWriter != null) {
+        dataWriter.close();
+        dataWriter = null;
+      }
 
       // Close eq-delete writer and add completed equality-delete files.
-      eqDeleteWriter.close();
-      insertedRowMap.clear();
+      if (eqDeleteWriter != null) {
+        eqDeleteWriter.close();
+        eqDeleteWriter = null;
+      }
+
+      if (insertedRowMap != null) {
+        insertedRowMap.clear();
+        insertedRowMap = null;
+      }
 
       // add the completed pos-delete files.
-      completedDeleteFiles.addAll(posDeleteWriter.complete());
+      if (posDeleteWriter != null) {
+        completedDeleteFiles.addAll(posDeleteWriter.complete());
+        posDeleteWriter = null;
+      }
     }
   }
 
