@@ -88,7 +88,6 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     private SortedPosDeleteWriter<T> posDeleteWriter;
     private StructLikeMap<PathOffset> insertedRowMap;
 
-
     public BaseDeltaWriter(PartitionKey partition, Schema eqDeleteSchema) {
       Preconditions.checkNotNull(eqDeleteSchema, "equality-delete schema could not be null.");
 

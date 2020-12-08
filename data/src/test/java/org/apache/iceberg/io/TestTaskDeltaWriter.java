@@ -62,6 +62,7 @@ public class TestTaskDeltaWriter extends TableTestBase {
 
   private final FileFormat format;
   private final GenericRecord gRecord = GenericRecord.create(SCHEMA);
+  private final GenericRecord posRecord = GenericRecord.create(DeleteSchemaUtil.pathPosSchema());
 
   private OutputFileFactory fileFactory = null;
   private int idFieldId;
@@ -138,6 +139,58 @@ public class TestTaskDeltaWriter extends TableTestBase {
   }
 
   @Test
+  public void testInsertDuplicatedKey() throws IOException {
+    List<Integer> equalityFieldIds = Lists.newArrayList(idFieldId);
+    Schema eqDeleteSchema = table.schema().select("id");
+
+    GenericTaskDeltaWriter deltaWriter = createTaskWriter(equalityFieldIds, eqDeleteSchema);
+    deltaWriter.write(createRecord(1, "aaa"));
+    deltaWriter.write(createRecord(2, "bbb"));
+    deltaWriter.write(createRecord(3, "ccc"));
+    deltaWriter.write(createRecord(4, "ddd"));
+    deltaWriter.write(createRecord(4, "eee"));
+    deltaWriter.write(createRecord(3, "fff"));
+    deltaWriter.write(createRecord(2, "ggg"));
+    deltaWriter.write(createRecord(1, "hhh"));
+
+    WriteResult result = deltaWriter.complete();
+    commitTransaction(result);
+
+    Assert.assertEquals("Should have a data file.", 1, result.dataFiles().length);
+    Assert.assertEquals("Should have a pos-delete file", 1, result.deleteFiles().length);
+    DeleteFile posDeleteFile = result.deleteFiles()[0];
+    Assert.assertEquals("Should be a pos-delete file", FileContent.POSITION_DELETES, posDeleteFile.content());
+    Assert.assertEquals("Should have expected records", expectedRowSet(ImmutableList.of(
+        createRecord(4, "eee"),
+        createRecord(3, "fff"),
+        createRecord(2, "ggg"),
+        createRecord(1, "hhh")
+    )), actualRowSet("*"));
+
+    // Check records in the data file.
+    DataFile dataFile = result.dataFiles()[0];
+    Assert.assertEquals(ImmutableList.of(
+        createRecord(1, "aaa"),
+        createRecord(2, "bbb"),
+        createRecord(3, "ccc"),
+        createRecord(4, "ddd"),
+        createRecord(4, "eee"),
+        createRecord(3, "fff"),
+        createRecord(2, "ggg"),
+        createRecord(1, "hhh")
+    ), readRecordsAsList(table.schema(), dataFile.path()));
+
+    // Check records in the pos-delete file.
+    Schema posDeleteSchema = DeleteSchemaUtil.pathPosSchema();
+    Assert.assertEquals(ImmutableList.of(
+        posRecord.copy("file_path", dataFile.path(), "pos", 0L),
+        posRecord.copy("file_path", dataFile.path(), "pos", 1L),
+        posRecord.copy("file_path", dataFile.path(), "pos", 2L),
+        posRecord.copy("file_path", dataFile.path(), "pos", 3L)
+    ), readRecordsAsList(posDeleteSchema, posDeleteFile.path()));
+  }
+
+  @Test
   public void testUpsertSameRow() throws IOException {
     List<Integer> eqDeleteFieldIds = Lists.newArrayList(idFieldId, dataFieldId);
     Schema eqDeleteSchema = table.schema();
@@ -167,7 +220,6 @@ public class TestTaskDeltaWriter extends TableTestBase {
 
     // Check records in the pos-delete file.
     DeleteFile posDeleteFile = result.deleteFiles()[1];
-    GenericRecord posRecord = GenericRecord.create(DeleteSchemaUtil.pathPosSchema());
     Assert.assertEquals(ImmutableList.of(
         posRecord.copy("file_path", dataFile.path(), "pos", 0L),
         posRecord.copy("file_path", dataFile.path(), "pos", 1L)
@@ -258,7 +310,6 @@ public class TestTaskDeltaWriter extends TableTestBase {
     // Check records in the pos-delete file.
     DeleteFile posDeleteFile = result.deleteFiles()[1];
     Schema posDeleteSchema = DeleteSchemaUtil.pathPosSchema();
-    GenericRecord posRecord = GenericRecord.create(posDeleteSchema);
     Assert.assertEquals(ImmutableList.of(
         posRecord.copy("file_path", dataFile.path(), "pos", 0L)
     ), readRecordsAsList(posDeleteSchema, posDeleteFile.path()));
