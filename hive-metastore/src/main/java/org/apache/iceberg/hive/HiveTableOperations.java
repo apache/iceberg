@@ -75,11 +75,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final String HIVE_ACQUIRE_LOCK_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
   private static final String HIVE_LOCK_CHECK_MIN_WAIT_MS = "iceberg.hive.lock-check-min-wait-ms";
   private static final String HIVE_LOCK_CHECK_MAX_WAIT_MS = "iceberg.hive.lock-check-max-wait-ms";
-  private static final String HIVE_LOCK_CHECK_BACKOFF_SCALE_FACTOR = "iceberg.hive.lock-check-backoff-scale-factor";
   private static final long HIVE_ACQUIRE_LOCK_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
   private static final long HIVE_LOCK_CHECK_MIN_WAIT_MS_DEFAULT = 50; // 50 milliseconds
   private static final long HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT = 5 * 1000; // 5 seconds
-  private static final double HIVE_LOCK_CHECK_BACKOFF_SCALE_FACTOR_DEFAULT = 1.5;
   private static final DynMethods.UnboundMethod ALTER_TABLE = DynMethods.builder("alter_table")
       .impl(HiveMetaStoreClient.class, "alter_table_with_environmentContext",
           String.class, String.class, Table.class, EnvironmentContext.class)
@@ -87,14 +85,15 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
           String.class, String.class, Table.class, EnvironmentContext.class)
       .build();
 
-  protected static class WaitingForLockException extends RuntimeException {
+  private static class WaitingForLockException extends RuntimeException {
     public WaitingForLockException(String message) {
       super(message);
     }
+//    public WaitingForLockException(String message, Throwable cause) {
+//      super(message, cause);
+//    }
   }
 
-  private static final WaitingForLockException WAITING_FOR_LOCK_EXCEPTION =
-      new WaitingForLockException("waiting for lock");
   private final HiveClientPool metaClients;
   private final String fullName;
   private final String database;
@@ -103,7 +102,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final long lockAcquireTimeout;
   private final long lockCheckMinWaitTime;
   private final long lockCheckMaxWaitTime;
-  private final double lockCheckBackoffScaleFactor;
   private final FileIO fileIO;
 
   protected HiveTableOperations(Configuration conf, HiveClientPool metaClients, FileIO fileIO,
@@ -120,8 +118,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         conf.getLong(HIVE_LOCK_CHECK_MIN_WAIT_MS, HIVE_LOCK_CHECK_MIN_WAIT_MS_DEFAULT);
     this.lockCheckMaxWaitTime =
         conf.getLong(HIVE_LOCK_CHECK_MAX_WAIT_MS, HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT);
-    this.lockCheckBackoffScaleFactor =
-        conf.getDouble(HIVE_LOCK_CHECK_BACKOFF_SCALE_FACTOR, HIVE_LOCK_CHECK_BACKOFF_SCALE_FACTOR_DEFAULT);
 
   }
 
@@ -339,7 +335,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
                 lockCheckMinWaitTime,
                 lockCheckMaxWaitTime,
                 lockAcquireTimeout,
-                lockCheckBackoffScaleFactor)
+                1.5)
             .throwFailureWhenFinished()
             .onlyRetryOn(WaitingForLockException.class)
             .run(id -> {
@@ -348,23 +344,16 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
                 LockState newState = response.getState();
                 state.set(newState);
                 if (newState.equals(LockState.WAITING)) {
-                  throw WAITING_FOR_LOCK_EXCEPTION;
+                  throw new WaitingForLockException("Waiting for lock.");
                 }
-              } catch (InterruptedException | TException e) {
-                throw new Tasks.UnrecoverableException(e);
+              } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Interrupted while checking lock status.", e);
               }
-            });
+            }, TException.class);
       } catch (WaitingForLockException waitingForLockException) {
         timeout = true;
         duration = System.currentTimeMillis() - start;
-      } catch (Tasks.UnrecoverableException wrappedException) {
-        if (wrappedException.getCause() instanceof TException) {
-          throw (TException) wrappedException.getCause();
-        } else if (wrappedException.getCause() instanceof InterruptedException) {
-          throw (InterruptedException) wrappedException.getCause();
-        } else {
-          throw wrappedException;
-        }
       }
     }
 

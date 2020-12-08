@@ -91,7 +91,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
 
     spyOps = spy(new HiveTableOperations(overriddenHiveConf, spyClientPool, ops.io(), catalog.name(),
         dbName, tableName));
-    spyClientPool.run(client -> client.isLocalMetaStore()); // To ensure new client is created.
+    spyClientPool.run(HiveMetaStoreClient::isLocalMetaStore); // To ensure new client is created.
     Assert.assertNotNull(spyClientRef.get());
 
     spyClient = spyClientRef.get();
@@ -100,6 +100,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
   @After
   public void cleanup() {
     try {
+      spyClient.close();
       spyClientPool.close();
     } catch (Throwable t) {
       // Ignore any exception
@@ -162,7 +163,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
   }
 
   @Test
-  public void testLockTimeoutAfterRetries() throws TException, InterruptedException {
+  public void testLockTimeoutAfterRetries() throws TException {
     doReturn(waitLockResponse).when(spyClient).lock(any());
     doReturn(waitLockResponse).when(spyClient).checkLock(eq(dummyLockId));
 
@@ -173,7 +174,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
   }
 
   @Test
-  public void testPassThroughThriftExceptions() throws TException, InterruptedException {
+  public void testPassThroughThriftExceptions() throws TException {
     doReturn(waitLockResponse).when(spyClient).lock(any());
     doReturn(waitLockResponse).doThrow(new TException("Test Thrift Exception"))
         .when(spyClient).checkLock(eq(dummyLockId));
@@ -182,5 +183,24 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
         RuntimeException.class,
         "Metastore operation failed for",
         () -> spyOps.doCommit(metadataV2, metadataV1));
+  }
+
+  @Test
+  public void testPassThroughInterruptions() throws TException {
+    doReturn(waitLockResponse).when(spyClient).lock(any());
+    doReturn(waitLockResponse).doAnswer(invocation -> {
+      Thread.currentThread().interrupt();
+      Thread.sleep(10);
+      return waitLockResponse;
+    }).when(spyClient).checkLock(eq(dummyLockId));
+
+    try {
+      AssertHelpers.assertThrows("Expected a Runtime exception",
+          RuntimeException.class,
+          "Interrupted while checking lock status",
+          () -> spyOps.doCommit(metadataV2, metadataV1));
+    } finally {
+      Thread.interrupted(); // Clear the flag
+    }
   }
 }

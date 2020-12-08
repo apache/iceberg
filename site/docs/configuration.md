@@ -94,10 +94,12 @@ Iceberg tables support table properties to configure table behavior, like the de
 
 The following properties from the Hadoop configuration are used by the Hive Metastore connector.
 
-| Property                           | Default          | Description                                                   |
-| ---------------------------------- | ---------------- | ------------------------------------------------------------- |
-| iceberg.hive.client-pool-size      | 5                | The size of the Hive client pool when tracking tables in HMS  |
-| iceberg.hive.lock-timeout-ms       | 180000 (3 min)   | Maximum time in milliseconds to acquire a lock                |
+| Property                              | Default          | Description                                                                        |
+| ------------------------------------- | ---------------- | ---------------------------------------------------------------------------------- |
+| iceberg.hive.client-pool-size         | 5                | The size of the Hive client pool when tracking tables in HMS                       |
+| iceberg.hive.lock-timeout-ms          | 180000 (3 min)   | Maximum time in milliseconds to acquire a lock                                     |
+| iceberg.hive.lock-check-min-wait-ms   | 50               | Minimum time in milliseconds to check back on the status of lock acquisition       |
+| iceberg.hive.lock-check-max-wait-ms   | 5000             | Maximum time in milliseconds to check back on the status of lock acquisition       |
 
 ## Spark configuration
 
