@@ -65,8 +65,8 @@ public class TestCherrypickSnapshotProcedure extends SparkExtensionsTestBase {
     Snapshot wapSnapshot = Iterables.getOnlyElement(table.snapshots());
 
     List<Object[]> output = sql(
-        "CALL %s.system.cherrypick_snapshot('%s', '%s', %dL)",
-        catalogName, tableIdent.namespace(), tableIdent.name(), wapSnapshot.snapshotId());
+        "CALL %s.system.cherrypick_snapshot('%s', %dL)",
+        catalogName, tableIdent, wapSnapshot.snapshotId());
 
     table.refresh();
 
@@ -98,8 +98,8 @@ public class TestCherrypickSnapshotProcedure extends SparkExtensionsTestBase {
     Snapshot wapSnapshot = Iterables.getOnlyElement(table.snapshots());
 
     List<Object[]> output = sql(
-        "CALL %s.system.cherrypick_snapshot(snapshot_id => %dL, table => '%s', namespace => '%s')",
-        catalogName, wapSnapshot.snapshotId(), tableIdent.name(), tableIdent.namespace());
+        "CALL %s.system.cherrypick_snapshot(snapshot_id => %dL, table => '%s')",
+        catalogName, wapSnapshot.snapshotId(), tableIdent);
 
     table.refresh();
 
@@ -137,8 +137,8 @@ public class TestCherrypickSnapshotProcedure extends SparkExtensionsTestBase {
     Table table = validationCatalog.loadTable(tableIdent);
     Snapshot wapSnapshot = Iterables.getOnlyElement(table.snapshots());
 
-    sql("CALL %s.system.cherrypick_snapshot('%s', '%s', %dL)",
-        catalogName, tableIdent.namespace(), tableIdent.name(), wapSnapshot.snapshotId());
+    sql("CALL %s.system.cherrypick_snapshot('%s', %dL)",
+        catalogName, tableIdent, wapSnapshot.snapshotId());
 
     assertEquals("Cherrypick snapshot should be visible",
         ImmutableList.of(row(1L, "a")),
@@ -151,12 +151,9 @@ public class TestCherrypickSnapshotProcedure extends SparkExtensionsTestBase {
   public void testCherrypickInvalidSnapshot() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 
-    Namespace namespace = tableIdent.namespace();
-    String tableName = tableIdent.name();
-
     AssertHelpers.assertThrows("Should reject invalid snapshot id",
         ValidationException.class, "Cannot cherry pick unknown snapshot id",
-        () -> sql("CALL %s.system.cherrypick_snapshot('%s', '%s', -1L)", catalogName, namespace, tableName));
+        () -> sql("CALL %s.system.cherrypick_snapshot('%s', -1L)", catalogName, tableIdent));
   }
 
   @Test
@@ -171,18 +168,10 @@ public class TestCherrypickSnapshotProcedure extends SparkExtensionsTestBase {
 
     AssertHelpers.assertThrows("Should reject calls without all required args",
         AnalysisException.class, "Missing required parameters",
-        () -> sql("CALL %s.system.cherrypick_snapshot('n', 't')", catalogName));
+        () -> sql("CALL %s.system.cherrypick_snapshot('t')", catalogName));
 
     AssertHelpers.assertThrows("Should reject calls with invalid arg types",
         AnalysisException.class, "Wrong arg type for snapshot_id: cannot cast",
-        () -> sql("CALL %s.system.cherrypick_snapshot('n', 't', 2.2)", catalogName));
-
-    AssertHelpers.assertThrows("Should reject empty namespace",
-        IllegalArgumentException.class, "Namespace cannot be empty",
-        () -> sql("CALL %s.system.cherrypick_snapshot('', 't', 1L)", catalogName));
-
-    AssertHelpers.assertThrows("Should reject empty table name",
-        IllegalArgumentException.class, "Table name cannot be empty",
-        () -> sql("CALL %s.system.cherrypick_snapshot('n', '', 1L)", catalogName));
+        () -> sql("CALL %s.system.cherrypick_snapshot('t', 2.2)", catalogName));
   }
 }

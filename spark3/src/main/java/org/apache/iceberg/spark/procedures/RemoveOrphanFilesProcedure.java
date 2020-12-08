@@ -43,7 +43,6 @@ import org.apache.spark.unsafe.types.UTF8String;
 public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
   private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
-      ProcedureParameter.required("namespace", DataTypes.StringType),
       ProcedureParameter.required("table", DataTypes.StringType),
       ProcedureParameter.optional("older_than", DataTypes.TimestampType),
       ProcedureParameter.optional("location", DataTypes.StringType),
@@ -79,13 +78,12 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    String namespace = args.getString(0);
-    String tableName = args.getString(1);
-    Long olderThanMillis = args.isNullAt(2) ? null : DateTimeUtils.toMillis(args.getLong(2));
-    String location = args.isNullAt(3) ? null : args.getString(3);
-    boolean dryRun = args.isNullAt(4) ? false : args.getBoolean(4);
+    String tableName = args.getString(0);
+    Long olderThanMillis = args.isNullAt(1) ? null : DateTimeUtils.toMillis(args.getLong(1));
+    String location = args.isNullAt(2) ? null : args.getString(2);
+    boolean dryRun = args.isNullAt(3) ? false : args.getBoolean(3);
 
-    return withIcebergTable(namespace, tableName, table -> {
+    return withIcebergTable(tableName, table -> {
       SparkSession spark = SparkSession.active();
       Actions actions = Actions.forTable(spark, table);
 

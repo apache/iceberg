@@ -21,7 +21,7 @@ package org.apache.iceberg.spark.procedures;
 
 import java.util.function.Function;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.SparkSession;
@@ -29,7 +29,6 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.parser.ParseException;
-import org.apache.spark.sql.catalyst.parser.ParserInterface;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -37,7 +36,6 @@ import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 import org.apache.spark.sql.execution.CacheManager;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 import scala.Option;
-import scala.collection.Seq;
 
 abstract class BaseProcedure implements Procedure {
   private final SparkSession spark;
@@ -48,20 +46,18 @@ abstract class BaseProcedure implements Procedure {
     this.tableCatalog = tableCatalog;
   }
 
-  protected <T> T modifyIcebergTable(String namespace, String tableName, Function<org.apache.iceberg.Table, T> func) {
-    return execute(namespace, tableName, true, func);
+  protected <T> T modifyIcebergTable(String identifier, Function<org.apache.iceberg.Table, T> func) {
+    return execute(identifier, true, func);
   }
 
-  protected <T> T withIcebergTable(String namespace, String tableName, Function<org.apache.iceberg.Table, T> func) {
-    return execute(namespace, tableName, false, func);
+  protected <T> T withIcebergTable(String identifier, Function<org.apache.iceberg.Table, T> func) {
+    return execute(identifier, false, func);
   }
 
-  private <T> T execute(String namespace, String tableName, boolean refreshSparkCache,
+  private <T> T execute(String identifierAsString, boolean refreshSparkCache,
                         Function<org.apache.iceberg.Table, T> func) {
-    Preconditions.checkArgument(namespace != null && !namespace.isEmpty(), "Namespace cannot be empty");
-    Preconditions.checkArgument(tableName != null && !tableName.isEmpty(), "Table name cannot be empty");
 
-    Identifier ident = toIdentifier(namespace, tableName);
+    Identifier ident = toIdentifier(identifierAsString);
     SparkTable sparkTable = loadSparkTable(ident);
     org.apache.iceberg.Table icebergTable = sparkTable.table();
 
@@ -75,25 +71,15 @@ abstract class BaseProcedure implements Procedure {
   }
 
   // we have to parse both namespace and name as they may be quoted
-  protected Identifier toIdentifier(String namespaceAsString, String name) {
-    String[] namespaceParts = parseMultipartIdentifier(namespaceAsString);
-
-    String[] nameParts = parseMultipartIdentifier(name);
-    Preconditions.checkArgument(nameParts.length == 1, "Name must consist of one part: %s", name);
-
-    return Identifier.of(namespaceParts, nameParts[0]);
-  }
-
-  private String[] parseMultipartIdentifier(String identifierAsString) {
+  protected Identifier toIdentifier(String identifier) {
+    Spark3Util.CatalogAndIdentifier catalogAndIdentifier;
     try {
-      ParserInterface parser = spark.sessionState().sqlParser();
-      Seq<String> namePartsSeq = parser.parseMultipartIdentifier(identifierAsString);
-      String[] nameParts = new String[namePartsSeq.size()];
-      namePartsSeq.copyToArray(nameParts);
-      return nameParts;
+      catalogAndIdentifier = Spark3Util.catalogAndIdentifier(spark, identifier, tableCatalog);
     } catch (ParseException e) {
-      throw new RuntimeException("Couldn't parse identifier: " + identifierAsString, e);
+      throw new IllegalArgumentException("Cannot parse identifier", e);
     }
+
+    return catalogAndIdentifier.identifier();
   }
 
   protected SparkTable loadSparkTable(Identifier ident) {

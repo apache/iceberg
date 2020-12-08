@@ -41,7 +41,6 @@ import org.apache.spark.sql.types.StructType;
 class RewriteManifestsProcedure extends BaseProcedure {
 
   private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
-      ProcedureParameter.required("namespace", DataTypes.StringType),
       ProcedureParameter.required("table", DataTypes.StringType),
       ProcedureParameter.optional("use_caching", DataTypes.BooleanType)
   };
@@ -77,11 +76,10 @@ class RewriteManifestsProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    String namespace = args.getString(0);
-    String tableName = args.getString(1);
-    Boolean useCaching = args.isNullAt(2) ? null : args.getBoolean(2);
+    String tableName = args.getString(0);
+    Boolean useCaching = args.isNullAt(1) ? null : args.getBoolean(1);
 
-    return modifyIcebergTable(namespace, tableName, table -> {
+    return modifyIcebergTable(tableName, table -> {
       Actions actions = Actions.forTable(table);
 
       RewriteManifestsAction action = actions.rewriteManifests();

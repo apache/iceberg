@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.procedures;
 
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -40,7 +41,6 @@ import org.apache.spark.sql.types.StructType;
 class CherrypickSnapshotProcedure extends BaseProcedure {
 
   private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
-      ProcedureParameter.required("namespace", DataTypes.StringType),
       ProcedureParameter.required("table", DataTypes.StringType),
       ProcedureParameter.required("snapshot_id", DataTypes.LongType)
   };
@@ -75,11 +75,10 @@ class CherrypickSnapshotProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    String namespace = args.getString(0);
-    String tableName = args.getString(1);
-    long snapshotId = args.getLong(2);
+    String tableName = args.getString(0);
+    long snapshotId = args.getLong(1);
 
-    return modifyIcebergTable(namespace, tableName, table -> {
+    return modifyIcebergTable(tableName, table -> {
       table.manageSnapshots()
           .cherrypick(snapshotId)
           .commit();

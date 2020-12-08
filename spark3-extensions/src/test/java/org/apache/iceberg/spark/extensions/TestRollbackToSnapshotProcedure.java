@@ -31,6 +31,7 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.apache.spark.sql.connector.catalog.Identifier;
 import org.junit.After;
 import org.junit.Assume;
 import org.junit.Test;
@@ -65,8 +66,8 @@ public class TestRollbackToSnapshotProcedure extends SparkExtensionsTestBase {
     Snapshot secondSnapshot = table.currentSnapshot();
 
     List<Object[]> output = sql(
-        "CALL %s.system.rollback_to_snapshot('%s', '%s', %dL)",
-        catalogName, tableIdent.namespace(), tableIdent.name(), firstSnapshot.snapshotId());
+        "CALL %s.system.rollback_to_snapshot('%s', %dL)",
+        catalogName, tableIdent, firstSnapshot.snapshotId());
 
     assertEquals("Procedure output must match",
         ImmutableList.of(row(secondSnapshot.snapshotId(), firstSnapshot.snapshotId())),
@@ -96,8 +97,8 @@ public class TestRollbackToSnapshotProcedure extends SparkExtensionsTestBase {
     Snapshot secondSnapshot = table.currentSnapshot();
 
     List<Object[]> output = sql(
-        "CALL %s.system.rollback_to_snapshot(snapshot_id => %dL, namespace => '%s', table => '%s')",
-        catalogName, firstSnapshot.snapshotId(), tableIdent.namespace(), tableIdent.name());
+        "CALL %s.system.rollback_to_snapshot(snapshot_id => %dL, table => '%s')",
+        catalogName, firstSnapshot.snapshotId(), tableIdent);
 
     assertEquals("Procedure output must match",
         ImmutableList.of(row(secondSnapshot.snapshotId(), firstSnapshot.snapshotId())),
@@ -132,8 +133,8 @@ public class TestRollbackToSnapshotProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM tmp"));
 
     List<Object[]> output = sql(
-        "CALL %s.system.rollback_to_snapshot(namespace => '%s', table => '%s', snapshot_id => %dL)",
-        catalogName, tableIdent.namespace(), tableIdent.name(), firstSnapshot.snapshotId());
+        "CALL %s.system.rollback_to_snapshot(table => '%s', snapshot_id => %dL)",
+        catalogName, tableIdent, firstSnapshot.snapshotId());
 
     assertEquals("Procedure output must match",
         ImmutableList.of(row(secondSnapshot.snapshotId(), firstSnapshot.snapshotId())),
@@ -173,8 +174,8 @@ public class TestRollbackToSnapshotProcedure extends SparkExtensionsTestBase {
     String quotedNamespace = quotedNamespaceBuilder.toString();
 
     List<Object[]> output = sql(
-        "CALL %s.system.rollback_to_snapshot('%s', '`%s`', %d)",
-        catalogName, quotedNamespace, tableIdent.name(), firstSnapshot.snapshotId());
+        "CALL %s.system.rollback_to_snapshot('%s', %d)",
+        catalogName, quotedNamespace + ".`" + tableIdent.name() + "`", firstSnapshot.snapshotId());
 
     assertEquals("Procedure output must match",
         ImmutableList.of(row(secondSnapshot.snapshotId(), firstSnapshot.snapshotId())),
@@ -207,8 +208,8 @@ public class TestRollbackToSnapshotProcedure extends SparkExtensionsTestBase {
 
     // use camel case intentionally to test case sensitivity
     List<Object[]> output = sql(
-        "CALL SyStEm.rOLlBaCk_to_SnApShOt('%s', '%s', %dL)",
-        tableIdent.namespace(), tableIdent.name(), firstSnapshot.snapshotId());
+        "CALL SyStEm.rOLlBaCk_to_SnApShOt('%s', %dL)",
+        tableIdent, firstSnapshot.snapshotId());
 
     assertEquals("Procedure output must match",
         ImmutableList.of(row(secondSnapshot.snapshotId(), firstSnapshot.snapshotId())),
@@ -223,12 +224,9 @@ public class TestRollbackToSnapshotProcedure extends SparkExtensionsTestBase {
   public void testRollbackToInvalidSnapshot() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 
-    Namespace namespace = tableIdent.namespace();
-    String tableName = tableIdent.name();
-
     AssertHelpers.assertThrows("Should reject invalid snapshot id",
         ValidationException.class, "Cannot roll back to unknown snapshot id",
-        () -> sql("CALL %s.system.rollback_to_snapshot('%s', '%s', -1L)", catalogName, namespace, tableName));
+        () -> sql("CALL %s.system.rollback_to_snapshot('%s', -1L)", catalogName, tableIdent));
   }
 
   @Test
@@ -243,30 +241,19 @@ public class TestRollbackToSnapshotProcedure extends SparkExtensionsTestBase {
 
     AssertHelpers.assertThrows("Should reject calls without all required args",
         AnalysisException.class, "Missing required parameters",
-        () -> sql("CALL %s.system.rollback_to_snapshot('n', 't')", catalogName));
+        () -> sql("CALL %s.system.rollback_to_snapshot('t')", catalogName));
 
     AssertHelpers.assertThrows("Should reject calls without all required args",
         AnalysisException.class, "Missing required parameters",
-        () -> sql("CALL %s.system.rollback_to_snapshot('n', 1L)", catalogName));
+        () -> sql("CALL %s.system.rollback_to_snapshot(1L)", catalogName));
 
     AssertHelpers.assertThrows("Should reject calls without all required args",
         AnalysisException.class, "Missing required parameters",
-        () -> sql("CALL %s.system.rollback_to_snapshot(namespace => 'n', snapshot_id => 1L)", catalogName));
-
-    AssertHelpers.assertThrows("Should reject calls without all required args",
-        AnalysisException.class, "Missing required parameters",
-        () -> sql("CALL %s.system.rollback_to_snapshot(table => 't', snapshot_id => 1L)", catalogName));
+        () -> sql("CALL %s.system.rollback_to_snapshot(table => 't')", catalogName));
 
     AssertHelpers.assertThrows("Should reject calls with invalid arg types",
         AnalysisException.class, "Wrong arg type for snapshot_id: cannot cast",
-        () -> sql("CALL %s.system.rollback_to_snapshot('n', 't', 2.2)", catalogName));
+        () -> sql("CALL %s.system.rollback_to_snapshot('t', 2.2)", catalogName));
 
-    AssertHelpers.assertThrows("Should reject empty namespace",
-        IllegalArgumentException.class, "Namespace cannot be empty",
-        () -> sql("CALL %s.system.rollback_to_snapshot('', 't', 1L)", catalogName));
-
-    AssertHelpers.assertThrows("Should reject empty table name",
-        IllegalArgumentException.class, "Table name cannot be empty",
-        () -> sql("CALL %s.system.rollback_to_snapshot('n', '', 1L)", catalogName));
   }
 }

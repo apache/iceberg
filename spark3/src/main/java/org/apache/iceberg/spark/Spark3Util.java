@@ -605,10 +605,19 @@ public class Spark3Util {
   }
 
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, String name) throws ParseException {
+    return catalogAndIdentifier(spark, name, spark.sessionState().catalogManager().currentCatalog());
+  }
+
+  public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, String name,
+                                                            CatalogPlugin fallBackCatalog) throws ParseException {
     ParserInterface parser = spark.sessionState().sqlParser();
     Seq<String> multiPartIdentifier = parser.parseMultipartIdentifier(name);
     List<String> javaMultiPartIdentifier = JavaConverters.seqAsJavaList(multiPartIdentifier);
-    return catalogAndIdentifier(spark, javaMultiPartIdentifier);
+    return catalogAndIdentifier(spark, javaMultiPartIdentifier, fallBackCatalog);
+  }
+
+  public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, List<String> nameParts) {
+    return catalogAndIdentifier(spark, nameParts, spark.sessionState().catalogManager().currentCatalog());
   }
 
   /**
@@ -616,20 +625,21 @@ public class Spark3Util {
    * Attempts to find the catalog and identifier a multipart identifier represents
    * @param spark Spark session to use for resolution
    * @param nameParts Multipart identifier representing a table
+   * @param fallBackCatalog Catalog to use if none is specified
    * @return The CatalogPlugin and Identifier for the table
    */
-  public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, List<String> nameParts) {
+  public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, List<String> nameParts,
+                                                          CatalogPlugin fallBackCatalog) {
     Preconditions.checkArgument(!nameParts.isEmpty(),
         "Cannot determine catalog and Identifier from empty name parts");
     CatalogManager catalogManager = spark.sessionState().catalogManager();
-    CatalogPlugin currentCatalog = catalogManager.currentCatalog();
     String[] currentNamespace = catalogManager.currentNamespace();
     int lastElementIndex = nameParts.size() - 1;
     String name = nameParts.get(lastElementIndex);
 
     if (nameParts.size() == 1) {
       // Only a single element, use current catalog and namespace
-      return new CatalogAndIdentifier(currentCatalog, Identifier.of(currentNamespace, name));
+      return new CatalogAndIdentifier(fallBackCatalog, Identifier.of(currentNamespace, name));
     } else {
       try {
         // Assume the first element is a valid catalog
@@ -639,7 +649,7 @@ public class Spark3Util {
       } catch (Exception e) {
         // The first element was not a valid catalog, treat it like part of the namespace
         String[] namespace =  nameParts.subList(0, lastElementIndex).toArray(new String[0]);
-        return new CatalogAndIdentifier(currentCatalog, Identifier.of(namespace, name));
+        return new CatalogAndIdentifier(fallBackCatalog, Identifier.of(namespace, name));
       }
     }
   }

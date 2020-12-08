@@ -39,7 +39,6 @@ import org.apache.spark.sql.types.StructType;
 class RollbackToSnapshotProcedure extends BaseProcedure {
 
   private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
-      ProcedureParameter.required("namespace", DataTypes.StringType),
       ProcedureParameter.required("table", DataTypes.StringType),
       ProcedureParameter.required("snapshot_id", DataTypes.LongType)
   };
@@ -74,11 +73,10 @@ class RollbackToSnapshotProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    String namespace = args.getString(0);
-    String tableName = args.getString(1);
-    long snapshotId = args.getLong(2);
+    String tableName = args.getString(0);
+    long snapshotId = args.getLong(1);
 
-    return modifyIcebergTable(namespace, tableName, table -> {
+    return modifyIcebergTable(tableName, table -> {
       Snapshot previousSnapshot = table.currentSnapshot();
 
       table.manageSnapshots()

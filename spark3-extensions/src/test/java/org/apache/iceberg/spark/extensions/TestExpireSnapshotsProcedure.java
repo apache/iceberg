@@ -53,8 +53,8 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 
     List<Object[]> output = sql(
-        "CALL %s.system.expire_snapshots('%s', '%s')",
-        catalogName, tableIdent.namespace(), tableIdent.name());
+        "CALL %s.system.expire_snapshots('%s')",
+        catalogName, tableIdent);
     assertEquals("Should not delete any files", ImmutableList.of(row(0L, 0L, 0L)), output);
   }
 
@@ -79,8 +79,8 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
 
     // expire without retainLast param
     List<Object[]> output1 = sql(
-        "CALL %s.system.expire_snapshots('%s', '%s', TIMESTAMP '%s')",
-        catalogName, tableIdent.namespace(), tableIdent.name(), secondSnapshotTimestamp);
+        "CALL %s.system.expire_snapshots('%s', TIMESTAMP '%s')",
+        catalogName, tableIdent, secondSnapshotTimestamp);
     assertEquals("Procedure output must match",
         ImmutableList.of(row(0L, 0L, 1L)),
         output1);
@@ -105,8 +105,8 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
 
     // expire with retainLast param
     List<Object[]> output = sql(
-        "CALL %s.system.expire_snapshots('%s', '%s', TIMESTAMP '%s', 2)",
-        catalogName, tableIdent.namespace(), tableIdent.name(), currentTimestamp);
+        "CALL %s.system.expire_snapshots('%s', TIMESTAMP '%s', 2)",
+        catalogName, tableIdent, currentTimestamp);
     assertEquals("Procedure output must match",
         ImmutableList.of(row(2L, 2L, 1L)),
         output);
@@ -130,10 +130,9 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     List<Object[]> output = sql(
         "CALL %s.system.expire_snapshots(" +
             "older_than => TIMESTAMP '%s'," +
-            "namespace => '%s'," +
             "table => '%s'," +
             "retain_last => 1)",
-        catalogName, currentTimestamp, tableIdent.namespace(), tableIdent.name());
+        catalogName, currentTimestamp, tableIdent);
     assertEquals("Procedure output must match",
         ImmutableList.of(row(0L, 0L, 1L)),
         output);
@@ -147,8 +146,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
 
     AssertHelpers.assertThrows("Should reject call",
         ValidationException.class, "Cannot expire snapshots: GC is disabled",
-        () -> sql("CALL %s.system.expire_snapshots('%s', '%s')", catalogName,
-            tableIdent.namespace(), tableIdent.name()));
+        () -> sql("CALL %s.system.expire_snapshots('%s')", catalogName, tableIdent));
   }
 
   @Test
@@ -163,18 +161,10 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
 
     AssertHelpers.assertThrows("Should reject calls without all required args",
         AnalysisException.class, "Missing required parameters",
-        () -> sql("CALL %s.system.expire_snapshots('n')", catalogName));
+        () -> sql("CALL %s.system.expire_snapshots()", catalogName));
 
     AssertHelpers.assertThrows("Should reject calls with invalid arg types",
-        RuntimeException.class, "Couldn't parse identifier",
+        AnalysisException.class, "Wrong arg type",
         () -> sql("CALL %s.system.expire_snapshots('n', 2.2)", catalogName));
-
-    AssertHelpers.assertThrows("Should reject empty namespace",
-        IllegalArgumentException.class, "Namespace cannot be empty",
-        () -> sql("CALL %s.system.expire_snapshots('', 't')", catalogName));
-
-    AssertHelpers.assertThrows("Should reject empty table name",
-        IllegalArgumentException.class, "Table name cannot be empty",
-        () -> sql("CALL %s.system.expire_snapshots('n', '')", catalogName));
   }
 }
