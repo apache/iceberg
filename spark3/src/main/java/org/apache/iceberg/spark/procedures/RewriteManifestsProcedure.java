@@ -76,10 +76,10 @@ class RewriteManifestsProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    String tableName = args.getString(0);
+    String tableIdent = args.getString(0);
     Boolean useCaching = args.isNullAt(1) ? null : args.getBoolean(1);
 
-    return modifyIcebergTable(tableName, table -> {
+    return modifyIcebergTable(tableIdent, table -> {
       Actions actions = Actions.forTable(table);
 
       RewriteManifestsAction action = actions.rewriteManifests();

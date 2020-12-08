@@ -74,10 +74,10 @@ class CherrypickSnapshotProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    String tableName = args.getString(0);
+    String tableIdent = args.getString(0);
     long snapshotId = args.getLong(1);
 
-    return modifyIcebergTable(tableName, table -> {
+    return modifyIcebergTable(tableIdent, table -> {
       table.manageSnapshots()
           .cherrypick(snapshotId)
           .commit();

@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.procedures;
 import java.util.function.Function;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.SparkSession;
@@ -46,12 +47,12 @@ abstract class BaseProcedure implements Procedure {
     this.tableCatalog = tableCatalog;
   }
 
-  protected <T> T modifyIcebergTable(String identifier, Function<org.apache.iceberg.Table, T> func) {
-    return execute(identifier, true, func);
+  protected <T> T modifyIcebergTable(String identifierAsString, Function<org.apache.iceberg.Table, T> func) {
+    return execute(identifierAsString, true, func);
   }
 
-  protected <T> T withIcebergTable(String identifier, Function<org.apache.iceberg.Table, T> func) {
-    return execute(identifier, false, func);
+  protected <T> T withIcebergTable(String identifierAsString, Function<org.apache.iceberg.Table, T> func) {
+    return execute(identifierAsString, false, func);
   }
 
   private <T> T execute(String identifierAsString, boolean refreshSparkCache,
@@ -70,13 +71,17 @@ abstract class BaseProcedure implements Procedure {
     return result;
   }
 
-  // we have to parse both namespace and name as they may be quoted
-  protected Identifier toIdentifier(String identifier) {
-    Spark3Util.CatalogAndIdentifier catalogAndIdentifier;
+  private Identifier toIdentifier(String identifierAsString) {
+    CatalogAndIdentifier catalogAndIdentifier;
     try {
-      catalogAndIdentifier = Spark3Util.catalogAndIdentifier(spark, identifier, tableCatalog);
+      catalogAndIdentifier = Spark3Util.catalogAndIdentifier(spark, identifierAsString, tableCatalog);
     } catch (ParseException e) {
       throw new IllegalArgumentException("Cannot parse identifier", e);
+    }
+    if (!catalogAndIdentifier.catalog().equals(tableCatalog)) {
+      throw new IllegalArgumentException(
+          String.format("Cannot call procedure on table from another catalog. %s resolved to a table in catalog %s",
+              identifierAsString, catalogAndIdentifier.catalog()));
     }
 
     return catalogAndIdentifier.identifier();

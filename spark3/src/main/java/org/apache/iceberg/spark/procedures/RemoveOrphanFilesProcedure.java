@@ -78,12 +78,12 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    String tableName = args.getString(0);
+    String tableIdent = args.getString(0);
     Long olderThanMillis = args.isNullAt(1) ? null : DateTimeUtils.toMillis(args.getLong(1));
     String location = args.isNullAt(2) ? null : args.getString(2);
     boolean dryRun = args.isNullAt(3) ? false : args.getBoolean(3);
 
-    return withIcebergTable(tableName, table -> {
+    return withIcebergTable(tableIdent, table -> {
       SparkSession spark = SparkSession.active();
       Actions actions = Actions.forTable(spark, table);
 

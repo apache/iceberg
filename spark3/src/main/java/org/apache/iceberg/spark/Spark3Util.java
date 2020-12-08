@@ -609,11 +609,11 @@ public class Spark3Util {
   }
 
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, String name,
-                                                            CatalogPlugin fallBackCatalog) throws ParseException {
+                                                          CatalogPlugin defaultCatalog) throws ParseException {
     ParserInterface parser = spark.sessionState().sqlParser();
     Seq<String> multiPartIdentifier = parser.parseMultipartIdentifier(name);
     List<String> javaMultiPartIdentifier = JavaConverters.seqAsJavaList(multiPartIdentifier);
-    return catalogAndIdentifier(spark, javaMultiPartIdentifier, fallBackCatalog);
+    return catalogAndIdentifier(spark, javaMultiPartIdentifier, defaultCatalog);
   }
 
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, List<String> nameParts) {
