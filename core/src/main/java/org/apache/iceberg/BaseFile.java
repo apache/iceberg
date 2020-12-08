@@ -60,7 +60,7 @@ abstract class BaseFile<F>
   private String filePath = null;
   private FileFormat format = null;
   private PartitionData partitionData = null;
-  private long recordCount = -1L;
+  private Long recordCount = null;
   private long fileSizeInBytes = -1L;
 
   // optional fields

@@ -24,8 +24,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -58,9 +56,7 @@ public class ManifestReader<F extends ContentFile<F>>
   // the difference between the two stats set below is to support ContentFile.copyWithoutStats(), which
   // still keeps record count.
   private static final Set<String> STATS_COLUMNS = Sets.newHashSet(
-      "value_counts", "null_value_counts", "nan_value_counts", "lower_bounds", "upper_bounds");
-  private static final Set<String> FULL_STATS_COLUMNS =
-      Stream.concat(STATS_COLUMNS.stream(), Stream.of("record_count")).collect(Collectors.toSet());
+      "value_counts", "null_value_counts", "nan_value_counts", "lower_bounds", "upper_bounds", "record_count");
 
   protected enum FileType {
     DATA_FILES(GenericDataFile.class.getName()),
@@ -284,16 +280,18 @@ public class ManifestReader<F extends ContentFile<F>>
     return rowFilter != Expressions.alwaysTrue() &&
         columns != null &&
         !columns.containsAll(ManifestReader.ALL_COLUMNS) &&
-        !columns.containsAll(FULL_STATS_COLUMNS);
+        !columns.containsAll(STATS_COLUMNS);
   }
 
   static boolean dropStats(Expression rowFilter, Collection<String> columns) {
     // Make sure we only drop all stats if we had projected all stats
     // We do not drop stats even if we had partially added some stats columns
-    return rowFilter != Expressions.alwaysTrue() &&
-        columns != null &&
-        !columns.containsAll(ManifestReader.ALL_COLUMNS) &&
-        Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS).isEmpty();
+    if (rowFilter != Expressions.alwaysTrue() && columns != null &&
+        !columns.containsAll(ManifestReader.ALL_COLUMNS)) {
+      Set<String> interaction = Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS);
+      return interaction.isEmpty() || interaction.equals(Sets.newHashSet("record_count"));
+    }
+    return false;
   }
 
   static List<String> withStatsColumns(List<String> columns) {
@@ -301,7 +299,7 @@ public class ManifestReader<F extends ContentFile<F>>
       return columns;
     } else {
       List<String> projectColumns = Lists.newArrayList(columns);
-      projectColumns.addAll(FULL_STATS_COLUMNS); // order doesn't matter
+      projectColumns.addAll(STATS_COLUMNS); // order doesn't matter
       return projectColumns;
     }
   }

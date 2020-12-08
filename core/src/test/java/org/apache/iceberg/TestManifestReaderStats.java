@@ -74,13 +74,23 @@ public class TestManifestReaderStats extends TableTestBase {
   }
 
   @Test
-  public void testReadWithFilterIncludesFullStats() throws IOException {
+  public void testReadEntriesWithFilterIncludesFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
         .filterRows(Expressions.equal("id", 3))) {
       CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
       ManifestEntry<DataFile> entry = entries.iterator().next();
       assertFullStats(entry.file());
+    }
+  }
+
+  @Test
+  public void testReadIteratorWithFilterIncludesFullStats() throws IOException {
+    ManifestFile manifest = writeManifest(1000L, FILE);
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
+        .filterRows(Expressions.equal("id", 3))) {
+      DataFile entry = reader.iterator().next();
+      assertFullStats(entry);
     }
   }
 
@@ -118,30 +128,46 @@ public class TestManifestReaderStats extends TableTestBase {
   }
 
   @Test
-  public void testReadEntriesWithSelectNotIncludeFullStats() throws IOException {
+  public void testReadEntriesWithSelectNotProjectStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
         .select(ImmutableList.of("file_path"))) {
       CloseableIterable<ManifestEntry<DataFile>> entries = reader.entries();
       ManifestEntry<DataFile> entry = entries.iterator().next();
-      assertNoStats(entry.file());
+      DataFile dataFile = entry.file();
+
+      // selected field is populated
+      Assert.assertEquals(FILE_PATH, dataFile.path());
+
+      // not selected fields are all null and not projected
+      Assert.assertNull(dataFile.columnSizes());
+      Assert.assertNull(dataFile.valueCounts());
+      Assert.assertNull(dataFile.nullValueCounts());
+      Assert.assertNull(dataFile.nanValueCounts());
+      Assert.assertNull(dataFile.lowerBounds());
+      Assert.assertNull(dataFile.upperBounds());
+      assertNullRecordCount(dataFile);
     }
   }
+
   @Test
-  public void testReadEntriesWithSelectCertainStatNotIncludeFullStats() throws IOException {
+  public void testReadEntriesWithSelectCertainStatNotProjectStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
         .select(ImmutableList.of("file_path", "value_counts"))) {
       DataFile dataFile = reader.iterator().next();
 
-      Assert.assertEquals(-1, dataFile.recordCount());
-      Assert.assertNull(dataFile.columnSizes());
+      // selected fields are populated
       Assert.assertEquals(VALUE_COUNT, dataFile.valueCounts());
+      Assert.assertEquals(FILE_PATH, dataFile.path());
+
+      // not selected fields are all null and not projected
+      Assert.assertNull(dataFile.columnSizes());
       Assert.assertNull(dataFile.nullValueCounts());
       Assert.assertNull(dataFile.nanValueCounts());
       Assert.assertNull(dataFile.lowerBounds());
       Assert.assertNull(dataFile.upperBounds());
-      Assert.assertEquals(FILE_PATH, dataFile.path()); // always select file path in all test cases
+      assertNullRecordCount(dataFile);
     }
   }
 
@@ -169,16 +195,12 @@ public class TestManifestReaderStats extends TableTestBase {
     Assert.assertEquals(FILE_PATH, dataFile.path()); // always select file path in all test cases
   }
 
-  private void assertNoStats(DataFile dataFile) {
-    Assert.assertEquals(-1L, dataFile.recordCount());
-    Assert.assertNull(dataFile.columnSizes());
-    Assert.assertNull(dataFile.valueCounts());
-    Assert.assertNull(dataFile.nullValueCounts());
-    Assert.assertNull(dataFile.nanValueCounts());
-    Assert.assertNull(dataFile.lowerBounds());
-    Assert.assertNull(dataFile.upperBounds());
-
-    Assert.assertEquals(FILE_PATH, dataFile.path()); // always select file path in all test cases
+  private void assertNullRecordCount(DataFile dataFile) {
+    // record count is a primitive type, accessing null record count will throw NPE
+    AssertHelpers.assertThrows(
+        "Should throw NPE when accessing non-populated record count field",
+        NullPointerException.class,
+        dataFile::recordCount);
   }
 
 }
