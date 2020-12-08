@@ -22,10 +22,8 @@ package org.apache.iceberg.spark.source;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
@@ -45,11 +43,10 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  *
  * How paths/tables are loaded when using spark.read().format("iceberg").path(table)
  *
- *  table = "file:/absolute/path/to/table" -> loads a HadoopTable at given path
- *  table = "file:/relative/path/to/table" -> fails to load table. Must use absolute path
- *  table = "catalog.`file:/absolute/path/to/table`" -> loads a HadoopTable at given path using settings from 'catalog'
- *  table = "catalog.namespace.`file:/absolute/path/to/table`" -> fails. Namespace doesn't exist for paths
- *  table = "tablename" -> loads currentCatalog.defaultNamespace.tablename
+ *  table = "file:/path/to/table" -> loads a HadoopTable at given path
+ *  table = "catalog.`file:/path/to/table`" -> loads a HadoopTable at given path using settings from 'catalog'
+ *  table = "catalog.namespace.`file:/path/to/table`" -> fails. Namespace doesn't exist for paths
+ *  table = "tablename" -> loads currentCatalog.currentNamespace.tablename
  *  table = "xxx.tablename" -> if xxx is a catalog load "tablename" from the specified catalog. Otherwise
  *          load "xxx.tablename" from current catalog
  *  table = "xxx.yyy.tablename" -> if xxx is a catalog load "yyy.tablename" from the specified catalog. Otherwise
@@ -95,39 +92,25 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
     throw new org.apache.iceberg.exceptions.NoSuchTableException("Cannot find table for %s.", ident);
   }
 
-  private Pair<String, TableIdentifier> tableIdentifier(CaseInsensitiveStringMap options) {
-    CatalogManager catalogManager = SparkSession.active().sessionState().catalogManager();
-    String currentCatalogName = catalogManager.currentCatalog().name();
-    Namespace defaultNamespace = Namespace.of(catalogManager.currentNamespace());
+  private Spark3Util.CatalogAndIdentifier catalogAndIdentifier(CaseInsensitiveStringMap options) {
     Preconditions.checkArgument(options.containsKey("path"), "Cannot open table: path is not set");
     String path = options.get("path");
-    List<String> ident;
     try {
-      ident = scala.collection.JavaConverters.seqAsJavaList(SparkSession.active().sessionState().sqlParser().parseMultipartIdentifier(path));
+      return Spark3Util.catalogAndIdentifier(SparkSession.active(), path);
     } catch (ParseException e) {
-      ident = new ArrayList<>();
+      List<String> ident = new ArrayList<>();
       ident.add(path);
-    }
-
-    if (ident.size() == 1) {
-      return Pair.of(currentCatalogName, TableIdentifier.of(defaultNamespace, ident.get(0)));
-    } else {
-      if (catalogManager.isCatalogRegistered(ident.get(0))) {
-        return Pair.of(ident.get(0), TableIdentifier.of(ident.subList(1, ident.size()).toArray(new String[0])));
-      } else {
-        return Pair.of(currentCatalogName, TableIdentifier.of(ident.toArray(new String[0])));
-      }
+      return Spark3Util.catalogAndIdentifier(SparkSession.active(), ident);
     }
   }
 
   @Override
   public Identifier extractIdentifier(CaseInsensitiveStringMap options) {
-    TableIdentifier tableIdentifier = tableIdentifier(options).second();
-    return Identifier.of(tableIdentifier.namespace().levels(), tableIdentifier.name());
+    return catalogAndIdentifier(options).identifier();
   }
 
   @Override
   public String extractCatalog(CaseInsensitiveStringMap options) {
-    return tableIdentifier(options).first();
+    return catalogAndIdentifier(options).catalog().name();
   }
 }
