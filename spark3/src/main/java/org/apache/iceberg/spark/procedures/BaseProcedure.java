@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.procedures;
 
 import java.util.function.Function;
+import org.apache.arrow.util.Preconditions;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
@@ -47,18 +48,17 @@ abstract class BaseProcedure implements Procedure {
     this.tableCatalog = tableCatalog;
   }
 
-  protected <T> T modifyIcebergTable(String identifierAsString, Function<org.apache.iceberg.Table, T> func) {
-    return execute(identifierAsString, true, func);
+  protected <T> T modifyIcebergTable(Identifier ident, Function<org.apache.iceberg.Table, T> func) {
+    return execute(ident, true, func);
   }
 
-  protected <T> T withIcebergTable(String identifierAsString, Function<org.apache.iceberg.Table, T> func) {
-    return execute(identifierAsString, false, func);
+  protected <T> T withIcebergTable(Identifier ident, Function<org.apache.iceberg.Table, T> func) {
+    return execute(ident, false, func);
   }
 
-  private <T> T execute(String identifierAsString, boolean refreshSparkCache,
+  private <T> T execute(Identifier ident, boolean refreshSparkCache,
                         Function<org.apache.iceberg.Table, T> func) {
 
-    Identifier ident = toIdentifier(identifierAsString);
     SparkTable sparkTable = loadSparkTable(ident);
     org.apache.iceberg.Table icebergTable = sparkTable.table();
 
@@ -71,17 +71,16 @@ abstract class BaseProcedure implements Procedure {
     return result;
   }
 
-  private Identifier toIdentifier(String identifierAsString) {
+  protected Identifier toIdentifier(String identifierAsString, String argName) {
+    Preconditions.checkArgument(identifierAsString != null && !identifierAsString.isEmpty(),
+        "Cannot handle an empty identifier for argument %s", argName);
+
     CatalogAndIdentifier catalogAndIdentifier;
     try {
       catalogAndIdentifier = Spark3Util.catalogAndIdentifier(spark, identifierAsString, tableCatalog);
     } catch (ParseException e) {
-      throw new IllegalArgumentException("Cannot parse identifier", e);
-    }
-    if (!catalogAndIdentifier.catalog().equals(tableCatalog)) {
-      throw new IllegalArgumentException(
-          String.format("Cannot call procedure on table from another catalog. %s resolved to a table in catalog %s",
-              identifierAsString, catalogAndIdentifier.catalog()));
+      throw new IllegalArgumentException(String.format("Cannot parse identifier [%s] for argument %s",
+          identifierAsString, argName), e);
     }
 
     return catalogAndIdentifier.identifier();

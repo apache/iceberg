@@ -166,5 +166,9 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows("Should reject calls with invalid arg types",
         AnalysisException.class, "Wrong arg type",
         () -> sql("CALL %s.system.expire_snapshots('n', 2.2)", catalogName));
+
+    AssertHelpers.assertThrows("Should reject calls without empty table identifier",
+        IllegalArgumentException.class, "Cannot handle an empty identifier",
+        () -> sql("CALL %s.system.expire_snapshots('')", catalogName));
   }
 }

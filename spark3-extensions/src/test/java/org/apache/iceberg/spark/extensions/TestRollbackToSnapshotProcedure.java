@@ -253,5 +253,8 @@ public class TestRollbackToSnapshotProcedure extends SparkExtensionsTestBase {
         AnalysisException.class, "Wrong arg type for snapshot_id: cannot cast",
         () -> sql("CALL %s.system.rollback_to_snapshot('t', 2.2)", catalogName));
 
+    AssertHelpers.assertThrows("Should reject calls without empty table identifier",
+        IllegalArgumentException.class, "Cannot handle an empty identifier",
+        () -> sql("CALL %s.system.rollback_to_snapshot('', 1L)", catalogName));
   }
 }

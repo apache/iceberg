@@ -213,5 +213,9 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows("Should reject calls with invalid arg types",
         AnalysisException.class, "Wrong arg type for snapshot_id: cannot cast",
         () -> sql("CALL %s.system.set_current_snapshot('t', 2.2)", catalogName));
+
+    AssertHelpers.assertThrows("Should reject calls without empty table identifier",
+        IllegalArgumentException.class, "Cannot handle an empty identifier",
+        () -> sql("CALL %s.system.set_current_snapshot('', 1L)", catalogName));
   }
 }

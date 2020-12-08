@@ -227,5 +227,9 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows("Should reject calls with invalid arg types",
         AnalysisException.class, "Wrong arg type",
         () -> sql("CALL %s.system.remove_orphan_files('n', 2.2)", catalogName));
+
+    AssertHelpers.assertThrows("Should reject calls without empty table identifier",
+        IllegalArgumentException.class, "Cannot handle an empty identifier",
+        () -> sql("CALL %s.system.remove_orphan_files('')", catalogName));
   }
 }

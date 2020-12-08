@@ -625,21 +625,26 @@ public class Spark3Util {
    * Attempts to find the catalog and identifier a multipart identifier represents
    * @param spark Spark session to use for resolution
    * @param nameParts Multipart identifier representing a table
-   * @param fallBackCatalog Catalog to use if none is specified
+   * @param defaultCatalog Catalog to use if none is specified
    * @return The CatalogPlugin and Identifier for the table
    */
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, List<String> nameParts,
-                                                          CatalogPlugin fallBackCatalog) {
+                                                          CatalogPlugin defaultCatalog) {
     Preconditions.checkArgument(!nameParts.isEmpty(),
         "Cannot determine catalog and Identifier from empty name parts");
     CatalogManager catalogManager = spark.sessionState().catalogManager();
-    String[] currentNamespace = catalogManager.currentNamespace();
     int lastElementIndex = nameParts.size() - 1;
     String name = nameParts.get(lastElementIndex);
+    String[] currentNamespace;
+    if (defaultCatalog.equals(catalogManager.currentCatalog())) {
+      currentNamespace = catalogManager.currentNamespace();
+    } else {
+      currentNamespace = defaultCatalog.defaultNamespace();
+    }
 
     if (nameParts.size() == 1) {
       // Only a single element, use current catalog and namespace
-      return new CatalogAndIdentifier(fallBackCatalog, Identifier.of(currentNamespace, name));
+      return new CatalogAndIdentifier(defaultCatalog, Identifier.of(currentNamespace, name));
     } else {
       try {
         // Assume the first element is a valid catalog
@@ -649,7 +654,7 @@ public class Spark3Util {
       } catch (Exception e) {
         // The first element was not a valid catalog, treat it like part of the namespace
         String[] namespace =  nameParts.subList(0, lastElementIndex).toArray(new String[0]);
-        return new CatalogAndIdentifier(fallBackCatalog, Identifier.of(namespace, name));
+        return new CatalogAndIdentifier(defaultCatalog, Identifier.of(namespace, name));
       }
     }
   }
