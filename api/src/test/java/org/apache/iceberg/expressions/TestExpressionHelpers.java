@@ -194,36 +194,36 @@ public class TestExpressionHelpers {
 
   @Test
   public void testInvalidateNaNInput() {
-    assertInvalidateNaNThrows("lessThan", () -> lessThan("a", Double.NaN));
-    assertInvalidateNaNThrows("lessThan", () -> lessThan(self("a"), Double.NaN));
+    assertInvalidateNaNThrows(() -> lessThan("a", Double.NaN));
+    assertInvalidateNaNThrows(() -> lessThan(self("a"), Double.NaN));
 
-    assertInvalidateNaNThrows("lessThanOrEqual", () -> lessThanOrEqual("a", Double.NaN));
-    assertInvalidateNaNThrows("lessThanOrEqual", () -> lessThanOrEqual(self("a"), Double.NaN));
+    assertInvalidateNaNThrows(() -> lessThanOrEqual("a", Double.NaN));
+    assertInvalidateNaNThrows(() -> lessThanOrEqual(self("a"), Double.NaN));
 
-    assertInvalidateNaNThrows("greaterThan", () -> greaterThan("a", Double.NaN));
-    assertInvalidateNaNThrows("greaterThan", () -> greaterThan(self("a"), Double.NaN));
+    assertInvalidateNaNThrows(() -> greaterThan("a", Double.NaN));
+    assertInvalidateNaNThrows(() -> greaterThan(self("a"), Double.NaN));
 
-    assertInvalidateNaNThrows("greaterThanOrEqual", () -> greaterThanOrEqual("a", Double.NaN));
-    assertInvalidateNaNThrows("greaterThanOrEqual", () -> greaterThanOrEqual(self("a"), Double.NaN));
+    assertInvalidateNaNThrows(() -> greaterThanOrEqual("a", Double.NaN));
+    assertInvalidateNaNThrows(() -> greaterThanOrEqual(self("a"), Double.NaN));
 
-    assertInvalidateNaNThrows("equal", () -> equal("a", Double.NaN));
-    assertInvalidateNaNThrows("equal", () -> equal(self("a"), Double.NaN));
+    assertInvalidateNaNThrows(() -> equal("a", Double.NaN));
+    assertInvalidateNaNThrows(() -> equal(self("a"), Double.NaN));
 
-    assertInvalidateNaNThrows("notEqual", () -> notEqual("a", Double.NaN));
-    assertInvalidateNaNThrows("notEqual", () -> notEqual(self("a"), Double.NaN));
+    assertInvalidateNaNThrows(() -> notEqual("a", Double.NaN));
+    assertInvalidateNaNThrows(() -> notEqual(self("a"), Double.NaN));
 
-    assertInvalidateNaNThrows("IN", () -> in("a", 1.0D, 2.0D, Double.NaN));
-    assertInvalidateNaNThrows("IN", () -> in(self("a"), 1.0D, 2.0D, Double.NaN));
+    assertInvalidateNaNThrows(() -> in("a", 1.0D, 2.0D, Double.NaN));
+    assertInvalidateNaNThrows(() -> in(self("a"), 1.0D, 2.0D, Double.NaN));
 
-    assertInvalidateNaNThrows("NOT_IN", () -> notIn("a", 1.0D, 2.0D, Double.NaN));
-    assertInvalidateNaNThrows("NOT_IN", () -> notIn(self("a"), 1.0D, 2.0D, Double.NaN));
+    assertInvalidateNaNThrows(() -> notIn("a", 1.0D, 2.0D, Double.NaN));
+    assertInvalidateNaNThrows(() -> notIn(self("a"), 1.0D, 2.0D, Double.NaN));
 
-    assertInvalidateNaNThrows("EQ", () -> predicate(Expression.Operation.EQ, "a", Double.NaN));
+    assertInvalidateNaNThrows(() -> predicate(Expression.Operation.EQ, "a", Double.NaN));
   }
 
-  private void assertInvalidateNaNThrows(String operation, Callable<UnboundPredicate<Double>> callable) {
+  private void assertInvalidateNaNThrows(Callable<UnboundPredicate<Double>> callable) {
     AssertHelpers.assertThrows("Should invalidate NaN input",
-        IllegalArgumentException.class, String.format("Cannot create %s predicate with NaN", operation),
+        IllegalArgumentException.class, "Cannot expression literal from NaN",
         callable);
   }
 
