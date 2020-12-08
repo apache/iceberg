@@ -181,11 +181,10 @@ public class SparkFilters {
   }
 
   private static Expression handleEqual(String attribute, Object value) {
-    Object literal = convertLiteral(value);
-    if (NaNUtil.isNaN(literal)) {
+    if (NaNUtil.isNaN(value)) {
       return isNaN(attribute);
     } else {
-      return equal(attribute, literal);
+      return equal(attribute, convertLiteral(value));
     }
   }
 }
