@@ -81,8 +81,8 @@ abstract class BaseProcedure implements Procedure {
 
     Preconditions.checkArgument(
         catalog.equals(tableCatalog),
-        "Cannot run procedure in catalog %s: %s is a table in catalog %s",
-        tableCatalog.name(), identifierAsString, catalog);
+        "Cannot run procedure in catalog '%s': '%s' is a table in catalog '%s'",
+        tableCatalog.name(), identifierAsString, catalog.name());
 
     return identifier;
   }
