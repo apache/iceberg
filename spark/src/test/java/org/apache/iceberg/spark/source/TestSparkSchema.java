@@ -59,7 +59,6 @@ public abstract class TestSparkSchema {
   @BeforeClass
   public static void startSpark() {
     TestSparkSchema.spark = SparkSession.builder().master("local[2]").getOrCreate();
-    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   @AfterClass

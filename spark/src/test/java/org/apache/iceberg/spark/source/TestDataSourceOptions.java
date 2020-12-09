@@ -65,7 +65,6 @@ public abstract class TestDataSourceOptions {
   @BeforeClass
   public static void startSpark() {
     TestDataSourceOptions.spark = SparkSession.builder().master("local[2]").getOrCreate();
-    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   @AfterClass

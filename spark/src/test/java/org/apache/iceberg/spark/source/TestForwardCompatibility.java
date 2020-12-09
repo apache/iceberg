@@ -85,7 +85,6 @@ public abstract class TestForwardCompatibility {
   @BeforeClass
   public static void startSpark() {
     TestForwardCompatibility.spark = SparkSession.builder().master("local[2]").getOrCreate();
-    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   @AfterClass

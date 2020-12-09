@@ -24,8 +24,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.PathIdentifier;
 import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkCatalog;
+import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
@@ -56,6 +59,9 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  *
  */
 public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions {
+  private static final String FORCED_CATALOG_NAME = "forced_iceberg";
+  private static final String FORCED_CATALOG = "spark.sql.catalog." + FORCED_CATALOG_NAME;
+
   @Override
   public String shortName() {
     return "iceberg";
@@ -117,7 +123,7 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
     }
   }
 
-  private boolean checkPathIdentifier(Identifier identifier, String[] currentNamespace) {
+  private static boolean checkPathIdentifier(Identifier identifier, String[] currentNamespace) {
     // the namespace has been set to the default namespace (no namespace passed) and the name contains a /
     // this identifies the name as a path.
     // todo make name check more portable
@@ -131,6 +137,31 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
 
   @Override
   public String extractCatalog(CaseInsensitiveStringMap options) {
-    return catalogAndIdentifier(options).catalog().name();
+    return checkAndRegister(catalogAndIdentifier(options).catalog(), options.get("path"));
+  }
+
+  private static String checkAndRegister(CatalogPlugin catalog, String path) {
+    if (catalog instanceof SparkCatalog || catalog instanceof SparkSessionCatalog) {
+      return catalog.name(); // we know for sure this is an iceberg catalog and can continue.
+    }
+    if (path.startsWith(catalog.name())) {
+      return catalog.name(); // we asked for a specific catalog. Don't change the catalog even if not iceberg.
+    }
+    // at this point we probably asked for the default catalog and it probably isn't an iceberg catalog.
+    setupSparkCatalog(catalog.name().equals("spark_catalog")); // respect session catalog
+    return FORCED_CATALOG_NAME;
+  }
+
+  private static void setupSparkCatalog(boolean isSessionCatalog) {
+    SparkSession spark = SparkSession.active();
+    ImmutableMap<String, String> config = ImmutableMap.of(
+        "type", "hive",
+        "default-namespace", "default",
+        "parquet-enabled", "true",
+        "cache-enabled", "false"
+    );
+    String catalogName = "org.apache.iceberg.spark." + (isSessionCatalog ? "SparkSessionCatalog" : "SparkCatalog");
+    spark.conf().set(FORCED_CATALOG, catalogName);
+    config.forEach((key, value) -> spark.conf().set(FORCED_CATALOG + "." + key, value));
   }
 }

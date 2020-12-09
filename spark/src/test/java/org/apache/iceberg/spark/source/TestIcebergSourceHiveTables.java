@@ -40,7 +40,6 @@ public abstract class TestIcebergSourceHiveTables extends TestIcebergSourceTable
     if (!catalog.namespaceExists(db)) {
       catalog.createNamespace(db);
     }
-    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   @After

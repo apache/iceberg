@@ -74,7 +74,6 @@ public abstract class TestSparkDataWrite {
   @BeforeClass
   public static void startSpark() {
     TestSparkDataWrite.spark = SparkSession.builder().master("local[2]").getOrCreate();
-    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   @AfterClass

@@ -79,7 +79,6 @@ public abstract class TestWriteMetricsConfig {
   public static void startSpark() {
     TestWriteMetricsConfig.spark = SparkSession.builder().master("local[2]").getOrCreate();
     TestWriteMetricsConfig.sc = new JavaSparkContext(spark.sparkContext());
-    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   @AfterClass

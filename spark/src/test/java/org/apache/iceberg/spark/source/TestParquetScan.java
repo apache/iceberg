@@ -63,7 +63,6 @@ public abstract class TestParquetScan extends AvroDataTest {
   @BeforeClass
   public static void startSpark() {
     TestParquetScan.spark = SparkSession.builder().master("local[2]").getOrCreate();
-    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   @AfterClass

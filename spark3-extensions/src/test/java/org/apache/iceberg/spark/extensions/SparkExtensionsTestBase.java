@@ -24,7 +24,6 @@ import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.SparkTestBase;
-import org.apache.iceberg.spark.source.SetupSourceCatalog;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.BeforeClass;
@@ -54,6 +53,5 @@ public abstract class SparkExtensionsTestBase extends SparkCatalogTestBase {
         .getOrCreate();
 
     SparkTestBase.catalog = new HiveCatalog(spark.sessionState().newHadoopConf());
-    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 }

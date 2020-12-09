@@ -59,7 +59,6 @@ public abstract class TestSnapshotSelection {
   @BeforeClass
   public static void startSpark() {
     TestSnapshotSelection.spark = SparkSession.builder().master("local[2]").getOrCreate();
-    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   @AfterClass

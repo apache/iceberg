@@ -69,7 +69,6 @@ public abstract class TestStructuredStreaming {
         .master("local[2]")
         .config("spark.sql.shuffle.partitions", 4)
         .getOrCreate();
-    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   @AfterClass

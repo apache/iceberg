@@ -100,7 +100,6 @@ public abstract class TestPartitionValues {
   @BeforeClass
   public static void startSpark() {
     TestPartitionValues.spark = SparkSession.builder().master("local[2]").getOrCreate();
-    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   @AfterClass

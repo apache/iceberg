@@ -116,7 +116,6 @@ public abstract class TestPartitionPruning {
     spark.udf().register("hour", (Timestamp ts) -> hourTransform.apply(
         org.apache.spark.sql.catalyst.util.DateTimeUtils.fromJavaTimestamp(ts)),
         DataTypes.IntegerType);
-    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   @AfterClass
