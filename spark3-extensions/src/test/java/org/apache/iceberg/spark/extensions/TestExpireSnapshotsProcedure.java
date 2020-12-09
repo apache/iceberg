@@ -169,7 +169,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
         AnalysisException.class, "Wrong arg type",
         () -> sql("CALL %s.system.expire_snapshots('n', 2.2)", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls without empty table identifier",
+    AssertHelpers.assertThrows("Should reject calls with empty table identifier",
         IllegalArgumentException.class, "Cannot handle an empty identifier",
         () -> sql("CALL %s.system.expire_snapshots('')", catalogName));
   }
@@ -180,8 +180,8 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     spark.conf().set("spark.sql.catalog." + anotherCatalog, SparkCatalog.class.getName());
     spark.conf().set("spark.sql.catalog." + anotherCatalog + ".type", "hadoop");
     spark.conf().set("spark.sql.catalog." + anotherCatalog + ".warehouse", "file:" + temp.newFolder().toString());
-    spark.sql(String.format("CREATE TABLE %s.%s (id bigint NOT NULL, data string) USING iceberg", anotherCatalog,
-        tableIdent));
+
+    sql("CREATE TABLE %s.%s (id bigint NOT NULL, data string) USING iceberg", anotherCatalog, tableIdent);
 
     AssertHelpers.assertThrows("Should reject calls for a table in another catalog",
         IllegalArgumentException.class, "Cannot run procedure in catalog",

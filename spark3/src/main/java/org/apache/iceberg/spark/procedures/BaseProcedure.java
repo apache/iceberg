@@ -30,7 +30,7 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
-import org.apache.spark.sql.catalyst.parser.ParseException;
+import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -56,9 +56,7 @@ abstract class BaseProcedure implements Procedure {
     return execute(ident, false, func);
   }
 
-  private <T> T execute(Identifier ident, boolean refreshSparkCache,
-                        Function<org.apache.iceberg.Table, T> func) {
-
+  private <T> T execute(Identifier ident, boolean refreshSparkCache, Function<org.apache.iceberg.Table, T> func) {
     SparkTable sparkTable = loadSparkTable(ident);
     org.apache.iceberg.Table icebergTable = sparkTable.table();
 
@@ -75,19 +73,18 @@ abstract class BaseProcedure implements Procedure {
     Preconditions.checkArgument(identifierAsString != null && !identifierAsString.isEmpty(),
         "Cannot handle an empty identifier for argument %s", argName);
 
-    CatalogAndIdentifier catalogAndIdentifier;
-    try {
-      catalogAndIdentifier = Spark3Util.catalogAndIdentifier(spark, identifierAsString, tableCatalog);
-    } catch (ParseException e) {
-      throw new IllegalArgumentException(String.format("Cannot parse identifier '%s' for argument %s",
-          identifierAsString, argName), e);
-    }
+    CatalogAndIdentifier catalogAndIdentifier = Spark3Util.catalogAndIdentifier(
+        "identifier for arg " + argName, spark, identifierAsString, tableCatalog);
 
-    Preconditions.checkArgument(catalogAndIdentifier.catalog().equals(tableCatalog), "Cannot run procedure" +
-        " in catalog '%s': Argument %s was set to '%s' which resolves to a table in a different catalog '%s'",
-        tableCatalog.name(), argName, identifierAsString, catalogAndIdentifier.catalog().name());
+    CatalogPlugin catalog = catalogAndIdentifier.catalog();
+    Identifier identifier = catalogAndIdentifier.identifier();
 
-    return catalogAndIdentifier.identifier();
+    Preconditions.checkArgument(
+        catalog.equals(tableCatalog),
+        "Cannot run procedure in catalog %s: %s is a table in catalog %s",
+        tableCatalog.name(), identifierAsString, catalog);
+
+    return identifier;
   }
 
   protected SparkTable loadSparkTable(Identifier ident) {

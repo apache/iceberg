@@ -167,7 +167,7 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
         AnalysisException.class, "Duplicate procedure argument: table",
         () -> sql("CALL %s.system.rewrite_manifests(table => 't', tAbLe => 't')", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls without empty table identifier",
+    AssertHelpers.assertThrows("Should reject calls with empty table identifier",
         IllegalArgumentException.class, "Cannot handle an empty identifier",
         () -> sql("CALL %s.system.rewrite_manifests('')", catalogName));
   }
