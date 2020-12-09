@@ -98,7 +98,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final FileIO fileIO;
 
   protected HiveTableOperations(Configuration conf, HiveClientPool metaClients, FileIO fileIO,
-      String catalogName, String database, String table) {
+                                String catalogName, String database, String table) {
     this.conf = conf;
     this.metaClients = metaClients;
     this.fileIO = fileIO;
@@ -321,8 +321,13 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
     if (state.get().equals(LockState.WAITING)) {
       try {
+        // Retry count is the typical "upper bound of retries" for Tasks.run() function. In fact, the maximum number of
+        // attempts the Tasks.run() would try is `retries + 1`. Here, for checking locks, we use timeout as the
+        // upper bound of retries. So it is just reasonable to set a large retry count. However, if we set
+        // Integer.MAX_VALUE, the above logic of `retries + 1` would overflow into Integer.MIN_VALUE. Hence,
+        // the retry is set conservatively as `Integer.MAX_VALUE - 100` so it doesn't hit any boundary issues.
         Tasks.foreach(lockId)
-            .retry(Integer.MAX_VALUE - 100) // Endless retries bound by timeouts. Tasks.retry adds 1 for "first try".
+            .retry(Integer.MAX_VALUE - 100)
             .exponentialBackoff(
                 lockCheckMinWaitTime,
                 lockCheckMaxWaitTime,
@@ -339,8 +344,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
                   throw new WaitingForLockException("Waiting for lock.");
                 }
               } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException("Interrupted while checking lock status.", e);
+                Thread.interrupted(); // Clear the interrupt status flag
+                LOG.warn("Interrupted while waiting for lock.", e);
               }
             }, TException.class);
       } catch (WaitingForLockException waitingForLockException) {

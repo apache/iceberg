@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.hive;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -84,7 +86,7 @@ public class TestHiveMetastore {
   private ExecutorService executorService;
   private TServer server;
   private HiveMetaStore.HMSHandler baseHandler;
-  protected HiveClientPool clientPool; // Exposed for testing.
+  private HiveClientPool clientPool;
 
   /**
    * Starts a TestHiveMetastore with the default connection pool size (5).

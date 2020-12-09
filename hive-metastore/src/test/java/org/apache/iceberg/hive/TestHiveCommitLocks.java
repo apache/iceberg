@@ -31,9 +31,10 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
-import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static org.mockito.Matchers.any;
@@ -44,10 +45,12 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class TestHiveCommitLocks extends HiveTableBaseTest {
+  private static HiveTableOperations spyOps = null;
+  private static HiveClientPool spyClientPool = null;
+  private static Configuration overriddenHiveConf = new Configuration(hiveConf);
+  private static AtomicReference<HiveMetaStoreClient> spyClientRef = new AtomicReference<>();
+  private static HiveMetaStoreClient spyClient = null;
   HiveTableOperations ops = null;
-  HiveTableOperations spyOps = null;
-  HiveClientPool spyClientPool = null;
-  HiveMetaStoreClient spyClient = null;
   TableMetadata metadataV1 = null;
   TableMetadata metadataV2 = null;
 
@@ -56,17 +59,33 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
   LockResponse acquiredLockResponse = new LockResponse(dummyLockId, LockState.ACQUIRED);
   LockResponse notAcquiredLockResponse = new LockResponse(dummyLockId, LockState.NOT_ACQUIRED);
 
+  @BeforeClass
+  public static void initializeSpies() throws Exception {
+    overriddenHiveConf.setLong("iceberg.hive.lock-timeout-ms", 6 * 1000);
+    overriddenHiveConf.setLong("iceberg.hive.lock-check-min-wait-ms", 50);
+    overriddenHiveConf.setLong("iceberg.hive.lock-check-max-wait-ms", 5 * 1000);
+
+    // Set up the spy clients as static variables instead of before every test.
+    // The spy clients are reused between methods and closed at the end of all tests in this class.
+    spyClientPool = spy(new HiveClientPool(1, overriddenHiveConf));
+    when(spyClientPool.newClient()).thenAnswer(invocation -> {
+      HiveMetaStoreClient client = (HiveMetaStoreClient) invocation.callRealMethod();
+      spyClientRef.set(spy(client));
+      return spyClientRef.get();
+    });
+
+    spyClientPool.run(HiveMetaStoreClient::isLocalMetaStore); // To ensure new client is created.
+    Assert.assertNotNull(spyClientRef.get());
+
+    spyClient = spyClientRef.get();
+  }
+
   @Before
   public void before() throws Exception {
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
     ops = (HiveTableOperations) ((HasTableOperations) table).operations();
     String dbName = TABLE_IDENTIFIER.namespace().level(0);
     String tableName = TABLE_IDENTIFIER.name();
-    Configuration overriddenHiveConf = new Configuration(hiveConf);
-    overriddenHiveConf.setLong("iceberg.hive.lock-timeout-ms", 10 * 1000);
-    overriddenHiveConf.setLong("iceberg.hive.lock-check-min-wait-ms", 50);
-    overriddenHiveConf.setLong("iceberg.hive.lock-check-max-wait-ms", 5 * 1000);
-    overriddenHiveConf.setDouble("iceberg.hive.lock-check-backoff-scale-factor", 3.0);
 
     metadataV1 = ops.current();
 
@@ -80,27 +99,13 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
 
     Assert.assertEquals(2, ops.current().schema().columns().size());
 
-    spyClientPool = spy(new HiveClientPool(1, overriddenHiveConf));
-    AtomicReference<HiveMetaStoreClient> spyClientRef = new AtomicReference<>();
-
-    when(spyClientPool.newClient()).thenAnswer(invocation -> {
-      HiveMetaStoreClient client = (HiveMetaStoreClient) invocation.callRealMethod();
-      spyClientRef.set(spy(client));
-      return spyClientRef.get();
-    });
-
     spyOps = spy(new HiveTableOperations(overriddenHiveConf, spyClientPool, ops.io(), catalog.name(),
-        dbName, tableName));
-    spyClientPool.run(HiveMetaStoreClient::isLocalMetaStore); // To ensure new client is created.
-    Assert.assertNotNull(spyClientRef.get());
-
-    spyClient = spyClientRef.get();
+            dbName, tableName));
   }
 
-  @After
-  public void cleanup() {
+  @AfterClass
+  public static void cleanup() {
     try {
-      spyClient.close();
       spyClientPool.close();
     } catch (Throwable t) {
       // Ignore any exception
@@ -194,13 +199,9 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
       return waitLockResponse;
     }).when(spyClient).checkLock(eq(dummyLockId));
 
-    try {
-      AssertHelpers.assertThrows("Expected a Runtime exception",
-          RuntimeException.class,
-          "Interrupted while checking lock status",
-          () -> spyOps.doCommit(metadataV2, metadataV1));
-    } finally {
-      Thread.interrupted(); // Clear the flag
-    }
+    AssertHelpers.assertThrows("Expected an exception",
+        CommitFailedException.class,
+        "Could not acquire the lock on",
+        () -> spyOps.doCommit(metadataV2, metadataV1));
   }
 }
