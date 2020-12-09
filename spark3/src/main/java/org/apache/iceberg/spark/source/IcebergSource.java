@@ -19,19 +19,15 @@
 
 package org.apache.iceberg.spark.source;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.PathIdentifier;
 import org.apache.iceberg.spark.Spark3Util;
-import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -49,18 +45,19 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * How paths/tables are loaded when using spark.read().format("iceberg").path(table)
  *
  *  table = "file:/path/to/table" -> loads a HadoopTable at given path
- *  table = "catalog.`file:/path/to/table`" -> loads a HadoopTable at given path using settings from 'catalog'
+ *  table = "catalog.`file:/path/to/table`" -> fails. Don't set a catalog for paths
  *  table = "catalog.namespace.`file:/path/to/table`" -> fails. Namespace doesn't exist for paths
  *  table = "tablename" -> loads currentCatalog.currentNamespace.tablename
- *  table = "xxx.tablename" -> if xxx is a catalog load "tablename" from the specified catalog. Otherwise
- *          load "xxx.tablename" from current catalog
- *  table = "xxx.yyy.tablename" -> if xxx is a catalog load "yyy.tablename" from the specified catalog. Otherwise
- *          load "xxx.yyy.tablename" from current catalog
+ *  table = "catalog.tablename" -> load "tablename" from the specified catalog.
+ *  table = "namespace.tablename" -> Otherwise load "namespace.tablename" from current catalog
+ *  table = "catalog.namespace.tablename" -> "namespace.tablename" from the specified catalog.
+ *  table = "namespace1.namespace2.tablename" -> load "namespace1.namespace2.tablename" from current catalog
  *
  */
 public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions {
-  private static final String FORCED_CATALOG_NAME = "forced_iceberg";
-  private static final String FORCED_CATALOG = "spark.sql.catalog." + FORCED_CATALOG_NAME;
+  private static final String DEFAULT_CATALOG_NAME = "default_iceberg";
+  private static final String DEFAULT_CATALOG = "spark.sql.catalog." + DEFAULT_CATALOG_NAME;
+  private static final Splitter DOT = Splitter.on(".");
 
   @Override
   public String shortName() {
@@ -102,32 +99,26 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
 
   private Spark3Util.CatalogAndIdentifier catalogAndIdentifier(CaseInsensitiveStringMap options) {
     Preconditions.checkArgument(options.containsKey("path"), "Cannot open table: path is not set");
+    setupDefaultSparkCatalog();
     String path = options.get("path");
     SparkSession spark = SparkSession.active();
-    Spark3Util.CatalogAndIdentifier catalogAndIdentifier;
-    try {
-      catalogAndIdentifier = Spark3Util.catalogAndIdentifier(spark, path);
-    } catch (ParseException e) {
-      List<String> ident = new ArrayList<>();
-      ident.add(path);
-      catalogAndIdentifier = Spark3Util.catalogAndIdentifier(spark, ident);
-    }
     CatalogManager catalogManager = spark.sessionState().catalogManager();
-    String[] currentNamespace = catalogManager.currentNamespace();
-    // we have to check for paths but want to re-use the exiting utils to extract catalog/identifier
-    if (checkPathIdentifier(catalogAndIdentifier.identifier(), currentNamespace)) {
-      return new Spark3Util.CatalogAndIdentifier(catalogAndIdentifier.catalog(),
-          new PathIdentifier(catalogAndIdentifier.identifier().name()));
+
+    if (path.contains("/")) {
+      // contains a path. Return iceberg default catalog and a PathIdentifier
+      return new Spark3Util.CatalogAndIdentifier(catalogManager.catalog(DEFAULT_CATALOG_NAME),
+          new PathIdentifier(path));
+    }
+    Spark3Util.CatalogAndIdentifier catalogAndIdentifier = Spark3Util.catalogAndIdentifier(spark,
+        DOT.splitToList(path));
+    if (catalogAndIdentifier.catalog().name().equals("spark_catalog") &&
+        !(catalogAndIdentifier.catalog() instanceof SparkSessionCatalog)) {
+      // catalog is a session catalog but does not support Iceberg. Use Iceberg instead.
+      return new Spark3Util.CatalogAndIdentifier(catalogManager.catalog(DEFAULT_CATALOG_NAME),
+          catalogAndIdentifier.identifier());
     } else {
       return catalogAndIdentifier;
     }
-  }
-
-  private static boolean checkPathIdentifier(Identifier identifier, String[] currentNamespace) {
-    // the namespace has been set to the default namespace (no namespace passed) and the name contains a /
-    // this identifies the name as a path.
-    // todo make name check more portable
-    return Arrays.equals(identifier.namespace(), currentNamespace) && identifier.name().contains("/");
   }
 
   @Override
@@ -137,31 +128,22 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
 
   @Override
   public String extractCatalog(CaseInsensitiveStringMap options) {
-    return checkAndRegister(catalogAndIdentifier(options).catalog(), options.get("path"));
+    return catalogAndIdentifier(options).catalog().name();
   }
 
-  private static String checkAndRegister(CatalogPlugin catalog, String path) {
-    if (catalog instanceof SparkCatalog || catalog instanceof SparkSessionCatalog) {
-      return catalog.name(); // we know for sure this is an iceberg catalog and can continue.
-    }
-    if (path.startsWith(catalog.name())) {
-      return catalog.name(); // we asked for a specific catalog. Don't change the catalog even if not iceberg.
-    }
-    // at this point we probably asked for the default catalog and it probably isn't an iceberg catalog.
-    setupSparkCatalog(catalog.name().equals("spark_catalog")); // respect session catalog
-    return FORCED_CATALOG_NAME;
-  }
-
-  private static void setupSparkCatalog(boolean isSessionCatalog) {
+  private static void setupDefaultSparkCatalog() {
     SparkSession spark = SparkSession.active();
+    if (spark.conf().contains(DEFAULT_CATALOG)) {
+      return;
+    }
     ImmutableMap<String, String> config = ImmutableMap.of(
         "type", "hive",
         "default-namespace", "default",
         "parquet-enabled", "true",
-        "cache-enabled", "false"
+        "cache-enabled", "false" // the source should not use a cache
     );
-    String catalogName = "org.apache.iceberg.spark." + (isSessionCatalog ? "SparkSessionCatalog" : "SparkCatalog");
-    spark.conf().set(FORCED_CATALOG, catalogName);
-    config.forEach((key, value) -> spark.conf().set(FORCED_CATALOG + "." + key, value));
+    String catalogName = "org.apache.iceberg.spark.SparkCatalog";
+    spark.conf().set(DEFAULT_CATALOG, catalogName);
+    config.forEach((key, value) -> spark.conf().set(DEFAULT_CATALOG + "." + key, value));
   }
 }

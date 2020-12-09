@@ -331,12 +331,14 @@ Paths and table names can be loaded from the Spark3 dataframe interface. How pat
 the identifier is specified. When using `spark.read().format("iceberg").path(table)` or `spark.table(table)` the `table`
 variable can take a number of forms as listed below:
 
-*  `file:/path/to/table` -> loads a HadoopTable at given path from current catalog
-*  ```catalog.`file:/path/to/table` ``` -> loads a HadoopTable at given path using settings from `catalog`
+*  `file:/path/to/table` -> loads a HadoopTable at given path
+*  ```catalog.`file:/path/to/table` ``` -> fails. Don't set a catalog for paths
 *  ```catalog.namespace.`file:/path/to/table` ``` -> fails. Namespace doesn't exist for paths
 *  `tablename` -> loads `currentCatalog.currentNamespace.tablename`
-*  `xxx.tablename` -> if `xxx` is a catalog load `tablename` from the specified catalog. Otherwise load `xxx.tablename` from current catalog
-*  `xxx.yyy.tablename` -> if `xxx` is a catalog load `yyy.tablename` from the specified catalog. Otherwise load `xxx.yyy.tablename` from current catalog
+*  `catalog.tablename` -> load `tablename` from the specified catalog.
+*  `namespace.tablename` -> load `namespace.tablename` from current catalog
+*  `catalog.namespace.tablename` -> load `namespace.tablename` from the specified catalog.
+*  `namespace1.namespace2.tablename` -> load `namespace1.namespace2.tablename` from current catalog
 
 ### Spark 2.4
 
