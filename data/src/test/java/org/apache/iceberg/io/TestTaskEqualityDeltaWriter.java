@@ -106,10 +106,9 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
   @Test
   public void testPureInsert() throws IOException {
     List<Integer> eqDeleteFieldIds = Lists.newArrayList(idFieldId, dataFieldId);
-    Schema deleteSchema = table.schema();
     Schema eqDeleteRowSchema = table.schema();
 
-    GenericTaskDeltaWriter deltaWriter = createTaskWriter(eqDeleteFieldIds, deleteSchema, eqDeleteRowSchema);
+    GenericTaskDeltaWriter deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema);
     List<Record> expected = Lists.newArrayList();
     for (int i = 0; i < 20; i++) {
       Record record = createRecord(i, String.format("val-%d", i));
@@ -124,7 +123,7 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     commitTransaction(result);
     Assert.assertEquals("Should have expected records", expectedRowSet(expected), actualRowSet("*"));
 
-    deltaWriter = createTaskWriter(eqDeleteFieldIds, deleteSchema, eqDeleteRowSchema);
+    deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema);
     for (int i = 20; i < 30; i++) {
       Record record = createRecord(i, String.format("val-%d", i));
       expected.add(record);
@@ -141,10 +140,9 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
   @Test
   public void testInsertDuplicatedKey() throws IOException {
     List<Integer> equalityFieldIds = Lists.newArrayList(idFieldId);
-    Schema deleteSchema = table.schema().select("id");
     Schema eqDeleteRowSchema = table.schema();
 
-    GenericTaskDeltaWriter deltaWriter = createTaskWriter(equalityFieldIds, deleteSchema, eqDeleteRowSchema);
+    GenericTaskDeltaWriter deltaWriter = createTaskWriter(equalityFieldIds, eqDeleteRowSchema);
     deltaWriter.write(createRecord(1, "aaa"));
     deltaWriter.write(createRecord(2, "bbb"));
     deltaWriter.write(createRecord(3, "ccc"));
@@ -194,10 +192,9 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
   @Test
   public void testUpsertSameRow() throws IOException {
     List<Integer> eqDeleteFieldIds = Lists.newArrayList(idFieldId, dataFieldId);
-    Schema deleteSchema = table.schema();
     Schema eqDeleteRowSchema = table.schema();
 
-    GenericTaskDeltaWriter deltaWriter = createTaskWriter(eqDeleteFieldIds, deleteSchema, eqDeleteRowSchema);
+    GenericTaskDeltaWriter deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema);
 
     Record record = createRecord(1, "aaa");
     deltaWriter.write(record);
@@ -226,7 +223,7 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
         posRecord.copy("file_path", dataFile.path(), "pos", 0L)
     ), readRecordsAsList(DeleteSchemaUtil.pathPosSchema(), posDeleteFile.path()));
 
-    deltaWriter = createTaskWriter(eqDeleteFieldIds, deleteSchema, eqDeleteRowSchema);
+    deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema);
     deltaWriter.delete(record);
     result = deltaWriter.complete();
     Assert.assertEquals("Should have 0 data file.", 0, result.dataFiles().length);
@@ -238,10 +235,9 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
   @Test
   public void testUpsertData() throws IOException {
     List<Integer> eqDeleteFieldIds = Lists.newArrayList(dataFieldId);
-    Schema deleteSchema = table.schema().select("data");
     Schema eqDeleteRowSchema = table.schema().select("data");
 
-    GenericTaskDeltaWriter deltaWriter = createTaskWriter(eqDeleteFieldIds, deleteSchema, eqDeleteRowSchema);
+    GenericTaskDeltaWriter deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema);
     deltaWriter.write(createRecord(1, "aaa"));
     deltaWriter.write(createRecord(2, "bbb"));
     deltaWriter.write(createRecord(3, "aaa"));
@@ -262,7 +258,7 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     )), actualRowSet("*"));
 
     // Start the 2nd transaction.
-    deltaWriter = createTaskWriter(eqDeleteFieldIds, deleteSchema, eqDeleteRowSchema);
+    deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema);
     GenericRecord keyRecord = GenericRecord.create(eqDeleteRowSchema);
     Function<String, Record> keyFunc = data -> keyRecord.copy("data", data);
 
@@ -322,10 +318,9 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
   @Test
   public void testUpsertDataWithFullRowSchema() throws IOException {
     List<Integer> eqDeleteFieldIds = Lists.newArrayList(dataFieldId);
-    Schema deleteSchema = table.schema().select("data");
     Schema eqDeleteRowSchema = table.schema();
 
-    GenericTaskDeltaWriter deltaWriter = createTaskWriter(eqDeleteFieldIds, deleteSchema, eqDeleteRowSchema);
+    GenericTaskDeltaWriter deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema);
     deltaWriter.write(createRecord(1, "aaa"));
     deltaWriter.write(createRecord(2, "bbb"));
     deltaWriter.write(createRecord(3, "aaa"));
@@ -346,7 +341,7 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     )), actualRowSet("*"));
 
     // Start the 2nd transaction.
-    deltaWriter = createTaskWriter(eqDeleteFieldIds, deleteSchema, eqDeleteRowSchema);
+    deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema);
 
     // UPSERT <3,'aaa'> to <5,'aaa'> - (by delete the entire row)
     deltaWriter.delete(createRecord(3, "aaa"));
@@ -426,15 +421,19 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
    * Create a generic task equality delta writer.
    *
    * @param equalityFieldIds  defines the equality field ids.
-   * @param deleteSchema      defines the equality fields.
    * @param eqDeleteRowSchema defines the schema of rows that eq-delete writer will write, it could be the entire fields
    *                          of the table schema.
    */
-  private GenericTaskDeltaWriter createTaskWriter(List<Integer> equalityFieldIds,
-                                                  Schema deleteSchema,
-                                                  Schema eqDeleteRowSchema) {
+  private GenericTaskDeltaWriter createTaskWriter(List<Integer> equalityFieldIds, Schema eqDeleteRowSchema) {
     FileAppenderFactory<Record> appenderFactory = new GenericAppenderFactory(table.schema(), table.spec(),
         ArrayUtil.toIntArray(equalityFieldIds), eqDeleteRowSchema, null);
+
+    List<String> columns = Lists.newArrayList();
+    for (Integer fieldId : equalityFieldIds) {
+      columns.add(table.schema().findField(fieldId).name());
+    }
+    Schema deleteSchema = table.schema().select(columns);
+
     return new GenericTaskDeltaWriter(table.schema(), deleteSchema, table.spec(), format, appenderFactory,
         fileFactory, table.io(), TARGET_FILE_SIZE);
   }

@@ -22,6 +22,7 @@ package org.apache.iceberg.io;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -81,19 +82,20 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   }
 
   /**
-   * Base delta writer to write both insert records and equality-deletes.
+   * Base equality delta writer to write both insert records and equality-deletes.
    */
   protected abstract class BaseEqualityDeltaWriter implements Closeable {
     private final StructProjection structProjection;
     private RollingFileWriter dataWriter;
     private RollingEqDeleteWriter eqDeleteWriter;
     private SortedPosDeleteWriter<T> posDeleteWriter;
-    private StructLikeMap<PathOffset> insertedRowMap;
+    private Map<StructLike, PathOffset> insertedRowMap;
 
     public BaseEqualityDeltaWriter(PartitionKey partition, Schema schema, Schema deleteSchema) {
       Preconditions.checkNotNull(schema, "Iceberg table schema cannot be null.");
       Preconditions.checkNotNull(deleteSchema, "Equality-delete schema cannot be null.");
       this.structProjection = StructProjection.create(schema, deleteSchema);
+
       this.dataWriter = new RollingFileWriter(partition);
 
       this.eqDeleteWriter = new RollingEqDeleteWriter(partition);
@@ -111,7 +113,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       PathOffset pathOffset = PathOffset.of(dataWriter.currentPath(), dataWriter.currentRows());
 
       StructLike copiedKey = structProjection.copy().wrap(asStructLike(row));
-      // Adding a pos-delete to replace the old filePos.
+      // Adding a pos-delete to replace the old path-offset.
       PathOffset previous = insertedRowMap.put(copiedKey, pathOffset);
       if (previous != null) {
         // TODO attach the previous row if has a positional-delete row schema in appender factory.
@@ -122,7 +124,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
 
     /**
-     * Write the pos-delete if there's an existing rows matching the given key.
+     * Write the pos-delete if there's an existing row matching the given key.
      *
      * @param key has the same columns with the equality fields.
      */
@@ -137,7 +139,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
     /**
      * Delete those rows whose equality fields has the same values with the given row. It will write the entire row into
-     * equality-delete file.
+     * the equality-delete file.
      *
      * @param row the given row to delete.
      */
@@ -148,7 +150,8 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
 
     /**
-     * Delete those rows with the given key. It will only write the equality fields into equality-delete file.
+     * Delete those rows with the given key. It will only write the values of equality fields into the equality-delete
+     * file.
      *
      * @param key is the projected data whose columns are the same as the equality fields.
      */
