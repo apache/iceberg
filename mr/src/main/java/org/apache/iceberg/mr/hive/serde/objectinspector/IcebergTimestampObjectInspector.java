@@ -27,7 +27,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectIn
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 
 public class IcebergTimestampObjectInspector extends AbstractPrimitiveJavaObjectInspector
-                                                      implements TimestampObjectInspector {
+   implements TimestampObjectInspector, WriteObjectInspector {
 
   private static final IcebergTimestampObjectInspector INSTANCE = new IcebergTimestampObjectInspector();
 
@@ -37,6 +37,11 @@ public class IcebergTimestampObjectInspector extends AbstractPrimitiveJavaObject
 
   private IcebergTimestampObjectInspector() {
     super(TypeInfoFactory.timestampTypeInfo);
+  }
+
+  @Override
+  public LocalDateTime convert(Object o) {
+    return o == null ? null : ((TimestampWritable) o).getTimestamp().toLocalDateTime();
   }
 
   @Override

@@ -41,7 +41,7 @@ public final class IcebergObjectInspector extends TypeUtil.SchemaVisitor<ObjectI
           "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspectorHive3" :
           "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspector";
 
-  private static final ObjectInspector DATE_INSPECTOR = DynMethods.builder("get")
+  public static final ObjectInspector DATE_INSPECTOR = DynMethods.builder("get")
           .impl(DATE_INSPECTOR_CLASS)
           .buildStatic()
           .invoke();
@@ -54,12 +54,12 @@ public final class IcebergObjectInspector extends TypeUtil.SchemaVisitor<ObjectI
           "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampWithZoneObjectInspectorHive3" :
           "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampWithZoneObjectInspector";
 
-  private static final ObjectInspector TIMESTAMP_INSPECTOR = DynMethods.builder("get")
+  public static final ObjectInspector TIMESTAMP_INSPECTOR = DynMethods.builder("get")
           .impl(TIMESTAMP_INSPECTOR_CLASS)
           .buildStatic()
           .invoke();
 
-  private static final ObjectInspector TIMESTAMP_INSPECTOR_WITH_TZ = DynMethods.builder("get")
+  public static final ObjectInspector TIMESTAMP_INSPECTOR_WITH_TZ = DynMethods.builder("get")
           .impl(TIMESTAMPTZ_INSPECTOR_CLASS)
           .buildStatic()
           .invoke();
