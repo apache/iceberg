@@ -22,8 +22,9 @@ package org.apache.iceberg.actions;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.parser.ParseException;
+import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 
 public class SparkActions extends Actions {
   protected SparkActions(SparkSession spark, Table table) {
@@ -35,13 +36,9 @@ public class SparkActions extends Actions {
   }
 
   public static CreateAction migrate(SparkSession spark, String tableName) {
-    Spark3Util.CatalogAndIdentifier catalogAndIdentifier;
-    try {
-      catalogAndIdentifier = Spark3Util.catalogAndIdentifier(spark, tableName);
-    } catch (ParseException e) {
-      throw new IllegalArgumentException("Cannot parse migrate target", e);
-    }
-
+    CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
+    CatalogAndIdentifier catalogAndIdentifier;
+    catalogAndIdentifier = Spark3Util.catalogAndIdentifier("migrate target", spark, tableName, defaultCatalog);
     return new Spark3MigrateAction(spark, catalogAndIdentifier.catalog(), catalogAndIdentifier.identifier());
   }
 
@@ -50,20 +47,11 @@ public class SparkActions extends Actions {
   }
 
   public static SnapshotAction snapshot(SparkSession spark, String sourceId, String destId) {
-    Spark3Util.CatalogAndIdentifier sourceIdent;
-
-    try {
-      sourceIdent = Spark3Util.catalogAndIdentifier(spark, sourceId);
-    } catch (ParseException e) {
-      throw new IllegalArgumentException("Cannot parse snapshot source", e);
-    }
-
-    Spark3Util.CatalogAndIdentifier destIdent;
-    try {
-      destIdent = Spark3Util.catalogAndIdentifier(spark, destId);
-    } catch (ParseException e) {
-      throw new IllegalArgumentException("Cannot parse snapshot target", e);
-    }
+    CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
+    CatalogAndIdentifier sourceIdent = Spark3Util.catalogAndIdentifier("snapshot source", spark, sourceId,
+        defaultCatalog);
+    CatalogAndIdentifier destIdent = Spark3Util.catalogAndIdentifier("snapshot destination", spark, destId,
+        defaultCatalog);
 
     Preconditions.checkArgument(sourceIdent != destIdent || sourceIdent.catalog() != destIdent.catalog(),
         "Cannot create a snapshot with the same name as the source of the snapshot.");

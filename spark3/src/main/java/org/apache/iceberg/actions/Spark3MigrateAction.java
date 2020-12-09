@@ -19,18 +19,17 @@
 
 package org.apache.iceberg.actions;
 
-import java.util.HashMap;
 import java.util.Map;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
-import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
@@ -62,10 +61,10 @@ class Spark3MigrateAction extends Spark3CreateAction {
 
     // Move source table to a new name, halting all modifications and allowing us to stage
     // the creation of a new Iceberg table in its place
-    String backupName = sourceTableName().name() + BACKUP_SUFFIX;
-    Identifier backupIdentifier = Identifier.of(sourceTableName().namespace(), backupName);
+    String backupName = sourceTableIdent().name() + BACKUP_SUFFIX;
+    Identifier backupIdentifier = Identifier.of(sourceTableIdent().namespace(), backupName);
     try {
-      destCatalog().renameTable(sourceTableName(), backupIdentifier);
+      destCatalog().renameTable(sourceTableIdent(), backupIdentifier);
     } catch (NoSuchTableException e) {
       throw new IllegalArgumentException("Cannot find table to migrate", e);
     } catch (TableAlreadyExistsException e) {
@@ -75,50 +74,25 @@ class Spark3MigrateAction extends Spark3CreateAction {
     StagedTable stagedTable = null;
     boolean threw = true;
     try {
-      Map<String, String> newTableProperties = new HashMap<>();
-      newTableProperties.put(TableCatalog.PROP_PROVIDER, "iceberg");
-      newTableProperties.putAll(JavaConverters.mapAsJavaMapConverter(v1SourceTable().properties()).asJava());
-      newTableProperties.putAll(tableLocationProperties(sourceTableLocation()));
-      newTableProperties.putAll(additionalProperties());
-
-      stagedTable = destCatalog().stageCreate(Identifier.of(
-          destTableName().namespace(),
-          destTableName().name()),
-          v1SourceTable().schema(),
-          sourcePartitionSpec(),
-          newTableProperties);
-
+      stagedTable = stageDestTable();
       icebergTable = ((SparkTable) stagedTable).table();
 
-      if (!stagedTable.properties().containsKey(TableProperties.DEFAULT_NAME_MAPPING)) {
-        assignDefaultTableNameMapping(icebergTable);
-      }
+      ensureNameMappingPresent(icebergTable);
 
-      String stagingLocation = stagedTable.properties().get(TableProperties.WRITE_METADATA_LOCATION);
+      String stagingLocation = getMetadataLocation(icebergTable);
 
-      LOG.info("Beginning migration of {} using metadata location {}", sourceTableName(), stagingLocation);
-
+      LOG.info("Beginning migration of {} using metadata location {}", sourceTableIdent(), stagingLocation);
       Some<String> backupNamespace = Some.apply(backupIdentifier.namespace()[0]);
       TableIdentifier v1BackupIdentifier = new TableIdentifier(backupIdentifier.name(), backupNamespace);
       SparkTableUtil.importSparkTable(spark(), v1BackupIdentifier, icebergTable, stagingLocation);
 
       stagedTable.commitStagedChanges();
       threw = false;
-
-    } catch (TableAlreadyExistsException tableAlreadyExistsException) {
-      throw new IllegalArgumentException("Cannot migrate because a table was created with the same name as the " +
-          "original was created after we renamed the original table to a backup identifier.",
-          tableAlreadyExistsException);
-    } catch (NoSuchNamespaceException noSuchNamespaceException) {
-      throw new IllegalArgumentException("Cannot migrate because the namespace for the table no longer exists after" +
-          "we renamed the original table to a backup identifier.",
-          noSuchNamespaceException);
     } finally {
-
       if (threw) {
         LOG.error("Error when attempting perform migration changes, aborting table creation and restoring backup.");
         try {
-          destCatalog().renameTable(backupIdentifier, sourceTableName());
+          destCatalog().renameTable(backupIdentifier, sourceTableIdent());
         } catch (NoSuchTableException nstException) {
           throw new IllegalArgumentException("Cannot restore backup, the backup cannot be found", nstException);
         } catch (TableAlreadyExistsException taeException) {
@@ -127,9 +101,7 @@ class Spark3MigrateAction extends Spark3CreateAction {
         }
 
         try {
-          if (stagedTable != null) {
-            stagedTable.abortStagedChanges();
-          }
+          stagedTable.abortStagedChanges();
         } catch (Exception abortException) {
           LOG.error("Unable to abort staged changes", abortException);
         }
@@ -137,19 +109,29 @@ class Spark3MigrateAction extends Spark3CreateAction {
     }
 
     Snapshot snapshot = icebergTable.currentSnapshot();
-    long numMigratedFiles = Long.valueOf(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
+    long numMigratedFiles = Long.parseLong(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
     LOG.info("Successfully loaded Iceberg metadata for {} files", numMigratedFiles);
     return numMigratedFiles;
   }
 
   @Override
+  protected Map<String, String> targetTableProps() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.putAll(JavaConverters.mapAsJavaMapConverter(v1SourceTable().properties()).asJava());
+    EXCLUDED_PROPERTIES.forEach(properties::remove);
+    properties.put(TableCatalog.PROP_PROVIDER, "iceberg");
+    properties.put("migrated", "true");
+    properties.putAll(additionalProperties());
+    return properties;
+  }
+
+  @Override
   protected TableCatalog checkSourceCatalog(CatalogPlugin catalog) {
     // Currently the Import code relies on being able to look up the table in the session code
-    if (!(catalog instanceof SparkSessionCatalog)) {
-      throw new IllegalArgumentException(String.format(
-          "Cannot migrate a table from a non-Iceberg Spark Session Catalog. " +
-              "Found %s of class %s as the source catalog.", catalog.name(), catalog.getClass().getName()));
-    }
+    Preconditions.checkArgument(catalog instanceof SparkSessionCatalog,
+        "Cannot migrate a table from a non-Iceberg Spark Session Catalog. Found %s of class %s as the source catalog.",
+        catalog.name(), catalog.getClass().getName());
+
     return (TableCatalog) catalog;
   }
 }

@@ -19,19 +19,17 @@
 
 package org.apache.iceberg.actions;
 
-import java.util.HashMap;
 import java.util.Map;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
-import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
-import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.StagedTable;
@@ -51,36 +49,23 @@ class Spark3SnapshotAction extends Spark3CreateAction implements SnapshotAction 
   private String destTableLocation = null;
 
   Spark3SnapshotAction(SparkSession spark, CatalogPlugin sourceCatalog,
-                       Identifier sourceTableName, CatalogPlugin destCatalog,
-                       Identifier destTableName) {
-    super(spark, sourceCatalog, sourceTableName, destCatalog, destTableName);
+                       Identifier sourceTableIdent, CatalogPlugin destCatalog,
+                       Identifier destTableIdent) {
+    super(spark, sourceCatalog, sourceTableIdent, destCatalog, destTableIdent);
   }
 
   @Override
   public Long execute() {
-    StagedTable stagedTable;
-    Table icebergTable;
+    StagedTable stagedTable = stageDestTable();
+    Table icebergTable = ((SparkTable) stagedTable).table();
+    // TODO Check table location here against source location
 
-    try {
-      stagedTable = destCatalog().stageCreate(destTableName(), v1SourceTable().schema(),
-          sourcePartitionSpec(), buildPropertyMap());
-      icebergTable = ((SparkTable) stagedTable).table();
-
-      if (!icebergTable.properties().containsKey(TableProperties.DEFAULT_NAME_MAPPING)) {
-        assignDefaultTableNameMapping(icebergTable);
-      }
-    } catch (TableAlreadyExistsException taeException) {
-      throw new IllegalArgumentException("Cannot create snapshot because a table already exists with that name",
-          taeException);
-    } catch (NoSuchNamespaceException nsnException) {
-      throw new IllegalArgumentException("Cannot create snapshot because the namespace given does not exist",
-          nsnException);
-    }
+    ensureNameMappingPresent(icebergTable);
 
     boolean threw = true;
     try {
-      String stagingLocation = icebergTable.location() + "/" + ICEBERG_METADATA_FOLDER;
-      LOG.info("Beginning snapshot of {} to {} using metadata location {}", sourceTableName(), destTableName(),
+      String stagingLocation = getMetadataLocation(icebergTable);
+      LOG.info("Beginning snapshot of {} to {} using metadata location {}", sourceTableIdent(), destTableIdent(),
           stagingLocation);
 
       TableIdentifier v1TableIdentifier = v1SourceTable().identifier();
@@ -90,29 +75,35 @@ class Spark3SnapshotAction extends Spark3CreateAction implements SnapshotAction 
     } finally {
       if (threw) {
         LOG.error("Error when attempting to commit snapshot changes, rolling back");
-        if (stagedTable != null) {
-          stagedTable.abortStagedChanges();
-        }
+        stagedTable.abortStagedChanges();
       }
     }
 
-    long numMigratedFiles;
     Snapshot snapshot = icebergTable.currentSnapshot();
-    numMigratedFiles = Long.valueOf(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
+    long numMigratedFiles = Long.parseLong(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
     LOG.info("Successfully loaded Iceberg metadata for {} files", numMigratedFiles);
     return numMigratedFiles;
   }
 
-  private Map<String, String> buildPropertyMap() {
-    Map<String, String> properties = new HashMap<>();
+  @Override
+  protected Map<String, String> targetTableProps() {
+    Map<String, String> properties = Maps.newHashMap();
+
+    // Remove any possible location properties from origin properties
+    properties.putAll(JavaConverters.mapAsJavaMapConverter(v1SourceTable().properties()).asJava());
+    properties.remove(LOCATION);
+    properties.remove(TableProperties.WRITE_METADATA_LOCATION);
+    properties.remove(TableProperties.WRITE_NEW_DATA_LOCATION);
+
+    EXCLUDED_PROPERTIES.forEach(properties::remove);
     properties.put(TableCatalog.PROP_PROVIDER, "iceberg");
     properties.put(TableProperties.GC_ENABLED, "false");
-    properties.putAll(JavaConverters.mapAsJavaMapConverter(v1SourceTable().properties()).asJava());
+    properties.put("snapshot", "true");
     properties.putAll(additionalProperties());
 
     // Don't use the default location for the destination table if an alternate has be set
     if (destTableLocation != null) {
-      properties.putAll(tableLocationProperties(destTableLocation));
+      properties.put(LOCATION, destTableLocation);
     }
 
     return properties;
@@ -140,8 +131,8 @@ class Spark3SnapshotAction extends Spark3CreateAction implements SnapshotAction 
   @Override
   public SnapshotAction withLocation(String location) {
     Preconditions.checkArgument(!sourceTableLocation().equals(location),
-        "Cannot create snapshot where destination location is the same as the source location. This" +
-            "would cause a mixing of original table created and snapshot created files.");
+        "Cannot create snapshot where destination location is the same as the source location." +
+            " This would cause a mixing of original table created and snapshot created files.");
     this.destTableLocation = location;
     return this;
   }

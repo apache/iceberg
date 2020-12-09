@@ -24,7 +24,7 @@ import java.util.Map;
 interface CreateAction extends Action<Long> {
 
   /**
-   * Adds additional properties to the newly created Iceberg Table. Any properties with
+   * Adds additional properties to the newly created Iceberg table. Any properties with
    * the same key name will be overwritten.
    * @param properties a map of properties to be included
    * @return this for chaining
@@ -32,12 +32,11 @@ interface CreateAction extends Action<Long> {
   CreateAction withProperties(Map<String, String> properties);
 
   /**
-   * Adds an additional property to the newly created Iceberg Table. Any properties
+   * Adds an additional property to the newly created Iceberg table. Any properties
    * with the same key name will be overwritten.
    * @param key the key of the property to add
    * @param value the value of the property to add
    * @return this for chaining
    */
   CreateAction withProperty(String key, String value);
-
 }
