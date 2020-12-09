@@ -20,9 +20,11 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.PathIdentifier;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -95,13 +97,31 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
   private Spark3Util.CatalogAndIdentifier catalogAndIdentifier(CaseInsensitiveStringMap options) {
     Preconditions.checkArgument(options.containsKey("path"), "Cannot open table: path is not set");
     String path = options.get("path");
+    SparkSession spark = SparkSession.active();
+    Spark3Util.CatalogAndIdentifier catalogAndIdentifier;
     try {
-      return Spark3Util.catalogAndIdentifier(SparkSession.active(), path);
+      catalogAndIdentifier = Spark3Util.catalogAndIdentifier(spark, path);
     } catch (ParseException e) {
       List<String> ident = new ArrayList<>();
       ident.add(path);
-      return Spark3Util.catalogAndIdentifier(SparkSession.active(), ident);
+      catalogAndIdentifier = Spark3Util.catalogAndIdentifier(spark, ident);
     }
+    CatalogManager catalogManager = spark.sessionState().catalogManager();
+    String[] currentNamespace = catalogManager.currentNamespace();
+    // we have to check for paths but want to re-use the exiting utils to extract catalog/identifier
+    if (checkPathIdentifier(catalogAndIdentifier.identifier(), currentNamespace)) {
+      return new Spark3Util.CatalogAndIdentifier(catalogAndIdentifier.catalog(),
+          new PathIdentifier(catalogAndIdentifier.identifier().name()));
+    } else {
+      return catalogAndIdentifier;
+    }
+  }
+
+  private boolean checkPathIdentifier(Identifier identifier, String[] currentNamespace) {
+    // the namespace has been set to the default namespace (no namespace passed) and the name contains a /
+    // this identifies the name as a path.
+    // todo make name check more portable
+    return Arrays.equals(identifier.namespace(), currentNamespace) && identifier.name().contains("/");
   }
 
   @Override

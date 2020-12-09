@@ -81,7 +81,7 @@ public abstract class TestSparkReadProjection extends TestReadProjection {
   @BeforeClass
   public static void startSpark() {
     TestSparkReadProjection.spark = SparkSession.builder().master("local[2]").getOrCreate();
-    SetupSourceCatalog.setupSparkCatalog(spark);
+    SetupSourceCatalog.setupSparkCatalog(spark, "org.apache.iceberg.spark.source.TestSparkCatalog");
   }
 
   @AfterClass

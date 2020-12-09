@@ -32,6 +32,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.UpdateSchema;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Term;
@@ -715,5 +717,9 @@ public class Spark3Util {
     public Identifier identifier() {
       return identifier;
     }
+  }
+
+  public static TableIdentifier identifierToTableIdentifier(Identifier identifier) {
+    return TableIdentifier.of(Namespace.of(identifier.namespace()), identifier.name());
   }
 }

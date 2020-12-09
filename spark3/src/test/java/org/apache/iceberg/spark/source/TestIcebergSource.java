@@ -20,7 +20,7 @@
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.spark.sql.connector.catalog.CatalogManager;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
@@ -38,7 +38,7 @@ public class TestIcebergSource extends IcebergSource {
 
   @Override
   public String extractCatalog(CaseInsensitiveStringMap options) {
-    return CatalogManager.SESSION_CATALOG_NAME();
+    return SparkSession.active().sessionState().catalogManager().currentCatalog().name();
   }
 
 }

@@ -75,7 +75,7 @@ public abstract class TestSparkReaderDeletes extends DeleteReadTests {
         .getOrCreate();
 
     catalog = new HiveCatalog(spark.sessionState().newHadoopConf());
-
+    SetupSourceCatalog.setupSparkCatalog(spark);
     try {
       catalog.createNamespace(Namespace.of("default"));
     } catch (AlreadyExistsException ignored) {

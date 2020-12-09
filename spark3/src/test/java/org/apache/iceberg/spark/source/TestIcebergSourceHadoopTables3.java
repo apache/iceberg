@@ -19,33 +19,11 @@
 
 package org.apache.iceberg.spark.source;
 
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.spark.SparkTestBase;
 import org.junit.BeforeClass;
 
 public class TestIcebergSourceHadoopTables3 extends TestIcebergSourceHadoopTables {
-
   @BeforeClass
   public static void setupCatalog() {
     SetupSourceCatalog.setupSparkCatalog(spark);
   }
-
-  @Override
-  public Table createTable(TableIdentifier ident, Schema schema, PartitionSpec spec) {
-    return SparkTestBase.catalog.createTable(TableIdentifier.of(tableLocation), schema, spec);
-  }
-
-  @Override
-  public Table loadTable(TableIdentifier ident, String entriesSuffix) {
-    return SparkTestBase.catalog.loadTable(TableIdentifier.parse(loadLocation(ident, entriesSuffix)));
-  }
-
-  @Override
-  public String loadLocation(TableIdentifier ident, String entriesSuffix) {
-    return String.format("%s#%s", loadLocation(ident), entriesSuffix);
-  }
-
 }
