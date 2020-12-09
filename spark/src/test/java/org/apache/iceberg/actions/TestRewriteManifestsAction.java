@@ -35,7 +35,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTestBase;
-import org.apache.iceberg.spark.source.SetupSourceCatalog;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -44,7 +43,6 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -76,11 +74,6 @@ public abstract class TestRewriteManifestsAction extends SparkTestBase {
 
   public TestRewriteManifestsAction(String snapshotIdInheritanceEnabled) {
     this.snapshotIdInheritanceEnabled = snapshotIdInheritanceEnabled;
-  }
-
-  @BeforeClass
-  public static void setupCatalog() {
-    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   @Before

@@ -40,7 +40,6 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -69,11 +68,6 @@ public abstract class TestIdentityPartitionData extends SparkTestBase {
   public TestIdentityPartitionData(String format, boolean vectorized) {
     this.format = format;
     this.vectorized = vectorized;
-  }
-
-  @BeforeClass
-  public static void startSpark() {
-    SetupSourceCatalog.setupSparkCatalog(spark);
   }
 
   private static final Schema LOG_SCHEMA = new Schema(
