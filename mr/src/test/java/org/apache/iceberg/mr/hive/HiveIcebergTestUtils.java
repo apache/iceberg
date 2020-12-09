@@ -23,20 +23,21 @@ import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
-import java.sql.Timestamp;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import org.apache.commons.compress.utils.Lists;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.type.HiveDecimal;
 import org.apache.hadoop.hive.serde2.io.DateWritable;
 import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
@@ -51,7 +52,6 @@ import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapred.JobID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -214,7 +214,7 @@ public class HiveIcebergTestUtils {
   public static void validateData(Table table, List<Record> expected, int sortBy) throws IOException {
     // Refresh the table, so we get the new data as well
     table.refresh();
-    List<Record> records = Lists.newArrayList();
+    List<Record> records = new ArrayList<>(expected.size());
     try (CloseableIterable<Record> iterable = IcebergGenerics.read(table).build()) {
       iterable.forEach(records::add);
     }
@@ -242,8 +242,8 @@ public class HiveIcebergTestUtils {
         .filter(Files::isRegularFile)
         .filter(path -> !path.getFileName().toString().startsWith("."))
         .collect(Collectors.toList());
-    Assert.assertEquals(dataFileNum, dataFiles.size());
 
+    Assert.assertEquals(dataFileNum, dataFiles.size());
     Assert.assertFalse(new File(HiveIcebergOutputCommitter.generateJobLocation(conf, jobId)).exists());
   }
 }
