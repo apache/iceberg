@@ -20,28 +20,28 @@
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
 import java.sql.Timestamp;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import org.apache.hadoop.hive.serde2.io.TimestampWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 
-public class IcebergTimestampObjectInspector extends AbstractPrimitiveJavaObjectInspector
+public class IcebergTimestampWithZoneObjectInspector extends AbstractPrimitiveJavaObjectInspector
                                                       implements TimestampObjectInspector {
 
-  private static final IcebergTimestampObjectInspector INSTANCE = new IcebergTimestampObjectInspector();
+  private static final IcebergTimestampWithZoneObjectInspector INSTANCE = new IcebergTimestampWithZoneObjectInspector();
 
-  public static IcebergTimestampObjectInspector get() {
+  public static IcebergTimestampWithZoneObjectInspector get() {
     return INSTANCE;
   }
 
-  private IcebergTimestampObjectInspector() {
+  private IcebergTimestampWithZoneObjectInspector() {
     super(TypeInfoFactory.timestampTypeInfo);
   }
 
   @Override
   public Timestamp getPrimitiveJavaObject(Object o) {
-    return o == null ? null : Timestamp.valueOf((LocalDateTime) o);
+    return o == null ? null : Timestamp.valueOf(((OffsetDateTime) o).toLocalDateTime());
   }
 
   @Override
@@ -57,11 +57,12 @@ public class IcebergTimestampObjectInspector extends AbstractPrimitiveJavaObject
       Timestamp copy = new Timestamp(ts.getTime());
       copy.setNanos(ts.getNanos());
       return copy;
-    } else if (o instanceof LocalDateTime) {
-      LocalDateTime ldt = (LocalDateTime) o;
-      return LocalDateTime.of(ldt.toLocalDate(), ldt.toLocalTime());
+    } else if (o instanceof OffsetDateTime) {
+      OffsetDateTime odt = (OffsetDateTime) o;
+      return OffsetDateTime.of(odt.toLocalDateTime(), odt.getOffset());
     } else {
       return o;
     }
   }
+
 }

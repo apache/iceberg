@@ -33,7 +33,7 @@ public class TestIcebergTimestampObjectInspector {
 
   @Test
   public void testIcebergTimestampObjectInspector() {
-    TimestampObjectInspector oi = IcebergTimestampObjectInspector.get(false);
+    TimestampObjectInspector oi = IcebergTimestampObjectInspector.get();
 
     Assert.assertEquals(ObjectInspector.Category.PRIMITIVE, oi.getCategory());
     Assert.assertEquals(PrimitiveObjectInspector.PrimitiveCategory.TIMESTAMP, oi.getPrimitiveCategory());
