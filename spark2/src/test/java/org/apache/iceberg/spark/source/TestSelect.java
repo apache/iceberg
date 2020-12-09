@@ -20,13 +20,15 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.File;
+import java.io.Serializable;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
+import org.apache.iceberg.expressions.And;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
@@ -34,6 +36,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoder;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.junit.AfterClass;
@@ -123,7 +127,8 @@ public class TestSelect {
     List<Record> expected = ImmutableList.of(
         new Record(1, "a", 1.0), new Record(2, "b", 2.0), new Record(3, "c", Double.NaN));
 
-    Assert.assertEquals("Should return all expected rows", expected, sql("select * from table"));
+    Assert.assertEquals("Should return all expected rows", expected,
+        sql("select * from table", Encoders.bean(Record.class)));
   }
 
   @Test
@@ -131,16 +136,29 @@ public class TestSelect {
     List<Record> expected = ImmutableList.of(new Record(3, "c", Double.NaN));
 
     Assert.assertEquals("Should return all expected rows", expected,
-        sql("SELECT * FROM table where doubleVal = double('NaN')"));
+        sql("SELECT * FROM table where doubleVal = double('NaN')", Encoders.bean(Record.class)));
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
+
+    Expression filter = lastScanEvent.filter();
+    Assert.assertEquals("Should create AND expression", Expression.Operation.AND, filter.op());
+    Expression left = ((And) filter).left();
+    Expression right = ((And) filter).right();
+
+    Assert.assertEquals("Left expression should be NOT_NULL",
+        Expression.Operation.NOT_NULL, left.op());
+    Assert.assertTrue("Left expression should contain column name 'doubleVal'",
+        left.toString().contains("doubleVal"));
+    Assert.assertEquals("Right expression should be IS_NAN",
+        Expression.Operation.IS_NAN, right.op());
+    Assert.assertTrue("Right expression should contain column name 'doubleVal'",
+        right.toString().contains("doubleVal"));
   }
 
   @Test
   public void testProjection() {
-    List<Record> expected = ImmutableList.of(
-        new Record(1, null, null), new Record(2, null, null), new Record(3, null, null));
+    List<Integer> expected = ImmutableList.of(1, 2, 3);
 
-    Assert.assertEquals("Should return all expected rows", expected, sql("SELECT id FROM table"));
+    Assert.assertEquals("Should return all expected rows", expected, sql("SELECT id FROM table", Encoders.INT()));
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
@@ -151,9 +169,10 @@ public class TestSelect {
 
   @Test
   public void testExpressionPushdown() {
-    List<Record> expected = ImmutableList.of(new Record(null, "b", null));
+    List<String> expected = ImmutableList.of("b");
 
-    Assert.assertEquals("Should return all expected rows", expected, sql("SELECT data FROM table WHERE id = 2"));
+    Assert.assertEquals("Should return all expected rows", expected,
+        sql("SELECT data FROM table WHERE id = 2", Encoders.STRING()));
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should project only id and data columns",
@@ -161,38 +180,33 @@ public class TestSelect {
         lastScanEvent.projection().asStruct());
   }
 
-  private List<Record> sql(String str) {
-    List<Row> rows = spark.sql(str).collectAsList();
-    return rows.stream()
-        .map(row -> {
-          if (row.length() == 1) {
-            if (row.get(0) instanceof String) {
-              return new Record(null, val(row, 0), null);
-            } else {
-              return new Record(val(row, 0), null, null);
-            }
-          } else {
-            return new Record(
-                val(row, 0),
-                val(row, 1),
-                val(row, 2));
-          }
-        })
-        .collect(Collectors.toList());
+  private <T> List<T> sql(String str, Encoder<T> encoder) {
+    return spark.sql(str).as(encoder).collectAsList();
   }
 
-  private <T> T val(Row row, int index) {
-    return row.length() <= index || row.isNullAt(index) ? null : (T) row.get(index);
-  }
-
-  public static class Record {
+  public static class Record implements Serializable {
     private Integer id;
     private String data;
     private Double doubleVal;
 
+    public Record() {
+    }
+
     Record(Integer id, String data, Double doubleVal) {
       this.id = id;
       this.data = data;
+      this.doubleVal = doubleVal;
+    }
+
+    public void setId(Integer id) {
+      this.id = id;
+    }
+
+    public void setData(String data) {
+      this.data = data;
+    }
+
+    public void setDoubleVal(Double doubleVal) {
       this.doubleVal = doubleVal;
     }
 
