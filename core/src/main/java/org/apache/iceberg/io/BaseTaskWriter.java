@@ -36,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.StructLikeMap;
+import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.util.Tasks;
 
 public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
@@ -82,19 +83,21 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   /**
    * Base delta writer to write both insert records and equality-deletes.
    */
-  protected abstract class BaseDeltaWriter implements Closeable {
+  protected abstract class BaseEqualityDeltaWriter implements Closeable {
+    private final StructProjection structProjection;
     private RollingFileWriter dataWriter;
     private RollingEqDeleteWriter eqDeleteWriter;
     private SortedPosDeleteWriter<T> posDeleteWriter;
     private StructLikeMap<PathOffset> insertedRowMap;
 
-    public BaseDeltaWriter(PartitionKey partition, Schema eqDeleteSchema) {
-      Preconditions.checkNotNull(eqDeleteSchema, "equality-delete schema could not be null.");
-
+    public BaseEqualityDeltaWriter(PartitionKey partition, Schema schema, Schema deleteSchema) {
+      Preconditions.checkNotNull(schema, "Iceberg table schema cannot be null.");
+      Preconditions.checkNotNull(deleteSchema, "Equality-delete schema cannot be null.");
+      this.structProjection = StructProjection.create(schema, deleteSchema);
       this.dataWriter = new RollingFileWriter(partition);
 
       this.eqDeleteWriter = new RollingEqDeleteWriter(partition);
-      this.insertedRowMap = StructLikeMap.create(eqDeleteSchema.asStruct());
+      this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
 
       this.posDeleteWriter = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, partition);
     }
@@ -104,12 +107,10 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
      */
     protected abstract StructLike asStructLike(T data);
 
-    protected abstract StructLike asCopiedKey(T row);
-
     public void write(T row) throws IOException {
       PathOffset pathOffset = PathOffset.of(dataWriter.currentPath(), dataWriter.currentRows());
 
-      StructLike copiedKey = asCopiedKey(row);
+      StructLike copiedKey = structProjection.copy().wrap(asStructLike(row));
       // Adding a pos-delete to replace the old filePos.
       PathOffset previous = insertedRowMap.put(copiedKey, pathOffset);
       if (previous != null) {
@@ -121,18 +122,38 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
 
     /**
-     * Delete the rows with the given key.
+     * Write the pos-delete if there's an existing rows matching the given key.
      *
-     * @param key is the projected values which could be write to eq-delete file directly.
+     * @param key has the same columns with the equality fields.
      */
-    public void delete(T key) throws IOException {
-      StructLike structLikeKey = asStructLike(key);
-      PathOffset previous = insertedRowMap.remove(structLikeKey);
+    private void internalPosDelete(StructLike key) {
+      PathOffset previous = insertedRowMap.remove(key);
 
       if (previous != null) {
         // TODO attach the previous row if has a positional-delete row schema in appender factory.
         posDeleteWriter.delete(previous.path, previous.rowOffset, null);
       }
+    }
+
+    /**
+     * Delete those rows whose equality fields has the same values with the given row. It will write the entire row into
+     * equality-delete file.
+     *
+     * @param row the given row to delete.
+     */
+    public void delete(T row) throws IOException {
+      internalPosDelete(structProjection.wrap(asStructLike(row)));
+
+      eqDeleteWriter.write(row);
+    }
+
+    /**
+     * Delete those rows with the given key. It will only write the equality fields into equality-delete file.
+     *
+     * @param key is the projected data whose columns are the same as the equality fields.
+     */
+    public void deleteKey(T key) throws IOException {
+      internalPosDelete(asStructLike(key));
 
       eqDeleteWriter.write(key);
     }
