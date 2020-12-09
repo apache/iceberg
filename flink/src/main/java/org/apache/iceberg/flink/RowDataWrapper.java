@@ -53,6 +53,16 @@ public class RowDataWrapper implements StructLike {
     }
   }
 
+  private RowDataWrapper(RowDataWrapper toCopy) {
+    this.types = toCopy.types;
+    this.getters = toCopy.getters;
+    this.rowData = toCopy.rowData;
+  }
+
+  public RowDataWrapper copy() {
+    return new RowDataWrapper(this);
+  }
+
   public RowDataWrapper wrap(RowData data) {
     this.rowData = data;
     return this;
