@@ -20,16 +20,17 @@
 package org.apache.iceberg.spark.procedures;
 
 import java.util.function.Function;
+import org.apache.arrow.util.Preconditions;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
-import org.apache.spark.sql.catalyst.parser.ParseException;
-import org.apache.spark.sql.catalyst.parser.ParserInterface;
+import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -37,7 +38,6 @@ import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 import org.apache.spark.sql.execution.CacheManager;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 import scala.Option;
-import scala.collection.Seq;
 
 abstract class BaseProcedure implements Procedure {
   private final SparkSession spark;
@@ -48,20 +48,15 @@ abstract class BaseProcedure implements Procedure {
     this.tableCatalog = tableCatalog;
   }
 
-  protected <T> T modifyIcebergTable(String namespace, String tableName, Function<org.apache.iceberg.Table, T> func) {
-    return execute(namespace, tableName, true, func);
+  protected <T> T modifyIcebergTable(Identifier ident, Function<org.apache.iceberg.Table, T> func) {
+    return execute(ident, true, func);
   }
 
-  protected <T> T withIcebergTable(String namespace, String tableName, Function<org.apache.iceberg.Table, T> func) {
-    return execute(namespace, tableName, false, func);
+  protected <T> T withIcebergTable(Identifier ident, Function<org.apache.iceberg.Table, T> func) {
+    return execute(ident, false, func);
   }
 
-  private <T> T execute(String namespace, String tableName, boolean refreshSparkCache,
-                        Function<org.apache.iceberg.Table, T> func) {
-    Preconditions.checkArgument(namespace != null && !namespace.isEmpty(), "Namespace cannot be empty");
-    Preconditions.checkArgument(tableName != null && !tableName.isEmpty(), "Table name cannot be empty");
-
-    Identifier ident = toIdentifier(namespace, tableName);
+  private <T> T execute(Identifier ident, boolean refreshSparkCache, Function<org.apache.iceberg.Table, T> func) {
     SparkTable sparkTable = loadSparkTable(ident);
     org.apache.iceberg.Table icebergTable = sparkTable.table();
 
@@ -74,26 +69,22 @@ abstract class BaseProcedure implements Procedure {
     return result;
   }
 
-  // we have to parse both namespace and name as they may be quoted
-  protected Identifier toIdentifier(String namespaceAsString, String name) {
-    String[] namespaceParts = parseMultipartIdentifier(namespaceAsString);
+  protected Identifier toIdentifier(String identifierAsString, String argName) {
+    Preconditions.checkArgument(identifierAsString != null && !identifierAsString.isEmpty(),
+        "Cannot handle an empty identifier for argument %s", argName);
 
-    String[] nameParts = parseMultipartIdentifier(name);
-    Preconditions.checkArgument(nameParts.length == 1, "Name must consist of one part: %s", name);
+    CatalogAndIdentifier catalogAndIdentifier = Spark3Util.catalogAndIdentifier(
+        "identifier for arg " + argName, spark, identifierAsString, tableCatalog);
 
-    return Identifier.of(namespaceParts, nameParts[0]);
-  }
+    CatalogPlugin catalog = catalogAndIdentifier.catalog();
+    Identifier identifier = catalogAndIdentifier.identifier();
 
-  private String[] parseMultipartIdentifier(String identifierAsString) {
-    try {
-      ParserInterface parser = spark.sessionState().sqlParser();
-      Seq<String> namePartsSeq = parser.parseMultipartIdentifier(identifierAsString);
-      String[] nameParts = new String[namePartsSeq.size()];
-      namePartsSeq.copyToArray(nameParts);
-      return nameParts;
-    } catch (ParseException e) {
-      throw new RuntimeException("Couldn't parse identifier: " + identifierAsString, e);
-    }
+    Preconditions.checkArgument(
+        catalog.equals(tableCatalog),
+        "Cannot run procedure in catalog '%s': '%s' is a table in catalog '%s'",
+        tableCatalog.name(), identifierAsString, catalog.name());
+
+    return identifier;
   }
 
   protected SparkTable loadSparkTable(Identifier ident) {

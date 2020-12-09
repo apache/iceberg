@@ -25,6 +25,7 @@ import org.apache.iceberg.actions.ExpireSnapshotsActionResult;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
+import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.types.DataTypes;
@@ -40,7 +41,6 @@ import org.apache.spark.sql.types.StructType;
 public class ExpireSnapshotsProcedure extends BaseProcedure {
 
   private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[] {
-      ProcedureParameter.required("namespace", DataTypes.StringType),
       ProcedureParameter.required("table", DataTypes.StringType),
       ProcedureParameter.optional("older_than", DataTypes.TimestampType),
       ProcedureParameter.optional("retain_last", DataTypes.IntegerType)
@@ -77,12 +77,11 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    String namespace = args.getString(0);
-    String tableName = args.getString(1);
-    Long olderThanMillis = args.isNullAt(2) ? null : DateTimeUtils.toMillis(args.getLong(2));
-    Integer retainLastNum = args.isNullAt(3) ? null : args.getInt(3);
+    Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
+    Long olderThanMillis = args.isNullAt(1) ? null : DateTimeUtils.toMillis(args.getLong(1));
+    Integer retainLastNum = args.isNullAt(2) ? null : args.getInt(2);
 
-    return modifyIcebergTable(namespace, tableName, table -> {
+    return modifyIcebergTable(tableIdent, table -> {
       Actions actions = Actions.forTable(table);
 
       ExpireSnapshotsAction action = actions.expireSnapshots();

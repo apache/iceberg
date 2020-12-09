@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.procedures;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.types.DataTypes;
@@ -39,7 +40,6 @@ import org.apache.spark.sql.types.StructType;
 class SetCurrentSnapshotProcedure extends BaseProcedure {
 
   private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[] {
-      ProcedureParameter.required("namespace", DataTypes.StringType),
       ProcedureParameter.required("table", DataTypes.StringType),
       ProcedureParameter.required("snapshot_id", DataTypes.LongType)
   };
@@ -74,11 +74,10 @@ class SetCurrentSnapshotProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    String namespace = args.getString(0);
-    String tableName = args.getString(1);
-    long snapshotId = args.getLong(2);
+    Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
+    long snapshotId = args.getLong(1);
 
-    return modifyIcebergTable(namespace, tableName, table -> {
+    return modifyIcebergTable(tableIdent, table -> {
       Snapshot previousSnapshot = table.currentSnapshot();
       Long previousSnapshotId = previousSnapshot != null ? previousSnapshot.snapshotId() : null;
 

@@ -47,8 +47,7 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
   public void testRewriteManifestsInEmptyTable() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     List<Object[]> output = sql(
-        "CALL %s.system.rewrite_manifests('%s', '%s')",
-        catalogName, tableIdent.namespace(), tableIdent.name());
+        "CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent);
     assertEquals("Procedure output must match",
         ImmutableList.of(row(0, 0)),
         output);
@@ -66,8 +65,7 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
     sql("ALTER TABLE %s SET TBLPROPERTIES ('commit.manifest.target-size-bytes' '1')", tableName);
 
     List<Object[]> output = sql(
-        "CALL %s.system.rewrite_manifests('%s', '%s')",
-        catalogName, tableIdent.namespace(), tableIdent.name());
+        "CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent);
     assertEquals("Procedure output must match",
         ImmutableList.of(row(1, 4)),
         output);
@@ -93,8 +91,7 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
     Assert.assertEquals("Must have 4 manifest", 4, table.currentSnapshot().allManifests().size());
 
     List<Object[]> output = sql(
-        "CALL %s.system.rewrite_manifests(table => '%s', namespace => '%s')",
-        catalogName, tableIdent.name(), tableIdent.namespace());
+        "CALL %s.system.rewrite_manifests(table => '%s')", catalogName, tableIdent);
     assertEquals("Procedure output must match",
         ImmutableList.of(row(4, 1)),
         output);
@@ -116,8 +113,7 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
     Assert.assertEquals("Must have 2 manifest", 2, table.currentSnapshot().allManifests().size());
 
     List<Object[]> output = sql(
-        "CALL %s.system.rewrite_manifests(use_caching => false, namespace => '%s', table => '%s')",
-        catalogName, tableIdent.namespace(), tableIdent.name());
+        "CALL %s.system.rewrite_manifests(use_caching => false, table => '%s')", catalogName, tableIdent);
     assertEquals("Procedure output must match",
         ImmutableList.of(row(2, 1)),
         output);
@@ -139,8 +135,7 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
     Assert.assertEquals("Must have 2 manifest", 2, table.currentSnapshot().allManifests().size());
 
     List<Object[]> output = sql(
-        "CALL %s.system.rewrite_manifests(usE_cAcHiNg => false, nAmeSpaCe => '%s', tAbLe => '%s')",
-        catalogName, tableIdent.namespace(), tableIdent.name());
+        "CALL %s.system.rewrite_manifests(usE_cAcHiNg => false, tAbLe => '%s')", catalogName, tableIdent);
     assertEquals("Procedure output must match",
         ImmutableList.of(row(2, 1)),
         output);
@@ -162,22 +157,18 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
     AssertHelpers.assertThrows("Should reject calls without all required args",
         AnalysisException.class, "Missing required parameters",
-        () -> sql("CALL %s.system.rewrite_manifests('n')", catalogName));
+        () -> sql("CALL %s.system.rewrite_manifests()", catalogName));
 
     AssertHelpers.assertThrows("Should reject calls with invalid arg types",
-        RuntimeException.class, "Couldn't parse identifier",
+        AnalysisException.class, "Wrong arg type",
         () -> sql("CALL %s.system.rewrite_manifests('n', 2.2)", catalogName));
-
-    AssertHelpers.assertThrows("Should reject empty namespace",
-        IllegalArgumentException.class, "Namespace cannot be empty",
-        () -> sql("CALL %s.system.rewrite_manifests('', 't')", catalogName));
-
-    AssertHelpers.assertThrows("Should reject empty table name",
-        IllegalArgumentException.class, "Table name cannot be empty",
-        () -> sql("CALL %s.system.rewrite_manifests('n', '')", catalogName));
 
     AssertHelpers.assertThrows("Should reject duplicate arg names name",
         AnalysisException.class, "Duplicate procedure argument: table",
         () -> sql("CALL %s.system.rewrite_manifests(table => 't', tAbLe => 't')", catalogName));
+
+    AssertHelpers.assertThrows("Should reject calls with empty table identifier",
+        IllegalArgumentException.class, "Cannot handle an empty identifier",
+        () -> sql("CALL %s.system.rewrite_manifests('')", catalogName));
   }
 }

@@ -59,8 +59,8 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 
     List<Object[]> output = sql(
-        "CALL %s.system.remove_orphan_files('%s', '%s')",
-        catalogName, tableIdent.namespace(), tableIdent.name());
+        "CALL %s.system.remove_orphan_files('%s')",
+        catalogName, tableIdent);
     assertEquals("Should be no orphan files", ImmutableList.of(), output);
 
     assertEquals("Should have no rows",
@@ -99,29 +99,26 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
     // check for orphans in the metadata folder
     List<Object[]> output1 = sql(
         "CALL %s.system.remove_orphan_files(" +
-            "namespace => '%s'," +
             "table => '%s'," +
             "older_than => TIMESTAMP '%s'," +
             "location => '%s')",
-        catalogName, tableIdent.namespace(), tableIdent.name(), currentTimestamp, metadataLocation);
+        catalogName, tableIdent, currentTimestamp, metadataLocation);
     assertEquals("Should be no orphan files in the metadata folder", ImmutableList.of(), output1);
 
     // check for orphans in the table location
     List<Object[]> output2 = sql(
         "CALL %s.system.remove_orphan_files(" +
-            "namespace => '%s'," +
             "table => '%s'," +
             "older_than => TIMESTAMP '%s')",
-        catalogName, tableIdent.namespace(), tableIdent.name(), currentTimestamp);
+        catalogName, tableIdent, currentTimestamp);
     Assert.assertEquals("Should be orphan files in the data folder", 1, output2.size());
 
     // the previous call should have deleted all orphan files
     List<Object[]> output3 = sql(
         "CALL %s.system.remove_orphan_files(" +
-            "namespace => '%s'," +
             "table => '%s'," +
             "older_than => TIMESTAMP '%s')",
-        catalogName, tableIdent.namespace(), tableIdent.name(), currentTimestamp);
+        catalogName, tableIdent, currentTimestamp);
     Assert.assertEquals("Should be no more orphan files in the data folder", 0, output3.size());
 
     assertEquals("Should have expected rows",
@@ -157,29 +154,26 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
     // check for orphans without deleting
     List<Object[]> output1 = sql(
         "CALL %s.system.remove_orphan_files(" +
-            "namespace => '%s'," +
             "table => '%s'," +
             "older_than => TIMESTAMP '%s'," +
             "dry_run => true)",
-        catalogName, tableIdent.namespace(), tableIdent.name(), currentTimestamp);
+        catalogName, tableIdent, currentTimestamp);
     Assert.assertEquals("Should be one orphan files", 1, output1.size());
 
     // actually delete orphans
     List<Object[]> output2 = sql(
         "CALL %s.system.remove_orphan_files(" +
-            "namespace => '%s'," +
             "table => '%s'," +
             "older_than => TIMESTAMP '%s')",
-        catalogName, tableIdent.namespace(), tableIdent.name(), currentTimestamp);
+        catalogName, tableIdent, currentTimestamp);
     Assert.assertEquals("Should be one orphan files", 1, output2.size());
 
     // the previous call should have deleted all orphan files
     List<Object[]> output3 = sql(
         "CALL %s.system.remove_orphan_files(" +
-            "namespace => '%s'," +
             "table => '%s'," +
             "older_than => TIMESTAMP '%s')",
-        catalogName, tableIdent.namespace(), tableIdent.name(), currentTimestamp);
+        catalogName, tableIdent, currentTimestamp);
     Assert.assertEquals("Should be no more orphan files", 0, output3.size());
 
     assertEquals("Should have expected rows",
@@ -195,8 +189,7 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
 
     AssertHelpers.assertThrows("Should reject call",
         ValidationException.class, "Cannot remove orphan files: GC is disabled",
-        () -> sql("CALL %s.system.remove_orphan_files('%s', '%s')", catalogName,
-            tableIdent.namespace(), tableIdent.name()));
+        () -> sql("CALL %s.system.remove_orphan_files('%s')", catalogName, tableIdent));
   }
 
   @Test
@@ -213,8 +206,7 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s", tableName));
 
     List<Object[]> output = sql(
-        "CALL %s.system.remove_orphan_files('%s', '%s')",
-        catalogName, tableIdent.namespace(), tableIdent.name());
+        "CALL %s.system.remove_orphan_files('%s')", catalogName, tableIdent);
     assertEquals("Should be no orphan files", ImmutableList.of(), output);
   }
 
@@ -230,18 +222,14 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
 
     AssertHelpers.assertThrows("Should reject calls without all required args",
         AnalysisException.class, "Missing required parameters",
-        () -> sql("CALL %s.system.remove_orphan_files('n')", catalogName));
+        () -> sql("CALL %s.system.remove_orphan_files()", catalogName));
 
     AssertHelpers.assertThrows("Should reject calls with invalid arg types",
-        RuntimeException.class, "Couldn't parse identifier",
+        AnalysisException.class, "Wrong arg type",
         () -> sql("CALL %s.system.remove_orphan_files('n', 2.2)", catalogName));
 
-    AssertHelpers.assertThrows("Should reject empty namespace",
-        IllegalArgumentException.class, "Namespace cannot be empty",
-        () -> sql("CALL %s.system.remove_orphan_files('', 't')", catalogName));
-
-    AssertHelpers.assertThrows("Should reject empty table name",
-        IllegalArgumentException.class, "Table name cannot be empty",
-        () -> sql("CALL %s.system.remove_orphan_files('n', '')", catalogName));
+    AssertHelpers.assertThrows("Should reject calls with empty table identifier",
+        IllegalArgumentException.class, "Cannot handle an empty identifier",
+        () -> sql("CALL %s.system.remove_orphan_files('')", catalogName));
   }
 }

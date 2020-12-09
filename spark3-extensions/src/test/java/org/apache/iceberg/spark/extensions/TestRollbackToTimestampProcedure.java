@@ -67,8 +67,8 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
     Snapshot secondSnapshot = table.currentSnapshot();
 
     List<Object[]> output = sql(
-        "CALL %s.system.rollback_to_timestamp('%s', '%s', TIMESTAMP '%s')",
-        catalogName, tableIdent.namespace(), tableIdent.name(), firstSnapshotTimestamp);
+        "CALL %s.system.rollback_to_timestamp('%s',TIMESTAMP '%s')",
+        catalogName, tableIdent, firstSnapshotTimestamp);
 
     assertEquals("Procedure output must match",
         ImmutableList.of(row(secondSnapshot.snapshotId(), firstSnapshot.snapshotId())),
@@ -101,8 +101,8 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
     Snapshot secondSnapshot = table.currentSnapshot();
 
     List<Object[]> output = sql(
-        "CALL %s.system.rollback_to_timestamp(timestamp => TIMESTAMP '%s', namespace => '%s', table => '%s')",
-        catalogName, firstSnapshotTimestamp, tableIdent.namespace(), tableIdent.name());
+        "CALL %s.system.rollback_to_timestamp(timestamp => TIMESTAMP '%s', table => '%s')",
+        catalogName, firstSnapshotTimestamp, tableIdent);
 
     assertEquals("Procedure output must match",
         ImmutableList.of(row(secondSnapshot.snapshotId(), firstSnapshot.snapshotId())),
@@ -140,8 +140,8 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM tmp"));
 
     List<Object[]> output = sql(
-        "CALL %s.system.rollback_to_timestamp(namespace => '%s', table => '%s', timestamp => TIMESTAMP '%s')",
-        catalogName, tableIdent.namespace(), tableIdent.name(), firstSnapshotTimestamp);
+        "CALL %s.system.rollback_to_timestamp(table => '%s', timestamp => TIMESTAMP '%s')",
+        catalogName, tableIdent, firstSnapshotTimestamp);
 
     assertEquals("Procedure output must match",
         ImmutableList.of(row(secondSnapshot.snapshotId(), firstSnapshot.snapshotId())),
@@ -184,8 +184,8 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
     String quotedNamespace = quotedNamespaceBuilder.toString();
 
     List<Object[]> output = sql(
-        "CALL %s.system.rollback_to_timestamp('%s', '`%s`', TIMESTAMP '%s')",
-        catalogName, quotedNamespace, tableIdent.name(), firstSnapshotTimestamp);
+        "CALL %s.system.rollback_to_timestamp('%s', TIMESTAMP '%s')",
+        catalogName, quotedNamespace + ".`" + tableIdent.name() + "`", firstSnapshotTimestamp);
 
     assertEquals("Procedure output must match",
         ImmutableList.of(row(secondSnapshot.snapshotId(), firstSnapshot.snapshotId())),
@@ -221,8 +221,8 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
 
     // use camel case intentionally to test case sensitivity
     List<Object[]> output = sql(
-        "CALL SyStEm.rOLlBaCk_to_TiMeStaMp('%s', '%s', TIMESTAMP '%s')",
-        tableIdent.namespace(), tableIdent.name(), firstSnapshotTimestamp);
+        "CALL SyStEm.rOLlBaCk_to_TiMeStaMp('%s', TIMESTAMP '%s')",
+        tableIdent, firstSnapshotTimestamp);
 
     assertEquals("Procedure output must match",
         ImmutableList.of(row(secondSnapshot.snapshotId(), firstSnapshot.snapshotId())),
@@ -247,19 +247,15 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
 
     AssertHelpers.assertThrows("Should reject calls without all required args",
         AnalysisException.class, "Missing required parameters",
-        () -> sql("CALL %s.system.rollback_to_timestamp('n', 't')", catalogName));
+        () -> sql("CALL %s.system.rollback_to_timestamp('t')", catalogName));
 
     AssertHelpers.assertThrows("Should reject calls without all required args",
         AnalysisException.class, "Missing required parameters",
-        () -> sql("CALL %s.system.rollback_to_timestamp('n', %s)", catalogName, timestamp));
+        () -> sql("CALL %s.system.rollback_to_timestamp(timestamp => %s)", catalogName, timestamp));
 
     AssertHelpers.assertThrows("Should reject calls without all required args",
         AnalysisException.class, "Missing required parameters",
-        () -> sql("CALL %s.system.rollback_to_timestamp(namespace => 'n', timestamp => %s)", catalogName, timestamp));
-
-    AssertHelpers.assertThrows("Should reject calls without all required args",
-        AnalysisException.class, "Missing required parameters",
-        () -> sql("CALL %s.system.rollback_to_timestamp(table => 't', timestamp => %s)", catalogName, timestamp));
+        () -> sql("CALL %s.system.rollback_to_timestamp(table => 't')", catalogName));
 
     AssertHelpers.assertThrows("Should reject calls with extra args",
         AnalysisException.class, "Too many arguments",
@@ -267,14 +263,6 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
 
     AssertHelpers.assertThrows("Should reject calls with invalid arg types",
         AnalysisException.class, "Wrong arg type for timestamp: cannot cast",
-        () -> sql("CALL %s.system.rollback_to_timestamp('n', 't', 2.2)", catalogName));
-
-    AssertHelpers.assertThrows("Should reject empty namespace",
-        IllegalArgumentException.class, "Namespace cannot be empty",
-        () -> sql("CALL %s.system.rollback_to_timestamp('', 't', %s)", catalogName, timestamp));
-
-    AssertHelpers.assertThrows("Should reject empty table name",
-        IllegalArgumentException.class, "Table name cannot be empty",
-        () -> sql("CALL %s.system.rollback_to_timestamp('n', '', %s)", catalogName, timestamp));
+        () -> sql("CALL %s.system.rollback_to_timestamp('t', 2.2)", catalogName));
   }
 }
