@@ -185,7 +185,7 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
 
     List<Object[]> output = sql(
         "CALL %s.system.rollback_to_timestamp('%s', TIMESTAMP '%s')",
-         catalogName, quotedNamespace + ".`" + tableIdent.name() + "`", firstSnapshotTimestamp);
+        catalogName, quotedNamespace + ".`" + tableIdent.name() + "`", firstSnapshotTimestamp);
 
     assertEquals("Procedure output must match",
         ImmutableList.of(row(secondSnapshot.snapshotId(), firstSnapshot.snapshotId())),

@@ -616,6 +616,15 @@ public class Spark3Util {
     return catalogAndIdentifier(spark, javaMultiPartIdentifier, defaultCatalog);
   }
 
+  public static CatalogAndIdentifier catalogAndIdentifier(String description, SparkSession spark,
+                                                          String name, CatalogPlugin defaultCatalog) {
+    try {
+      return catalogAndIdentifier(spark, name, defaultCatalog);
+    } catch (ParseException e) {
+      throw new IllegalArgumentException("Cannot parse " + description + ": " + name, e);
+    }
+  }
+
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, List<String> nameParts) {
     return catalogAndIdentifier(spark, nameParts, spark.sessionState().catalogManager().currentCatalog());
   }

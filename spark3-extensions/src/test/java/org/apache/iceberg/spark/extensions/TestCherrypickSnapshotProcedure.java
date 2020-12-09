@@ -169,7 +169,7 @@ public class TestCherrypickSnapshotProcedure extends SparkExtensionsTestBase {
         AnalysisException.class, "Missing required parameters",
         () -> sql("CALL %s.system.cherrypick_snapshot('t')", catalogName));
 
-    AssertHelpers.assertThrows("Should reject calls without empty table identifier",
+    AssertHelpers.assertThrows("Should reject calls with empty table identifier",
         IllegalArgumentException.class, "Cannot handle an empty identifier",
         () -> sql("CALL %s.system.cherrypick_snapshot('', 1L)", catalogName));
 
