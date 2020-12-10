@@ -87,7 +87,7 @@ constant
     ;
 
 stringMap
-    : MAP LPREN STRING (COMMA STRING)* RPREN
+    : MAP '(' STRING (',' STRING)* ')'
     ;
 
 booleanValue
@@ -122,7 +122,8 @@ quotedIdentifier
 
 nonReserved
     : CALL
-    | TRUE | FALSE | MAP
+    | TRUE | FALSE
+    | MAP
     ;
 
 CALL: 'CALL';
