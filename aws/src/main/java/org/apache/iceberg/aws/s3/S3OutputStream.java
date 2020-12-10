@@ -85,6 +85,7 @@ class S3OutputStream extends PositionOutputStream {
   private long pos = 0;
   private boolean closed = false;
 
+  @SuppressWarnings({"StaticAssignmentInConstructor", "StaticGuardedByInstance"})
   S3OutputStream(S3Client s3, S3URI location, AwsProperties awsProperties) throws IOException {
     if (executorService == null) {
       synchronized (this) {

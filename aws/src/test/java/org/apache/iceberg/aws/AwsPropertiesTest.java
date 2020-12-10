@@ -67,4 +67,34 @@ public class AwsPropertiesTest {
         () -> new AwsProperties(map));
   }
 
+  @Test
+  public void testS3MultipartSizeTooSmall() {
+    Map<String, String> map = Maps.newHashMap();
+    map.put(AwsProperties.S3FILEIO_MULTIPART_SIZE, "1");
+    AssertHelpers.assertThrows("should not accept small part size",
+        IllegalArgumentException.class,
+        "Minimum multipart upload object size must be larger than 5 MB",
+        () -> new AwsProperties(map));
+  }
+
+  @Test
+  public void testS3MultipartSizeTooLarge() {
+    Map<String, String> map = Maps.newHashMap();
+    map.put(AwsProperties.S3FILEIO_MULTIPART_SIZE, "5368709120"); // 5GB
+    AssertHelpers.assertThrows("should not accept too big part size",
+        IllegalArgumentException.class,
+        "Input malformed or exceeded maximum multipart upload size 5GB",
+        () -> new AwsProperties(map));
+  }
+
+  @Test
+  public void testS3MultipartThresholdFactorLessThanOne() {
+    Map<String, String> map = Maps.newHashMap();
+    map.put(AwsProperties.S3FILEIO_MULTIPART_THRESHOLD_FACTOR, "0.9");
+    AssertHelpers.assertThrows("should not accept factor less than 1",
+        IllegalArgumentException.class,
+        "Multipart threshold factor must be >= to 1.0",
+        () -> new AwsProperties(map));
+  }
+
 }

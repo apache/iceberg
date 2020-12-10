@@ -33,8 +33,10 @@ import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 
 /**
  * FileIO implementation backed by S3.
+ * <p>
  * Locations used must follow the conventions for S3 URIs (e.g. s3://bucket/path...).
- * See {@link S3URI#VALID_SCHEMES} for the list of supported S3 URI schemes.
+ * URIs with schemes s3a, s3n, https are also treated as s3 file paths.
+ * Using this FileIO with other schemes will result in {@link org.apache.iceberg.exceptions.ValidationException}.
  */
 public class S3FileIO implements FileIO {
   private final SerializableSupplier<S3Client> s3;
