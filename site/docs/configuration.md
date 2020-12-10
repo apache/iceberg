@@ -94,10 +94,16 @@ Iceberg tables support table properties to configure table behavior, like the de
 
 The following properties from the Hadoop configuration are used by the Hive Metastore connector.
 
-| Property                           | Default          | Description                                                   |
-| ---------------------------------- | ---------------- | ------------------------------------------------------------- |
-| iceberg.hive.client-pool-size      | 5                | The size of the Hive client pool when tracking tables in HMS  |
-| iceberg.hive.lock-timeout-ms       | 180000 (3 min)   | Maximum time in milliseconds to acquire a lock                |
+| Property                              | Default          | Description                                                                        |
+| ------------------------------------- | ---------------- | ---------------------------------------------------------------------------------- |
+| iceberg.hive.client-pool-size         | 5                | The size of the Hive client pool when tracking tables in HMS                       |
+| iceberg.hive.lock-timeout-ms          | 180000 (3 min)   | Maximum time in milliseconds to acquire a lock                                     |
+| iceberg.hive.lock-check-min-wait-ms   | 50               | Minimum time in milliseconds to check back on the status of lock acquisition       |
+| iceberg.hive.lock-check-max-wait-ms   | 5000             | Maximum time in milliseconds to check back on the status of lock acquisition       |
+
+Note: `iceberg.hive.lock-check-max-wait-ms` should be less than the [transaction timeout](https://cwiki.apache.org/confluence/display/Hive/Configuration+Properties#ConfigurationProperties-hive.txn.timeout) 
+of the Hive Metastore (`hive.txn.timeout` or `metastore.txn.timeout` in the newer versions). Otherwise, the heartbeats on the lock (which happens during the lock checks) would end up expiring in the 
+Hive Metastore before the lock is retried from Iceberg.
 
 ## Spark configuration
 

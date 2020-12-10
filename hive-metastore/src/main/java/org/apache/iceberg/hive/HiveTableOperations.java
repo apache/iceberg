@@ -27,6 +27,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
@@ -55,6 +56,7 @@ import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.Tasks;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,8 +68,12 @@ import org.slf4j.LoggerFactory;
 public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HiveTableOperations.class);
 
-  private static final String HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
-  private static final long HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
+  private static final String HIVE_ACQUIRE_LOCK_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
+  private static final String HIVE_LOCK_CHECK_MIN_WAIT_MS = "iceberg.hive.lock-check-min-wait-ms";
+  private static final String HIVE_LOCK_CHECK_MAX_WAIT_MS = "iceberg.hive.lock-check-max-wait-ms";
+  private static final long HIVE_ACQUIRE_LOCK_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
+  private static final long HIVE_LOCK_CHECK_MIN_WAIT_MS_DEFAULT = 50; // 50 milliseconds
+  private static final long HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT = 5 * 1000; // 5 seconds
   private static final DynMethods.UnboundMethod ALTER_TABLE = DynMethods.builder("alter_table")
       .impl(HiveMetaStoreClient.class, "alter_table_with_environmentContext",
           String.class, String.class, Table.class, EnvironmentContext.class)
@@ -75,12 +81,20 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
           String.class, String.class, Table.class, EnvironmentContext.class)
       .build();
 
+  private static class WaitingForLockException extends RuntimeException {
+    WaitingForLockException(String message) {
+      super(message);
+    }
+  }
+
   private final HiveClientPool metaClients;
   private final String fullName;
   private final String database;
   private final String tableName;
   private final Configuration conf;
   private final long lockAcquireTimeout;
+  private final long lockCheckMinWaitTime;
+  private final long lockCheckMaxWaitTime;
   private final FileIO fileIO;
 
   protected HiveTableOperations(Configuration conf, HiveClientPool metaClients, FileIO fileIO,
@@ -92,7 +106,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     this.database = database;
     this.tableName = table;
     this.lockAcquireTimeout =
-        conf.getLong(HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS, HIVE_ACQUIRE_LOCK_STATE_TIMEOUT_MS_DEFAULT);
+        conf.getLong(HIVE_ACQUIRE_LOCK_TIMEOUT_MS, HIVE_ACQUIRE_LOCK_TIMEOUT_MS_DEFAULT);
+    this.lockCheckMinWaitTime =
+        conf.getLong(HIVE_LOCK_CHECK_MIN_WAIT_MS, HIVE_LOCK_CHECK_MIN_WAIT_MS_DEFAULT);
+    this.lockCheckMaxWaitTime =
+        conf.getLong(HIVE_LOCK_CHECK_MAX_WAIT_MS, HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT);
   }
 
   @Override
@@ -294,32 +312,55 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         System.getProperty("user.name"),
         InetAddress.getLocalHost().getHostName());
     LockResponse lockResponse = metaClients.run(client -> client.lock(lockRequest));
-    LockState state = lockResponse.getState();
+    AtomicReference<LockState> state = new AtomicReference<>(lockResponse.getState());
     long lockId = lockResponse.getLockid();
 
     final long start = System.currentTimeMillis();
     long duration = 0;
     boolean timeout = false;
-    while (!timeout && state.equals(LockState.WAITING)) {
-      lockResponse = metaClients.run(client -> client.checkLock(lockId));
-      state = lockResponse.getState();
 
-      // check timeout
-      duration = System.currentTimeMillis() - start;
-      if (duration > lockAcquireTimeout) {
+    if (state.get().equals(LockState.WAITING)) {
+      try {
+        // Retry count is the typical "upper bound of retries" for Tasks.run() function. In fact, the maximum number of
+        // attempts the Tasks.run() would try is `retries + 1`. Here, for checking locks, we use timeout as the
+        // upper bound of retries. So it is just reasonable to set a large retry count. However, if we set
+        // Integer.MAX_VALUE, the above logic of `retries + 1` would overflow into Integer.MIN_VALUE. Hence,
+        // the retry is set conservatively as `Integer.MAX_VALUE - 100` so it doesn't hit any boundary issues.
+        Tasks.foreach(lockId)
+            .retry(Integer.MAX_VALUE - 100)
+            .exponentialBackoff(
+                lockCheckMinWaitTime,
+                lockCheckMaxWaitTime,
+                lockAcquireTimeout,
+                1.5)
+            .throwFailureWhenFinished()
+            .onlyRetryOn(WaitingForLockException.class)
+            .run(id -> {
+              try {
+                LockResponse response = metaClients.run(client -> client.checkLock(id));
+                LockState newState = response.getState();
+                state.set(newState);
+                if (newState.equals(LockState.WAITING)) {
+                  throw new WaitingForLockException("Waiting for lock.");
+                }
+              } catch (InterruptedException e) {
+                Thread.interrupted(); // Clear the interrupt status flag
+                LOG.warn("Interrupted while waiting for lock.", e);
+              }
+            }, TException.class);
+      } catch (WaitingForLockException waitingForLockException) {
         timeout = true;
-      } else {
-        Thread.sleep(50);
+        duration = System.currentTimeMillis() - start;
       }
     }
 
     // timeout and do not have lock acquired
-    if (timeout && !state.equals(LockState.ACQUIRED)) {
+    if (timeout && !state.get().equals(LockState.ACQUIRED)) {
       throw new CommitFailedException("Timed out after %s ms waiting for lock on %s.%s",
           duration, database, tableName);
     }
 
-    if (!state.equals(LockState.ACQUIRED)) {
+    if (!state.get().equals(LockState.ACQUIRED)) {
       throw new CommitFailedException("Could not acquire the lock on %s.%s, " +
           "lock request ended in state %s", database, tableName, state);
     }
