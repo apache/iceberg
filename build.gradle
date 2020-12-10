@@ -89,6 +89,8 @@ subprojects {
     all {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.mortbay.jetty'
+      exclude group: 'com.sun.jersey'
+      exclude group: 'com.sun.jersey.contribs'
       exclude group: 'org.pentaho', module: 'pentaho-aggdesigner-algorithm'
 
       resolutionStrategy {
