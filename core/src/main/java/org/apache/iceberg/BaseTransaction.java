@@ -113,7 +113,7 @@ class BaseTransaction implements Transaction {
   @Override
   public ReplaceSortOrder replaceSortOrder() {
     checkLastOperationCommitted("ReplaceSortOrder");
-    ReplaceSortOrder replaceSortOrder = new ReplaceOrder(transactionOps);
+    ReplaceSortOrder replaceSortOrder = new BaseReplaceSortOrder(transactionOps);
     updates.add(replaceSortOrder);
     return replaceSortOrder;
   }

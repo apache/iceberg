@@ -32,12 +32,12 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
-public class ReplaceOrder implements ReplaceSortOrder {
+public class BaseReplaceSortOrder implements ReplaceSortOrder {
   private final TableOperations ops;
   private final SortOrder.Builder builder;
   private TableMetadata base;
 
-  ReplaceOrder(TableOperations ops) {
+  BaseReplaceSortOrder(TableOperations ops) {
     this.ops = ops;
     this.base = ops.current();
     this.builder = SortOrder.builderFor(base.schema());

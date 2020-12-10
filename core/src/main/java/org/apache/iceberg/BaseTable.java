@@ -126,7 +126,7 @@ public class BaseTable implements Table, HasTableOperations {
 
   @Override
   public ReplaceSortOrder replaceSortOrder() {
-    return new ReplaceOrder(ops);
+    return new BaseReplaceSortOrder(ops);
   }
 
   @Override
