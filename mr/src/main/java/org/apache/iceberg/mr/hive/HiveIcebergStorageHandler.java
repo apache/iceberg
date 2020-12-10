@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.HiveMetaHook;
-import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.HiveStorageHandler;
 import org.apache.hadoop.hive.ql.metadata.HiveStoragePredicateHandler;
 import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
@@ -35,10 +34,18 @@ import org.apache.hadoop.hive.serde2.Deserializer;
 import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.OutputFormat;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PartitionSpecParser;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
+import org.apache.iceberg.mr.SerializationUtil;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 
 public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, HiveStorageHandler {
 
@@ -65,7 +72,7 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   }
 
   @Override
-  public HiveAuthorizationProvider getAuthorizationProvider() throws HiveException {
+  public HiveAuthorizationProvider getAuthorizationProvider() {
     return null;
   }
 
@@ -132,5 +139,75 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
     predicate.residualPredicate = (ExprNodeGenericFuncDesc) exprNodeDesc;
     predicate.pushedPredicate = (ExprNodeGenericFuncDesc) exprNodeDesc;
     return predicate;
+  }
+
+  /**
+   * Returns the Table FileIO serialized to the configuration.
+   * @param config The configuration used to get the data from
+   * @return The Table FileIO object
+   */
+  public static FileIO io(Configuration config) {
+    return SerializationUtil.deserializeFromBase64(config.get(InputFormatConfig.FILE_IO));
+  }
+
+  /**
+   * Returns the Table LocationProvider serialized to the configuration.
+   * @param config The configuration used to get the data from
+   * @return The Table LocationProvider object
+   */
+  public static LocationProvider location(Configuration config) {
+    return SerializationUtil.deserializeFromBase64(config.get(InputFormatConfig.LOCATION_PROVIDER));
+  }
+
+  /**
+   * Returns the Table EncryptionManager serialized to the configuration.
+   * @param config The configuration used to get the data from
+   * @return The Table EncryptionManager object
+   */
+  public static EncryptionManager encryption(Configuration config) {
+    return SerializationUtil.deserializeFromBase64(config.get(InputFormatConfig.ENCRYPTION_MANAGER));
+  }
+
+  /**
+   * Returns the Table Schema serialized to the configuration.
+   * @param config The configuration used to get the data from
+   * @return The Table Schema object
+   */
+  public static Schema schema(Configuration config) {
+    return SchemaParser.fromJson(config.get(InputFormatConfig.TABLE_SCHEMA));
+  }
+
+  /**
+   * Returns the Table PartitionSpec serialized to the configuration.
+   * @param config The configuration used to get the data from
+   * @return The Table PartitionSpec object
+   */
+  public static PartitionSpec spec(Configuration config) {
+    return PartitionSpecParser.fromJson(schema(config), config.get(InputFormatConfig.PARTITION_SPEC));
+  }
+
+  /**
+   * Stores the serializable table data in the configuration.
+   * Currently the following is handled:
+   * <ul>
+   *   <li>- Location</li>
+   *   <li>- Schema</li>
+   *   <li>- Partition specification</li>
+   *   <li>- FileIO for handling table files</li>
+   *   <li>- Location provider used for file generation</li>
+   *   <li>- Encryption manager for encryption handling</li>
+   * </ul>
+   * @param config The target configuration to store to
+   * @param table The table which we want to store to the configuration
+   */
+  @VisibleForTesting
+  static void put(Configuration config, Table table) {
+    config.set(InputFormatConfig.TABLE_LOCATION, table.location());
+    config.set(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(table.schema()));
+    config.set(InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(table.spec()));
+
+    config.set(InputFormatConfig.FILE_IO, SerializationUtil.serializeToBase64(table.io()));
+    config.set(InputFormatConfig.LOCATION_PROVIDER, SerializationUtil.serializeToBase64(table.locationProvider()));
+    config.set(InputFormatConfig.ENCRYPTION_MANAGER, SerializationUtil.serializeToBase64(table.encryption()));
   }
 }

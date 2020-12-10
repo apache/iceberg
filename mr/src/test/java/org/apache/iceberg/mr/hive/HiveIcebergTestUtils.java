@@ -19,16 +19,25 @@
 
 package org.apache.iceberg.mr.hive;
 
+import java.io.File;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.type.HiveDecimal;
 import org.apache.hadoop.hive.serde2.io.DateWritable;
 import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
@@ -43,9 +52,13 @@ import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapred.JobID;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergBinaryObjectInspector;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDecimalObjectInspector;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
@@ -100,6 +113,11 @@ public class HiveIcebergTestUtils {
     // Empty constructor for the utility class
   }
 
+  /**
+   * Generates a test record where every field has a value.
+   * @param uuidAsByte As per #1881 Parquet needs byte[] value for UUID, other file formats need UUID object
+   * @return Record with every field set
+   */
   public static Record getTestRecord(boolean uuidAsByte) {
     Record record = GenericRecord.create(HiveIcebergTestUtils.FULL_SCHEMA);
     record.set(0, true);
@@ -127,6 +145,10 @@ public class HiveIcebergTestUtils {
     return record;
   }
 
+  /**
+   * Record with every field set to null.
+   * @return Empty record
+   */
   public static Record getNullTestRecord() {
     Record record = GenericRecord.create(HiveIcebergTestUtils.FULL_SCHEMA);
 
@@ -137,13 +159,12 @@ public class HiveIcebergTestUtils {
     return record;
   }
 
+  /**
+   * Hive values for the test record.
+   * @param record The original Iceberg record
+   * @return The Hive 'record' containing the same values
+   */
   public static List<Object> valuesForTestRecord(Record record) {
-//    ByteBuffer byteBuffer = record.get(11, ByteBuffer.class);
-//    byte[] bytes = new byte[byteBuffer.remaining()];
-//    byteBuffer.mark();
-//    byteBuffer.get(bytes);
-//    byteBuffer.reset();
-
     return Arrays.asList(
         new BooleanWritable(Boolean.TRUE),
         new IntWritable(record.get(1, Integer.class)),
@@ -163,19 +184,66 @@ public class HiveIcebergTestUtils {
     );
   }
 
+  /**
+   * Check if 2 Iceberg records are the same or not. Compares OffsetDateTimes only by the Intant they represent.
+   * @param expected The expected record
+   * @param actual The actual record
+   */
   public static void assertEquals(Record expected, Record actual) {
     for (int i = 0; i < expected.size(); ++i) {
       if (expected.get(i) instanceof OffsetDateTime) {
         // For OffsetDateTime we just compare the actual instant
         Assert.assertEquals(((OffsetDateTime) expected.get(i)).toInstant(),
             ((OffsetDateTime) actual.get(i)).toInstant());
+      } else if (expected.get(i) instanceof byte[]) {
+        Assert.assertArrayEquals((byte[]) expected.get(i), (byte[]) actual.get(i));
       } else {
-        if (expected.get(i) instanceof byte[]) {
-          Assert.assertArrayEquals((byte[]) expected.get(i), (byte[]) actual.get(i));
-        } else {
-          Assert.assertEquals(expected.get(i), actual.get(i));
-        }
+        Assert.assertEquals(expected.get(i), actual.get(i));
       }
     }
+  }
+
+  /**
+   * Validates whether the table contains the expected records. The results should be sorted by a unique key so we do
+   * not end up with flaky tests.
+   * @param table The table we should read the records from
+   * @param expected The expected list of Records (The list will be sorted)
+   * @param sortBy The column position by which we will sort
+   * @throws IOException Exceptions when reading the table data
+   */
+  public static void validateData(Table table, List<Record> expected, int sortBy) throws IOException {
+    // Refresh the table, so we get the new data as well
+    table.refresh();
+    List<Record> records = new ArrayList<>(expected.size());
+    try (CloseableIterable<Record> iterable = IcebergGenerics.read(table).build()) {
+      iterable.forEach(records::add);
+    }
+
+    // Sort based on the specified column
+    expected.sort(Comparator.comparingLong(record -> (Long) record.get(sortBy)));
+    records.sort(Comparator.comparingLong(record -> (Long) record.get(sortBy)));
+
+    Assert.assertEquals(expected.size(), records.size());
+    for (int i = 0; i < expected.size(); ++i) {
+      assertEquals(expected.get(i), records.get(i));
+    }
+  }
+
+  /**
+   * Validates the number of files under a {@link Table} generated by a specific queryId and jobId.
+   * Validates that the commit files are removed.
+   * @param table The table we are checking
+   * @param conf The configuration used for generating the job location
+   * @param jobId The jobId which generated the files
+   * @param dataFileNum The expected number of data files (TABLE_LOCATION/data/*)
+   */
+  public static void validateFiles(Table table, Configuration conf, JobID jobId, int dataFileNum) throws IOException {
+    List<Path> dataFiles = Files.walk(Paths.get(table.location() + "/data"))
+        .filter(Files::isRegularFile)
+        .filter(path -> !path.getFileName().toString().startsWith("."))
+        .collect(Collectors.toList());
+
+    Assert.assertEquals(dataFileNum, dataFiles.size());
+    Assert.assertFalse(new File(HiveIcebergOutputCommitter.generateJobLocation(conf, jobId)).exists());
   }
 }
