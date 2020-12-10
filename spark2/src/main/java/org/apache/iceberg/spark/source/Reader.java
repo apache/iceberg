@@ -49,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkFilters;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.TableScanUtil;
@@ -107,7 +108,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
       boolean caseSensitive, DataSourceOptions options) {
     this.table = table;
     this.snapshotId = options.get("snapshot-id").map(Long::parseLong).orElse(null);
-    this.asOfTimestamp = options.get("as-of-timestamp").map(Long::parseLong).orElse(null);
+    this.asOfTimestamp = options.get(SparkReadOptions.AS_OF_TIMESTAMP).map(Long::parseLong).orElse(null);
     if (snapshotId != null && asOfTimestamp != null) {
       throw new IllegalArgumentException(
           "Cannot scan using both snapshot-id and as-of-timestamp to select the table snapshot");
@@ -128,9 +129,9 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     }
 
     // look for split behavior overrides in options
-    this.splitSize = options.get("split-size").map(Long::parseLong).orElse(null);
-    this.splitLookback = options.get("lookback").map(Integer::parseInt).orElse(null);
-    this.splitOpenFileCost = options.get("file-open-cost").map(Long::parseLong).orElse(null);
+    this.splitSize = options.get(SparkReadOptions.SPLIT_SIZE).map(Long::parseLong).orElse(null);
+    this.splitLookback = options.get(SparkReadOptions.LOOKBACK).map(Integer::parseInt).orElse(null);
+    this.splitOpenFileCost = options.get(SparkReadOptions.FILE_OPEN_COST).map(Long::parseLong).orElse(null);
 
     if (io.getValue() instanceof HadoopFileIO) {
       String fsscheme = "no_exist";

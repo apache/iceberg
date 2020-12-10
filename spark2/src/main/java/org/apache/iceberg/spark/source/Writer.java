@@ -124,7 +124,7 @@ class Writer implements DataSourceWriter {
   }
 
   private FileFormat getFileFormat(Map<String, String> tableProperties, DataSourceOptions options) {
-    Optional<String> formatOption = options.get("write-format");
+    Optional<String> formatOption = options.get(SparkWriteOptions.WRITE_FORMAT);
     String formatString = formatOption
         .orElseGet(() -> tableProperties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT));
     return FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));

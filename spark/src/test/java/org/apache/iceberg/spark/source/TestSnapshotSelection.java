@@ -29,6 +29,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -167,7 +168,7 @@ public abstract class TestSnapshotSelection {
     // verify records in the previous snapshot
     Dataset<Row> previousSnapshotResult = spark.read()
         .format("iceberg")
-        .option("as-of-timestamp", firstSnapshotTimestamp)
+        .option(SparkReadOptions.AS_OF_TIMESTAMP, firstSnapshotTimestamp)
         .load(tableLocation);
     List<SimpleRecord> previousSnapshotRecords = previousSnapshotResult.orderBy("id")
         .as(Encoders.bean(SimpleRecord.class))
@@ -202,7 +203,7 @@ public abstract class TestSnapshotSelection {
 
     Dataset<Row> df = spark.read()
         .format("iceberg")
-        .option("as-of-timestamp", timestamp)
+        .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
         .load(tableLocation);
 
     df.collectAsList();
@@ -228,8 +229,8 @@ public abstract class TestSnapshotSelection {
     long snapshotId = table.currentSnapshot().snapshotId();
     Dataset<Row> df = spark.read()
         .format("iceberg")
-        .option("snapshot-id", snapshotId)
-        .option("as-of-timestamp", timestamp)
+        .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
+        .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
         .load(tableLocation);
 
     df.collectAsList();

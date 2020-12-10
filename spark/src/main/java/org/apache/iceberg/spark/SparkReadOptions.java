@@ -22,14 +22,18 @@ package org.apache.iceberg.spark;
 /**
  * Spark DF write options
  */
-public class SparkWriteOptions {
+public class SparkReadOptions {
 
-  private SparkWriteOptions() {
+  private SparkReadOptions() {
   }
 
-  // Overrides table property write.spark.fanout.enabled(default: false)
-  public static final String FANOUT_ENABLED = "fanout-enabled";
+  public static final String SNAPSHOT_ID = "snapshot-id";
 
-  // Overrides table property write.spark.fanout.enabled(default: false)
-  public static final String WRITE_FORMAT = "write-format";
+  public static final String AS_OF_TIMESTAMP = "as-of-timestamp";
+
+  public static final String SPLIT_SIZE = "split-size";
+
+  public static final String LOOKBACK = "lookback";
+
+  public static final String FILE_OPEN_COST = "file-open-cost";
 }

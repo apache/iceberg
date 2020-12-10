@@ -155,7 +155,7 @@ class SparkWrite {
   }
 
   private FileFormat getFileFormat(Map<String, String> tableProperties, Map<String, String> options) {
-    Optional<String> formatOption = Optional.ofNullable(options.get("write-format"));
+    Optional<String> formatOption = Optional.ofNullable(options.get(SparkWriteOptions.WRITE_FORMAT));
     String formatString = formatOption
         .orElseGet(() -> tableProperties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT));
     return FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
