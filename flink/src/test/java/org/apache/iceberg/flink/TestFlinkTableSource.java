@@ -21,19 +21,42 @@ package org.apache.iceberg.flink;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import org.apache.calcite.rel.RelNode;
+import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.table.api.SqlParserException;
+import org.apache.flink.table.api.Table;
+import org.apache.flink.table.api.TableEnvironment;
+import org.apache.flink.table.api.internal.TableEnvironmentImpl;
+import org.apache.flink.table.api.internal.TableImpl;
+import org.apache.flink.table.planner.delegation.PlannerBase;
+import org.apache.flink.table.planner.plan.nodes.exec.ExecNode;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Files;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.Transaction;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+
 
 public class TestFlinkTableSource extends FlinkTestBase {
 
@@ -63,6 +86,9 @@ public class TestFlinkTableSource extends FlinkTestBase {
     // before variables
     warehouse = "file:" + warehouseFile;
   }
+
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
 
   @Before
   public void before() {
@@ -684,5 +710,82 @@ public class TestFlinkTableSource extends FlinkTestBase {
     String sqlParseErrorLTE = String.format("SELECT * FROM %s WHERE d <= CAST('NaN' AS DOUBLE) ", TABLE_NAME);
     AssertHelpers.assertThrows("The NaN is not supported by flink now. ",
         NumberFormatException.class, () -> sql(sqlParseErrorLTE));
+  }
+
+  @Test
+  public void testParallelismOptimize() throws IOException {
+    Assume.assumeFalse("ORC does not support getting length when file is opening", format.equals(FileFormat.ORC));
+    String tableName = "test_parallelism_optimize";
+
+    long filesize = 20000L;
+    long maxFileLen = 0L;
+    sql("CREATE TABLE %s (id INT, data VARCHAR)" +
+        " WITH (" +
+        "'write.format.default'='%s'," +
+        "'read.split.open-file-cost'='1'" +
+        ")", tableName, format.name());
+
+    TableEnvironment tenv = getTableEnv();
+
+    // empty table ,parallelism at least 1
+    Table tableEmpty = tenv.sqlQuery(String.format("SELECT * FROM %s", tableName));
+    testParallelismSettingTranslateAndAssert(1, tableEmpty, tenv);
+
+    org.apache.iceberg.Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, tableName));
+    Schema schema = table.schema();
+
+    // Generate 2 datafile of the specified size to ensure that 2 CombinedScanTasks are obtained
+    GenericAppenderFactory genericAppenderFactory = new GenericAppenderFactory(schema);
+    for (int i = 0; i < 2; i++) {
+      File file = temp.newFile();
+      int count = 0;
+      try (FileAppender<Record> fileAppender = genericAppenderFactory.newAppender(Files.localOutput(file), format)) {
+        for (; fileAppender.length() < filesize; count++) {
+          Record record = RECORD.copy();
+          record.setField("id", count);
+          record.setField("data", "hello,iceberg");
+          fileAppender.add(record);
+        }
+      }
+
+      DataFile dataFile = DataFiles.builder(table.spec())
+          .withPath(file.getAbsolutePath())
+          .withFileSizeInBytes(file.length())
+          .withFormat(format)
+          .withRecordCount(count)
+          .build();
+
+      maxFileLen = Math.max(file.length(), maxFileLen);
+      table.newAppend().appendFile(dataFile).commit();
+    }
+
+    table.refresh();
+
+    Transaction transaction = table.newTransaction();
+    transaction.updateProperties().set(TableProperties.SPLIT_SIZE, String.valueOf(maxFileLen)).commit();
+    transaction.commitTransaction();
+
+    // 2 split ,the parallelism is  2
+    Table tableSelect = tenv.sqlQuery(String.format("SELECT * FROM %s", tableName));
+    testParallelismSettingTranslateAndAssert(2, tableSelect, tenv);
+
+    // 2 split  and limit is 1 ,the parallelism is  1
+    Table tableLimit = tenv.sqlQuery(String.format("SELECT * FROM %s LIMIT 1", tableName));
+    testParallelismSettingTranslateAndAssert(1, tableLimit, tenv);
+
+    sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
+  }
+
+  private void testParallelismSettingTranslateAndAssert(int expected, Table table, TableEnvironment tEnv) {
+    PlannerBase planner = (PlannerBase) ((TableEnvironmentImpl) tEnv).getPlanner();
+    RelNode relNode = planner.optimize(toRelNode(table));
+    ExecNode execNode = planner.translateToExecNodePlan(toScala(Collections.singletonList(relNode))).get(0);
+    Transformation transformation = execNode.translateToPlan(planner);
+    Assert.assertEquals(expected, transformation.getParallelism());
+  }
+
+  private RelNode toRelNode(Table table) {
+    return ((PlannerBase) ((TableEnvironmentImpl) ((TableImpl) table).getTableEnvironment()).getPlanner())
+        .getRelBuilder().queryOperation(table.getQueryOperation()).build();
   }
 }
