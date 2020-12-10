@@ -27,12 +27,11 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTableUtil;
-import org.apache.iceberg.spark.source.SparkTable;
+import org.apache.iceberg.spark.source.StagedSparkTable;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
-import org.apache.spark.sql.connector.catalog.StagedTable;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,8 +55,8 @@ class Spark3SnapshotAction extends Spark3CreateAction implements SnapshotAction 
 
   @Override
   public Long execute() {
-    StagedTable stagedTable = stageDestTable();
-    Table icebergTable = ((SparkTable) stagedTable).table();
+    StagedSparkTable stagedTable = stageDestTable();
+    Table icebergTable = stagedTable.table();
     // TODO Check table location here against source location
 
     ensureNameMappingPresent(icebergTable);

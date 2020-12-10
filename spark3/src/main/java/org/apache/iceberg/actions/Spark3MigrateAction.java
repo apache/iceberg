@@ -29,12 +29,11 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.SparkTableUtil;
-import org.apache.iceberg.spark.source.SparkTable;
+import org.apache.iceberg.spark.source.StagedSparkTable;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
-import org.apache.spark.sql.connector.catalog.StagedTable;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -72,11 +71,11 @@ class Spark3MigrateAction extends Spark3CreateAction {
           " Backup table already exists.", sourceTableIdent(), backupIdentifier);
     }
 
-    StagedTable stagedTable = null;
+    StagedSparkTable stagedTable = null;
     boolean threw = true;
     try {
       stagedTable = stageDestTable();
-      icebergTable = ((SparkTable) stagedTable).table();
+      icebergTable = stagedTable.table();
 
       ensureNameMappingPresent(icebergTable);
 
