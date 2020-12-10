@@ -56,8 +56,6 @@ class Spark3MigrateAction extends Spark3CreateAction {
 
   @Override
   public Long execute() {
-    Table icebergTable;
-
     // Move source table to a new name, halting all modifications and allowing us to stage
     // the creation of a new Iceberg table in its place
     String backupName = sourceTableIdent().name() + BACKUP_SUFFIX;
@@ -72,6 +70,7 @@ class Spark3MigrateAction extends Spark3CreateAction {
     }
 
     StagedSparkTable stagedTable = null;
+    Table icebergTable;
     boolean threw = true;
     try {
       stagedTable = stageDestTable();
@@ -93,18 +92,18 @@ class Spark3MigrateAction extends Spark3CreateAction {
         LOG.error("Error when attempting perform migration changes, aborting table creation and restoring backup.");
 
         try {
-          stagedTable.abortStagedChanges();
-        } catch (Exception abortException) {
-          LOG.error("Cannot abort staged changes", abortException);
+          destCatalog().renameTable(backupIdentifier, sourceTableIdent());
+        } catch (org.apache.spark.sql.catalyst.analysis.NoSuchTableException nstException) {
+          LOG.error("Cannot restore backup '{}', the backup cannot be found", backupIdentifier, nstException);
+        } catch (org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException taeException) {
+          LOG.error("Cannot restore backup, a table with the original name " +
+              "exists. The backup can be found with the name '{}'", backupIdentifier, taeException);
         }
 
         try {
-          destCatalog().renameTable(backupIdentifier, sourceTableIdent());
-        } catch (org.apache.spark.sql.catalyst.analysis.NoSuchTableException nstException) {
-          throw new NoSuchTableException("Cannot restore backup '%s', the backup cannot be found", backupIdentifier);
-        } catch (org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException taeException) {
-          throw new AlreadyExistsException("Cannot restore backup, a table with the original name " +
-              "exists. The backup can be found with the name %s", backupIdentifier);
+          stagedTable.abortStagedChanges();
+        } catch (Exception abortException) {
+          LOG.error("Cannot abort staged changes", abortException);
         }
       }
     }

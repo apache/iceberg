@@ -85,9 +85,10 @@ abstract class Spark3CreateAction implements CreateAction {
       this.sourceTable = (V1Table) this.sourceCatalog.loadTable(sourceTableIdent);
       this.sourceCatalogTable = sourceTable.v1Table();
     } catch (org.apache.spark.sql.catalyst.analysis.NoSuchTableException e) {
-      throw new NoSuchTableException("Cannot not find source table %s", sourceTableIdent);
+      throw new NoSuchTableException("Cannot not find source table '%s'", sourceTableIdent);
     } catch (ClassCastException e) {
-      throw new IllegalArgumentException(String.format("Cannot use non-v1 table %s as a source", sourceTableIdent), e);
+      throw new IllegalArgumentException(String.format("Cannot use non-v1 table '%s' as a source", sourceTableIdent),
+          e);
     }
     validateSourceTable();
 
@@ -141,15 +142,17 @@ abstract class Spark3CreateAction implements CreateAction {
   private void validateSourceTable() {
     String sourceTableProvider = sourceCatalogTable.provider().get().toLowerCase(Locale.ROOT);
     Preconditions.checkArgument(ALLOWED_SOURCES.contains(sourceTableProvider),
-        "Cannot create an Iceberg table from source provider: %s", sourceTableProvider);
+        "Cannot create an Iceberg table from source provider: '%s'", sourceTableProvider);
     Preconditions.checkArgument(!sourceCatalogTable.storage().locationUri().isEmpty(),
         "Cannot create an Iceberg table from a source without an explicit location");
   }
 
   private StagingTableCatalog checkDestinationCatalog(CatalogPlugin catalog) {
     Preconditions.checkArgument(catalog instanceof SparkSessionCatalog || catalog instanceof SparkCatalog,
-        "Cannot create Iceberg table in non Iceberg Catalog. Catalog %s was of class %s but %s or %s are required",
-        catalog.name(), catalog.getClass(), SparkSessionCatalog.class.getName(), SparkCatalog.class.getName());
+        "Cannot create Iceberg table in non-Iceberg Catalog. " +
+            "Catalog '%s' was of class '%s' but '%s' or '%s' are required",
+        catalog.name(), catalog.getClass().getName(), SparkSessionCatalog.class.getName(),
+        SparkCatalog.class.getName());
 
     return (StagingTableCatalog) catalog;
   }
