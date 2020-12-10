@@ -25,6 +25,7 @@ we only integrate iceberg with apache flink 1.11.x .
 | [SQL create catalog](#creating-catalogs-and-using-catalogs)            | ✔️                 |                                                        |
 | [SQL create database](#create-database)                                | ✔️                 |                                                        |
 | [SQL create table](#create-table)                                      | ✔️                 |                                                        |
+| [SQL create table like](#create-table-like)                            | ✔️                 |                                                        |
 | [SQL alter table](#alter-table)                                        | ✔️                 | Only support altering table properties, Columns/PartitionKey changes are not supported now|
 | [SQL drop_table](#drop-table)                                          | ✔️                 |                                                        |
 | [SQL select](#querying-with-sql)                                       | ✔️                 | Only support batch mode now.                           |
@@ -169,6 +170,19 @@ Table create commands support the most commonly used [flink create clauses](http
 * `WITH ('key'='value', ...)` to set [table configuration](./configuration.md) which will be stored in apache iceberg table properties.
 
 Currently, it does not support computed column, primary key and watermark definition etc.
+
+
+### `CREATE TABLE LIKE`
+
+```sql
+CREATE TABLE hive_catalog.default.sample (
+    id BIGINT COMMENT 'unique id',
+    data STRING
+);
+
+CREATE TABLE  hive_catalog.default.sample_like LIKE hive_catalog.default.sample;
+```
+we can  create a table based on a definition of an existing table ,the detail grammar please refer to [flink doc](https://ci.apache.org/projects/flink/flink-docs-release-1.11/dev/table/sql/create.html#create-table)
 
 ### `PARTITIONED BY`
 
