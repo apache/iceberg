@@ -108,6 +108,10 @@ public final class HiveSchemaUtil {
       case TIME:
         return "string";
       case TIMESTAMP:
+        Types.TimestampType timestampType = (Types.TimestampType) type;
+        if (MetastoreUtil.hive3PresentOnClasspath() && timestampType.shouldAdjustToUTC()) {
+          return "timestamp with local time zone";
+        }
         return "timestamp";
       case STRING:
       case UUID:
