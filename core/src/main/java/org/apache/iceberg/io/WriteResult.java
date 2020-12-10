@@ -76,6 +76,11 @@ public class WriteResult implements Serializable {
       return this;
     }
 
+    public Builder add(Iterable<WriteResult> results) {
+      results.forEach(this::add);
+      return this;
+    }
+
     public Builder addDataFiles(DataFile... files) {
       Collections.addAll(dataFiles, files);
       return this;
