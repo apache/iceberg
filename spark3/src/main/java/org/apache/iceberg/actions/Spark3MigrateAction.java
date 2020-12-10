@@ -23,6 +23,8 @@ import java.util.Map;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkSessionCatalog;
@@ -30,8 +32,6 @@ import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
-import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.StagedTable;
@@ -65,10 +65,11 @@ class Spark3MigrateAction extends Spark3CreateAction {
     Identifier backupIdentifier = Identifier.of(sourceTableIdent().namespace(), backupName);
     try {
       destCatalog().renameTable(sourceTableIdent(), backupIdentifier);
-    } catch (NoSuchTableException e) {
-      throw new IllegalArgumentException("Cannot find table to migrate", e);
-    } catch (TableAlreadyExistsException e) {
-      throw new IllegalArgumentException("Cannot rename migration source to backup name", e);
+    } catch (org.apache.spark.sql.catalyst.analysis.NoSuchTableException e) {
+      throw new NoSuchTableException("Cannot find table '%s' to migrate", sourceTableIdent());
+    } catch (org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException e) {
+      throw new AlreadyExistsException("Cannot rename migration source '%s' to backup name '%s'." +
+          " Backup table already exists.", sourceTableIdent(), backupIdentifier);
     }
 
     StagedTable stagedTable = null;
@@ -91,19 +92,20 @@ class Spark3MigrateAction extends Spark3CreateAction {
     } finally {
       if (threw) {
         LOG.error("Error when attempting perform migration changes, aborting table creation and restoring backup.");
-        try {
-          destCatalog().renameTable(backupIdentifier, sourceTableIdent());
-        } catch (NoSuchTableException nstException) {
-          throw new IllegalArgumentException("Cannot restore backup, the backup cannot be found", nstException);
-        } catch (TableAlreadyExistsException taeException) {
-          throw new IllegalArgumentException(String.format("Cannot restore backup, a table with the original name " +
-              "exists. The backup can be found with the name %s", backupIdentifier.toString()), taeException);
-        }
 
         try {
           stagedTable.abortStagedChanges();
         } catch (Exception abortException) {
-          LOG.error("Unable to abort staged changes", abortException);
+          LOG.error("Cannot abort staged changes", abortException);
+        }
+
+        try {
+          destCatalog().renameTable(backupIdentifier, sourceTableIdent());
+        } catch (org.apache.spark.sql.catalyst.analysis.NoSuchTableException nstException) {
+          throw new NoSuchTableException("Cannot restore backup '%s', the backup cannot be found", backupIdentifier);
+        } catch (org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException taeException) {
+          throw new AlreadyExistsException("Cannot restore backup, a table with the original name " +
+              "exists. The backup can be found with the name %s", backupIdentifier);
         }
       }
     }

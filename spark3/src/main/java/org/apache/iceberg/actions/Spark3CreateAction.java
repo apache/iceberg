@@ -25,6 +25,9 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
@@ -35,9 +38,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
-import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.catalyst.catalog.CatalogTable;
 import org.apache.spark.sql.catalyst.catalog.CatalogUtils;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
@@ -84,8 +84,8 @@ abstract class Spark3CreateAction implements CreateAction {
     try {
       this.sourceTable = (V1Table) this.sourceCatalog.loadTable(sourceTableIdent);
       this.sourceCatalogTable = sourceTable.v1Table();
-    } catch (NoSuchTableException e) {
-      throw new IllegalArgumentException(String.format("Cannot not find source table %s", sourceTableIdent), e);
+    } catch (org.apache.spark.sql.catalyst.analysis.NoSuchTableException e) {
+      throw new NoSuchTableException("Cannot not find source table %s", sourceTableIdent);
     } catch (ClassCastException e) {
       throw new IllegalArgumentException(String.format("Cannot use non-v1 table %s as a source", sourceTableIdent), e);
     }
@@ -141,15 +141,14 @@ abstract class Spark3CreateAction implements CreateAction {
   private void validateSourceTable() {
     String sourceTableProvider = sourceCatalogTable.provider().get().toLowerCase(Locale.ROOT);
     Preconditions.checkArgument(ALLOWED_SOURCES.contains(sourceTableProvider),
-          "Cannot create an Iceberg table from source provider: %s", sourceTableProvider);
+        "Cannot create an Iceberg table from source provider: %s", sourceTableProvider);
     Preconditions.checkArgument(!sourceCatalogTable.storage().locationUri().isEmpty(),
         "Cannot create an Iceberg table from a source without an explicit location");
   }
 
   private StagingTableCatalog checkDestinationCatalog(CatalogPlugin catalog) {
     Preconditions.checkArgument(catalog instanceof SparkSessionCatalog || catalog instanceof SparkCatalog,
-        "Cannot create Iceberg table in non Iceberg Catalog. " +
-            "Catalog %s was of class %s but %s or %s are required",
+        "Cannot create Iceberg table in non Iceberg Catalog. Catalog %s was of class %s but %s or %s are required",
         catalog.name(), catalog.getClass(), SparkSessionCatalog.class.getName(), SparkCatalog.class.getName());
 
     return (StagingTableCatalog) catalog;
@@ -161,10 +160,11 @@ abstract class Spark3CreateAction implements CreateAction {
       StructType schema = sourceTable.schema();
       Transform[] partitioning = sourceTable.partitioning();
       return destCatalog.stageCreate(destTableIdent, schema, partitioning, props);
-    } catch (NoSuchNamespaceException e) {
-      throw new IllegalArgumentException("Cannot create a new table in a namespace which does not exist", e);
-    } catch (TableAlreadyExistsException e) {
-      throw new IllegalArgumentException("Destination table already exists", e);
+    } catch (org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException e) {
+      throw new NoSuchNamespaceException("Cannot create a table '%s' because the namespace does not exist",
+          destTableIdent);
+    } catch (org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException e) {
+      throw new AlreadyExistsException("Cannot create table '%s' because it already exists", destTableIdent);
     }
   }
 

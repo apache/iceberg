@@ -75,7 +75,12 @@ class Spark3SnapshotAction extends Spark3CreateAction implements SnapshotAction 
     } finally {
       if (threw) {
         LOG.error("Error when attempting to commit snapshot changes, rolling back");
-        stagedTable.abortStagedChanges();
+
+        try {
+          stagedTable.abortStagedChanges();
+        } catch (Exception abortException) {
+          LOG.error("Cannot abort staged changes", abortException);
+        }
       }
     }
 
@@ -112,18 +117,13 @@ class Spark3SnapshotAction extends Spark3CreateAction implements SnapshotAction 
   @Override
   protected TableCatalog checkSourceCatalog(CatalogPlugin catalog) {
     // Currently the Import code relies on being able to look up the table in the session code
-    if (!(catalog.name().equals("spark_catalog"))) {
-      throw new IllegalArgumentException(String.format(
-          "Cannot snapshot a table that isn't in spark_catalog, the session catalog. " +
-              "Found source catalog %s", catalog.name()));
-    }
+    Preconditions.checkArgument(catalog.name().equals("spark_catalog"),
+        "Cannot snapshot a table that isn't in spark_catalog, the session catalog. Found source catalog %s",
+        catalog.name());
 
-    if (!(catalog instanceof TableCatalog)) {
-      throw new IllegalArgumentException(String.format(
-          "Cannot snapshot a table from a non-table catalog %s. Catalog has class of %s.", catalog.name(),
-          catalog.getClass().toString()
-      ));
-    }
+    Preconditions.checkArgument(catalog instanceof TableCatalog,
+        "Cannot snapshot a table from a non-table catalog %s. Catalog has class of %s.", catalog.name(),
+        catalog.getClass().toString());
 
     return (TableCatalog) catalog;
   }
