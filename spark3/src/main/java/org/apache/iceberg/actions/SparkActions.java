@@ -20,10 +20,42 @@
 package org.apache.iceberg.actions;
 
 import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 
-class SparkActions extends Actions {
+public class SparkActions extends Actions {
   protected SparkActions(SparkSession spark, Table table) {
     super(spark, table);
+  }
+
+  public static CreateAction migrate(String tableName) {
+    return migrate(SparkSession.active(), tableName);
+  }
+
+  public static CreateAction migrate(SparkSession spark, String tableName) {
+    CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
+    CatalogAndIdentifier catalogAndIdentifier;
+    catalogAndIdentifier = Spark3Util.catalogAndIdentifier("migrate target", spark, tableName, defaultCatalog);
+    return new Spark3MigrateAction(spark, catalogAndIdentifier.catalog(), catalogAndIdentifier.identifier());
+  }
+
+  public static SnapshotAction snapshot(String sourceId, String destId) {
+    return snapshot(SparkSession.active(), sourceId, destId);
+  }
+
+  public static SnapshotAction snapshot(SparkSession spark, String sourceId, String destId) {
+    CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
+    CatalogAndIdentifier sourceIdent = Spark3Util.catalogAndIdentifier("snapshot source", spark, sourceId,
+        defaultCatalog);
+    CatalogAndIdentifier destIdent = Spark3Util.catalogAndIdentifier("snapshot destination", spark, destId,
+        defaultCatalog);
+
+    Preconditions.checkArgument(sourceIdent != destIdent || sourceIdent.catalog() != destIdent.catalog(),
+        "Cannot create a snapshot with the same name as the source of the snapshot.");
+    return new Spark3SnapshotAction(spark, sourceIdent.catalog(), sourceIdent.identifier(), destIdent.catalog(),
+        destIdent.identifier());
   }
 }

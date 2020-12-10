@@ -38,7 +38,7 @@ import org.junit.BeforeClass;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 
-public class SparkTestBase {
+public abstract class SparkTestBase {
 
   protected static final Object ANY = new Object();
 
