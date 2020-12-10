@@ -21,13 +21,13 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.PathIdentifier;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -45,11 +45,9 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * How paths/tables are loaded when using spark.read().format("iceberg").path(table)
  *
  *  table = "file:/path/to/table" -> loads a HadoopTable at given path
- *  table = "catalog.`file:/path/to/table`" -> fails. Don't set a catalog for paths
- *  table = "catalog.namespace.`file:/path/to/table`" -> fails. Namespace doesn't exist for paths
  *  table = "tablename" -> loads currentCatalog.currentNamespace.tablename
  *  table = "catalog.tablename" -> load "tablename" from the specified catalog.
- *  table = "namespace.tablename" -> Otherwise load "namespace.tablename" from current catalog
+ *  table = "namespace.tablename" -> load "namespace.tablename" from current catalog
  *  table = "catalog.namespace.tablename" -> "namespace.tablename" from the specified catalog.
  *  table = "namespace1.namespace2.tablename" -> load "namespace1.namespace2.tablename" from current catalog
  *
@@ -57,7 +55,6 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions {
   private static final String DEFAULT_CATALOG_NAME = "default_iceberg";
   private static final String DEFAULT_CATALOG = "spark.sql.catalog." + DEFAULT_CATALOG_NAME;
-  private static final Splitter DOT = Splitter.on(".");
 
   @Override
   public String shortName() {
@@ -81,10 +78,10 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
 
   @Override
   public Table getTable(StructType schema, Transform[] partitioning, Map<String, String> options) {
-    String catalogName = extractCatalog(new CaseInsensitiveStringMap(options));
-    Identifier ident = extractIdentifier(new CaseInsensitiveStringMap(options));
-    CatalogManager catalogManager = SparkSession.active().sessionState().catalogManager();
-    CatalogPlugin catalog = catalogManager.catalog(catalogName);
+    Spark3Util.CatalogAndIdentifier catalogIdentifier = catalogAndIdentifier(new CaseInsensitiveStringMap(options));
+    CatalogPlugin catalog = catalogIdentifier.catalog();
+    Identifier ident = catalogIdentifier.identifier();
+
     try {
       if (catalog instanceof TableCatalog) {
         return ((TableCatalog) catalog).loadTable(ident);
@@ -93,6 +90,7 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
       // throwing an iceberg NoSuchTableException because the Spark one is typed and cant be thrown from this interface
       throw new org.apache.iceberg.exceptions.NoSuchTableException(e, "Cannot find table for %s.", ident);
     }
+
     // throwing an iceberg NoSuchTableException because the Spark one is typed and cant be thrown from this interface
     throw new org.apache.iceberg.exceptions.NoSuchTableException("Cannot find table for %s.", ident);
   }
@@ -109,8 +107,14 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
       return new Spark3Util.CatalogAndIdentifier(catalogManager.catalog(DEFAULT_CATALOG_NAME),
           new PathIdentifier(path));
     }
-    Spark3Util.CatalogAndIdentifier catalogAndIdentifier = Spark3Util.catalogAndIdentifier(spark,
-        DOT.splitToList(path));
+
+    final Spark3Util.CatalogAndIdentifier catalogAndIdentifier;
+    try {
+      catalogAndIdentifier = Spark3Util.catalogAndIdentifier(spark, path);
+    } catch (ParseException e) {
+      throw new IllegalArgumentException(String.format("Cannot parse path %s. It is not a valid SQL table", path), e);
+    }
+
     if (catalogAndIdentifier.catalog().name().equals("spark_catalog") &&
         !(catalogAndIdentifier.catalog() instanceof SparkSessionCatalog)) {
       // catalog is a session catalog but does not support Iceberg. Use Iceberg instead.

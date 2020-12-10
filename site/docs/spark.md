@@ -332,8 +332,6 @@ the identifier is specified. When using `spark.read().format("iceberg").path(tab
 variable can take a number of forms as listed below:
 
 *  `file:/path/to/table` -> loads a HadoopTable at given path
-*  ```catalog.`file:/path/to/table` ``` -> fails. Don't set a catalog for paths
-*  ```catalog.namespace.`file:/path/to/table` ``` -> fails. Namespace doesn't exist for paths
 *  `tablename` -> loads `currentCatalog.currentNamespace.tablename`
 *  `catalog.tablename` -> load `tablename` from the specified catalog.
 *  `namespace.tablename` -> load `namespace.tablename` from current catalog
