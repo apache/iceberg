@@ -69,8 +69,8 @@ class SparkBatchQueryScan extends SparkBatchScan {
     if (snapshotId != null || asOfTimestamp != null) {
       if (startSnapshotId != null || endSnapshotId != null) {
         throw new IllegalArgumentException(
-            "Cannot specify start-snapshot-id and end-snapshot-id to do incremental scan when either "
-                    + SparkReadOptions.SNAPSHOT_ID + " or " + SparkReadOptions.AS_OF_TIMESTAMP + " is specified");
+            "Cannot specify start-snapshot-id and end-snapshot-id to do incremental scan when either " +
+                SparkReadOptions.SNAPSHOT_ID + " or " + SparkReadOptions.AS_OF_TIMESTAMP + " is specified");
       }
     } else if (startSnapshotId == null && endSnapshotId != null) {
       throw new IllegalArgumentException("Cannot only specify option end-snapshot-id to do incremental scan");
