@@ -36,25 +36,30 @@ import org.apache.iceberg.flink.source.FlinkSource;
 
 /**
  * Flink Iceberg table source.
- * TODO: Implement {@link FilterableTableSource} and {@link LimitableTableSource}.
+ * TODO: Implement {@link FilterableTableSource}
  */
-public class IcebergTableSource implements StreamTableSource<RowData>, ProjectableTableSource<RowData> {
+public class IcebergTableSource
+    implements StreamTableSource<RowData>, ProjectableTableSource<RowData>, LimitableTableSource<RowData> {
 
   private final TableLoader loader;
   private final TableSchema schema;
   private final Map<String, String> properties;
   private final int[] projectedFields;
+  private final boolean isLimitPushDown;
+  private final long limit;
 
   public IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> properties) {
-    this(loader, schema, properties, null);
+    this(loader, schema, properties, null, false, -1);
   }
 
   private IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> properties,
-                             int[] projectedFields) {
+                             int[] projectedFields, boolean isLimitPushDown, long limit) {
     this.loader = loader;
     this.schema = schema;
     this.properties = properties;
     this.projectedFields = projectedFields;
+    this.isLimitPushDown = isLimitPushDown;
+    this.limit = limit;
   }
 
   @Override
@@ -64,12 +69,12 @@ public class IcebergTableSource implements StreamTableSource<RowData>, Projectab
 
   @Override
   public TableSource<RowData> projectFields(int[] fields) {
-    return new IcebergTableSource(loader, schema, properties, fields);
+    return new IcebergTableSource(loader, schema, properties, fields, isLimitPushDown, limit);
   }
 
   @Override
   public DataStream<RowData> getDataStream(StreamExecutionEnvironment execEnv) {
-    return FlinkSource.forRowData().env(execEnv).tableLoader(loader).project(getProjectedSchema())
+    return FlinkSource.forRowData().env(execEnv).tableLoader(loader).project(getProjectedSchema()).limit(limit)
         .properties(properties).build();
   }
 
@@ -102,6 +107,21 @@ public class IcebergTableSource implements StreamTableSource<RowData>, Projectab
     if (projectedFields != null) {
       explain += ", ProjectedFields: " + Arrays.toString(projectedFields);
     }
+
+    if (isLimitPushDown) {
+      explain += String.format(", LimitPushDown : %d", limit);
+    }
+
     return TableConnectorUtils.generateRuntimeName(getClass(), getTableSchema().getFieldNames()) + explain;
+  }
+
+  @Override
+  public boolean isLimitPushedDown() {
+    return isLimitPushDown;
+  }
+
+  @Override
+  public TableSource<RowData> applyLimit(long newLimit) {
+    return new IcebergTableSource(loader, schema, properties, projectedFields, true, newLimit);
   }
 }

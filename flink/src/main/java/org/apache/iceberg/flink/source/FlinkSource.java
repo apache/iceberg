@@ -70,6 +70,7 @@ public class FlinkSource {
     private Table table;
     private TableLoader tableLoader;
     private TableSchema projectedSchema;
+    private long limit;
     private ScanContext context = new ScanContext();
 
     private RowDataTypeInfo rowTypeInfo;
@@ -96,6 +97,11 @@ public class FlinkSource {
 
     public Builder project(TableSchema schema) {
       this.projectedSchema = schema;
+      return this;
+    }
+
+    public Builder limit(long newLimit) {
+      this.limit = newLimit;
       return this;
     }
 
@@ -179,6 +185,8 @@ public class FlinkSource {
 
       context = context.project(projectedSchema == null ? icebergSchema :
           FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
+
+      context = context.limit(limit);
 
       return new FlinkInputFormat(tableLoader, icebergSchema, io, encryption, context);
     }
