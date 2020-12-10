@@ -78,7 +78,7 @@ public class TestSelect extends SparkCatalogTestBase {
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should push down expected filter",
-        "(float IS NOT NULL AND float = NaN)",
+        "(float IS NOT NULL AND is_nan(float))",
         Spark3Util.describe(lastScanEvent.filter()));
   }
 
