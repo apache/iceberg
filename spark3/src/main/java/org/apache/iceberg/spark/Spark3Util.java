@@ -533,9 +533,9 @@ public class Spark3Util {
         case NOT_NULL:
           return pred.ref().name() + " IS NOT NULL";
         case IS_NAN:
-          return pred.ref().name() + " = NaN";
+          return "is_nan(" + pred.ref().name() + ")";
         case NOT_NAN:
-          return pred.ref().name() + " != NaN";
+          return "not_nan(" + pred.ref().name() + ")";
         case LT:
           return pred.ref().name() + " < " + sqlString(pred.literal());
         case LT_EQ:

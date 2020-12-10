@@ -223,7 +223,7 @@ public class TestExpressionHelpers {
 
   private void assertInvalidateNaNThrows(Callable<UnboundPredicate<Double>> callable) {
     AssertHelpers.assertThrows("Should invalidate NaN input",
-        IllegalArgumentException.class, "Cannot expression literal from NaN",
+        IllegalArgumentException.class, "Cannot create expression literal from NaN",
         callable);
   }
 

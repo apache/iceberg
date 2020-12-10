@@ -54,6 +54,17 @@ public class TestHiveIcebergFilterFactory {
   }
 
   @Test
+  public void testEqualsOperandRewrite() {
+    SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
+    SearchArgument arg = builder.startAnd().equals("float", PredicateLeaf.Type.FLOAT, Double.NaN).end().build();
+
+    UnboundPredicate expected = Expressions.isNaN("float");
+    UnboundPredicate actual = (UnboundPredicate) HiveIcebergFilterFactory.generateFilterExpression(arg);
+
+    assertPredicatesMatch(expected, actual);
+  }
+
+  @Test
   public void testNotEqualsOperand() {
     SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
     SearchArgument arg = builder.startNot().equals("salary", PredicateLeaf.Type.LONG, 3000L).end().build();

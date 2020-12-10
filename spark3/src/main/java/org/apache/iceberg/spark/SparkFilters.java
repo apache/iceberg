@@ -30,6 +30,7 @@ import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.NaNUtil;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 import org.apache.spark.sql.sources.AlwaysFalse$;
 import org.apache.spark.sql.sources.AlwaysTrue$;
@@ -53,6 +54,7 @@ import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.in;
+import static org.apache.iceberg.expressions.Expressions.isNaN;
 import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
@@ -135,13 +137,13 @@ public class SparkFilters {
             // comparison with null in normal equality is always null. this is probably a mistake.
             Preconditions.checkNotNull(eq.value(),
                 "Expression is always false (eq is not null-safe): %s", filter);
-            return equal(eq.attribute(), convertLiteral(eq.value()));
+            return handleEqual(eq.attribute(), eq.value());
           } else {
             EqualNullSafe eq = (EqualNullSafe) filter;
             if (eq.value() == null) {
               return isNull(eq.attribute());
             } else {
-              return equal(eq.attribute(), convertLiteral(eq.value()));
+              return handleEqual(eq.attribute(), eq.value());
             }
           }
 
@@ -198,5 +200,13 @@ public class SparkFilters {
       return DateTimeUtils.fromJavaDate((Date) value);
     }
     return value;
+  }
+
+  private static Expression handleEqual(String attribute, Object value) {
+    if (NaNUtil.isNaN(value)) {
+      return isNaN(attribute);
+    } else {
+      return equal(attribute, convertLiteral(value));
+    }
   }
 }

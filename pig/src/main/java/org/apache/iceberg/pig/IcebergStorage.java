@@ -42,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.NaNUtil;
 import org.apache.pig.Expression;
 import org.apache.pig.Expression.BetweenExpression;
 import org.apache.pig.Expression.BinaryExpression;
@@ -234,8 +235,8 @@ public class IcebergStorage extends LoadFunc implements LoadMetadata, LoadPredic
       case OP_GT: return Expressions.greaterThan(name, value);
       case OP_LE: return Expressions.lessThanOrEqual(name, value);
       case OP_LT: return Expressions.lessThan(name, value);
-      case OP_EQ: return Expressions.equal(name, value);
-      case OP_NE: return Expressions.notEqual(name, value);
+      case OP_EQ: return NaNUtil.isNaN(value) ? Expressions.isNaN(name) : Expressions.equal(name, value);
+      case OP_NE: return NaNUtil.isNaN(value) ? Expressions.notNaN(name) : Expressions.notEqual(name, value);
     }
 
     throw new RuntimeException(

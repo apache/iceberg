@@ -49,8 +49,8 @@ public class TestSelect extends SparkCatalogTestBase {
 
   @Before
   public void createTables() {
-    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
-    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
+    sql("CREATE TABLE %s (id bigint, data string, float float) USING iceberg", tableName);
+    sql("INSERT INTO %s VALUES (1, 'a', 1.0), (2, 'b', 2.0), (3, 'c', float('NaN'))", tableName);
 
     this.scanEventCount = 0;
     this.lastScanEvent = null;
@@ -63,9 +63,23 @@ public class TestSelect extends SparkCatalogTestBase {
 
   @Test
   public void testSelect() {
-    List<Object[]> expected = ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c"));
+    List<Object[]> expected = ImmutableList.of(
+        row(1L, "a", 1.0F), row(2L, "b", 2.0F), row(3L, "c", Float.NaN));
 
     assertEquals("Should return all expected rows", expected, sql("SELECT * FROM %s", tableName));
+  }
+
+  @Test
+  public void testSelectRewrite() {
+    List<Object[]> expected = ImmutableList.of(row(3L, "c", Float.NaN));
+
+    assertEquals("Should return all expected rows", expected,
+        sql("SELECT * FROM %s where float = float('NaN')", tableName));
+
+    Assert.assertEquals("Should create only one scan", 1, scanEventCount);
+    Assert.assertEquals("Should push down expected filter",
+        "(float IS NOT NULL AND is_nan(float))",
+        Spark3Util.describe(lastScanEvent.filter()));
   }
 
   @Test
@@ -88,11 +102,11 @@ public class TestSelect extends SparkCatalogTestBase {
     assertEquals("Should return all expected rows", expected, sql("SELECT data FROM %s WHERE id = 2", tableName));
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should not push down a filter",
+    Assert.assertEquals("Should push down expected filter",
         "(id IS NOT NULL AND id = 2)",
         Spark3Util.describe(lastScanEvent.filter()));
-    Assert.assertEquals("Should project only the id column",
-        validationCatalog.loadTable(tableIdent).schema().asStruct(),
+    Assert.assertEquals("Should project only id and data columns",
+        validationCatalog.loadTable(tableIdent).schema().select("id", "data").asStruct(),
         lastScanEvent.projection().asStruct());
   }
 
