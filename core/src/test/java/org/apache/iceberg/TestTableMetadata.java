@@ -541,7 +541,7 @@ public class TestTableMetadata {
     TableMetadata meta = TableMetadata.newTableMetadata(
         schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
     Assert.assertTrue("Should default to unsorted order", meta.sortOrder().isUnsorted());
-    Assert.assertSame("Should detect identical unsorted order", meta, meta.updateSortOrder(SortOrder.unsorted()));
+    Assert.assertSame("Should detect identical unsorted order", meta, meta.replaceSortOrder(SortOrder.unsorted()));
   }
 
   @Test
@@ -566,15 +566,15 @@ public class TestTableMetadata {
     // build an equivalent order with the correct schema
     SortOrder newOrder = SortOrder.builderFor(sortedByX.schema()).asc("x").build();
 
-    TableMetadata alsoSortedByX = sortedByX.updateSortOrder(newOrder);
+    TableMetadata alsoSortedByX = sortedByX.replaceSortOrder(newOrder);
     Assert.assertSame("Should detect current sortOrder and not update", alsoSortedByX, sortedByX);
 
-    TableMetadata unsorted = alsoSortedByX.updateSortOrder(SortOrder.unsorted());
+    TableMetadata unsorted = alsoSortedByX.replaceSortOrder(SortOrder.unsorted());
     Assert.assertEquals("Should have 2 sort orders", 2, unsorted.sortOrders().size());
     Assert.assertEquals("Should use orderId 0", 0, unsorted.sortOrder().orderId());
     Assert.assertTrue("Should be unsorted", unsorted.sortOrder().isUnsorted());
 
-    TableMetadata sortedByXDesc = unsorted.updateSortOrder(SortOrder.builderFor(unsorted.schema()).desc("x").build());
+    TableMetadata sortedByXDesc = unsorted.replaceSortOrder(SortOrder.builderFor(unsorted.schema()).desc("x").build());
     Assert.assertEquals("Should have 3 sort orders", 3, sortedByXDesc.sortOrders().size());
     Assert.assertEquals("Should use orderId 2", 2, sortedByXDesc.sortOrder().orderId());
     Assert.assertEquals("Should be sorted by one field", 1, sortedByXDesc.sortOrder().fields().size());

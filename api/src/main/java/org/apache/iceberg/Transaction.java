@@ -48,6 +48,13 @@ public interface Transaction {
   UpdateProperties updateProperties();
 
   /**
+   * Create a new {@link ReplaceSortOrder} to set a table sort order and commit the change.
+   *
+   * @return a new {@link ReplaceSortOrder}
+   */
+  ReplaceSortOrder replaceSortOrder();
+
+  /**
    * Create a new {@link UpdateLocation} to update table location.
    *
    * @return a new {@link UpdateLocation}

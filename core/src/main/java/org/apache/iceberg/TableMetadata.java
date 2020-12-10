@@ -491,7 +491,7 @@ public class TableMetadata implements Serializable {
         currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
-  public TableMetadata updateSortOrder(SortOrder newOrder) {
+  public TableMetadata replaceSortOrder(SortOrder newOrder) {
     SortOrder.checkCompatibility(newOrder, schema);
 
     // determine the next order id

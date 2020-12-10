@@ -111,6 +111,14 @@ class BaseTransaction implements Transaction {
   }
 
   @Override
+  public ReplaceSortOrder replaceSortOrder() {
+    checkLastOperationCommitted("ReplaceSortOrder");
+    ReplaceSortOrder replaceSortOrder = new BaseReplaceSortOrder(transactionOps);
+    updates.add(replaceSortOrder);
+    return replaceSortOrder;
+  }
+
+  @Override
   public UpdateLocation updateLocation() {
     checkLastOperationCommitted("UpdateLocation");
     UpdateLocation setLocation = new SetLocation(transactionOps);
@@ -562,6 +570,11 @@ class BaseTransaction implements Transaction {
     @Override
     public UpdateProperties updateProperties() {
       return BaseTransaction.this.updateProperties();
+    }
+
+    @Override
+    public ReplaceSortOrder replaceSortOrder() {
+      return BaseTransaction.this.replaceSortOrder();
     }
 
     @Override
