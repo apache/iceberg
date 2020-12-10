@@ -475,6 +475,11 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
       protected StructLike asStructLike(Record row) {
         return row;
       }
+
+      @Override
+      protected StructLike asCopiedStructLike(Record row) {
+        return row.copy();
+      }
     }
   }
 

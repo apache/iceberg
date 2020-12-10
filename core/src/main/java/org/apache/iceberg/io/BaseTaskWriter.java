@@ -105,14 +105,19 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
 
     /**
-     * Make the generic data could be read as a {@link StructLike}.
+     * Wrap the data as a {@link StructLike}.
      */
     protected abstract StructLike asStructLike(T data);
+
+    /**
+     * Copy the data as a {@link StructLike}.
+     */
+    protected abstract StructLike asCopiedStructLike(T data);
 
     public void write(T row) throws IOException {
       PathOffset pathOffset = PathOffset.of(dataWriter.currentPath(), dataWriter.currentRows());
 
-      StructLike copiedKey = structProjection.copy().wrap(asStructLike(row));
+      StructLike copiedKey = structProjection.copy().wrap(asCopiedStructLike(row));
       // Adding a pos-delete to replace the old path-offset.
       PathOffset previous = insertedRowMap.put(copiedKey, pathOffset);
       if (previous != null) {
