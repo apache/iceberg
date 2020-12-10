@@ -19,16 +19,15 @@
 
 package org.apache.iceberg.spark.procedures;
 
-import java.util.HashMap;
 import java.util.Map;
 import org.apache.iceberg.actions.SnapshotAction;
 import org.apache.iceberg.actions.Spark3SnapshotAction;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
-import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -36,12 +35,11 @@ import org.apache.spark.sql.types.StructType;
 import scala.runtime.BoxedUnit;
 
 class SnapshotProcedure extends BaseProcedure {
-  private static final DataType MAP = DataTypes.createMapType(DataTypes.StringType, DataTypes.StringType);
   private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
       ProcedureParameter.required("snapshot_source", DataTypes.StringType),
       ProcedureParameter.required("table", DataTypes.StringType),
       ProcedureParameter.optional("table_location", DataTypes.StringType),
-      ProcedureParameter.optional("table_options", MAP)
+      ProcedureParameter.optional("table_options", STRING_MAP)
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
@@ -78,7 +76,7 @@ class SnapshotProcedure extends BaseProcedure {
 
     String snapshotLocation = args.isNullAt(2) ? null : args.getString(2);
 
-    Map<String, String> options = new HashMap<>();
+    Map<String, String> options = Maps.newHashMap();
     if (!args.isNullAt(3)) {
       args.getMap(3).foreach(DataTypes.StringType, DataTypes.StringType,
           (k, v) -> {

@@ -37,9 +37,13 @@ import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 import org.apache.spark.sql.execution.CacheManager;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DataTypes;
 import scala.Option;
 
 abstract class BaseProcedure implements Procedure {
+  protected static final DataType STRING_MAP = DataTypes.createMapType(DataTypes.StringType, DataTypes.StringType);
+
   private final SparkSession spark;
   private final TableCatalog tableCatalog;
 
@@ -93,8 +97,7 @@ abstract class BaseProcedure implements Procedure {
     Preconditions.checkArgument(identifierAsString != null && !identifierAsString.isEmpty(),
         "Cannot handle an empty identifier for argument %s", argName);
 
-    return Spark3Util.catalogAndIdentifier(
-        "identifier for arg " + argName, spark, identifierAsString, catalog);
+    return Spark3Util.catalogAndIdentifier("identifier for arg " + argName, spark, identifierAsString, catalog);
   }
 
   protected SparkTable loadSparkTable(Identifier ident) {

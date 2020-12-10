@@ -27,7 +27,6 @@ import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
-import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -35,10 +34,9 @@ import org.apache.spark.sql.types.StructType;
 import scala.runtime.BoxedUnit;
 
 class MigrateProcedure extends BaseProcedure {
-  private static final DataType MAP = DataTypes.createMapType(DataTypes.StringType, DataTypes.StringType);
   private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
       ProcedureParameter.required("table", DataTypes.StringType),
-      ProcedureParameter.optional("table_options", MAP)
+      ProcedureParameter.optional("table_options", STRING_MAP)
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
