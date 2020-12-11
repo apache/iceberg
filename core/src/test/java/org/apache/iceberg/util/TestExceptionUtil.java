@@ -35,15 +35,16 @@ public class TestExceptionUtil {
 
   @Test
   public void testRunSafely() {
-     CustomCheckedException exc = new CustomCheckedException("test");
+    CustomCheckedException exc = new CustomCheckedException("test");
     try {
       ExceptionUtil.runSafely(() -> {
-        throw exc;
-      }, (e) -> {
-        throw new Exception("test catch suppression");
-      }, () -> {
-        throw new RuntimeException("test finally suppression");
-      }, CustomCheckedException.class);
+            throw exc;
+          }, e -> {
+            throw new Exception("test catch suppression");
+          }, () -> {
+            throw new RuntimeException("test finally suppression");
+          }, CustomCheckedException.class
+      );
 
       Assert.fail("Should have thrown CustomCheckedException");
 
