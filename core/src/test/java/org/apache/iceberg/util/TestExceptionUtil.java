@@ -35,7 +35,7 @@ public class TestExceptionUtil {
 
   @Test
   public void testRunSafely() {
-    CustomCheckedException exc = new CustomCheckedException("test");
+     CustomCheckedException exc = new CustomCheckedException("test");
     try {
       ExceptionUtil.runSafely(() -> {
         throw exc;
