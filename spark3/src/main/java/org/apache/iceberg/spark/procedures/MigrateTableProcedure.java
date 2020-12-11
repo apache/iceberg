@@ -70,7 +70,7 @@ class MigrateTableProcedure extends BaseProcedure {
   @Override
   public InternalRow[] call(InternalRow args) {
     String tableName = args.getString(0);
-    CatalogAndIdentifier tableIdent = toCatalogAdnIdentifier(tableName, PARAMETERS[0].name(), tableCatalog());
+    CatalogAndIdentifier catalogAndIdent = toCatalogAndIdentifier(tableName, PARAMETERS[0].name(), tableCatalog());
 
     Map<String, String> properties = Maps.newHashMap();
     if (!args.isNullAt(1)) {
@@ -81,7 +81,7 @@ class MigrateTableProcedure extends BaseProcedure {
           });
     }
 
-    CreateAction action = new Spark3MigrateAction(spark(), tableIdent.catalog(), tableIdent.identifier());
+    CreateAction action = new Spark3MigrateAction(spark(), catalogAndIdent.catalog(), catalogAndIdent.identifier());
 
     long numMigratedFiles = action.withProperties(properties).execute();
     return new InternalRow[] {newInternalRow(numMigratedFiles)};

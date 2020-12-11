@@ -82,7 +82,7 @@ abstract class BaseProcedure implements Procedure {
   }
 
   protected Identifier toIdentifier(String identifierAsString, String argName) {
-    CatalogAndIdentifier catalogAndIdentifier = toCatalogAdnIdentifier(identifierAsString, argName, tableCatalog);
+    CatalogAndIdentifier catalogAndIdentifier = toCatalogAndIdentifier(identifierAsString, argName, tableCatalog);
 
     Preconditions.checkArgument(
         catalogAndIdentifier.catalog().equals(tableCatalog),
@@ -92,7 +92,7 @@ abstract class BaseProcedure implements Procedure {
     return catalogAndIdentifier.identifier();
   }
 
-  protected CatalogAndIdentifier toCatalogAdnIdentifier(String identifierAsString, String argName,
+  protected CatalogAndIdentifier toCatalogAndIdentifier(String identifierAsString, String argName,
                                                         CatalogPlugin catalog) {
     Preconditions.checkArgument(identifierAsString != null && !identifierAsString.isEmpty(),
         "Cannot handle an empty identifier for argument %s", argName);

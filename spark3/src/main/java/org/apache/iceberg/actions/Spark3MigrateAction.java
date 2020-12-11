@@ -117,8 +117,10 @@ public class Spark3MigrateAction extends Spark3CreateAction {
   @Override
   protected Map<String, String> targetTableProps() {
     Map<String, String> properties = Maps.newHashMap();
+
     properties.putAll(JavaConverters.mapAsJavaMapConverter(v1SourceTable().properties()).asJava());
     EXCLUDED_PROPERTIES.forEach(properties::remove);
+
     properties.put(TableCatalog.PROP_PROVIDER, "iceberg");
     properties.put("migrated", "true");
     properties.putAll(additionalProperties());
