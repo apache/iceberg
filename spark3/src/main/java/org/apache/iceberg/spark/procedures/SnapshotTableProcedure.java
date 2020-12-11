@@ -34,27 +34,27 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import scala.runtime.BoxedUnit;
 
-class SnapshotProcedure extends BaseProcedure {
+class SnapshotTableProcedure extends BaseProcedure {
   private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
-      ProcedureParameter.required("snapshot_source", DataTypes.StringType),
+      ProcedureParameter.required("source_table", DataTypes.StringType),
       ProcedureParameter.required("table", DataTypes.StringType),
       ProcedureParameter.optional("table_location", DataTypes.StringType),
-      ProcedureParameter.optional("table_options", STRING_MAP)
+      ProcedureParameter.optional("properties", STRING_MAP)
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
-      new StructField("num_datafiles_included", DataTypes.LongType, false, Metadata.empty())
+      new StructField("imported_datafiles_count", DataTypes.LongType, false, Metadata.empty())
   });
 
-  private SnapshotProcedure(TableCatalog tableCatalog) {
+  private SnapshotTableProcedure(TableCatalog tableCatalog) {
     super(tableCatalog);
   }
 
   public static SparkProcedures.ProcedureBuilder builder() {
-    return new BaseProcedure.Builder<SnapshotProcedure>() {
+    return new BaseProcedure.Builder<SnapshotTableProcedure>() {
       @Override
-      protected SnapshotProcedure doBuild() {
-        return new SnapshotProcedure(tableCatalog());
+      protected SnapshotTableProcedure doBuild() {
+        return new SnapshotTableProcedure(tableCatalog());
       }
     };
   }
@@ -72,7 +72,10 @@ class SnapshotProcedure extends BaseProcedure {
   @Override
   public InternalRow[] call(InternalRow args) {
     String source = args.getString(0);
+    CatalogAndIdentifier sourceIdent = toCatalogAdnIdentifier(source, PARAMETERS[0].name(), tableCatalog());
+
     String dest = args.getString(1);
+    CatalogAndIdentifier destIdent = toCatalogAdnIdentifier(dest, PARAMETERS[1].name(), tableCatalog());
 
     String snapshotLocation = args.isNullAt(2) ? null : args.getString(2);
 
@@ -85,28 +88,24 @@ class SnapshotProcedure extends BaseProcedure {
           });
     }
 
-    CatalogAndIdentifier sourceIdent = toCatalogAndIdentifer(source, PARAMETERS[0].name(), tableCatalog());
-    CatalogAndIdentifier destIdent = toCatalogAndIdentifer(dest, PARAMETERS[1].name(), tableCatalog());
-
     Preconditions.checkArgument(sourceIdent != destIdent || sourceIdent.catalog() != destIdent.catalog(),
         "Cannot create a snapshot with the same name as the source of the snapshot.");
     SnapshotAction action =  new Spark3SnapshotAction(spark(), sourceIdent.catalog(), sourceIdent.identifier(),
         destIdent.catalog(), destIdent.identifier());
 
-    long numFiles;
+    long importedDataFiles;
     if (snapshotLocation != null) {
-      numFiles = action.withLocation(snapshotLocation).withProperties(options).execute();
+      importedDataFiles = action.withLocation(snapshotLocation).withProperties(options).execute();
     } else {
-      numFiles = action.withProperties(options).execute();
+      importedDataFiles = action.withProperties(options).execute();
     }
 
-    return new InternalRow[] {newInternalRow(numFiles)};
+    return new InternalRow[] {newInternalRow(importedDataFiles)};
   }
 
   @Override
   public String description() {
-    return "Creates an Iceberg table from a Spark Table. The Created table will be isolated from the original table" +
-        "and can be modified without modifying the original table.";
+    return "SnapshotTableProcedure";
   }
 
 }

@@ -87,7 +87,7 @@ constant
     ;
 
 stringMap
-    : MAP '(' STRING (',' STRING)* ')'
+    : MAP '(' constant (',' constant)* ')'
     ;
 
 booleanValue

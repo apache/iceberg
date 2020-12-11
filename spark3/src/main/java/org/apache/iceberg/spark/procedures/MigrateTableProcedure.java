@@ -19,11 +19,12 @@
 
 package org.apache.iceberg.spark.procedures;
 
-import java.util.HashMap;
 import java.util.Map;
 import org.apache.iceberg.actions.CreateAction;
 import org.apache.iceberg.actions.Spark3MigrateAction;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
+import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
@@ -33,25 +34,25 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import scala.runtime.BoxedUnit;
 
-class MigrateProcedure extends BaseProcedure {
+class MigrateTableProcedure extends BaseProcedure {
   private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
       ProcedureParameter.required("table", DataTypes.StringType),
-      ProcedureParameter.optional("table_options", STRING_MAP)
+      ProcedureParameter.optional("properties", STRING_MAP)
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
-      new StructField("num_datafiles_included", DataTypes.LongType, false, Metadata.empty())
+      new StructField("migrated_files_count", DataTypes.LongType, false, Metadata.empty())
   });
 
-  private MigrateProcedure(TableCatalog tableCatalog) {
+  private MigrateTableProcedure(TableCatalog tableCatalog) {
     super(tableCatalog);
   }
 
-  public static SparkProcedures.ProcedureBuilder builder() {
-    return new BaseProcedure.Builder<MigrateProcedure>() {
+  public static ProcedureBuilder builder() {
+    return new BaseProcedure.Builder<MigrateTableProcedure>() {
       @Override
-      protected MigrateProcedure doBuild() {
-        return new MigrateProcedure(tableCatalog());
+      protected MigrateTableProcedure doBuild() {
+        return new MigrateTableProcedure(tableCatalog());
       }
     };
   }
@@ -68,26 +69,26 @@ class MigrateProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    Map<String, String> options = new HashMap<>();
+    String tableName = args.getString(0);
+    CatalogAndIdentifier tableIdent = toCatalogAdnIdentifier(tableName, PARAMETERS[0].name(), tableCatalog());
+
+    Map<String, String> properties = Maps.newHashMap();
     if (!args.isNullAt(1)) {
       args.getMap(1).foreach(DataTypes.StringType, DataTypes.StringType,
           (k, v) -> {
-            options.put(k.toString(), v.toString());
+            properties.put(k.toString(), v.toString());
             return BoxedUnit.UNIT;
           });
     }
 
-    String tableName = args.getString(0);
-    CatalogAndIdentifier tableIdent = toCatalogAndIdentifer(tableName, PARAMETERS[0].name(), tableCatalog());
-    CreateAction action =  new Spark3MigrateAction(spark(), tableIdent.catalog(), tableIdent.identifier());
+    CreateAction action = new Spark3MigrateAction(spark(), tableIdent.catalog(), tableIdent.identifier());
 
-    long numFiles = action.withProperties(options).execute();
-    return new InternalRow[] {newInternalRow(numFiles)};
+    long numMigratedFiles = action.withProperties(properties).execute();
+    return new InternalRow[] {newInternalRow(numMigratedFiles)};
   }
 
   @Override
   public String description() {
-    return "Migrate a Spark table to Iceberg. The identifier for the table will not change but all files will now" +
-        "be read and written through Iceberg.";
+    return "MigrateTableProcedure";
   }
 }

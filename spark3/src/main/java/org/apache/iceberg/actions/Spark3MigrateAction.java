@@ -122,6 +122,8 @@ public class Spark3MigrateAction extends Spark3CreateAction {
     properties.put(TableCatalog.PROP_PROVIDER, "iceberg");
     properties.put("migrated", "true");
     properties.putAll(additionalProperties());
+    properties.putIfAbsent(LOCATION, sourceTableLocation());
+
     return properties;
   }
 

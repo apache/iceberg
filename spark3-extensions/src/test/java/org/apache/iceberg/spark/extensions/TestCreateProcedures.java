@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.extensions;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
@@ -53,12 +54,15 @@ public class TestCreateProcedures extends SparkExtensionsTestBase {
   public void testMigrate() throws IOException {
     Assume.assumeTrue(catalogName.equals("spark_catalog"));
     String location = temp.newFolder().toString();
-    sql("DROP TABLE IF EXISTS %s_BACKUP_", tableName);
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", tableName, location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
-    Object[] result = sql("CALL %s.system.migrate('%s')", catalogName, tableName).get(0);
+    Object result = scalarSql("CALL %s.system.migrate('%s')", catalogName, tableName);
 
-    Assert.assertEquals("Should have migrated one file", 1L, result[0]);
+    Assert.assertEquals("Should have migrated one file", 1L, result);
+
+    Table createdTable = validationCatalog.loadTable(tableIdent);
+    String tableLocation = createdTable.location().replace("file:", "");
+    Assert.assertEquals("Table should have original location", location, tableLocation);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
@@ -73,12 +77,18 @@ public class TestCreateProcedures extends SparkExtensionsTestBase {
     String location = temp.newFolder().toString();
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", tableName, location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
-    Object[] result = sql("CALL %s.system.migrate('%s', map('foo', 'bar'))", catalogName, tableName).get(0);
 
-    Assert.assertEquals("Should have migrated one file", 1L, result[0]);
+    Object result = scalarSql("CALL %s.system.migrate('%s', map('foo', 'bar'))", catalogName, tableName);
 
-    Map<String, String> props = validationCatalog.loadTable(tableIdent).properties();
+    Assert.assertEquals("Should have migrated one file", 1L, result);
+
+    Table createdTable = validationCatalog.loadTable(tableIdent);
+
+    Map<String, String> props = createdTable.properties();
     Assert.assertEquals("Should have extra property set", "bar", props.get("foo"));
+
+    String tableLocation = createdTable.location().replace("file:", "");
+    Assert.assertEquals("Table should have original location", location, tableLocation);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
@@ -97,6 +107,10 @@ public class TestCreateProcedures extends SparkExtensionsTestBase {
 
     Assert.assertEquals("Should have migrated one file", 1L, result[0]);
 
+    Table createdTable = validationCatalog.loadTable(tableIdent);
+    String tableLocation = createdTable.location();
+    Assert.assertNotEquals("Table should not have the original location", location, tableLocation);
+
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
     assertEquals("Should have expected rows",
@@ -110,13 +124,15 @@ public class TestCreateProcedures extends SparkExtensionsTestBase {
     sql("CREATE TABLE IF NOT EXISTS %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", sourceName,
         location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
-    Object[] result = sql(
-        "CALL %s.system.snapshot( snapshot_source => '%s', table => '%s', table_options => map('foo','bar'))",
-        catalogName, sourceName, tableName).get(0);
+    Object result = scalarSql(
+        "CALL %s.system.snapshot( source_table => '%s', table => '%s', properties => map('foo','bar'))",
+        catalogName, sourceName, tableName);
 
-    Assert.assertEquals("Should have migrated one file", 1L, result[0]);
+    Assert.assertEquals("Should have migrated one file", 1L, result);
 
-    Map<String, String> props = validationCatalog.loadTable(tableIdent).properties();
+    Table createdTable = validationCatalog.loadTable(tableIdent);
+
+    Map<String, String> props = createdTable.properties();
     Assert.assertEquals("Should have extra property set", "bar", props.get("foo"));
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -135,7 +151,7 @@ public class TestCreateProcedures extends SparkExtensionsTestBase {
         location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
     Object[] result = sql(
-        "CALL %s.system.snapshot( snapshot_source => '%s', table => '%s', table_location => '%s')",
+        "CALL %s.system.snapshot( source_table => '%s', table => '%s', table_location => '%s')",
         catalogName, sourceName, tableName, snapshotLocation).get(0);
 
     Assert.assertEquals("Should have migrated one file", 1L, result[0]);
