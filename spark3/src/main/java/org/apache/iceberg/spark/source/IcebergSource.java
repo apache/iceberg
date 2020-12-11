@@ -27,7 +27,6 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -97,9 +96,9 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
 
   private Spark3Util.CatalogAndIdentifier catalogAndIdentifier(CaseInsensitiveStringMap options) {
     Preconditions.checkArgument(options.containsKey("path"), "Cannot open table: path is not set");
-    setupDefaultSparkCatalog();
-    String path = options.get("path");
     SparkSession spark = SparkSession.active();
+    setupDefaultSparkCatalog(spark);
+    String path = options.get("path");
     CatalogManager catalogManager = spark.sessionState().catalogManager();
 
     if (path.contains("/")) {
@@ -108,12 +107,8 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
           new PathIdentifier(path));
     }
 
-    final Spark3Util.CatalogAndIdentifier catalogAndIdentifier;
-    try {
-      catalogAndIdentifier = Spark3Util.catalogAndIdentifier(spark, path);
-    } catch (ParseException e) {
-      throw new IllegalArgumentException(String.format("Cannot parse path %s. It is not a valid SQL table", path), e);
-    }
+    final Spark3Util.CatalogAndIdentifier catalogAndIdentifier = Spark3Util.catalogAndIdentifier(
+        "Cannot parse path %s. It is not a valid SQL table", spark, path);
 
     if (catalogAndIdentifier.catalog().name().equals("spark_catalog") &&
         !(catalogAndIdentifier.catalog() instanceof SparkSessionCatalog)) {
@@ -135,8 +130,7 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
     return catalogAndIdentifier(options).catalog().name();
   }
 
-  private static void setupDefaultSparkCatalog() {
-    SparkSession spark = SparkSession.active();
+  private static void setupDefaultSparkCatalog(SparkSession spark) {
     if (spark.conf().contains(DEFAULT_CATALOG)) {
       return;
     }

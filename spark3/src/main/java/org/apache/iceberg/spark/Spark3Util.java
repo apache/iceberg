@@ -645,6 +645,10 @@ public class Spark3Util {
     return catalogAndIdentifier(spark, javaMultiPartIdentifier, defaultCatalog);
   }
 
+  public static CatalogAndIdentifier catalogAndIdentifier(String description, SparkSession spark, String name) {
+    return catalogAndIdentifier(description, spark, name, spark.sessionState().catalogManager().currentCatalog());
+  }
+
   public static CatalogAndIdentifier catalogAndIdentifier(String description, SparkSession spark,
                                                           String name, CatalogPlugin defaultCatalog) {
     try {
