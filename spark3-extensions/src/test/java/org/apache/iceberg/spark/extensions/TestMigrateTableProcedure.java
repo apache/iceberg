@@ -25,7 +25,6 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
-import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -45,6 +44,7 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
   @After
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
+    sql("DROP TABLE IF EXISTS %s_BACKUP_", tableName);
   }
 
   @Test
@@ -67,6 +67,8 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1L, "a"), row(1L, "a")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    sql("DROP TABLE %s", tableName + "_BACKUP_");
   }
 
   @Test
@@ -93,6 +95,8 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1L, "a"), row(1L, "a")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    sql("DROP TABLE %s", tableName + "_BACKUP_");
   }
 
   @Test

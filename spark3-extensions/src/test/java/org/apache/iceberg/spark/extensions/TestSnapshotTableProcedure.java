@@ -25,7 +25,6 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
-import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -53,7 +52,7 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
   @Test
   public void testSnapshot() throws IOException {
     String location = temp.newFolder().toString();
-    sql("CREATE TABLE IF NOT EXISTS %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", sourceName,
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", sourceName,
         location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
     Object[] result = sql("CALL %s.system.snapshot('%s', '%s')", catalogName, sourceName, tableName).get(0);
@@ -74,7 +73,7 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
   @Test
   public void testSnapshotWithOptions() throws IOException {
     String location = temp.newFolder().toString();
-    sql("CREATE TABLE IF NOT EXISTS %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", sourceName,
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", sourceName,
         location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
     Object result = scalarSql(
@@ -103,7 +102,7 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     Assume.assumeTrue("No Snapshoting with Alternate locations with Hadoop Catalogs", !catalogName.contains("hadoop"));
     String location = temp.newFolder().toString();
     String snapshotLocation = temp.newFolder().toString();
-    sql("CREATE TABLE IF NOT EXISTS %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", sourceName,
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", sourceName,
         location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
     Object[] result = sql(
