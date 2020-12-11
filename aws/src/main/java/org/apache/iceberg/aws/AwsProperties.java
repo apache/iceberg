@@ -28,6 +28,8 @@ public class AwsProperties {
 
   /**
    * Type of S3 Server side encryption used, default to {@link AwsProperties#S3FILEIO_SSE_TYPE_NONE}.
+   * <p>
+   * For more details: https://docs.aws.amazon.com/AmazonS3/latest/dev/serv-side-encryption.html
    */
   public static final String S3FILEIO_SSE_TYPE = "s3fileio.sse.type";
 
@@ -38,18 +40,21 @@ public class AwsProperties {
 
   /**
    * S3 SSE-KMS encryption.
+   * <p>
    * For more details: https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingKMSEncryption.html
    */
   public static final String S3FILEIO_SSE_TYPE_KMS = "kms";
 
   /**
    * S3 SSE-S3 encryption.
+   * <p>
    * For more details: https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html
    */
   public static final String S3FILEIO_SSE_TYPE_S3 = "s3";
 
   /**
    * S3 SSE-C encryption.
+   * <p>
    * For more details: https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerSideEncryptionCustomerKeys.html
    */
   public static final String S3FILEIO_SSE_TYPE_CUSTOM = "custom";
@@ -70,6 +75,7 @@ public class AwsProperties {
   /**
    * The ID of the Glue Data Catalog where the tables reside.
    * If none is provided, Glue automatically uses the caller's AWS account ID by default.
+   * <p>
    * For more details, see https://docs.aws.amazon.com/glue/latest/dg/aws-glue-api-catalog-databases.html
    */
   public static final String GLUE_CATALOG_ID = "gluecatalog.id";
@@ -84,14 +90,21 @@ public class AwsProperties {
   public static final boolean GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT = false;
 
   /**
-   * Number of threads to use for uploading parts to S3 (shared pool across all output streams).
+   * Number of threads to use for uploading parts to S3 (shared pool across all output streams),
+   * default to {@link Runtime#availableProcessors()}
    */
   public static final String S3FILEIO_MULTIPART_UPLOAD_THREADS  = "s3fileio.multipart.num-threads";
 
   /**
-   * The size of a single part for multipart upload requests (default: 32MB).
+   * The size of a single part for multipart upload requests in bytes (default: 32MB).
+   * based on S3 requirement, the part size must be at least 5MB.
+   * Too ensure performance of the reader and writer, the part size must be less than 2GB.
+   * <p>
+   * For more details, see https://docs.aws.amazon.com/AmazonS3/latest/dev/qfacts.html
    */
   public static final String S3FILEIO_MULTIPART_SIZE = "s3fileio.multipart.part.size";
+  public static final int S3FILEIO_MULTIPART_SIZE_DEFAULT = 32 * 1024 * 1024;
+  public static final int S3FILEIO_MULTIPART_SIZE_MIN = 5 * 1024 * 1024;
 
   /**
    * The threshold expressed as a factor times the multipart size at which to
@@ -99,25 +112,22 @@ public class AwsProperties {
    * (default: 1.5).
    */
   public static final String S3FILEIO_MULTIPART_THRESHOLD_FACTOR = "s3fileio.multipart.threshold";
+  public static final double S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT = 1.5;
 
   /**
-   * Location to put staging files for upload to S3.
+   * Location to put staging files for upload to S3, default to temp directory set in java.io.tmpdir.
    */
   public static final String S3FILEIO_STAGING_DIRECTORY = "s3fileio.staging.dir";
 
   /**
-   * Used to set canned access control list for S3 client to use during write.
-   * For more details: https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html
+   * Used to configure canned access control list (ACL) for S3 client to use during write.
+   * If not set, ACL will not be set for requests.
+   * <p>
    * The input must be one of {@link software.amazon.awssdk.services.s3.model.ObjectCannedACL},
    * such as 'public-read-write'
-   * If not set, ACL will not be set for requests.
+   * For more details: https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html
    */
   public static final String S3FILEIO_ACL = "s3fileio.acl";
-
-
-  static final int MIN_MULTIPART_UPLOAD_SIZE = 5 * 1024 * 1024;
-  static final int DEFAULT_MULTIPART_SIZE = 32 * 1024 * 1024;
-  static final double DEFAULT_MULTIPART_THRESHOLD = 1.5;
 
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
@@ -138,8 +148,8 @@ public class AwsProperties {
     this.s3FileIoAcl = null;
 
     this.s3FileIoMultipartUploadThreads = Runtime.getRuntime().availableProcessors();
-    this.s3FileIoMultiPartSize = DEFAULT_MULTIPART_SIZE;
-    this.s3FileIoMultipartThresholdFactor = DEFAULT_MULTIPART_THRESHOLD;
+    this.s3FileIoMultiPartSize = S3FILEIO_MULTIPART_SIZE_DEFAULT;
+    this.s3FileIoMultipartThresholdFactor = S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT;
     this.s3fileIoStagingDirectory = System.getProperty("java.io.tmpdir");
 
     this.glueCatalogId = null;
@@ -163,16 +173,21 @@ public class AwsProperties {
     this.s3FileIoMultipartUploadThreads = PropertyUtil.propertyAsInt(properties, S3FILEIO_MULTIPART_UPLOAD_THREADS,
         Runtime.getRuntime().availableProcessors());
 
-    this.s3FileIoMultiPartSize = PropertyUtil.propertyAsInt(properties, S3FILEIO_MULTIPART_SIZE,
-        DEFAULT_MULTIPART_SIZE);
+    try {
+      this.s3FileIoMultiPartSize = PropertyUtil.propertyAsInt(properties, S3FILEIO_MULTIPART_SIZE,
+          S3FILEIO_MULTIPART_SIZE_DEFAULT);
+    } catch (NumberFormatException e) {
+      throw new IllegalArgumentException("Input malformed or exceeded maximum multipart upload size 5GB: %s" +
+          properties.get(S3FILEIO_MULTIPART_SIZE));
+    }
 
     this.s3FileIoMultipartThresholdFactor = PropertyUtil.propertyAsDouble(properties,
-        S3FILEIO_MULTIPART_THRESHOLD_FACTOR, DEFAULT_MULTIPART_THRESHOLD);
+        S3FILEIO_MULTIPART_THRESHOLD_FACTOR, S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT);
 
     Preconditions.checkArgument(s3FileIoMultipartThresholdFactor >= 1.0,
         "Multipart threshold factor must be >= to 1.0");
 
-    Preconditions.checkArgument(s3FileIoMultiPartSize >= MIN_MULTIPART_UPLOAD_SIZE,
+    Preconditions.checkArgument(s3FileIoMultiPartSize >= S3FILEIO_MULTIPART_SIZE_MIN,
         "Minimum multipart upload object size must be larger than 5 MB.");
 
     this.s3fileIoStagingDirectory = PropertyUtil.propertyAsString(properties, S3FILEIO_STAGING_DIRECTORY,
@@ -228,16 +243,32 @@ public class AwsProperties {
     return s3FileIoMultipartUploadThreads;
   }
 
+  public void setS3FileIoMultipartUploadThreads(int threads) {
+    this.s3FileIoMultipartUploadThreads = threads;
+  }
+
   public int s3FileIoMultiPartSize() {
     return s3FileIoMultiPartSize;
+  }
+
+  public void setS3FileIoMultiPartSize(int size) {
+    this.s3FileIoMultiPartSize = size;
   }
 
   public double s3FileIOMultipartThresholdFactor() {
     return s3FileIoMultipartThresholdFactor;
   }
 
+  public void setS3FileIoMultipartThresholdFactor(double factor) {
+    this.s3FileIoMultipartThresholdFactor = factor;
+  }
+
   public String getS3fileIoStagingDirectory() {
     return s3fileIoStagingDirectory;
+  }
+
+  public void setS3fileIoStagingDirectory(String directory) {
+    this.s3fileIoStagingDirectory = directory;
   }
 
   public ObjectCannedACL s3FileIoAcl() {
