@@ -666,45 +666,52 @@ public class TestHiveIcebergStorageHandler {
   }
 
   @Test
-  public void testCreateTableWithColumnSpecificationPartitioned() {
+  public void testCreateTableWithColumnSpecificationPartitioned() throws IOException {
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    runPartitionedWriteTest(identifier, createSQLForPartitionedTableBySchema(testTables, identifier));
+  }
+
+  @Test
+  public void testCreatePartitionedTableByProperty() throws IOException {
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    runPartitionedWriteTest(identifier, createSQLForPartitionedTableByProperty(testTables, identifier));
+  }
+
+  @Test
+  public void testCreatePartitionedTableWithPropertiesAndWithColumnSpecification() {
+    PartitionSpec spec = PartitionSpec.builderFor(CUSTOMER_SCHEMA).identity("last_name").build();
+
     AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
-        "currently not supported", () -> {
+        "Provide only one of the following", () -> {
           shell.executeStatement("CREATE EXTERNAL TABLE customers (customer_id BIGINT) " +
               "PARTITIONED BY (first_name STRING) " +
               "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
-              testTables.locationForCreateTableSQL(TableIdentifier.of("default", "customers")));
+              testTables.locationForCreateTableSQL(TableIdentifier.of("default", "customers")) +
+              " TBLPROPERTIES ('" + InputFormatConfig.PARTITION_SPEC + "'='" +
+              PartitionSpecParser.toJson(spec) + "')");
         }
     );
   }
 
   @Test
-  public void testCreatePartitionedTable() throws IOException {
+  public void testCreateTableWithColumnSpecificationMultilevelPartitioned() {
     TableIdentifier identifier = TableIdentifier.of("default", "customers");
-    PartitionSpec spec = PartitionSpec.builderFor(CUSTOMER_SCHEMA).identity("first_name").build();
-
-    shell.executeStatement("CREATE EXTERNAL TABLE customers " +
+    final Schema expectedSchema = new Schema(
+        optional(1, "id", Types.LongType.get()),
+        optional(2, "name", Types.StringType.get()),
+        optional(3, "branch_id", Types.IntegerType.get()),
+        optional(4, "country", Types.StringType.get()));
+    final PartitionSpec expectedSpec =
+        PartitionSpec.builderFor(expectedSchema).identity("branch_id").identity("country").build();
+    shell.executeStatement("CREATE EXTERNAL TABLE customers (id BIGINT, name STRING) " +
+        "PARTITIONED BY (branch_id INT, country STRING) " +
         "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
-        testTables.locationForCreateTableSQL(identifier) +
-        "TBLPROPERTIES ('" + InputFormatConfig.PARTITION_SPEC + "'='" + PartitionSpecParser.toJson(spec) + "', " +
-        "'" + InputFormatConfig.TABLE_SCHEMA + "'='" + SchemaParser.toJson(CUSTOMER_SCHEMA) + "')");
+        testTables.locationForCreateTableSQL(identifier));
 
+    // Check the Iceberg table data
     org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
-    Assert.assertEquals(CUSTOMER_SCHEMA.asStruct(), icebergTable.schema().asStruct());
-    Assert.assertEquals(spec, icebergTable.spec());
-
-    testTables.appendIcebergTable(shell.getHiveConf(), icebergTable, fileFormat, Row.of("Alice"),
-        Arrays.asList(CUSTOMER_RECORDS.get(0)));
-    testTables.appendIcebergTable(shell.getHiveConf(), icebergTable, fileFormat, Row.of("Bob"),
-        Arrays.asList(CUSTOMER_RECORDS.get(1)));
-    testTables.appendIcebergTable(shell.getHiveConf(), icebergTable, fileFormat, Row.of("Trudy"),
-        Arrays.asList(CUSTOMER_RECORDS.get(2)));
-
-    List<Object[]> descRows = shell.executeStatement("SELECT * FROM default.customers ORDER BY customer_id DESC");
-
-    Assert.assertEquals(3, descRows.size());
-    Assert.assertArrayEquals(new Object[] {2L, "Trudy", "Pink"}, descRows.get(0));
-    Assert.assertArrayEquals(new Object[] {1L, "Bob", "Green"}, descRows.get(1));
-    Assert.assertArrayEquals(new Object[] {0L, "Alice", "Brown"}, descRows.get(2));
+    Assert.assertEquals(expectedSchema.asStruct(), icebergTable.schema().asStruct());
+    Assert.assertEquals(expectedSpec, icebergTable.spec());
   }
 
   @Test
@@ -1026,5 +1033,46 @@ public class TestHiveIcebergStorageHandler {
       Assert.assertEquals(expectedInnerStruct.getField("key"), queryResult.get(0)[0]);
       Assert.assertEquals(expectedInnerStruct.getField("value"), queryResult.get(0)[1]);
     }
+  }
+
+  private static String createSQLForPartitionedTableBySchema(TestTables testTables, TableIdentifier identifier) {
+    return "CREATE EXTERNAL TABLE " + identifier.namespace() + "." + identifier.name() +
+        " (customer_id BIGINT, first_name STRING) PARTITIONED BY (last_name STRING) " +
+        "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+        testTables.locationForCreateTableSQL(identifier);
+  }
+
+  private static String createSQLForPartitionedTableByProperty(TestTables testTables, TableIdentifier identifier) {
+    PartitionSpec spec = PartitionSpec.builderFor(CUSTOMER_SCHEMA).identity("last_name").build();
+
+    return "CREATE EXTERNAL TABLE " + identifier.namespace() + "." + identifier.name() +
+        " STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+        testTables.locationForCreateTableSQL(identifier) +
+        "TBLPROPERTIES ('" + InputFormatConfig.PARTITION_SPEC + "'='" + PartitionSpecParser.toJson(spec) + "', " +
+        "'" + InputFormatConfig.TABLE_SCHEMA + "'='" + SchemaParser.toJson(CUSTOMER_SCHEMA) + "')";
+  }
+
+  private void runPartitionedWriteTest(TableIdentifier identifier, String createSQL) throws IOException {
+    PartitionSpec spec = PartitionSpec.builderFor(CUSTOMER_SCHEMA).identity("last_name").build();
+
+    shell.executeStatement(createSQL);
+
+    org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
+    Assert.assertEquals(CUSTOMER_SCHEMA.asStruct(), icebergTable.schema().asStruct());
+    Assert.assertEquals(spec, icebergTable.spec());
+
+    testTables.appendIcebergTable(shell.getHiveConf(), icebergTable, fileFormat, Row.of("Brown"),
+        Arrays.asList(CUSTOMER_RECORDS.get(0)));
+    testTables.appendIcebergTable(shell.getHiveConf(), icebergTable, fileFormat, Row.of("Green"),
+        Arrays.asList(CUSTOMER_RECORDS.get(1)));
+    testTables.appendIcebergTable(shell.getHiveConf(), icebergTable, fileFormat, Row.of("Pink"),
+        Arrays.asList(CUSTOMER_RECORDS.get(2)));
+
+    List<Object[]> descRows = shell.executeStatement("SELECT * FROM default.customers ORDER BY customer_id DESC");
+
+    Assert.assertEquals(3, descRows.size());
+    Assert.assertArrayEquals(new Object[] {2L, "Trudy", "Pink"}, descRows.get(0));
+    Assert.assertArrayEquals(new Object[] {1L, "Bob", "Green"}, descRows.get(1));
+    Assert.assertArrayEquals(new Object[] {0L, "Alice", "Brown"}, descRows.get(2));
   }
 }
