@@ -21,7 +21,7 @@ package org.apache.iceberg.actions;
 
 import java.util.Map;
 
-interface CreateAction extends Action<Long> {
+public interface CreateAction extends Action<Long> {
 
   /**
    * Adds additional properties to the newly created Iceberg table. Any properties with

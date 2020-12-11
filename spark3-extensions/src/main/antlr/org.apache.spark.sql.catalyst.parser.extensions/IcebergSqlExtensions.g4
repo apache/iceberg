@@ -76,6 +76,7 @@ callArgument
 
 expression
     : constant
+    | stringMap
     ;
 
 constant
@@ -83,6 +84,10 @@ constant
     | booleanValue                    #booleanLiteral
     | STRING+                         #stringLiteral
     | identifier STRING               #typeConstructor
+    ;
+
+stringMap
+    : MAP '(' constant (',' constant)* ')'
     ;
 
 booleanValue
@@ -118,12 +123,15 @@ quotedIdentifier
 nonReserved
     : CALL
     | TRUE | FALSE
+    | MAP
     ;
 
 CALL: 'CALL';
 
 TRUE: 'TRUE';
 FALSE: 'FALSE';
+
+MAP: 'MAP';
 
 PLUS: '+';
 MINUS: '-';

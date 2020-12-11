@@ -37,15 +37,27 @@ import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 import org.apache.spark.sql.execution.CacheManager;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DataTypes;
 import scala.Option;
 
 abstract class BaseProcedure implements Procedure {
+  protected static final DataType STRING_MAP = DataTypes.createMapType(DataTypes.StringType, DataTypes.StringType);
+
   private final SparkSession spark;
   private final TableCatalog tableCatalog;
 
   protected BaseProcedure(TableCatalog tableCatalog) {
     this.spark = SparkSession.active();
     this.tableCatalog = tableCatalog;
+  }
+
+  protected SparkSession spark() {
+    return this.spark;
+  }
+
+  protected TableCatalog tableCatalog() {
+    return this.tableCatalog;
   }
 
   protected <T> T modifyIcebergTable(Identifier ident, Function<org.apache.iceberg.Table, T> func) {
@@ -70,21 +82,22 @@ abstract class BaseProcedure implements Procedure {
   }
 
   protected Identifier toIdentifier(String identifierAsString, String argName) {
+    CatalogAndIdentifier catalogAndIdentifier = toCatalogAndIdentifier(identifierAsString, argName, tableCatalog);
+
+    Preconditions.checkArgument(
+        catalogAndIdentifier.catalog().equals(tableCatalog),
+        "Cannot run procedure in catalog '%s': '%s' is a table in catalog '%s'",
+        tableCatalog.name(), identifierAsString, catalogAndIdentifier.catalog().name());
+
+    return catalogAndIdentifier.identifier();
+  }
+
+  protected CatalogAndIdentifier toCatalogAndIdentifier(String identifierAsString, String argName,
+                                                        CatalogPlugin catalog) {
     Preconditions.checkArgument(identifierAsString != null && !identifierAsString.isEmpty(),
         "Cannot handle an empty identifier for argument %s", argName);
 
-    CatalogAndIdentifier catalogAndIdentifier = Spark3Util.catalogAndIdentifier(
-        "identifier for arg " + argName, spark, identifierAsString, tableCatalog);
-
-    CatalogPlugin catalog = catalogAndIdentifier.catalog();
-    Identifier identifier = catalogAndIdentifier.identifier();
-
-    Preconditions.checkArgument(
-        catalog.equals(tableCatalog),
-        "Cannot run procedure in catalog '%s': '%s' is a table in catalog '%s'",
-        tableCatalog.name(), identifierAsString, catalog.name());
-
-    return identifier;
+    return Spark3Util.catalogAndIdentifier("identifier for arg " + argName, spark, identifierAsString, catalog);
   }
 
   protected SparkTable loadSparkTable(Identifier ident) {

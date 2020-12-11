@@ -42,14 +42,14 @@ import scala.collection.JavaConverters;
  * have a different data and metadata directory allowing it to exist independently of the
  * source table.
  */
-class Spark3SnapshotAction extends Spark3CreateAction implements SnapshotAction {
+public class Spark3SnapshotAction extends Spark3CreateAction implements SnapshotAction {
   private static final Logger LOG = LoggerFactory.getLogger(Spark3SnapshotAction.class);
 
   private String destTableLocation = null;
 
-  Spark3SnapshotAction(SparkSession spark, CatalogPlugin sourceCatalog,
-                       Identifier sourceTableIdent, CatalogPlugin destCatalog,
-                       Identifier destTableIdent) {
+  public Spark3SnapshotAction(SparkSession spark, CatalogPlugin sourceCatalog,
+                              Identifier sourceTableIdent, CatalogPlugin destCatalog,
+                              Identifier destTableIdent) {
     super(spark, sourceCatalog, sourceTableIdent, destCatalog, destTableIdent);
   }
 
