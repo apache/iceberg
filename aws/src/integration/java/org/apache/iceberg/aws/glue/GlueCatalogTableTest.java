@@ -138,6 +138,10 @@ public class GlueCatalogTableTest extends GlueTestBase {
     table.newAppend().appendFile(dataFile).commit();
     table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
     Assert.assertEquals("commit should create a new table version", 1, table.history().size());
+    // check table in Glue
+    GetTableResponse response = glue.getTable(GetTableRequest.builder()
+        .databaseName(namespace).name(tableName).build());
+    Assert.assertEquals("external table type is set after update", "EXTERNAL_TABLE", response.table().tableType());
   }
 
   @Test

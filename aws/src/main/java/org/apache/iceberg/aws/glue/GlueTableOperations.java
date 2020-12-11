@@ -163,6 +163,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
           .skipArchive(awsProperties.glueCatalogSkipArchive())
           .tableInput(TableInput.builder()
               .name(tableName)
+              .tableType(GLUE_EXTERNAL_TABLE_TYPE)
               .parameters(parameters)
               .build())
           .build());
