@@ -42,8 +42,11 @@ public class IcebergTimestampObjectInspectorHive3 extends AbstractPrimitiveJavaO
 
   @Override
   public LocalDateTime convert(Object o) {
-    return o == null ? null : LocalDateTime.ofEpochSecond(
-        ((TimestampWritableV2) o).getTimestamp().toEpochSecond(), 0, ZoneOffset.UTC);
+    if (o == null) {
+      return null;
+    }
+    Timestamp timestamp = ((TimestampWritableV2) o).getTimestamp();
+    return LocalDateTime.ofEpochSecond(timestamp.toEpochSecond(), timestamp.getNanos(), ZoneOffset.UTC);
   }
 
   @Override
