@@ -27,7 +27,6 @@ import org.apache.hadoop.hive.common.type.TimestampTZ;
 import org.apache.hadoop.hive.serde2.io.TimestampLocalTZWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampLocalTZObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.junit.Assert;
 import org.junit.Test;
@@ -36,7 +35,7 @@ public class TestIcebergTimestampWithZoneObjectInspectorHive3 {
 
   @Test
   public void testIcebergTimestampLocalTZObjectInspector() {
-    TimestampLocalTZObjectInspector oi = IcebergTimestampWithZoneObjectInspectorHive3.get();
+    IcebergTimestampWithZoneObjectInspectorHive3 oi = IcebergTimestampWithZoneObjectInspectorHive3.get();
 
     Assert.assertEquals(ObjectInspector.Category.PRIMITIVE, oi.getCategory());
     Assert.assertEquals(PrimitiveObjectInspector.PrimitiveCategory.TIMESTAMPLOCALTZ, oi.getPrimitiveCategory());
@@ -50,6 +49,7 @@ public class TestIcebergTimestampWithZoneObjectInspectorHive3 {
     Assert.assertNull(oi.copyObject(null));
     Assert.assertNull(oi.getPrimitiveJavaObject(null));
     Assert.assertNull(oi.getPrimitiveWritableObject(null));
+    Assert.assertNull(oi.convert(null));
 
     LocalDateTime dateTimeAtUTC = LocalDateTime.of(2020, 12, 10, 15, 55, 20, 0);
     OffsetDateTime offsetDateTime = OffsetDateTime.of(dateTimeAtUTC.plusHours(4), ZoneOffset.ofHours(4));
@@ -69,6 +69,8 @@ public class TestIcebergTimestampWithZoneObjectInspectorHive3 {
     Assert.assertNotSame(ts, copy);
 
     Assert.assertFalse(oi.preferWritable());
+
+    Assert.assertEquals(OffsetDateTime.of(dateTimeAtUTC, ZoneOffset.UTC), oi.convert(new TimestampLocalTZWritable(ts)));
   }
 
 }

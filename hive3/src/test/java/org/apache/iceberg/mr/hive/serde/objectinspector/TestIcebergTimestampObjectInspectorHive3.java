@@ -26,7 +26,6 @@ import org.apache.hadoop.hive.common.type.Timestamp;
 import org.apache.hadoop.hive.serde2.io.TimestampWritableV2;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.junit.Assert;
 import org.junit.Test;
@@ -35,7 +34,7 @@ public class TestIcebergTimestampObjectInspectorHive3 {
 
   @Test
   public void testIcebergTimestampObjectInspector() {
-    TimestampObjectInspector oi = IcebergTimestampObjectInspectorHive3.get();
+    IcebergTimestampObjectInspectorHive3 oi = IcebergTimestampObjectInspectorHive3.get();
 
     Assert.assertEquals(ObjectInspector.Category.PRIMITIVE, oi.getCategory());
     Assert.assertEquals(PrimitiveObjectInspector.PrimitiveCategory.TIMESTAMP, oi.getPrimitiveCategory());
@@ -49,6 +48,7 @@ public class TestIcebergTimestampObjectInspectorHive3 {
     Assert.assertNull(oi.copyObject(null));
     Assert.assertNull(oi.getPrimitiveJavaObject(null));
     Assert.assertNull(oi.getPrimitiveWritableObject(null));
+    Assert.assertNull(oi.convert(null));
 
     long epochMilli = 1601471970000L;
     LocalDateTime local = LocalDateTime.ofInstant(Instant.ofEpochMilli(epochMilli), ZoneId.of("UTC"));
@@ -63,6 +63,8 @@ public class TestIcebergTimestampObjectInspectorHive3 {
     Assert.assertNotSame(ts, copy);
 
     Assert.assertFalse(oi.preferWritable());
+
+    Assert.assertEquals(local, oi.convert(new TimestampWritableV2(ts)));
   }
 
 }

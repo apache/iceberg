@@ -24,7 +24,6 @@ import java.time.LocalDateTime;
 import org.apache.hadoop.hive.serde2.io.TimestampWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.junit.Assert;
 import org.junit.Test;
@@ -33,7 +32,7 @@ public class TestIcebergTimestampObjectInspector {
 
   @Test
   public void testIcebergTimestampObjectInspector() {
-    TimestampObjectInspector oi = IcebergTimestampObjectInspector.get();
+    IcebergTimestampObjectInspector oi = IcebergTimestampObjectInspector.get();
 
     Assert.assertEquals(ObjectInspector.Category.PRIMITIVE, oi.getCategory());
     Assert.assertEquals(PrimitiveObjectInspector.PrimitiveCategory.TIMESTAMP, oi.getPrimitiveCategory());
@@ -47,6 +46,7 @@ public class TestIcebergTimestampObjectInspector {
     Assert.assertNull(oi.copyObject(null));
     Assert.assertNull(oi.getPrimitiveJavaObject(null));
     Assert.assertNull(oi.getPrimitiveWritableObject(null));
+    Assert.assertNull(oi.convert(null));
 
     LocalDateTime local = LocalDateTime.of(2020, 1, 1, 0, 0);
     Timestamp ts = Timestamp.valueOf("2020-01-01 00:00:00");
@@ -60,6 +60,8 @@ public class TestIcebergTimestampObjectInspector {
     Assert.assertNotSame(ts, copy);
 
     Assert.assertFalse(oi.preferWritable());
+
+    Assert.assertEquals(local, oi.convert(new TimestampWritable(ts)));
   }
 
 }

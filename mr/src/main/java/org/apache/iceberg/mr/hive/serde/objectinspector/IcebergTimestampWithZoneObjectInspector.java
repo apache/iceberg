@@ -21,7 +21,7 @@ package org.apache.iceberg.mr.hive.serde.objectinspector;
 
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import org.apache.hadoop.hive.serde2.io.TimestampWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector;
@@ -43,7 +43,7 @@ public class IcebergTimestampWithZoneObjectInspector extends AbstractPrimitiveJa
   @Override
   public OffsetDateTime convert(Object o) {
     return o == null ? null :
-            OffsetDateTime.ofInstant(((TimestampWritable) o).getTimestamp().toInstant(), ZoneId.of("UTC"));
+        OffsetDateTime.of(((TimestampWritable) o).getTimestamp().toLocalDateTime(), ZoneOffset.UTC);
   }
 
   @Override
