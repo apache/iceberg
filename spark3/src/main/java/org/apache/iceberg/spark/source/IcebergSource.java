@@ -108,7 +108,7 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
     }
 
     final Spark3Util.CatalogAndIdentifier catalogAndIdentifier = Spark3Util.catalogAndIdentifier(
-        "Cannot parse path %s. It is not a valid SQL table", spark, path);
+        "path or identifier", spark, path);
 
     if (catalogAndIdentifier.catalog().name().equals("spark_catalog") &&
         !(catalogAndIdentifier.catalog() instanceof SparkSessionCatalog)) {
