@@ -96,17 +96,6 @@ public class StructProjection implements StructLike {
     }
   }
 
-  private StructProjection(StructProjection toCopy) {
-    this.type = toCopy.type;
-    this.positionMap = toCopy.positionMap;
-    this.nestedProjections = toCopy.nestedProjections;
-    this.struct = toCopy.struct;
-  }
-
-  public StructProjection copy() {
-    return new StructProjection(this);
-  }
-
   public StructProjection wrap(StructLike newStruct) {
     this.struct = newStruct;
     return this;

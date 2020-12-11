@@ -96,6 +96,11 @@ public class WriteResult implements Serializable {
       return this;
     }
 
+    public Builder addReferencedDataFiles(CharSequence... files) {
+      Collections.addAll(referencedDataFiles, files);
+      return this;
+    }
+
     public Builder addReferencedDataFiles(Iterable<CharSequence> files) {
       Iterables.addAll(referencedDataFiles, files);
       return this;

@@ -102,11 +102,9 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       this.structProjection = StructProjection.create(schema, deleteSchema);
 
       this.dataWriter = new RollingFileWriter(partition);
-
       this.eqDeleteWriter = new RollingEqDeleteWriter(partition);
-      this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
-
       this.posDeleteWriter = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, partition);
+      this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
     }
 
     /**
@@ -187,7 +185,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         insertedRowMap = null;
       }
 
-      // add the completed pos-delete files.
+      // Add the completed pos-delete files.
       if (posDeleteWriter != null) {
         completedDeleteFiles.addAll(posDeleteWriter.complete());
         referencedDataFiles.addAll(posDeleteWriter.referencedDataFiles());
