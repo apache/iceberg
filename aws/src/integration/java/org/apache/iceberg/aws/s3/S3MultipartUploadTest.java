@@ -20,14 +20,13 @@
 package org.apache.iceberg.aws.s3;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Random;
 import java.util.UUID;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import org.apache.iceberg.aws.AwsClientUtil;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
 import org.apache.iceberg.aws.AwsProperties;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.junit.AfterClass;
@@ -46,6 +45,8 @@ public class S3MultipartUploadTest {
   private static S3Client s3;
   private static String bucketName;
   private static String prefix;
+  private static AwsProperties properties;
+  private static S3FileIO io;
   private String objectUri;
 
   @BeforeClass
@@ -53,6 +54,9 @@ public class S3MultipartUploadTest {
     s3 = AwsClientUtil.defaultS3Client();
     bucketName = AwsIntegTestUtil.testBucketName();
     prefix = UUID.randomUUID().toString();
+    properties = new AwsProperties();
+    properties.setS3FileIoMultiPartSize(AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN);
+    io = new S3FileIO(() -> s3, properties);
   }
 
   @AfterClass
@@ -68,125 +72,93 @@ public class S3MultipartUploadTest {
 
   @Test
   public void testManyParts_writeWithInt() throws IOException {
-    AwsProperties properties = new AwsProperties();
-    properties.setS3FileIoMultiPartSize(AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN);
-    S3FileIO io = new S3FileIO(() -> s3, properties);
-    PositionOutputStream outputStream = io.newOutputFile(objectUri).create();
-    for (int i = 0; i < 100; i++) {
-      for (int j = 0; j < AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN; j++) {
-        outputStream.write(random.nextInt());
-      }
-    }
-    outputStream.close();
-    Assert.assertEquals(100 * (long) AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN,
+    int parts = 200;
+    writeInts(objectUri, parts, random::nextInt);
+    Assert.assertEquals(parts * (long) AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN,
         io.newInputFile(objectUri).getLength());
   }
 
   @Test
   public void testManyParts_writeWithBytes() throws IOException {
-    AwsProperties properties = new AwsProperties();
-    properties.setS3FileIoMultiPartSize(AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN);
-    S3FileIO io = new S3FileIO(() -> s3, properties);
-    PositionOutputStream outputStream = io.newOutputFile(objectUri).create();
+    int parts = 200;
     byte[] bytes = new byte[AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN];
-    for (int i = 0; i < 100; i++) {
+    writeBytes(objectUri, parts, () -> {
       random.nextBytes(bytes);
-      outputStream.write(bytes);
-    }
-    outputStream.close();
-    Assert.assertEquals(100 * (long) AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN,
+      return bytes;
+    });
+    Assert.assertEquals(parts * (long) AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN,
         io.newInputFile(objectUri).getLength());
   }
 
   @Test
   public void testContents_writeWithInt() throws IOException {
-    AwsProperties properties = new AwsProperties();
-    properties.setS3FileIoMultiPartSize(AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN);
-    S3FileIO io = new S3FileIO(() -> s3, properties);
-    PositionOutputStream outputStream = io.newOutputFile(objectUri).create();
-    for (int i = 0; i < 10; i++) {
-      for (int j = 0; j < AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN; j++) {
-        outputStream.write(6);
-      }
-    }
-    outputStream.close();
-    SeekableInputStream inputStream = io.newInputFile(objectUri).newStream();
-    int cur;
-    while ((cur = inputStream.read()) != -1) {
-      Assert.assertEquals(6, cur);
-    }
-    inputStream.close();
+    writeInts(objectUri, 10, () -> 6);
+    verifyInts(objectUri, () -> 6);
   }
 
   @Test
   public void testContents_writeWithBytes() throws IOException {
-    AwsProperties properties = new AwsProperties();
-    properties.setS3FileIoMultiPartSize(AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN);
-    S3FileIO io = new S3FileIO(() -> s3, properties);
-    PositionOutputStream outputStream = io.newOutputFile(objectUri).create();
     byte[] bytes = new byte[AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN];
     for (int i = 0; i < AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN; i++) {
       bytes[i] = 6;
     }
-    for (int i = 0; i < 10; i++) {
-      outputStream.write(bytes);
-    }
-    outputStream.close();
-    SeekableInputStream inputStream = io.newInputFile(objectUri).newStream();
-    int cur;
-    while ((cur = inputStream.read()) != -1) {
-      Assert.assertEquals(6, cur);
-    }
-    inputStream.close();
+    writeBytes(objectUri, 10, () -> bytes);
+    verifyInts(objectUri, () -> 6);
   }
 
   @Test
   public void testUploadRemainder() throws IOException {
-    AwsProperties properties = new AwsProperties();
-    properties.setS3FileIoMultiPartSize(AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN);
-    properties.setS3FileIoMultipartThresholdFactor(1);
-    S3FileIO io = new S3FileIO(() -> s3, properties);
-    PositionOutputStream outputStream = io.newOutputFile(objectUri).create();
     long length = 3 * AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN + 2 * 1024 * 1024;
-    for (int i = 0; i < length; i++) {
-      outputStream.write(random.nextInt());
-    }
-    outputStream.close();
+    writeInts(objectUri, 1, length, random::nextInt);
     Assert.assertEquals(length, io.newInputFile(objectUri).getLength());
   }
 
   @Test
   public void testParallelUpload() throws IOException {
-    AwsProperties properties = new AwsProperties();
-    properties.setS3FileIoMultiPartSize(AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN);
-    properties.setS3FileIoMultipartUploadThreads(16);
-    S3FileIO io = new S3FileIO(() -> s3, properties);
-    IntStream.range(0, 16).parallel().forEach(d -> {
-      byte[] bytes = new byte[AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN];
-      for (int i = 0; i < AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN; i++) {
-        bytes[i] = (byte) d;
-      }
-      PositionOutputStream outputStream = io.newOutputFile(objectUri + "_" + d).create();
-      try {
-        for (int i = 0; i < 3; i++) {
-          outputStream.write(bytes);
-        }
-        outputStream.close();
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
-    });
+    int threads = 16;
+    IntStream.range(0, threads).parallel()
+        .forEach(d -> writeInts(objectUri + d, 3, () -> d));
 
-    for (int i = 0; i < 16; i++) {
-      String fileUri = objectUri + "_" + i;
-      InputFile inputFile = io.newInputFile(fileUri);
-      Assert.assertEquals(3 * (long) AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN, inputFile.getLength());
-      int cur;
-      InputStream stream = inputFile.newStream();
-      while ((cur = stream.read()) != -1) {
-        Assert.assertEquals(i, cur);
+    for (int i = 0; i < threads; i++) {
+      final int d = i;
+      verifyInts(objectUri + d, () -> d);
+    }
+  }
+
+  private void writeInts(String fileUri, int parts, Supplier<Integer> writer) {
+    writeInts(fileUri, parts, AwsProperties.S3FILEIO_MULTIPART_SIZE_MIN, writer);
+  }
+
+  private void writeInts(String fileUri, int parts, long partSize, Supplier<Integer> writer) {
+    try (PositionOutputStream outputStream = io.newOutputFile(fileUri).create()) {
+      for (int i = 0; i < parts; i++) {
+        for (long j = 0; j < partSize; j++) {
+          outputStream.write(writer.get());
+        }
       }
-      stream.close();
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private void verifyInts(String fileUri, Supplier<Integer> verifier) {
+    try (SeekableInputStream inputStream = io.newInputFile(fileUri).newStream()) {
+      int cur;
+      while ((cur = inputStream.read()) != -1) {
+        Assert.assertEquals(verifier.get().intValue(), cur);
+      }
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private void writeBytes(String fileUri, int parts, Supplier<byte[]> writer) {
+    try (PositionOutputStream outputStream = io.newOutputFile(fileUri).create()) {
+      for (int i = 0; i < parts; i++) {
+        outputStream.write(writer.get());
+      }
+    } catch (IOException e) {
+      throw new RuntimeException(e);
     }
   }
 }
