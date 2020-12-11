@@ -33,11 +33,11 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-public class TestCreateProcedures extends SparkExtensionsTestBase {
+public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
   private static final String sourceName = "spark_catalog.default.source";
   // Currently we can only Snapshot only out of the Spark Session Catalog
 
-  public TestCreateProcedures(String catalogName, String implementation, Map<String, String> config) {
+  public TestSnapshotTableProcedure(String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
   }
 
@@ -51,53 +51,6 @@ public class TestCreateProcedures extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testMigrate() throws IOException {
-    Assume.assumeTrue(catalogName.equals("spark_catalog"));
-    String location = temp.newFolder().toString();
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", tableName, location);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
-    Object result = scalarSql("CALL %s.system.migrate('%s')", catalogName, tableName);
-
-    Assert.assertEquals("Should have migrated one file", 1L, result);
-
-    Table createdTable = validationCatalog.loadTable(tableIdent);
-    String tableLocation = createdTable.location().replace("file:", "");
-    Assert.assertEquals("Table should have original location", location, tableLocation);
-
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
-
-    assertEquals("Should have expected rows",
-        ImmutableList.of(row(1L, "a"), row(1L, "a")),
-        sql("SELECT * FROM %s ORDER BY id", tableName));
-  }
-
-  @Test
-  public void testMigrateWithOptions() throws IOException {
-    Assume.assumeTrue(catalogName.equals("spark_catalog"));
-    String location = temp.newFolder().toString();
-    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", tableName, location);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
-
-    Object result = scalarSql("CALL %s.system.migrate('%s', map('foo', 'bar'))", catalogName, tableName);
-
-    Assert.assertEquals("Should have migrated one file", 1L, result);
-
-    Table createdTable = validationCatalog.loadTable(tableIdent);
-
-    Map<String, String> props = createdTable.properties();
-    Assert.assertEquals("Should have extra property set", "bar", props.get("foo"));
-
-    String tableLocation = createdTable.location().replace("file:", "");
-    Assert.assertEquals("Table should have original location", location, tableLocation);
-
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
-
-    assertEquals("Should have expected rows",
-        ImmutableList.of(row(1L, "a"), row(1L, "a")),
-        sql("SELECT * FROM %s ORDER BY id", tableName));
-  }
-
-  @Test
   public void testSnapshot() throws IOException {
     String location = temp.newFolder().toString();
     sql("CREATE TABLE IF NOT EXISTS %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", sourceName,
@@ -105,7 +58,7 @@ public class TestCreateProcedures extends SparkExtensionsTestBase {
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
     Object[] result = sql("CALL %s.system.snapshot('%s', '%s')", catalogName, sourceName, tableName).get(0);
 
-    Assert.assertEquals("Should have migrated one file", 1L, result[0]);
+    Assert.assertEquals("Should have added one file", 1L, result[0]);
 
     Table createdTable = validationCatalog.loadTable(tableIdent);
     String tableLocation = createdTable.location();
@@ -125,12 +78,15 @@ public class TestCreateProcedures extends SparkExtensionsTestBase {
         location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
     Object result = scalarSql(
-        "CALL %s.system.snapshot( source_table => '%s', table => '%s', properties => map('foo','bar'))",
+        "CALL %s.system.snapshot(source_table => '%s', table => '%s', properties => map('foo','bar'))",
         catalogName, sourceName, tableName);
 
-    Assert.assertEquals("Should have migrated one file", 1L, result);
+    Assert.assertEquals("Should have added one file", 1L, result);
 
     Table createdTable = validationCatalog.loadTable(tableIdent);
+
+    String tableLocation = createdTable.location();
+    Assert.assertNotEquals("Table should not have the original location", location, tableLocation);
 
     Map<String, String> props = createdTable.properties();
     Assert.assertEquals("Should have extra property set", "bar", props.get("foo"));
@@ -151,10 +107,10 @@ public class TestCreateProcedures extends SparkExtensionsTestBase {
         location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
     Object[] result = sql(
-        "CALL %s.system.snapshot( source_table => '%s', table => '%s', table_location => '%s')",
+        "CALL %s.system.snapshot(source_table => '%s', table => '%s', table_location => '%s')",
         catalogName, sourceName, tableName, snapshotLocation).get(0);
 
-    Assert.assertEquals("Should have migrated one file", 1L, result[0]);
+    Assert.assertEquals("Should have added one file", 1L, result[0]);
 
     String storageLocation = validationCatalog.loadTable(tableIdent).location();
     Assert.assertEquals("Snapshot should be made at specified location", snapshotLocation, storageLocation);
@@ -168,14 +124,6 @@ public class TestCreateProcedures extends SparkExtensionsTestBase {
 
   @Test
   public void testInvalidSnapshotsCases() {
-    AssertHelpers.assertThrows("Should not allow mixed args",
-        AnalysisException.class, "Named and positional arguments cannot be mixed",
-        () -> sql("CALL %s.system.snapshot('n', table => 't')", catalogName));
-
-    AssertHelpers.assertThrows("Should not resolve procedures in arbitrary namespaces",
-        NoSuchProcedureException.class, "not found",
-        () -> sql("CALL %s.custom.snapshot('n', 't')", catalogName));
-
     AssertHelpers.assertThrows("Should reject calls without all required args",
         AnalysisException.class, "Missing required parameters",
         () -> sql("CALL %s.system.snapshot('foo')", catalogName));
@@ -186,30 +134,10 @@ public class TestCreateProcedures extends SparkExtensionsTestBase {
 
     AssertHelpers.assertThrows("Should reject calls with empty table identifier",
         IllegalArgumentException.class, "Cannot handle an empty identifier",
-        () -> sql("CALL %s.system.snapshot('', '')", catalogName));
-  }
-
-  @Test
-  public void testInvalidMigrateCases() {
-    AssertHelpers.assertThrows("Should not allow mixed args",
-        AnalysisException.class, "Named and positional arguments cannot be mixed",
-        () -> sql("CALL %s.system.migrate('n', table => 't')", catalogName));
-
-    AssertHelpers.assertThrows("Should not resolve procedures in arbitrary namespaces",
-        NoSuchProcedureException.class, "not found",
-        () -> sql("CALL %s.custom.migrate('n', 't')", catalogName));
-
-    AssertHelpers.assertThrows("Should reject calls without all required args",
-        AnalysisException.class, "Missing required parameters",
-        () -> sql("CALL %s.system.migrate()", catalogName));
-
-    AssertHelpers.assertThrows("Should reject calls with invalid arg types",
-        AnalysisException.class, "Wrong arg type",
-        () -> sql("CALL %s.system.migrate(map('foo','bar'))", catalogName));
+        () -> sql("CALL %s.system.snapshot('', 'dest')", catalogName));
 
     AssertHelpers.assertThrows("Should reject calls with empty table identifier",
         IllegalArgumentException.class, "Cannot handle an empty identifier",
-        () -> sql("CALL %s.system.migrate('')", catalogName));
+        () -> sql("CALL %s.system.snapshot('src', '')", catalogName));
   }
-
 }
