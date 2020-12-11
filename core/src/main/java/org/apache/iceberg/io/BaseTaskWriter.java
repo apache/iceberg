@@ -64,10 +64,6 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     this.targetFileSize = targetFileSize;
   }
 
-  public Set<CharSequence> referencedDataFiles() {
-    return referencedDataFiles;
-  }
-
   @Override
   public void abort() throws IOException {
     close();
@@ -86,6 +82,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     return WriteResult.builder()
         .addDataFiles(completedDataFiles)
         .addDeleteFiles(completedDeleteFiles)
+        .addReferencedDataFiles(referencedDataFiles)
         .build();
   }
 
@@ -117,15 +114,12 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
      */
     protected abstract StructLike asStructLike(T data);
 
-    /**
-     * Copy the data as a {@link StructLike}.
-     */
-    protected abstract StructLike asCopiedStructLike(T data);
-
     public void write(T row) throws IOException {
       PathOffset pathOffset = PathOffset.of(dataWriter.currentPath(), dataWriter.currentRows());
 
-      StructLike copiedKey = structProjection.copy().wrap(asCopiedStructLike(row));
+      // Create a copied key from this row.
+      StructLike copiedKey = StructCopy.copy(structProjection.wrap(asStructLike(row)));
+
       // Adding a pos-delete to replace the old path-offset.
       PathOffset previous = insertedRowMap.put(copiedKey, pathOffset);
       if (previous != null) {

@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.function.Function;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -121,7 +120,7 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     WriteResult result = deltaWriter.complete();
     Assert.assertEquals("Should only have a data file.", 1, result.dataFiles().length);
     Assert.assertEquals("Should have no delete file", 0, result.deleteFiles().length);
-    commitTransaction(result, deltaWriter.referencedDataFiles());
+    commitTransaction(result);
     Assert.assertEquals("Should have expected records", expectedRowSet(expected), actualRowSet("*"));
 
     deltaWriter = createTaskWriter(eqDeleteFieldIds, eqDeleteRowSchema);
@@ -134,7 +133,7 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     result = deltaWriter.complete();
     Assert.assertEquals("Should only have a data file.", 1, result.dataFiles().length);
     Assert.assertEquals("Should have no delete file", 0, result.deleteFiles().length);
-    commitTransaction(result, deltaWriter.referencedDataFiles());
+    commitTransaction(result);
     Assert.assertEquals("Should have expected records", expectedRowSet(expected), actualRowSet("*"));
   }
 
@@ -154,13 +153,13 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     deltaWriter.write(createRecord(1, "hhh"));
 
     WriteResult result = deltaWriter.complete();
-    commitTransaction(result, deltaWriter.referencedDataFiles());
+    commitTransaction(result);
 
     Assert.assertEquals("Should have a data file.", 1, result.dataFiles().length);
     Assert.assertEquals("Should have a pos-delete file", 1, result.deleteFiles().length);
     DeleteFile posDeleteFile = result.deleteFiles()[0];
     Assert.assertEquals("Should be a pos-delete file", FileContent.POSITION_DELETES, posDeleteFile.content());
-    Assert.assertEquals(1, deltaWriter.referencedDataFiles().size());
+    Assert.assertEquals(1, result.referencedDataFiles().length);
     Assert.assertEquals("Should have expected records", expectedRowSet(ImmutableList.of(
         createRecord(4, "eee"),
         createRecord(3, "fff"),
@@ -208,7 +207,7 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     WriteResult result = deltaWriter.complete();
     Assert.assertEquals("Should have a data file.", 1, result.dataFiles().length);
     Assert.assertEquals("Should have a pos-delete file and an eq-delete file", 2, result.deleteFiles().length);
-    commitTransaction(result, deltaWriter.referencedDataFiles());
+    commitTransaction(result);
     Assert.assertEquals("Should have an expected record", expectedRowSet(ImmutableList.of(record)), actualRowSet("*"));
 
     // Check records in the data file.
@@ -230,7 +229,7 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     result = deltaWriter.complete();
     Assert.assertEquals("Should have 0 data file.", 0, result.dataFiles().length);
     Assert.assertEquals("Should have 1 eq-delete file", 1, result.deleteFiles().length);
-    commitTransaction(result, deltaWriter.referencedDataFiles());
+    commitTransaction(result);
     Assert.assertEquals("Should have no record", expectedRowSet(ImmutableList.of()), actualRowSet("*"));
   }
 
@@ -251,8 +250,8 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     Assert.assertEquals("Should have a data file", 1, result.dataFiles().length);
     Assert.assertEquals("Should have a pos-delete file for deduplication purpose", 1, result.deleteFiles().length);
     Assert.assertEquals("Should be pos-delete file", FileContent.POSITION_DELETES, result.deleteFiles()[0].content());
-    Assert.assertEquals(1, deltaWriter.referencedDataFiles().size());
-    commitTransaction(result, deltaWriter.referencedDataFiles());
+    Assert.assertEquals(1, result.referencedDataFiles().length);
+    commitTransaction(result);
 
     Assert.assertEquals("Should have expected records", expectedRowSet(ImmutableList.of(
         createRecord(2, "bbb"),
@@ -284,7 +283,7 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     result = deltaWriter.complete();
     Assert.assertEquals(1, result.dataFiles().length);
     Assert.assertEquals(2, result.deleteFiles().length);
-    commitTransaction(result, deltaWriter.referencedDataFiles());
+    commitTransaction(result);
 
     Assert.assertEquals("Should have expected records", expectedRowSet(ImmutableList.of(
         createRecord(6, "aaa"),
@@ -335,8 +334,8 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     Assert.assertEquals("Should have a data file", 1, result.dataFiles().length);
     Assert.assertEquals("Should have a pos-delete file for deduplication purpose", 1, result.deleteFiles().length);
     Assert.assertEquals("Should be pos-delete file", FileContent.POSITION_DELETES, result.deleteFiles()[0].content());
-    Assert.assertEquals(1, deltaWriter.referencedDataFiles().size());
-    commitTransaction(result, deltaWriter.referencedDataFiles());
+    Assert.assertEquals(1, result.referencedDataFiles().length);
+    commitTransaction(result);
 
     Assert.assertEquals("Should have expected records", expectedRowSet(ImmutableList.of(
         createRecord(2, "bbb"),
@@ -366,8 +365,8 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     result = deltaWriter.complete();
     Assert.assertEquals(1, result.dataFiles().length);
     Assert.assertEquals(2, result.deleteFiles().length);
-    Assert.assertEquals(1, deltaWriter.referencedDataFiles().size());
-    commitTransaction(result, deltaWriter.referencedDataFiles());
+    Assert.assertEquals(1, result.referencedDataFiles().length);
+    commitTransaction(result);
 
     Assert.assertEquals("Should have expected records", expectedRowSet(ImmutableList.of(
         createRecord(6, "aaa"),
@@ -401,13 +400,13 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     ), readRecordsAsList(posDeleteSchema, posDeleteFile.path()));
   }
 
-  private void commitTransaction(WriteResult result, Set<CharSequence> referencedDataFiles) {
+  private void commitTransaction(WriteResult result) {
     RowDelta rowDelta = table.newRowDelta();
     Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
     Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
 
     rowDelta.validateDeletedFiles()
-        .validateDataFilesExist(referencedDataFiles)
+        .validateDataFilesExist(Lists.newArrayList(result.referencedDataFiles()))
         .commit();
   }
 
@@ -482,11 +481,6 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
       @Override
       protected StructLike asStructLike(Record row) {
         return row;
-      }
-
-      @Override
-      protected StructLike asCopiedStructLike(Record row) {
-        return row.copy();
       }
     }
   }
