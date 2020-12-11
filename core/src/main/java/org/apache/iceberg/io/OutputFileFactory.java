@@ -85,7 +85,7 @@ public class OutputFileFactory {
 
   private String generateFilename() {
     return format.addExtension(
-        String.format("%05d-%d-%s-%05d", partitionId, taskId, operationId, fileCount.incrementAndGet()));
+        String.format("%s-%05d-%d-%05d", operationId, partitionId, taskId, fileCount.incrementAndGet()));
   }
 
   /**
