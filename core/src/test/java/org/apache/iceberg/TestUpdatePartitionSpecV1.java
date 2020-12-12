@@ -349,6 +349,38 @@ public class TestUpdatePartitionSpecV1 {
   }
 
   @Test
+  public void testAddDuplicateByName() {
+    AssertHelpers.assertThrows("Should fail adding a duplicate field",
+        IllegalArgumentException.class, "Cannot add duplicate partition field",
+        () -> new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
+            .addField("category"));
+  }
+
+  @Test
+  public void testAddDuplicateByRef() {
+    AssertHelpers.assertThrows("Should fail adding a duplicate field",
+        IllegalArgumentException.class, "Cannot add duplicate partition field",
+        () -> new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
+            .addField(ref("category")));
+  }
+
+  @Test
+  public void testAddDuplicateTransform() {
+    AssertHelpers.assertThrows("Should fail adding a duplicate field",
+        IllegalArgumentException.class, "Cannot add duplicate partition field",
+        () -> new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
+            .addField(bucket("id", 16)));
+  }
+
+  @Test
+  public void testAddNamedDuplicate() {
+    AssertHelpers.assertThrows("Should fail adding a duplicate field",
+        IllegalArgumentException.class, "Cannot add duplicate partition field",
+        () -> new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
+            .addField("b16", bucket("id", 16)));
+  }
+
+  @Test
   public void testRemoveUnknownFieldByName() {
     AssertHelpers.assertThrows("Should fail trying to remove unknown field",
         IllegalArgumentException.class, "Cannot find partition field to remove",
@@ -376,7 +408,7 @@ public class TestUpdatePartitionSpecV1 {
 
   @Test
   public void testRenameUnknownField() {
-    AssertHelpers.assertThrows("Should fail trying to remove unknown field",
+    AssertHelpers.assertThrows("Should fail trying to rename an unknown field",
         IllegalArgumentException.class, "Cannot find partition field to rename",
         () -> new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED).renameField("shake", "seal")
     );
@@ -384,7 +416,7 @@ public class TestUpdatePartitionSpecV1 {
 
   @Test
   public void testRenameAfterAdd() {
-    AssertHelpers.assertThrows("Should fail trying to remove unknown field",
+    AssertHelpers.assertThrows("Should fail trying to rename an added field",
         IllegalArgumentException.class, "Cannot find partition field to rename",
         () -> new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
             .addField("data_trunc", truncate("data", 4))
@@ -394,7 +426,7 @@ public class TestUpdatePartitionSpecV1 {
 
   @Test
   public void testDeleteAndRename() {
-    AssertHelpers.assertThrows("Should fail trying to remove unknown field",
+    AssertHelpers.assertThrows("Should fail trying to rename a deleted field",
         IllegalArgumentException.class, "Cannot rename and delete partition field",
         () -> new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
             .renameField("shard", "id_bucket")
@@ -403,7 +435,7 @@ public class TestUpdatePartitionSpecV1 {
 
   @Test
   public void testRenameAndDelete() {
-    AssertHelpers.assertThrows("Should fail trying to remove unknown field",
+    AssertHelpers.assertThrows("Should fail trying to delete a renamed field",
         IllegalArgumentException.class, "Cannot delete and rename partition field",
         () -> new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
             .removeField(bucket("id", 16))
