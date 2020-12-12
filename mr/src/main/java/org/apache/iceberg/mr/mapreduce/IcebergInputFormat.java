@@ -34,6 +34,7 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
@@ -41,9 +42,10 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.StaticTable;
+import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.avro.Avro;
@@ -62,6 +64,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.SerializationUtil;
 import org.apache.iceberg.mr.hive.HiveIcebergStorageHandler;
@@ -93,8 +96,14 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   @Override
   public List<InputSplit> getSplits(JobContext context) {
     Configuration conf = context.getConfiguration();
-    Table table = new StaticTable(HiveIcebergStorageHandler.io(conf), conf.get(InputFormatConfig.TABLE_IDENTIFIER),
-        conf.get(InputFormatConfig.METADATA_LOCATION));
+    Table table;
+    if (conf.get(InputFormatConfig.METADATA_LOCATION) != null) {
+      TableOperations ops =
+          new StaticTableOperations(conf.get(InputFormatConfig.METADATA_LOCATION), HiveIcebergStorageHandler.io(conf));
+      table = new BaseTable(ops, conf.get(InputFormatConfig.TABLE_IDENTIFIER));
+    } else {
+      table = Catalogs.loadTable(conf);
+    }
 
     TableScan scan = table.newScan()
             .caseSensitive(conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, true));
