@@ -34,6 +34,7 @@ import org.apache.hadoop.hive.serde2.Deserializer;
 import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.OutputFormat;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
@@ -85,7 +86,10 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
     map.put(InputFormatConfig.TABLE_IDENTIFIER, props.getProperty(Catalogs.NAME));
     map.put(InputFormatConfig.TABLE_LOCATION, table.location());
     map.put(InputFormatConfig.TABLE_SCHEMA, schemaJson);
+    map.put(InputFormatConfig.METADATA_LOCATION,
+        ((HasTableOperations) table).operations().current().metadataFileLocation());
 
+    map.put(InputFormatConfig.FILE_IO, SerializationUtil.serializeToBase64(table.io()));
     // save schema into table props as well to avoid repeatedly hitting the HMS during serde initializations
     // this is an exception to the interface documentation, but it's a safe operation to add this property
     props.put(InputFormatConfig.TABLE_SCHEMA, schemaJson);
@@ -193,6 +197,7 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
    *   <li>- Location</li>
    *   <li>- Schema</li>
    *   <li>- Partition specification</li>
+   *   <li>- Metadata file location</li>
    *   <li>- FileIO for handling table files</li>
    *   <li>- Location provider used for file generation</li>
    *   <li>- Encryption manager for encryption handling</li>
@@ -205,6 +210,8 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
     config.set(InputFormatConfig.TABLE_LOCATION, table.location());
     config.set(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(table.schema()));
     config.set(InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(table.spec()));
+    config.set(InputFormatConfig.METADATA_LOCATION,
+        ((HasTableOperations) table).operations().current().metadataFileLocation());
 
     config.set(InputFormatConfig.FILE_IO, SerializationUtil.serializeToBase64(table.io()));
     config.set(InputFormatConfig.LOCATION_PROVIDER, SerializationUtil.serializeToBase64(table.locationProvider()));

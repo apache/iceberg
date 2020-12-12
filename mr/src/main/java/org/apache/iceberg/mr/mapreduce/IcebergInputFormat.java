@@ -41,6 +41,7 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.StaticTable;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -61,9 +62,9 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.SerializationUtil;
+import org.apache.iceberg.mr.hive.HiveIcebergStorageHandler;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -71,8 +72,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Generic Mrv2 InputFormat API for Iceberg.
@@ -80,8 +79,6 @@ import org.slf4j.LoggerFactory;
  * @param <T> T is the in memory data model which can either be Pig tuples, Hive rows. Default is Iceberg records
  */
 public class IcebergInputFormat<T> extends InputFormat<Void, T> {
-  private static final Logger LOG = LoggerFactory.getLogger(IcebergInputFormat.class);
-
   /**
    * Configures the {@code Job} to use the {@code IcebergInputFormat} and
    * returns a helper to add further configuration.
@@ -96,7 +93,9 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   @Override
   public List<InputSplit> getSplits(JobContext context) {
     Configuration conf = context.getConfiguration();
-    Table table = Catalogs.loadTable(conf);
+    Table table = new StaticTable(HiveIcebergStorageHandler.io(conf), conf.get(InputFormatConfig.TABLE_IDENTIFIER),
+        conf.get(InputFormatConfig.METADATA_LOCATION));
+
     TableScan scan = table.newScan()
             .caseSensitive(conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, true));
     long snapshotId = conf.getLong(InputFormatConfig.SNAPSHOT_ID, -1);
