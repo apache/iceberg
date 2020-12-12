@@ -69,11 +69,6 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
 
     switch (row.getRowKind()) {
       case INSERT:
-        // INSERT is actually an UPSERT, which will overwrite the existing row.
-        writer.delete(row);
-        writer.write(row);
-        break;
-
       case UPDATE_AFTER:
         writer.write(row);
         break;

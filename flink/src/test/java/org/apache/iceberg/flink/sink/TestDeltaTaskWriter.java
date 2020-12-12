@@ -42,6 +42,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
 import org.junit.Before;
@@ -115,11 +116,11 @@ public class TestDeltaTaskWriter extends TableTestBase {
     writer.write(createInsert(3, "ccc"));
 
     // Update <2, 'bbb'> to <2, 'ddd'>
-    writer.write(createUpdateBefore(2, "bbb"));
+    writer.write(createUpdateBefore(2, "bbb")); // 1 pos-delete and 1 eq-delete.
     writer.write(createUpdateAfter(2, "ddd"));
 
     // Update <1, 'aaa'> to <1, 'eee'>
-    writer.write(createUpdateBefore(1, "aaa"));
+    writer.write(createUpdateBefore(1, "aaa")); // 1 pos-delete and 1 eq-delete.
     writer.write(createUpdateAfter(1, "eee"));
 
     // Insert <4, 'fff'>
@@ -128,11 +129,11 @@ public class TestDeltaTaskWriter extends TableTestBase {
     writer.write(createInsert(5, "ggg"));
 
     // Delete <3, 'ccc'>
-    writer.write(createDelete(3, "ccc"));
+    writer.write(createDelete(3, "ccc")); // 1 pos-delete and 1 eq-delete.
 
     WriteResult result = writer.complete();
     Assert.assertEquals(partitioned ? 7 : 1, result.dataFiles().length);
-    Assert.assertEquals(partitioned ? 8 : 2, result.deleteFiles().length);
+    Assert.assertEquals(partitioned ? 6 : 2, result.deleteFiles().length);
     commitTransaction(result);
 
     Assert.assertEquals("Should have expected records.", expectedRowSet(
@@ -146,15 +147,15 @@ public class TestDeltaTaskWriter extends TableTestBase {
     writer = taskWriterFactory.create();
 
     // Update <2, 'ddd'> to <6, 'hhh'> - (Update both key and value)
-    writer.write(createUpdateBefore(2, "ddd"));
+    writer.write(createUpdateBefore(2, "ddd")); // 1 eq-delete
     writer.write(createUpdateAfter(6, "hhh"));
 
     // Update <5, 'ggg'> to <5, 'iii'>
-    writer.write(createUpdateBefore(5, "ggg"));
+    writer.write(createUpdateBefore(5, "ggg")); // 1 eq-delete
     writer.write(createUpdateAfter(5, "iii"));
 
     // Delete <4, 'fff'>
-    writer.write(createDelete(4, "fff"));
+    writer.write(createDelete(4, "fff")); // 1 eq-delete.
 
     result = writer.complete();
     Assert.assertEquals(partitioned ? 2 : 1, result.dataFiles().length);
@@ -261,7 +262,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
 
     WriteResult result = writer.complete();
     Assert.assertEquals(3, result.dataFiles().length);
-    Assert.assertEquals(4, result.deleteFiles().length);
+    Assert.assertEquals(1, result.deleteFiles().length);
     commitTransaction(result);
 
     Assert.assertEquals("Should have expected records", expectedRowSet(
@@ -274,15 +275,17 @@ public class TestDeltaTaskWriter extends TableTestBase {
     writer = taskWriterFactory.create();
     writer.write(createInsert(5, "aaa"));
     writer.write(createInsert(6, "bbb"));
-    writer.write(createDelete(7, "ccc"));
+    writer.write(createDelete(7, "ccc")); // 1 eq-delete.
 
     result = writer.complete();
     Assert.assertEquals(2, result.dataFiles().length);
-    Assert.assertEquals(3, result.deleteFiles().length);
+    Assert.assertEquals(1, result.deleteFiles().length);
     commitTransaction(result);
 
     Assert.assertEquals("Should have expected records", expectedRowSet(
+        createRecord(2, "aaa"),
         createRecord(5, "aaa"),
+        createRecord(3, "bbb"),
         createRecord(6, "bbb")
     ), actualRowSet("*"));
   }
@@ -298,15 +301,17 @@ public class TestDeltaTaskWriter extends TableTestBase {
     writer.write(createInsert(1, "aaa"));
     writer.write(createInsert(2, "aaa"));
 
+    writer.write(createDelete(2, "aaa")); // 1 pos-delete and 1 eq-delete.
+
     WriteResult result = writer.complete();
     Assert.assertEquals(1, result.dataFiles().length);
-    Assert.assertEquals(1, result.deleteFiles().length);
-    Assert.assertEquals(FileContent.EQUALITY_DELETES, result.deleteFiles()[0].content());
+    Assert.assertEquals(2, result.deleteFiles().length);
+    Assert.assertEquals(Sets.newHashSet(FileContent.EQUALITY_DELETES, FileContent.POSITION_DELETES),
+        Sets.newHashSet(result.deleteFiles()[0].content(), result.deleteFiles()[1].content()));
     commitTransaction(result);
 
     Assert.assertEquals("Should have expected records", expectedRowSet(
-        createRecord(1, "aaa"),
-        createRecord(2, "aaa")
+        createRecord(1, "aaa")
     ), actualRowSet("*"));
   }
 
@@ -314,7 +319,9 @@ public class TestDeltaTaskWriter extends TableTestBase {
     RowDelta rowDelta = table.newRowDelta();
     Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
     Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
-    rowDelta.commit();
+    rowDelta.validateDeletedFiles()
+        .validateDataFilesExist(Lists.newArrayList(result.referencedDataFiles()))
+        .commit();
   }
 
   private StructLikeSet expectedRowSet(Record... records) {
