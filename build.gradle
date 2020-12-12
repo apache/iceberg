@@ -563,6 +563,7 @@ if (jdkVersion == '8') {
     test {
       exclude '**/TestIcebergDateObjectInspector.class'
       exclude '**/TestIcebergTimestampObjectInspector.class'
+      exclude '**/TestIcebergTimestampWithZoneObjectInspector.class'
     }
 
     dependencies {

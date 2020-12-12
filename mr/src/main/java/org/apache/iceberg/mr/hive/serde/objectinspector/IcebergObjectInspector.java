@@ -50,15 +50,19 @@ public final class IcebergObjectInspector extends TypeUtil.SchemaVisitor<ObjectI
           "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampObjectInspectorHive3" :
           "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampObjectInspector";
 
+  private static final String TIMESTAMPTZ_INSPECTOR_CLASS = MetastoreUtil.hive3PresentOnClasspath() ?
+          "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampWithZoneObjectInspectorHive3" :
+          "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergTimestampWithZoneObjectInspector";
+
   public static final ObjectInspector TIMESTAMP_INSPECTOR = DynMethods.builder("get")
-          .impl(TIMESTAMP_INSPECTOR_CLASS, boolean.class)
+          .impl(TIMESTAMP_INSPECTOR_CLASS)
           .buildStatic()
-          .invoke(false);
+          .invoke();
 
   public static final ObjectInspector TIMESTAMP_INSPECTOR_WITH_TZ = DynMethods.builder("get")
-          .impl(TIMESTAMP_INSPECTOR_CLASS, boolean.class)
+          .impl(TIMESTAMPTZ_INSPECTOR_CLASS)
           .buildStatic()
-          .invoke(true);
+          .invoke();
 
   public static ObjectInspector create(@Nullable Schema schema) {
     if (schema == null) {

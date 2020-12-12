@@ -21,6 +21,8 @@ package org.apache.iceberg.mr.hive.serde.objectinspector;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import org.apache.hadoop.hive.serde2.io.TimestampWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
@@ -28,11 +30,11 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class TestIcebergTimestampObjectInspector {
+public class TestIcebergTimestampWithZoneObjectInspector {
 
   @Test
-  public void testIcebergTimestampObjectInspector() {
-    IcebergTimestampObjectInspector oi = IcebergTimestampObjectInspector.get();
+  public void testIcebergTimestampObjectInspectorWithUTCAdjustment() {
+    IcebergTimestampWithZoneObjectInspector oi = IcebergTimestampWithZoneObjectInspector.get();
 
     Assert.assertEquals(ObjectInspector.Category.PRIMITIVE, oi.getCategory());
     Assert.assertEquals(PrimitiveObjectInspector.PrimitiveCategory.TIMESTAMP, oi.getPrimitiveCategory());
@@ -48,11 +50,12 @@ public class TestIcebergTimestampObjectInspector {
     Assert.assertNull(oi.getPrimitiveWritableObject(null));
     Assert.assertNull(oi.convert(null));
 
-    LocalDateTime local = LocalDateTime.of(2020, 1, 1, 12, 55, 30, 5560000);
-    Timestamp ts = Timestamp.valueOf(local);
+    LocalDateTime local = LocalDateTime.of(2020, 1, 1, 16, 45, 33, 456000);
+    OffsetDateTime offsetDateTime = OffsetDateTime.of(local, ZoneOffset.ofHours(-5));
+    Timestamp ts = Timestamp.valueOf(offsetDateTime.toLocalDateTime());
 
-    Assert.assertEquals(ts, oi.getPrimitiveJavaObject(local));
-    Assert.assertEquals(new TimestampWritable(ts), oi.getPrimitiveWritableObject(local));
+    Assert.assertEquals(ts, oi.getPrimitiveJavaObject(offsetDateTime));
+    Assert.assertEquals(new TimestampWritable(ts), oi.getPrimitiveWritableObject(offsetDateTime));
 
     Timestamp copy = (Timestamp) oi.copyObject(ts);
 
@@ -61,7 +64,7 @@ public class TestIcebergTimestampObjectInspector {
 
     Assert.assertFalse(oi.preferWritable());
 
-    Assert.assertEquals(local, oi.convert(new TimestampWritable(ts)));
+    Assert.assertEquals(OffsetDateTime.of(local, ZoneOffset.UTC), oi.convert(new TimestampWritable(ts)));
   }
 
 }

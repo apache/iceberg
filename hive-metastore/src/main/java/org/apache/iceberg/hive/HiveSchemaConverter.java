@@ -99,6 +99,10 @@ class HiveSchemaConverter {
           case INTERVAL_YEAR_MONTH:
           case INTERVAL_DAY_TIME:
           default:
+            // special case for Timestamp with Local TZ which is only available in Hive3
+            if ("TIMESTAMPLOCALTZ".equalsIgnoreCase(((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory().name())) {
+              return Types.TimestampType.withZone();
+            }
             throw new IllegalArgumentException("Unsupported Hive type (" +
                 ((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory() +
                 ") for Iceberg tables.");
