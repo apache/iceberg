@@ -21,11 +21,13 @@ package org.apache.iceberg.avro;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.Schema;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
@@ -95,17 +97,26 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
         updatedFields.add(avroField);
 
       } else {
-        Preconditions.checkArgument(
-            field.isOptional() || field.fieldId() == MetadataColumns.ROW_POSITION.fieldId(),
+        Preconditions.checkArgument(fieldWillBeEmpty(field),
             "Missing required field: %s", field.name());
         // Create a field that will be defaulted to null. We assign a unique suffix to the field
         // to make sure that even if records in the file have the field it is not projected.
-        Schema.Field newField = new Schema.Field(
-            field.name() + "_r" + field.fieldId(),
-            AvroSchemaUtil.toOption(AvroSchemaUtil.convert(field.type())), null, JsonProperties.NULL_VALUE);
-        newField.addProp(AvroSchemaUtil.FIELD_ID_PROP, field.fieldId());
-        updatedFields.add(newField);
-        hasChange = true;
+        // We also need to apply any renames since the required column may have an alternative reader
+        if (field.isRequired() && field.type().isStructType()) {
+          Schema.Field newField = new Schema.Field(
+              field.name(),
+              AvroSchemaUtil.convert(field.type().asStructType(), renames.getOrDefault(field.name(), field.name())));
+          newField.addProp(AvroSchemaUtil.FIELD_ID_PROP, field.fieldId());
+          updatedFields.add(newField);
+          hasChange = true;
+        } else {
+          Schema.Field newField = new Schema.Field(
+              field.name() + "_r" + field.fieldId(),
+              AvroSchemaUtil.toOption(AvroSchemaUtil.convert(field.type())), null, JsonProperties.NULL_VALUE);
+          newField.addProp(AvroSchemaUtil.FIELD_ID_PROP, field.fieldId());
+          updatedFields.add(newField);
+          hasChange = true;
+        }
       }
     }
 
@@ -130,6 +141,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
     String expectedName = expectedField.name();
 
     this.current = expectedField.type();
+
     try {
       Schema schema = fieldResult.get();
 
@@ -255,4 +267,20 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
     }
   }
 
+  private static final Set<Integer> VIRTUAL_FIELDS = ImmutableSet.of(MetadataColumns.ROW_POSITION.fieldId());
+
+  /**
+   * Given a field, determine if it or any of it's sub-field will actually be read from the file.
+   * This checks to see if there are any fields which are not Optional, Metadata, or Empty Structs.
+   * @param field a field which exists in the projection but not in the pruned Avro Schema
+   * @return true if the field does not represent any real read from the file
+   */
+  private static boolean fieldWillBeEmpty(Types.NestedField field) {
+    if (field.type().isStructType()) {
+      return field.isOptional() ||
+          field.type().asStructType().fields().stream().allMatch(BuildAvroProjection::fieldWillBeEmpty);
+    } else {
+      return field.isOptional() || VIRTUAL_FIELDS.contains(field.fieldId());
+    }
+  }
 }
