@@ -50,7 +50,7 @@ public class TestIcebergTimestampWithZoneObjectInspector {
     Assert.assertNull(oi.getPrimitiveWritableObject(null));
     Assert.assertNull(oi.convert(null));
 
-    LocalDateTime local = LocalDateTime.of(2020, 1, 1, 0, 0);
+    LocalDateTime local = LocalDateTime.of(2020, 1, 1, 16, 45, 33, 456000);
     OffsetDateTime offsetDateTime = OffsetDateTime.of(local, ZoneOffset.ofHours(-5));
     Timestamp ts = Timestamp.valueOf(offsetDateTime.toLocalDateTime());
 

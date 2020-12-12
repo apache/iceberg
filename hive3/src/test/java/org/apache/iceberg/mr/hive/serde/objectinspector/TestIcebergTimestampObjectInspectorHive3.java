@@ -51,8 +51,9 @@ public class TestIcebergTimestampObjectInspectorHive3 {
     Assert.assertNull(oi.convert(null));
 
     long epochMilli = 1601471970000L;
-    LocalDateTime local = LocalDateTime.ofInstant(Instant.ofEpochMilli(epochMilli), ZoneId.of("UTC"));
+    LocalDateTime local = LocalDateTime.ofInstant(Instant.ofEpochMilli(epochMilli), ZoneId.of("UTC")).plusNanos(34000);
     Timestamp ts = Timestamp.ofEpochMilli(epochMilli);
+    ts.setNanos(34000);
 
     Assert.assertEquals(ts, oi.getPrimitiveJavaObject(local));
     Assert.assertEquals(new TimestampWritableV2(ts), oi.getPrimitiveWritableObject(local));

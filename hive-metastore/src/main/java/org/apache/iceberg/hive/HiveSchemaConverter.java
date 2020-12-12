@@ -100,7 +100,7 @@ class HiveSchemaConverter {
           case INTERVAL_DAY_TIME:
           default:
             // special case for Timestamp with Local TZ which is only available in Hive3
-            if ("TIMESTAMPLOCALTZ".equals(((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory().name())) {
+            if ("TIMESTAMPLOCALTZ".equalsIgnoreCase(((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory().name())) {
               return Types.TimestampType.withZone();
             }
             throw new IllegalArgumentException("Unsupported Hive type (" +

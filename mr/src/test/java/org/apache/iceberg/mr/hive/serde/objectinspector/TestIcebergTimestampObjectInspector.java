@@ -48,8 +48,8 @@ public class TestIcebergTimestampObjectInspector {
     Assert.assertNull(oi.getPrimitiveWritableObject(null));
     Assert.assertNull(oi.convert(null));
 
-    LocalDateTime local = LocalDateTime.of(2020, 1, 1, 0, 0);
-    Timestamp ts = Timestamp.valueOf("2020-01-01 00:00:00");
+    LocalDateTime local = LocalDateTime.of(2020, 1, 1, 12, 55, 30, 5560000);
+    Timestamp ts = Timestamp.valueOf(local);
 
     Assert.assertEquals(ts, oi.getPrimitiveJavaObject(local));
     Assert.assertEquals(new TimestampWritable(ts), oi.getPrimitiveWritableObject(local));
