@@ -220,7 +220,7 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
       org.apache.hadoop.hive.metastore.api.Table hmsTable) {
 
     if (properties.getProperty(InputFormatConfig.PARTITION_SPEC) != null) {
-      Preconditions.checkArgument(hmsTable.isSetPartitionKeys() || hmsTable.getPartitionKeys().isEmpty(),
+      Preconditions.checkArgument(!hmsTable.isSetPartitionKeys() || hmsTable.getPartitionKeys().isEmpty(),
           "Provide only one of the following: Hive partition specification, or the " +
               InputFormatConfig.PARTITION_SPEC + " property");
       return PartitionSpecParser.fromJson(schema, properties.getProperty(InputFormatConfig.PARTITION_SPEC));

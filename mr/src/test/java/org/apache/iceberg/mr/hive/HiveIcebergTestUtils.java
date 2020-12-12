@@ -185,6 +185,22 @@ public class HiveIcebergTestUtils {
   }
 
   /**
+   * Converts a list of Object arrays to a list of Iceberg records.
+   * @param schema The schema of the Iceberg record
+   * @param rows The data of the records
+   * @return The list of the converted records
+   */
+  public static List<Record> valueForRow(Schema schema, List<Object[]> rows) {
+    return rows.stream().map(row -> {
+      Record record = GenericRecord.create(schema);
+      for (int i = 0; i < row.length; ++i) {
+        record.set(i, row[i]);
+      }
+      return record;
+    }).collect(Collectors.toList());
+  }
+
+  /**
    * Check if 2 Iceberg records are the same or not. Compares OffsetDateTimes only by the Intant they represent.
    * @param expected The expected record
    * @param actual The actual record
@@ -219,13 +235,24 @@ public class HiveIcebergTestUtils {
       iterable.forEach(records::add);
     }
 
+    validateData(expected, records, sortBy);
+  }
+
+  /**
+   * Validates whether the 2 sets of records are the same. The results should be sorted by a unique key so we do
+   * not end up with flaky tests.
+   * @param expected The expected list of Records (The list will be sorted)
+   * @param actual The actual list of Records (The list will be sorted)
+   * @param sortBy The column position by which we will sort
+   */
+  public static void validateData(List<Record> expected, List<Record> actual, int sortBy) {
     // Sort based on the specified column
     expected.sort(Comparator.comparingLong(record -> (Long) record.get(sortBy)));
-    records.sort(Comparator.comparingLong(record -> (Long) record.get(sortBy)));
+    actual.sort(Comparator.comparingLong(record -> (Long) record.get(sortBy)));
 
-    Assert.assertEquals(expected.size(), records.size());
+    Assert.assertEquals(expected.size(), actual.size());
     for (int i = 0; i < expected.size(); ++i) {
-      assertEquals(expected.get(i), records.get(i));
+      assertEquals(expected.get(i), actual.get(i));
     }
   }
 
