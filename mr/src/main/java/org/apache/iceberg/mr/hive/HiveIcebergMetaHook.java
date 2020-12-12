@@ -205,7 +205,7 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
     if (properties.getProperty(InputFormatConfig.TABLE_SCHEMA) != null) {
       return SchemaParser.fromJson(properties.getProperty(InputFormatConfig.TABLE_SCHEMA));
     } else {
-      if (hmsTable.isSetPartitionKeys() && hmsTable.getPartitionKeys().size() != 0) {
+      if (hmsTable.isSetPartitionKeys() && !hmsTable.getPartitionKeys().isEmpty()) {
         // Add partitioning columns to the original column list before creating the Iceberg Schema
         List<FieldSchema> cols = new ArrayList<>(hmsTable.getSd().getCols());
         cols.addAll(hmsTable.getPartitionKeys());
@@ -220,12 +220,12 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
       org.apache.hadoop.hive.metastore.api.Table hmsTable) {
 
     if (properties.getProperty(InputFormatConfig.PARTITION_SPEC) != null) {
-      Preconditions.checkArgument(hmsTable.getPartitionKeys() == null || hmsTable.getPartitionKeys().isEmpty(),
+      Preconditions.checkArgument(hmsTable.isSetPartitionKeys() || hmsTable.getPartitionKeys().isEmpty(),
           "Provide only one of the following: Hive partition specification, or the " +
               InputFormatConfig.PARTITION_SPEC + " property");
       return PartitionSpecParser.fromJson(schema, properties.getProperty(InputFormatConfig.PARTITION_SPEC));
     } else {
-      if (hmsTable.isSetPartitionKeys() && hmsTable.getPartitionKeys().size() != 0) {
+      if (hmsTable.isSetPartitionKeys() && !hmsTable.getPartitionKeys().isEmpty()) {
         // If the table is partitioned then generate the identity partition definitions for the Iceberg table
         return HiveSchemaUtil.spec(schema, hmsTable.getPartitionKeys());
       } else {
