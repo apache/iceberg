@@ -50,6 +50,8 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  *  table = "catalog.namespace.tablename" -> "namespace.tablename" from the specified catalog.
  *  table = "namespace1.namespace2.tablename" -> load "namespace1.namespace2.tablename" from current catalog
  *
+ * The above list is in order of priority. For example: a matching catalog will take priority over any namespace
+ * resolution.
  */
 public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions {
   private static final String DEFAULT_CATALOG_NAME = "default_iceberg";

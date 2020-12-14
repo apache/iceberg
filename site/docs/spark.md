@@ -338,6 +338,8 @@ variable can take a number of forms as listed below:
 *  `catalog.namespace.tablename` -> load `namespace.tablename` from the specified catalog.
 *  `namespace1.namespace2.tablename` -> load `namespace1.namespace2.tablename` from current catalog
 
+The above list is in order of priority. For example: a matching catalog will take priority over any namespace resolution.
+
 ### Spark 2.4
 
 Spark 2.4 requires using the DataFrame reader with `iceberg` as a format, because 2.4 does not support catalogs:
