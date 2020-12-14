@@ -50,9 +50,12 @@ import org.junit.rules.TemporaryFolder;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TestCustomCatalog {
-  private static final String CATALOG_IMPL = CustomCatalogs.ICEBERG_CATALOG_PREFIX + CatalogProperties.CATALOG_IMPL;
-  private static final String WAREHOUSE = CustomCatalogs.ICEBERG_CATALOG_PREFIX + CatalogProperties.WAREHOUSE_LOCATION;
-  private static final String URI_KEY = CustomCatalogs.ICEBERG_CATALOG_PREFIX + CatalogProperties.HIVE_URI;
+  private static final String CATALOG_IMPL = String.format("%s.%s.%s", CustomCatalogs.ICEBERG_CATALOG_PREFIX,
+      CustomCatalogs.ICEBERG_DEFAULT_CATALOG, CatalogProperties.CATALOG_IMPL);
+  private static final String WAREHOUSE = String.format("%s.%s.%s", CustomCatalogs.ICEBERG_CATALOG_PREFIX,
+      CustomCatalogs.ICEBERG_DEFAULT_CATALOG, CatalogProperties.WAREHOUSE_LOCATION);
+  private static final String URI_KEY = String.format("%s.%s.%s", CustomCatalogs.ICEBERG_CATALOG_PREFIX,
+      CustomCatalogs.ICEBERG_DEFAULT_CATALOG, CatalogProperties.HIVE_URI);
   private static final String URI_VAL = "thrift://localhost:12345"; // dummy uri
   private static final String CATALOG_VAL = "org.apache.iceberg.spark.source.TestCatalog";
   private static final TableIdentifier TABLE = TableIdentifier.of("default", "table");
@@ -102,34 +105,6 @@ public class TestCustomCatalog {
   }
 
   @Test
-  public void withOptions() {
-
-    List<SimpleRecord> expected = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
-
-    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
-    AssertHelpers.assertThrows("We have not set all properties", IllegalArgumentException.class, () ->
-        write(df, ImmutableMap.of(CatalogProperties.CATALOG_IMPL, CATALOG_VAL,
-            CatalogProperties.HIVE_URI, URI_VAL))
-    );
-
-    write(df, ImmutableMap.of(CatalogProperties.CATALOG_IMPL, CATALOG_VAL,
-        CatalogProperties.HIVE_URI, URI_VAL,
-        CatalogProperties.WAREHOUSE_LOCATION, tableLocation));
-
-    List<SimpleRecord> dfNew = read(
-        ImmutableMap.of(CatalogProperties.CATALOG_IMPL, CATALOG_VAL,
-            CatalogProperties.WAREHOUSE_LOCATION, tableLocation,
-            CatalogProperties.HIVE_URI, URI_VAL
-        ));
-
-    Assert.assertEquals("Data should match", expected, dfNew);
-  }
-
-  @Test
   public void withSparkOptions() {
 
     SparkConf sparkConf = spark.sparkContext().conf();
@@ -144,88 +119,26 @@ public class TestCustomCatalog {
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
     AssertHelpers.assertThrows("We have not set all properties", IllegalArgumentException.class, () ->
-        write(df, ImmutableMap.of())
+        df.select("id", "data").write()
+            .format("iceberg")
+            .mode("append")
+            .save(TABLE.toString())
     );
 
     sparkConf.set(WAREHOUSE, tableLocation);
 
-    write(df, ImmutableMap.of());
+    df.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(TABLE.toString());
 
-    List<SimpleRecord> dfNew = read(ImmutableMap.of());
-
-    Assert.assertEquals("Data should match", expected, dfNew);
-  }
-
-  @Test
-  public void withBothOptions() {
-
-    SparkConf sparkConf = spark.sparkContext().conf();
-    sparkConf.set(CATALOG_IMPL, CATALOG_VAL);
-    sparkConf.set(URI_KEY, URI_VAL);
-
-    List<SimpleRecord> expected = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
-
-    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
-    AssertHelpers.assertThrows("We have not set all properties", IllegalArgumentException.class, () ->
-        write(df, ImmutableMap.of())
-    );
-
-    write(df, ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, tableLocation));
-
-    List<SimpleRecord> dfNew = read(ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, tableLocation));
-
-    Assert.assertEquals("Data should match", expected, dfNew);
-  }
-
-  @Test
-  public void withOverwriteOptions() {
-
-    SparkConf sparkConf = spark.sparkContext().conf();
-    sparkConf.set(CATALOG_IMPL, CATALOG_VAL);
-    sparkConf.set(URI_KEY, "invalid.hostname");
-    sparkConf.set(WAREHOUSE, tableLocation);
-
-    List<SimpleRecord> expected = Lists.newArrayList(
-        new SimpleRecord(1, "a"),
-        new SimpleRecord(2, "b"),
-        new SimpleRecord(3, "c")
-    );
-
-    Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
-    AssertHelpers.assertThrows("We have not set all properties", IllegalArgumentException.class, () ->
-        write(df, ImmutableMap.of())
-    );
-
-    write(df, ImmutableMap.of(CatalogProperties.HIVE_URI, URI_VAL));
-
-    List<SimpleRecord> dfNew = read(ImmutableMap.of(CatalogProperties.HIVE_URI, URI_VAL));
-
-    Assert.assertEquals("Data should match", expected, dfNew);
-  }
-
-  private List<SimpleRecord> read(Map<String, String> options) {
-    DataFrameReader builder = spark.read().format("iceberg");
-    for (Map.Entry<String, String> x : options.entrySet()) {
-      builder.option(x.getKey(), x.getValue());
-    }
-    return builder
+    List<SimpleRecord> dfNew = spark.read().format("iceberg")
         .load(TABLE.toString())
         .orderBy("id")
         .as(Encoders.bean(SimpleRecord.class))
         .collectAsList();
+
+    Assert.assertEquals("Data should match", expected, dfNew);
   }
 
-  private void write(Dataset<Row> df, Map<String, String> options) {
-    DataFrameWriter<Row> builder = df.select("id", "data").write()
-        .format("iceberg")
-        .mode("append");
-    for (Map.Entry<String, String> x : options.entrySet()) {
-      builder.option(x.getKey(), x.getValue());
-    }
-    builder.save(TABLE.toString());
-  }
 }

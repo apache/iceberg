@@ -49,6 +49,7 @@ import org.apache.iceberg.transforms.PartitionSpecVisitor;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -712,6 +713,11 @@ public class Spark3Util {
     public CatalogAndIdentifier(CatalogPlugin catalog, Identifier identifier) {
       this.catalog = catalog;
       this.identifier = identifier;
+    }
+
+    public CatalogAndIdentifier(Pair<CatalogPlugin, Identifier> identifier) {
+      this.catalog = identifier.first();
+      this.identifier = identifier.second();
     }
 
     public CatalogPlugin catalog() {

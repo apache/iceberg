@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.apache.hadoop.conf.Configurable;
@@ -27,6 +28,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -40,7 +42,10 @@ import org.slf4j.LoggerFactory;
 
 public class CatalogUtil {
   private static final Logger LOG = LoggerFactory.getLogger(CatalogUtil.class);
-
+  public static final String ICEBERG_CATALOG_TYPE = "type";
+  public static final String ICEBERG_CATALOG_TYPE_HADOOP = "hadoop";
+  public static final String ICEBERG_CATALOG_TYPE_HIVE = "hive";
+  public static final String ICEBERG_CATALOG_HIVE = "org.apache.iceberg.hive.HiveCatalog";
   private CatalogUtil() {
   }
 
@@ -167,6 +172,43 @@ public class CatalogUtil {
 
     catalog.initialize(catalogName, properties);
     return catalog;
+  }
+
+  public static Catalog buildIcebergCatalog(String name, Map<String, String> options, Configuration conf) {
+
+    String catalogImpl = options.get(CatalogProperties.CATALOG_IMPL);
+    if (catalogImpl != null) {
+      return CatalogUtil.loadCatalog(catalogImpl, name, options, conf);
+    }
+
+    String catalogType = options.getOrDefault(ICEBERG_CATALOG_TYPE, ICEBERG_CATALOG_TYPE_HIVE);
+    switch (catalogType.toLowerCase(Locale.ENGLISH)) {
+      case ICEBERG_CATALOG_TYPE_HIVE:
+        String clientPoolSize = options.getOrDefault(CatalogProperties.HIVE_CLIENT_POOL_SIZE,
+            Integer.toString(CatalogProperties.HIVE_CLIENT_POOL_SIZE_DEFAULT));
+        String uri = options.get(CatalogProperties.HIVE_URI);
+        DynConstructors.Ctor<Catalog> ctor;
+        try {
+          ctor = DynConstructors.builder(Catalog.class).impl(ICEBERG_CATALOG_HIVE).buildChecked();
+        } catch (NoSuchMethodException e) {
+          throw new IllegalArgumentException(String.format(
+              "Cannot initialize Catalog, missing no-arg constructor: %s", ICEBERG_CATALOG_HIVE), e);
+        }
+        try {
+          return ctor.newInstance(name, uri, Integer.parseInt(clientPoolSize), conf);
+
+        } catch (ClassCastException e) {
+          throw new IllegalArgumentException(
+              String.format("Cannot initialize Catalog, %s does not implement Catalog.", ICEBERG_CATALOG_HIVE), e);
+        }
+
+      case ICEBERG_CATALOG_TYPE_HADOOP:
+        String warehouseLocation = options.get(CatalogProperties.WAREHOUSE_LOCATION);
+        return new HadoopCatalog(name, conf, warehouseLocation, options);
+
+      default:
+        throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
+    }
   }
 
   /**

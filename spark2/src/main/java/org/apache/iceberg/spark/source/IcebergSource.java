@@ -33,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.Pair;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SaveMode;
@@ -136,9 +137,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
       HadoopTables tables = new HadoopTables(conf);
       return tables.load(path.get());
     } else {
-      Catalog catalog = CustomCatalogs.buildIcebergCatalog(options.asMap());
-      TableIdentifier tableIdentifier = TableIdentifier.parse(path.get());
-      return catalog.loadTable(tableIdentifier);
+      return CustomCatalogs.table(lazySparkSession(), path.get());
     }
   }
 
