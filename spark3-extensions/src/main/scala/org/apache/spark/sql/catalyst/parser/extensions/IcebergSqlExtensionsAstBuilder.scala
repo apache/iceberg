@@ -20,12 +20,27 @@
 package org.apache.spark.sql.catalyst.parser.extensions
 
 import org.antlr.v4.runtime._
-import org.antlr.v4.runtime.tree.{ParseTree, TerminalNode}
+import org.antlr.v4.runtime.tree.ParseTree
+import org.antlr.v4.runtime.tree.TerminalNode
 import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.expressions.Literal
+import org.apache.spark.sql.catalyst.parser.ParseException
 import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.parser.ParserUtils._
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser._
-import org.apache.spark.sql.catalyst.plans.logical.{CallArgument, CallStatement, LogicalPlan, NamedArgument, PositionalArgument}
+import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
+import org.apache.spark.sql.catalyst.plans.logical.CallArgument
+import org.apache.spark.sql.catalyst.plans.logical.CallStatement
+import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.NamedArgument
+import org.apache.spark.sql.catalyst.plans.logical.PositionalArgument
+import org.apache.spark.sql.connector.expressions
+import org.apache.spark.sql.connector.expressions.ApplyTransform
+import org.apache.spark.sql.connector.expressions.FieldReference
+import org.apache.spark.sql.connector.expressions.IdentityTransform
+import org.apache.spark.sql.connector.expressions.LiteralValue
+import org.apache.spark.sql.connector.expressions.Transform
 import scala.collection.JavaConverters._
 
 class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergSqlExtensionsBaseVisitor[AnyRef] {
@@ -37,6 +52,61 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     val name = ctx.multipartIdentifier.parts.asScala.map(_.getText)
     val args = ctx.callArgument.asScala.map(typedVisit[CallArgument])
     CallStatement(name, args)
+  }
+
+  /**
+   * Create an ADD PARTITION FIELD logical command.
+   */
+  override def visitAddPartitionField(ctx: AddPartitionFieldContext): AddPartitionField = withOrigin(ctx) {
+    AddPartitionField(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      typedVisit[Transform](ctx.transform),
+      Option(ctx.name).map(_.getText))
+  }
+
+  /**
+   * Create a DROP PARTITION FIELD logical command.
+   */
+  override def visitDropPartitionField(ctx: DropPartitionFieldContext): DropPartitionField = {
+    DropPartitionField(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      typedVisit[Transform](ctx.transform))
+  }
+
+  /**
+   * Create an IdentityTransform for a column reference.
+   */
+  override def visitIdentityTransform(ctx: IdentityTransformContext): Transform = withOrigin(ctx) {
+    IdentityTransform(FieldReference(typedVisit[Seq[String]](ctx.multipartIdentifier())))
+  }
+
+  /**
+   * Create a named Transform from argument expressions.
+   */
+  override def visitApplyTransform(ctx: ApplyTransformContext): Transform = withOrigin(ctx) {
+    val args = ctx.arguments.asScala.map(typedVisit[expressions.Expression])
+    ApplyTransform(ctx.transformName.getText, args)
+  }
+
+  /**
+   * Create a transform argument from a column reference or a constant.
+   */
+  override def visitTransformArgument(ctx: TransformArgumentContext): expressions.Expression = withOrigin(ctx) {
+    val reference = Option(ctx.multipartIdentifier())
+        .map(typedVisit[Seq[String]])
+        .map(FieldReference(_))
+    val literal = Option(ctx.constant)
+        .map(visitConstant)
+        .map(lit => LiteralValue(lit.value, lit.dataType))
+    reference.orElse(literal)
+        .getOrElse(throw new ParseException(s"Invalid transform argument", ctx))
+  }
+
+  /**
+   * Return a multi-part identifier as Seq[String].
+   */
+  override def visitMultipartIdentifier(ctx: MultipartIdentifierContext): Seq[String] = withOrigin(ctx) {
+    ctx.parts.asScala.map(_.getText)
   }
 
   /**
@@ -58,6 +128,10 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
 
   override def visitSingleStatement(ctx: SingleStatementContext): LogicalPlan = withOrigin(ctx) {
     visit(ctx.statement).asInstanceOf[LogicalPlan]
+  }
+
+  def visitConstant(ctx: ConstantContext): Literal = {
+    delegate.parseExpression(ctx.getText).asInstanceOf[Literal]
   }
 
   override def visitExpression(ctx: ExpressionContext): Expression = {
