@@ -317,19 +317,23 @@ project(':iceberg-flink') {
     compile project(':iceberg-parquet')
     compile project(':iceberg-hive-metastore')
 
+    compileOnly "org.apache.flink:flink-connector-base"
     compileOnly "org.apache.flink:flink-streaming-java_2.12"
     compileOnly "org.apache.flink:flink-streaming-java_2.12::tests"
     compileOnly "org.apache.flink:flink-table-api-java-bridge_2.12"
     compileOnly "org.apache.flink:flink-table-planner-blink_2.12"
     compileOnly "org.apache.flink:flink-table-planner_2.12"
+    compileOnly "org.apache.flink:flink-parquet_2.12"
     compileOnly "org.apache.hadoop:hadoop-hdfs"
     compileOnly "org.apache.hadoop:hadoop-common"
     compileOnly("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
+    testCompile "org.apache.flink:flink-connector-test-utils"
     testCompile "org.apache.flink:flink-core"
     testCompile "org.apache.flink:flink-runtime_2.12"
+    testCompile "org.apache.flink:flink-streaming-java_2.12"
     testCompile "org.apache.flink:flink-table-planner-blink_2.12"
     testCompile "org.apache.flink:flink-test-utils-junit"
     testCompile("org.apache.flink:flink-test-utils_2.12") {
@@ -629,7 +633,7 @@ project(':iceberg-hive-runtime') {
       exclude group: 'com.github.stephenc.findbugs'
       exclude group: 'commons-pool'
       exclude group: 'javax.annotation'
-      exclude group: 'javax.xml.bind'      
+      exclude group: 'javax.xml.bind'
       exclude group: 'org.apache.commons'
       exclude group: 'org.slf4j'
       exclude group: 'org.xerial.snappy'
@@ -642,7 +646,7 @@ project(':iceberg-hive-runtime') {
       compile project(':iceberg-hive3')
     }
   }
-  
+
   shadowJar {
     configurations = [project.configurations.compile]
 
@@ -656,7 +660,7 @@ project(':iceberg-hive-runtime') {
 
     // Relocate dependencies to avoid conflicts
     relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
-    relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'  
+    relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
     relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
     relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
     relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'

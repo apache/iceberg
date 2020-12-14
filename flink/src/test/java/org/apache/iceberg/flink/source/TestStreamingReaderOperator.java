@@ -39,6 +39,7 @@ import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.TestTableLoader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -106,7 +107,7 @@ public class TestStreamingReaderOperator extends TableTestBase {
 
         // Assert the output has expected elements.
         expected.addAll(expectedRecords.get(i));
-        TestFlinkScan.assertRecords(readOutputValues(harness), expected, SCHEMA);
+        TestHelpers.assertRecords(readOutputValues(harness), expected, SCHEMA);
       }
     }
   }
@@ -138,7 +139,7 @@ public class TestStreamingReaderOperator extends TableTestBase {
       Assert.assertTrue("Should have processed the split0", processor.runMailboxStep());
       Assert.assertTrue("Should have processed the snapshot state action", processor.runMailboxStep());
 
-      TestFlinkScan.assertRecords(readOutputValues(harness), expectedRecords.get(0), SCHEMA);
+      TestHelpers.assertRecords(readOutputValues(harness), expectedRecords.get(0), SCHEMA);
 
       // Read records from split1.
       Assert.assertTrue("Should have processed the split1", processor.runMailboxStep());
@@ -146,7 +147,7 @@ public class TestStreamingReaderOperator extends TableTestBase {
       // Read records from split2.
       Assert.assertTrue("Should have processed the split2", processor.runMailboxStep());
 
-      TestFlinkScan.assertRecords(readOutputValues(harness),
+      TestHelpers.assertRecords(readOutputValues(harness),
           Lists.newArrayList(Iterables.concat(expectedRecords)), SCHEMA);
     }
   }
@@ -175,7 +176,7 @@ public class TestStreamingReaderOperator extends TableTestBase {
         expected.addAll(expectedRecords.get(i));
         Assert.assertTrue("Should have processed the split#" + i, localMailbox.runMailboxStep());
 
-        TestFlinkScan.assertRecords(readOutputValues(harness), expected, SCHEMA);
+        TestHelpers.assertRecords(readOutputValues(harness), expected, SCHEMA);
       }
 
       // Snapshot state now,  there're 10 splits left in the state.
@@ -195,7 +196,7 @@ public class TestStreamingReaderOperator extends TableTestBase {
         expected.addAll(expectedRecords.get(i));
         Assert.assertTrue("Should have processed one split#" + i, localMailbox.runMailboxStep());
 
-        TestFlinkScan.assertRecords(readOutputValues(harness), expected, SCHEMA);
+        TestHelpers.assertRecords(readOutputValues(harness), expected, SCHEMA);
       }
 
       // Let's process the final 5 splits now.
@@ -204,7 +205,7 @@ public class TestStreamingReaderOperator extends TableTestBase {
         harness.processElement(splits.get(i), 1);
 
         Assert.assertTrue("Should have processed the split#" + i, localMailbox.runMailboxStep());
-        TestFlinkScan.assertRecords(readOutputValues(harness), expected, SCHEMA);
+        TestHelpers.assertRecords(readOutputValues(harness), expected, SCHEMA);
       }
     }
   }

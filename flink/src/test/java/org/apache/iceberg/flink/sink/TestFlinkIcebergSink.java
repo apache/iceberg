@@ -35,7 +35,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
-import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo;
+import org.apache.flink.table.runtime.typeutils.InternalTypeInfo;
 import org.apache.flink.test.util.AbstractTestBase;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.AssertHelpers;
@@ -134,7 +134,7 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
         Row.of(3, "foo")
     );
     DataStream<RowData> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
-        .map(CONVERTER::toInternal, RowDataTypeInfo.of(SimpleDataUtil.ROW_TYPE));
+        .map(CONVERTER::toInternal, InternalTypeInfo.of(SimpleDataUtil.ROW_TYPE));
 
     FlinkSink.forRowData(dataStream)
         .table(table)

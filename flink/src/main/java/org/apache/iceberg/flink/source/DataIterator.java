@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.apache.flink.connector.file.src.util.CheckpointedPosition;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.encryption.EncryptedFiles;
@@ -42,18 +43,19 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
  *
  * @param <T> is the Java class returned by this iterator whose objects contain one or more rows.
  */
-abstract class DataIterator<T> implements CloseableIterator<T> {
+public abstract class DataIterator<T> implements CloseableIterator<T> {
 
-  private Iterator<FileScanTask> tasks;
+  private final CombinedScanTask combinedTask;
   private final Map<String, InputFile> inputFiles;
 
+  private Iterator<FileScanTask> tasks;
   private CloseableIterator<T> currentIterator;
+  private Position position;
 
-  DataIterator(CombinedScanTask task, FileIO io, EncryptionManager encryption) {
-    this.tasks = task.files().iterator();
-
+  DataIterator(CombinedScanTask combinedTask, FileIO io, EncryptionManager encryption) {
+    this.combinedTask = combinedTask;
     Map<String, ByteBuffer> keyMetadata = Maps.newHashMap();
-    task.files().stream()
+    combinedTask.files().stream()
         .flatMap(fileScanTask -> Stream.concat(Stream.of(fileScanTask.file()), fileScanTask.deletes().stream()))
         .forEach(file -> keyMetadata.put(file.path().toString(), file.keyMetadata()));
     Stream<EncryptedInputFile> encrypted = keyMetadata.entrySet().stream()
@@ -62,11 +64,13 @@ abstract class DataIterator<T> implements CloseableIterator<T> {
     // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
     Iterable<InputFile> decryptedFiles = encryption.decrypt(encrypted::iterator);
 
-    Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(task.files().size());
+    Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(combinedTask.files().size());
     decryptedFiles.forEach(decrypted -> files.putIfAbsent(decrypted.location(), decrypted));
     this.inputFiles = Collections.unmodifiableMap(files);
 
+    this.tasks = combinedTask.files().iterator();
     this.currentIterator = CloseableIterator.empty();
+    this.position = new Position();
   }
 
   InputFile getInputFile(FileScanTask task) {
@@ -79,6 +83,27 @@ abstract class DataIterator<T> implements CloseableIterator<T> {
     return inputFiles.get(location);
   }
 
+  public void seek(CheckpointedPosition checkpointedPosition)  {
+    // skip files
+    Preconditions.checkArgument(checkpointedPosition.getOffset() < combinedTask.files().size(),
+        String.format("Checkpointed file offset is %d, while CombinedScanTask has %d files",
+            checkpointedPosition.getOffset(), combinedTask.files().size()));
+    for (long i = 0L; i < checkpointedPosition.getOffset(); ++i) {
+      tasks.next();
+    }
+    updateCurrentIterator();
+    // skip records within the file
+    for (long i = 0; i < checkpointedPosition.getRecordsAfterOffset(); ++i) {
+      if (hasNext()) {
+        next();
+      } else {
+        throw new IllegalStateException("Not enough records to skip: " +
+            checkpointedPosition.getRecordsAfterOffset());
+      }
+    }
+    position = new Position(checkpointedPosition);
+  }
+
   @Override
   public boolean hasNext() {
     updateCurrentIterator();
@@ -88,7 +113,12 @@ abstract class DataIterator<T> implements CloseableIterator<T> {
   @Override
   public T next() {
     updateCurrentIterator();
+    position.advanceRecord();
     return currentIterator.next();
+  }
+
+  public boolean isCurrentIteratorDone() {
+    return !currentIterator.hasNext();
   }
 
   /**
@@ -100,6 +130,7 @@ abstract class DataIterator<T> implements CloseableIterator<T> {
       while (!currentIterator.hasNext() && tasks.hasNext()) {
         currentIterator.close();
         currentIterator = openTaskIterator(tasks.next());
+        position.advanceFile();
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
@@ -113,5 +144,44 @@ abstract class DataIterator<T> implements CloseableIterator<T> {
     // close the current iterator
     currentIterator.close();
     tasks = null;
+  }
+
+  public Position position() {
+    return position;
+  }
+
+  public static class Position {
+
+    private long fileOffset;
+    private long recordOffset;
+
+    Position() {
+      // fileOffset starts at -1 because we started
+      // from an empty iterator that is not from the split files.
+      this.fileOffset = -1L;
+      this.recordOffset = 0L;
+    }
+
+    Position(CheckpointedPosition checkpointedPosition) {
+      this.fileOffset = checkpointedPosition.getOffset();
+      this.recordOffset = checkpointedPosition.getRecordsAfterOffset();
+    }
+
+    void advanceFile() {
+      this.fileOffset += 1;
+      this.recordOffset = 0L;
+    }
+
+    void advanceRecord() {
+      this.recordOffset += 1L;
+    }
+
+    public long fileOffset() {
+      return fileOffset;
+    }
+
+    public long recordOffset() {
+      return recordOffset;
+    }
   }
 }

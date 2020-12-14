@@ -25,8 +25,10 @@ import java.util.Map;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
+import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.api.config.TableConfigOptions;
 import org.apache.flink.types.Row;
+import org.apache.flink.util.CloseableIterator;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers;
@@ -45,9 +47,9 @@ import org.junit.Test;
 /**
  * Test Flink SELECT SQLs.
  */
-public class TestFlinkScanSql extends TestFlinkScan {
+public class TestFlinkScanSql extends TestFlinkSource {
 
-  private TableEnvironment tEnv;
+  private volatile TableEnvironment tEnv;
 
   public TestFlinkScanSql(String fileFormat) {
     super(fileFormat);
@@ -56,12 +58,25 @@ public class TestFlinkScanSql extends TestFlinkScan {
   @Override
   public void before() throws IOException {
     super.before();
-    tEnv = TableEnvironment.create(EnvironmentSettings.newInstance().useBlinkPlanner().inBatchMode().build());
-    tEnv.executeSql(String.format(
+    getTableEnv().executeSql(String.format(
         "create catalog iceberg_catalog with ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
         warehouse));
-    tEnv.executeSql("use catalog iceberg_catalog");
-    tEnv.getConfig().getConfiguration().set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
+    getTableEnv().executeSql("use catalog iceberg_catalog");
+    getTableEnv().getConfig().getConfiguration().set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
+  }
+
+  private TableEnvironment getTableEnv() {
+    if (tEnv == null) {
+      synchronized (this) {
+        if (tEnv == null) {
+          this.tEnv = TableEnvironment.create(EnvironmentSettings
+              .newInstance()
+              .useBlinkPlanner()
+              .inBatchMode().build());
+        }
+      }
+    }
+    return tEnv;
   }
 
   @Override
@@ -107,7 +122,8 @@ public class TestFlinkScanSql extends TestFlinkScan {
     helper.appendToTable(dataFile1, dataFile2);
 
     Expression filter = Expressions.and(Expressions.equal("dt", "2020-03-20"), Expressions.equal("id", 123));
-    assertRecords(runWithFilter(filter, "where dt='2020-03-20' and id=123"), expectedRecords, SCHEMA);
+    org.apache.iceberg.flink.TestHelpers.assertRecords(runWithFilter(
+        filter, "where dt='2020-03-20' and id=123"), expectedRecords, SCHEMA);
   }
 
   @Test
@@ -166,7 +182,13 @@ public class TestFlinkScanSql extends TestFlinkScan {
   }
 
   private List<Row> executeSQL(String sql) {
-    return Lists.newArrayList(tEnv.executeSql(sql).collect());
+    TableResult tableResult = getTableEnv().executeSql(sql);
+    try (CloseableIterator<Row> iter = tableResult.collect()) {
+      List<Row> results = Lists.newArrayList(iter);
+      return results;
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to collect table result", e);
+    }
   }
 
   private String optionToKv(String key, Object value) {

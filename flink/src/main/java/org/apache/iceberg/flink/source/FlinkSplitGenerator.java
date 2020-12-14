@@ -21,29 +21,46 @@ package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-class FlinkSplitGenerator {
+public class FlinkSplitGenerator {
   private FlinkSplitGenerator() {
   }
 
   static FlinkInputSplit[] createInputSplits(Table table, ScanContext context) {
-    List<CombinedScanTask> tasks = tasks(table, context);
-    FlinkInputSplit[] splits = new FlinkInputSplit[tasks.size()];
-    for (int i = 0; i < tasks.size(); i++) {
-      splits[i] = new FlinkInputSplit(i, tasks.get(i));
+    try (CloseableIterable<CombinedScanTask> tasksIterable = planTasks(table, context)) {
+      List<CombinedScanTask> tasks = Lists.newArrayList(tasksIterable);
+      FlinkInputSplit[] splits = new FlinkInputSplit[tasks.size()];
+      for (int i = 0; i < tasks.size(); i++) {
+        splits[i] = new FlinkInputSplit(i, tasks.get(i));
+      }
+      return splits;
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to process tasks iterable", e);
     }
-    return splits;
   }
 
-  private static List<CombinedScanTask> tasks(Table table, ScanContext context) {
+  public static List<IcebergSourceSplit> planIcebergSourceSplits(
+      Table table, ScanContext context) {
+    try (CloseableIterable<CombinedScanTask> tasksIterable = planTasks(table, context)) {
+      List<IcebergSourceSplit> splits = new ArrayList<>();
+      tasksIterable.forEach(task -> splits.add(IcebergSourceSplit.fromCombinedScanTask(task)));
+      return splits;
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to close table scan: ", e);
+    }
+  }
+
+  static CloseableIterable<CombinedScanTask> planTasks(Table table, ScanContext context) {
     TableScan scan = table
         .newScan()
         .caseSensitive(context.caseSensitive())
@@ -83,10 +100,6 @@ class FlinkSplitGenerator {
       }
     }
 
-    try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
-      return Lists.newArrayList(tasksIterable);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to close table scan: " + scan, e);
-    }
+    return scan.planTasks();
   }
 }

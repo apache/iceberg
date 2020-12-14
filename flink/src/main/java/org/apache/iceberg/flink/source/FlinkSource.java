@@ -31,7 +31,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.config.ExecutionConfigOptions;
 import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo;
+import org.apache.flink.table.runtime.typeutils.InternalTypeInfo;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
@@ -204,7 +204,7 @@ public class FlinkSource {
       FlinkInputFormat format = buildFormat();
 
       ScanContext context = contextBuilder.build();
-      TypeInformation<RowData> typeInfo = RowDataTypeInfo.of(FlinkSchemaUtil.convert(context.project()));
+      TypeInformation<RowData> typeInfo = InternalTypeInfo.of(FlinkSchemaUtil.convert(context.project()));
 
       if (!context.isStreaming()) {
         int parallelism = inferParallelism(format, context);

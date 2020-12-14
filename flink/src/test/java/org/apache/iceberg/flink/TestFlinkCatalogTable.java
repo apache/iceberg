@@ -86,8 +86,8 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
             Types.NestedField.optional(1, "strV", Types.StringType.get())));
     Assert.assertEquals(
         Arrays.asList(
-            TableColumn.of("id", DataTypes.BIGINT()),
-            TableColumn.of("strV", DataTypes.STRING())),
+            TableColumn.physical("id", DataTypes.BIGINT()),
+            TableColumn.physical("strV", DataTypes.STRING())),
         getTableEnv().from("tl").getSchema().getTableColumns());
     Assert.assertTrue(getTableEnv().getCatalog(catalogName).get().tableExists(ObjectPath.fromString("db.tl")));
   }
@@ -107,7 +107,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         () -> getTableEnv().from("tl")
     );
     Assert.assertEquals(
-        Collections.singletonList(TableColumn.of("id", DataTypes.BIGINT())),
+        Collections.singletonList(TableColumn.physical("id", DataTypes.BIGINT())),
         getTableEnv().from("tl2").getSchema().getTableColumns());
   }
 

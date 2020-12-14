@@ -456,7 +456,7 @@ public class FlinkCatalog extends AbstractCatalog {
 
     TableSchema schema = table.getSchema();
     schema.getTableColumns().forEach(column -> {
-      if (column.isGenerated()) {
+      if (!column.isPhysical()) {
         throw new UnsupportedOperationException("Creating table with computed columns is not supported yet.");
       }
     });

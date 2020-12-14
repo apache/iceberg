@@ -455,14 +455,14 @@ public class TestFlinkTableSource extends FlinkTestBase {
     String sqlNotIn = String.format("SELECT * FROM %s WHERE id NOT IN (3,2) ", TABLE_NAME);
     String explainNotIn = getTableEnv().explainSql(sqlNotIn);
     Object[] expectRecord = new Object[] {1, "iceberg", 10.0};
-    String expectedFilter = "ref(name=\"id\") != 3,ref(name=\"id\") != 2";
+    String expectedFilter = "FilterPushDown: ref(name=\"id\") != 2,ref(name=\"id\") != 3";
     Assert.assertTrue("Explain should contain the push down filter", explainNotIn.contains(expectedFilter));
 
     List<Object[]> resultNotIn = sql(sqlNotIn);
     Assert.assertEquals("Should have 1 record", 1, resultNotIn.size());
     Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultNotIn.get(0));
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
-    String expectedScan = "(ref(name=\"id\") != 3 and ref(name=\"id\") != 2)";
+    String expectedScan = "(ref(name=\"id\") != 2 and ref(name=\"id\") != 3)";
     Assert.assertEquals("Should contain the push down filter", expectedScan, lastScanEvent.filter().toString());
   }
 
@@ -617,12 +617,14 @@ public class TestFlinkTableSource extends FlinkTestBase {
     explainNoPushDown = getTableEnv().explainSql(sqlNoPushDown);
     Assert.assertFalse("Explain should not contain FilterPushDown",
         explainNoPushDown.contains(expectedFilterPushDownExplain));
+
     sqlNoPushDown = "SELECT * FROM  " + TABLE_NAME + "  WHERE data LIKE '%%' ";
     resultLike = sql(sqlNoPushDown);
-    Assert.assertEquals("Should have 2 records", 2, resultLike.size());
+    Assert.assertEquals("Should have 3 records", 3, resultLike.size());
     List<Object[]> expectedRecords = Lists.newArrayList();
     expectedRecords.add(new Object[] {1, "iceberg", 10.0});
     expectedRecords.add(new Object[] {2, "b", 20.0});
+    expectedRecords.add(new Object[] {3, null, 30.0});
     Assert.assertArrayEquals("Should produce the expected record", expectedRecords.toArray(), resultLike.toArray());
     Assert.assertEquals("Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
 
