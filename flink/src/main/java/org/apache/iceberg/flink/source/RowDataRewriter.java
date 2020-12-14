@@ -80,7 +80,8 @@ public class RowDataRewriter {
         encryptionManager,
         Long.MAX_VALUE,
         format,
-        table.properties());
+        table.properties(),
+        null);
   }
 
   public List<DataFile> rewriteDataForTasks(DataStream<CombinedScanTask> dataStream, int parallelism) {

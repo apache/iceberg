@@ -64,6 +64,10 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     this.targetFileSize = targetFileSize;
   }
 
+  protected PartitionSpec spec() {
+    return spec;
+  }
+
   @Override
   public void abort() throws IOException {
     close();

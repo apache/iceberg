@@ -224,7 +224,8 @@ public class FlinkSink {
     FileFormat fileFormat = getFileFormat(props);
 
     TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(table.schema(), flinkSchema,
-        table.spec(), table.locationProvider(), table.io(), table.encryption(), targetFileSize, fileFormat, props);
+        table.spec(), table.locationProvider(), table.io(), table.encryption(), targetFileSize, fileFormat, props,
+        null);
 
     return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
   }
