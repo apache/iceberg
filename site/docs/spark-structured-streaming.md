@@ -56,6 +56,29 @@ Iceberg supports `append` and `complete` output modes:
 The table should be created in prior to start the streaming query. Refer [SQL create table](/spark/#create-table)
 on Spark page to see how to create the Iceberg table.
 
+### Writing against partitioned table
+
+Iceberg requires the data to be sorted according to the partition spec per task (Spark partition) in prior to write
+against partitioned table. For batch queries you're encouraged to do explicit sort to fulfill the requirement
+(see [here](/spark/#writing-against-partitioned-table)), but the approach would bring additional latency as
+repartition and sort are considered as heavy operations for streaming workload. To avoid additional latency, you can
+enable fanout writer to eliminate the requirement.
+
+```scala
+val tableIdentifier: String = ...
+data.writeStream
+    .format("iceberg")
+    .outputMode("append")
+    .trigger(Trigger.ProcessingTime(1, TimeUnit.MINUTES))
+    .option("path", tableIdentifier)
+    .option("fanout-enabled", "true")
+    .option("checkpointLocation", checkpointPath)
+    .start()
+```
+
+Fanout writer opens the files per partition value and doesn't close these files till write task is finished.
+This functionality is discouraged for batch query, as explicit sort against output rows isn't expensive for batch workload.
+
 ## Maintenance for streaming tables
 
 Streaming queries can create new table versions quickly, which creates lots of table metadata to track those versions.
