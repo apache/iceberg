@@ -31,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
@@ -41,7 +40,7 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.data.conversion.DataStructureConverter;
 import org.apache.flink.table.data.conversion.DataStructureConverters;
-import org.apache.flink.table.runtime.types.InternalSerializers;
+import org.apache.flink.table.runtime.typeutils.InternalSerializers;
 import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.MapType;
@@ -62,9 +61,8 @@ public class TestHelpers {
   }
 
   public static RowData copyRowData(RowData from, RowType rowType) {
-    ExecutionConfig config = new ExecutionConfig();
     TypeSerializer[] fieldSerializers = rowType.getChildren().stream()
-        .map((LogicalType type) -> InternalSerializers.create(type, config))
+        .map((LogicalType type) -> InternalSerializers.create(type))
         .toArray(TypeSerializer[]::new);
 
     // Use rowType field count to avoid copy metadata column in case of merging position deletes
