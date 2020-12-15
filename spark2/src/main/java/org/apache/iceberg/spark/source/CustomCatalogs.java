@@ -62,10 +62,10 @@ public final class CustomCatalogs {
    * @return an Iceberg catalog
    */
   public static Catalog buildIcebergCatalog(SparkSession spark, String name) {
-    return CATALOG_CACHE.get(Pair.of(spark, name), CustomCatalogs::build);
+    return CATALOG_CACHE.get(Pair.of(spark, name), CustomCatalogs::load);
   }
 
-  private static Catalog build(Pair<SparkSession, String> sparkAndName) {
+  private static Catalog load(Pair<SparkSession, String> sparkAndName) {
     SparkSession spark = sparkAndName.first();
     String name =  sparkAndName.second() == null ? ICEBERG_DEFAULT_CATALOG : sparkAndName.second();
     SparkConf sparkConf = spark.sparkContext().getConf();

@@ -21,10 +21,12 @@ package org.apache.iceberg.hive;
 
 import java.io.Closeable;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -58,15 +60,18 @@ import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, SupportsNamespaces {
+public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, SupportsNamespaces, Configurable {
   private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
 
-  private final String name;
-  private final HiveClientPool clients;
-  private final Configuration conf;
-  private final StackTraceElement[] createStack;
-  private final FileIO fileIO;
+  private String name;
+  private HiveClientPool clients;
+  private Configuration conf;
+  private StackTraceElement[] createStack;
+  private FileIO fileIO;
   private boolean closed;
+
+  public HiveCatalog() {
+  }
 
   public HiveCatalog(Configuration conf) {
     this.name = "hive";
@@ -77,14 +82,17 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     this.fileIO = new HadoopFileIO(conf);
   }
 
+  @Deprecated
   public HiveCatalog(String name, String uri, int clientPoolSize, Configuration conf) {
     this(name, uri, null, clientPoolSize, conf);
   }
 
+  @Deprecated
   public HiveCatalog(String name, String uri, String warehouse, int clientPoolSize, Configuration conf) {
     this(name, uri, warehouse, clientPoolSize, conf, Maps.newHashMap());
   }
 
+  @Deprecated
   public HiveCatalog(
       String name,
       String uri,
@@ -92,17 +100,33 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
       int clientPoolSize,
       Configuration conf,
       Map<String, String> properties) {
-    this.name = name;
-    this.conf = new Configuration(conf);
-    // before building the client pool, overwrite the configuration's URIs if the argument is non-null
-    if (uri != null) {
-      this.conf.set(HiveConf.ConfVars.METASTOREURIS.varname, uri);
-    }
 
+    Map<String, String> props = new HashMap<>(properties);
     if (warehouse != null) {
-      this.conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, warehouse);
+      props.put(CatalogProperties.WAREHOUSE_LOCATION, warehouse);
+    }
+    if (uri != null) {
+      props.put(CatalogProperties.HIVE_URI, uri);
+    }
+    props.put(CatalogProperties.HIVE_CLIENT_POOL_SIZE, Integer.toString(clientPoolSize));
+
+    setConf(conf);
+    initialize(name, props);
+  }
+
+  @Override
+  public void initialize(String inputName, Map<String, String> properties) {
+    this.name = inputName;
+    if (properties.containsKey(CatalogProperties.HIVE_URI)) {
+      this.conf.set(HiveConf.ConfVars.METASTOREURIS.varname, properties.get(CatalogProperties.HIVE_URI));
     }
 
+    if (properties.containsKey(CatalogProperties.WAREHOUSE_LOCATION)) {
+      this.conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, properties.get(CatalogProperties.WAREHOUSE_LOCATION));
+    }
+
+    int clientPoolSize = Integer.parseInt(
+        properties.getOrDefault(CatalogProperties.HIVE_CLIENT_POOL_SIZE, "5"));
     this.clients = new HiveClientPool(clientPoolSize, this.conf);
     this.createStack = Thread.currentThread().getStackTrace();
     this.closed = false;
@@ -535,5 +559,15 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
         .add("name", name)
         .add("uri", this.conf.get(HiveConf.ConfVars.METASTOREURIS.varname))
         .toString();
+  }
+
+  @Override
+  public void setConf(Configuration conf) {
+    this.conf = new Configuration(conf);
+  }
+
+  @Override
+  public Configuration getConf() {
+    return conf;
   }
 }

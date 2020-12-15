@@ -28,7 +28,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -46,6 +45,7 @@ public class CatalogUtil {
   public static final String ICEBERG_CATALOG_TYPE_HADOOP = "hadoop";
   public static final String ICEBERG_CATALOG_TYPE_HIVE = "hive";
   public static final String ICEBERG_CATALOG_HIVE = "org.apache.iceberg.hive.HiveCatalog";
+  public static final String ICEBERG_CATALOG_HADOOP = "org.apache.iceberg.hadoop.HadoopCatalog";
 
   private CatalogUtil() {
   }
@@ -178,35 +178,21 @@ public class CatalogUtil {
   public static Catalog buildIcebergCatalog(String name, Map<String, String> options, Configuration conf) {
 
     String catalogImpl = options.get(CatalogProperties.CATALOG_IMPL);
-    if (catalogImpl != null) {
-      return CatalogUtil.loadCatalog(catalogImpl, name, options, conf);
+    if (catalogImpl == null) {
+      String catalogType = options.getOrDefault(ICEBERG_CATALOG_TYPE, ICEBERG_CATALOG_TYPE_HIVE);
+      switch (catalogType.toLowerCase(Locale.ENGLISH)) {
+        case ICEBERG_CATALOG_TYPE_HIVE:
+          catalogImpl = ICEBERG_CATALOG_HIVE;
+          break;
+        case ICEBERG_CATALOG_TYPE_HADOOP:
+          catalogImpl = ICEBERG_CATALOG_HADOOP;
+          break;
+        default:
+          throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
+      }
     }
+    return CatalogUtil.loadCatalog(catalogImpl, name, options, conf);
 
-    String catalogType = options.getOrDefault(ICEBERG_CATALOG_TYPE, ICEBERG_CATALOG_TYPE_HIVE);
-    switch (catalogType.toLowerCase(Locale.ENGLISH)) {
-      case ICEBERG_CATALOG_TYPE_HIVE:
-        String clientPoolSize = options.getOrDefault(CatalogProperties.HIVE_CLIENT_POOL_SIZE,
-            Integer.toString(CatalogProperties.HIVE_CLIENT_POOL_SIZE_DEFAULT));
-        String uri = options.get(CatalogProperties.HIVE_URI);
-        return buildHiveCatalog(name, uri, Integer.parseInt(clientPoolSize), conf);
-      case ICEBERG_CATALOG_TYPE_HADOOP:
-        String warehouseLocation = options.get(CatalogProperties.WAREHOUSE_LOCATION);
-        return new HadoopCatalog(name, conf, warehouseLocation, options);
-
-      default:
-        throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
-    }
-  }
-
-  private static Catalog buildHiveCatalog(String name, String uri, int clientPoolSize, Configuration conf) {
-    try {
-      DynConstructors.Ctor<Catalog> ctor = DynConstructors.builder(Catalog.class)
-          .impl(ICEBERG_CATALOG_HIVE, String.class, String.class, int.class, Configuration.class)
-          .buildChecked();
-      return ctor.newInstance(name, uri, clientPoolSize, conf);
-    } catch (NoSuchMethodException e) {
-      throw new IllegalArgumentException("Cannot initialize HiveCatalog.", e);
-    }
   }
 
   /**
