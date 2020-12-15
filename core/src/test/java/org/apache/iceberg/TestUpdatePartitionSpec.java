@@ -444,12 +444,36 @@ public class TestUpdatePartitionSpec extends TableTestBase {
   }
 
   @Test
-  public void testAddAlreadyAddedField() {
+  public void testAddAlreadyAddedFieldByTransform() {
     AssertHelpers.assertThrows("Should fail adding a duplicate field",
         IllegalArgumentException.class, "Cannot add duplicate partition field",
         () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
             .addField("prefix", truncate("data", 4))
             .addField(truncate("data", 4)));
+  }
+
+  @Test
+  public void testAddAlreadyAddedFieldByName() {
+    AssertHelpers.assertThrows("Should fail adding a duplicate field",
+        IllegalArgumentException.class, "Cannot add duplicate partition field",
+        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+            .addField("prefix", truncate("data", 4))
+            .addField("prefix", truncate("data", 6)));
+  }
+
+  @Test
+  public void testAddRedundantTimePartition() {
+    AssertHelpers.assertThrows("Should fail adding a duplicate field",
+        IllegalArgumentException.class, "Cannot add redundant partition field",
+        () -> new BaseUpdatePartitionSpec(formatVersion, UNPARTITIONED)
+            .addField(day("ts"))
+            .addField(hour("ts"))); // conflicts with hour
+
+    AssertHelpers.assertThrows("Should fail adding a duplicate field",
+        IllegalArgumentException.class, "Cannot add redundant partition",
+        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+            .addField(hour("ts")) // does not conflict with day because day already exists
+            .addField(month("ts"))); // conflicts with hour
   }
 
   @Test
@@ -520,7 +544,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
   @Test
   public void testRenameAfterAdd() {
     AssertHelpers.assertThrows("Should fail trying to rename an added field",
-        IllegalArgumentException.class, "Cannot find partition field to rename",
+        IllegalArgumentException.class, "Cannot rename newly added partition field",
         () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
             .addField("data_trunc", truncate("data", 4))
             .renameField("data_trunc", "prefix")
