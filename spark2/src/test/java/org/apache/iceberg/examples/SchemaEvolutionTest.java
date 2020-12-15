@@ -26,23 +26,23 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
-
 import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.QueryTest$;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.expressions.Literal$;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.LongType$;
 import org.apache.spark.sql.types.StructField;
-import org.junit.*;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -98,56 +98,33 @@ public class SchemaEvolutionTest {
 
   @Test
   public void addColumnToSchema() {
-
     String fieldName = "publisher";
     Schema schema = table.schema();
     Assert.assertNull(schema.findField(fieldName));
 
     table.updateSchema().addColumn(fieldName, Types.StringType.get()).commit();
+    Dataset<Row> df2 = spark.read().json(dataLocation + "new-books.json");
 
-    Dataset<Row> df1 = spark.read()
-        .json(dataLocation + "books.json");
-    df1 = df1.withColumn(fieldName, new Column(Literal$.MODULE$.apply(null)))
-        .selectExpr("title", "price", "author", "cast(published as timestamp)", "genre", "publisher");
-
-    Dataset<Row> df2 = spark.read().json(dataLocation + "new-books.json")
-        .selectExpr("title", "price", "author", "cast(published as timestamp)", "genre", "publisher");
-    List<Row> expected = df1.union(df2)
-        .collectAsList();
-
-    // Append data
     df2.select(df2.col("title"), df2.col("price").cast(DataTypes.IntegerType),
         df2.col("author"), df2.col("published").cast(DataTypes.TimestampType),
         df2.col("genre"), df2.col("publisher")).write()
         .format("iceberg")
         .mode("append")
         .save(tableLocation.toString());
-
-    // Read iceberg table
-    Dataset<Row> iceberg = spark.read()
-        .format("iceberg")
-        .load(tableLocation.toString());
-
-    String error = QueryTest$.MODULE$.checkAnswer(iceberg, expected);
-    Assert.assertNull(error);
-
   }
 
   @Test
   public void deleteColumnFromSchema() {
-    List<Row> rows = spark.read()
-        .format("iceberg")
-        .load(tableLocation.toString())
-        .drop("genre").collectAsList();
-
     table.updateSchema().deleteColumn("genre").commit();
-    table.refresh();
 
+    table.refresh();
     Dataset<Row> results = spark.read()
         .format("iceberg")
         .load(tableLocation.toString());
+
+    results.createOrReplaceTempView("table");
+    spark.sql("select * from table").show();
     Assert.assertFalse(Arrays.asList(results.schema().names()).contains("genre"));
-    Assert.assertNull(QueryTest$.MODULE$.checkAnswer(results, rows));
   }
 
   @Test
@@ -162,8 +139,8 @@ public class SchemaEvolutionTest {
     results.createOrReplaceTempView("table");
     spark.sql("select * from table").show();
     List<String> fields = Arrays.asList(spark.sql("select * from table").schema().names());
-    assert (fields.contains("writer"));
-    assert (!fields.contains("author"));
+    Assert.assertTrue(fields.contains("writer"));
+    Assert.assertFalse(fields.contains("author"));
 
   }
 
@@ -178,8 +155,8 @@ public class SchemaEvolutionTest {
     Stream<StructField> structFieldStream = Arrays.stream(results.schema().fields())
         .filter(field -> field.name().equalsIgnoreCase("price"));
     Optional<StructField> first = structFieldStream.findFirst();
-    Assert.assertTrue("Unable to change datatype from Long to Int", first.isPresent()
-        && first.get().dataType() == LongType$.MODULE$);
+    Assert.assertTrue("Unable to change datatype from Long to Int", first.isPresent() &&
+        first.get().dataType() == LongType$.MODULE$);
   }
 
   @Test(expected = IllegalArgumentException.class)
