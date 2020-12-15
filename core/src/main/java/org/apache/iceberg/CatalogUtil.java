@@ -187,27 +187,24 @@ public class CatalogUtil {
         String clientPoolSize = options.getOrDefault(CatalogProperties.HIVE_CLIENT_POOL_SIZE,
             Integer.toString(CatalogProperties.HIVE_CLIENT_POOL_SIZE_DEFAULT));
         String uri = options.get(CatalogProperties.HIVE_URI);
-        DynConstructors.Ctor<Catalog> ctor;
-        try {
-          ctor = DynConstructors.builder(Catalog.class).impl(ICEBERG_CATALOG_HIVE).buildChecked();
-        } catch (NoSuchMethodException e) {
-          throw new IllegalArgumentException(String.format(
-              "Cannot initialize Catalog, missing no-arg constructor: %s", ICEBERG_CATALOG_HIVE), e);
-        }
-        try {
-          return ctor.newInstance(name, uri, Integer.parseInt(clientPoolSize), conf);
-
-        } catch (ClassCastException e) {
-          throw new IllegalArgumentException(
-              String.format("Cannot initialize Catalog, %s does not implement Catalog.", ICEBERG_CATALOG_HIVE), e);
-        }
-
+        return buildHiveCatalog(name, uri, Integer.parseInt(clientPoolSize), conf);
       case ICEBERG_CATALOG_TYPE_HADOOP:
         String warehouseLocation = options.get(CatalogProperties.WAREHOUSE_LOCATION);
         return new HadoopCatalog(name, conf, warehouseLocation, options);
 
       default:
         throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
+    }
+  }
+
+  private static Catalog buildHiveCatalog(String name, String uri, int clientPoolSize, Configuration conf) {
+    try {
+      DynConstructors.Ctor<Catalog> ctor = DynConstructors.builder(Catalog.class)
+          .impl(ICEBERG_CATALOG_HIVE, String.class, String.class, int.class, Configuration.class)
+          .buildChecked();
+      return ctor.newInstance(name, uri, clientPoolSize, conf);
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException("Cannot initialize HiveCatalog.", e);
     }
   }
 
