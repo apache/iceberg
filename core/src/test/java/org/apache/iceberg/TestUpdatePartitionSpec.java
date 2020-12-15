@@ -24,6 +24,8 @@ import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.expressions.Expressions.day;
@@ -33,7 +35,8 @@ import static org.apache.iceberg.expressions.Expressions.ref;
 import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.expressions.Expressions.year;
 
-public class TestUpdatePartitionSpecV2 {
+@RunWith(Parameterized.class)
+public class TestUpdatePartitionSpec extends TableTestBase {
   private static final Schema SCHEMA = new Schema(
       Types.NestedField.required(1, "id", Types.LongType.get()),
       Types.NestedField.required(2, "ts", Types.TimestampType.withZone()),
@@ -41,7 +44,6 @@ public class TestUpdatePartitionSpecV2 {
       Types.NestedField.optional(4, "data", Types.StringType.get())
   );
 
-  private static final int FORMAT_VERSION = 2;
   private static final PartitionSpec UNPARTITIONED = PartitionSpec.builderFor(SCHEMA).build();
   private static final PartitionSpec PARTITIONED = PartitionSpec.builderFor(SCHEMA)
       .identity("category")
@@ -49,9 +51,18 @@ public class TestUpdatePartitionSpecV2 {
       .bucket("id", 16, "shard")
       .build();
 
+  @Parameterized.Parameters(name = "formatVersion = {0}")
+  public static Object[] parameters() {
+    return new Object[] { 1, 2 };
+  }
+
+  public TestUpdatePartitionSpec(int formatVersion) {
+    super(formatVersion);
+  }
+
   @Test
   public void testAddIdentityByName() {
-    PartitionSpec updated = new BaseUpdatePartitionSpec(FORMAT_VERSION, UNPARTITIONED)
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, UNPARTITIONED)
         .addField("category")
         .apply();
 
@@ -64,7 +75,7 @@ public class TestUpdatePartitionSpecV2 {
 
   @Test
   public void testAddIdentityByTerm() {
-    PartitionSpec updated = new BaseUpdatePartitionSpec(FORMAT_VERSION, UNPARTITIONED)
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, UNPARTITIONED)
         .addField(ref("category"))
         .apply();
 
@@ -77,7 +88,7 @@ public class TestUpdatePartitionSpecV2 {
 
   @Test
   public void testAddYear() {
-    PartitionSpec updated = new BaseUpdatePartitionSpec(FORMAT_VERSION, UNPARTITIONED)
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, UNPARTITIONED)
         .addField(year("ts"))
         .apply();
 
@@ -90,7 +101,7 @@ public class TestUpdatePartitionSpecV2 {
 
   @Test
   public void testAddMonth() {
-    PartitionSpec updated = new BaseUpdatePartitionSpec(FORMAT_VERSION, UNPARTITIONED)
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, UNPARTITIONED)
         .addField(month("ts"))
         .apply();
 
@@ -103,7 +114,7 @@ public class TestUpdatePartitionSpecV2 {
 
   @Test
   public void testAddDay() {
-    PartitionSpec updated = new BaseUpdatePartitionSpec(FORMAT_VERSION, UNPARTITIONED)
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, UNPARTITIONED)
         .addField(day("ts"))
         .apply();
 
@@ -116,7 +127,7 @@ public class TestUpdatePartitionSpecV2 {
 
   @Test
   public void testAddHour() {
-    PartitionSpec updated = new BaseUpdatePartitionSpec(FORMAT_VERSION, UNPARTITIONED)
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, UNPARTITIONED)
         .addField(hour("ts"))
         .apply();
 
@@ -129,7 +140,7 @@ public class TestUpdatePartitionSpecV2 {
 
   @Test
   public void testAddBucket() {
-    PartitionSpec updated = new BaseUpdatePartitionSpec(FORMAT_VERSION, UNPARTITIONED)
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, UNPARTITIONED)
         .addField(bucket("id", 16))
         .apply();
 
@@ -143,7 +154,7 @@ public class TestUpdatePartitionSpecV2 {
 
   @Test
   public void testAddTruncate() {
-    PartitionSpec updated = new BaseUpdatePartitionSpec(FORMAT_VERSION, UNPARTITIONED)
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, UNPARTITIONED)
         .addField(truncate("data", 4))
         .apply();
 
@@ -157,7 +168,7 @@ public class TestUpdatePartitionSpecV2 {
 
   @Test
   public void testAddNamedPartition() {
-    PartitionSpec updated = new BaseUpdatePartitionSpec(FORMAT_VERSION, UNPARTITIONED)
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, UNPARTITIONED)
         .addField("shard", bucket("id", 16))
         .apply();
 
@@ -170,7 +181,7 @@ public class TestUpdatePartitionSpecV2 {
 
   @Test
   public void testAddToExisting() {
-    PartitionSpec updated = new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
         .addField(truncate("data", 4))
         .apply();
 
@@ -186,7 +197,7 @@ public class TestUpdatePartitionSpecV2 {
 
   @Test
   public void testMultipleAdds() {
-    PartitionSpec updated = new BaseUpdatePartitionSpec(FORMAT_VERSION, UNPARTITIONED)
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, UNPARTITIONED)
         .addField("category")
         .addField(day("ts"))
         .addField("shard", bucket("id", 16))
@@ -207,11 +218,11 @@ public class TestUpdatePartitionSpecV2 {
   public void testAddHourToDay() {
     // multiple partitions for the same source with different time granularity is not allowed by the builder, but is
     // allowed when updating a spec so that existing columns in metadata continue to work.
-    PartitionSpec byDay = new BaseUpdatePartitionSpec(FORMAT_VERSION, UNPARTITIONED)
+    PartitionSpec byDay = new BaseUpdatePartitionSpec(formatVersion, UNPARTITIONED)
         .addField(day("ts"))
         .apply();
 
-    PartitionSpec byHour = new BaseUpdatePartitionSpec(FORMAT_VERSION, byDay)
+    PartitionSpec byHour = new BaseUpdatePartitionSpec(formatVersion, byDay)
         .addField(hour("ts"))
         .apply();
 
@@ -224,11 +235,11 @@ public class TestUpdatePartitionSpecV2 {
 
   @Test
   public void testAddMultipleBuckets() {
-    PartitionSpec bucket16 = new BaseUpdatePartitionSpec(FORMAT_VERSION, UNPARTITIONED)
+    PartitionSpec bucket16 = new BaseUpdatePartitionSpec(formatVersion, UNPARTITIONED)
         .addField(bucket("id", 16))
         .apply();
 
-    PartitionSpec bucket8 = new BaseUpdatePartitionSpec(FORMAT_VERSION, bucket16)
+    PartitionSpec bucket8 = new BaseUpdatePartitionSpec(formatVersion, bucket16)
         .addField(bucket("id", 8))
         .apply();
 
@@ -242,77 +253,117 @@ public class TestUpdatePartitionSpecV2 {
 
   @Test
   public void testRemoveIdentityByName() {
-    PartitionSpec updated = new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
         .removeField("category")
         .apply();
 
-    PartitionSpec expected = PartitionSpec.builderFor(SCHEMA)
+    PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
+        .alwaysNull("category", "category")
+        .day("ts")
+        .bucket("id", 16, "shard")
+        .build();
+
+    V1Assert.assertEquals("Should match expected spec", v1Expected, updated);
+
+    PartitionSpec v2Expected = PartitionSpec.builderFor(SCHEMA)
         .add(id("ts"), 1001, "ts_day", Transforms.day(Types.TimestampType.withZone()))
         .add(id("id"), 1002, "shard", Transforms.bucket(Types.LongType.get(), 16))
         .build();
 
-    Assert.assertEquals("Should match expected spec", expected, updated);
+    V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
   }
 
   @Test
   public void testRemoveBucketByName() {
-    PartitionSpec updated = new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
         .removeField("shard")
         .apply();
 
-    PartitionSpec expected = PartitionSpec.builderFor(SCHEMA)
+    PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
+        .identity("category")
+        .day("ts")
+        .alwaysNull("id", "shard")
+        .build();
+
+    V1Assert.assertEquals("Should match expected spec", v1Expected, updated);
+
+    PartitionSpec v2Expected = PartitionSpec.builderFor(SCHEMA)
         .add(id("category"), 1000, "category", Transforms.identity(Types.StringType.get()))
         .add(id("ts"), 1001, "ts_day", Transforms.day(Types.TimestampType.withZone()))
         .build();
 
-    Assert.assertEquals("Should match expected spec", expected, updated);
+    V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
   }
 
   @Test
   public void testRemoveIdentityByEquivalent() {
-    PartitionSpec updated = new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
         .removeField(ref("category"))
         .apply();
 
-    PartitionSpec expected = PartitionSpec.builderFor(SCHEMA)
+    PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
+        .alwaysNull("category", "category")
+        .day("ts")
+        .bucket("id", 16, "shard")
+        .build();
+
+    V1Assert.assertEquals("Should match expected spec", v1Expected, updated);
+
+    PartitionSpec v2Expected = PartitionSpec.builderFor(SCHEMA)
         .add(id("ts"), 1001, "ts_day", Transforms.day(Types.TimestampType.withZone()))
         .add(id("id"), 1002, "shard", Transforms.bucket(Types.LongType.get(), 16))
         .build();
 
-    Assert.assertEquals("Should match expected spec", expected, updated);
+    V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
   }
 
   @Test
   public void testRemoveDayByEquivalent() {
-    PartitionSpec updated = new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
         .removeField(day("ts"))
         .apply();
 
-    PartitionSpec expected = PartitionSpec.builderFor(SCHEMA)
+    PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
+        .identity("category")
+        .alwaysNull("ts", "ts_day")
+        .bucket("id", 16, "shard")
+        .build();
+
+    V1Assert.assertEquals("Should match expected spec", v1Expected, updated);
+
+    PartitionSpec v2Expected = PartitionSpec.builderFor(SCHEMA)
         .add(id("category"), 1000, "category", Transforms.identity(Types.StringType.get()))
         .add(id("id"), 1002, "shard", Transforms.bucket(Types.LongType.get(), 16))
         .build();
 
-    Assert.assertEquals("Should match expected spec", expected, updated);
+    V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
   }
 
   @Test
   public void testRemoveBucketByEquivalent() {
-    PartitionSpec updated = new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
         .removeField(bucket("id", 16))
         .apply();
 
-    PartitionSpec expected = PartitionSpec.builderFor(SCHEMA)
+    PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
+        .identity("category")
+        .day("ts")
+        .alwaysNull("id", "shard")
+        .build();
+
+    V1Assert.assertEquals("Should match expected spec", v1Expected, updated);
+
+    PartitionSpec v2Expected = PartitionSpec.builderFor(SCHEMA)
         .identity("category")
         .day("ts")
         .build();
 
-    Assert.assertEquals("Should match expected spec", expected, updated);
+    V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
   }
 
   @Test
   public void testRename() {
-    PartitionSpec updated = new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
         .renameField("shard", "id_bucket") // rename back to default
         .apply();
 
@@ -327,26 +378,35 @@ public class TestUpdatePartitionSpecV2 {
 
   @Test
   public void testMultipleChanges() {
-    PartitionSpec updated = new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
         .renameField("shard", "id_bucket") // rename back to default
         .removeField(day("ts"))
         .addField("prefix", truncate("data", 4))
         .apply();
 
-    PartitionSpec expected = PartitionSpec.builderFor(SCHEMA)
+    PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
+        .identity("category")
+        .alwaysNull("ts", "ts_day")
+        .bucket("id", 16)
+        .truncate("data", 4, "prefix")
+        .build();
+
+    V1Assert.assertEquals("Should match expected spec", v1Expected, updated);
+
+    PartitionSpec v2Expected = PartitionSpec.builderFor(SCHEMA)
         .add(id("category"), 1000, "category", Transforms.identity(Types.StringType.get()))
         .add(id("id"), 1002, "id_bucket", Transforms.bucket(Types.LongType.get(), 16))
         .add(id("data"), 1003, "prefix", Transforms.truncate(Types.StringType.get(), 4))
         .build();
 
-    Assert.assertEquals("Should match expected spec", expected, updated);
+    V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
   }
 
   @Test
   public void testAddDuplicateByName() {
     AssertHelpers.assertThrows("Should fail adding a duplicate field",
         IllegalArgumentException.class, "Cannot add duplicate partition field",
-        () -> new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
+        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
             .addField("category"));
   }
 
@@ -354,7 +414,7 @@ public class TestUpdatePartitionSpecV2 {
   public void testAddDuplicateByRef() {
     AssertHelpers.assertThrows("Should fail adding a duplicate field",
         IllegalArgumentException.class, "Cannot add duplicate partition field",
-        () -> new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
+        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
             .addField(ref("category")));
   }
 
@@ -362,7 +422,7 @@ public class TestUpdatePartitionSpecV2 {
   public void testAddDuplicateTransform() {
     AssertHelpers.assertThrows("Should fail adding a duplicate field",
         IllegalArgumentException.class, "Cannot add duplicate partition field",
-        () -> new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
+        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
             .addField(bucket("id", 16)));
   }
 
@@ -370,7 +430,7 @@ public class TestUpdatePartitionSpecV2 {
   public void testAddNamedDuplicate() {
     AssertHelpers.assertThrows("Should fail adding a duplicate field",
         IllegalArgumentException.class, "Cannot add duplicate partition field",
-        () -> new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
+        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
             .addField("b16", bucket("id", 16)));
   }
 
@@ -378,7 +438,7 @@ public class TestUpdatePartitionSpecV2 {
   public void testRemoveUnknownFieldByName() {
     AssertHelpers.assertThrows("Should fail trying to remove unknown field",
         IllegalArgumentException.class, "Cannot find partition field to remove",
-        () -> new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED).removeField("moon")
+        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED).removeField("moon")
     );
   }
 
@@ -386,7 +446,7 @@ public class TestUpdatePartitionSpecV2 {
   public void testRemoveUnknownFieldAfterAdd() {
     AssertHelpers.assertThrows("Should fail trying to remove unknown field",
         IllegalArgumentException.class, "Cannot find partition field to remove",
-        () -> new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
+        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
             .addField("data_trunc", truncate("data", 4))
             .removeField("data_trunc")
     );
@@ -396,7 +456,7 @@ public class TestUpdatePartitionSpecV2 {
   public void testRemoveUnknownFieldByEquivalent() {
     AssertHelpers.assertThrows("Should fail trying to remove unknown field",
         IllegalArgumentException.class, "Cannot find partition field to remove",
-        () -> new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED).removeField(hour("ts")) // day(ts) exists
+        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED).removeField(hour("ts")) // day(ts) exists
     );
   }
 
@@ -404,7 +464,7 @@ public class TestUpdatePartitionSpecV2 {
   public void testRenameUnknownField() {
     AssertHelpers.assertThrows("Should fail trying to rename an unknown field",
         IllegalArgumentException.class, "Cannot find partition field to rename",
-        () -> new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED).renameField("shake", "seal")
+        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED).renameField("shake", "seal")
     );
   }
 
@@ -412,7 +472,7 @@ public class TestUpdatePartitionSpecV2 {
   public void testRenameAfterAdd() {
     AssertHelpers.assertThrows("Should fail trying to rename an added field",
         IllegalArgumentException.class, "Cannot find partition field to rename",
-        () -> new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
+        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
             .addField("data_trunc", truncate("data", 4))
             .renameField("data_trunc", "prefix")
     );
@@ -422,7 +482,7 @@ public class TestUpdatePartitionSpecV2 {
   public void testDeleteAndRename() {
     AssertHelpers.assertThrows("Should fail trying to rename a deleted field",
         IllegalArgumentException.class, "Cannot rename and delete partition field",
-        () -> new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
+        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
             .renameField("shard", "id_bucket")
             .removeField(bucket("id", 16)));
   }
@@ -431,7 +491,7 @@ public class TestUpdatePartitionSpecV2 {
   public void testRenameAndDelete() {
     AssertHelpers.assertThrows("Should fail trying to delete a renamed field",
         IllegalArgumentException.class, "Cannot delete and rename partition field",
-        () -> new BaseUpdatePartitionSpec(FORMAT_VERSION, PARTITIONED)
+        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
             .removeField(bucket("id", 16))
             .renameField("shard", "id_bucket"));
   }
