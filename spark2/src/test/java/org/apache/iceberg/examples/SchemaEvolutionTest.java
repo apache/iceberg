@@ -22,6 +22,10 @@ package org.apache.iceberg.examples;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Stream;
 import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -32,7 +36,12 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.LongType$;
+import org.apache.spark.sql.types.StructField;
+import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,14 +56,19 @@ public class SchemaEvolutionTest {
 
   private static final Logger log = LoggerFactory.getLogger(SchemaEvolutionTest.class);
 
-  private SparkSession spark;
+  private static SparkSession spark;
   private Table table;
   private File tableLocation;
-  private String dataLocation = "src/test/resources/data/";
+  private final String dataLocation = "src/test/resources/data/";
+
+
+  @BeforeClass
+  public static void beforeAll() {
+    spark = SparkSession.builder().master("local[2]").getOrCreate();
+  }
 
   @Before
   public void before() throws IOException {
-    spark = SparkSession.builder().master("local[2]").getOrCreate();
     tableLocation = Files.createTempDirectory("temp").toFile();
     Schema schema = new Schema(
         optional(1, "title", Types.StringType.get()),
@@ -84,8 +98,11 @@ public class SchemaEvolutionTest {
 
   @Test
   public void addColumnToSchema() {
-    table.updateSchema().addColumn("publisher", Types.StringType.get()).commit();
+    String fieldName = "publisher";
+    Schema schema = table.schema();
+    Assert.assertNull(schema.findField(fieldName));
 
+    table.updateSchema().addColumn(fieldName, Types.StringType.get()).commit();
     Dataset<Row> df2 = spark.read().json(dataLocation + "new-books.json");
 
     df2.select(df2.col("title"), df2.col("price").cast(DataTypes.IntegerType),
@@ -107,6 +124,7 @@ public class SchemaEvolutionTest {
 
     results.createOrReplaceTempView("table");
     spark.sql("select * from table").show();
+    Assert.assertFalse(Arrays.asList(results.schema().names()).contains("genre"));
   }
 
   @Test
@@ -120,13 +138,25 @@ public class SchemaEvolutionTest {
 
     results.createOrReplaceTempView("table");
     spark.sql("select * from table").show();
+    List<String> fields = Arrays.asList(spark.sql("select * from table").schema().names());
+    Assert.assertTrue(fields.contains("writer"));
+    Assert.assertFalse(fields.contains("author"));
+
   }
 
   @Test
   public void updateColumnTypeIntToLong() {
     table.updateSchema().updateColumn("price", Types.LongType.get()).commit();
 
-    log.info("Promote int type to long type:\n" + table.schema().toString());
+    Dataset<Row> results = spark.read()
+        .format("iceberg")
+        .load(tableLocation.toString());
+
+    Stream<StructField> structFieldStream = Arrays.stream(results.schema().fields())
+        .filter(field -> field.name().equalsIgnoreCase("price"));
+    Optional<StructField> first = structFieldStream.findFirst();
+    Assert.assertTrue("Unable to change datatype from Long to Int", first.isPresent() &&
+        first.get().dataType() == LongType$.MODULE$);
   }
 
   @Test(expected = IllegalArgumentException.class)
@@ -167,7 +197,11 @@ public class SchemaEvolutionTest {
 
   @Test
   public void after() throws IOException {
-    spark.stop();
     FileUtils.deleteDirectory(tableLocation);
+  }
+
+  @AfterClass
+  public static void afterAll() {
+    spark.stop();
   }
 }
