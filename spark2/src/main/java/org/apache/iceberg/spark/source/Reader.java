@@ -107,7 +107,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   Reader(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
       boolean caseSensitive, DataSourceOptions options) {
     this.table = table;
-    this.snapshotId = options.get("snapshot-id").map(Long::parseLong).orElse(null);
+    this.snapshotId = options.get(SparkReadOptions.SNAPSHOT_ID).map(Long::parseLong).orElse(null);
     this.asOfTimestamp = options.get(SparkReadOptions.AS_OF_TIMESTAMP).map(Long::parseLong).orElse(null);
     if (snapshotId != null && asOfTimestamp != null) {
       throw new IllegalArgumentException(
@@ -162,11 +162,12 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     if (batchReadsSessionConf != null) {
       this.batchReadsEnabled = Boolean.valueOf(batchReadsSessionConf);
     } else {
-      this.batchReadsEnabled = options.get("vectorization-enabled").map(Boolean::parseBoolean).orElseGet(() ->
+      this.batchReadsEnabled = options.get(SparkReadOptions.VECTORIZATION_ENABLED)
+          .map(Boolean::parseBoolean).orElseGet(() ->
           PropertyUtil.propertyAsBoolean(table.properties(), TableProperties.PARQUET_VECTORIZATION_ENABLED,
               TableProperties.PARQUET_VECTORIZATION_ENABLED_DEFAULT));
     }
-    this.batchSize = options.get("batch-size").map(Integer::parseInt).orElseGet(() ->
+    this.batchSize = options.get(SparkReadOptions.VECTORIZATION_BATCH_SIZE).map(Integer::parseInt).orElseGet(() ->
         PropertyUtil.propertyAsInt(table.properties(),
           TableProperties.PARQUET_BATCH_SIZE, TableProperties.PARQUET_BATCH_SIZE_DEFAULT));
   }

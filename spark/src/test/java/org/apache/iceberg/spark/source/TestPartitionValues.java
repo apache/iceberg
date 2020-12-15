@@ -33,6 +33,8 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
@@ -40,6 +42,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
+import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
@@ -143,12 +146,12 @@ public abstract class TestPartitionValues {
 
     df.select("id", "data").write()
         .format("iceberg")
-        .mode("append")
+        .mode(SaveMode.Append)
         .save(location.toString());
 
     Dataset<Row> result = spark.read()
         .format("iceberg")
-        .option("vectorization-enabled", String.valueOf(vectorized))
+        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
         .load(location.toString());
 
     List<SimpleRecord> actual = result
@@ -182,13 +185,13 @@ public abstract class TestPartitionValues {
 
     df.select("data", "id").write()
             .format("iceberg")
-            .mode("append")
-            .option("check-ordering", "false")
+            .mode(SaveMode.Append)
+            .option(SparkWriteOptions.CHECK_ORDERING, "false")
             .save(location.toString());
 
     Dataset<Row> result = spark.read()
             .format("iceberg")
-            .option("vectorization-enabled", String.valueOf(vectorized))
+            .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
             .load(location.toString());
 
     List<SimpleRecord> actual = result
@@ -222,14 +225,14 @@ public abstract class TestPartitionValues {
 
     df.select("data", "id").write()
             .format("iceberg")
-            .mode("append")
-            .option("check-ordering", "false")
-            .option("check-nullability", "false")
+            .mode(SaveMode.Append)
+            .option(SparkWriteOptions.CHECK_ORDERING, "false")
+            .option(SparkWriteOptions.CHECK_NULLABILITY, "false")
             .save(location.toString());
 
     Dataset<Row> result = spark.read()
             .format("iceberg")
-            .option("vectorization-enabled", String.valueOf(vectorized))
+            .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
             .load(location.toString());
 
     List<SimpleRecord> actual = result
@@ -272,7 +275,7 @@ public abstract class TestPartitionValues {
         .commit();
 
     Dataset<Row> sourceDF = spark.read().format("iceberg")
-        .option("vectorization-enabled", String.valueOf(vectorized))
+        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
         .load(sourceLocation);
 
     for (String column : columnNames) {
@@ -290,12 +293,12 @@ public abstract class TestPartitionValues {
 
       sourceDF.write()
           .format("iceberg")
-          .mode("append")
+          .mode(SaveMode.Append)
           .save(location.toString());
 
       List<Row> actual = spark.read()
           .format("iceberg")
-          .option("vectorization-enabled", String.valueOf(vectorized))
+          .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
           .load(location.toString())
           .collectAsList();
 
@@ -340,7 +343,7 @@ public abstract class TestPartitionValues {
         .commit();
 
     Dataset<Row> sourceDF = spark.read().format("iceberg")
-        .option("vectorization-enabled", String.valueOf(vectorized))
+        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
         .load(sourceLocation);
 
     for (String column : columnNames) {
@@ -358,12 +361,12 @@ public abstract class TestPartitionValues {
 
       sourceDF.write()
           .format("iceberg")
-          .mode("append")
+          .mode(SaveMode.Append)
           .save(location.toString());
 
       List<Row> actual = spark.read()
           .format("iceberg")
-          .option("vectorization-enabled", String.valueOf(vectorized))
+          .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
           .load(location.toString())
           .collectAsList();
 
@@ -416,13 +419,13 @@ public abstract class TestPartitionValues {
     // write into iceberg
     sourceDF.write()
         .format("iceberg")
-        .mode("append")
+        .mode(SaveMode.Append)
         .save(baseLocation);
 
     // verify
     List<Row> actual = spark.read()
         .format("iceberg")
-        .option("vectorization-enabled", String.valueOf(vectorized))
+        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
         .load(baseLocation)
         .collectAsList();
 

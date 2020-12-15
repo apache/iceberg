@@ -500,7 +500,7 @@ public abstract class TestSparkDataWrite {
             .format("iceberg")
             .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
             .mode(SaveMode.Append)
-            .option("target-file-size-bytes", 4) // ~4 bytes; low enough to trigger
+            .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, 4) // ~4 bytes; low enough to trigger
             .save(location.toString());
         break;
       case TABLE:
@@ -509,7 +509,7 @@ public abstract class TestSparkDataWrite {
             .format("iceberg")
             .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
             .mode(SaveMode.Append)
-            .option("target-file-size-bytes", 4) // ~4 bytes; low enough to trigger
+            .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, 4) // ~4 bytes; low enough to trigger
             .save(location.toString());
         break;
       case JOB:
@@ -517,7 +517,7 @@ public abstract class TestSparkDataWrite {
             .format("iceberg")
             .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
             .mode(SaveMode.Append)
-            .option("target-file-size-bytes", 4) // ~4 bytes; low enough to trigger
+            .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, 4) // ~4 bytes; low enough to trigger
             .option(SparkWriteOptions.FANOUT_ENABLED, true)
             .save(location.toString());
         break;

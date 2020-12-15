@@ -41,4 +41,10 @@ public class SparkReadOptions {
 
   // Overrides the table's read.split.open-file-cost
   public static final String FILE_OPEN_COST = "file-open-cost";
+
+  // Overrides the table's read.split.open-file-cost
+  public static final String VECTORIZATION_ENABLED = "vectorization-enabled";
+
+  // Overrides the table's read.parquet.vectorization.batch-size
+  public static final String VECTORIZATION_BATCH_SIZE = "batch-size";
 }

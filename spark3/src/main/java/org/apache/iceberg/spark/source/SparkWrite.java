@@ -122,7 +122,7 @@ class SparkWrite {
 
     long tableTargetFileSize = PropertyUtil.propertyAsLong(
         table.properties(), WRITE_TARGET_FILE_SIZE_BYTES, WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
-    this.targetFileSize = writeInfo.options().getLong("target-file-size-bytes", tableTargetFileSize);
+    this.targetFileSize = writeInfo.options().getLong(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, tableTargetFileSize);
 
     boolean tablePartitionedFanoutEnabled = PropertyUtil.propertyAsBoolean(
         table.properties(), SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT);
