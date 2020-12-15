@@ -39,7 +39,8 @@ import org.apache.spark.SparkConf;
 import org.apache.spark.sql.SparkSession;
 
 public final class CustomCatalogs {
-  private static final Cache<Pair<SparkSession, String>, Catalog> CATALOG_CACHE = Caffeine.newBuilder().softValues().build();
+  private static final Cache<Pair<SparkSession, String>, Catalog> CATALOG_CACHE = Caffeine.newBuilder()
+      .softValues().build();
 
   public static final String ICEBERG_DEFAULT_CATALOG = "default_catalog";
   public static final String ICEBERG_CATALOG_PREFIX = "spark.sql.catalog";
@@ -89,10 +90,10 @@ public final class CustomCatalogs {
   private static Pair<Catalog, TableIdentifier> catalogAndIdentifier(SparkSession spark, String path) {
     String[] currentNamespace = new String[]{spark.catalog().currentDatabase()};
     List<String> nameParts = Splitter.on(".").splitToList(path);
-   return SparkUtil.catalogAndIdentifier(nameParts,
-       s -> buildIcebergCatalog(spark, s),
-       (n, t) -> TableIdentifier.of(Namespace.of(n), t),
-       currentNamespace);
+    return SparkUtil.catalogAndIdentifier(nameParts,
+        s -> buildIcebergCatalog(spark, s),
+        (n, t) -> TableIdentifier.of(Namespace.of(n), t),
+        currentNamespace);
   }
 
   @VisibleForTesting

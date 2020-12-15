@@ -72,7 +72,7 @@ public class SparkUtil {
    * @param nameParts Multipart identifier representing a table
    * @return The CatalogPlugin and Identifier for the table
    */
-  public static <C, T> Pair<C,T> catalogAndIdentifier(List<String> nameParts,
+  public static <C, T> Pair<C, T> catalogAndIdentifier(List<String> nameParts,
                                                        Function<String, C> catalog,
                                                        IdentiferFunction<T> identifer,
                                                        String[] currentNamespace) {
