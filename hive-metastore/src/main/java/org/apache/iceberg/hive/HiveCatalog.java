@@ -82,16 +82,46 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     this.fileIO = new HadoopFileIO(conf);
   }
 
+  /**
+   * Hive Catalog constructor.
+   *
+   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog
+   * @param name catalog name
+   * @param uri Hive metastore uri
+   * @param clientPoolSize size of client pool
+   * @param conf Hadoop Configuration
+   */
   @Deprecated
   public HiveCatalog(String name, String uri, int clientPoolSize, Configuration conf) {
     this(name, uri, null, clientPoolSize, conf);
   }
 
+  /**
+   * Hive Catalog constructor.
+   *
+   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog
+   * @param name catalog name
+   * @param uri Hive metastore uri
+   * @param warehouse location of Hive warehouse
+   * @param clientPoolSize size of client pool
+   * @param conf Hadoop Configuration
+   */
   @Deprecated
   public HiveCatalog(String name, String uri, String warehouse, int clientPoolSize, Configuration conf) {
     this(name, uri, warehouse, clientPoolSize, conf, Maps.newHashMap());
   }
 
+  /**
+   * Hive Catalog constructor.
+   *
+   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog
+   * @param name catalog name
+   * @param uri Hive metastore uri
+   * @param warehouse location of Hive warehouse
+   * @param clientPoolSize size of client pool
+   * @param conf Hadoop Configuration
+   * @param properties extra Hive configuration properties
+   */
   @Deprecated
   public HiveCatalog(
       String name,

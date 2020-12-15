@@ -89,6 +89,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   /**
    * The constructor of the HadoopCatalog. It uses the passed location as its warehouse directory.
    *
+   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog
    * @param name The catalog name
    * @param conf The Hadoop configuration
    * @param warehouseLocation The location used as warehouse directory
@@ -101,6 +102,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   /**
    * The all-arg constructor of the HadoopCatalog.
    *
+   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog
    * @param name The catalog name
    * @param conf The Hadoop configuration
    * @param warehouseLocation The location used as warehouse directory
