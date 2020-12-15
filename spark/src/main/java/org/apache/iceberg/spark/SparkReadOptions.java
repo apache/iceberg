@@ -20,20 +20,25 @@
 package org.apache.iceberg.spark;
 
 /**
- * Spark DF write options
+ * Spark DF read options
  */
 public class SparkReadOptions {
 
   private SparkReadOptions() {
   }
 
+  // Snapshot ID of the table snapshot to read
   public static final String SNAPSHOT_ID = "snapshot-id";
 
+  // A timestamp in milliseconds; the snapshot used will be the snapshot current at this time.
   public static final String AS_OF_TIMESTAMP = "as-of-timestamp";
 
+  // Overrides the table's read.split.target-size and read.split.metadata-target-size
   public static final String SPLIT_SIZE = "split-size";
 
+  // Overrides the table's read.split.planning-lookback
   public static final String LOOKBACK = "lookback";
 
+  // Overrides the table's read.split.open-file-cost
   public static final String FILE_OPEN_COST = "file-open-cost";
 }

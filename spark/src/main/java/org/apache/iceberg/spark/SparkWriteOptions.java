@@ -30,6 +30,6 @@ public class SparkWriteOptions {
   // Overrides table property write.spark.fanout.enabled(default: false)
   public static final String FANOUT_ENABLED = "fanout-enabled";
 
-  // Overrides table property write.spark.fanout.enabled(default: false)
+  // Fileformat for write operations
   public static final String WRITE_FORMAT = "write-format";
 }
