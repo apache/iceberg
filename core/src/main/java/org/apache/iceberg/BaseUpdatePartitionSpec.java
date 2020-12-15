@@ -140,11 +140,20 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
 
   @Override
   public BaseUpdatePartitionSpec removeField(String name) {
+    adds.stream()
+        .filter(field -> name.equals(field.name()))
+        .findAny()
+        .ifPresent(added -> {
+          throw new IllegalArgumentException(String.format(
+              "Cannot delete newly added field: %s(%s)", added.transform(), schema.findColumnName(added.sourceId())));
+        });
+
+    Preconditions.checkArgument(renames.get(name) == null,
+        "Cannot rename and delete partition field: %s", name);
+
     PartitionField field = nameToField.get(name);
     Preconditions.checkArgument(field != null,
         "Cannot find partition field to remove: %s", name);
-    Preconditions.checkArgument(renames.get(name) == null,
-        "Cannot rename and delete partition field: %s", name);
 
     deletes.add(field.fieldId());
 
@@ -154,7 +163,16 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
   @Override
   public BaseUpdatePartitionSpec removeField(Term term) {
     Pair<Integer, Transform<?, ?>> sourceTransform = resolve(term);
-    PartitionField field = transformToField.get(Pair.of(sourceTransform.first(), sourceTransform.second().toString()));
+    Pair<Integer, String> key = Pair.of(sourceTransform.first(), sourceTransform.second().toString());
+    adds.stream()
+        .filter(field -> key.equals(Pair.of(field.sourceId(), field.transform().toString())))
+        .findAny()
+        .ifPresent(added -> {
+          throw new IllegalArgumentException(String.format(
+              "Cannot delete newly added field: %s(%s)", added.transform(), schema.findColumnName(added.sourceId())));
+        });
+
+    PartitionField field = transformToField.get(key);
     Preconditions.checkArgument(field != null,
         "Cannot find partition field to remove: %s", term);
     Preconditions.checkArgument(renames.get(field.name()) == null,

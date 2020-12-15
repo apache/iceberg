@@ -403,6 +403,65 @@ public class TestUpdatePartitionSpec extends TableTestBase {
   }
 
   @Test
+  public void testAddDeletedName() {
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+        .removeField(bucket("id", 16))
+        .apply();
+
+    PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
+        .identity("category")
+        .day("ts")
+        .alwaysNull("id", "shard")
+        .build();
+
+    V1Assert.assertEquals("Should match expected spec", v1Expected, updated);
+
+    PartitionSpec v2Expected = PartitionSpec.builderFor(SCHEMA)
+        .identity("category")
+        .day("ts")
+        .build();
+
+    V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
+  }
+
+  @Test
+  public void testRemoveNewlyAddedFieldByName() {
+    AssertHelpers.assertThrows("Should fail trying to remove unknown field",
+        IllegalArgumentException.class, "Cannot delete newly added field",
+        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+            .addField("prefix", truncate("data", 4))
+            .removeField("prefix")
+    );
+  }
+
+  @Test
+  public void testRemoveNewlyAddedFieldByTransform() {
+    AssertHelpers.assertThrows("Should fail adding a duplicate field",
+        IllegalArgumentException.class, "Cannot delete newly added field",
+        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+            .addField("prefix", truncate("data", 4))
+            .removeField(truncate("data", 4)));
+  }
+
+  @Test
+  public void testAddAlreadyAddedField() {
+    AssertHelpers.assertThrows("Should fail adding a duplicate field",
+        IllegalArgumentException.class, "Cannot add duplicate partition field",
+        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+            .addField("prefix", truncate("data", 4))
+            .addField(truncate("data", 4)));
+  }
+
+  @Test
+  public void testAddDeletedField() {
+    AssertHelpers.assertThrows("Should fail adding a duplicate field",
+        IllegalArgumentException.class, "Cannot add duplicate partition field",
+        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
+            .removeField("shard")
+            .addField(bucket("id", 16))); // duplicates shard
+  }
+
+  @Test
   public void testAddDuplicateByName() {
     AssertHelpers.assertThrows("Should fail adding a duplicate field",
         IllegalArgumentException.class, "Cannot add duplicate partition field",
@@ -439,16 +498,6 @@ public class TestUpdatePartitionSpec extends TableTestBase {
     AssertHelpers.assertThrows("Should fail trying to remove unknown field",
         IllegalArgumentException.class, "Cannot find partition field to remove",
         () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED).removeField("moon")
-    );
-  }
-
-  @Test
-  public void testRemoveUnknownFieldAfterAdd() {
-    AssertHelpers.assertThrows("Should fail trying to remove unknown field",
-        IllegalArgumentException.class, "Cannot find partition field to remove",
-        () -> new BaseUpdatePartitionSpec(formatVersion, PARTITIONED)
-            .addField("data_trunc", truncate("data", 4))
-            .removeField("data_trunc")
     );
   }
 
