@@ -704,11 +704,6 @@ public class FlinkParquetReaders {
     }
 
     @Override
-    public byte[] getBinary(int ordinal) {
-      return (byte[]) values[ordinal];
-    }
-
-    @Override
     public StringData getString(int pos) {
       return (StringData) values[pos];
     }
@@ -727,6 +722,11 @@ public class FlinkParquetReaders {
     @Override
     public <T> RawValueData<T> getRawValue(int pos) {
       return (RawValueData<T>) values[pos];
+    }
+
+    @Override
+    public byte[] getBinary(int ordinal) {
+      return (byte[]) values[ordinal];
     }
 
     @Override

@@ -587,6 +587,11 @@ public class SparkParquetReaders {
     }
 
     @Override
+    public int numElements() {
+      return keys.numElements();
+    }
+
+    @Override
     public MapData copy() {
       return new ArrayBasedMapData(keyArray().copy(), valueArray().copy());
     }
@@ -613,11 +618,6 @@ public class SparkParquetReaders {
 
     @Override
     public int size() {
-      return keys.numElements();
-    }
-
-    @Override
-    public int numElements() {
       return keys.numElements();
     }
   }
