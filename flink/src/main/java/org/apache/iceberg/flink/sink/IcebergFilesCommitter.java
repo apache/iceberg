@@ -215,7 +215,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     pendingMap.clear();
 
-    // Delete the committed manifests and clear the committed data files from dataFilesPerCheckpoint.
+    // Delete the committed manifests and clear the committed files from dataFilesPerCheckpoint.
     for (ManifestFile manifestFile : Iterables.concat(deltaManifestsList)) {
       try {
         table.io().deleteFile(manifestFile.path());
@@ -288,7 +288,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
           rowDelta.addDeletes(file);
         }
 
-        commitOperation(rowDelta, numDataFiles, numDeleteFiles, "rowDelta", newFlinkJobId, checkpointId);
+        commitOperation(rowDelta, numDataFiles, numDeleteFiles, "rowDelta", newFlinkJobId, e.getKey());
       }
     }
   }

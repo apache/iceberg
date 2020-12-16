@@ -25,7 +25,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
@@ -42,22 +41,26 @@ import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.data.RowData;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.GenericManifestFile;
 import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.TestTables;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -65,48 +68,47 @@ import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.flink.sink.ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION;
 
 @RunWith(Parameterized.class)
-public class TestIcebergFilesCommitter {
+public class TestIcebergFilesCommitter extends TableTestBase {
   private static final Configuration CONF = new Configuration();
 
-  @Rule
-  public TemporaryFolder tempFolder = new TemporaryFolder();
-
   private String tablePath;
-  private Table table;
   private File flinkManifestFolder;
 
   private final FileFormat format;
 
-  @Parameterized.Parameters(name = "format = {0}")
+  @Parameterized.Parameters(name = "FileFormat = {0}, FormatVersion={1}")
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] {"avro"},
-        new Object[] {"orc"},
-        new Object[] {"parquet"}
+        new Object[] {"avro", 1},
+        new Object[] {"avro", 2},
+        new Object[] {"parquet", 1},
+        new Object[] {"parquet", 2},
+        new Object[] {"orc", 1},
     };
   }
 
-  public TestIcebergFilesCommitter(String format) {
+  public TestIcebergFilesCommitter(String format, int formatVersion) {
+    super(formatVersion);
     this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
   }
 
   @Before
-  public void before() throws IOException {
-    File folder = tempFolder.newFolder();
-    flinkManifestFolder = tempFolder.newFolder();
-    String warehouse = folder.getAbsolutePath();
+  public void setupTable() throws IOException {
+    flinkManifestFolder = temp.newFolder();
 
-    tablePath = warehouse.concat("/test");
-    Assert.assertTrue("Should create the table directory correctly.", new File(tablePath).mkdir());
+    this.tableDir = temp.newFolder();
+    this.metadataDir = new File(tableDir, "metadata");
+    Assert.assertTrue(tableDir.delete());
+
+    tablePath = tableDir.getAbsolutePath();
 
     // Construct the iceberg table.
-    Map<String, String> props = ImmutableMap.of(
-        // file format.
-        DEFAULT_FILE_FORMAT, format.name(),
-        // temporary flink manifests location.
-        FLINK_MANIFEST_LOCATION, flinkManifestFolder.getAbsolutePath()
-    );
-    table = SimpleDataUtil.createTable(tablePath, props, false);
+    table = create(SimpleDataUtil.SCHEMA, PartitionSpec.unpartitioned());
+
+    table.updateProperties()
+        .set(DEFAULT_FILE_FORMAT, format.name())
+        .set(FLINK_MANIFEST_LOCATION, flinkManifestFolder.getAbsolutePath())
+        .commit();
   }
 
   @Test
@@ -118,7 +120,7 @@ public class TestIcebergFilesCommitter {
       harness.setup();
       harness.open();
 
-      SimpleDataUtil.assertTableRows(tablePath, Lists.newArrayList());
+      SimpleDataUtil.assertTableRows(table, Lists.newArrayList());
       assertSnapshotSize(0);
       assertMaxCommittedCheckpointId(jobId, -1L);
 
@@ -171,7 +173,7 @@ public class TestIcebergFilesCommitter {
         harness.notifyOfCompletedCheckpoint(i);
         assertFlinkManifests(0);
 
-        SimpleDataUtil.assertTableRows(tablePath, ImmutableList.copyOf(rows));
+        SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(rows));
         assertSnapshotSize(i);
         assertMaxCommittedCheckpointId(jobID, i);
       }
@@ -217,13 +219,13 @@ public class TestIcebergFilesCommitter {
 
       // 3. notifyCheckpointComplete for checkpoint#1
       harness.notifyOfCompletedCheckpoint(firstCheckpointId);
-      SimpleDataUtil.assertTableRows(tablePath, ImmutableList.of(row1));
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1));
       assertMaxCommittedCheckpointId(jobId, firstCheckpointId);
       assertFlinkManifests(1);
 
       // 4. notifyCheckpointComplete for checkpoint#2
       harness.notifyOfCompletedCheckpoint(secondCheckpointId);
-      SimpleDataUtil.assertTableRows(tablePath, ImmutableList.of(row1, row2));
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1, row2));
       assertMaxCommittedCheckpointId(jobId, secondCheckpointId);
       assertFlinkManifests(0);
     }
@@ -268,13 +270,13 @@ public class TestIcebergFilesCommitter {
 
       // 3. notifyCheckpointComplete for checkpoint#2
       harness.notifyOfCompletedCheckpoint(secondCheckpointId);
-      SimpleDataUtil.assertTableRows(tablePath, ImmutableList.of(row1, row2));
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1, row2));
       assertMaxCommittedCheckpointId(jobId, secondCheckpointId);
       assertFlinkManifests(0);
 
       // 4. notifyCheckpointComplete for checkpoint#1
       harness.notifyOfCompletedCheckpoint(firstCheckpointId);
-      SimpleDataUtil.assertTableRows(tablePath, ImmutableList.of(row1, row2));
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1, row2));
       assertMaxCommittedCheckpointId(jobId, secondCheckpointId);
       assertFlinkManifests(0);
     }
@@ -306,7 +308,7 @@ public class TestIcebergFilesCommitter {
       harness.notifyOfCompletedCheckpoint(checkpointId);
       assertFlinkManifests(0);
 
-      SimpleDataUtil.assertTableRows(tablePath, ImmutableList.of(row));
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row));
       assertSnapshotSize(1);
       assertMaxCommittedCheckpointId(jobId, checkpointId);
     }
@@ -317,7 +319,7 @@ public class TestIcebergFilesCommitter {
       harness.initializeState(snapshot);
       harness.open();
 
-      SimpleDataUtil.assertTableRows(tablePath, expectedRows);
+      SimpleDataUtil.assertTableRows(table, expectedRows);
       assertSnapshotSize(1);
       assertMaxCommittedCheckpointId(jobId, checkpointId);
 
@@ -332,7 +334,7 @@ public class TestIcebergFilesCommitter {
       harness.notifyOfCompletedCheckpoint(checkpointId);
       assertFlinkManifests(0);
 
-      SimpleDataUtil.assertTableRows(tablePath, expectedRows);
+      SimpleDataUtil.assertTableRows(table, expectedRows);
       assertSnapshotSize(2);
       assertMaxCommittedCheckpointId(jobId, checkpointId);
     }
@@ -360,7 +362,7 @@ public class TestIcebergFilesCommitter {
       harness.processElement(of(dataFile), ++timestamp);
 
       snapshot = harness.snapshot(++checkpointId, ++timestamp);
-      SimpleDataUtil.assertTableRows(tablePath, ImmutableList.of());
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of());
       assertMaxCommittedCheckpointId(jobId, -1L);
       assertFlinkManifests(1);
     }
@@ -373,7 +375,7 @@ public class TestIcebergFilesCommitter {
       // All flink manifests should be cleaned because it has committed the unfinished iceberg transaction.
       assertFlinkManifests(0);
 
-      SimpleDataUtil.assertTableRows(tablePath, expectedRows);
+      SimpleDataUtil.assertTableRows(table, expectedRows);
       assertMaxCommittedCheckpointId(jobId, checkpointId);
 
       harness.snapshot(++checkpointId, ++timestamp);
@@ -383,7 +385,7 @@ public class TestIcebergFilesCommitter {
       harness.notifyOfCompletedCheckpoint(checkpointId);
       assertFlinkManifests(0);
 
-      SimpleDataUtil.assertTableRows(tablePath, expectedRows);
+      SimpleDataUtil.assertTableRows(table, expectedRows);
       assertSnapshotSize(2);
       assertMaxCommittedCheckpointId(jobId, checkpointId);
 
@@ -408,7 +410,7 @@ public class TestIcebergFilesCommitter {
 
       assertMaxCommittedCheckpointId(newJobId, -1);
       assertMaxCommittedCheckpointId(jobId, checkpointId);
-      SimpleDataUtil.assertTableRows(tablePath, expectedRows);
+      SimpleDataUtil.assertTableRows(table, expectedRows);
       assertSnapshotSize(3);
 
       RowData row = SimpleDataUtil.createRowData(3, "foo");
@@ -422,7 +424,7 @@ public class TestIcebergFilesCommitter {
       harness.notifyOfCompletedCheckpoint(checkpointId);
       assertFlinkManifests(0);
 
-      SimpleDataUtil.assertTableRows(tablePath, expectedRows);
+      SimpleDataUtil.assertTableRows(table, expectedRows);
       assertSnapshotSize(4);
       assertMaxCommittedCheckpointId(newJobId, checkpointId);
     }
@@ -455,7 +457,7 @@ public class TestIcebergFilesCommitter {
         harness.notifyOfCompletedCheckpoint(checkpointId);
         assertFlinkManifests(0);
 
-        SimpleDataUtil.assertTableRows(tablePath, tableRows);
+        SimpleDataUtil.assertTableRows(table, tableRows);
         assertSnapshotSize(i);
         assertMaxCommittedCheckpointId(oldJobId, checkpointId);
       }
@@ -483,7 +485,7 @@ public class TestIcebergFilesCommitter {
 
       harness.notifyOfCompletedCheckpoint(checkpointId);
       assertFlinkManifests(0);
-      SimpleDataUtil.assertTableRows(tablePath, tableRows);
+      SimpleDataUtil.assertTableRows(table, tableRows);
       assertSnapshotSize(4);
       assertMaxCommittedCheckpointId(newJobId, checkpointId);
     }
@@ -516,7 +518,7 @@ public class TestIcebergFilesCommitter {
 
         harness.notifyOfCompletedCheckpoint(checkpointId + 1);
         assertFlinkManifests(0);
-        SimpleDataUtil.assertTableRows(tablePath, tableRows);
+        SimpleDataUtil.assertTableRows(table, tableRows);
         assertSnapshotSize(i + 1);
         assertMaxCommittedCheckpointId(jobId, checkpointId + 1);
       }
@@ -541,7 +543,7 @@ public class TestIcebergFilesCommitter {
       ((BoundedOneInput) harness.getOneInputOperator()).endInput();
 
       assertFlinkManifests(0);
-      SimpleDataUtil.assertTableRows(tablePath, tableRows);
+      SimpleDataUtil.assertTableRows(table, tableRows);
       assertSnapshotSize(1);
       assertMaxCommittedCheckpointId(jobId, Long.MAX_VALUE);
     }
@@ -579,10 +581,84 @@ public class TestIcebergFilesCommitter {
 
       // 3. notifyCheckpointComplete for checkpoint#1
       harness.notifyOfCompletedCheckpoint(checkpoint);
-      SimpleDataUtil.assertTableRows(tablePath, ImmutableList.of(row1));
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1));
       assertMaxCommittedCheckpointId(jobId, checkpoint);
       assertFlinkManifests(0);
     }
+  }
+
+  @Test
+  public void testDeleteFiles() throws Exception {
+    Assume.assumeFalse("Support equality-delete in format v2.", formatVersion < 2);
+
+    long timestamp = 0;
+    long checkpoint = 10;
+
+    JobID jobId = new JobID();
+
+    int[] equalityFieldIds = new int[] {
+        table.schema().findField("id").fieldId(),
+        table.schema().findField("data").fieldId()
+    };
+    FileAppenderFactory<RowData> appenderFactory = new FlinkAppenderFactory(table.schema(),
+        FlinkSchemaUtil.convert(table.schema()), table.properties(), table.spec(), equalityFieldIds,
+        table.schema(), null);
+
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
+      harness.setup();
+      harness.open();
+
+      assertMaxCommittedCheckpointId(jobId, -1L);
+
+      RowData row1 = SimpleDataUtil.createInsert(1, "aaa");
+      DataFile dataFile1 = writeDataFile("data-file-1", ImmutableList.of(row1));
+      WriteResult result = WriteResult.builder().addDataFiles(dataFile1).build();
+      harness.processElement(result, ++timestamp);
+      assertMaxCommittedCheckpointId(jobId, -1L);
+
+      // 1. snapshotState for checkpoint#1
+      harness.snapshot(checkpoint, ++timestamp);
+      List<Path> manifestPaths = assertFlinkManifests(1);
+      Path manifestPath = manifestPaths.get(0);
+      Assert.assertEquals("File name should have the expected pattern.",
+          String.format("%s-%05d-%d-%d-%05d.avro", jobId, 0, 0, checkpoint, 1), manifestPath.getFileName().toString());
+
+      // 2. Read the data files from manifests and assert.
+      List<DataFile> dataFiles = FlinkManifestUtil.readDataFiles(createTestingManifestFile(manifestPath), table.io());
+      Assert.assertEquals(1, dataFiles.size());
+      TestFlinkManifest.checkContentFile(dataFile1, dataFiles.get(0));
+
+      // 3. notifyCheckpointComplete for checkpoint#1
+      harness.notifyOfCompletedCheckpoint(checkpoint);
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1));
+      assertMaxCommittedCheckpointId(jobId, checkpoint);
+      assertFlinkManifests(0);
+
+      // 4. process both data files and delete files.
+      RowData row2 = SimpleDataUtil.createInsert(2, "bbb");
+      DataFile dataFile2 = writeDataFile("data-file-2", ImmutableList.of(row2));
+
+      RowData delete1 = SimpleDataUtil.createDelete(1, "aaa");
+      DeleteFile deleteFile1 = writeEqDeleteFile(appenderFactory, "delete-file-1", ImmutableList.of(delete1));
+      result = WriteResult.builder().addDataFiles(dataFile2).addDeleteFiles(deleteFile1).build();
+      harness.processElement(result, ++timestamp);
+      assertMaxCommittedCheckpointId(jobId, checkpoint);
+
+      // 5. snapshotState for checkpoint#2
+      harness.snapshot(++checkpoint, ++timestamp);
+      assertFlinkManifests(2);
+
+      // 6. notifyCheckpointComplete for checkpoint#2
+      harness.notifyOfCompletedCheckpoint(checkpoint);
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row2));
+      assertMaxCommittedCheckpointId(jobId, checkpoint);
+      assertFlinkManifests(0);
+    }
+  }
+
+  private DeleteFile writeEqDeleteFile(FileAppenderFactory<RowData> appenderFactory,
+                                       String filename, List<RowData> deletes) throws IOException {
+    return SimpleDataUtil.writeEqDeleteFile(table, FileFormat.PARQUET, tablePath, filename, appenderFactory, deletes);
   }
 
   private ManifestFile createTestingManifestFile(Path manifestPath) {
@@ -648,7 +724,7 @@ public class TestIcebergFilesCommitter {
     @Override
     @SuppressWarnings("unchecked")
     public <T extends StreamOperator<Void>> T createStreamOperator(StreamOperatorParameters<Void> param) {
-      IcebergFilesCommitter committer = new IcebergFilesCommitter(TableLoader.fromHadoopTable(tablePath), false);
+      IcebergFilesCommitter committer = new IcebergFilesCommitter(new TestTableLoader(tablePath), false);
       committer.setup(param.getContainingTask(), param.getStreamConfig(), param.getOutput());
       return (T) committer;
     }
@@ -656,6 +732,29 @@ public class TestIcebergFilesCommitter {
     @Override
     public Class<? extends StreamOperator> getStreamOperatorClass(ClassLoader classLoader) {
       return IcebergFilesCommitter.class;
+    }
+  }
+
+  private static class TestTableLoader implements TableLoader {
+    private File dir = null;
+
+    TestTableLoader(String dir) {
+      this.dir = new File(dir);
+    }
+
+    @Override
+    public void open() {
+
+    }
+
+    @Override
+    public Table loadTable() {
+      return TestTables.load(dir, "test");
+    }
+
+    @Override
+    public void close() {
+
     }
   }
 }

@@ -29,7 +29,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.table.data.RowData;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -37,12 +36,8 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.deletes.EqualityDeleteWriter;
-import org.apache.iceberg.deletes.PositionDeleteWriter;
-import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
-import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -190,28 +185,13 @@ public class TestFlinkManifest {
   }
 
   private DeleteFile writeEqDeleteFile(String filename, List<RowData> deletes) throws IOException {
-    EncryptedOutputFile outputFile =
-        table.encryption().encrypt(HadoopOutputFile.fromPath(new Path(tablePath, filename), CONF));
-
-    EqualityDeleteWriter<RowData> eqWriter = appenderFactory.newEqDeleteWriter(outputFile, FileFormat.PARQUET, null);
-    try (EqualityDeleteWriter<RowData> writer = eqWriter) {
-      writer.deleteAll(deletes);
-    }
-    return eqWriter.toDeleteFile();
+    return SimpleDataUtil.writeEqDeleteFile(table, FileFormat.PARQUET, tablePath, filename, appenderFactory, deletes);
   }
 
   private DeleteFile writePosDeleteFile(String filename, List<Pair<CharSequence, Long>> positions)
       throws IOException {
-    EncryptedOutputFile outputFile =
-        table.encryption().encrypt(HadoopOutputFile.fromPath(new Path(tablePath, filename), CONF));
-
-    PositionDeleteWriter<RowData> posWriter = appenderFactory.newPosDeleteWriter(outputFile, FileFormat.PARQUET, null);
-    try (PositionDeleteWriter<RowData> writer = posWriter) {
-      for (Pair<CharSequence, Long> p : positions) {
-        writer.delete(p.first(), p.second());
-      }
-    }
-    return posWriter.toDeleteFile();
+    return SimpleDataUtil
+        .writePosDeleteFile(table, FileFormat.PARQUET, tablePath, filename, appenderFactory, positions);
   }
 
   private List<DataFile> generateDataFiles(int fileNum) throws IOException {
