@@ -25,6 +25,8 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
+import org.apache.spark.sql.connector.expressions.FieldReference
+import org.apache.spark.sql.connector.expressions.IdentityTransform
 import org.apache.spark.sql.connector.expressions.Transform
 
 case class DropPartitionFieldExec(
@@ -38,9 +40,20 @@ case class DropPartitionFieldExec(
   override protected def run(): Seq[InternalRow] = {
     catalog.loadTable(ident) match {
       case iceberg: SparkTable =>
-        iceberg.table.updateSpec()
-            .removeField(Spark3Util.toIcebergTerm(transform))
-            .commit()
+        val schema = iceberg.table.schema
+        transform match {
+          case IdentityTransform(FieldReference(parts)) if parts.size == 1 && schema.findField(parts.head) == null =>
+            // the name is not present in the Iceberg schema, so it must be a partition field name, not a column name
+            iceberg.table.updateSpec()
+                .removeField(parts.head)
+                .commit()
+
+          case _ =>
+            iceberg.table.updateSpec()
+                .removeField(Spark3Util.toIcebergTerm(transform))
+                .commit()
+        }
+
 
       case table =>
         throw new UnsupportedOperationException(s"Cannot drop partition field in non-Iceberg table: $table")

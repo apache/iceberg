@@ -247,4 +247,29 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
 
     Assert.assertEquals("Should have new spec field", expected, table.spec());
   }
+
+  @Test
+  public void testDropPartitionByName() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, category string, ts timestamp, data string) USING iceberg", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Assert.assertTrue("Table should start unpartitioned", table.spec().isUnpartitioned());
+
+    sql("ALTER TABLE %s ADD PARTITION FIELD bucket(16, id) AS shard", tableName);
+
+    table.refresh();
+
+    Assert.assertEquals("Table should have 1 partition field", 1, table.spec().fields().size());
+
+    sql("ALTER TABLE %s DROP PARTITION FIELD shard", tableName);
+
+    table.refresh();
+
+    PartitionSpec expected = PartitionSpec.builderFor(table.schema())
+        .withSpecId(2)
+        .alwaysNull("id", "shard")
+        .build();
+
+    Assert.assertEquals("Should have new spec field", expected, table.spec());
+  }
 }
