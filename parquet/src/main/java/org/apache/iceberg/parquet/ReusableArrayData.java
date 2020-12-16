@@ -46,7 +46,7 @@ public interface ReusableArrayData {
 
   void setNumElements(int numElements);
 
-  int getNumElements();
+  int numElements();
 
   default Object getObj(int ordinal) {
     return values()[ordinal];

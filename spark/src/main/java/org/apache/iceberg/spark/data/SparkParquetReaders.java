@@ -613,12 +613,12 @@ public class SparkParquetReaders {
 
     @Override
     public int size() {
-      return keys.getNumElements();
+      return keys.numElements();
     }
 
     @Override
     public int numElements() {
-      return keys.getNumElements();
+      return keys.numElements();
     }
   }
 
@@ -650,11 +650,6 @@ public class SparkParquetReaders {
 
     @Override
     public int numElements() {
-      return numElements;
-    }
-
-    @Override
-    public int getNumElements() {
       return numElements;
     }
 

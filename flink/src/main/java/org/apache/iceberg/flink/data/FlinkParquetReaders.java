@@ -561,7 +561,70 @@ public class FlinkParquetReaders {
 
     @Override
     public int size() {
-      return keys.getNumElements();
+      return keys().numElements();
+    }
+  }
+
+  private static class RowDataReader extends ParquetValueReaders.StructReader<RowData, GenericRowData> {
+    private final int numFields;
+
+    RowDataReader(List<Type> types, List<ParquetValueReader<?>> readers) {
+      super(types, readers);
+      this.numFields = readers.size();
+    }
+
+    @Override
+    protected GenericRowData newStructData(RowData reuse) {
+      if (reuse instanceof GenericRowData) {
+        return (GenericRowData) reuse;
+      } else {
+        return new GenericRowData(numFields);
+      }
+    }
+
+    @Override
+    protected Object getField(GenericRowData intermediate, int pos) {
+      return intermediate.getField(pos);
+    }
+
+    @Override
+    protected RowData buildStruct(GenericRowData struct) {
+      return struct;
+    }
+
+    @Override
+    protected void set(GenericRowData row, int pos, Object value) {
+      row.setField(pos, value);
+    }
+
+    @Override
+    protected void setNull(GenericRowData row, int pos) {
+      row.setField(pos, null);
+    }
+
+    @Override
+    protected void setBoolean(GenericRowData row, int pos, boolean value) {
+      row.setField(pos, value);
+    }
+
+    @Override
+    protected void setInteger(GenericRowData row, int pos, int value) {
+      row.setField(pos, value);
+    }
+
+    @Override
+    protected void setLong(GenericRowData row, int pos, long value) {
+      row.setField(pos, value);
+    }
+
+    @Override
+    protected void setFloat(GenericRowData row, int pos, float value) {
+      row.setField(pos, value);
+    }
+
+    @Override
+    protected void setDouble(GenericRowData row, int pos, double value) {
+      row.setField(pos, value);
     }
   }
 
@@ -586,7 +649,7 @@ public class FlinkParquetReaders {
     }
 
     @Override
-    public int getNumElements() {
+    public int numElements() {
       return numElements;
     }
 
@@ -714,69 +777,6 @@ public class FlinkParquetReaders {
     @Override
     public double[] toDoubleArray() {
       return ArrayUtils.toPrimitive((Double[]) values);
-    }
-  }
-
-  private static class RowDataReader extends ParquetValueReaders.StructReader<RowData, GenericRowData> {
-    private final int numFields;
-
-    RowDataReader(List<Type> types, List<ParquetValueReader<?>> readers) {
-      super(types, readers);
-      this.numFields = readers.size();
-    }
-
-    @Override
-    protected GenericRowData newStructData(RowData reuse) {
-      if (reuse instanceof GenericRowData) {
-        return (GenericRowData) reuse;
-      } else {
-        return new GenericRowData(numFields);
-      }
-    }
-
-    @Override
-    protected Object getField(GenericRowData intermediate, int pos) {
-      return intermediate.getField(pos);
-    }
-
-    @Override
-    protected RowData buildStruct(GenericRowData struct) {
-      return struct;
-    }
-
-    @Override
-    protected void set(GenericRowData row, int pos, Object value) {
-      row.setField(pos, value);
-    }
-
-    @Override
-    protected void setNull(GenericRowData row, int pos) {
-      row.setField(pos, null);
-    }
-
-    @Override
-    protected void setBoolean(GenericRowData row, int pos, boolean value) {
-      row.setField(pos, value);
-    }
-
-    @Override
-    protected void setInteger(GenericRowData row, int pos, int value) {
-      row.setField(pos, value);
-    }
-
-    @Override
-    protected void setLong(GenericRowData row, int pos, long value) {
-      row.setField(pos, value);
-    }
-
-    @Override
-    protected void setFloat(GenericRowData row, int pos, float value) {
-      row.setField(pos, value);
-    }
-
-    @Override
-    protected void setDouble(GenericRowData row, int pos, double value) {
-      row.setField(pos, value);
     }
   }
 }
