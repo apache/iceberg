@@ -501,7 +501,7 @@ public class TestTableMetadata {
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).withSpecId(5)
         .add(3, 1005, "x_partition", "bucket[4]")
-        .add(5, 1005, "z_partition", "bucket[8]")
+        .add(5, 1003, "z_partition", "bucket[8]")
         .build();
     String location = "file://tmp/db/table";
     TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, location, ImmutableMap.of());

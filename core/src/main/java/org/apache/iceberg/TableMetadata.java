@@ -475,8 +475,10 @@ public class TableMetadata implements Serializable {
       }
     }
 
-    Preconditions.checkArgument(defaultSpecId != newDefaultSpecId,
-        "Cannot set default partition spec to the current default");
+    if (defaultSpecId == newDefaultSpecId) {
+      // the new spec is already current and no change is needed
+      return this;
+    }
 
     ImmutableList.Builder<PartitionSpec> builder = ImmutableList.<PartitionSpec>builder()
         .addAll(specs);
