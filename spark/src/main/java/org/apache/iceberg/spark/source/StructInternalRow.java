@@ -21,12 +21,13 @@ package org.apache.iceberg.spark.source;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import org.apache.iceberg.StructLike;
@@ -138,7 +139,7 @@ class StructInternalRow extends InternalRow {
     if (longVal instanceof Long) {
       return (long) longVal;
     } else if (longVal instanceof OffsetDateTime) {
-      return TimeUnit.SECONDS.toDays(((OffsetDateTime) longVal).toEpochSecond());
+      return Duration.between(Instant.EPOCH, (OffsetDateTime) longVal).toNanos() / 1000;
     } else if (longVal instanceof LocalDate) {
       return ((LocalDate) longVal).toEpochDay();
     } else {
