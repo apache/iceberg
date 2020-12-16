@@ -35,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.types.Type;
@@ -333,12 +334,12 @@ public class PartitionSpec implements Serializable {
       checkAndAddPartitionName(name, null);
     }
 
-    private void checkAndAddPartitionName(String name, Integer identitySourceColumnId) {
+    private void checkAndAddPartitionName(String name, Integer sourceColumnId) {
       Types.NestedField schemaField = schema.findField(name);
-      if (identitySourceColumnId != null) {
+      if (sourceColumnId != null) {
         // for identity transform case we allow  conflicts between partition and schema field name as
         //   long as they are sourced from the same schema field
-        Preconditions.checkArgument(schemaField == null || schemaField.fieldId() == identitySourceColumnId,
+        Preconditions.checkArgument(schemaField == null || schemaField.fieldId() == sourceColumnId,
             "Cannot create identity partition sourced from different field in schema: %s", name);
       } else {
         // for all other transforms we don't allow conflicts between partition name and schema field name
@@ -463,8 +464,8 @@ public class PartitionSpec implements Serializable {
     }
 
     public Builder alwaysNull(String sourceName, String targetName) {
-      checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
+      checkAndAddPartitionName(targetName, sourceColumn.fieldId()); // can duplicate a source column name
       fields.add(new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.alwaysNull()));
       return this;
     }
@@ -480,9 +481,13 @@ public class PartitionSpec implements Serializable {
 
     Builder add(int sourceId, int fieldId, String name, String transform) {
       Types.NestedField column = schema.findField(sourceId);
-      checkAndAddPartitionName(name, column.fieldId());
       Preconditions.checkNotNull(column, "Cannot find source column: %s", sourceId);
-      fields.add(new PartitionField(sourceId, fieldId, name, Transforms.fromString(column.type(), transform)));
+      return add(sourceId, fieldId, name, Transforms.fromString(column.type(), transform));
+    }
+
+    Builder add(int sourceId, int fieldId, String name, Transform<?, ?> transform) {
+      checkAndAddPartitionName(name, sourceId);
+      fields.add(new PartitionField(sourceId, fieldId, name, transform));
       lastAssignedFieldId.getAndAccumulate(fieldId, Math::max);
       return this;
     }

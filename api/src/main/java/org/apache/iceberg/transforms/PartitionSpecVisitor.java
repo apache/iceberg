@@ -113,37 +113,44 @@ public interface PartitionSpecVisitor<T> {
    * @deprecated this will be removed in 0.11.0; use {@link #visit(PartitionSpec, PartitionSpecVisitor)} instead.
    */
   @Deprecated
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   static <R> List<R> visit(Schema schema, PartitionSpec spec, PartitionSpecVisitor<R> visitor) {
     List<R> results = Lists.newArrayListWithExpectedSize(spec.fields().size());
 
     for (PartitionField field : spec.fields()) {
-      String sourceName = schema.findColumnName(field.sourceId());
-      Transform<?, ?> transform = field.transform();
-
-      if (transform instanceof Identity) {
-        results.add(visitor.identity(field.fieldId(), sourceName, field.sourceId()));
-      } else if (transform instanceof Bucket) {
-        int numBuckets = ((Bucket<?>) transform).numBuckets();
-        results.add(visitor.bucket(field.fieldId(), sourceName, field.sourceId(), numBuckets));
-      } else if (transform instanceof Truncate) {
-        int width = ((Truncate<?>) transform).width();
-        results.add(visitor.truncate(field.fieldId(), sourceName, field.sourceId(), width));
-      } else if (transform == Dates.YEAR || transform == Timestamps.YEAR) {
-        results.add(visitor.year(field.fieldId(), sourceName, field.sourceId()));
-      } else if (transform == Dates.MONTH || transform == Timestamps.MONTH) {
-        results.add(visitor.month(field.fieldId(), sourceName, field.sourceId()));
-      } else if (transform == Dates.DAY || transform == Timestamps.DAY) {
-        results.add(visitor.day(field.fieldId(), sourceName, field.sourceId()));
-      } else if (transform == Timestamps.HOUR) {
-        results.add(visitor.hour(field.fieldId(), sourceName, field.sourceId()));
-      } else if (transform instanceof VoidTransform) {
-        results.add(visitor.alwaysNull(field.fieldId(), sourceName, field.sourceId()));
-      } else if (transform instanceof UnknownTransform) {
-        results.add(visitor.unknown(field.fieldId(), sourceName, field.sourceId(), transform.toString()));
-      }
+      results.add(visit(schema, field, visitor));
     }
 
     return results;
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  static <R> R visit(Schema schema, PartitionField field, PartitionSpecVisitor<R> visitor) {
+    String sourceName = schema.findColumnName(field.sourceId());
+    Transform<?, ?> transform = field.transform();
+
+    if (transform instanceof Identity) {
+      return visitor.identity(field.fieldId(), sourceName, field.sourceId());
+    } else if (transform instanceof Bucket) {
+      int numBuckets = ((Bucket<?>) transform).numBuckets();
+      return visitor.bucket(field.fieldId(), sourceName, field.sourceId(), numBuckets);
+    } else if (transform instanceof Truncate) {
+      int width = ((Truncate<?>) transform).width();
+      return visitor.truncate(field.fieldId(), sourceName, field.sourceId(), width);
+    } else if (transform == Dates.YEAR || transform == Timestamps.YEAR) {
+      return visitor.year(field.fieldId(), sourceName, field.sourceId());
+    } else if (transform == Dates.MONTH || transform == Timestamps.MONTH) {
+      return visitor.month(field.fieldId(), sourceName, field.sourceId());
+    } else if (transform == Dates.DAY || transform == Timestamps.DAY) {
+      return visitor.day(field.fieldId(), sourceName, field.sourceId());
+    } else if (transform == Timestamps.HOUR) {
+      return visitor.hour(field.fieldId(), sourceName, field.sourceId());
+    } else if (transform instanceof VoidTransform) {
+      return visitor.alwaysNull(field.fieldId(), sourceName, field.sourceId());
+    } else if (transform instanceof UnknownTransform) {
+      return visitor.unknown(field.fieldId(), sourceName, field.sourceId(), transform.toString());
+    }
+
+    throw new UnsupportedOperationException(
+        String.format("Unknown transform class %s", field.transform().getClass().getName()));
   }
 }
