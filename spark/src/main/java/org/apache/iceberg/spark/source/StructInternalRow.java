@@ -278,7 +278,7 @@ class StructInternalRow extends InternalRow {
             array[pos] = new StructInternalRow(elementType.asStructType(), tuple));
       case LIST:
         return fillArray(values, array -> (BiConsumer<Integer, Collection<?>>) (pos, list) ->
-            array[pos] = collectionToArrayData(elementType.asListType(), list));
+            array[pos] = collectionToArrayData(elementType.asListType().elementType(), list));
       case MAP:
         return fillArray(values, array -> (BiConsumer<Integer, Map<?, ?>>) (pos, map) ->
             array[pos] = mapToMapData(elementType.asMapType(), map));
