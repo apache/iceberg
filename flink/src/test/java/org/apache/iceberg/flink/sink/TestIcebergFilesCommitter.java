@@ -595,14 +595,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     long checkpoint = 10;
 
     JobID jobId = new JobID();
-
-    int[] equalityFieldIds = new int[] {
-        table.schema().findField("id").fieldId(),
-        table.schema().findField("data").fieldId()
-    };
-    FileAppenderFactory<RowData> appenderFactory = new FlinkAppenderFactory(table.schema(),
-        FlinkSchemaUtil.convert(table.schema()), table.properties(), table.spec(), equalityFieldIds,
-        table.schema(), null);
+    FileAppenderFactory<RowData> appenderFactory = createDeletableAppenderFactory();
 
     try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
       harness.setup();
@@ -658,9 +651,71 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     }
   }
 
+  @Test
+  public void testCommitTwoCheckpointsInSingleTxn() throws Exception {
+    Assume.assumeFalse("Only support equality-delete in format v2.", formatVersion < 2);
+
+    long timestamp = 0;
+    long checkpoint = 10;
+
+    JobID jobId = new JobID();
+    FileAppenderFactory<RowData> appenderFactory = createDeletableAppenderFactory();
+
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
+      harness.setup();
+      harness.open();
+
+      assertMaxCommittedCheckpointId(jobId, -1L);
+
+      RowData insert1 = SimpleDataUtil.createInsert(1, "aaa");
+      RowData insert2 = SimpleDataUtil.createInsert(2, "bbb");
+      RowData delete3 = SimpleDataUtil.createDelete(3, "ccc");
+      DataFile dataFile1 = writeDataFile("data-file-1", ImmutableList.of(insert1, insert2));
+      DeleteFile deleteFile1 = writeEqDeleteFile(appenderFactory, "delete-file-1", ImmutableList.of(delete3));
+      harness.processElement(WriteResult.builder()
+              .addDataFiles(dataFile1)
+              .addDeleteFiles(deleteFile1)
+              .build(),
+          ++timestamp);
+
+      // The 1th snapshotState.
+      harness.snapshot(checkpoint, ++timestamp);
+
+      RowData insert4 = SimpleDataUtil.createInsert(4, "ddd");
+      RowData delete2 = SimpleDataUtil.createDelete(2, "bbb");
+      DataFile dataFile2 = writeDataFile("data-file-2", ImmutableList.of(insert4));
+      DeleteFile deleteFile2 = writeEqDeleteFile(appenderFactory, "delete-file-2", ImmutableList.of(delete2));
+      harness.processElement(WriteResult.builder()
+              .addDataFiles(dataFile2)
+              .addDeleteFiles(deleteFile2)
+              .build(),
+          ++timestamp);
+
+      // The 2nd snapshotState.
+      harness.snapshot(++checkpoint, ++timestamp);
+
+      // Notify the 2nd snapshot to complete.
+      harness.notifyOfCompletedCheckpoint(checkpoint);
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(insert1, insert4));
+      assertMaxCommittedCheckpointId(jobId, checkpoint);
+      assertFlinkManifests(0);
+      Assert.assertEquals("Should have committed 2 txn.", 2, ImmutableList.copyOf(table.snapshots()).size());
+    }
+  }
+
   private DeleteFile writeEqDeleteFile(FileAppenderFactory<RowData> appenderFactory,
                                        String filename, List<RowData> deletes) throws IOException {
     return SimpleDataUtil.writeEqDeleteFile(table, FileFormat.PARQUET, tablePath, filename, appenderFactory, deletes);
+  }
+
+  private FileAppenderFactory<RowData> createDeletableAppenderFactory() {
+    int[] equalityFieldIds = new int[] {
+        table.schema().findField("id").fieldId(),
+        table.schema().findField("data").fieldId()
+    };
+    return new FlinkAppenderFactory(table.schema(),
+        FlinkSchemaUtil.convert(table.schema()), table.properties(), table.spec(), equalityFieldIds,
+        table.schema(), null);
   }
 
   private ManifestFile createTestingManifestFile(Path manifestPath) {

@@ -46,7 +46,6 @@ import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.flink.sink.FlinkAppenderFactory;
 import org.apache.iceberg.hadoop.HadoopInputFile;
-import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -143,7 +142,7 @@ public class SimpleDataUtil {
                                              FileAppenderFactory<RowData> appenderFactory,
                                              List<RowData> deletes) throws IOException {
     EncryptedOutputFile outputFile =
-        table.encryption().encrypt(HadoopOutputFile.fromPath(new Path(tablePath, filename), new Configuration()));
+        table.encryption().encrypt(fromPath(new Path(tablePath, filename), new Configuration()));
 
     EqualityDeleteWriter<RowData> eqWriter = appenderFactory.newEqDeleteWriter(outputFile, format, null);
     try (EqualityDeleteWriter<RowData> writer = eqWriter) {
@@ -157,7 +156,7 @@ public class SimpleDataUtil {
                                               FileAppenderFactory<RowData> appenderFactory,
                                               List<Pair<CharSequence, Long>> positions) throws IOException {
     EncryptedOutputFile outputFile =
-        table.encryption().encrypt(HadoopOutputFile.fromPath(new Path(tablePath, filename), new Configuration()));
+        table.encryption().encrypt(fromPath(new Path(tablePath, filename), new Configuration()));
 
     PositionDeleteWriter<RowData> posWriter = appenderFactory.newPosDeleteWriter(outputFile, format, null);
     try (PositionDeleteWriter<RowData> writer = posWriter) {
