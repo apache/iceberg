@@ -327,7 +327,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     sql("DELETE FROM %s WHERE id NOT IN (1, 10)", tableName);
     assertEquals("Should have expected rows",
-        ImmutableList.of(),
+        ImmutableList.of(row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
   }
 
