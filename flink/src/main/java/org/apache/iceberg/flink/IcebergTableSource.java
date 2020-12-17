@@ -121,7 +121,7 @@ public class IcebergTableSource
 
     if (filters != null) {
       explain += String.format(", FilterPushDown,the filters :%s",
-          filters.stream().map(filter -> filter.toString()).collect(Collectors.joining(",")));
+          filters.stream().map(filter -> filter == null ? "" : filter.toString()).collect(Collectors.joining(",")));
     }
 
     return TableConnectorUtils.generateRuntimeName(getClass(), getTableSchema().getFieldNames()) + explain;
@@ -137,6 +137,7 @@ public class IcebergTableSource
     return new IcebergTableSource(loader, schema, properties, projectedFields, true, newLimit, filters);
   }
 
+  @Override
   public TableSource<RowData> applyPredicate(List<Expression> predicates) {
     List<org.apache.iceberg.expressions.Expression> expressions = Lists.newArrayList();
     for (Expression predicate : predicates) {

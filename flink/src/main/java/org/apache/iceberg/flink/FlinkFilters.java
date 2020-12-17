@@ -32,7 +32,9 @@ import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.NaNUtil;
 
 public class FlinkFilters {
   private FlinkFilters() {
@@ -95,7 +97,7 @@ public class FlinkFilters {
           FieldReferenceExpression field = (FieldReferenceExpression) args.get(0);
           List<ResolvedExpression> values = args.subList(1, args.size());
 
-          List<Object> expressions = values.stream().filter(
+          List<Object> inputValues = values.stream().filter(
               expression -> {
                 if (expression instanceof ValueLiteralExpression) {
                   return !((ValueLiteralExpression) flinkExpression).isNull();
@@ -108,7 +110,7 @@ public class FlinkFilters {
             return valueLiteralExpression.getValueAs(valueLiteralExpression.getOutputDataType().getConversionClass())
                 .get();
           }).collect(Collectors.toList());
-          return Expressions.in(field.getName(), expressions);
+          return Expressions.in(field.getName(), inputValues);
 
         case NOT:
           Expression child = convert(call.getResolvedChildren().get(0));
@@ -141,7 +143,6 @@ public class FlinkFilters {
     }
 
     return null;
-
   }
 
   private static Expression convertComparisonExpression(BiFunction<String, Object, Expression> function,
@@ -159,11 +160,26 @@ public class FlinkFilters {
 
     String name = fieldReferenceExpression.getName();
     Class clazz = valueLiteralExpression.getOutputDataType().getConversionClass();
-    return function.apply(name, valueLiteralExpression.getValueAs(clazz).get());
+    Object value = valueLiteralExpression.getValueAs(clazz).get();
+
+    BuiltInFunctionDefinition functionDefinition = (BuiltInFunctionDefinition) call.getFunctionDefinition();
+    if (functionDefinition.equals(BuiltInFunctionDefinitions.EQUALS)) {
+      Preconditions.checkNotNull(value, "Expression is always false : %s", call);
+      return handleEqual(name, value);
+    }
+
+    return function.apply(name, value);
   }
 
   private static boolean literalOnRight(List<ResolvedExpression> args) {
-    return args.get(0) instanceof FieldReferenceExpression && args.get(1) instanceof ValueLiteralExpression ? true :
-        false;
+    return args.get(0) instanceof FieldReferenceExpression && args.get(1) instanceof ValueLiteralExpression;
+  }
+
+  private static Expression handleEqual(String attribute, Object value) {
+    if (NaNUtil.isNaN(value)) {
+      return Expressions.isNaN(attribute);
+    } else {
+      return Expressions.equal(attribute, value);
+    }
   }
 }
