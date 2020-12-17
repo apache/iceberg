@@ -39,8 +39,6 @@ import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
 import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
@@ -233,36 +231,33 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
   private void replacePartitions(NavigableMap<Long, WriteResult> pendingResults, String newFlinkJobId,
                                  long checkpointId) {
-    // Merge all the pending results into a single write result.
-    WriteResult result = WriteResult.builder().addAll(pendingResults.values()).build();
-
     // Partition overwrite does not support delete files.
-    Preconditions.checkArgument(result.deleteFiles().length == 0,
-        "Cannot overwrite partitions with delete files.");
-    ReplacePartitions dynamicOverwrite = table.newReplacePartitions();
+    int deleteFilesNum = pendingResults.values().stream().mapToInt(r -> r.deleteFiles().length).sum();
+    Preconditions.checkState(deleteFilesNum == 0, "Cannot overwrite partitions with delete files.");
 
     // Commit the overwrite transaction.
+    ReplacePartitions dynamicOverwrite = table.newReplacePartitions();
+
     int numFiles = 0;
-    for (DataFile file : result.dataFiles()) {
-      numFiles += 1;
-      dynamicOverwrite.addFile(file);
+    for (WriteResult result : pendingResults.values()) {
+      numFiles += result.dataFiles().length;
+      Arrays.stream(result.dataFiles()).forEach(dynamicOverwrite::addFile);
     }
 
     commitOperation(dynamicOverwrite, numFiles, 0, "dynamic partition overwrite", newFlinkJobId, checkpointId);
   }
 
   private void commitDeltaTxn(NavigableMap<Long, WriteResult> pendingResults, String newFlinkJobId, long checkpointId) {
-    // Merge all pending results into a single write result.
-    WriteResult mergedResult = WriteResult.builder().addAll(pendingResults.values()).build();
+    int deleteFilesNum = pendingResults.values().stream().mapToInt(r -> r.deleteFiles().length).sum();
 
-    if (mergedResult.deleteFiles().length < 1) {
+    if (deleteFilesNum == 0) {
       // To be compatible with iceberg format V1.
       AppendFiles appendFiles = table.newAppend();
 
       int numFiles = 0;
-      for (DataFile file : mergedResult.dataFiles()) {
-        numFiles += 1;
-        appendFiles.appendFile(file);
+      for (WriteResult result : pendingResults.values()) {
+        numFiles += result.dataFiles().length;
+        Arrays.stream(result.dataFiles()).forEach(appendFiles::appendFile);
       }
 
       commitOperation(appendFiles, numFiles, 0, "append", newFlinkJobId, checkpointId);
@@ -275,17 +270,11 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
         WriteResult result = e.getValue();
         RowDelta rowDelta = table.newRowDelta();
 
-        int numDataFiles = 0;
-        for (DataFile file : result.dataFiles()) {
-          numDataFiles += 1;
-          rowDelta.addRows(file);
-        }
+        int numDataFiles = result.dataFiles().length;
+        Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
 
-        int numDeleteFiles = 0;
-        for (DeleteFile file : result.deleteFiles()) {
-          numDeleteFiles += 1;
-          rowDelta.addDeletes(file);
-        }
+        int numDeleteFiles = result.deleteFiles().length;
+        Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
 
         commitOperation(rowDelta, numDataFiles, numDeleteFiles, "rowDelta", newFlinkJobId, e.getKey());
       }

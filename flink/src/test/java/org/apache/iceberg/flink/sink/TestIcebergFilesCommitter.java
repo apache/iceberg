@@ -589,7 +589,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
   @Test
   public void testDeleteFiles() throws Exception {
-    Assume.assumeFalse("Support equality-delete in format v2.", formatVersion < 2);
+    Assume.assumeFalse("Only support equality-delete in format v2.", formatVersion < 2);
 
     long timestamp = 0;
     long checkpoint = 10;
@@ -612,8 +612,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       RowData row1 = SimpleDataUtil.createInsert(1, "aaa");
       DataFile dataFile1 = writeDataFile("data-file-1", ImmutableList.of(row1));
-      WriteResult result = WriteResult.builder().addDataFiles(dataFile1).build();
-      harness.processElement(result, ++timestamp);
+      harness.processElement(of(dataFile1), ++timestamp);
       assertMaxCommittedCheckpointId(jobId, -1L);
 
       // 1. snapshotState for checkpoint#1
@@ -640,8 +639,11 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       RowData delete1 = SimpleDataUtil.createDelete(1, "aaa");
       DeleteFile deleteFile1 = writeEqDeleteFile(appenderFactory, "delete-file-1", ImmutableList.of(delete1));
-      result = WriteResult.builder().addDataFiles(dataFile2).addDeleteFiles(deleteFile1).build();
-      harness.processElement(result, ++timestamp);
+      harness.processElement(WriteResult.builder()
+              .addDataFiles(dataFile2)
+              .addDeleteFiles(deleteFile1)
+              .build(),
+          ++timestamp);
       assertMaxCommittedCheckpointId(jobId, checkpoint);
 
       // 5. snapshotState for checkpoint#2
