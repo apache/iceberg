@@ -76,7 +76,7 @@ public class WriteResult implements Serializable {
       return this;
     }
 
-    public Builder add(Iterable<WriteResult> results) {
+    public Builder addAll(Iterable<WriteResult> results) {
       results.forEach(this::add);
       return this;
     }

@@ -235,7 +235,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private void replacePartitions(NavigableMap<Long, WriteResult> pendingResults, String newFlinkJobId,
                                  long checkpointId) {
     // Merge all the pending results into a single write result.
-    WriteResult result = WriteResult.builder().add(pendingResults.values()).build();
+    WriteResult result = WriteResult.builder().addAll(pendingResults.values()).build();
 
     // Partition overwrite does not support delete files.
     Preconditions.checkArgument(result.deleteFiles().length == 0,
@@ -254,7 +254,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
   private void commitDeltaTxn(NavigableMap<Long, WriteResult> pendingResults, String newFlinkJobId, long checkpointId) {
     // Merge all pending results into a single write result.
-    WriteResult mergedResult = WriteResult.builder().add(pendingResults.values()).build();
+    WriteResult mergedResult = WriteResult.builder().addAll(pendingResults.values()).build();
 
     if (mergedResult.deleteFiles().length < 1) {
       // To be compatible with iceberg format V1.
@@ -329,7 +329,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       return EMPTY_MANIFEST_DATA;
     }
 
-    WriteResult result = WriteResult.builder().add(writeResultsOfCurrentCkpt).build();
+    WriteResult result = WriteResult.builder().addAll(writeResultsOfCurrentCkpt).build();
     DeltaManifests deltaManifests = FlinkManifestUtil.writeCompletedFiles(result,
         () -> manifestOutputFileFactory.create(checkpointId), table.spec());
 

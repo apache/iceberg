@@ -23,7 +23,6 @@ import java.util.Iterator;
 import java.util.List;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.jetbrains.annotations.NotNull;
 
 class DeltaManifests implements Iterable<ManifestFile> {
 
@@ -43,7 +42,6 @@ class DeltaManifests implements Iterable<ManifestFile> {
     return deleteManifest;
   }
 
-  @NotNull
   @Override
   public Iterator<ManifestFile> iterator() {
     List<ManifestFile> manifests = Lists.newArrayListWithCapacity(2);

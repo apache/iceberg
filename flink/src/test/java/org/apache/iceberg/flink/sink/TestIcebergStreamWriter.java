@@ -111,7 +111,7 @@ public class TestIcebergStreamWriter {
 
       testHarness.prepareSnapshotPreBarrier(checkpointId);
       long expectedDataFiles = partitioned ? 2 : 1;
-      WriteResult result = WriteResult.builder().add(testHarness.extractOutputValues()).build();
+      WriteResult result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
       Assert.assertEquals(0, result.deleteFiles().length);
       Assert.assertEquals(expectedDataFiles, result.dataFiles().length);
 
@@ -123,7 +123,7 @@ public class TestIcebergStreamWriter {
 
       testHarness.prepareSnapshotPreBarrier(checkpointId);
       expectedDataFiles = partitioned ? 4 : 2;
-      result = WriteResult.builder().add(testHarness.extractOutputValues()).build();
+      result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
       Assert.assertEquals(0, result.deleteFiles().length);
       Assert.assertEquals(expectedDataFiles, result.dataFiles().length);
 
@@ -153,7 +153,7 @@ public class TestIcebergStreamWriter {
 
       testHarness.prepareSnapshotPreBarrier(checkpointId++);
       long expectedDataFiles = partitioned ? 2 : 1;
-      WriteResult result = WriteResult.builder().add(testHarness.extractOutputValues()).build();
+      WriteResult result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
       Assert.assertEquals(0, result.deleteFiles().length);
       Assert.assertEquals(expectedDataFiles, result.dataFiles().length);
 
@@ -161,7 +161,7 @@ public class TestIcebergStreamWriter {
       for (int i = 0; i < 5; i++) {
         testHarness.prepareSnapshotPreBarrier(checkpointId++);
 
-        result = WriteResult.builder().add(testHarness.extractOutputValues()).build();
+        result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
         Assert.assertEquals(0, result.deleteFiles().length);
         Assert.assertEquals(expectedDataFiles, result.dataFiles().length);
       }
@@ -216,14 +216,14 @@ public class TestIcebergStreamWriter {
       ((BoundedOneInput) testHarness.getOneInputOperator()).endInput();
 
       long expectedDataFiles = partitioned ? 2 : 1;
-      WriteResult result = WriteResult.builder().add(testHarness.extractOutputValues()).build();
+      WriteResult result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
       Assert.assertEquals(0, result.deleteFiles().length);
       Assert.assertEquals(expectedDataFiles, result.dataFiles().length);
 
       // invoke endInput again.
       ((BoundedOneInput) testHarness.getOneInputOperator()).endInput();
 
-      result = WriteResult.builder().add(testHarness.extractOutputValues()).build();
+      result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
       Assert.assertEquals(0, result.deleteFiles().length);
       Assert.assertEquals(expectedDataFiles * 2, result.dataFiles().length);
     }
@@ -256,7 +256,7 @@ public class TestIcebergStreamWriter {
 
       // snapshot the operator.
       testHarness.prepareSnapshotPreBarrier(1);
-      WriteResult result = WriteResult.builder().add(testHarness.extractOutputValues()).build();
+      WriteResult result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
       Assert.assertEquals(0, result.deleteFiles().length);
       Assert.assertEquals(8, result.dataFiles().length);
 
@@ -318,7 +318,7 @@ public class TestIcebergStreamWriter {
         testHarness.processElement(row, 1);
       }
       testHarness.prepareSnapshotPreBarrier(1);
-      WriteResult result = WriteResult.builder().add(testHarness.extractOutputValues()).build();
+      WriteResult result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
       Assert.assertEquals(0, result.deleteFiles().length);
       Assert.assertEquals(partitioned ? 3 : 1, result.dataFiles().length);
 
