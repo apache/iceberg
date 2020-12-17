@@ -91,7 +91,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.Table;
 
-Configuration conf = new Configuration():
+Configuration conf = new Configuration();
 HadoopTables tables = new HadoopTables(conf);
 Table table = tables.create(schema, spec, table_location);
 
